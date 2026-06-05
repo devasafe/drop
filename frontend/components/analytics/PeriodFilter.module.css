@@ -1,0 +1,35 @@
+.group {
+  display: inline-flex;
+  background: var(--drop-bg-3, #161616);
+  border: 1px solid var(--drop-border, rgba(255, 255, 255, 0.07));
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  border: none;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0, 1);
+  font-family: inherit;
+}
+
+.btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.active {
+  background: var(--drop-purple, #6C2BD9);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(108, 43, 217, 0.35);
+}
+
+.active:hover {
+  color: #fff;
+}

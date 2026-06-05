@@ -1,0 +1,96 @@
+<h2>Como deve ser a navegação no celular?</h2>
+<p class="subtitle">O Nav atual tem logo + links centrais + área direita (carrinho, notif, menu). Em mobile isso não cabe. Qual padrão prefere?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="hamburger" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#111;padding:12px;border-radius:8px;">
+      <!-- Mockup hamburger -->
+      <div style="background:#1a1a1a;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,0.08);">
+        <span style="color:#fff;font-weight:700;font-size:15px;">DROP</span>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="width:18px;height:18px;background:rgba(255,255,255,0.15);border-radius:4px;"></div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="width:18px;height:2px;background:rgba(255,255,255,0.7);border-radius:2px;"></div>
+            <div style="width:14px;height:2px;background:rgba(255,255,255,0.7);border-radius:2px;"></div>
+            <div style="width:18px;height:2px;background:rgba(255,255,255,0.7);border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Drawer aberto -->
+      <div style="background:#161616;border-radius:8px;padding:12px;margin-top:6px;border:1px solid rgba(255,255,255,0.08);">
+        <div style="color:rgba(255,255,255,0.4);font-size:10px;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Menu</div>
+        <div style="color:#fff;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;">🏠 Produtos</div>
+        <div style="color:#fff;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;">🏪 Lojas</div>
+        <div style="color:#fff;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;">👤 Meu Perfil</div>
+        <div style="color:#fff;padding:7px 0;font-size:13px;">💰 Carteira</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Hamburger + Drawer lateral</h3>
+      <p>Logo à esquerda, ícones de ação (carrinho, notif) + botão ☰ à direita. Clica e abre um menu deslizante. Padrão clássico de apps mobile.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="bottomnav" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#111;padding:12px;border-radius:8px;">
+      <!-- Mockup top bar + bottom nav -->
+      <div style="background:#1a1a1a;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,0.08);">
+        <span style="color:#fff;font-weight:700;font-size:15px;">DROP</span>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="width:18px;height:18px;background:rgba(255,255,255,0.15);border-radius:4px;"></div>
+          <div style="width:18px;height:18px;background:rgba(255,255,255,0.15);border-radius:4px;"></div>
+        </div>
+      </div>
+      <div style="background:#0a0a0a;height:40px;border-radius:4px;margin-top:6px;"></div>
+      <!-- Bottom nav -->
+      <div style="background:#1a1a1a;border-radius:8px;padding:10px 14px;margin-top:6px;display:flex;justify-content:space-around;border:1px solid rgba(255,255,255,0.08);">
+        <div style="text-align:center;">
+          <div style="font-size:16px;">🏠</div>
+          <div style="color:#6C2BD9;font-size:9px;font-weight:600;">Produtos</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:16px;">🏪</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:9px;">Lojas</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:16px;">🛒</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:9px;">Carrinho</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:16px;">👤</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:9px;">Conta</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Top bar simplificada + Bottom Navigation</h3>
+      <p>Top bar só com logo e ícones de ação. Navegação principal fica numa barra fixa no rodapé com ícones. Padrão de apps nativos (Instagram, iFood).</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="hamburger-fullscreen" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#111;padding:12px;border-radius:8px;">
+      <div style="background:#1a1a1a;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,0.08);">
+        <span style="color:#fff;font-weight:700;font-size:15px;">DROP</span>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="width:18px;height:18px;background:rgba(255,255,255,0.15);border-radius:4px;"></div>
+          <div style="color:rgba(255,255,255,0.7);font-size:18px;">✕</div>
+        </div>
+      </div>
+      <div style="background:#0a0a0a;border-radius:8px;padding:16px;margin-top:6px;border:1px solid rgba(255,255,255,0.08);">
+        <div style="color:#fff;font-size:20px;font-weight:700;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">🏠 Produtos</div>
+        <div style="color:#fff;font-size:20px;font-weight:700;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">🏪 Lojas</div>
+        <div style="color:#6C2BD9;font-size:20px;font-weight:700;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">👤 Conta</div>
+        <div style="color:rgba(255,255,255,0.3);font-size:12px;padding-top:10px;">Entrar · Cadastrar</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Hamburger + Menu fullscreen</h3>
+      <p>Logo + ícones + ☰. Ao clicar, menu ocupa a tela toda com links grandes e fáceis de tocar. Muito limpo, fácil de navegar com o polegar.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Clique para selecionar, ou responda no terminal.</p>

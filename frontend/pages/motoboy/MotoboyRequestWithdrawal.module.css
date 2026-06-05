@@ -1,0 +1,342 @@
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.loadingScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--drop-bg);
+}
+
+.loadingText {
+  color: var(--drop-text-muted);
+  font-size: 16px;
+}
+
+.pageTitle {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+  color: var(--drop-white);
+  margin: 0 0 8px 0;
+}
+
+.pageSubtitle {
+  color: var(--drop-text-muted);
+  margin-bottom: 30px;
+  font-size: 15px;
+}
+
+/* Alert */
+.alertSuccess {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--drop-success);
+  padding: 12px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.alertError {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--drop-danger);
+  padding: 12px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--drop-border);
+}
+
+.tabBtn {
+  background: transparent;
+  color: var(--drop-text-dim);
+  border: none;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.tabBtnActive {
+  background: transparent;
+  color: var(--drop-purple-2);
+  border: none;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 3px solid var(--drop-purple);
+  margin-bottom: -2px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--drop-font-body);
+}
+
+/* Balance Display */
+.balanceDisplay {
+  background: var(--drop-surface);
+  border: 2px solid var(--drop-purple);
+  border-radius: var(--drop-radius-md);
+  padding: 20px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.balanceDisplayLabel {
+  color: var(--drop-text-muted);
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.balanceDisplayAmount {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-purple-2);
+}
+
+.balanceDisplayNote {
+  color: var(--drop-text-dim);
+  font-size: 12px;
+  margin: 8px 0 0 0;
+}
+
+/* Form Card */
+.formCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-md);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.formLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+}
+
+.formInput {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: 10px;
+  color: var(--drop-white);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  outline: none;
+  transition: var(--drop-transition);
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.formInput:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.btnPrimary {
+  width: 100%;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  color: var(--drop-white);
+  border: none;
+  padding: 13px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnPrimary:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Info Box */
+.infoBox {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-sm);
+  padding: 16px;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--drop-text-dim);
+  line-height: 1.6;
+}
+
+.infoBoxTitle {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--drop-text-muted);
+}
+
+.infoBoxList {
+  margin-top: 0;
+  padding-left: 20px;
+}
+
+/* History */
+.emptyHistory {
+  background: var(--drop-surface);
+  padding: 40px;
+  text-align: center;
+  border-radius: var(--drop-radius-sm);
+  border: 1px solid var(--drop-border);
+}
+
+.emptyHistoryText {
+  color: var(--drop-text-dim);
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.withdrawalItem {
+  background: var(--drop-surface);
+  border-radius: var(--drop-radius-sm);
+  padding: 16px;
+}
+
+.withdrawalItemPending {
+  border: 2px solid var(--drop-warning);
+}
+
+.withdrawalItemProcessed {
+  border: 2px solid var(--drop-success);
+}
+
+.withdrawalItemRejected {
+  border: 2px solid var(--drop-danger);
+}
+
+.withdrawalItemDefault {
+  border: 2px solid var(--drop-border);
+}
+
+.withdrawalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.withdrawalAmount {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+.withdrawalDate {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: var(--drop-text-dim);
+}
+
+.statusPending {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--drop-warning);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.statusProcessed {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--drop-success);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.statusRejected {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--drop-danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rejectionNote {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--drop-danger);
+  margin-top: 12px;
+}
+
+.rejectionNoteTitle {
+  margin: 0 0 4px 0;
+  font-weight: 700;
+}
+
+.rejectionNoteText {
+  margin: 0;
+}
+
+.processedNote {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--drop-success);
+  margin-top: 12px;
+}
+
+.processedNoteTitle {
+  margin: 0 0 4px 0;
+  font-weight: 700;
+}
+
+.processedNoteText {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .formInput { font-size: 16px; }
+  .btnPrimary { width: 100%; }
+}

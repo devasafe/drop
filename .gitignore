@@ -1,0 +1,46 @@
+.worktrees/
+node_modules/
+dist/
+coverage/
+uploads/
+
+# Env / segredos (NUNCA versionar — só os .example)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Logs (podem conter strings de conexão/segredos)
+*.log
+logs/
+
+# Ignorar arquivos de build do Next.js e Webpack
+frontend/.next/
+frontend/.next/static/
+frontend/.next/trace
+frontend/.next/cache/
+frontend/.next/**/*.js
+frontend/.next/**/*.json
+frontend/.next/**/*.map
+frontend/.next/**/*.html
+frontend/.next/**/*.css
+frontend/.next/**/*.png
+frontend/.next/**/*.jpg
+frontend/.next/**/*.svg
+frontend/.next/**/*.ico
+frontend/.next/**/*.woff
+frontend/.next/**/*.woff2
+frontend/.next/**/*.ttf
+frontend/.next/**/*.eot
+
+# Ignorar arquivos de configuração do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Scripts de teste manuais (continham tokens)
+/test-*.js
+/test-*.sh
+/test-*.mjs
+/test-token.txt

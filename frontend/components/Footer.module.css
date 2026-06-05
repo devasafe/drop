@@ -1,0 +1,137 @@
+/* =============================================
+   Footer.module.css — Rodapé do DROP
+   ============================================= */
+
+.footer {
+  background: var(--drop-bg-2);
+  border-top: 1px solid var(--drop-border);
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 56px 24px 40px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  align-items: start;
+}
+
+/* Brand */
+.brand {
+  max-width: 280px;
+}
+
+.logo {
+  height: 32px;
+  width: auto;
+  display: block;
+  margin-bottom: 16px;
+  opacity: 0.9;
+}
+
+.tagline {
+  font-size: 13px;
+  color: var(--drop-text-dim);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Links grid */
+.linksGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 40px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.colTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--drop-text-dim);
+  margin-bottom: 4px;
+  font-family: var(--drop-font-display);
+}
+
+.link {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  text-decoration: none;
+  transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
+              transform 0.2s cubic-bezier(0.4, 0, 0, 1);
+  width: fit-content;
+}
+
+.link:hover {
+  color: var(--drop-white);
+  transform: translateX(2px);
+}
+
+/* Bottom bar */
+.bottom {
+  border-top: 1px solid var(--drop-border);
+}
+
+.bottomInner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.copy {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+}
+
+.bottomLinks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bottomLink {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  cursor: default;
+  transition: color 0.2s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.bottomLink:hover {
+  color: var(--drop-text-muted);
+}
+
+.dot {
+  font-size: 12px;
+  color: var(--drop-border-md);
+}
+
+/* ── Tablet ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .container { grid-template-columns: 1fr; gap: 40px; padding: 40px 20px 20px; }
+  .brand { max-width: 100%; }
+  .linksGrid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 32px 16px 16px; }
+  .brand { margin-bottom: 24px; }
+  .linksGrid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .colTitle { font-size: 12px; }
+  .link { font-size: 13px; }
+  .bottomInner { flex-direction: column; gap: 12px; text-align: center; }
+  .bottomLinks { flex-wrap: wrap; justify-content: center; }
+}

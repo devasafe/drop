@@ -1,0 +1,51 @@
+/* Layout responsivo da Central de Suporte
+   Mantém os inline styles existentes pra cores/borders/etc,
+   aqui só sobrescreve grid e visibilidade pra mobile. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  height: calc(100vh - 200px);
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .layout {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 180px);
+  }
+
+  /* Em mobile, esconder o painel oposto baseado em qual está ativo */
+  .layoutShowList .panelChat {
+    display: none !important;
+  }
+  .layoutShowChat .panelList {
+    display: none !important;
+  }
+}
+
+/* Botão "voltar" só aparece em mobile, e só quando há ticket selecionado */
+.mobileBackBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--drop-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  margin-right: 4px;
+}
+
+@media (max-width: 640px) {
+  .mobileBackBtn {
+    display: inline-flex;
+    align-items: center;
+  }
+}

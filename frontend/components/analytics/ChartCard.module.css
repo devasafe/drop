@@ -1,0 +1,66 @@
+.card {
+  background: var(--drop-bg-2, #111111);
+  border: 1px solid var(--drop-border, rgba(255, 255, 255, 0.07));
+  border-radius: var(--drop-radius-lg, 16px);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 280px;
+  animation: chartCardEnter 0.55s cubic-bezier(0.4, 0, 0, 1) both;
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes chartCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}

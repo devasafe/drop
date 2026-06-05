@@ -1,0 +1,139 @@
+.card {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.15), rgba(251, 191, 36, 0.08));
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cardIcon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin: 0 0 4px 0;
+}
+
+.cardDesc {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+}
+
+.bannerList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bannerItem {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uploadingMsg {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  margin: 4px 0 0 0;
+}
+
+.bannerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.bannerLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.bannerDesc {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+
+.preview {
+  width: 100%;
+  max-width: 260px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-top: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  display: block;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.btnUpload {
+  padding: 9px 18px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.btnUpload:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+.btnUpload:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.successMsg {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #34d399;
+  font-weight: 600;
+}
+
+.errorMsg {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #fca5a5;
+  margin-bottom: 16px;
+}
+
+.hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  margin: 16px 0 0 0;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .card { padding: 16px; }
+  .preview { height: 60px; }
+}

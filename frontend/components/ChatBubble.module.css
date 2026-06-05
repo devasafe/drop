@@ -1,0 +1,169 @@
+.bubble {
+  display: flex;
+  margin-bottom: 4px;
+  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.bubbleOwn   { justify-content: flex-end; }
+.bubbleOther { justify-content: flex-start; }
+
+/* ── Content wrapper ───────────────────────────────────── */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+}
+
+.contentOwn   { align-items: flex-end; }
+.contentOther { align-items: flex-start; }
+
+/* ── Header (name + role badge) ────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Role badges ───────────────────────────────────────── */
+
+.roleBadge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+
+.roleBadgeLoja {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22C55E;
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.roleBadgeCliente {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38BDF8;
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
+.roleBadgeMotoboy {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.roleBadgeSupporte {
+  background: rgba(108, 43, 217, 0.15);
+  color: #A78BFA;
+  border-color: rgba(108, 43, 217, 0.3);
+}
+
+/* ── Message bubble ────────────────────────────────────── */
+
+.message {
+  padding: 10px 14px;
+  border-radius: 14px;
+  word-break: break-word;
+  line-height: 1.5;
+  font-size: 14px;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.message:hover {
+  transform: scale(1.01);
+}
+
+.messageOwn {
+  background: #6C2BD9;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 12px rgba(108, 43, 217, 0.3);
+}
+
+.messageOther {
+  background: #1A1A1A;
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom-left-radius: 4px;
+}
+
+/* ── Footer (time + status) ────────────────────────────── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.timestamp { font-size: 11px; }
+
+.status {
+  display: flex;
+  gap: 1px;
+  font-size: 12px;
+}
+
+.statusSent      { color: rgba(255, 255, 255, 0.3); }
+.statusDelivered { color: rgba(255, 255, 255, 0.5); }
+.statusRead      { color: #8B5CF6; }
+
+/* ── Attachments ───────────────────────────────────────── */
+
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0, 1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.attachment:hover {
+  background: rgba(108, 43, 217, 0.15);
+  border-color: rgba(108, 43, 217, 0.3);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.attachmentIcon { font-size: 16px; }
+
+.attachmentName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentSize {
+  font-size: 11px;
+  opacity: 0.6;
+}

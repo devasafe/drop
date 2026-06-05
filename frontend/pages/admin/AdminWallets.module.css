@@ -1,0 +1,509 @@
+/* AdminWallets.module.css */
+
+.page {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  background: var(--drop-bg);
+  min-height: 100vh;
+  font-family: var(--drop-font-body);
+}
+
+.header {
+  margin-bottom: 32px;
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+  color: var(--drop-white);
+}
+
+.headerSub {
+  margin: 8px 0 0 0;
+  color: var(--drop-text-dim);
+  font-size: 14px;
+}
+
+.loadingScreen {
+  padding: 40px;
+  text-align: center;
+  color: var(--drop-text-dim);
+}
+
+.grid {
+  display: grid;
+  gap: 24px;
+}
+
+.gridSplit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Filters */
+.filtersCard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+  background: var(--drop-surface);
+  padding: 16px;
+  border-radius: var(--drop-radius-md);
+  border: 1px solid var(--drop-border);
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.06s both;
+}
+
+.filterInput {
+  padding: 10px 12px;
+  border: 1px solid var(--drop-border-md);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--drop-font-body);
+  background: rgba(255,255,255,0.04);
+  color: var(--drop-white);
+  outline: none;
+  transition: var(--drop-transition);
+}
+
+.filterInput:focus {
+  border-color: var(--drop-purple);
+}
+
+.filterSelect {
+  padding: 10px 12px;
+  border: 1px solid var(--drop-border-md);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--drop-font-body);
+  background: rgba(255,255,255,0.04);
+  color: var(--drop-white);
+  outline: none;
+  cursor: pointer;
+}
+
+/* Table */
+.tableWrapper {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  overflow: hidden;
+  max-height: 650px;
+  overflow-y: auto;
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.1s both;
+}
+
+.emptyState {
+  padding: 40px;
+  text-align: center;
+  color: var(--drop-text-dim);
+}
+
+.emptyIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.emptyText {
+  margin: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.thead {
+  background: rgba(255,255,255,0.02);
+  position: sticky;
+  top: 0;
+}
+
+.th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.thRight {
+  padding: 12px 16px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.thCenter {
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.tr {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.trActive {
+  background: rgba(108,43,217,0.12) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.td {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+}
+
+.tdRight {
+  padding: 12px 16px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+}
+
+.tdCenter {
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.userName {
+  font-weight: 500;
+  color: var(--drop-white);
+}
+
+.userEmail {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+}
+
+.balanceCell {
+  font-weight: 600;
+  color: var(--drop-success);
+}
+
+.btnView {
+  padding: 5px 12px;
+  background: rgba(255,255,255,0.07);
+  color: var(--drop-text-muted);
+  border: 1px solid var(--drop-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: var(--drop-transition);
+}
+
+.btnView:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.btnViewActive {
+  padding: 5px 12px;
+  background: var(--drop-purple);
+  color: var(--drop-white);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: var(--drop-transition);
+}
+
+/* Detail Column */
+.detailCard {
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-radius: var(--drop-radius-md);
+  padding: 32px;
+  color: var(--drop-white);
+  margin-bottom: 24px;
+  box-shadow: 0 20px 40px rgba(108,43,217,0.2);
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.05s both;
+}
+
+.detailUserLabel {
+  font-size: 12px;
+  opacity: 0.85;
+  margin: 0 0 4px 0;
+  font-weight: 500;
+}
+
+.detailUserName {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.detailUserEmail {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 4px 0 0 0;
+}
+
+.detailStatsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+  margin-top: 28px;
+}
+
+.detailStatLabel {
+  font-size: 11px;
+  opacity: 0.75;
+  margin: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detailStatValue {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 8px 0 0 0;
+}
+
+.btnAddBalance {
+  width: 100%;
+  padding: 12px;
+  background: var(--drop-success);
+  color: var(--drop-white);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 24px;
+  transition: var(--drop-transition);
+}
+
+.btnAddBalance:hover {
+  background: #16a34a;
+}
+
+/* Add Balance Form */
+.addBalanceForm {
+  background: var(--drop-surface);
+  padding: 20px;
+  border-radius: var(--drop-radius-md);
+  margin-bottom: 24px;
+  border: 2px solid rgba(34,197,94,0.3);
+}
+
+.addBalanceTitle {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--drop-white);
+}
+
+.formField {
+  margin-bottom: 12px;
+}
+
+.formLabel {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.formInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--drop-border-md);
+  border-radius: 8px;
+  font-size: 13px;
+  box-sizing: border-box;
+  font-family: var(--drop-font-body);
+  background: rgba(255,255,255,0.04);
+  color: var(--drop-white);
+  outline: none;
+  transition: var(--drop-transition);
+}
+
+.formInput:focus {
+  border-color: var(--drop-purple);
+}
+
+.btnConfirm {
+  width: 100%;
+  padding: 10px;
+  background: var(--drop-success);
+  color: var(--drop-white);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: var(--drop-transition);
+}
+
+.btnConfirm:disabled {
+  background: rgba(255,255,255,0.15);
+  cursor: not-allowed;
+}
+
+/* Mini Stats */
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  background: var(--drop-surface);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--drop-border);
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+.statValueDanger {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0;
+  color: var(--drop-danger);
+}
+
+.statValueWarning {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0;
+  color: var(--drop-warning);
+}
+
+/* Transactions */
+.txCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-md);
+  padding: 20px;
+}
+
+.txTitle {
+  font-size: 14px;
+  font-weight: bold;
+  margin: 0 0 16px 0;
+  color: var(--drop-white);
+}
+
+.txLoading {
+  padding: 24px;
+  text-align: center;
+  color: var(--drop-text-dim);
+}
+
+.txEmpty {
+  padding: 24px;
+  text-align: center;
+  color: var(--drop-text-dim);
+  font-size: 13px;
+}
+
+.txList {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.txRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.txRowLast {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.txInfo {
+  flex: 1;
+}
+
+.txLabel {
+  margin: 0;
+  font-weight: 500;
+  color: var(--drop-white);
+  font-size: 13px;
+}
+
+.txMeta {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+  color: var(--drop-text-dim);
+}
+
+.txAmountRight {
+  text-align: right;
+  margin-left: 16px;
+}
+
+.txAmountCredit {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--drop-success);
+}
+
+.txAmountDebit {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--drop-danger);
+}
+
+.txStatus {
+  margin: 2px 0 0 0;
+  font-size: 10px;
+  color: var(--drop-text-dim);
+}
+
+@media (max-width: 1024px) {
+  .page { padding: 40px 16px; }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+}

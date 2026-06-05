@@ -1,0 +1,109 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+  animation: modalOverlayIn 0.3s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.dialog {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-lg);
+  box-shadow: var(--drop-shadow-lg);
+  width: 90%;
+  max-height: 90vh;
+  overflow: auto;
+  animation: modalDialogSpring 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.sm  { max-width: 400px; }
+.md  { max-width: 520px; }
+.lg  { max-width: 720px; }
+
+.header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--drop-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  font-family: var(--drop-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin: 0;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: var(--drop-text-muted);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--drop-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
+              background 0.2s cubic-bezier(0.4, 0, 0, 1),
+              transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--drop-white);
+  transform: scale(1.08);
+}
+
+.closeBtn:active {
+  transform: scale(0.94);
+}
+
+.body {
+  padding: 24px;
+}
+
+@keyframes modalOverlayIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+}
+
+@keyframes modalDialogSpring {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(20px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-2px);
+  }
+  78% {
+    transform: scale(0.995) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

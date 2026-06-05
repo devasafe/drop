@@ -1,0 +1,254 @@
+/* ===================================================
+   BankSetup.module.css — DROP Design System (Dark)
+   =================================================== */
+
+/* ---- LOADING ---- */
+
+.loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--drop-text-dim);
+  font-family: var(--drop-font-body);
+  font-size: 15px;
+}
+
+/* ---- ALREADY CONFIGURED STATE ---- */
+
+.configuredWrapper {
+  max-width: 500px;
+  margin: 60px auto;
+  padding: 40px;
+  background: rgba(34, 197, 94, 0.08);
+  border-radius: var(--drop-radius-lg);
+  text-align: center;
+  border: 2px solid rgba(34, 197, 94, 0.3);
+}
+
+.configuredTitle {
+  font-size: 28px;
+  font-weight: 700;
+  color: #4ade80;
+  margin: 0 0 16px 0;
+  font-family: var(--drop-font-display);
+}
+
+.configuredText {
+  font-size: 14px;
+  color: var(--drop-text-dim);
+  margin-bottom: 32px;
+}
+
+.btnGoToWallet {
+  padding: 12px 24px;
+  background: var(--drop-success);
+  color: var(--drop-white);
+  border: none;
+  border-radius: var(--drop-radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnGoToWallet:hover {
+  opacity: 0.85;
+}
+
+/* ---- PAGE WRAPPER ---- */
+
+.page {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family: var(--drop-font-body);
+}
+
+/* ---- HEADER ---- */
+
+.pageHeader {
+  margin-bottom: 40px;
+}
+
+.pageTitle {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin: 0 0 8px 0;
+  font-family: var(--drop-font-display);
+}
+
+.pageSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-dim);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ---- FORM CARD ---- */
+
+.formCard {
+  background: var(--drop-surface);
+  padding: 32px;
+  border-radius: var(--drop-radius-lg);
+  border: 1px solid var(--drop-border);
+}
+
+/* ---- ALERTS ---- */
+
+.alertError {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--drop-radius-md);
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.alertSuccess {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: var(--drop-radius-md);
+  color: #4ade80;
+  font-size: 13px;
+}
+
+/* ---- FORM GROUP ---- */
+
+.formGroup {
+  margin-bottom: 24px;
+}
+
+.formGroupLast {
+  margin-bottom: 32px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-md);
+  font-size: 14px;
+  color: var(--drop-white);
+  box-sizing: border-box;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.15);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inputError {
+  border-color: var(--drop-danger);
+}
+
+.fieldError {
+  font-size: 12px;
+  color: var(--drop-danger);
+  margin: 6px 0 0 0;
+}
+
+/* ---- FORM ACTIONS ---- */
+
+.formActions {
+  display: flex;
+  gap: 12px;
+}
+
+.btnBack {
+  flex: 1;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--drop-text-muted);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnBack:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btnBack:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSubmit {
+  flex: 1;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  color: var(--drop-white);
+  border: none;
+  border-radius: var(--drop-radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnSubmit:hover:not(:disabled) {
+  box-shadow: var(--drop-shadow-purple);
+}
+
+.btnSubmit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- INFO BOX ---- */
+
+.infoBox {
+  margin-top: 32px;
+  padding: 20px;
+  background: rgba(108, 43, 217, 0.06);
+  border: 1px solid rgba(108, 43, 217, 0.2);
+  border-radius: var(--drop-radius-md);
+  font-size: 13px;
+  color: var(--drop-text-muted);
+}
+
+.infoBoxTitle {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  color: var(--drop-purple);
+}
+
+.infoBoxList {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.8;
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page { padding: 16px; }
+  .formCard { padding: 20px 16px; }
+  .pageTitle { font-size: 22px; }
+  .input { font-size: 16px; }
+}

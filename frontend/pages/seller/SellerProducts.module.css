@@ -1,0 +1,263 @@
+/* SellerProducts.module.css */
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 40px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  margin: 0 0 6px;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+}
+
+.pageSubtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--drop-text-dim);
+}
+
+/* ── Primary button (header) ── */
+.btnPrimary {
+  padding: 11px 22px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border: none;
+  border-radius: 12px;
+  color: var(--drop-white);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnPrimary:hover {
+  box-shadow: 0 0 28px rgba(108, 43, 217, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Loading state ── */
+.loadingText {
+  text-align: center;
+  padding: 80px;
+  color: rgba(255, 255, 255, 0.3);
+  animation: pulse 1.5s infinite;
+}
+
+/* ── Empty state ── */
+.emptyState {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: var(--drop-radius-lg);
+  padding: 80px 24px;
+  text-align: center;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.emptyIcon {
+  margin: 0 auto 20px;
+  display: block;
+}
+
+.emptyTitle {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: var(--drop-font-display);
+}
+
+.emptySubtitle {
+  margin: 0 0 28px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.btnEmptyAction {
+  padding: 12px 28px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border: none;
+  border-radius: 12px;
+  color: var(--drop-white);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnEmptyAction:hover {
+  box-shadow: var(--drop-shadow-purple);
+  transform: translateY(-1px);
+}
+
+/* ── Products list ── */
+.productsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Product row card ── */
+.productCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0, 1), transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s cubic-bezier(0.4, 0, 0, 1);
+  animation: drop-card-enter 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.productCard:hover {
+  border-color: var(--drop-border-md);
+}
+
+/* ── Product image thumbnail ── */
+.productThumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  border: 1px solid var(--drop-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 43, 217, 0.15);
+}
+
+.productThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Product info ── */
+.productInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.productName {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  margin-bottom: 4px;
+}
+
+.productMeta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  flex-wrap: wrap;
+}
+
+.productPrice {
+  color: #A78BFA;
+}
+
+.stockPositive {
+  color: #4ADE80;
+}
+
+.stockEmpty {
+  color: #F87171;
+}
+
+/* ── Tags ── */
+.tagList {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  color: #A78BFA;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Row action buttons ── */
+.productActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btnEdit {
+  padding: 8px 16px;
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 8px;
+  color: #A78BFA;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnEdit:hover {
+  background: rgba(108, 43, 217, 0.25);
+}
+
+.btnDelete {
+  padding: 8px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #F87171;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnDelete:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+/* ── Tablet ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .pageHeader { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .btnPrimary { width: 100%; text-align: center; }
+  .productCard { flex-direction: column; gap: 12px; }
+  .productThumb { width: 100%; height: 160px; }
+}

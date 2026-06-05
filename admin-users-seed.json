@@ -1,0 +1,108 @@
+{
+  "users": [
+    {
+      "name": "CEO",
+      "email": "ceo@admin.com",
+      "passwordHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role": "ceo",
+      "roles": ["ceo"],
+      "activeRole": "ceo",
+      "permissions": [
+        "view_all",
+        "edit_all",
+        "delete_all",
+        "manage_users",
+        "manage_roles",
+        "view_financials",
+        "manage_rates"
+      ],
+      "isAdmin": true,
+      "status": "active",
+      "telefone": "11999999999",
+      "cpf": "00000000000",
+      "createdAt": "2026-02-28T00:00:00Z",
+      "updatedAt": "2026-02-28T00:00:00Z"
+    },
+    {
+      "name": "Marketing",
+      "email": "marketing@admin.com",
+      "passwordHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role": "marketing",
+      "roles": ["marketing"],
+      "activeRole": "marketing",
+      "permissions": [
+        "view_all",
+        "edit_promotions",
+        "view_financials",
+        "manage_campaigns"
+      ],
+      "isAdmin": true,
+      "status": "active",
+      "telefone": "11999999998",
+      "cpf": "00000000001",
+      "createdAt": "2026-02-28T00:00:00Z",
+      "updatedAt": "2026-02-28T00:00:00Z"
+    },
+    {
+      "name": "Admin",
+      "email": "admin@admin.com",
+      "passwordHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role": "gerente_geral",
+      "roles": ["gerente_geral"],
+      "activeRole": "gerente_geral",
+      "permissions": [
+        "view_all",
+        "edit_users",
+        "edit_stores",
+        "edit_motoboys",
+        "manage_support"
+      ],
+      "isAdmin": true,
+      "status": "active",
+      "telefone": "11999999997",
+      "cpf": "00000000002",
+      "createdAt": "2026-02-28T00:00:00Z",
+      "updatedAt": "2026-02-28T00:00:00Z"
+    },
+    {
+      "name": "Financeiro",
+      "email": "financeiro@admin.com",
+      "passwordHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role": "gerente_geral",
+      "roles": ["gerente_geral"],
+      "activeRole": "gerente_geral",
+      "permissions": [
+        "view_financials",
+        "view_wallets",
+        "export_reports",
+        "manage_payouts"
+      ],
+      "isAdmin": true,
+      "status": "active",
+      "telefone": "11999999996",
+      "cpf": "00000000003",
+      "createdAt": "2026-02-28T00:00:00Z",
+      "updatedAt": "2026-02-28T00:00:00Z"
+    },
+    {
+      "name": "Suporte",
+      "email": "suporte@admin.com",
+      "passwordHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role": "gerente_clientes",
+      "roles": ["gerente_clientes"],
+      "activeRole": "gerente_clientes",
+      "permissions": [
+        "view_users",
+        "view_orders",
+        "respond_tickets",
+        "view_reports"
+      ],
+      "isAdmin": true,
+      "status": "active",
+      "telefone": "11999999995",
+      "cpf": "00000000004",
+      "createdAt": "2026-02-28T00:00:00Z",
+      "updatedAt": "2026-02-28T00:00:00Z"
+    }
+  ]
+}

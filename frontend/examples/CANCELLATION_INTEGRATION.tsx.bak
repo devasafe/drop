@@ -1,0 +1,309 @@
+/**
+ * EXEMPLO: Como integrar cancelamentos em páginas de pedidos
+ * 
+ * Este arquivo mostra exemplos de como usar os novos componentes
+ * de cancelamento em diferentes cenários.
+ */
+
+// ========== CLIENTE - Página de Detalhes do Pedido ==========
+
+import { useEffect, useState } from 'react';
+import CancelOrderModal from '@/components/order/CancelOrderModal';
+import CancellationStatusDisplay from '@/components/order/CancellationStatusDisplay';
+import Button from '@/components/common/Button';
+
+export function CustomerOrderDetailPage() {
+  const [order, setOrder] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+
+  // ... carregar pedido do backend
+
+  return (
+    <div className="container mx-auto py-6">
+      {/* Header do pedido */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h1>Pedido #{order?.id}</h1>
+        <p className="text-sm text-gray-500 mt-2">
+          Status: <span className="font-semibold capitalize">{order?.status}</span>
+        </p>
+      </div>
+
+      {/* Mostrar status de cancelamento se pedido foi cancelado */}
+      {order?.status === 'cancelado' && (
+        <div className="mb-4">
+          <CancellationStatusDisplay orderId={order?.id} />
+        </div>
+      )}
+
+      {/* Itens do pedido */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h2 className="font-semibold mb-4">Itens do Pedido</h2>
+        {/* Listar itens */}
+      </div>
+
+      {/* Informações de entrega */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h2 className="font-semibold mb-4">Entrega</h2>
+        {/* Mostrar info da entrega */}
+      </div>
+
+      {/* Ações disponíveis */}
+      {order?.status !== 'cancelado' && (
+        <div className="bg-blue-50 p-6 rounded-lg shadow border border-blue-200 mb-4">
+          <h3 className="font-semibold mb-4">O que você pode fazer?</h3>
+
+          <div className="space-y-3">
+            {['criado', 'pago', 'enviado'].includes(order?.status) && (
+              <Button
+                onClick={() => setShowCancelModal(true)}
+                variant="danger"
+                className="w-full sm:w-auto"
+              >
+                Cancelar Pedido
+              </Button>
+            )}
+
+            {order?.status === 'entregue' && (
+              <div className="text-sm text-gray-600">
+                Pedido entregue. Se há problemas, entre em contato com o suporte.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de cancelamento */}
+      <CancelOrderModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        orderId={order?.id}
+        orderStatus={order?.status}
+        onSuccess={() => {
+          setCancelSuccess(true);
+          // Atualizar dados do pedido
+        }}
+      />
+    </div>
+  );
+}
+
+// ========== MOTOBOY - Página de Entrega em Andamento ==========
+
+import RejectDeliveryModal from '@/components/delivery/RejectDeliveryModal';
+import { useLocationTracking } from '@/hooks/useLocationTracking';
+
+export function MotoboyCourierDetailPage() {
+  const [delivery, setDelivery] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const { lastLocation } = useLocationTracking();
+
+  return (
+    <div className="container mx-auto py-6">
+      {/* Header da entrega */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h1>Entrega #{delivery?.id}</h1>
+        <p className="text-sm text-gray-500 mt-2">
+          Status: <span className="font-semibold capitalize">{delivery?.status}</span>
+        </p>
+      </div>
+
+      {/* Localização atual */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h2 className="font-semibold mb-2">Sua Localização</h2>
+        {lastLocation ? (
+          <p className="text-sm text-gray-600">
+            📍 {lastLocation.latitude.toFixed(4)}, {lastLocation.longitude.toFixed(4)}
+            <br />
+            <span className="text-xs text-gray-500">Precisão: {lastLocation.accuracy?.toFixed(0)}m</span>
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500">Obtendo localização...</p>
+        )}
+      </div>
+
+      {/* Detalhes da entrega */}
+      <div className="bg-white p-6 rounded-lg shadow mb-4">
+        <h2 className="font-semibold mb-4">Detalhes da Entrega</h2>
+        {/* Cliente, endereço, etc */}
+      </div>
+
+      {/* Ações disponíveis */}
+      {['assigned', 'picked'].includes(delivery?.status) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <Button
+            variant="success"
+            className="w-full"
+            onClick={() => {
+              // Marcar como picked ou atualizar status
+            }}
+          >
+            ✓ Peguei
+          </Button>
+
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={() => {
+              // Navegar para rota
+            }}
+          >
+            📍 Navegar
+          </Button>
+
+          <Button
+            variant="danger"
+            className="w-full"
+            onClick={() => setShowRejectModal(true)}
+          >
+            ✕ Rejeitar
+          </Button>
+        </div>
+      )}
+
+      {/* Modal de rejeição */}
+      <RejectDeliveryModal
+        isOpen={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        deliveryId={delivery?.id}
+        deliveryStatus={delivery?.status}
+        onSuccess={() => {
+          // Voltar para lista de entregas
+        }}
+      />
+    </div>
+  );
+}
+
+// ========== LOJISTA - Dashboard de Pedidos ==========
+
+import OrderActionsCard from '@/components/order/OrderActionsCard';
+
+export function SellerOrderDashboard() {
+  const [orders, setOrders] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+
+  return (
+    <div className="container mx-auto py-6">
+      <h1 className="text-2xl font-bold mb-6">Painel de Pedidos</h1>
+
+      {/* Filtros */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6 flex gap-2 flex-wrap">
+        <button className="px-4 py-2 rounded bg-blue-100 text-blue-900 font-medium">
+          Pendentes ({orders.filter(o => o.status === 'criado').length})
+        </button>
+        <button className="px-4 py-2 rounded bg-green-100 text-green-900 font-medium">
+          Preparando ({orders.filter(o => o.status === 'pago').length})
+        </button>
+        <button className="px-4 py-2 rounded bg-purple-100 text-purple-900 font-medium">
+          Em entrega ({orders.filter(o => o.status === 'enviado').length})
+        </button>
+      </div>
+
+      {/* Lista de pedidos */}
+      <div className="space-y-4">
+        {orders.map(order => (
+          <div key={order.id} className="bg-white p-6 rounded-lg shadow">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-semibold">Pedido #{order.id}</h3>
+                <p className="text-sm text-gray-500">Cliente: {order.customerName}</p>
+                <p className="text-sm text-gray-500">Total: R$ {order.total?.toFixed(2)}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium`}>
+                {order.status === 'criado' && '🟡 Pendente'}
+                {order.status === 'pago' && '🟢 Aceito'}
+                {order.status === 'enviado' && '🔵 Enviado'}
+                {order.status === 'entregue' && '✅ Entregue'}
+                {order.status === 'cancelado' && '❌ Cancelado'}
+              </span>
+            </div>
+
+            {/* Ações da loja (apenas se pendente) */}
+            {order.status === 'criado' && (
+              <OrderActionsCard
+                orderId={order.id}
+                orderStatus={order.status}
+                onStatusChange={(newStatus) => {
+                  setOrders(orders.map(o => 
+                    o.id === order.id ? { ...o, status: newStatus } : o
+                  ));
+                }}
+                className="mb-4"
+              />
+            )}
+
+            {/* Mostrar status de cancelamento se aplicável */}
+            {order.status === 'cancelado' && (
+              <CancellationStatusDisplay orderId={order.id} className="mt-4" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ========== INTEGRAÇÃO COM SOCKET ==========
+
+/**
+ * Os componentes funcionam perfeitamente com o sistema de WebSocket
+ * já implementado. Quando um cancelamento acontece via API, o socket
+ * emite eventos que atualizam a UI em tempo real.
+ */
+
+import { useSocket } from '@/hooks/useSocket'; // Hook do SocketContext
+
+export function RealTimeOrderUpdates() {
+  const socket = useSocket();
+  const [orderStatus, setOrderStatus] = useState('criado');
+
+  useEffect(() => {
+    if (!socket) return;
+
+    // Ouvir evento de cancelamento
+    socket.on('order:cancelled', (data) => {
+      console.log('Pedido cancelado via socket:', data);
+      setOrderStatus('cancelado');
+      // Recarregar dados do pedido
+    });
+
+    // Ouvir evento de entrega rejeitada
+    socket.on('delivery:rejected_by_motoboy', (data) => {
+      console.log('Entrega rejeitada via socket:', data);
+      // Atualizar status da entrega
+    });
+
+    // Ouvir evento de pedido aceito
+    socket.on('order:accepted_by_store', (data) => {
+      console.log('Pedido aceito via socket:', data);
+      setOrderStatus('pago');
+    });
+
+    return () => {
+      socket.off('order:cancelled');
+      socket.off('delivery:rejected_by_motoboy');
+      socket.off('order:accepted_by_store');
+    };
+  }, [socket]);
+
+  return (
+    <div>
+      <p>Status atual do pedido: {orderStatus}</p>
+    </div>
+  );
+}
+
+/**
+ * NOTAS DE INTEGRAÇÃO:
+ * 
+ * 1. Todos os componentes de modal/card usam o hook useCancellation
+ * 2. O hook gerencia loading, error, e as chamadas da API
+ * 3. Os socket events são emitidos pelo backend após sucesso da API
+ * 4. Use useSocket() para ouvir eventos e atualizar UI em tempo real
+ * 5. Combinado com SocketContext.tsx, tudo fica sincronizado automaticamente
+ * 
+ * FLUXO COMPLETO:
+ * User → Click Button → useCancellation Hook → API POST → Backend Logic
+ *   → Socket Emit → Socket Event → useSocket Listen → UI Update (automaticamente)
+ */

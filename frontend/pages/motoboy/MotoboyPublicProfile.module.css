@@ -1,0 +1,146 @@
+/* =============================================
+   MotoboyPublicProfile.module.css
+   ============================================= */
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 32px 20px 64px;
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* Loading / Error */
+.loadingScreen {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--drop-text-dim);
+}
+
+.errorScreen {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.errorCard {
+  background: var(--drop-surface);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--drop-radius-lg);
+  padding: 40px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.errorIcon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.errorMessage {
+  color: var(--drop-danger);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+/* Back button */
+.btnBack {
+  margin-bottom: 24px;
+  padding: 9px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+  display: inline-block;
+}
+
+.btnBack:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--drop-white);
+}
+
+/* Profile card */
+.profileCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  padding: 40px;
+  text-align: center;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 40px;
+  box-shadow: var(--drop-shadow-purple);
+}
+
+.name {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.01em;
+}
+
+.email {
+  font-size: 14px;
+  color: var(--drop-text-dim);
+  margin-bottom: 20px;
+}
+
+.motoboyBadge {
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: var(--drop-purple-2);
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-block;
+  margin-bottom: 24px;
+}
+
+.memberSince {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-sm);
+  font-size: 13px;
+  color: var(--drop-text-dim);
+}
+
+.memberSinceLabel {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--drop-text-muted);
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+}

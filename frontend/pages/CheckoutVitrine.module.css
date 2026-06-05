@@ -1,0 +1,242 @@
+/* ─────────────────────────────────────────────
+   Checkout Vitrine — Plano 1 (sem motoboy)
+───────────────────────────────────────────── */
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg, #0a0a0a);
+  color: #fff;
+  padding-bottom: 40px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.02);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+.btnBack {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.btnBack:hover { background: rgba(255,255,255,0.08); }
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+}
+
+.storeName {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+}
+
+.container {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Cards ── */
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: #fff;
+}
+
+/* ── Produtos ── */
+.productList { display: flex; flex-direction: column; gap: 10px; }
+
+.productRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.productName { flex: 1; font-size: 14px; color: rgba(255,255,255,0.85); }
+.productQty  { font-size: 13px; color: rgba(255,255,255,0.45); }
+.productPrice { font-size: 14px; font-weight: 600; color: #fbbf24; min-width: 70px; text-align: right; }
+
+/* ── Aviso Plano 1 ── */
+.plan1Notice {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+
+/* ── Formulário ── */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.colSpan2 { grid-column: span 2; }
+
+.formGroup { display: flex; flex-direction: column; gap: 6px; }
+
+.label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: rgba(251,191,36,0.5); }
+.input::placeholder { color: rgba(255,255,255,0.25); }
+
+/* ── Pagamento ── */
+.paymentOptions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.paymentBtn {
+  flex: 1;
+  min-width: 100px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: rgba(255,255,255,0.65);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.paymentBtn:hover { background: rgba(255,255,255,0.09); }
+.paymentBtnActive {
+  background: rgba(251,191,36,0.12);
+  border-color: rgba(251,191,36,0.4);
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+/* ── Resumo ── */
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  padding: 6px 0;
+}
+
+.freeLabel { color: rgba(255,255,255,0.35); font-style: italic; }
+
+.summaryDivider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 10px 0;
+}
+
+.summaryTotal {
+  display: flex;
+  justify-content: space-between;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fbbf24;
+  padding: 4px 0;
+}
+
+.walletRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+}
+
+.errorMsg {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fca5a5;
+}
+
+.btnSubmit {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px;
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btnSubmit:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+.btnSubmit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Carrinho vazio ── */
+.emptyCart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 16px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* ── Tablet ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+  .card { padding: 20px; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .title { font-size: 22px; }
+  .formGrid { grid-template-columns: 1fr !important; }
+  .paymentOptions { flex-direction: column; }
+  .input { font-size: 16px; }
+}

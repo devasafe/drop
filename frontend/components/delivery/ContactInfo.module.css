@@ -1,0 +1,86 @@
+/* =============================================
+   ContactInfo.module.css — Contato de Entrega
+   ============================================= */
+
+.container {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-md);
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.label {
+  font-size: 10px;
+  color: var(--drop-text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin-bottom: 12px;
+  font-family: var(--drop-font-display);
+}
+
+.infoList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.infoKey {
+  font-weight: 600;
+  color: var(--drop-text-dim);
+  min-width: 76px;
+  flex-shrink: 0;
+}
+
+.infoVal {
+  color: var(--drop-text-muted);
+  word-break: break-word;
+}
+
+.chatBtn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--drop-purple-bg);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: var(--drop-purple-2);
+  border-radius: var(--drop-radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  text-align: center;
+  font-family: var(--drop-font-body);
+}
+
+.chatBtn:hover {
+  background: rgba(108, 43, 217, 0.22);
+  border-color: rgba(139, 92, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.chatBtnClose {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.chatBtnClose:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
+}

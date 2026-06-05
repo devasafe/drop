@@ -1,0 +1,973 @@
+/* ============================================================
+   DROP — Design System
+   ============================================================ */
+
+:root {
+  --drop-bg:          #0A0A0A;
+  --drop-bg-2:        #111111;
+  --drop-bg-3:        #161616;
+  --drop-surface:     #1A1A1A;
+  --drop-border:      rgba(255, 255, 255, 0.07);
+  --drop-border-md:   rgba(255, 255, 255, 0.12);
+
+  --drop-purple:      #6C2BD9;
+  --drop-purple-2:    #8B5CF6;
+  --drop-purple-glow: rgba(108, 43, 217, 0.35);
+  --drop-purple-bg:   rgba(108, 43, 217, 0.12);
+
+  --drop-white:       #FFFFFF;
+  --drop-text:        rgba(255, 255, 255, 0.92);
+  --drop-text-muted:  rgba(255, 255, 255, 0.5);
+  --drop-text-dim:    rgba(255, 255, 255, 0.28);
+
+  --drop-success:     #22C55E;
+  --drop-danger:      #EF4444;
+  --drop-warning:     #F59E0B;
+  --drop-info:        #38BDF8;
+
+  --drop-radius-sm:   8px;
+  --drop-radius:      12px;
+  --drop-radius-lg:   16px;
+  --drop-radius-xl:   24px;
+
+  --drop-font-display: 'Space Grotesk', sans-serif;
+  --drop-font-body:    'Inter', sans-serif;
+
+  --drop-shadow-sm:   0 1px 3px rgba(0,0,0,0.4);
+  --drop-shadow:      0 4px 16px rgba(0,0,0,0.5);
+  --drop-shadow-lg:   0 8px 32px rgba(0,0,0,0.6);
+  --drop-shadow-purple: 0 0 24px var(--drop-purple-glow);
+
+  --drop-transition:  all 0.25s cubic-bezier(0.4, 0, 0, 1);
+}
+
+/* ── Reset & Base ─────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--drop-font-body);
+  background-color: var(--drop-bg);
+  color: var(--drop-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--drop-font-body);
+}
+
+input, select, textarea {
+  font-family: var(--drop-font-body);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--drop-bg-2);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 43, 217, 0.5);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--drop-purple);
+}
+
+/* ── Navbar ───────────────────────────────────────────────── */
+
+.nav-header {
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: 64px;
+}
+
+.nav-left   { display: flex; gap: 12px; align-items: center; }
+.nav-center { display: flex; gap: 6px;  align-items: center; margin-left: 20px; }
+.nav-right  { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+.nav-link {
+  color: var(--drop-text-muted);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: var(--drop-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  transition: var(--drop-transition);
+}
+.nav-link:hover {
+  color: var(--drop-white);
+  background: var(--drop-purple-bg);
+}
+.nav-link.active {
+  color: var(--drop-white);
+  background: var(--drop-purple-bg);
+}
+
+.nav-username {
+  font-weight: 600;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+.role-badge {
+  background: var(--drop-purple-bg);
+  color: var(--drop-purple-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.store-name {
+  font-weight: 700;
+  color: var(--drop-purple-2);
+  font-family: var(--drop-font-display);
+}
+
+.nav-loading { color: var(--drop-text-dim); font-size: 13px; }
+
+.nav-logout {
+  background: transparent;
+  border: 1px solid var(--drop-border-md);
+  padding: 6px 14px;
+  border-radius: var(--drop-radius-sm);
+  cursor: pointer;
+  color: var(--drop-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: var(--drop-transition);
+}
+.nav-logout:hover {
+  border-color: var(--drop-danger);
+  color: var(--drop-danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Utilities ────────────────────────────────────────────── */
+
+.drop-card {
+  background: var(--drop-bg-2);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  transition: var(--drop-transition);
+}
+
+.drop-card:hover {
+  border-color: var(--drop-border-md);
+  box-shadow: var(--drop-shadow);
+}
+
+.drop-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--drop-bg-3);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-text);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.drop-input::placeholder {
+  color: var(--drop-text-dim);
+}
+
+.drop-input:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px var(--drop-purple-bg);
+}
+
+.drop-btn-primary {
+  background: var(--drop-purple);
+  color: #fff;
+  border: none;
+  border-radius: var(--drop-radius-sm);
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--drop-font-body);
+  cursor: pointer;
+  transition: var(--drop-transition);
+  letter-spacing: 0.01em;
+}
+
+.drop-btn-primary:hover:not(:disabled) {
+  background: var(--drop-purple-2);
+  box-shadow: var(--drop-shadow-purple);
+  transform: translateY(-1px);
+}
+
+.drop-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.drop-btn-ghost {
+  background: transparent;
+  color: var(--drop-text-muted);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--drop-font-body);
+  cursor: pointer;
+  transition: var(--drop-transition);
+}
+
+.drop-btn-ghost:hover {
+  color: var(--drop-white);
+  border-color: var(--drop-purple);
+  background: var(--drop-purple-bg);
+}
+
+.drop-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.drop-divider {
+  height: 1px;
+  background: var(--drop-border);
+  border: none;
+  margin: 24px 0;
+}
+
+/* ── Animations — Apple-Style Motion System ───────────────── */
+/* 
+   Apple's animation principles:
+   - Spring curves (overshoot + settle) for interactive elements
+   - Ease-out-quint for entrances (fast start, gentle settle)
+   - Staggered delays for visual hierarchy
+   - Subtle blur transitions for depth
+   - 60fps-safe transforms only (translate, scale, opacity)
+*/
+
+/* ── Core Bezier Curves ─── */
+/* --apple-ease:         cubic-bezier(0.25, 0.1, 0.25, 1)    — macOS default */
+/* --apple-ease-in:      cubic-bezier(0.42, 0, 1, 1)         — exit / dismiss */
+/* --apple-ease-out:     cubic-bezier(0, 0, 0.58, 1)         — entrance / appear */
+/* --apple-spring:       cubic-bezier(0.175, 0.885, 0.32, 1.275) — spring overshoot */
+/* --apple-smooth:       cubic-bezier(0.4, 0, 0, 1)          — iOS smooth */
+
+/* ── Keyframes: Fade In ─── */
+@keyframes drop-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Keyframes: Fade In Up (Apple hero-style) ─── */
+@keyframes drop-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* ── Keyframes: Fade In Down ─── */
+@keyframes drop-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Keyframes: Scale In (buttons, icons, images) ─── */
+@keyframes drop-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Keyframes: Spring Scale (interactive pop) ─── */
+@keyframes drop-spring-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  80% {
+    transform: scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Keyframes: Card Enter (staggered grid) ─── */
+@keyframes drop-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── Keyframes: Blur Fade (modals, overlays) ─── */
+@keyframes drop-blur-fade-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+}
+
+/* ── Keyframes: Modal Dialog Spring ─── */
+@keyframes drop-modal-spring {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(16px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015) translateY(-2px);
+  }
+  75% {
+    transform: scale(0.995) translateY(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Keyframes: Expand In (menus, dropdowns) ─── */
+@keyframes drop-expand-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.92) translateY(-4px);
+    transform-origin: top center;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1) translateY(0);
+    transform-origin: top center;
+  }
+}
+
+/* ── Keyframes: Subtle Float (ambient) ─── */
+@keyframes drop-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+/* ── Keyframes: Pulse (iOS status) ─── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Keyframes: Shimmer ─── */
+@keyframes drop-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Keyframes: Spin ─── */
+@keyframes drop-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Utility Classes — Base Animations ────────────────────── */
+
+.drop-fade-in {
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.drop-fade-in-up {
+  animation: drop-fade-in-up 0.65s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.drop-slide-down {
+  animation: drop-slide-down 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.drop-scale-in {
+  animation: drop-scale-in 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.drop-spring-in {
+  animation: drop-spring-in 0.55s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.drop-enter {
+  animation: drop-card-enter 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+/* ── Stagger Delay System (Apple-style cascading) ─────────── */
+.drop-stagger-1  { animation-delay: 0.04s; }
+.drop-stagger-2  { animation-delay: 0.08s; }
+.drop-stagger-3  { animation-delay: 0.12s; }
+.drop-stagger-4  { animation-delay: 0.16s; }
+.drop-stagger-5  { animation-delay: 0.2s; }
+.drop-stagger-6  { animation-delay: 0.24s; }
+.drop-stagger-7  { animation-delay: 0.28s; }
+.drop-stagger-8  { animation-delay: 0.32s; }
+.drop-stagger-9  { animation-delay: 0.36s; }
+.drop-stagger-10 { animation-delay: 0.4s; }
+
+/* ── Legacy compat ── */
+.return-card       { animation: slideDown 0.3s ease-out; }
+.return-card-pulse { animation: pulse 2s infinite; }
+
+/* ── Page Transition — Progress Bar ───────────────────────── */
+
+@keyframes drop-progress-trickle {
+  0%   { width: 0%; }
+  20%  { width: 30%; }
+  50%  { width: 55%; }
+  80%  { width: 78%; }
+  95%  { width: 92%; }
+  100% { width: 92%; }
+}
+
+@keyframes drop-progress-finish {
+  to { width: 100%; opacity: 0; }
+}
+
+.drop-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  width: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    var(--drop-purple) 0%,
+    var(--drop-purple-2) 50%,
+    var(--drop-purple) 100%
+  );
+  box-shadow: 0 0 10px var(--drop-purple-glow),
+              0 0 5px  var(--drop-purple-glow);
+  border-radius: 0 2px 2px 0;
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.drop-progress-bar--active {
+  opacity: 1;
+  animation: drop-progress-trickle 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.drop-progress-bar:not(.drop-progress-bar--active) {
+  animation: drop-progress-finish 0.3s ease forwards;
+}
+
+/* ── Page Transition — Content (Apple spring feel) ────────── */
+
+.drop-page-transition {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0, 1),
+              transform 0.4s cubic-bezier(0.4, 0, 0, 1),
+              filter 0.35s cubic-bezier(0.4, 0, 0, 1);
+  will-change: opacity, transform, filter;
+}
+
+.drop-page-transition--in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.drop-page-transition--out {
+  opacity: 0;
+  transform: translateY(8px) scale(0.995);
+  filter: blur(2px);
+}
+
+/* ── Skeleton Loading System ──────────────────────────────── */
+
+/* Skeleton shimmer loading placeholder */
+.drop-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--drop-bg-3) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    var(--drop-bg-3) 75%
+  );
+  background-size: 200% 100%;
+  animation: drop-shimmer 1.8s ease infinite;
+  border-radius: var(--drop-radius-sm);
+}
+
+.drop-skeleton-card {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  overflow: hidden;
+}
+
+.drop-skeleton-img {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: drop-shimmer 1.8s ease infinite;
+}
+
+.drop-skeleton-line {
+  height: 14px;
+  margin: 12px 16px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--drop-bg-3) 25%,
+    rgba(255,255,255,0.06) 50%,
+    var(--drop-bg-3) 75%
+  );
+  background-size: 200% 100%;
+  animation: drop-shimmer 1.8s ease infinite;
+}
+
+.drop-skeleton-line:nth-child(2) { width: 75%; }
+.drop-skeleton-line:nth-child(3) { width: 50%; height: 12px; }
+.drop-skeleton-line:last-child  { width: 40%; height: 28px; margin-top: 16px; border-radius: var(--drop-radius-sm); }
+
+/* ── Page utility wrapper ─────────────────────────────────── */
+
+.drop-page {
+  min-height: calc(100vh - 64px);
+  padding: 40px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.drop-page-header {
+  margin-bottom: 32px;
+}
+
+.drop-page-header h1 {
+  font-family: var(--drop-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.drop-page-header p {
+  color: var(--drop-text-muted);
+  font-size: 15px;
+}
+
+/* ── Section ──────────────────────────────────────────────── */
+
+.drop-section {
+  margin-bottom: 40px;
+}
+
+.drop-section-title {
+  font-family: var(--drop-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+
+/* ── Grid ─────────────────────────────────────────────────── */
+
+.drop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.drop-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.drop-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.drop-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+/* ── Badges ───────────────────────────────────────────────── */
+
+.drop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.drop-badge-success {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--drop-success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.drop-badge-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--drop-danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.drop-badge-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--drop-warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.drop-badge-info {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--drop-info);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.drop-badge-purple {
+  background: var(--drop-purple-bg);
+  color: var(--drop-purple-2);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.drop-badge-muted {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--drop-text-muted);
+  border: 1px solid var(--drop-border);
+}
+
+/* ── Stat Card ────────────────────────────────────────────── */
+
+.drop-stat-card {
+  background: var(--drop-bg-2);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  padding: 24px;
+  transition: var(--drop-transition);
+}
+
+.drop-stat-card:hover {
+  border-color: var(--drop-border-md);
+  box-shadow: var(--drop-shadow);
+}
+
+.drop-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.drop-stat-value {
+  font-family: var(--drop-font-display);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--drop-white);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.drop-stat-sub {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+}
+
+/* ── Table ────────────────────────────────────────────────── */
+
+.drop-table-wrap {
+  background: var(--drop-bg-2);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  overflow: hidden;
+}
+
+.drop-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.drop-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--drop-border);
+  background: var(--drop-bg-3);
+}
+
+.drop-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--drop-border);
+  color: var(--drop-text);
+  vertical-align: middle;
+}
+
+.drop-table tr:last-child td {
+  border-bottom: none;
+}
+
+.drop-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Empty State ──────────────────────────────────────────── */
+
+.drop-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--drop-text-muted);
+}
+
+.drop-empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.drop-empty-state h3 {
+  font-family: var(--drop-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--drop-text);
+  margin-bottom: 8px;
+}
+
+.drop-empty-state p {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  max-width: 320px;
+}
+
+/* ── Loading ──────────────────────────────────────────────── */
+
+.drop-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  color: var(--drop-text-muted);
+  font-size: 14px;
+  gap: 10px;
+}
+
+@keyframes drop-spin {
+  to { transform: rotate(360deg); }
+}
+
+.drop-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--drop-border-md);
+  border-top-color: var(--drop-purple);
+  border-radius: 50%;
+  animation: drop-spin 0.7s linear infinite;
+}
+
+/* ── Form Group ───────────────────────────────────────────── */
+
+.drop-form-group {
+  margin-bottom: 20px;
+}
+
+.drop-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.drop-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--drop-border);
+}
+
+/* ── Alert / Info Box ─────────────────────────────────────── */
+
+.drop-alert {
+  padding: 14px 16px;
+  border-radius: var(--drop-radius-sm);
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.drop-alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #FCA5A5;
+}
+
+.drop-alert-success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  color: #86EFAC;
+}
+
+.drop-alert-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #FCD34D;
+}
+
+.drop-alert-info {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #7DD3FC;
+}
+
+/* ── Temas Sazonais ───────────────────────────────────────── */
+
+body.theme-natal {
+  --drop-purple:      #B91C1C;
+  --drop-purple-2:    #EF4444;
+  --drop-purple-glow: rgba(185, 28, 28, 0.35);
+  --drop-purple-bg:   rgba(185, 28, 28, 0.12);
+}
+
+body.theme-pascoa {
+  --drop-purple:      #7C3AED;
+  --drop-purple-2:    #A78BFA;
+  --drop-purple-glow: rgba(124, 58, 237, 0.35);
+  --drop-purple-bg:   rgba(124, 58, 237, 0.12);
+}
+
+body.theme-junina {
+  --drop-purple:      #B45309;
+  --drop-purple-2:    #F59E0B;
+  --drop-purple-glow: rgba(180, 83, 9, 0.35);
+  --drop-purple-bg:   rgba(180, 83, 9, 0.12);
+}
+
+body.theme-halloween {
+  --drop-purple:      #C2410C;
+  --drop-purple-2:    #FB923C;
+  --drop-purple-glow: rgba(194, 65, 12, 0.35);
+  --drop-purple-bg:   rgba(194, 65, 12, 0.12);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .nav { padding: 0 16px; height: 56px; }
+  .nav-center { display: none; }
+  .drop-page { padding: 24px 16px; }
+  .drop-grid-2, .drop-grid-3, .drop-grid-4 { grid-template-columns: 1fr; }
+  .drop-form-row { grid-template-columns: 1fr; }
+  .drop-stat-value { font-size: 26px; }
+  .drop-page-header h1 { font-size: 22px; }
+}
+
+@media (max-width: 480px) {
+  .nav-center { order: 3; width: 100%; justify-content: flex-start; display: flex; }
+  .drop-form-actions { flex-direction: column; }
+  .drop-form-actions button { width: 100%; }
+}
+
+/* ── Responsive Utilities ──────────────────────────────── */
+@media (max-width: 1024px) {
+  .hide-tablet { display: none !important; }
+}
+
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}

@@ -1,0 +1,200 @@
+.card {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-family: var(--drop-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--drop-text);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+/* Toggle */
+
+.toggleWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.toggleLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--drop-text-muted);
+}
+
+.toggle {
+  width: 48px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.toggleOn  { background: var(--drop-success); }
+.toggleOff { background: rgba(255,255,255,0.15); }
+
+.toggleKnob {
+  position: absolute;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+
+.toggleOn .toggleKnob  { left: 25px; }
+.toggleOff .toggleKnob { left: 3px; }
+
+/* Closed banner */
+
+.closedBanner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--drop-radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #fca5a5;
+  margin-bottom: 16px;
+}
+
+/* Table */
+
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  border-radius: var(--drop-radius-sm);
+  background: var(--drop-bg-2);
+  border: 1px solid var(--drop-border);
+  flex-wrap: wrap;
+}
+
+.rowClosed {
+  opacity: 0.5;
+}
+
+.dayName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--drop-text);
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.closedCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.closedCheck input[type="checkbox"] {
+  accent-color: var(--drop-purple);
+  width: 15px;
+  height: 15px;
+}
+
+.timeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.timeInput {
+  background: var(--drop-bg-3);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-text);
+  font-size: 14px;
+  padding: 6px 10px;
+  width: 100px;
+  outline: none;
+}
+
+.timeInput:focus {
+  border-color: var(--drop-purple-2);
+}
+
+.timeSep {
+  font-size: 13px;
+  color: var(--drop-text-dim);
+}
+
+/* Actions */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.savedMsg {
+  font-size: 13px;
+  color: var(--drop-success);
+  font-weight: 600;
+}
+
+.btnSave {
+  padding: 10px 24px;
+  border-radius: var(--drop-radius-sm);
+  border: none;
+  background: var(--drop-purple);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+}
+
+.btnSave:hover:not(:disabled) {
+  background: var(--drop-purple-2);
+  box-shadow: var(--drop-shadow-purple);
+}
+
+.btnSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .row { flex-direction: column; gap: 8px; }
+  .timeInput { font-size: 16px; }
+}

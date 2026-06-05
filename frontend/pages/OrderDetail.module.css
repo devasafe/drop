@@ -1,0 +1,571 @@
+/* =============================================
+   OrderDetail.module.css
+   ============================================= */
+
+.page {
+  display: flex;
+  gap: 0;
+  min-height: 100vh;
+  background: var(--drop-bg);
+  font-family: var(--drop-font-body);
+}
+
+.loadingScreen {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--drop-text-dim);
+}
+
+/* Left panel */
+.leftPanel {
+  flex: 1;
+  padding: 40px 32px 64px;
+  border-right: 1px solid var(--drop-border);
+  overflow-y: auto;
+}
+
+.pageTitleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+}
+
+.orderId {
+  font-family: monospace;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 500;
+}
+
+.statusHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.statusBadgeLg {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+}
+
+.dateCreated {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Info card */
+.infoCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  overflow: hidden;
+  margin-bottom: 24px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.infoCardHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.infoCardTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  align-items: center;
+}
+
+.infoRow:last-child {
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-size: 13px;
+  color: var(--drop-text-dim);
+  font-weight: 600;
+}
+
+.infoValue {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+/* Status badge */
+.statusBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #FCD34D;
+}
+
+/* Products */
+.productsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.productItem {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  padding-left: 10px;
+  border-left: 2px solid rgba(108, 43, 217, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.productQty {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.productPrice {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: monospace;
+}
+
+/* Financial total row */
+.finTotalRow {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+.finTotalLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-white);
+}
+
+.finTotalValue {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+/* PIN */
+.pinBox {
+  background: rgba(108, 43, 217, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: var(--drop-radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pinLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--drop-purple-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pinValue {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+/* Map */
+.mapSection {
+  margin-bottom: 24px;
+}
+
+.mapLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(0, 112, 243, 0.1);
+  border: 1px solid rgba(0, 112, 243, 0.25);
+  border-radius: var(--drop-radius-sm);
+  color: #60a5fa;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  transition: var(--drop-transition);
+}
+
+.mapLink:hover {
+  background: rgba(0, 112, 243, 0.18);
+}
+
+.mapFrame {
+  border-radius: var(--drop-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--drop-border);
+}
+
+/* Return banner */
+.returnBanner {
+  background: rgba(108, 43, 217, 0.08);
+  border: 1px solid rgba(108, 43, 217, 0.3);
+  border-radius: var(--drop-radius-md);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
+/* Cancellation */
+.cancellationBox {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--drop-radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+/* Cancel button */
+.cancelSection {
+  margin-top: 8px;
+}
+
+.btnCancel {
+  padding: 12px 24px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-danger);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnCancel:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Right panel — chat */
+.rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--drop-border);
+  max-width: 420px;
+}
+
+.chatHeader {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--drop-border);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chatTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.statusDotConnected {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--drop-success);
+  flex-shrink: 0;
+}
+
+.statusDotDisconnected {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--drop-danger);
+  flex-shrink: 0;
+}
+
+.statusTextConnected {
+  color: var(--drop-success);
+  font-weight: 600;
+}
+
+.statusTextDisconnected {
+  color: var(--drop-danger);
+  font-weight: 600;
+}
+
+.chatLoading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--drop-text-dim);
+  font-size: 14px;
+}
+
+/* Timeline */
+.timeline {
+  padding: 16px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.timelineStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.timelineStep:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 28px;
+  bottom: -2px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timelineDot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.timelineContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timelineLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.timelineDate {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+}
+
+/* Pin inline row */
+.pinRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Money Flow */
+.moneyFlow {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flowSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flowSectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.flowArrow {
+  text-align: center;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.12);
+  line-height: 1;
+}
+
+.flowCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--drop-radius-md);
+}
+
+.flowIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.flowInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.flowName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-white);
+}
+
+.flowAmount {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+.flowDesc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.4;
+}
+
+.flowStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.flowStatusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.flowBlocked {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.flowDate {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+}
+
+/* ── Tablet ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .page { gap: 16px; }
+  .leftPanel { min-width: unset; }
+  .rightPanel { min-width: unset; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page {
+    flex-direction: column;
+    padding: 0;
+  }
+  .leftPanel {
+    border-right: none;
+    border-bottom: 1px solid var(--drop-border);
+    padding: 16px;
+    flex: unset;
+  }
+  .rightPanel {
+    flex: unset;
+    height: 400px;
+    padding: 0;
+  }
+  .pageTitle { font-size: 20px; }
+  .pageTitleRow { flex-direction: column; gap: 4px; }
+  .statusHeader { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .infoCard { padding: 0; }
+  .infoRow { grid-template-columns: 120px 1fr; padding: 10px 14px; }
+  .finTotalRow { grid-template-columns: 120px 1fr; padding: 12px 14px; }
+  .flowCard { flex-direction: column; gap: 10px; }
+  .timeline { padding: 12px 14px 4px; }
+}

@@ -1,0 +1,182 @@
+import { Schema, model, Document } from 'mongoose';
+
+// ✅ NOVO: Hierarquia completa de roles
+export type Role = 
+  | 'ceo'
+  | 'marketing'
+  | 'gerente_geral'
+  | 'gerente_clientes'
+  | 'gerente_lojistas'
+  | 'gerente_motoboys'
+  | 'lojista'
+  | 'cliente'
+  | 'motoboy';
+
+export interface IUserAddress {
+  _id?: any;
+  label?: string; // apelido: Casa, Trabalho, etc
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  cep: string;
+  latitude: string;
+  longitude: string;
+  isDefault?: boolean; // ✅ NOVO: Flag para marcar endereço padrão
+}
+
+export type UserStatus = 'active' | 'blocked' | 'inactive';
+
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role?: Role; // Legacy - mantém compatibilidade
+  roles: Role[]; // Novo - múltiplos roles
+  activeRole: Role; // Qual role está ativo no momento
+  status: UserStatus; // 'active' (padrao) | 'blocked' (nao loga, nao opera) | 'inactive'
+  blockedAt?: Date;
+  blockedBy?: string; // id do admin que bloqueou
+  blockReason?: string;
+  storeId?: string; // ✅ NOVO: Se for lojista, referência à sua loja
+  permissions?: string[]; // ✅ NOVO: Cached permissions para performance
+  telefone?: string;
+  cpf?: string;
+  rg?: string;
+  dataNascimento?: string;
+  sexo?: string;
+  photo?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  addresses?: IUserAddress[];
+  // ✅ REMOVIDO: mainAddress (agora é apenas uma flag isDefault em addresses)
+  // ✅ NOVO: Dados bancários para saque (CRIPTOGRAFADOS)
+  bankInfoEncrypted?: string; // Armazenado criptografado no DB
+  bankInfo?: {
+    banco: string;
+    agencia: string;
+    conta: string;
+    cpfBanco: string;
+    isConfigured: boolean;
+  }; // Descriptografado em memória
+  // ✅ NOVO: Plano de negócios (para lojas/lojistas)
+  planId?: string;
+}
+
+
+const AddressSchema = new Schema<IUserAddress>({
+  label: { type: String },
+  street: { type: String, required: true },
+  number: { type: String, required: true },
+  neighborhood: { type: String, required: true },
+  city: { type: String, required: true },
+  state: { type: String, required: true },
+  cep: { type: String, required: true },
+  latitude: { type: String, required: true },
+  longitude: { type: String, required: true },
+  isDefault: { type: Boolean, default: false } // ✅ NOVO: Flag de endereço padrão
+}, { _id: true });
+
+const UserSchema = new Schema<IUser>({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'] }, // Legacy - agora suporta todos os roles
+  roles: {
+    type: [String],
+    enum: ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'],
+    default: ['cliente']
+  },
+  activeRole: {
+    type: String,
+    enum: ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'],
+    default: 'cliente'
+  },
+  status: {
+    type: String,
+    enum: ['active', 'blocked', 'inactive'],
+    default: 'active',
+    index: true,
+  },
+  blockedAt: { type: Date },
+  blockedBy: { type: String },
+  blockReason: { type: String },
+  storeId: { type: String, index: true }, // ✅ NOVO: Referência à loja
+  permissions: { type: [String], default: [] }, // ✅ NOVO: Cache de permissões
+  telefone: { type: String },
+  cpf: { type: String },
+  rg: { type: String },
+  dataNascimento: { type: String },
+  sexo: { type: String },
+  photo: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }, // ✅ NOVO
+  addresses: { type: [AddressSchema], default: [] },
+  // ✅ REMOVIDO: mainAddress (agora é apenas uma flag isDefault em addresses)
+  // ✅ NOVO: Dados bancários para saque (configurado uma única vez)
+  // ✅ SEGURANÇA: Dados bancários criptografados
+  bankInfoEncrypted: {
+    type: String, // Armazenado criptografado
+    default: null
+  },
+  bankInfo: {
+    type: {
+      banco: { type: String },
+      agencia: { type: String },
+      conta: { type: String },
+      cpfBanco: { type: String },
+      isConfigured: { type: Boolean, default: false }
+    },
+    default: null,
+    select: false // Nunca retorna por padrão, deve ser explicitamente solicitado
+  },
+  // ✅ NOVO: Plano de negócios (para lojas/lojistas)
+  planId: {
+    type: String,
+    ref: 'PricingPlan',
+    default: null
+  }
+});
+
+// ✅ SEGURANÇA: Middlewares para criptografar/descriptografar bankInfo
+UserSchema.pre('save', function(next) {
+  const user = this as any;
+  
+  // Se bankInfo foi modificado, criptografar
+  if (user.isModified('bankInfo') && user.bankInfo && user.bankInfo.isConfigured) {
+    try {
+      const { encryptSensitiveData } = require('../utils/encryption');
+      user.bankInfoEncrypted = encryptSensitiveData(JSON.stringify(user.bankInfo));
+      // Limpar o campo em plain text após criptografar
+      user.bankInfo = null;
+    } catch (err) {
+      console.error('❌ Erro ao criptografar bankInfo:', err);
+      return next(err as any);
+    }
+  }
+  
+  next();
+});
+
+// ✅ SEGURANÇA: Hook para descriptografar bankInfo quando solicitado
+UserSchema.post(/^findOne/, function(doc) {
+  const user = doc as any;
+  
+  if (user && user.bankInfoEncrypted && !user.bankInfo) {
+    try {
+      const { decryptSensitiveData } = require('../utils/encryption');
+      user.bankInfo = JSON.parse(decryptSensitiveData(user.bankInfoEncrypted));
+    } catch (err) {
+      console.error('❌ Erro ao descriptografar bankInfo:', err);
+      // Retorna null em vez de lançar erro
+      user.bankInfo = null;
+    }
+  }
+});
+
+// ✅ Índices para performance das queries de analytics
+UserSchema.index({ createdAt: -1 });
+UserSchema.index({ activeRole: 1, createdAt: -1 });
+
+export default model<IUser>('User', UserSchema);

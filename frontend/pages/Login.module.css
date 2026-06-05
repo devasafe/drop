@@ -1,0 +1,238 @@
+/* ============================================================
+   Login.module.css — Drop Design System
+   ============================================================ */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--drop-bg);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(108, 43, 217, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.card {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-lg);
+  padding: 48px 40px;
+  max-width: 440px;
+  width: 100%;
+  position: relative;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+/* ---- Logo ---- */
+
+.logoimg {
+  display: inline-flex;
+  justify-content: center;
+    gap: 10px;
+  width: 80px;
+  height: 80px;
+}
+.logoWrapper {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.logoRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.logoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-radius: var(--drop-radius-sm);
+  font-size: 20px;
+  color: var(--drop-white);
+  font-weight: 800;
+}
+
+.logoText {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.logoSubtitle {
+  font-size: 15px;
+  color: var(--drop-text-muted);
+  margin: 0;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+/* ---- Form ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.errorBox {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--drop-radius-sm);
+  padding: 12px 16px;
+  color: #fca5a5;
+  font-size: 13px;
+  font-family: var(--drop-font-body), sans-serif;
+  animation: drop-fade-in 0.2s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-white);
+  font-size: 14px;
+  font-family: var(--drop-font-body), sans-serif;
+  transition: border-color 0.25s cubic-bezier(0.4, 0, 0, 1),
+              background 0.25s cubic-bezier(0.4, 0, 0, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0, 1);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--drop-purple);
+  background: rgba(108, 43, 217, 0.08);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.input::placeholder {
+  color: var(--drop-text-muted);
+}
+
+/* ---- Submit button ---- */
+.submitBtn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  color: var(--drop-white);
+  border: none;
+  border-radius: var(--drop-radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0, 1),
+              transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-family: var(--drop-font-body), sans-serif;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+}
+
+.submitBtn:hover:not(:disabled) {
+  box-shadow: 0 0 28px rgba(108, 43, 217, 0.5);
+  transform: translateY(-2px);
+}
+
+.submitBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.submitBtn:disabled {
+  background: rgba(108, 43, 217, 0.5);
+  cursor: not-allowed;
+}
+
+/* ---- Divider ---- */
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 28px 0;
+  gap: 12px;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--drop-border);
+}
+
+.dividerLabel {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+/* ---- CTA footer ---- */
+.cta {
+  text-align: center;
+}
+
+.ctaText {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.ctaLink {
+  display: inline-block;
+  padding: 11px 32px;
+  background: transparent;
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-text-dim);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.ctaLink:hover {
+  border-color: var(--drop-purple);
+  color: var(--drop-purple-2);
+  background: rgba(108, 43, 217, 0.08);
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page { padding: 16px; align-items: flex-start; padding-top: 32px; }
+  .card { padding: 24px 20px; width: 100%; }
+  .logoimg { height: 32px; }
+  .input { font-size: 16px; }
+  .submitBtn { font-size: 15px; padding: 13px; }
+}

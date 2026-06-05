@@ -1,0 +1,436 @@
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: var(--drop-font-body);
+}
+
+.loadingScreen {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.loadingText {
+  font-size: 18px;
+  color: var(--drop-text-muted);
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.pageTitle {
+  font-size: 32px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+  color: var(--drop-white);
+  margin: 0 0 8px 0;
+}
+
+.pageSubtitle {
+  font-size: 15px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+/* Balance Card */
+.balanceCard {
+  background: linear-gradient(135deg, var(--drop-purple) 0%, var(--drop-purple-2) 100%);
+  border-radius: var(--drop-radius-lg);
+  padding: 32px;
+  color: var(--drop-white);
+  margin-bottom: 32px;
+  box-shadow: 0 10px 30px rgba(108, 43, 217, 0.3);
+}
+
+.balanceGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+}
+
+.balanceLabel {
+  font-size: 12px;
+  opacity: 0.9;
+  margin: 0 0 8px 0;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.balanceAmount {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-white);
+  margin: 0;
+}
+
+.balanceAmountSm {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-white);
+  margin: 0;
+}
+
+.balanceSub {
+  font-size: 11px;
+  opacity: 0.8;
+  margin: 4px 0 0 0;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--drop-border);
+  padding-bottom: 12px;
+  overflow-x: auto;
+}
+
+.tabBtn {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  color: var(--drop-text-muted);
+  border-radius: var(--drop-radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 400;
+  transition: var(--drop-transition);
+  white-space: nowrap;
+  font-family: var(--drop-font-body);
+}
+
+.tabBtnActive {
+  background: var(--drop-purple);
+  color: var(--drop-white);
+  font-weight: 700;
+}
+
+/* Saldo Tab */
+.saldoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.ganhoCard {
+  background: var(--drop-surface);
+  padding: 24px;
+  border-radius: var(--drop-radius-md);
+  border: 1px solid var(--drop-border-md);
+}
+
+.ganhoTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--drop-white);
+}
+
+.ganhoAmount {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-purple-2);
+  margin-bottom: 20px;
+}
+
+.ganhoNote {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin: 0 0 16px 0;
+}
+
+.btnSacarNow {
+  width: 100%;
+  padding: 12px;
+  background: var(--drop-purple);
+  color: var(--drop-white);
+  border: none;
+  border-radius: var(--drop-radius-sm);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnSacarNow:hover {
+  background: var(--drop-purple-2);
+}
+
+.statsSubGrid {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+}
+
+.statCard {
+  background: var(--drop-surface);
+  padding: 20px;
+  border-radius: var(--drop-radius-md);
+  border: 1px solid var(--drop-border);
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-purple-2);
+  margin: 8px 0 0 0;
+}
+
+.statValueGreen {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-success);
+  margin: 8px 0 0 0;
+}
+
+.statNote {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+  margin: 4px 0 0 0;
+}
+
+/* Historico Tab */
+.historyCard {
+  background: var(--drop-surface);
+  border-radius: var(--drop-radius-lg);
+  border: 1px solid var(--drop-border);
+  overflow: hidden;
+}
+
+.emptyHistory {
+  padding: 40px;
+  text-align: center;
+  color: var(--drop-text-dim);
+}
+
+.emptyHistoryText {
+  font-size: 14px;
+}
+
+.historyTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.historyThead {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 2px solid var(--drop-border);
+}
+
+.historyTh {
+  padding: 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  letter-spacing: 0.05em;
+}
+
+.historyTr {
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.historyTrEven {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.historyTd {
+  padding: 16px;
+  font-size: 14px;
+  color: var(--drop-text-muted);
+}
+
+.badgeCredit {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--drop-success);
+}
+
+.badgeDebit {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--drop-danger);
+}
+
+.amountCredit {
+  color: var(--drop-success);
+  font-weight: 700;
+}
+
+.amountDebit {
+  color: var(--drop-danger);
+  font-weight: 700;
+}
+
+.historyReason {
+  font-size: 13px;
+  color: var(--drop-text-dim);
+}
+
+/* Benefícios Tab */
+.beneficiosGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.beneficioFree {
+  background: linear-gradient(135deg, var(--drop-purple) 0%, var(--drop-purple-2) 100%);
+  padding: 24px;
+  border-radius: var(--drop-radius-md);
+  color: var(--drop-white);
+}
+
+.beneficioDiscount {
+  background: linear-gradient(135deg, var(--drop-warning) 0%, #d97706 100%);
+  padding: 24px;
+  border-radius: var(--drop-radius-md);
+  color: var(--drop-white);
+}
+
+.beneficioTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.beneficioValue {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  margin-bottom: 16px;
+}
+
+.beneficioNote {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* Sacar Tab */
+.sacarContainer {
+  background: var(--drop-surface);
+  padding: 32px;
+  border-radius: var(--drop-radius-md);
+  border: 1px solid var(--drop-border);
+  max-width: 500px;
+}
+
+.sacarTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--drop-white);
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--drop-text-muted);
+}
+
+.formInput {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: 10px;
+  color: var(--drop-white);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  outline: none;
+  transition: var(--drop-transition);
+  box-sizing: border-box;
+}
+
+.formInput:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.warningNote {
+  background: rgba(245, 158, 11, 0.1);
+  padding: 12px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: var(--drop-warning);
+  line-height: 1.5;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border: none;
+  color: var(--drop-white);
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  transition: var(--drop-transition);
+}
+
+.btnPrimary:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+  .balanceGrid { grid-template-columns: repeat(2, 1fr); }
+  .saldoGrid { grid-template-columns: 1fr; }
+  .beneficiosGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .balanceGrid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .saldoGrid { grid-template-columns: 1fr; }
+  .beneficiosGrid { grid-template-columns: 1fr; }
+}

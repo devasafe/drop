@@ -1,0 +1,298 @@
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Header */
+.header {
+  margin-bottom: 40px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  margin: 0 0 6px;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+}
+
+.pageSubtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--drop-text-dim);
+}
+
+/* Nav */
+.nav {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.05s both;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--drop-radius-sm);
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.navLink:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #a78bfa;
+  background: rgba(108, 43, 217, 0.1);
+}
+
+/* Stats */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.1s both;
+}
+
+.statCard {
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.statCardPurple {
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.statCardGreen {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.statCardOrange {
+  background: rgba(251, 146, 60, 0.1);
+  border: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+.statValue {
+  font-size: 32px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  margin-bottom: 6px;
+}
+
+.statValuePurple {
+  color: #a78bfa;
+}
+
+.statValueGreen {
+  color: #4ade80;
+}
+
+.statValueOrange {
+  color: #fb923c;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+/* Deliveries section */
+.deliveriesSection {
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.15s both;
+}
+
+.sectionTitle {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+/* Loading */
+.loadingText {
+  text-align: center;
+  padding: 60px;
+  color: rgba(255, 255, 255, 0.3);
+  animation: pulse 1.5s infinite;
+}
+
+/* Empty state */
+.emptyState {
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  margin: 0 auto 16px;
+  display: block;
+}
+
+.emptyTitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #4ade80;
+  font-family: var(--drop-font-display);
+}
+
+.emptyText {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Deliveries grid */
+.deliveriesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.deliveryCard {
+  background: var(--drop-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 22px;
+  cursor: pointer;
+  transition: var(--drop-transition);
+}
+
+.deliveryCard:hover {
+  transform: translateY(-3px);
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: 0 8px 24px rgba(108, 43, 217, 0.12);
+}
+
+/* Card header */
+.cardHeader {
+  margin-bottom: 16px;
+}
+
+.orderId {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+  font-family: monospace;
+}
+
+.deliveryValue {
+  font-size: 26px;
+  font-weight: 800;
+  color: #a78bfa;
+  font-family: var(--drop-font-display);
+  margin-bottom: 4px;
+}
+
+.feeNote {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Card details box */
+.cardDetails {
+  background: var(--drop-surface);
+  border-radius: var(--drop-radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+
+.cardDetailRow {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 5px;
+}
+
+.cardDetailRow:last-child {
+  margin-bottom: 0;
+}
+
+.cardDetailValue {
+  color: var(--drop-white);
+}
+
+/* Card actions */
+.cardActions {
+  display: flex;
+  gap: 8px;
+}
+
+.btnAccept {
+  flex: 2;
+  padding: 10px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: var(--drop-radius-sm);
+  color: #4ade80;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnAccept:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.btnReject {
+  flex: 1;
+  padding: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--drop-radius-sm);
+  color: #f87171;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnReject:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .statsGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .statCard { padding: 14px; }
+  .nav { overflow-x: auto; gap: 4px; }
+  .navLink { white-space: nowrap; font-size: 13px; padding: 6px 10px; }
+}

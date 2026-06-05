@@ -1,0 +1,261 @@
+/* ============================================
+   AddressSelector — tema escuro Drop
+   ============================================ */
+
+.selectedCard {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selectedInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.selectedHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.selectedTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #22c55e;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.defaultBadge {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.selectedLabel {
+  font-size: 13px;
+  color: var(--drop-white);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.selectedAddress {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.btnAlterar {
+  padding: 8px 14px;
+  background: var(--drop-purple-bg);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: var(--drop-purple-2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--drop-transition);
+  flex-shrink: 0;
+}
+
+.btnAlterar:hover {
+  background: rgba(108, 43, 217, 0.22);
+  border-color: rgba(139, 92, 246, 0.55);
+}
+
+/* ── Modal ─────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+}
+
+.btnClose {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--drop-text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: var(--drop-transition);
+}
+.btnClose:hover { color: var(--drop-white); background: rgba(255,255,255,0.06); }
+
+.listLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 12px 0;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--drop-border-md);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  color: var(--drop-white);
+  transition: var(--drop-transition);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.item:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(108, 43, 217, 0.08);
+}
+
+.itemSelected {
+  border-color: var(--drop-purple);
+  background: var(--drop-purple-bg);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.itemMain { min-width: 0; flex: 1; }
+
+.itemLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin-bottom: 4px;
+}
+
+.itemAddress {
+  font-size: 12px;
+  color: var(--drop-text-muted);
+  line-height: 1.4;
+}
+
+.itemMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.checkMark {
+  color: var(--drop-purple-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--drop-text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+  margin-bottom: 20px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnSecondary,
+.btnPrimary {
+  flex: 1;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  border: 1px solid;
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--drop-border-md);
+  color: var(--drop-white);
+}
+.btnSecondary:hover { background: rgba(255, 255, 255, 0.08); }
+
+.btnPrimary {
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-color: transparent;
+  color: #fff;
+}
+.btnPrimary:hover { filter: brightness(1.1); }
+
+/* ── Mobile ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .selectedCard {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+  }
+  .btnAlterar {
+    width: 100%;
+    padding: 10px;
+    text-align: center;
+  }
+  .modal { padding: 18px; max-height: 90vh; }
+  .modalActions { flex-direction: column; }
+}

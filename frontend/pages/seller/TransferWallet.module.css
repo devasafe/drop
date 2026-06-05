@@ -1,0 +1,258 @@
+/* TransferWallet.module.css — DROP Design System */
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Loading */
+.loadingScreen {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: var(--drop-bg);
+}
+
+.loadingText {
+  font-size: 18px;
+  color: var(--drop-text-muted);
+  font-family: var(--drop-font-body);
+}
+
+/* Header */
+.header {
+  margin-bottom: 24px;
+}
+
+.headerTitle {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display);
+  margin: 0 0 8px 0;
+}
+
+.headerSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+/* Alert messages */
+.alertSuccess {
+  padding: 14px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 24px;
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--drop-success);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.alertError {
+  padding: 14px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 24px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--drop-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* Wallet cards grid */
+.walletsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.walletCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-md);
+  padding: 20px;
+}
+
+.walletCardUser {
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+.walletCardStore {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.walletCardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 14px 0;
+}
+
+.walletCardTitleUser {
+  color: var(--drop-purple-2);
+}
+
+.walletCardTitleStore {
+  color: var(--drop-success);
+}
+
+.walletBalanceLabel {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.walletBalanceUser {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--drop-purple-2);
+  font-family: var(--drop-font-display);
+  margin-bottom: 10px;
+}
+
+.walletBalanceStore {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--drop-success);
+  font-family: var(--drop-font-display);
+  margin-bottom: 10px;
+}
+
+.walletIncome {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  padding-top: 10px;
+  border-top: 1px solid var(--drop-border);
+}
+
+/* Form card */
+.formCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.formCardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin: 0 0 20px 0;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+}
+
+.formInput {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-white);
+  font-size: 15px;
+  font-family: var(--drop-font-body);
+  outline: none;
+  box-sizing: border-box;
+  transition: var(--drop-transition);
+}
+
+.formInput::placeholder {
+  color: var(--drop-text-dim);
+}
+
+.formInput:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.formInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.formHint {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin-top: 6px;
+}
+
+/* Submit button */
+.btnSubmit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border: none;
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-white);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--drop-font-body);
+  cursor: pointer;
+  transition: var(--drop-transition);
+  box-shadow: var(--drop-shadow-purple);
+}
+
+.btnSubmit:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btnSubmit:disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--drop-text-dim);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Back button */
+.backWrapper {
+  text-align: center;
+}
+
+.btnBack {
+  background: transparent;
+  border: none;
+  color: var(--drop-purple-2);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  text-decoration: underline;
+  transition: var(--drop-transition);
+}
+
+.btnBack:hover {
+  color: var(--drop-white);
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .formCard { padding: 20px 16px; }
+  .headerTitle { font-size: 22px; }
+  .formInput { font-size: 16px; }
+  .btnSubmit { width: 100%; }
+}

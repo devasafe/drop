@@ -1,0 +1,353 @@
+/* ============================================================
+   Register.module.css — Drop Design System
+   ============================================================ */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--drop-bg);
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow {
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 700px;
+  height: 500px;
+  background: radial-gradient(ellipse, rgba(108, 43, 217, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-lg);
+  padding: 48px 40px;
+  max-width: 440px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+/* ---- Logo ---- */
+
+.logoimg {
+  display: inline-flex;
+  justify-content: center;
+    gap: 10px;
+  width: 80px;
+  height: 80px;
+}
+
+.logoWrapper {
+  margin-bottom: 36px;
+  text-align: center;
+}
+
+.logoRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.logoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-radius: var(--drop-radius-sm);
+  font-size: 18px;
+  color: var(--drop-white);
+  font-weight: 800;
+}
+
+.logoText {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--drop-white);
+  font-family: var(--drop-font-display), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.logoSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  margin: 0;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+/* ---- Form ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.errorBox {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--drop-radius-sm);
+  padding: 12px 16px;
+  color: #fca5a5;
+  font-size: 13px;
+  font-family: var(--drop-font-body), sans-serif;
+  animation: drop-fade-in 0.2s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+  margin-bottom: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.labelRequired {
+  color: var(--drop-danger);
+  text-transform: none;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-white);
+  font-size: 14px;
+  font-family: var(--drop-font-body), sans-serif;
+  transition: var(--drop-transition);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--drop-purple);
+  background: rgba(108, 43, 217, 0.08);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.input::placeholder {
+  color: var(--drop-text-muted);
+}
+
+.inputDark {
+  color-scheme: dark;
+}
+
+/* ---- Role selector ---- */
+.roleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.roleBtn {
+  padding: 12px 8px;
+  border: 1px solid var(--drop-border-md);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--drop-radius-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.roleBtn:hover {
+  border-color: rgba(108, 43, 217, 0.4);
+  background: rgba(108, 43, 217, 0.06);
+}
+
+.roleBtnActive {
+  border-color: var(--drop-purple);
+  background: rgba(108, 43, 217, 0.15);
+  box-shadow: 0 0 0 1px rgba(108, 43, 217, 0.3) inset;
+}
+
+.roleBtnLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  margin-bottom: 2px;
+}
+
+.roleBtnLabelActive {
+  color: var(--drop-purple-2);
+}
+
+.roleBtnDesc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.roleBtnDescActive {
+  color: rgba(167, 139, 250, 0.7);
+}
+
+/* ---- Two-column grid for paired fields ---- */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ---- Photo upload ---- */
+.photoPreview {
+  margin-bottom: 12px;
+  width: 100%;
+  height: 140px;
+  border-radius: var(--drop-radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--drop-border-md);
+}
+
+.photoPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoDropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--drop-radius-sm);
+  cursor: pointer;
+  transition: var(--drop-transition);
+}
+
+.photoDropzone:hover {
+  border-color: rgba(108, 43, 217, 0.5);
+  background: rgba(108, 43, 217, 0.05);
+}
+
+.photoIcon {
+  font-size: 20px;
+}
+
+.photoHint {
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.photoInputHidden {
+  display: none;
+}
+
+/* ---- Submit button ---- */
+.submitBtn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  color: var(--drop-white);
+  border: none;
+  border-radius: var(--drop-radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body), sans-serif;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+}
+
+.submitBtn:hover:not(:disabled) {
+  box-shadow: 0 0 28px rgba(108, 43, 217, 0.5);
+  transform: translateY(-1px);
+}
+
+.submitBtn:disabled {
+  background: rgba(108, 43, 217, 0.5);
+  cursor: not-allowed;
+}
+
+/* ---- Divider ---- */
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 24px 0;
+  gap: 12px;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--drop-border);
+}
+
+.dividerLabel {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+/* ---- CTA footer ---- */
+.cta {
+  text-align: center;
+}
+
+.ctaText {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--drop-text-muted);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.ctaLink {
+  display: inline-block;
+  padding: 11px 32px;
+  background: transparent;
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-text-dim);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body), sans-serif;
+}
+
+.ctaLink:hover {
+  border-color: var(--drop-purple);
+  color: var(--drop-purple-2);
+  background: rgba(108, 43, 217, 0.08);
+}
+
+/* ── Tablet ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .page { padding: 24px 20px; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page { padding: 16px; }
+  .card { padding: 24px 16px; }
+  .logoRow { margin-bottom: 8px; }
+  .input { font-size: 16px; }
+  .submitBtn { font-size: 15px; }
+}

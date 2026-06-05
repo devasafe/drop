@@ -1,0 +1,111 @@
+import { z } from 'zod';
+
+/**
+ * ✅ SEGURANÇA: Schema de validação de variáveis de ambiente
+ * Valida no startup, falha rápido com mensagens claras
+ */
+const envSchema = z.object({
+  // Environment
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.string().transform(Number).default('4000'),
+  
+  // Database
+  MONGO_URI: z.string().min(10, 'MONGO_URI deve ser uma string válida').optional(),
+  MONGODB_URI: z.string().min(10, 'MONGODB_URI deve ser uma string válida').optional(),
+  
+  // Security
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter no mínimo 32 caracteres').optional(),
+  JWT_EXPIRES_IN: z.string().default('7d'),
+  
+  // CORS - Origens permitidas (separadas por vírgula)
+  CORS_ORIGIN: z.string().default('http://localhost:3000,http://localhost:3001'),
+  
+  // Logging
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  
+  // Features
+  ENABLE_SOCKET_IO: z.string().transform(v => v === 'true').default('true'),
+  DELIVERY_TIMEOUT_MINUTES: z.string().transform(Number).default('30'),
+  
+  // Rate Limiting
+  AUTH_LIMITER_MAX: z.string().transform(Number).default('5'),
+  AUTH_LIMITER_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 min
+  
+  // Redis (optional)
+  REDIS_URL: z.string().optional(),
+
+  // Payout Gateway
+  PAYOUT_GATEWAY: z.enum(['manual', 'asaas', 'pagarme', 'efi']).default('manual'),
+
+  // Cloudinary
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+});
+
+type Environment = z.infer<typeof envSchema>;
+
+/**
+ * ✅ VALIDAR NO STARTUP - Falhar rápido se algo estiver faltando
+ * Em testes, retorna com valores padrão
+ */
+export const env = (() => {
+  const isTest = process.env.NODE_ENV === 'test';
+  
+  try {
+    const parsed = envSchema.parse(process.env);
+    
+    // ⚠️ IMPORTANTE: Não fazer process.exit() se variáveis faltarem
+    // Permite que o app inicie com valores padrão (útil pra health checks)
+    // Em produção, o app vai falhar ao tentar conectar no MongoDB
+    
+    if (!isTest && !parsed.MONGO_URI) {
+      console.warn('⚠️ MONGO_URI não configurada - usando fallback');
+    }
+    
+    if (!isTest && !parsed.JWT_SECRET) {
+      console.warn('⚠️ JWT_SECRET não configurada - usando fallback');
+    }
+    
+    if (!isTest) {
+      console.log(`✅ Environment validated (${parsed.NODE_ENV} mode)`);
+    }
+    
+    return {
+      ...parsed,
+      MONGO_URI: parsed.MONGO_URI || parsed.MONGODB_URI || 'mongodb://localhost:27017/drop-test',
+      JWT_SECRET: parsed.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok'
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const fieldErrors = error.errors
+        .map(e => `  • ${e.path.join('.')}: ${e.message}`)
+        .join('\n');
+      
+      console.error('❌ ERRO: Variáveis de ambiente inválidas:\n' + fieldErrors);
+      console.error('\n💡 Copie o arquivo .env.example para .env e configure os valores');
+      
+      if (!isTest) process.exit(1);
+      
+      // Em testes, retornar valores default
+      return {
+        NODE_ENV: 'test',
+        PORT: 4000,
+        MONGO_URI: 'mongodb://localhost:27017/drop-test',
+        JWT_SECRET: 'test_secret_key_with_minimum_32_characters_length_ok',
+        JWT_EXPIRES_IN: '7d',
+        CORS_ORIGIN: 'http://localhost:3000,http://localhost:3001',
+        LOG_LEVEL: 'error' as const,
+        ENABLE_SOCKET_IO: true,
+        DELIVERY_TIMEOUT_MINUTES: 30,
+        AUTH_LIMITER_MAX: 5,
+        AUTH_LIMITER_WINDOW_MS: 900000,
+        REDIS_URL: undefined,
+        PAYOUT_GATEWAY: 'manual' as const,
+      };
+    }
+    throw error;
+  }
+})();
+
+export default env;

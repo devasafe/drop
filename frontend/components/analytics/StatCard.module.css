@@ -1,0 +1,120 @@
+.card {
+  background: var(--drop-bg-3, #161616);
+  border: 1px solid var(--drop-border, rgba(255, 255, 255, 0.07));
+  border-radius: var(--drop-radius-lg, 16px);
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              border-color 0.3s cubic-bezier(0.4, 0, 0, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0, 1);
+  animation: statCardEnter 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.card:nth-child(1) { animation-delay: 0.03s; }
+.card:nth-child(2) { animation-delay: 0.07s; }
+.card:nth-child(3) { animation-delay: 0.11s; }
+.card:nth-child(4) { animation-delay: 0.15s; }
+.card:nth-child(5) { animation-delay: 0.19s; }
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent, var(--drop-purple, #6C2BD9));
+  opacity: 0.85;
+}
+
+.card:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.card:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.purple  { --accent: #6C2BD9; }
+.green   { --accent: #22C55E; }
+.blue    { --accent: #38BDF8; }
+.orange  { --accent: #F59E0B; }
+.pink    { --accent: #EC4899; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+}
+
+.icon {
+  font-size: 18px;
+  opacity: 0.85;
+}
+
+.value {
+  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-size: 32px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.94);
+  line-height: 1.1;
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 18px;
+}
+
+.delta {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.deltaUp {
+  color: #22C55E;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.deltaDown {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+@keyframes statCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}

@@ -1,0 +1,307 @@
+@keyframes drop-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+  color: var(--drop-white);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.loadingScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--drop-text-dim);
+  font-family: var(--drop-font-body);
+  background: var(--drop-bg);
+}
+
+.pageHeader {
+  margin-bottom: 32px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+  color: var(--drop-white);
+  margin: 0 0 6px 0;
+}
+
+.pageSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+/* ── Plan cards ──────────────────────────────── */
+.planList {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.planCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  padding: 28px;
+}
+
+.planGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .page { padding: 40px 16px 64px; }
+  .planGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .planGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .planGrid { grid-template-columns: 1fr; }
+  .formInput { font-size: 16px; }
+}
+
+.planName {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-white);
+  margin: 0 0 24px 0;
+}
+
+/* ── Form fields ─────────────────────────────── */
+.fieldGroup {
+  margin-bottom: 20px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.fieldValue {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-purple-2);
+}
+
+.fieldValueNeutral {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--drop-font-display);
+  color: var(--drop-white);
+}
+
+.fieldNote {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin-top: 4px;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inputPrefix {
+  font-size: 14px;
+  color: var(--drop-text-dim);
+  font-weight: 600;
+}
+
+.formInput {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--drop-border-md);
+  border-radius: var(--drop-radius-sm);
+  color: var(--drop-white);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+  outline: none;
+  transition: var(--drop-transition);
+  box-sizing: border-box;
+}
+
+.formInput:focus {
+  border-color: var(--drop-purple);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
+}
+
+.formInputSmall {
+  width: 80px;
+}
+
+.formInputFlex {
+  flex: 1;
+}
+
+/* ── Buttons ─────────────────────────────────── */
+.btnRow {
+  margin-top: 24px;
+  display: flex;
+  gap: 10px;
+}
+
+.btnSave {
+  flex: 1;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border: none;
+  color: var(--drop-white);
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--drop-radius-sm);
+  transition: var(--drop-transition);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+}
+
+.btnSave:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.btnSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnCancel {
+  flex: 1;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--drop-border);
+  color: var(--drop-text-muted);
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--drop-radius-sm);
+  transition: var(--drop-transition);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+}
+
+.btnCancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btnEdit {
+  width: 100%;
+  padding: 12px 24px;
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(108, 43, 217, 0.35);
+  color: var(--drop-purple-2);
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--drop-radius-sm);
+  transition: var(--drop-transition);
+  font-size: 14px;
+  font-family: var(--drop-font-body);
+}
+
+.btnEdit:hover {
+  background: rgba(108, 43, 217, 0.25);
+}
+
+/* ── Distribution example panel ─────────────── */
+.examplePanel {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-md);
+  padding: 20px;
+}
+
+.exampleTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 20px 0;
+}
+
+.exampleItems {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exampleItem {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-sm);
+  padding: 14px;
+}
+
+.exampleItemLabel {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin: 0 0 4px 0;
+}
+
+.exampleItemValueRed {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-danger);
+  margin: 0 0 2px 0;
+}
+
+.exampleItemValueGreen {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-success);
+  margin: 0 0 2px 0;
+}
+
+.exampleItemNote {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+  margin: 0;
+}
+
+.warningBox {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--drop-radius-sm);
+  font-size: 12px;
+  color: var(--drop-warning);
+  line-height: 1.5;
+}
+
+.warningBox p {
+  margin: 6px 0 0 0;
+  color: rgba(245, 158, 11, 0.8);
+}

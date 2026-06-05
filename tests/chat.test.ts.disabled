@@ -1,0 +1,470 @@
+import request from 'supertest';
+import { expect } from 'chai';
+import app from '../src/app';
+import Conversation from '../src/models/Conversation';
+import Message from '../src/models/Message';
+import User from '../src/models/User';
+
+/**
+ * Testes de Integração para Chat API
+ */
+describe('Chat API', () => {
+  let testUser1: any;
+  let testUser2: any;
+  let testConversation: any;
+  let authToken1: string;
+  let authToken2: string;
+
+  /**
+   * Setup: Criar usuários de teste
+   */
+  before(async () => {
+    // Limpar banco
+    await Conversation.deleteMany({});
+    await Message.deleteMany({});
+
+    // Criar usuários
+    testUser1 = await User.create({
+      name: 'Loja Teste',
+      email: 'loja@test.com',
+      password: 'password123',
+      role: 'lojista'
+    });
+
+    testUser2 = await User.create({
+      name: 'Cliente Teste',
+      email: 'cliente@test.com',
+      password: 'password123',
+      role: 'cliente'
+    });
+
+    // Gerar tokens (ajustar conforme seu sistema de auth)
+    authToken1 = generateToken(testUser1._id, 'loja');
+    authToken2 = generateToken(testUser2._id, 'cliente');
+  });
+
+  /**
+   * Limpar após testes
+   */
+  after(async () => {
+    await Conversation.deleteMany({});
+    await Message.deleteMany({});
+    await User.deleteMany({});
+  });
+
+  describe('POST /api/chat/conversations', () => {
+    it('Deve criar conversa entre loja e cliente', async () => {
+      const res = await request(app)
+        .post('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          type: 'loja_cliente',
+          participant1: {
+            userId: testUser1._id,
+            role: 'loja',
+            name: testUser1.name
+          },
+          participant2: {
+            userId: testUser2._id,
+            role: 'cliente',
+            name: testUser2.name
+          }
+        });
+
+      expect(res.status).to.equal(201);
+      expect(res.body).to.have.property('_id');
+      expect(res.body.type).to.equal('loja_cliente');
+      expect(res.body.messageCount).to.equal(0);
+
+      testConversation = res.body;
+    });
+
+    it('Deve retornar 200 se conversa já existe', async () => {
+      const res = await request(app)
+        .post('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          type: 'loja_cliente',
+          participant1: {
+            userId: testUser1._id,
+            role: 'loja',
+            name: testUser1.name
+          },
+          participant2: {
+            userId: testUser2._id,
+            role: 'cliente',
+            name: testUser2.name
+          }
+        });
+
+      expect(res.status).to.equal(200);
+      expect(res.body._id).to.equal(testConversation._id);
+    });
+
+    it('Deve retornar 400 se type inválido', async () => {
+      const res = await request(app)
+        .post('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          type: 'invalid_type'
+        });
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('Deve retornar 403 se sem autenticação', async () => {
+      const res = await request(app)
+        .post('/api/chat/conversations')
+        .send({
+          type: 'loja_cliente'
+        });
+
+      expect(res.status).to.equal(403);
+    });
+  });
+
+  describe('GET /api/chat/conversations', () => {
+    it('Deve listar conversas do usuário', async () => {
+      const res = await request(app)
+        .get('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 50, skip: 0 });
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an('array');
+      expect(res.body.length).to.be.greaterThan(0);
+    });
+
+    it('Deve retornar apenas conversas ativas', async () => {
+      // Soft delete uma conversa
+      await Conversation.updateOne(
+        { _id: testConversation._id },
+        { isActive: false }
+      );
+
+      const res = await request(app)
+        .get('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 50, skip: 0 });
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an('array');
+      expect(res.body.some((c: any) => !c.isActive)).to.be.false;
+
+      // Restaurar
+      await Conversation.updateOne(
+        { _id: testConversation._id },
+        { isActive: true }
+      );
+    });
+
+    it('Deve paginar resultados', async () => {
+      const res1 = await request(app)
+        .get('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 1, skip: 0 });
+
+      const res2 = await request(app)
+        .get('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 1, skip: 1 });
+
+      expect(res1.status).to.equal(200);
+      expect(res2.status).to.equal(200);
+    });
+  });
+
+  describe('POST /api/chat/messages', () => {
+    it('Deve enviar mensagem', async () => {
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'Olá! Como posso ajudar?'
+        });
+
+      expect(res.status).to.equal(201);
+      expect(res.body).to.have.property('_id');
+      expect(res.body.text).to.equal('Olá! Como posso ajudar?');
+      expect(res.body.status).to.equal('delivered');
+      expect(res.body.senderRole).to.equal('loja');
+    });
+
+    it('Deve retornar 400 se texto vazio', async () => {
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: ''
+        });
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('Deve retornar 400 se texto muito longo', async () => {
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'a'.repeat(1001)
+        });
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('Deve retornar 404 se conversa não existe', async () => {
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: '507f1f77bcf86cd799439999',
+          text: 'Teste'
+        });
+
+      expect(res.status).to.equal(404);
+    });
+
+    it('Deve atualizar messageCount e lastMessageAt', async () => {
+      const before = await Conversation.findById(testConversation._id);
+      const countBefore = before.messageCount;
+
+      await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'Nova mensagem'
+        });
+
+      const after = await Conversation.findById(testConversation._id);
+
+      expect(after.messageCount).to.equal(countBefore + 1);
+      expect(after.lastMessageAt).to.be.greaterThan(before.lastMessageAt);
+    });
+
+    it('Deve incrementar unreadCount do outro participante', async () => {
+      const before = await Conversation.findById(testConversation._id);
+      const unreadBefore = before.unreadCount[1]; // índice do cliente
+
+      await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'Mensagem nova'
+        });
+
+      const after = await Conversation.findById(testConversation._id);
+
+      expect(after.unreadCount[1]).to.equal(unreadBefore + 1);
+    });
+  });
+
+  describe('GET /api/chat/conversations/:conversationId', () => {
+    it('Deve obter mensagens da conversa', async () => {
+      const res = await request(app)
+        .get(`/api/chat/conversations/${testConversation._id}`)
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 10, skip: 0 });
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property('messages');
+      expect(res.body.messages).to.be.an('array');
+      expect(res.body.messages.length).to.be.greaterThan(0);
+    });
+
+    it('Deve retornar 403 se não é participante', async () => {
+      const stranger = await User.create({
+        name: 'Estranho',
+        email: 'stranger@test.com',
+        password: 'password123',
+        role: 'cliente'
+      });
+
+      const strangerToken = generateToken(stranger._id, 'cliente');
+
+      const res = await request(app)
+        .get(`/api/chat/conversations/${testConversation._id}`)
+        .set('Authorization', `Bearer ${strangerToken}`)
+        .query({ limit: 10, skip: 0 });
+
+      expect(res.status).to.equal(403);
+
+      await User.deleteOne({ _id: stranger._id });
+    });
+
+    it('Deve retornar 404 se conversa não existe', async () => {
+      const res = await request(app)
+        .get('/api/chat/conversations/507f1f77bcf86cd799439999')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .query({ limit: 10, skip: 0 });
+
+      expect(res.status).to.equal(404);
+    });
+  });
+
+  describe('PUT /api/chat/messages/:messageId/read', () => {
+    let testMessage: any;
+
+    before(async () => {
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'Mensagem para ler'
+        });
+
+      testMessage = res.body;
+    });
+
+    it('Deve marcar mensagem como lida', async () => {
+      const res = await request(app)
+        .put(`/api/chat/messages/${testMessage._id}/read`)
+        .set('Authorization', `Bearer ${authToken2}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.status).to.equal('read');
+      expect(res.body).to.have.property('readAt');
+    });
+
+    it('Deve retornar 404 se mensagem não existe', async () => {
+      const res = await request(app)
+        .put('/api/chat/messages/507f1f77bcf86cd799439999/read')
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(404);
+    });
+  });
+
+  describe('PUT /api/chat/conversations/:id/mute', () => {
+    it('Deve mutar conversa', async () => {
+      const res = await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/mute`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.isMuted[0]).to.be.true;
+    });
+
+    it('Deve desmutar conversa', async () => {
+      const res = await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/mute`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.isMuted[0]).to.be.false;
+    });
+  });
+
+  describe('PUT /api/chat/conversations/:id/block', () => {
+    it('Deve bloquear participante', async () => {
+      const res = await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/block`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.isBlocked[0]).to.be.true;
+    });
+
+    it('Deve desbloquear participante', async () => {
+      const res = await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/block`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.isBlocked[0]).to.be.false;
+    });
+
+    it('Deve rejeitar envio se bloqueado', async () => {
+      // Bloquear
+      await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/block`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      // Tentar enviar (como participante 1, que está bloqueado)
+      const res = await request(app)
+        .post('/api/chat/messages')
+        .set('Authorization', `Bearer ${authToken1}`)
+        .send({
+          conversationId: testConversation._id,
+          text: 'Esta mensagem não deve ser enviada'
+        });
+
+      expect(res.status).to.equal(403);
+
+      // Desbloquear
+      await request(app)
+        .put(`/api/chat/conversations/${testConversation._id}/block`)
+        .set('Authorization', `Bearer ${authToken1}`);
+    });
+  });
+
+  describe('DELETE /api/chat/conversations/:id', () => {
+    it('Deve soft delete conversa', async () => {
+      const res = await request(app)
+        .delete(`/api/chat/conversations/${testConversation._id}`)
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.status).to.equal(200);
+
+      const deleted = await Conversation.findById(testConversation._id);
+      expect(deleted.isActive).to.be.false;
+    });
+
+    it('Conversa deletada não deve aparecer na lista', async () => {
+      const res = await request(app)
+        .get('/api/chat/conversations')
+        .set('Authorization', `Bearer ${authToken1}`);
+
+      expect(res.body.some((c: any) => c._id === testConversation._id)).to.be.false;
+    });
+  });
+});
+
+/**
+ * Testes de Socket.io
+ */
+describe('Chat Socket.io', () => {
+  let socket1: any;
+  let socket2: any;
+  let io: any;
+
+  before((done) => {
+    // Conectar sockets de teste
+    // (Ajustar conforme seu setup)
+    done();
+  });
+
+  it('Deve conectar com token válido', (done) => {
+    // Implementar teste
+    done();
+  });
+
+  it('Deve rejeitar token inválido', (done) => {
+    // Implementar teste
+    done();
+  });
+
+  it('Deve receber mensagens em tempo real', (done) => {
+    // Implementar teste
+    done();
+  });
+
+  it('Deve receber indicador de digitação', (done) => {
+    // Implementar teste
+    done();
+  });
+});
+
+/**
+ * Função helper para gerar token
+ * (Ajustar conforme seu sistema de auth)
+ */
+function generateToken(userId: string, role: string): string {
+  // Implementar usando sua estratégia de JWT
+  return 'fake_token_' + userId;
+}

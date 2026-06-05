@@ -1,0 +1,224 @@
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 24px 20px 60px;
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  font-family: var(--drop-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--drop-text);
+  margin: 0 0 4px;
+}
+
+.pageSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+.linkBtn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--drop-border-md);
+  background: transparent;
+  color: var(--drop-text-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.pointsCard {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.05s both;
+}
+
+.pointsIcon { font-size: 32px; }
+
+.pointsValue {
+  font-family: var(--drop-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--drop-purple-2);
+  line-height: 1;
+}
+
+.pointsLabel {
+  font-size: 12px;
+  color: var(--drop-text-muted);
+  margin-top: 2px;
+}
+
+.successAlert {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4ade80;
+  margin-bottom: 16px;
+}
+
+.errorAlert {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f87171;
+  margin-bottom: 16px;
+}
+
+.benefitsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.1s both;
+}
+
+.benefitCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border-md);
+  border-radius: 16px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0, 1), border-color 0.25s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.benefitCard:hover:not(.benefitCardLocked) {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.18);
+  border-color: var(--drop-purple);
+}
+
+.benefitCard:active:not(.benefitCardLocked) {
+  transform: translateY(0) scale(0.98);
+}
+
+.benefitCardLocked {
+  opacity: 0.6;
+}
+
+.benefitIcon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.benefitName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-text);
+}
+
+.benefitDesc {
+  font-size: 12px;
+  color: var(--drop-text-muted);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.benefitFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.benefitCost {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.costValue {
+  font-family: var(--drop-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--drop-purple-2);
+}
+
+.costLabel {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+}
+
+.redeemBtn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--drop-purple);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.redeemBtn:hover:not(.redeemBtnDisabled) { opacity: 0.85; }
+
+.redeemBtnDisabled {
+  background: var(--drop-bg-2);
+  color: var(--drop-text-dim);
+  cursor: not-allowed;
+  border: 1px solid var(--drop-border);
+}
+
+.typeChip {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 99px;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+.typeChipSystem {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--drop-text-dim);
+  background: var(--drop-bg-2);
+  border: 1px solid var(--drop-border);
+  border-radius: 99px;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+.empty { font-size: 13px; color: var(--drop-text-muted); }
+
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+  .benefitsGrid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,535 @@
+@keyframes drop-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg);
+  padding: 40px 24px 64px;
+  font-family: var(--drop-font-body);
+  color: var(--drop-white);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.loadingScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--drop-text-dim);
+  font-family: var(--drop-font-body);
+  background: var(--drop-bg);
+}
+
+.pageHeader {
+  margin-bottom: 32px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.pageTitle {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  letter-spacing: -0.02em;
+  color: var(--drop-white);
+  margin: 0 0 6px 0;
+}
+
+.pageSubtitle {
+  font-size: 14px;
+  color: var(--drop-text-muted);
+  margin: 0;
+}
+
+/* ── Message banner ──────────────────────────── */
+.messageBanner {
+  padding: 12px 16px;
+  border-radius: var(--drop-radius-sm);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.messageBannerSuccess {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--drop-success);
+}
+
+.messageBannerError {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--drop-danger);
+}
+
+/* ── Tabs ────────────────────────────────────── */
+.tabsRow {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--drop-border);
+}
+
+.tabBtn {
+  background: transparent;
+  color: var(--drop-text-dim);
+  border: none;
+  padding: 12px 18px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--drop-font-body);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: var(--drop-transition);
+}
+
+.tabBtn:hover {
+  color: var(--drop-text-muted);
+}
+
+.tabBtnActive {
+  color: var(--drop-purple-2);
+  border-bottom-color: var(--drop-purple);
+}
+
+/* ── Pending cards ───────────────────────────── */
+.pendingList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pendingCard {
+  background: var(--drop-surface);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--drop-radius-md);
+  padding: 20px;
+}
+
+.pendingCardInner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.pendingCardInfo {
+  flex: 1;
+}
+
+.pendingName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin: 0 0 6px 0;
+  font-family: var(--drop-font-display);
+}
+
+.pendingEmail {
+  font-size: 13px;
+  color: var(--drop-text-dim);
+  margin: 0 0 8px 0;
+}
+
+.pendingAmount {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--drop-success);
+  margin: 0 0 4px 0;
+}
+
+.pendingDate {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin: 0;
+}
+
+.pendingActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.btnApprove {
+  padding: 8px 12px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--drop-success);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnApprove:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.btnApprove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnReject {
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: var(--drop-danger);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnReject:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Reject form ─────────────────────────────── */
+.rejectForm {
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--drop-radius-sm);
+}
+
+.rejectLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--drop-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rejectTextarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--drop-font-body);
+  color: var(--drop-white);
+  min-height: 60px;
+  margin-bottom: 10px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: var(--drop-transition);
+}
+
+.rejectTextarea:focus {
+  border-color: var(--drop-danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.rejectTextarea::placeholder {
+  color: var(--drop-text-dim);
+}
+
+.rejectFormButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.btnConfirmReject {
+  padding: 6px 14px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: var(--drop-danger);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnConfirmReject:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.btnConfirmReject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnCancelReject {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--drop-border);
+  color: var(--drop-text-dim);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--drop-transition);
+  font-family: var(--drop-font-body);
+}
+
+.btnCancelReject:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Wallet tab ──────────────────────────────── */
+.walletCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  padding: 28px;
+}
+
+.walletBalance {
+  margin-bottom: 28px;
+}
+
+.walletBalanceLabel {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.walletBalanceValue {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--drop-font-display);
+  color: var(--drop-success);
+  margin: 0;
+}
+
+.walletTxTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 12px 0;
+}
+
+.txList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.txRow {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--drop-border);
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.txRow:last-child {
+  border-bottom: none;
+}
+
+.txDescription {
+  font-weight: 600;
+  color: var(--drop-white);
+  margin: 0 0 4px 0;
+}
+
+.txTimestamp {
+  font-size: 11px;
+  color: var(--drop-text-dim);
+  margin: 0;
+}
+
+.txAmountPositive {
+  font-weight: 700;
+  color: var(--drop-success);
+  font-size: 14px;
+}
+
+.txAmountNegative {
+  font-weight: 700;
+  color: var(--drop-danger);
+  font-size: 14px;
+}
+
+.noTx {
+  color: var(--drop-text-dim);
+  font-size: 13px;
+}
+
+/* ── History table ───────────────────────────── */
+.tableCard {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: var(--drop-radius-lg);
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--drop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  text-align: left;
+  border-bottom: 1px solid var(--drop-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.td {
+  padding: 13px 16px;
+  color: var(--drop-text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tr:last-child .td {
+  border-bottom: none;
+}
+
+.tr:hover .td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tdAmount {
+  font-weight: 700;
+  color: var(--drop-white);
+}
+
+.tdDate {
+  color: var(--drop-text-dim);
+  font-size: 12px;
+}
+
+/* status badges */
+.statusBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.statusPending {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--drop-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.statusApproved,
+.statusProcessed {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--drop-success);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.statusRejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--drop-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* ── Empty state ─────────────────────────────── */
+.emptyState {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  padding: 48px 24px;
+  text-align: center;
+  border-radius: var(--drop-radius-md);
+  color: var(--drop-text-dim);
+}
+
+.configPanel {
+  background: var(--drop-surface);
+  border: 1px solid var(--drop-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.configInfo {
+  flex: 1;
+}
+.configTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-white);
+  margin: 0 0 4px;
+}
+.configDesc {
+  font-size: 12px;
+  color: var(--drop-text-dim);
+  margin: 0;
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--drop-border);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle input:checked + .slider {
+  background: #22c55e;
+}
+.toggle input:checked + .slider::before {
+  transform: translateX(22px);
+}
+
+@media (max-width: 1024px) {
+  .container { padding: 20px 16px; }
+}
+
+@media (max-width: 640px) {
+  .container { padding: 16px; }
+  .pageTitle { font-size: 22px; }
+}

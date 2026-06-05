@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>🧪 Teste Chat em Tempo Real</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: #667eea;
+      margin-top: 0;
+    }
+    .steps {
+      margin: 30px 0;
+    }
+    .step {
+      background: #f8f9fa;
+      border-left: 4px solid #667eea;
+      padding: 15px 20px;
+      margin: 15px 0;
+      border-radius: 6px;
+    }
+    .step-title {
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 8px;
+    }
+    .step-content {
+      color: #555;
+      line-height: 1.6;
+    }
+    .code {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .check {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      color: #856404;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .checklist {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .checklist-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    .checklist-item:last-child {
+      border-bottom: none;
+    }
+    input[type="checkbox"] {
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 5px 10px 0;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    .info {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      color: #0c5460;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    hr {
+      border: none;
+      height: 2px;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      margin: 30px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Teste Chat em Tempo Real</h1>
+    <p>Guia passo a passo para testar se o chat está funcionando corretamente.</p>
+
+    <hr>
+
+    <h2>📋 Checklist Rápido (5 minutos)</h2>
+    <div class="checklist">
+      <div class="checklist-item">
+        <input type="checkbox"> Backend rodando na porta 3000
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox"> Frontend rodando na porta 3001
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox"> Consegue fazer login
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox"> Browser aberto em localhost:3001
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox"> DevTools aberto (F12)
+      </div>
+    </div>
+
+    <hr>
+
+    <h2>🚀 Passos do Teste</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-title">✅ Passo 1: Verificar Socket.io</div>
+        <div class="step-content">
+          <p>Abra o DevTools (F12) e vá na aba <strong>Console</strong>.</p>
+          <p>Você deve ver uma mensagem como:</p>
+          <div class="code">✅ Socket.io conectado</div>
+          <p>Se NÃO aparecer, o Socket.io não conectou. Verifique se o backend está rodando.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-title">✅ Passo 2: Abrir o Chat</div>
+        <div class="step-content">
+          <p>Clique no botão <strong>💬</strong> no canto inferior direito da tela.</p>
+          <p>No console, você deve ver:</p>
+          <div class="code">✅ Entrado na sala: chat:abc123...</div>
+          <p>Se aparecer um erro no console, veja a seção de <strong>Troubleshooting</strong>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-title">✅ Passo 3: Digitar uma Mensagem</div>
+        <div class="step-content">
+          <p>Na caixa de texto do chat, escreva algo como <strong>"Oi, tudo bem?"</strong></p>
+          <p>Observe:</p>
+          <ul>
+            <li>O botão ✓ fica <strong>azul</strong> (ativo)</li>
+            <li>A caixa de texto aceita seu texto</li>
+            <li>No console pode aparecer digitação (opcional)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-title">✅ Passo 4: Enviar a Mensagem</div>
+        <div class="step-content">
+          <p>Clique no botão <strong>✓</strong> ou aperte <strong>Enter</strong>.</p>
+          <p>Aguarde 1-2 segundos. Você deve ver no console:</p>
+          <div class="code">✅ Mensagem enviada com sucesso: {_id: '...', text: 'Oi, tudo bem?', ...}</div>
+          <p>E na tela:</p>
+          <ul>
+            <li>A caixa de texto fica <strong>vazia</strong></li>
+            <li>Sua mensagem aparece no histórico acima</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-title">✅ Passo 5: Testar em Outro Navegador</div>
+        <div class="step-content">
+          <p>Abra uma <strong>segunda aba</strong> do navegador:</p>
+          <ul>
+            <li>Se você é <strong>Cliente</strong> → abra como <strong>Loja</strong></li>
+            <li>Se você é <strong>Loja</strong> → abra como <strong>Cliente</strong></li>
+          </ul>
+          <p>Faça login com outra conta (se houver) e abra o chat.</p>
+          <p>Você deve ver a mensagem que enviou na aba 1 <strong>aparecer em tempo real</strong> na aba 2!</p>
+          <div class="check">
+            <strong>✅ Se viu a mensagem aparecer em tempo real</strong><br>
+            Parabéns! O chat funciona corretamente! 🎉
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-title">✅ Bônus: Testar Typing Indicator</div>
+        <div class="step-content">
+          <p>Na segunda aba, comece a digitar algo.</p>
+          <p>Na primeira aba, você deve ver:</p>
+          <div class="code">Loja está digitando... ⏳</div>
+          <p>Com 3 pontos pulsando: <strong>. . .</strong></p>
+          <p>Quando parar de digitar, desaparece em 1 segundo.</p>
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <h2>🐛 Troubleshooting</h2>
+
+    <div class="error">
+      <strong>❌ Erro: "Socket.io desconectado"</strong><br>
+      <p>Backend não está rodando ou a porta 3000 está bloqueada.</p>
+      <p>Solução:</p>
+      <div class="code">cd D:\PROJETOS\Drop && npm start</div>
+    </div>
+
+    <div class="error">
+      <strong>❌ Erro: "Não consegue abrir o chat"</strong><br>
+      <p>A API de criar conversa está retornando erro.</p>
+      <p>Verifique no Network (F12 → Network):</p>
+      <ul>
+        <li>POST /chat/conversations/pre-purchase</li>
+        <li>Status deve ser <strong>200</strong> (verde)</li>
+        <li>Se for <strong>401</strong>, token expirou → faça login de novo</li>
+        <li>Se for <strong>500</strong>, backend tem bug → ver logs</li>
+      </ul>
+    </div>
+
+    <div class="error">
+      <strong>❌ Erro: "Chat abre mas não consegue enviar mensagem"</strong><br>
+      <p>Este era o bug que corrigimos! ✅</p>
+      <p>Verifique se há atualização do navegador.</p>
+      <p>Faça: <strong>Ctrl+Shift+R</strong> (refresh hard)</p>
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ Aviso: Mensagem aparece na tela mas não no outro browser</strong><br>
+      <p>Socket.io pode não estar emitindo o evento corretamente.</p>
+      <p>Solução:</p>
+      <ul>
+        <li>Verificar Network → WS → Messages (procurar por chat:message)</li>
+        <li>Ver logs do backend (terminal onde npm start está rodando)</li>
+        <li>Reiniciar backend e frontend</li>
+      </ul>
+    </div>
+
+    <hr>
+
+    <h2>📞 Logs Esperados</h2>
+
+    <div class="info">
+      <strong>Console do Browser (F12 → Console)</strong>
+      <div class="code">
+✅ Socket.io conectado
+✅ Entrado na sala: chat:abc123...
+✅ Mensagem enviada com sucesso: {...}
+📨 Nova mensagem recebida: {...}
+      </div>
+    </div>
+
+    <div class="info">
+      <strong>Terminal do Backend (npm start)</strong>
+      <div class="code">
+socket.io evento recebido: chat:join
+socket.io evento recebido: chat:message
+socket.io broadcast para sala: chat:abc123...
+      </div>
+    </div>
+
+    <hr>
+
+    <h2>✅ Conclusão</h2>
+
+    <div class="check">
+      <strong>Se todos os 5 passos funcionarem:</strong><br>
+      <ul>
+        <li>✅ Socket.io está conectado</li>
+        <li>✅ Chat abre e carrega histórico</li>
+        <li>✅ Mensagem é enviada para o backend</li>
+        <li>✅ Mensagem é entregue em tempo real</li>
+        <li>✅ Typing indicator funciona</li>
+      </ul>
+      <p style="margin-top: 15px;"><strong>Chat está 100% funcional! 🎉</strong></p>
+    </div>
+
+    <hr>
+
+    <h2>🎯 Próximos Passos</h2>
+    <ol>
+      <li>Fazer deploy em staging/produção</li>
+      <li>Adicionar notificações de som</li>
+      <li>Implementar read receipts (✓✓)</li>
+      <li>Adicionar upload de imagens</li>
+    </ol>
+  </div>
+
+  <script>
+    // Adicionar checkbox interatividade
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        if (this.checked) {
+          this.parentElement.style.opacity = '0.6';
+          this.parentElement.style.textDecoration = 'line-through';
+        } else {
+          this.parentElement.style.opacity = '1';
+          this.parentElement.style.textDecoration = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
