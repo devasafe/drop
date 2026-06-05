@@ -44,3 +44,15 @@ Thumbs.db
 /test-*.sh
 /test-*.mjs
 /test-token.txt
+
+# Artefatos de desenvolvimento / planejamento (nao versionar)
+.superpowers/
+.claude/
+.agents/
+.skills/
+docs/superpowers/
+docs/specs/
+planos/
+CLAUDE.md
+AGENTS.md
+skills-lock.json
