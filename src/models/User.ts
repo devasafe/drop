@@ -62,6 +62,22 @@ export interface IUser extends Document {
   }; // Descriptografado em memória
   // ✅ NOVO: Plano de negócios (para lojas/lojistas)
   planId?: string;
+  // ✅ NOVO: Verificação de identidade (KYC) — Fase 1 (cliente)
+  verification?: {
+    email: { status: 'pending' | 'verified'; verifiedAt?: Date };
+    phone: { status: 'pending' | 'verified'; e164?: string; verifiedAt?: Date };
+    document: {
+      type?: 'cpf' | 'rg';
+      status: 'none' | 'pending' | 'approved' | 'rejected';
+      number?: string;
+      frontUrl?: string;
+      backUrl?: string;
+      submittedAt?: Date;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      rejectionReason?: string;
+    };
+  };
 }
 
 
@@ -136,7 +152,37 @@ const UserSchema = new Schema<IUser>({
     type: String,
     ref: 'PricingPlan',
     default: null
-  }
+  },
+  // ✅ NOVO: Verificação de identidade (KYC) — Fase 1 (cliente)
+  verification: {
+    type: {
+      email: {
+        status: { type: String, enum: ['pending', 'verified'], default: 'pending' },
+        verifiedAt: { type: Date },
+      },
+      phone: {
+        status: { type: String, enum: ['pending', 'verified'], default: 'pending' },
+        e164: { type: String },
+        verifiedAt: { type: Date },
+      },
+      document: {
+        type: { type: String, enum: ['cpf', 'rg'] },
+        status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        number: { type: String },
+        frontUrl: { type: String },
+        backUrl: { type: String },
+        submittedAt: { type: Date },
+        reviewedBy: { type: String },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String },
+      },
+    },
+    default: () => ({
+      email: { status: 'pending' },
+      phone: { status: 'pending' },
+      document: { status: 'none' },
+    }),
+  },
 });
 
 // ✅ SEGURANÇA: Middlewares para criptografar/descriptografar bankInfo

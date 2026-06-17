@@ -100,6 +100,15 @@ beforeAll(async () => {
   mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   const uri = mongod.getUri();
   await mongoose.connect(uri);
+  // warm-up: garante o primary pronto para transações (evita flaky na 1ª transação)
+  const s = await mongoose.startSession();
+  try {
+    await s.withTransaction(async () => {
+      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
+    });
+  } finally {
+    await s.endSession();
+  }
 }, 60000);
 
 afterAll(async () => {

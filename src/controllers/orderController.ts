@@ -27,6 +27,7 @@ import { addCommissionToAppCashbox } from './appCashboxController';
 import AppCashbox from '../models/AppCashbox';
 import payoutService from '../services/payout.service';
 import { getDefaultAddress } from '../utils/userHelpers';
+import { missingClientVerifications } from '../utils/clientVerification';
 import CustomerDebt from '../models/CustomerDebt';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
@@ -84,6 +85,22 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({
         error: `Compras não são permitidas para usuários no modo ${activeRole}. Alterne para 'cliente'.`,
       });
+    }
+
+    // ✅ GATE KYC (ativável por flag): cliente só compra com email + telefone
+    // verificados e documento aprovado. Desligado por padrão para não travar
+    // compras antes do frontend de verificação existir — ligue com KYC_ENFORCED=true.
+    if (process.env.KYC_ENFORCED === 'true') {
+      const buyer = await User.findById(customerId).select('verification').session(session);
+      const missingKyc = missingClientVerifications(buyer);
+      if (missingKyc.length > 0) {
+        await session.abortTransaction();
+        return res.status(403).json({
+          error: 'Conta não verificada. Conclua a verificação para comprar.',
+          code: 'ACCOUNT_NOT_VERIFIED',
+          missing: missingKyc,
+        });
+      }
     }
 
     // Verificar idempotência

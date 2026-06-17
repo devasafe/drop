@@ -15,6 +15,7 @@ process.env.ENABLE_SOCKET_IO = 'false';
 process.env.DELIVERY_TIMEOUT_MINUTES = '30';
 process.env.AUTH_LIMITER_MAX = '5';
 process.env.AUTH_LIMITER_WINDOW_MS = '900000';
+process.env.KYC_ENFORCED = 'true'; // testa o gate de verificação
 
 // Desabilitar logs em testes
 global.console = {

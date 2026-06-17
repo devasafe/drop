@@ -35,6 +35,7 @@ import analyticsRoutes from './routes/analytics'; // ✅ NOVO - Analytics
 import walletAccessRoutes from './routes/walletAccess'; // ✅ NOVO - Wallet access requests
 import payoutsRoutes from './routes/payouts'; // ✅ NOVO - Payout management
 import deliveryInvoicesRoutes from './routes/deliveryInvoices';
+import verificationRoutes from './routes/verification'; // ✅ NOVO - KYC/verificação de conta
 
 const app = express();
 
@@ -157,6 +158,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/wallet-access', walletAccessRoutes);
 app.use('/api/payouts', payoutsRoutes);
 app.use('/api/invoices', deliveryInvoicesRoutes);
+app.use('/api/verification', verificationRoutes);
 
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

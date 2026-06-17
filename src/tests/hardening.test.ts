@@ -34,6 +34,12 @@ async function createUser(role = 'cliente'): Promise<{ token: string; userId: st
     role,
     roles,
     activeRole: role,
+    // Cliente já verificado para passar pelo gate KYC nos testes de pedido
+    verification: {
+      email: { status: 'verified', verifiedAt: new Date() },
+      phone: { status: 'verified', e164: '+5511988887777', verifiedAt: new Date() },
+      document: { type: 'cpf', status: 'approved' },
+    },
   });
   const token = jwt.sign(
     { id: user._id.toString(), role, activeRole: role, roles },
@@ -54,6 +60,16 @@ async function setBalance(owner: string, ownerType: 'user' | 'store' | 'motoboy'
 beforeAll(async () => {
   mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await mongoose.connect(mongod.getUri());
+  // warm-up: garante que o primary do replica set está pronto para transações
+  // (evita flaky na 1ª transação, que usa startTransaction sem retry no createOrder)
+  const s = await mongoose.startSession();
+  try {
+    await s.withTransaction(async () => {
+      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
+    });
+  } finally {
+    await s.endSession();
+  }
 }, 60000);
 
 afterAll(async () => {

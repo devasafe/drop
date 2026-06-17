@@ -13,6 +13,9 @@ const config: Config.InitialOptions = {
   // ✅ Setup de variáveis de ambiente para testes
   setupFiles: ['<rootDir>/jest.setup.ts'],
 
+  // ✅ Retry de testes de integração (erros transitórios de transação no ReplSet em memória)
+  setupFilesAfterEnv: ['<rootDir>/jest.retry.ts'],
+
   // Aumentar timeout para conexão com DB
   testTimeout: 30000,
 
