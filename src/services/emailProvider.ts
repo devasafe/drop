@@ -11,7 +11,9 @@ import logger from '../config/logger';
  */
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  // Senha de app do Google é mostrada como "xxxx xxxx xxxx xxxx" — os espaços
+  // devem ser removidos para autenticar no SMTP.
+  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
   if (!user || !pass) {
     logger.warn('[EMAIL] Gmail SMTP não configurado — email apenas logado (não enviado)', { to, subject });
