@@ -12,6 +12,19 @@ import {
   approveDocument,
   rejectDocument,
 } from '../controllers/verificationController';
+import {
+  submitFacial,
+  submitStoreCnpj,
+  submitStoreAddress,
+  getStoreVerification,
+  listPendingStoreVerifications,
+  approveFacial,
+  rejectFacial,
+  approveStoreCnpj,
+  rejectStoreCnpj,
+  approveStoreAddress,
+  rejectStoreAddress,
+} from '../controllers/storeVerificationController';
 
 const router = Router();
 
@@ -34,10 +47,28 @@ router.post(
   submitDocument
 );
 
-// Admin — fila de revisão
+// Admin — fila de revisão (documentos do cliente)
 const adminReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_clientes');
 router.get('/admin/pending', authenticate, adminReviewers, listPendingVerifications);
 router.post('/admin/:userId/approve', authenticate, adminReviewers, approveDocument);
 router.post('/admin/:userId/reject', authenticate, adminReviewers, rejectDocument);
+
+// ===================== FASE 2: LOJA =====================
+// Facial do dono
+router.post('/facial', authenticate, upload.single('selfie'), submitFacial);
+// CNPJ e endereço da loja
+router.post('/store/:storeId/cnpj', authenticate, submitStoreCnpj);
+router.post('/store/:storeId/address', authenticate, upload.single('comprovante'), submitStoreAddress);
+router.get('/store/:storeId', authenticate, getStoreVerification);
+
+// Admin — revisão de loja (facial/CNPJ/endereço)
+const storeReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_lojistas');
+router.get('/admin/store-pending', authenticate, storeReviewers, listPendingStoreVerifications);
+router.post('/admin/facial/:userId/approve', authenticate, storeReviewers, approveFacial);
+router.post('/admin/facial/:userId/reject', authenticate, storeReviewers, rejectFacial);
+router.post('/admin/store/:storeId/cnpj/approve', authenticate, storeReviewers, approveStoreCnpj);
+router.post('/admin/store/:storeId/cnpj/reject', authenticate, storeReviewers, rejectStoreCnpj);
+router.post('/admin/store/:storeId/address/approve', authenticate, storeReviewers, approveStoreAddress);
+router.post('/admin/store/:storeId/address/reject', authenticate, storeReviewers, rejectStoreAddress);
 
 export default router;

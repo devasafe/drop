@@ -39,6 +39,27 @@ export interface IStore extends Document {
   isOpen: boolean; // toggle manual (feriados, emergências)
   createdAt?: Date;
   updatedAt?: Date;
+  // ✅ KYC Fase 2: verificação da loja
+  isVerified?: boolean; // cache: true quando dono + facial + cnpj + endereço aprovados
+  verification?: {
+    cnpj: {
+      status: 'none' | 'pending' | 'approved' | 'rejected';
+      number?: string;
+      razaoSocial?: string;
+      situacao?: string;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      rejectionReason?: string;
+    };
+    address: {
+      status: 'none' | 'pending' | 'approved' | 'rejected';
+      comprovanteUrl?: string;
+      submittedAt?: Date;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      rejectionReason?: string;
+    };
+  };
 }
 
 const StoreSchema = new Schema<IStore>({
@@ -73,7 +94,31 @@ const StoreSchema = new Schema<IStore>({
   },
   isOpen: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
+  // ✅ KYC Fase 2
+  isVerified: { type: Boolean, default: false, index: true },
+  verification: {
+    type: {
+      cnpj: {
+        status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        number: { type: String },
+        razaoSocial: { type: String },
+        situacao: { type: String },
+        reviewedBy: { type: String },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String },
+      },
+      address: {
+        status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        comprovanteUrl: { type: String },
+        submittedAt: { type: Date },
+        reviewedBy: { type: String },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String },
+      },
+    },
+    default: () => ({ cnpj: { status: 'none' }, address: { status: 'none' } }),
+  },
 });
 
 export default model<IStore>('Store', StoreSchema);

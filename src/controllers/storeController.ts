@@ -308,7 +308,10 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
 
 export const listStores = async (_req: Request, res: Response) => {
   try {
-    const stores = await Store.find().lean();
+    // ✅ GATE KYC (Fase 2): com KYC_ENFORCED, só lojas verificadas aparecem.
+    const filter: any = {};
+    if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    const stores = await Store.find(filter).lean();
     return res.json(stores);
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -354,10 +357,9 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 export const getFeaturedStores = async (_req: Request, res: Response) => {
   try {
     console.log('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
-    const stores = await Store.find({
-      plan: 3,
-      featuredBannerUrl: { $exists: true, $ne: '' },
-    })
+    const featuredFilter: any = { plan: 3, featuredBannerUrl: { $exists: true, $ne: '' } };
+    if (process.env.KYC_ENFORCED === 'true') featuredFilter.isVerified = true; // ✅ GATE KYC Fase 2
+    const stores = await Store.find(featuredFilter)
       .select('_id name featuredBannerUrl plan')
       .lean();
     return res.json(stores);
@@ -456,6 +458,10 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
       store = await Store.findOne({ slug: idOrSlug }).lean();
     }
     if (!store) return res.status(404).json({ error: 'Store not found' });
+    // ✅ GATE KYC Fase 2: loja não verificada não aparece publicamente
+    if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
     return res.json(store);
   } catch (err) {
     console.error(err);

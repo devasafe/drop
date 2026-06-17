@@ -84,6 +84,12 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const filter: any = {};
     if (category) filter.category = category;
 
+    // ✅ GATE KYC Fase 2: com KYC_ENFORCED, só produtos de lojas verificadas
+    if (process.env.KYC_ENFORCED === 'true') {
+      const verifiedStores = await Store.find({ isVerified: true }).select('_id').lean();
+      filter.storeId = { $in: verifiedStores.map((s: any) => s._id) };
+    }
+
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Number(req.query.limit) || 20);

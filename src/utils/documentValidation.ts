@@ -33,6 +33,27 @@ export function isValidRG(rg: string): boolean {
   return r.length >= 5 && r.length <= 14;
 }
 
+export function isValidCNPJ(cnpj: string): boolean {
+  const c = onlyDigits(cnpj);
+  if (c.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(c)) return false; // rejeita todos iguais
+
+  const calcDigit = (len: number): number => {
+    let sum = 0;
+    let pos = len - 7;
+    for (let i = len; i >= 1; i--) {
+      sum += parseInt(c[len - i], 10) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+
+  if (calcDigit(12) !== parseInt(c[12], 10)) return false;
+  if (calcDigit(13) !== parseInt(c[13], 10)) return false;
+  return true;
+}
+
 // Normaliza telefone brasileiro para E.164 (+55...). Aceita com/sem DDI.
 export function toE164BR(phone: string): string | null {
   let d = onlyDigits(phone);

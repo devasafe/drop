@@ -77,6 +77,15 @@ export interface IUser extends Document {
       reviewedAt?: Date;
       rejectionReason?: string;
     };
+    // Facial do dono (usado na verificação de loja/motoboy — Fases 2 e 3)
+    facial?: {
+      status: 'none' | 'pending' | 'approved' | 'rejected';
+      selfieUrl?: string;
+      submittedAt?: Date;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      rejectionReason?: string;
+    };
   };
 }
 
@@ -171,6 +180,14 @@ const UserSchema = new Schema<IUser>({
         number: { type: String },
         frontUrl: { type: String },
         backUrl: { type: String },
+        submittedAt: { type: Date },
+        reviewedBy: { type: String },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String },
+      },
+      facial: {
+        status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        selfieUrl: { type: String },
         submittedAt: { type: Date },
         reviewedBy: { type: String },
         reviewedAt: { type: Date },
