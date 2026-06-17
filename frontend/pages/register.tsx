@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { maskCPF, maskPhone, maskRG, onlyDigits, cleanRG } from '../lib/masks';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Register.module.css';
@@ -82,9 +83,9 @@ export default function RegisterPage() {
       formData.append('email', email);
       formData.append('password', password);
       formData.append('role', role);
-      formData.append('telefone', telefone);
-      formData.append('cpf', cpf);
-      formData.append('rg', rg);
+      formData.append('telefone', onlyDigits(telefone));
+      formData.append('cpf', onlyDigits(cpf));
+      formData.append('rg', cleanRG(rg));
       formData.append('dataNascimento', dataNascimento);
       formData.append('sexo', sexo);
       if (photo) formData.append('photo', photo);
@@ -156,17 +157,17 @@ export default function RegisterPage() {
 
           <div className={styles.field}>
             <label className={styles.label}>Telefone</label>
-            <input type="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 99999-9999" className={styles.input} />
+            <input type="tel" value={telefone} onChange={(e) => setTelefone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" className={styles.input} />
           </div>
 
           <div className={styles.fieldGrid}>
             <div className={styles.field}>
               <label className={styles.label}>CPF</label>
-              <input type="text" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className={styles.input} />
+              <input type="text" value={cpf} onChange={(e) => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" className={styles.input} />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>RG</label>
-              <input type="text" value={rg} onChange={(e) => setRg(e.target.value)} placeholder="0.000.000" className={styles.input} />
+              <input type="text" value={rg} onChange={(e) => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" className={styles.input} />
             </div>
           </div>
 
