@@ -261,6 +261,9 @@ export default function Nav() {
                       <a href="/user-profile" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Meu Perfil
                       </a>
+                      <a href="/editar-conta" onClick={close} className={styles.item}>
+                        <span className={styles.itemIcon}><Icon name="settings" size={14} /></span> Editar meus dados
+                      </a>
                       <a href={activeRole === 'lojista' ? '/seller/wallet' : activeRole === 'motoboy' ? '/motoboy/wallet' : '/my-wallet'} onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="wallet" size={14} /></span> Minha Carteira
                       </a>
@@ -386,6 +389,7 @@ export default function Nav() {
             <div className={styles.mobileSectionLabel}>Conta</div>
             <nav aria-label="Conta" className={styles.mobileNav}>
               <a href="/user-profile" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
+              <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
               <a href={activeRole === 'lojista' ? '/seller/wallet' : activeRole === 'motoboy' ? '/motoboy/wallet' : '/my-wallet'} className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="wallet" size={16} /> Minha Carteira</a>
               {activeRole === 'cliente' && (
                 <a href="/user-dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="package" size={16} /> Meus Pedidos</a>
