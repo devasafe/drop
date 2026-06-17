@@ -4,6 +4,14 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 let mongod: MongoMemoryServer | null = null;
 
 export async function connectDB(): Promise<typeof mongoose> {
+  // ✅ TESTES: sempre usar um MongoMemoryServer dedicado, ignorando MONGO_URI.
+  // Evita dependência de um Mongo externo e o "vazamento" de URI entre arquivos.
+  if (process.env.NODE_ENV === 'test') {
+    if (mongoose.connection.readyState === 1) return mongoose; // já conectado
+    mongod = await MongoMemoryServer.create();
+    return mongoose.connect(mongod.getUri());
+  }
+
   const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
   if (mongoUri) {
     // Log a masked version of the URI to help debugging (don't print password)
@@ -28,5 +36,8 @@ export async function connectDB(): Promise<typeof mongoose> {
 
 export async function disconnectDB(): Promise<void> {
   await mongoose.disconnect();
-  if (mongod) await mongod.stop();
+  if (mongod) {
+    await mongod.stop();
+    mongod = null;
+  }
 }

@@ -2,12 +2,10 @@ import { Response } from 'express';
 import { Server as IOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { onlineTracker } from './onlineTracker';
+import env from '../config/env';
 
-if (!process.env.JWT_SECRET) {
-  throw new Error('FATAL: JWT_SECRET environment variable is required');
-}
-
-const JWT_SECRET = process.env.JWT_SECRET;
+// Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
+const JWT_SECRET = env.JWT_SECRET;
 
 type SSEClient = {
   id: string; // user id

@@ -67,26 +67,35 @@ class WalletService {
   }): Promise<void> {
     const { owner, ownerType, amount, reason, category, reference } = params;
 
-    const wallet = await this.getOrCreate(owner, ownerType);
-    if (wallet.balance < amount) {
+    // ✅ ATÔMICO: o filtro `balance >= amount` + `$inc` garante que dois débitos
+    // concorrentes não derrubem o saldo abaixo de zero (sem race condition).
+    const updated = await Wallet.findOneAndUpdate(
+      { owner, ownerType, balance: { $gte: amount } },
+      {
+        $inc: { balance: -amount, totalSpent: amount },
+        $push: {
+          history: {
+            date: new Date(),
+            type: 'debit',
+            category: category ?? 'withdrawal',
+            amount,
+            reason,
+            reference,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      // Ou a carteira não existe, ou não há saldo suficiente.
+      const existing = await Wallet.findOne({ owner, ownerType });
       throw Object.assign(new Error('Saldo insuficiente'), {
         statusCode: 400,
-        available: wallet.balance,
+        available: existing?.balance ?? 0,
         required: amount,
       });
     }
-
-    wallet.balance -= amount;
-    wallet.totalSpent += amount;
-    wallet.history.push({
-      date: new Date(),
-      type: 'debit',
-      category: category ?? 'withdrawal',
-      amount,
-      reason,
-      reference,
-    });
-    await wallet.save();
   }
 }
 

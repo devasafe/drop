@@ -203,6 +203,8 @@ export function setupChatSocket(io: Server) {
       if (!conversationId || !messageId) return;
 
       const room = `chat:${conversationId}`;
+      // ✅ SEGURANÇA: só pode marcar como lida quem está na sala (já autorizado no join)
+      if (!socket.rooms.has(room)) return;
 
       try {
         io.to(room).emit('chat:message_read', {

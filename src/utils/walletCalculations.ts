@@ -5,6 +5,13 @@ import PlatformConfig from '../models/PlatformConfig';
 import StoreSubscription from '../models/StoreSubscription';
 
 /**
+ * Arredonda valores monetários para 2 casas decimais (centavos).
+ * Evita erros de ponto flutuante (ex.: 0.1 + 0.2) que quebram conferências
+ * financeiras como a "soma exata" no saque (payout.service.selectPayoutsForAmount).
+ */
+export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
  * Busca a taxa da loja conforme seu plano
  * Procura em StoreSubscription primeiro (atual), depois em User.planId (legado)
  */
@@ -48,8 +55,10 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     console.log(`📊 [getStorePlanFee] Store ${storeId} - Fallback Fee: ${fee}% (planId: ${store.plan})`);
     return fee;
   } catch (error) {
+    // ⚠️ NUNCA retornar 0% silenciosamente — isso faria a plataforma deixar de
+    // cobrar comissão. Propagar o erro para abortar o pedido (fail-safe financeiro).
     console.error('❌ Erro ao buscar taxa do plano:', error);
-    return 0; // Padrão: sem comissão
+    throw error instanceof Error ? error : new Error('Falha ao buscar taxa do plano da loja');
   }
 }
 
@@ -165,19 +174,19 @@ export async function calculateOrderDistribution(
       effectiveDeliveryFee = 0;
     }
 
-    // ✅ CÁLCULO DO PRODUTO
-    const productStoreAmount = productTotal * (1 - planCommissionDecimal);
-    const productAppCommission = productTotal * planCommissionDecimal;
+    // ✅ CÁLCULO DO PRODUTO (arredondado a centavos)
+    const productStoreAmount = round2(productTotal * (1 - planCommissionDecimal));
+    const productAppCommission = round2(productTotal * planCommissionDecimal);
 
     // ✅ CÁLCULO DA ENTREGA (zero para Plano 1)
-    const deliveryMotoboyAmount = effectiveDeliveryFee * (1 - motoboyCommissionDecimal);
-    const deliveryAppCommission = effectiveDeliveryFee * motoboyCommissionDecimal;
+    const deliveryMotoboyAmount = round2(effectiveDeliveryFee * (1 - motoboyCommissionDecimal));
+    const deliveryAppCommission = round2(effectiveDeliveryFee * motoboyCommissionDecimal);
 
     // ✅ TOTAIS
     const storeAmount = productStoreAmount;
-    const appAmount = productAppCommission + deliveryAppCommission;
+    const appAmount = round2(productAppCommission + deliveryAppCommission);
     const motoboyAmount = deliveryMotoboyAmount;
-    const totalClient = productTotal + effectiveDeliveryFee;
+    const totalClient = round2(productTotal + effectiveDeliveryFee);
 
     return {
       // Total que cliente paga
@@ -215,36 +224,10 @@ export async function calculateOrderDistribution(
       }
     };
   } catch (err) {
+    // ⚠️ NUNCA usar um fallback fixo de 15% — isso cobraria a loja errado e de
+    // forma silenciosa. Propagar o erro para o chamador abortar o pedido com segurança.
     console.error('❌ Erro ao calcular distribuição:', err);
-    // Fallback para cálculo simples
-    const storeAmount = productTotal * 0.85; // 15% default
-    const appAmount = productTotal * 0.15 + deliveryFeeTotal * 0.20;
-    const motoboyAmount = deliveryFeeTotal * 0.80;
-
-    return {
-      totalClient: productTotal + deliveryFeeTotal,
-      product: {
-        total: productTotal,
-        storeAmount,
-        appCommission: productTotal * 0.15,
-        commissionPercent: 15,
-      },
-      delivery: {
-        total: deliveryFeeTotal,
-        motoboyAmount,
-        appCommission: deliveryFeeTotal * 0.20,
-        commissionPercent: 20,
-      },
-      storeAmount,
-      appTotalCommission: appAmount,
-      motoboyAmount,
-      distribution: {
-        store: storeAmount,
-        app: appAmount,
-        motoboy: motoboyAmount,
-        client: productTotal + deliveryFeeTotal,
-      }
-    };
+    throw err instanceof Error ? err : new Error('Falha ao calcular distribuição do pedido');
   }
 }
 

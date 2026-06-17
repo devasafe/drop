@@ -5,7 +5,8 @@
 
 // Configurar variáveis de ambiente para testes
 process.env.NODE_ENV = 'test';
-process.env.MONGO_URI = 'mongodb://localhost:27017/drop-test';
+// ⚠️ NÃO forçar MONGO_URI local — connectDB() (src/db.ts) sobe um
+// MongoMemoryServer dedicado em ambiente de teste.
 process.env.JWT_SECRET = 'test_secret_key_with_minimum_32_characters_length_ok';
 process.env.JWT_EXPIRES_IN = '7d';
 process.env.CORS_ORIGIN = 'http://localhost:3000,http://localhost:3001';

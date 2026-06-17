@@ -45,6 +45,9 @@ Thumbs.db
 /test-*.mjs
 /test-token.txt
 
+# Documentação/scripts antigos arquivados (não versionar — só histórico local)
+_archive_docs/
+
 # Artefatos de desenvolvimento / planejamento (nao versionar)
 .superpowers/
 .claude/

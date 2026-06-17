@@ -55,12 +55,21 @@ export const getWallet = async (req: Request, res: Response) => {
 export const getStoreWallet = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
+
+    // ✅ SEGURANÇA (IDOR): só o dono da loja ou um admin pode ver a carteira.
+    const requesterId = (req as any).user?.id;
+    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
+    const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_lojistas'];
+    const storeOwner = await Store.findById(storeId).select('ownerId');
+    if (!storeOwner) return res.status(404).json({ error: 'Carteira da loja não encontrada' });
+    if (String(storeOwner.ownerId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+      return res.status(403).json({ error: 'Acesso negado à carteira da loja' });
+    }
+
     let wallet = await Wallet.findOne({ owner: storeId, ownerType: 'store' });
 
     if (!wallet) {
-      // Cria carteira sob demanda se a loja existe (autoheal)
-      const exists = await Store.findById(storeId).select('_id');
-      if (!exists) return res.status(404).json({ error: 'Carteira da loja não encontrada' });
+      // Cria carteira sob demanda (autoheal) — a loja já foi validada acima
       wallet = await Wallet.create({ owner: storeId, ownerType: 'store' });
     }
 
@@ -242,6 +251,15 @@ export const transferStoreToOwner = async (req: Request, res: Response) => {
 export const getMotoboyWallet = async (req: Request, res: Response) => {
   try {
     const { motoboyId } = req.params;
+
+    // ✅ SEGURANÇA (IDOR): só o próprio motoboy ou um admin pode ver a carteira.
+    const requesterId = (req as any).user?.id;
+    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
+    const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_motoboys'];
+    if (String(motoboyId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+      return res.status(403).json({ error: 'Acesso negado à carteira do motoboy' });
+    }
+
     let wallet = await Wallet.findOne({ owner: motoboyId, ownerType: 'motoboy' });
 
     if (!wallet) {

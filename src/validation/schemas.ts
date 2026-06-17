@@ -52,7 +52,9 @@ export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
 export const OrderProductSchema = z.object({
   productId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID do produto inválido'),
   quantity: z.number().int().positive('Quantidade deve ser maior que 0').max(99, 'Quantidade máxima é 99'),
-  price: z.number().positive('Preço deve ser positivo').finite('Preço deve ser um número válido'),
+  // ⚠️ SEGURANÇA: preço é aceito por compatibilidade mas IGNORADO pelo servidor.
+  // O preço real vem sempre do banco (ver orderController.createOrder). Nunca confiar no frontend.
+  price: z.number().positive().finite().optional(),
 });
 
 export const CreateOrderSchema = z.object({

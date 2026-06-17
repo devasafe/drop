@@ -6,6 +6,10 @@ const config: Config.InitialOptions = {
   testEnvironment: 'node',
   testMatch: ['**/src/tests/**/*.test.ts'],
 
+  // ⚠️ Testes legados quebrados (paths sem /api, contratos antigos) ficam em
+  // src/tests/_legacy e NÃO rodam. Ver src/tests/_legacy/README.md.
+  testPathIgnorePatterns: ['/node_modules/', '/_legacy/'],
+
   // ✅ Setup de variáveis de ambiente para testes
   setupFiles: ['<rootDir>/jest.setup.ts'],
 

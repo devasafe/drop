@@ -6,6 +6,7 @@ import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 import User from '../models/User';
 import Store from '../models/Store';
+import Product from '../models/Product';
 import Wallet from '../models/Wallet';
 import AppCashbox from '../models/AppCashbox';
 import PlatformConfig from '../models/PlatformConfig';
@@ -88,6 +89,26 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
     const refundAmount = order.totalValue || 0;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
+
+    // ✅ IDEMPOTÊNCIA/ATÔMICO: "reivindica" o cancelamento de forma atômica.
+    // Só UM request consegue mudar de um status cancelável → 'cancelado'.
+    // Bloqueia duplo-reembolso por requisições concorrentes.
+    const claimed = await Order.findOneAndUpdate(
+      { _id: orderId, status: { $in: cancellableStatuses } },
+      { $set: { status: 'cancelado', cancelledAt: new Date() } },
+      { new: true }
+    );
+    if (!claimed) {
+      return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+    }
+
+    // ✅ Devolver estoque (createOrder decrementa sempre, COD ou não).
+    // Roda uma única vez graças à trava atômica acima.
+    for (const it of (order.products || [])) {
+      if ((it as any).productId && (it as any).quantity) {
+        await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+      }
+    }
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {
@@ -661,6 +682,24 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     const refundAmount = order.totalValue || 0;
     const refundStatus: 'pending' | 'processed' | 'failed' = 'processed';
 
+    // ✅ IDEMPOTÊNCIA/ATÔMICO: só UM request consegue mover para 'rejeitado'.
+    // Bloqueia duplo-reembolso por requisições concorrentes.
+    const claimed = await Order.findOneAndUpdate(
+      { _id: orderId, status: { $in: ['criado', 'pago', 'enviado'] } },
+      { $set: { status: 'rejeitado', cancelledAt: new Date() } },
+      { new: true }
+    );
+    if (!claimed) {
+      return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
+    }
+
+    // ✅ Devolver estoque (uma única vez, graças à trava atômica acima)
+    for (const it of (order.products || [])) {
+      if ((it as any).productId && (it as any).quantity) {
+        await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+      }
+    }
+
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {
       const rejectSession = await mongoose.startSession();
@@ -871,6 +910,22 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 export const getCancellationHistory = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id: orderId } = req.params as any;
+
+    // ✅ SEGURANÇA (IDOR): só o cliente dono, o dono da loja ou um admin podem ver.
+    const userId = req.user?.id;
+    const role = (req.user as any)?.activeRole || (req.user as any)?.role;
+    const order = await Order.findById(orderId).lean();
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    const isCustomer = String(order.customerId) === String(userId);
+    let isStoreOwner = false;
+    if (!isCustomer) {
+      const store = await Store.findById(order.storeId).select('ownerId').lean();
+      isStoreOwner = !!store && String(store.ownerId) === String(userId);
+    }
+    const isAdmin = ['ceo', 'gerente_geral'].includes(role);
+    if (!isCustomer && !isStoreOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Sem permissão para ver este histórico' });
+    }
 
     const cancellations = await Cancellation.find({ orderId })
       .sort({ createdAt: -1 })

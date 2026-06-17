@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest } from '../types';
+import env from '../config/env';
 
 interface JwtPayload {
   id: string;
@@ -10,7 +11,8 @@ interface JwtPayload {
   name?: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
+const JWT_SECRET = env.JWT_SECRET;
 
 const isDev = process.env.NODE_ENV === 'development';
 

@@ -59,8 +59,9 @@ router.get('/public/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
 
+    // ✅ SEGURANÇA: endpoint PÚBLICO — não expor PII (email/telefone).
     const user = await User.findById(userId).select(
-      'name email roles activeRole createdAt'
+      'name roles activeRole createdAt'
     );
 
     if (!user) {
@@ -70,7 +71,6 @@ router.get('/public/:userId', async (req: Request, res: Response) => {
     return res.json({
       _id: user._id,
       name: user.name,
-      email: user.email,
       roles: user.roles,
       activeRole: user.activeRole,
       createdAt: user.createdAt

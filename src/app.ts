@@ -3,8 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import mongoSanitize from 'express-mongo-sanitize';
 import path from 'path';
 import env from './config/env';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import userRoutes from './routes/user';
 import authRoutes from './routes/auth';
 import productsRoutes from './routes/products';
@@ -38,26 +41,36 @@ const app = express();
 // ✅ SEGURANÇA: Confiar em X-Forwarded-For (para proxies/load balancers)
 app.set('trust proxy', 1); // Confiar no primeiro proxy na chain
 
-// ✅ SEGURANÇA: CORS com whitelist (NÃO aberto para todas as origens)
+// ✅ SEGURANÇA: Headers de proteção (XSS, clickjacking, sniffing, etc.)
+app.use(helmet());
+
+// ✅ SEGURANÇA: CORS com whitelist REAL (origens exatas configuradas em CORS_ORIGIN).
+// Previews da Vercel (*.vercel.app) só são aceitos se ALLOW_VERCEL_PREVIEWS=true.
 const allowedOrigins = env.CORS_ORIGIN.split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Requisições sem Origin (curl, apps mobile, server-to-server) são permitidas
     if (!origin) return callback(null, true);
-    if (origin.endsWith(".vercel.app") || origin === "http://localhost:3000") {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS policy: origin ${origin} not allowed`));
-    }
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowVercelPreviews && origin.endsWith('.vercel.app')) return callback(null, true);
+    return callback(new Error(`CORS policy: origin ${origin} not allowed`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+
+// ✅ SEGURANÇA: limitar tamanho do payload (evita DoS por body gigante)
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser()); // ✅ SEGURANÇA: Parse cookies
+
+// ✅ SEGURANÇA: NUNCA confiar no frontend — remover operadores ($, .) de
+// inputs para prevenir NoSQL injection em queries do Mongo.
+app.use(mongoSanitize());
 
 // ✅ SEGURANÇA: Rate limiting para endpoints críticos
 const validateAndFormatIp = (req: any): string => {
@@ -97,31 +110,14 @@ const apiLimiter = rateLimit({
   skip: (req) => env.NODE_ENV === 'test',
 });
 
-// Middleware para log de requisições
-app.use((req, res, next) => {
-	const start = Date.now();
-	res.on('finish', () => {
-		const duration = Date.now() - start;
-		console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
-	});
-	next();
-});
-
-// Log MUITO CEDO para rotas de chat
-app.use((req, res, next) => {
-	if (req.path.includes('/chat') || req.baseUrl.includes('/chat')) {
-		console.log(`🟡 [EARLY LOG] ${req.method} ${req.baseUrl}${req.path}`);
-	}
-	next();
-});
-
-// Log específico para requisições de chat (apenas em development)
-if (process.env.NODE_ENV === 'development') {
+// Log de requisições — apenas fora de produção (evita ruído e vazamento de paths/dados em prod)
+if (env.NODE_ENV !== 'production') {
 	app.use((req, res, next) => {
-		if (req.path.includes('/chat')) {
-			console.log(`🔵 [CHAT REQUEST] ${req.method} ${req.path}`);
-			console.log(`   Full URL: ${req.baseUrl}${req.path}`);
-		}
+		const start = Date.now();
+		res.on('finish', () => {
+			const duration = Date.now() - start;
+			console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+		});
 		next();
 	});
 }
@@ -165,5 +161,12 @@ app.use('/api/invoices', deliveryInvoicesRoutes);
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/uploads', uploadsRoutes);
+
+// ✅ 404 para rotas não mapeadas (resposta consistente)
+app.use(notFoundHandler);
+
+// ✅ SEGURANÇA: error handler global por último — captura erros, loga de forma
+// estruturada e NUNCA vaza stack trace ao cliente em produção.
+app.use(errorHandler);
 
 export default app;

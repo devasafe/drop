@@ -49,32 +49,45 @@ type Environment = z.infer<typeof envSchema>;
  * ✅ VALIDAR NO STARTUP - Falhar rápido se algo estiver faltando
  * Em testes, retorna com valores padrão
  */
+// ⚠️ SEGURANÇA: fallback APENAS para desenvolvimento/teste local.
+// Em produção este valor NUNCA é usado (o app aborta antes — ver abaixo).
+const DEV_ONLY_JWT_FALLBACK = 'dev_only_insecure_secret_min_32_characters_change_me';
+
 export const env = (() => {
   const isTest = process.env.NODE_ENV === 'test';
-  
+  const isProd = process.env.NODE_ENV === 'production';
+
   try {
     const parsed = envSchema.parse(process.env);
-    
-    // ⚠️ IMPORTANTE: Não fazer process.exit() se variáveis faltarem
-    // Permite que o app inicie com valores padrão (útil pra health checks)
-    // Em produção, o app vai falhar ao tentar conectar no MongoDB
-    
-    if (!isTest && !parsed.MONGO_URI) {
-      console.warn('⚠️ MONGO_URI não configurada - usando fallback');
-    }
-    
-    if (!isTest && !parsed.JWT_SECRET) {
-      console.warn('⚠️ JWT_SECRET não configurada - usando fallback');
-    }
-    
-    if (!isTest) {
+    const mongoUri = parsed.MONGO_URI || parsed.MONGODB_URI;
+
+    // ✅ SEGURANÇA: em produção, segredos são OBRIGATÓRIOS. Sem fallback inseguro.
+    // Falha rápido (fail-fast) em vez de subir com um JWT_SECRET público conhecido.
+    if (isProd) {
+      const missing: string[] = [];
+      if (!parsed.JWT_SECRET) missing.push('JWT_SECRET (mínimo 32 caracteres)');
+      if (!mongoUri) missing.push('MONGO_URI ou MONGODB_URI');
+      if (missing.length > 0) {
+        console.error(
+          '❌ FATAL: variáveis de ambiente obrigatórias ausentes em produção:\n  • ' +
+            missing.join('\n  • ') +
+            '\n💡 Configure-as no ambiente (Render/Vercel) antes de iniciar.'
+        );
+        process.exit(1);
+      }
+    } else if (!isTest) {
+      if (!mongoUri) console.warn('⚠️ MONGO_URI não configurada - usando fallback local');
+      if (!parsed.JWT_SECRET) {
+        console.warn('⚠️ JWT_SECRET não configurada - usando fallback INSEGURO (apenas dev)');
+      }
       console.log(`✅ Environment validated (${parsed.NODE_ENV} mode)`);
     }
-    
+
     return {
       ...parsed,
-      MONGO_URI: parsed.MONGO_URI || parsed.MONGODB_URI || 'mongodb://localhost:27017/drop-test',
-      JWT_SECRET: parsed.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok'
+      MONGO_URI: mongoUri || 'mongodb://localhost:27017/drop-test',
+      // Em produção parsed.JWT_SECRET está garantido (senão já abortamos acima).
+      JWT_SECRET: parsed.JWT_SECRET || DEV_ONLY_JWT_FALLBACK,
     };
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -5,12 +5,10 @@ import User from '../models/User';
 import { AuthenticatedRequest } from '../types';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import env from '../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-if (!JWT_SECRET) {
-  console.warn('⚠️  JWT_SECRET não está configurado. Use a variável de ambiente JWT_SECRET');
-}
+// Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
+const JWT_SECRET = env.JWT_SECRET;
 
 // Importar Wallet model
 let Wallet: any;

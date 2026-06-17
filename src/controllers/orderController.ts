@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import Order from '../models/Order';
 import Store from '../models/Store';
-import { calculateRoute } from '../services/routeCalculator';
+import { calculateRoute, calculateDistance } from '../services/routeCalculator';
 import User from '../models/User';
 import Product from '../models/Product';
 import Transaction from '../models/Transaction';
@@ -20,6 +20,7 @@ import {
 import {
   calculateOrderDistribution,
   calculateDeliveryFeeWithConfig,
+  round2,
 } from '../utils/walletCalculations';
 import StoreSubscription from '../models/StoreSubscription';
 import { addCommissionToAppCashbox } from './appCashboxController';
@@ -137,7 +138,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         return res.status(404).json({ error: `Produto ${p.productId} não encontrado` });
       }
 
-      const productPrice = (p.price && p.price > 0) ? p.price : prod.price;
+      // ✅ SEGURANÇA: NUNCA confiar no preço enviado pelo frontend.
+      // O preço é SEMPRE o que está no banco de dados (fonte da verdade).
+      const productPrice = prod.price;
       if (productPrice <= 0) {
         await session.abortTransaction();
         return res.status(400).json({ error: `Produto ${prod.name} com preço inválido` });
@@ -186,11 +189,25 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       appliedCouponId = couponResult.coupon?._id;
     }
 
+    // ✅ SEGURANÇA: NUNCA confiar na distância enviada pelo frontend.
+    // Calcular server-side (haversine) a partir das coordenadas loja → cliente.
+    // Sem coordenadas, a taxa fica 0 (caso degenerado / Plano 1 sem entrega).
+    let serverDistanceKm = 0;
+    const sLat = Number(storeForCheck.latitude);
+    const sLng = Number(storeForCheck.longitude);
+    const cLat = Number(latitude);
+    const cLng = Number(longitude);
+    if ([sLat, sLng, cLat, cLng].every(n => Number.isFinite(n) && n !== 0)) {
+      serverDistanceKm = calculateDistance(sLat, sLng, cLat, cLng);
+    } else if (deliveryDistanceKm) {
+      logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
+    }
+
     // [Plan1] Loja Plano 1 não tem entrega integrada — taxa sempre zero
-    const rawDeliveryFee = await calculateDeliveryFeeWithConfig(Number(deliveryDistanceKm || 0));
+    const rawDeliveryFee = await calculateDeliveryFeeWithConfig(serverDistanceKm);
     const deliveryFee = storePlanForOrder === 1 ? 0 : rawDeliveryFee;
-    const totalValue = subtotal + deliveryFee - couponDiscount;
-    const distribution = await calculateOrderDistribution(subtotal, deliveryFee, storeIdStr, storePlanForOrder === 1 ? 0 : deliveryDistanceKm);
+    const totalValue = round2(subtotal + deliveryFee - couponDiscount);
+    const distribution = await calculateOrderDistribution(subtotal, deliveryFee, storeIdStr, storePlanForOrder === 1 ? 0 : serverDistanceKm);
 
     // Verificar e debitar carteira do cliente
     let clientWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(session);
@@ -342,7 +359,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       products: items,
       totalValue,
       deliveryFee,
-      deliveryDistance: deliveryDistanceKm || 0,
+      deliveryDistance: serverDistanceKm,
       status: 'criado',
       paymentMethod: paymentMethod || 'money',
       debtCollected: debtAmount > 0 ? debtAmount : undefined,
@@ -769,11 +786,8 @@ export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Respon
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
-    const store = await Store.findOne({ ownerId: userId });
-    if (!store || order.storeId.toString() !== store._id.toString()) {
-      return res.status(403).json({ error: 'Este pedido não pertence à sua loja' });
-    }
-
+    // CEO já autorizado acima — pode ajustar o status de pagamento de qualquer pedido
+    // (endpoint temporário até a integração do gateway de pagamento).
     order.paymentStatus = paymentStatus;
     if (paymentStatus === 'paid' && order.status === 'criado') {
       order.status = 'pago';
