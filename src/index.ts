@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// ✅ Forçar IPv4 nas resoluções DNS — o Render não tem rota IPv6 de saída,
+// causando ENETUNREACH ao conectar no SMTP do Gmail (que resolve para IPv6).
+import dns from 'dns';
+try { (dns as any).setDefaultResultOrder?.('ipv4first'); } catch { /* Node < 16.4 */ }
+
 // ✅ VALIDAR ENV NO STARTUP (falha rápido com mensagens claras)
 import env from './config/env';
 
