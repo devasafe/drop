@@ -40,7 +40,7 @@ router.get('/me', authenticate, getMyVerification);
 
 // Email
 router.post('/email/resend', authenticate, resendEmailVerification);
-router.post('/email/verify', verifyEmail); // público: o token identifica o usuário
+router.post('/email/verify', authenticate, verifyEmail); // código digitado pelo usuário logado
 
 // Telefone (OTP via WhatsApp)
 router.post('/phone/send-otp', authenticate, sendPhoneOtp);

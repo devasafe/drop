@@ -52,22 +52,25 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
     }
 
     await EmailVerificationToken.deleteMany({ userId: user.id });
-    const token = crypto.randomBytes(32).toString('hex');
+    const code = String(crypto.randomInt(100000, 1000000)); // 6 dígitos
     await EmailVerificationToken.create({
       userId: user.id,
-      tokenHash: sha256(token),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+      tokenHash: sha256(code),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
     });
 
-    const link = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
     try {
-      await sendEmail(user.email, 'Verifique seu email — DROP', `Confirme seu email: <a href="${link}">${link}</a>`);
+      await sendEmail(
+        user.email,
+        'Seu código de verificação — DROP',
+        `Seu código de verificação é <b style="font-size:22px;letter-spacing:2px">${code}</b>.<br/>Ele expira em 15 minutos.`
+      );
     } catch (mailErr: any) {
       const detail = mailErr?.response?.data?.message || mailErr?.response?.data?.error || mailErr?.message || 'erro desconhecido';
       logger.error('Falha ao enviar email de verificação', { detail });
       return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });
     }
-    return res.json({ message: 'Email de verificação enviado' });
+    return res.json({ message: 'Código enviado para o seu email' });
   } catch (err) {
     logger.error('Erro ao reenviar email', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -76,21 +79,26 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
 
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ error: 'Token obrigatório' });
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Código obrigatório' });
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
 
-    const record = await EmailVerificationToken.findOne({ tokenHash: sha256(String(token)) });
+    const record = await EmailVerificationToken.findOne({ userId }).sort({ createdAt: -1 });
     if (!record || record.expiresAt.getTime() < Date.now()) {
-      return res.status(400).json({ error: 'Token inválido ou expirado' });
+      return res.status(400).json({ error: 'Código inválido ou expirado' });
+    }
+    if (record.tokenHash !== sha256(String(code).trim())) {
+      return res.status(400).json({ error: 'Código incorreto' });
     }
 
-    const user = await User.findById(record.userId);
+    const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     user.verification!.email = { status: 'verified', verifiedAt: new Date() };
     user.markModified('verification');
     await user.save();
-    await EmailVerificationToken.deleteMany({ userId: record.userId });
+    await EmailVerificationToken.deleteMany({ userId });
 
     return res.json({ message: 'Email verificado com sucesso' });
   } catch (err) {

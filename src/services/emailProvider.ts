@@ -1,36 +1,36 @@
-import axios from 'axios';
+import nodemailer from 'nodemailer';
 import logger from '../config/logger';
 
 /**
- * Envio de email via Resend (https://resend.com).
- * Sem RESEND_API_KEY configurada, apenas loga — permite testar o fluxo localmente.
+ * Envio de email via Gmail SMTP (nodemailer).
+ * Sem credenciais configuradas, apenas loga (dev).
  *
  * Env:
- *   RESEND_API_KEY  — chave da API do Resend
- *   EMAIL_FROM      — remetente, ex.: "DROP <noreply@seudominio.com>"
- *                     (sem domínio verificado, use o sandbox: "onboarding@resend.dev")
+ *   GMAIL_USER          — seu Gmail (ex.: contatoasapdev@gmail.com)
+ *   GMAIL_APP_PASSWORD  — "senha de app" gerada em https://myaccount.google.com/apppasswords
  */
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'DROP <onboarding@resend.dev>';
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!apiKey) {
-    logger.warn('[EMAIL] RESEND_API_KEY não configurada — email apenas logado (não enviado)', { to, subject });
+  if (!user || !pass) {
+    logger.warn('[EMAIL] Gmail SMTP não configurado — email apenas logado (não enviado)', { to, subject });
     if (process.env.NODE_ENV !== 'production') {
       logger.info(`[EMAIL][DEV] to=${to} subject="${subject}" body=${html}`);
     }
     return;
   }
 
-  try {
-    await axios.post(
-      'https://api.resend.com/emails',
-      { from, to, subject, html },
-      { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 10000 }
-    );
-    logger.info('[EMAIL] enviado via Resend', { to, subject });
-  } catch (err: any) {
-    logger.error('[EMAIL] Falha ao enviar via Resend', { detail: err?.response?.data || err?.message });
-    throw err;
-  }
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from: `DROP <${user}>`,
+    to,
+    subject,
+    html,
+  });
+  logger.info('[EMAIL] enviado via Gmail SMTP', { to, subject });
 }

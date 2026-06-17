@@ -14,6 +14,10 @@ export default function VerificacaoPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
+  // email (código)
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailCode, setEmailCode] = useState('');
+
   // documento
   const [docType, setDocType] = useState<'cpf' | 'rg'>('cpf');
   const [docNumber, setDocNumber] = useState('');
@@ -40,7 +44,8 @@ export default function VerificacaoPage() {
     catch (e: any) { setMsg(e?.response?.data?.error || 'Erro na operação.'); }
   };
 
-  const resendEmail = () => action(() => api.post('/verification/email/resend'), 'Email de verificação enviado. Confira sua caixa de entrada.');
+  const resendEmail = () => action(async () => { await api.post('/verification/email/resend'); setEmailSent(true); }, 'Código enviado! Confira seu email.');
+  const verifyEmailCode = () => action(() => api.post('/verification/email/verify', { code: emailCode }), 'Email verificado!');
   const submitDoc = () => action(async () => {
     if (!front || !back) throw { response: { data: { error: 'Envie frente e verso.' } } };
     const fd = new FormData();
@@ -74,8 +79,14 @@ export default function VerificacaoPage() {
           <Header title="Email" ok={emailOk} />
           {!emailOk && (
             <>
-              <p style={hint}>Enviaremos um link de confirmação para o seu email.</p>
-              <button style={btn} onClick={resendEmail}>Enviar link de verificação</button>
+              <p style={hint}>Enviaremos um código de 6 dígitos para o seu email.</p>
+              <button style={btn} onClick={resendEmail}>Enviar código</button>
+              {emailSent && (
+                <div style={{ marginTop: 12 }}>
+                  <input style={input} placeholder="Código de 6 dígitos" value={emailCode} onChange={e => setEmailCode(e.target.value)} inputMode="numeric" maxLength={6} />
+                  <button style={btn} onClick={verifyEmailCode}>Verificar código</button>
+                </div>
+              )}
             </>
           )}
         </section>

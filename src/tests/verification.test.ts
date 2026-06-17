@@ -153,25 +153,28 @@ describe('Gate de compra (KYC)', () => {
   });
 });
 
-describe('Verificação de email por token', () => {
-  it('verifica o email com token válido', async () => {
-    const { userId } = await createUser('cliente');
-    const token = 'token-de-teste-123';
-    await EmailVerificationToken.create({
-      userId,
-      tokenHash: crypto.createHash('sha256').update(token).digest('hex'),
-      expiresAt: new Date(Date.now() + 60000),
-    });
+describe('Verificação de email por código', () => {
+  const hash = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
-    const res = await request(app).post('/api/verification/email/verify').send({ token });
+  it('verifica o email com código válido', async () => {
+    const { token, userId } = await createUser('cliente');
+    const code = '123456';
+    await EmailVerificationToken.create({ userId, tokenHash: hash(code), expiresAt: new Date(Date.now() + 60000) });
+
+    const res = await request(app).post('/api/verification/email/verify')
+      .set('Authorization', `Bearer ${token}`).send({ code });
     expect(res.status).toBe(200);
 
     const user = await User.findById(userId);
     expect(user!.verification!.email.status).toBe('verified');
   });
 
-  it('rejeita token inválido', async () => {
-    const res = await request(app).post('/api/verification/email/verify').send({ token: 'nao-existe' });
+  it('rejeita código incorreto', async () => {
+    const { token, userId } = await createUser('cliente');
+    await EmailVerificationToken.create({ userId, tokenHash: hash('123456'), expiresAt: new Date(Date.now() + 60000) });
+
+    const res = await request(app).post('/api/verification/email/verify')
+      .set('Authorization', `Bearer ${token}`).send({ code: '000000' });
     expect(res.status).toBe(400);
   });
 });
