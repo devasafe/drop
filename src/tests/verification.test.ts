@@ -206,3 +206,28 @@ describe('Aprovação de documento pelo admin', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('Editar dados pessoais reseta verificação', () => {
+  it('mudar CPF (PATCH /user/me) reseta o documento', async () => {
+    const { token, userId } = await createUser('cliente', {
+      email: { status: 'verified' },
+      document: { type: 'cpf', status: 'approved', number: '52998224725' },
+    });
+    const res = await request(app).patch('/api/user/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ cpf: '111.444.777-35' });
+    expect(res.status).toBe(200);
+    const user = await User.findById(userId);
+    expect(user!.verification!.document.status).toBe('none');
+  });
+
+  it('mudar email reseta a verificação de email', async () => {
+    const { token, userId } = await createUser('cliente', { email: { status: 'verified' }, document: { status: 'approved' } });
+    const res = await request(app).patch('/api/user/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ email: `novo-${Date.now()}@test.com` });
+    expect(res.status).toBe(200);
+    const user = await User.findById(userId);
+    expect(user!.verification!.email.status).toBe('pending');
+  });
+});

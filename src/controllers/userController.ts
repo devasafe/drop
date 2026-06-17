@@ -29,6 +29,57 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 /**
+ * PATCH /user/me — edita dados pessoais.
+ * ✅ KYC: mudar CPF/RG reseta o documento; mudar email reseta o email (reverificar).
+ */
+export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const { name, email, cpf, rg, telefone } = req.body;
+    const digits = (v?: string) => (v || '').replace(/\D/g, '');
+
+    if (!user.verification) {
+      user.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } } as any;
+    }
+
+    let docReset = false;
+    if (cpf !== undefined && digits(cpf) !== digits(user.cpf)) { user.cpf = cpf; docReset = true; }
+    if (rg !== undefined && digits(rg) !== digits(user.rg)) { user.rg = rg; docReset = true; }
+    if (docReset) user.verification!.document = { status: 'none' };
+
+    let emailReset = false;
+    if (email !== undefined && email !== user.email) {
+      const exists = await User.findOne({ email });
+      if (exists) return res.status(409).json({ error: 'Email já está em uso' });
+      user.email = email;
+      user.verification!.email = { status: 'pending' };
+      emailReset = true;
+    }
+
+    if (name !== undefined) user.name = name;
+    if (telefone !== undefined) user.telefone = telefone;
+
+    user.markModified('verification');
+    await user.save();
+
+    // Documento alterado afeta a verificação de loja/motoboy do dono
+    if (docReset) {
+      const { recomputeStoresForOwner } = require('../utils/storeVerification');
+      await recomputeStoresForOwner(userId);
+    }
+
+    return res.json({ message: 'Dados atualizados', verificationReset: { document: docReset, email: emailReset } });
+  } catch (err) {
+    console.error('[updateMe] error', err);
+    return res.status(500).json({ error: 'Erro ao atualizar dados' });
+  }
+};
+
+/**
  * GET /user/bank-info
  * Retorna os dados bancários do usuário (se configurado)
  */

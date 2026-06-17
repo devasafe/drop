@@ -267,19 +267,28 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { street, number, neighborhood, city, state, zip, latitude, longitude } = req.body;
+    const { street, number, neighborhood, city, state, zip, latitude, longitude, cnpj } = req.body;
     const ownerId = req.user?.id;
-    
+
     if (!ownerId) return res.status(401).json({ error: 'Not authenticated' });
-    
+
     const store = await Store.findById(id);
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    
+
     // Verificar se o usuário é o dono da loja
     if (store.ownerId.toString() !== ownerId) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
-    
+
+    // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente
+    const addressChanged = [street, number, neighborhood, city, state, zip].some(v => v !== undefined);
+    const { onlyDigits } = require('../utils/documentValidation');
+    const cnpjChanged = cnpj !== undefined && onlyDigits(String(cnpj)) !== onlyDigits(String(store.cnpj || ''));
+    if (!store.verification) store.verification = { cnpj: { status: 'none' }, address: { status: 'none' } } as any;
+    if (addressChanged) store.verification!.address = { status: 'none' };
+    if (cnpjChanged) { store.cnpj = cnpj; store.verification!.cnpj = { status: 'none' }; }
+    if (addressChanged || cnpjChanged) store.markModified('verification');
+
     // Atualizar campos individuais
     if (street) store.street = street;
     if (number) store.number = number;
@@ -289,12 +298,18 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (zip) store.zip = zip;
     if (latitude) store.latitude = String(latitude);
     if (longitude) store.longitude = String(longitude);
-    
+
     // Construir endereço completo para o campo address
     const addressParts = [store.street, store.number, store.neighborhood, store.city, store.state, store.zip].filter(Boolean);
     store.address = addressParts.join(', ');
-    
+
     await store.save();
+
+    // Recalcular o status verificado da loja (pode ter perdido a verificação)
+    if (addressChanged || cnpjChanged) {
+      const { recomputeStoreVerification } = require('../utils/storeVerification');
+      await recomputeStoreVerification(id);
+    }
     
     // Broadcast store update
     emitStoreUpdated(store.toObject());

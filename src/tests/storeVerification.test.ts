@@ -147,3 +147,20 @@ describe('Aprovação da loja pelo admin marca isVerified', () => {
     expect(updated!.isVerified).toBe(false); // facial pendente
   });
 });
+
+describe('Editar dados da loja reseta verificação', () => {
+  it('editar endereço (PUT /stores/:id) reseta address e isVerified', async () => {
+    const dono = await mkUser('lojista', { ...fase1OK, facial: { status: 'approved' } });
+    const store = await Store.create({
+      ownerId: dono.userId, name: 'LojaEdit', isOpen: true, isVerified: true,
+      verification: { cnpj: { status: 'approved' }, address: { status: 'approved' } },
+    });
+    const res = await request(app).put(`/api/stores/${store._id}`)
+      .set('Authorization', `Bearer ${dono.token}`)
+      .send({ street: 'Rua Nova', number: '999', neighborhood: 'Centro', city: 'SP', state: 'SP', zip: '01001000' });
+    expect(res.status).toBe(200);
+    const updated = await Store.findById(store._id);
+    expect(updated!.verification!.address.status).toBe('none');
+    expect(updated!.isVerified).toBe(false);
+  });
+});
