@@ -59,8 +59,8 @@ export default function VerificacaoPage() {
   if (loading) return <div style={wrap}><p>Carregando...</p></div>;
   if (err) return <div style={wrap}><div style={card}><p>{err}</p></div></div>;
 
-  const emailOk = v?.email.status === 'verified';
-  const docStatus = v?.document.status || 'none';
+  const emailOk = v?.email?.status === 'verified';
+  const docStatus = v?.document?.status || 'none';
   const allOk = emailOk && docStatus === 'approved';
 
   return (
@@ -95,7 +95,7 @@ export default function VerificacaoPage() {
         <section style={card}>
           <Header title="Documento (CPF ou RG)" ok={docStatus === 'approved'} pending={docStatus === 'pending'} />
           {docStatus === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
-          {docStatus === 'rejected' && <p style={{ ...hint, color: '#EF4444' }}>Recusado: {v?.document.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
+          {docStatus === 'rejected' && <p style={{ ...hint, color: '#EF4444' }}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
           {(docStatus === 'none' || docStatus === 'rejected') && (
             <>
               <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
