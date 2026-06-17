@@ -91,7 +91,12 @@ export default function RegisterPage() {
       if (photo) formData.append('photo', photo);
       await api.post('/auth/register', formData);
       await auth.login(email, password);
-      router.push(role === 'lojista' ? '/seller/create-store' : '/');
+      // Após cadastrar, leva direto para a verificação (lojista cria a loja antes)
+      router.push(
+        role === 'lojista' ? '/seller/create-store'
+          : role === 'motoboy' ? '/verificacao-motoboy'
+          : '/verificacao'
+      );
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Falha no cadastro. Verifique seus dados.');
       setLoading(false);

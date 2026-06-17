@@ -793,6 +793,12 @@ export default function StoreDashboard() {
           {store && (
             <div className={styles.sidebarActions}>
               <button
+                onClick={() => router.push('/verificacao-loja')}
+                className={`${styles.btnStoreAction} ${styles.btnStoreActionPrimary}`}
+              >
+                <Icon name="shield" size={14} /> Verificação
+              </button>
+              <button
                 onClick={() => { setShowEditAddress(!showEditAddress); setActiveTab('metrics'); setSidebarOpen(false); }}
                 className={`${styles.btnStoreAction} ${styles.btnStoreActionPrimary}`}
               >

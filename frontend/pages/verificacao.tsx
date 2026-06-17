@@ -62,6 +62,7 @@ export default function VerificacaoPage() {
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação da conta</h1>
+        <a href="/" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {allOk ? '✅ Sua conta está totalmente verificada — você já pode comprar.'
                  : 'Conclua os passos abaixo para liberar suas compras.'}

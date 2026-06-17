@@ -61,6 +61,7 @@ export default function VerificacaoMotoboyPage() {
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação de motoboy</h1>
+        <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {ver?.verified
             ? '✅ Você está verificado — já pode aceitar entregas.'
