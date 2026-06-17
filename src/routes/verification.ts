@@ -25,6 +25,13 @@ import {
   approveStoreAddress,
   rejectStoreAddress,
 } from '../controllers/storeVerificationController';
+import {
+  submitCourier,
+  getMyCourierVerification,
+  listPendingCourier,
+  approveCourier,
+  rejectCourier,
+} from '../controllers/courierVerificationController';
 
 const router = Router();
 
@@ -70,5 +77,14 @@ router.post('/admin/store/:storeId/cnpj/approve', authenticate, storeReviewers, 
 router.post('/admin/store/:storeId/cnpj/reject', authenticate, storeReviewers, rejectStoreCnpj);
 router.post('/admin/store/:storeId/address/approve', authenticate, storeReviewers, approveStoreAddress);
 router.post('/admin/store/:storeId/address/reject', authenticate, storeReviewers, rejectStoreAddress);
+
+// ===================== FASE 3: MOTOBOY =====================
+router.post('/motoboy', authenticate, upload.single('platePhoto'), submitCourier);
+router.get('/motoboy/me', authenticate, getMyCourierVerification);
+
+const courierReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_motoboys');
+router.get('/admin/motoboy-pending', authenticate, courierReviewers, listPendingCourier);
+router.post('/admin/motoboy/:userId/approve', authenticate, courierReviewers, approveCourier);
+router.post('/admin/motoboy/:userId/reject', authenticate, courierReviewers, rejectCourier);
 
 export default router;

@@ -54,6 +54,22 @@ export function isValidCNPJ(cnpj: string): boolean {
   return true;
 }
 
+// CNH: validação leve (11 dígitos).
+export function isValidCNH(cnh: string): boolean {
+  return onlyDigits(cnh).length === 11;
+}
+
+// Placa: normaliza (maiúsculas, sem espaço/hífen).
+export function normalizePlate(plate: string): string {
+  return (plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// Placa BR: antiga AAA0000 ou Mercosul AAA0A00.
+export function isValidPlate(plate: string): boolean {
+  const p = normalizePlate(plate);
+  return /^[A-Z]{3}[0-9]{4}$/.test(p) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(p);
+}
+
 // Normaliza telefone brasileiro para E.164 (+55...). Aceita com/sem DDI.
 export function toE164BR(phone: string): string | null {
   let d = onlyDigits(phone);

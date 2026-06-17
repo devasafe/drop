@@ -86,6 +86,17 @@ export interface IUser extends Document {
       reviewedAt?: Date;
       rejectionReason?: string;
     };
+    // Dados de motoboy (Fase 3): CNH + placa + foto da placa (revisados juntos)
+    courier?: {
+      status: 'none' | 'pending' | 'approved' | 'rejected';
+      cnhNumber?: string;
+      plate?: string;
+      platePhotoUrl?: string;
+      submittedAt?: Date;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      rejectionReason?: string;
+    };
   };
 }
 
@@ -188,6 +199,16 @@ const UserSchema = new Schema<IUser>({
       facial: {
         status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
         selfieUrl: { type: String },
+        submittedAt: { type: Date },
+        reviewedBy: { type: String },
+        reviewedAt: { type: Date },
+        rejectionReason: { type: String },
+      },
+      courier: {
+        status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        cnhNumber: { type: String },
+        plate: { type: String },
+        platePhotoUrl: { type: String },
         submittedAt: { type: Date },
         reviewedBy: { type: String },
         reviewedAt: { type: Date },

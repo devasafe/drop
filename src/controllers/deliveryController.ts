@@ -15,6 +15,7 @@ import { calculateDeliveryFeeWithConfig, calculateMotoboyEarningsWithConfig, cal
 import { addCommissionToAppCashbox } from './appCashboxController';
 import { emitDeliveryStatusChanged, emitDeliveryUpdated, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged, emitDeliveryAssigned } from '../utils/socketEmitter';
 import { getDefaultAddress } from '../utils/userHelpers';
+import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 import walletService from '../services/wallet.service';
 import payoutService from '../services/payout.service';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
@@ -714,6 +715,14 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
 
+    // ✅ GATE KYC Fase 3: motoboy não verificado não vê entregas disponíveis
+    if (process.env.KYC_ENFORCED === 'true') {
+      const me = await User.findById(req.user.id).select('verification');
+      if (!isMotoboyVerified(me)) {
+        return res.json({ deliveries: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 }, requiresVerification: true });
+      }
+    }
+
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number((req.query as any).page) || 1);
     const limit = Math.min(100, Number((req.query as any).limit) || 20);
@@ -755,6 +764,18 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     const { id } = req.params;
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    // ✅ GATE KYC Fase 3: motoboy só recebe entrega se estiver verificado
+    if (process.env.KYC_ENFORCED === 'true') {
+      const motoboyUser = await User.findById(userId).select('verification');
+      if (!isMotoboyVerified(motoboyUser)) {
+        return res.status(403).json({
+          error: 'Conta de motoboy não verificada. Conclua a verificação para aceitar entregas.',
+          code: 'COURIER_NOT_VERIFIED',
+          missing: missingMotoboyVerifications(motoboyUser),
+        });
+      }
+    }
 
     // Gerar 2 PINs: um para cliente (entrega final) e outro para loja (retirada)
     const pinEntrega = Math.floor(10000 + Math.random() * 90000).toString();
