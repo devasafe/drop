@@ -5,7 +5,9 @@ services:
     region: oregon
     plan: free
     rootDir: .
-    buildCommand: npm install --legacy-peer-deps && npm run build
+    # --include=dev é necessário: o build (tsc) precisa de typescript e @types,
+    # que são devDependencies (NODE_ENV=production as omitiria por padrão).
+    buildCommand: npm install --include=dev --legacy-peer-deps && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

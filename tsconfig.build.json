@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "comment": "Config de BUILD de produção: não compila testes (evita exigir jest/supertest/mongodb-memory-server).",
+  "exclude": ["node_modules", "dist", "src/tests"]
+}

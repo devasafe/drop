@@ -1,14 +1,23 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
-let mongod: MongoMemoryServer | null = null;
+// O mongodb-memory-server é uma devDependency (só usado em teste/dev).
+// Carregado via require dinâmico para NUNCA ser exigido em produção.
+type InMemoryMongo = { getUri(): string; stop(): Promise<boolean> };
+
+let mongod: InMemoryMongo | null = null;
+
+async function createInMemoryMongo(): Promise<InMemoryMongo> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { MongoMemoryServer } = require('mongodb-memory-server');
+  return MongoMemoryServer.create();
+}
 
 export async function connectDB(): Promise<typeof mongoose> {
   // ✅ TESTES: sempre usar um MongoMemoryServer dedicado, ignorando MONGO_URI.
   // Evita dependência de um Mongo externo e o "vazamento" de URI entre arquivos.
   if (process.env.NODE_ENV === 'test') {
     if (mongoose.connection.readyState === 1) return mongoose; // já conectado
-    mongod = await MongoMemoryServer.create();
+    mongod = await createInMemoryMongo();
     return mongoose.connect(mongod.getUri());
   }
 
@@ -25,8 +34,8 @@ export async function connectDB(): Promise<typeof mongoose> {
     return mongoose.connect(mongoUri);
   }
 
-  // Start in-memory MongoDB for local development/testing
-  mongod = await MongoMemoryServer.create();
+  // Dev local sem URI: sobe um MongoDB em memória
+  mongod = await createInMemoryMongo();
   const uri = mongod.getUri();
   process.env.MONGO_URI = uri;
   // eslint-disable-next-line no-console
