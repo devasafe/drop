@@ -60,7 +60,13 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
     });
 
     const link = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
-    await sendEmail(user.email, 'Verifique seu email — DROP', `Confirme seu email: <a href="${link}">${link}</a>`);
+    try {
+      await sendEmail(user.email, 'Verifique seu email — DROP', `Confirme seu email: <a href="${link}">${link}</a>`);
+    } catch (mailErr: any) {
+      const detail = mailErr?.response?.data?.message || mailErr?.response?.data?.error || mailErr?.message || 'erro desconhecido';
+      logger.error('Falha ao enviar email de verificação', { detail });
+      return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });
+    }
     return res.json({ message: 'Email de verificação enviado' });
   } catch (err) {
     logger.error('Erro ao reenviar email', err as Error);
