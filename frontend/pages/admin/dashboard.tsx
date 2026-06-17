@@ -80,6 +80,10 @@ export default function CeoDashboard() {
               <span className={styles.quickIcon}><Icon name="chart-up" size={20} /></span>
               <span className={styles.quickLabel}>Analytics</span>
             </Link>
+            <Link href="/admin/verificacoes" className={`${styles.quickCard} ${styles.quickCardNew}`}>
+              <span className={styles.quickIcon}><Icon name="shield" size={20} /></span>
+              <span className={styles.quickLabel}>Verificações</span>
+            </Link>
             <Link href="/admin/users" className={styles.quickCard}>
               <span className={styles.quickIcon}><Icon name="users" size={20} /></span>
               <span className={styles.quickLabel}>Usuários</span>

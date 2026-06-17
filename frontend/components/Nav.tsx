@@ -28,6 +28,7 @@ const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'g
 const ADMIN_LINKS: Record<string, { href: string; label: string; icon: IconName }[]> = {
   ceo: [
     { href: '/admin/dashboard',   label: 'Dashboard',   icon: 'chart-bar' },
+    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
     { href: '/admin/analytics',   label: 'Analytics',   icon: 'chart-up' },
     { href: '/admin/users',       label: 'Usuários',    icon: 'users' },
     { href: '/admin/wallets',     label: 'Carteiras',   icon: 'wallet' },
@@ -50,23 +51,27 @@ const ADMIN_LINKS: Record<string, { href: string; label: string; icon: IconName 
   ],
   gerente_geral: [
     { href: '/admin/dashboard', label: 'Dashboard', icon: 'chart-bar' },
+    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
     { href: '/admin/users',     label: 'Usuários',  icon: 'users' },
     { href: '/admin/wallets',   label: 'Carteiras', icon: 'wallet' },
     { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
     { href: '/admin/settings',  label: 'Config.',   icon: 'settings' },
   ],
   gerente_clientes: [
+    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
     { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
     { href: '/admin/users',     label: 'Usuários',  icon: 'users' },
     { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
     { href: '/admin/tickets',   label: 'Tickets',   icon: 'tag' },
   ],
   gerente_lojistas: [
+    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
     { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
     { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
     { href: '/admin/stores',    label: 'Lojas',     icon: 'store' },
   ],
   gerente_motoboys: [
+    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
     { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
     { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
     { href: '/admin/motoboys',  label: 'Motoboys',  icon: 'motorcycle' },
