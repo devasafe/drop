@@ -77,6 +77,14 @@ export default function VerificacaoLojaPage() {
         </p>
         {msg && <div style={banner}>{msg}</div>}
 
+        {ver?.missing?.includes('owner') && (
+          <section style={{ ...card, border: '1px solid #F59E0B' }}>
+            <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>⚠️ Conta do dono pendente</strong>
+            <p style={hint}>A loja só fica verificada depois que sua <strong>conta de usuário</strong> (email e documento) estiver verificada.</p>
+            <a href="/verificacao" style={{ ...btn, display: 'inline-block', textDecoration: 'none' }}>Verificar minha conta →</a>
+          </section>
+        )}
+
         {/* Facial */}
         <section style={card}>
           <Head title="Selfie (facial do dono)" s={ver?.facial.status} />
