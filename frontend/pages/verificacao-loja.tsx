@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
+import { maskCNPJ } from '../lib/masks';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface StoreVer {
@@ -94,7 +95,7 @@ export default function VerificacaoLojaPage() {
           {ver?.cnpj.status === 'rejected' && <p style={errp}>Recusado: {ver.cnpj.rejectionReason}</p>}
           {(ver?.cnpj.status === 'none' || ver?.cnpj.status === 'rejected') && (
             <>
-              <input style={input} placeholder="00.000.000/0000-00" value={cnpj} onChange={e => setCnpj(e.target.value)} />
+              <input style={input} placeholder="00.000.000/0000-00" value={cnpj} onChange={e => setCnpj(maskCNPJ(e.target.value))} />
               <button style={btn} onClick={sendCnpj}>Enviar CNPJ</button>
             </>
           )}

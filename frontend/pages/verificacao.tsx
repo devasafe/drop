@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
+import { maskCPF, maskRG } from '../lib/masks';
 
 type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Verification {
@@ -114,7 +115,7 @@ export default function VerificacaoPage() {
                 <option value="cpf">CPF</option>
                 <option value="rg">RG</option>
               </select>
-              <input style={input} placeholder="Número do documento" value={docNumber} onChange={e => setDocNumber(e.target.value)} />
+              <input style={input} placeholder="Número do documento" value={docNumber} onChange={e => setDocNumber(docType === 'cpf' ? maskCPF(e.target.value) : maskRG(e.target.value))} />
               <label style={hint}>Frente</label>
               <input type="file" accept="image/*" onChange={e => setFront(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
               <label style={hint}>Verso</label>

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { maskCNPJ, maskCEP } from '../../lib/masks';
 import styles from './CreateStore.module.css';
 
 export default function CreateStore() {
@@ -238,7 +239,7 @@ export default function CreateStore() {
                   <input
                     type="text"
                     value={cnpj}
-                    onChange={(e) => setCnpj(e.target.value)}
+                    onChange={(e) => setCnpj(maskCNPJ(e.target.value))}
                     required
                     placeholder="00.000.000/0000-00"
                     className={styles.input}
@@ -253,7 +254,7 @@ export default function CreateStore() {
                       type="text"
                       placeholder="00000-000"
                       value={cep}
-                      onChange={(e) => setCep(e.target.value)}
+                      onChange={(e) => setCep(maskCEP(e.target.value))}
                       onBlur={(e) => {
                         if (e.target.value.length === 8 || e.target.value.replace(/\D/g, '').length === 8) {
                           fetchAddressByCep(e.target.value);
