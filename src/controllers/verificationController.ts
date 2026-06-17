@@ -66,6 +66,8 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
         `Seu código de verificação é <b style="font-size:22px;letter-spacing:2px">${code}</b>.<br/>Ele expira em 15 minutos.`
       );
     } catch (mailErr: any) {
+      // Libera o rate-limit (o código não foi entregue) e mostra o erro real
+      await EmailVerificationToken.deleteMany({ userId: user.id });
       const detail = mailErr?.response?.data?.message || mailErr?.response?.data?.error || mailErr?.message || 'erro desconhecido';
       logger.error('Falha ao enviar email de verificação', { detail });
       return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });

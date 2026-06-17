@@ -24,6 +24,10 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass },
+    // Falhar rápido em vez de pendurar a requisição se o SMTP não responder
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   await transporter.sendMail({
