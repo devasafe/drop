@@ -3,13 +3,14 @@
  * Cliente só compra com email + telefone verificados e documento aprovado.
  */
 
-export type MissingVerification = 'email' | 'phone' | 'document';
+// Telefone (SMS/WhatsApp) foi removido do gate por ser pago. A infra de OTP
+// continua no código (endpoints/otpProvider) caso seja reativada no futuro.
+export type MissingVerification = 'email' | 'document';
 
 export function missingClientVerifications(user: any): MissingVerification[] {
   const v = user?.verification || {};
   const missing: MissingVerification[] = [];
   if (v?.email?.status !== 'verified') missing.push('email');
-  if (v?.phone?.status !== 'verified') missing.push('phone');
   if (v?.document?.status !== 'approved') missing.push('document');
   return missing;
 }

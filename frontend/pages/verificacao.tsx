@@ -14,11 +14,6 @@ export default function VerificacaoPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
-  // telefone
-  const [phone, setPhone] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [code, setCode] = useState('');
-
   // documento
   const [docType, setDocType] = useState<'cpf' | 'rg'>('cpf');
   const [docNumber, setDocNumber] = useState('');
@@ -46,8 +41,6 @@ export default function VerificacaoPage() {
   };
 
   const resendEmail = () => action(() => api.post('/verification/email/resend'), 'Email de verificação enviado. Confira sua caixa de entrada.');
-  const sendOtp = () => action(async () => { await api.post('/verification/phone/send-otp', { phone }); setOtpSent(true); }, 'Código enviado pelo WhatsApp.');
-  const verifyOtp = () => action(() => api.post('/verification/phone/verify-otp', { code }), 'Telefone verificado!');
   const submitDoc = () => action(async () => {
     if (!front || !back) throw { response: { data: { error: 'Envie frente e verso.' } } };
     const fd = new FormData();
@@ -62,9 +55,8 @@ export default function VerificacaoPage() {
   if (err) return <div style={wrap}><div style={card}><p>{err}</p></div></div>;
 
   const emailOk = v?.email.status === 'verified';
-  const phoneOk = v?.phone.status === 'verified';
   const docStatus = v?.document.status || 'none';
-  const allOk = emailOk && phoneOk && docStatus === 'approved';
+  const allOk = emailOk && docStatus === 'approved';
 
   return (
     <div style={wrap}>
@@ -83,23 +75,6 @@ export default function VerificacaoPage() {
             <>
               <p style={hint}>Enviaremos um link de confirmação para o seu email.</p>
               <button style={btn} onClick={resendEmail}>Enviar link de verificação</button>
-            </>
-          )}
-        </section>
-
-        {/* Telefone */}
-        <section style={card}>
-          <Header title="Telefone (WhatsApp)" ok={phoneOk} />
-          {!phoneOk && (
-            <>
-              <input style={input} placeholder="(11) 90000-0000" value={phone} onChange={e => setPhone(e.target.value)} />
-              <button style={btn} onClick={sendOtp}>Enviar código</button>
-              {otpSent && (
-                <div style={{ marginTop: 12 }}>
-                  <input style={input} placeholder="Código de 6 dígitos" value={code} onChange={e => setCode(e.target.value)} />
-                  <button style={btn} onClick={verifyOtp}>Verificar código</button>
-                </div>
-              )}
             </>
           )}
         </section>

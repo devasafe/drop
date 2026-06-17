@@ -87,7 +87,7 @@ export default function VerificacaoMotoboyPage() {
         </section>
 
         <p style={hint}>
-          Email, telefone, documento (CPF/RG) e a <strong>selfie facial</strong> são verificados na
+          Email, documento (CPF/RG) e a <strong>selfie facial</strong> são verificados na
           página da conta (/verificacao). Todos precisam estar aprovados para liberar entregas.
         </p>
         {ver && ver.missing.length > 0 && (

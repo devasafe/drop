@@ -39,7 +39,7 @@ describe('Unit: validação de CPF', () => {
 
 describe('Unit: isClientVerified / missing', () => {
   it('lista tudo faltando quando não há verificação', () => {
-    expect(missingClientVerifications({})).toEqual(['email', 'phone', 'document']);
+    expect(missingClientVerifications({})).toEqual(['email', 'document']);
     expect(isClientVerified({})).toBe(false);
   });
   it('verificado quando email+phone verified e documento approved', () => {
@@ -125,7 +125,7 @@ describe('Gate de compra (KYC)', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('ACCOUNT_NOT_VERIFIED');
-    expect(res.body.missing).toEqual(expect.arrayContaining(['email', 'phone', 'document']));
+    expect(res.body.missing).toEqual(expect.arrayContaining(['email', 'document']));
   });
 
   it('permite compra quando o cliente está totalmente verificado', async () => {
