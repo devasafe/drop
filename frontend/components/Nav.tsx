@@ -135,15 +135,10 @@ export default function Nav() {
     if (!user || activeRole !== 'lojista') { setHasStore(false); return; }
     const load = async () => {
       try {
-        const cached = typeof window !== 'undefined' ? localStorage.getItem('myStore') : null;
-        if (cached) {
-          const p = JSON.parse(cached);
-          if (p && (p.ownerId === user.id || p.ownerId === user._id)) { if (mounted) setHasStore(true); return; }
-        }
-        const res = await api.get('/stores');
-        const mine = (res.data || []).find((s: any) => s.ownerId === user.id || s.ownerId === user._id);
-        if (mounted) setHasStore(!!mine);
-        if (mine) localStorage.setItem('myStore', JSON.stringify(mine));
+        // Detecta a loja do dono direto no backend (não depende de /stores,
+        // que filtra por verificação e fazia a loja "sumir" do menu).
+        await api.get('/stores/dashboard');
+        if (mounted) setHasStore(true);
       } catch { if (mounted) setHasStore(false); }
     };
     load();

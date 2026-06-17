@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { CartProvider } from '../contexts/CartContext';
 import Nav from '../components/Nav';
+import VerificationBanner from '../components/VerificationBanner';
 import Footer from '../components/Footer';
 import SeasonalBanner from '../components/SeasonalBanner';
 import PageTransition from '../components/PageTransition';
@@ -56,6 +57,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       <CartProvider>
         <SeasonalThemeProvider>
         <Nav />
+        <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>
           <PageTransition>
