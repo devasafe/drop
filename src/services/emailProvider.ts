@@ -24,8 +24,12 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: { user, pass },
+    // Render não tem rota IPv6 p/ o Gmail (ENETUNREACH em endereço IPv6) — forçar IPv4
+    family: 4,
     // Falhar rápido em vez de pendurar a requisição se o SMTP não responder
     connectionTimeout: 10000,
     greetingTimeout: 10000,
