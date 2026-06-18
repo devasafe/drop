@@ -44,11 +44,12 @@ export const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
-// Upload de mídia de produto: imagens (5MB cada) + vídeo (200MB)
+// Upload de mídia de produto: imagens + vídeo. Mantido em memória, mas com
+// teto de 50MB para reduzir o risco de OOM/DoS (vários uploads simultâneos).
 export const uploadProductMedia = multer({
   storage: multer.memoryStorage(),
   fileFilter: mediaFilter,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB (para vídeos)
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
 export default upload;
