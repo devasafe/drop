@@ -44,7 +44,23 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
       return store.customCommissionRate;
     }
 
-    // 4️⃣ Último recurso: usa fallback
+    // 4️⃣ Usa a comissão configurada pelo admin na tela "Comissões por Plano"
+    // (PricingPlan), mapeando o número do plano da loja para o nome do plano.
+    const PLAN_NAMES: { [key: number]: string } = {
+      1: 'Plano 1 (Marketplace Only)',
+      2: 'Plano 2 (Marketplace + Motoboys)',
+      3: 'Plano 3 (Premium)',
+    };
+    const planName = PLAN_NAMES[store.plan || 1];
+    if (planName) {
+      const pricingPlan = await PricingPlan.findOne({ name: planName });
+      if (pricingPlan && pricingPlan.commission != null) {
+        console.log(`📊 [getStorePlanFee] Store ${storeId} - PricingPlan "${planName}": ${pricingPlan.commission}%`);
+        return pricingPlan.commission;
+      }
+    }
+
+    // 5️⃣ Último recurso: fallback fixo
     const planFees: { [key: number]: number } = {
       1: 10,   // ✅ Plano 1 (fallback)
       2: 15,   // ✅ Plano 2 (fallback)
