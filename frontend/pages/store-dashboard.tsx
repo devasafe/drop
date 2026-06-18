@@ -328,7 +328,6 @@ export default function StoreDashboard() {
   const router = useRouter();
   const { user, token } = useContext(AuthContext);
   const [store, setStore] = useState<any>(null);
-  const [metrics, setMetrics] = useState<any>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [historyOrders, setHistoryOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -611,7 +610,6 @@ export default function StoreDashboard() {
     try {
       const r = await api.get('/stores/dashboard');
       setStore(r.data.store);
-      setMetrics(r.data.metrics);
       const loadedOrders = r.data.orders || [];
       setOrders(loadedOrders);
       setHistoryOrders(r.data.history || []);
@@ -757,7 +755,7 @@ export default function StoreDashboard() {
 
           <nav className={styles.sidebarNav}>
             {[
-              { id: 'metrics', label: 'Métricas', icon: 'chart-bar' as const },
+              { id: 'metrics', label: 'Configurações', icon: 'settings' as const },
               { id: 'orders', label: `Pedidos (${orders.length})`, icon: 'package' as const },
               { id: 'history', label: `Histórico (${historyOrders.length})`, icon: 'clipboard' as const },
               { id: 'returns', label: `Devoluções (${returnRequests.length})`, icon: 'truck' as const },
@@ -853,7 +851,7 @@ export default function StoreDashboard() {
           <div className={styles.tabContent}>
 
 
-          {/* Métricas */}
+          {/* Configurações */}
           {activeTab === 'metrics' && (
             <div>
               {store?.plan === 3 && (
@@ -871,31 +869,6 @@ export default function StoreDashboard() {
                   onSaved={fetchDashboard}
                 />
               )}
-              <h2 className={styles.metricsTitle}>Métricas da Loja</h2>
-              <div className={styles.metricsGrid}>
-                <div className={styles.metricCard}>
-                  <div className={styles.metricWatermark}><Icon name="chart-bar" size={80} /></div>
-                  <div className={styles.metricLabel}>Total de Vendas</div>
-                  <div className={`${styles.metricValue} ${styles.metricValueBlue}`}>{metrics?.totalSales || 0}</div>
-                </div>
-                <div className={styles.metricCard}>
-                  <div className={styles.metricWatermark}><Icon name="package" size={80} /></div>
-                  <div className={styles.metricLabel}>Pedidos Entregues</div>
-                  <div className={`${styles.metricValue} ${styles.metricValueGreen}`}>{metrics?.delivered || 0}</div>
-                </div>
-                <div className={styles.metricCard}>
-                  <div className={styles.metricWatermark}><Icon name="truck" size={80} /></div>
-                  <div className={styles.metricLabel}>Em Andamento</div>
-                  <div className={`${styles.metricValue} ${styles.metricValueOrange}`}>{metrics?.ongoing || 0}</div>
-                </div>
-                <div className={styles.metricCard}>
-                  <div className={styles.metricWatermark}><Icon name="dollar-sign" size={80} /></div>
-                  <div className={styles.metricLabel}>Receita</div>
-                  <div className={`${styles.metricValue} ${styles.metricValueGreen}`} style={{ fontSize: 24 }}>
-                    R$ {(metrics?.revenue || 0).toFixed(2)}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 

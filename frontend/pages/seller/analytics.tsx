@@ -5,6 +5,7 @@ import StatCard from '../../components/analytics/StatCard';
 import ChartCard from '../../components/analytics/ChartCard';
 import PeriodFilter from '../../components/analytics/PeriodFilter';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import api from '../../lib/api';
 import {
   storeAnalytics,
   type Period,
@@ -60,6 +61,16 @@ function SellerAnalyticsInner() {
   const [customerInsights, setCustomerInsights] = useState<CustomerInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [general, setGeneral] = useState<{ totalSales: number; delivered: number; ongoing: number; revenue: number } | null>(null);
+
+  // Resumo geral (todos os tempos) — antes ficava na aba "Métricas" do painel
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/stores/dashboard')
+      .then(({ data }) => { if (!cancelled) setGeneral(data.metrics || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +186,19 @@ function SellerAnalyticsInner() {
           </div>
           <PeriodFilter value={period} onChange={setPeriod} />
         </header>
+
+        {/* ---- Resumo geral (todos os tempos) ---- */}
+        {general && (
+          <section style={{ marginBottom: 24 }}>
+            <h3 className={styles.insightsTitle}>Resumo geral · todos os tempos</h3>
+            <div className={styles.kpiGrid}>
+              <StatCard label="Total de vendas" value={general.totalSales} variant="blue" />
+              <StatCard label="Pedidos entregues" value={general.delivered} variant="green" />
+              <StatCard label="Em andamento" value={general.ongoing} variant="orange" />
+              <StatCard label="Receita total" value={BRL(general.revenue)} variant="purple" />
+            </div>
+          </section>
+        )}
 
         {/* ---- KPIs ---- */}
         {overview && (

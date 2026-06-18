@@ -429,7 +429,6 @@
 }
 
 .sidebarNav {
-  flex: 1;
   padding: 12px 0;
 }
 
@@ -698,64 +697,6 @@
   border-radius: 8px;
   font-family: monospace;
 }
-
-/* ---- METRICS (Bento) ---- */
-
-.metricsTitle {
-  margin: 24px 0 20px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--drop-text-dim);
-  font-family: var(--drop-font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-}
-
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.metricCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
-  padding: 28px;
-  position: relative;
-  overflow: hidden;
-}
-
-.metricWatermark {
-  position: absolute;
-  right: -10px;
-  bottom: -10px;
-  opacity: 0.03;
-  pointer-events: none;
-  color: var(--drop-white);
-  transform: scale(1.5);
-}
-
-.metricLabel {
-  font-size: 10px;
-  color: var(--drop-text-dim);
-  margin-bottom: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-}
-
-.metricValue {
-  font-size: 36px;
-  font-weight: 700;
-  font-family: var(--drop-font-display);
-  color: var(--drop-white);
-  letter-spacing: -0.03em;
-}
-
-.metricValueBlue { color: #60A5FA; }
-.metricValueGreen { color: #22C55E; }
-.metricValueOrange { color: #F59E0B; }
 
 /* ---- ORDERS ---- */
 
@@ -1578,7 +1519,6 @@
   .hamburgerBtn {
     display: flex;
   }
-  .metricsGrid { grid-template-columns: repeat(2, 1fr); }
   .financialGrid5 { grid-template-columns: repeat(3, 1fr); }
   .historyFinancial { grid-template-columns: repeat(3, 1fr); }
   .infoGrid2 { grid-template-columns: 1fr; }
@@ -1589,9 +1529,6 @@
   .topBar { padding: 12px 16px; }
   .pageTitle { font-size: 14px; }
   .profileName { display: none; }
-  .metricCard { padding: 20px; }
-  .metricValue { font-size: 28px; }
-  .metricsGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .orderCard { padding: 16px; }
   .orderCardTop { flex-wrap: wrap; gap: 8px; }
   .orderActions3 { grid-template-columns: 1fr; }
