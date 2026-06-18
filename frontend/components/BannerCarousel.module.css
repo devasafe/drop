@@ -1,7 +1,7 @@
 .carousel {
   position: relative;
   width: 100%;
-  height: 220px;
+  aspect-ratio: 16 / 9;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 32px;
@@ -127,13 +127,11 @@
   transform: scale(1.2);
 }
 
-/* ── Tablet ────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  .slide { height: 280px; }
-}
+/* A altura é derivada de aspect-ratio (16/9), então acompanha a largura
+   automaticamente em qualquer dispositivo — sem altura fixa por breakpoint. */
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .slide { height: 200px; border-radius: 8px; }
+  .carousel { border-radius: 8px; }
   .dot { width: 6px; height: 6px; }
 }
