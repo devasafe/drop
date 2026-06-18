@@ -1,7 +1,7 @@
 .carousel {
   position: relative;
   width: 100%;
-  height: 220px;
+  height: 350px;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 32px;
@@ -127,8 +127,8 @@
   transform: scale(1.2);
 }
 
-/* Faixa de altura fixa (220px). A imagem é enviada na proporção do
-   mostruário (~1400×220), então cobre a faixa praticamente sem corte. */
+/* Faixa de altura fixa (350px). A imagem é enviada na proporção do
+   mostruário (~1400×350), então cobre a faixa praticamente sem corte. */
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {

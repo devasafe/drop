@@ -52,17 +52,17 @@ export default function StoreBannerUpload({ currentFeaturedBanner, currentCoverB
       {error && <div className={styles.errorMsg}>{error}</div>}
 
       <div className={styles.bannerList}>
-        {/* Banner de Destaque — faixa do carrossel da home (~1400×220) */}
+        {/* Banner de Destaque — faixa do carrossel da home (~1400×350) */}
         <div className={styles.bannerItem}>
           <div className={styles.bannerInfo}>
             <div className={styles.bannerLabel}><Icon name="eye" size={14} /> Banner Rotativo</div>
-            <div className={styles.bannerDesc}>Carrossel da homepage — 1400×220px (faixa)</div>
+            <div className={styles.bannerDesc}>Carrossel da homepage — 1400×350px (faixa)</div>
             {success === 'featured' && <span className={styles.successMsg}>Enviado!</span>}
           </div>
           <ImageCropUploader
-            aspectRatio={1400 / 220}
+            aspectRatio={1400 / 350}
             targetWidth={1400}
-            targetHeight={220}
+            targetHeight={350}
             label={currentFeaturedBanner ? 'Trocar Banner' : 'Enviar Banner'}
             currentImageUrl={currentFeaturedBanner ? imageUrl(currentFeaturedBanner) : undefined}
             onFileCropped={(file) => handleUpload(file, 'featured')}
