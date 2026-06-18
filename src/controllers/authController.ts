@@ -1,6 +1,7 @@
 import { Response } from 'express';
+import { z } from 'zod';
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import User from '../models/User';
 import PasswordResetToken from '../models/PasswordResetToken';
@@ -11,6 +12,20 @@ import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+
+// ✅ SEGURANÇA: validação de entrada do registro (formato + limites de tamanho)
+const optionalShort = z.string().trim().max(30).optional().or(z.literal(''));
+const registerSchema = z.object({
+  name: z.string().trim().min(2, 'Informe seu nome').max(80, 'Nome muito longo'),
+  email: z.string().trim().toLowerCase().email('Email inválido').max(120),
+  password: z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(128, 'Senha muito longa'),
+  role: z.string().trim().max(20).optional(),
+  telefone: optionalShort,
+  cpf: optionalShort,
+  rg: optionalShort,
+  dataNascimento: optionalShort,
+  sexo: optionalShort,
+}).passthrough();
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
@@ -37,8 +52,11 @@ const isValidImageBuffer = (buffer: Buffer): boolean => {
 
 export const register = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, email, password, role, telefone, cpf, rg, dataNascimento, sexo } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
+    }
+    const { name, email, password, role, telefone, cpf, rg, dataNascimento, sexo } = parsed.data as any;
 
     // Validar foto obrigatória para motoboy e lojista
     if ((role === 'motoboy' || role === 'lojista') && !req.file) {
@@ -157,7 +175,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     const token = jwt.sign(
       { id: user._id, role: activeRole, activeRole, roles: allRoles },
       JWT_SECRET as jwt.Secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
     );
 
     // ✅ SEGURANÇA: Armazenar token em HttpOnly cookie
@@ -240,7 +258,7 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
   try {
     const { email, code, newPassword } = req.body;
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, código e nova senha são obrigatórios' });
-    if (String(newPassword).length < 6) return res.status(400).json({ error: 'A senha deve ter ao menos 6 caracteres' });
+    if (String(newPassword).length < 8) return res.status(400).json({ error: 'A senha deve ter ao menos 8 caracteres' });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ error: 'Código inválido ou expirado' });
@@ -313,7 +331,7 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
     const token = jwt.sign(
       { id: user._id, role: newRole, activeRole: newRole, roles },
       JWT_SECRET as jwt.Secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
     );
 
     return res.json({

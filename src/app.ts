@@ -82,26 +82,8 @@ const validateAndFormatIp = (req: any): string => {
   return ip;
 };
 
-const authLimiter = rateLimit({
-  windowMs: env.AUTH_LIMITER_WINDOW_MS,
-  max: env.AUTH_LIMITER_MAX,
-  message: 'Muitas tentativas de login/registro. Tente novamente em 15 minutos.',
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: validateAndFormatIp,
-  skip: (req) => env.NODE_ENV === 'test',
-});
-
-const orderLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: 'Muitas requisições de pedidos. Aguarde um minuto.',
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: validateAndFormatIp,
-  skip: (req) => env.NODE_ENV === 'test',
-});
-
+// Rate limit específico de login/registro vive em routes/auth.ts.
+// Rate limit de criação de pedido vive em routes/orders.ts (createOrderLimiter).
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -125,6 +107,10 @@ if (env.NODE_ENV !== 'production') {
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// ✅ SEGURANÇA: rate limit geral por IP em toda a API (100/min). Os limites
+// específicos de login/registro e criação de pedido já vivem nas suas rotas.
+app.use('/api', apiLimiter);
 
 // ✅ CRÍTICO: Rotas genéricas de usuário ANTES das rotas específicas
 // Senão /me, /bank-info são bloqueadas por ordem de matching

@@ -7,7 +7,7 @@ import request from 'supertest';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
 import User from '../models/User';
