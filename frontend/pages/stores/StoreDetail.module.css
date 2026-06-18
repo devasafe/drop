@@ -447,12 +447,13 @@
 
 .productGrid {
   display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 32px;
+  /* Mobile: 2 colunas (igual à página de produtos) */
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 @media (min-width: 640px) {
-  .productGrid { grid-template-columns: repeat(2, 1fr); }
+  .productGrid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
 }
 
 @media (min-width: 1024px) {
@@ -656,9 +657,11 @@
 }
 
 @media (max-width: 640px) {
-  /* Mostra a capa inteira (mesma proporção 3:1 da imagem) e coloca o perfil
-     abaixo da imagem, em vez de sobrepor e cortar. */
-  .hero { height: auto; aspect-ratio: 3 / 1; }
+  /* Capa inteira (proporção 3:1 na própria imagem) + perfil/ações ABAIXO,
+     fora do recorte do hero (senão o overflow:hidden cortava os botões). */
+  .hero { height: auto; overflow: visible; }
+  .heroCover, .heroFallback { height: auto; aspect-ratio: 3 / 1; display: block; }
+  .heroGradient { display: none; }
   .heroBottom { position: static; padding: 16px 20px; background: var(--drop-bg); flex-direction: column; align-items: stretch; gap: 12px; }
   .heroAvatar { width: 72px; height: 72px; font-size: 28px; }
   .heroName { font-size: 24px; }

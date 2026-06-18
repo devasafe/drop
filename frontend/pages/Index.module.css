@@ -444,5 +444,7 @@
   .imageBox { height: 130px; }
   .cardBody { padding: 10px; }
   .productName { font-size: 13px; }
-  .addBtn { font-size: 12px; padding: 7px 10px; }
+  /* Empilha preço e botão para o "Adicionar" não transbordar/cortar no card estreito */
+  .cardFooter { flex-direction: column; align-items: stretch; gap: 8px; }
+  .addBtn { font-size: 12px; padding: 9px 10px; width: 100%; }
 }
