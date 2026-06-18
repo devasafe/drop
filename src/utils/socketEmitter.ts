@@ -317,16 +317,12 @@ export const emitStoreUpdated = (store: any) => {
 };
 
 export const emitCategoryCreated = (category: any) => {
-  if (category.storeId) {
-    emitToRoom(`store:${category.storeId}`, 'category:created', category);
-  }
+  // Apenas broadcast: quem estiver na sala da loja receberia o mesmo evento 2x
+  // (sala + emitToAll) e a lista duplicava. O frontend filtra por storeId.
   emitToAll('category:created', category);
 };
 
 export const emitCategoryUpdated = (category: any) => {
-  if (category.storeId) {
-    emitToRoom(`store:${category.storeId}`, 'category:updated', category);
-  }
   emitToAll('category:updated', category);
 };
 

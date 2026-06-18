@@ -444,7 +444,7 @@ export default function StoreDashboard() {
     setOrders(prev => {
       const cancelled = prev.find(o => o._id === orderId || o._id === orderId?.toString());
       if (cancelled) {
-        setHistoryOrders(h => [{ ...cancelled, status: 'cancelado' }, ...h]);
+        setHistoryOrders(h => (h.some(o => o._id === cancelled._id) ? h : [{ ...cancelled, status: 'cancelado' }, ...h]));
       }
       return prev.filter(o => o._id !== orderId && o._id !== orderId?.toString());
     });

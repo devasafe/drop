@@ -690,7 +690,7 @@ export const useCategories = (storeId?: string) => {
 
     const handleCategoryCreated = (data: any) => {
       if (data.storeId === storeId) {
-        setCategories(prev => [data, ...prev]);
+        setCategories(prev => (prev.some(c => c._id === data._id) ? prev : [data, ...prev]));
       }
     };
 
