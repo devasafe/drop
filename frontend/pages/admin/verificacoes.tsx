@@ -2,6 +2,17 @@ import React, { useEffect, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import api from '../../lib/api';
 
+interface AggUser {
+  _id: string;
+  name: string;
+  email?: string;
+  roles: string[];
+  doc?: any;       // verification.document (pendente)
+  facial?: any;    // verification.facial (pendente)
+  courier?: any;   // verification.courier (pendente)
+  stores: any[];   // lojas com cnpj/endereço pendente
+}
+
 export default function AdminVerificacoes() {
   const [docs, setDocs] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -40,42 +51,52 @@ export default function AdminVerificacoes() {
     catch (e: any) { setMsg(e?.response?.data?.error || 'Erro.'); }
   };
 
-  // ── Agrupa tudo do mesmo dono/loja num card único ──
-  const ownerId = (v: any): string =>
-    !v ? '' : typeof v === 'object' ? String(v._id || '') : String(v);
-
-  const docsByOwner = new Map<string, any>(docs.map((u) => [String(u._id), u]));
-  const facialByOwner = new Map<string, any>(facialOwners.map((u) => [String(u._id), u]));
-
-  // Agrupa as lojas pendentes pelo dono
-  const groupsMap = new Map<string, { owner: any; stores: any[] }>();
-  for (const s of stores) {
-    const oid = ownerId(s.ownerId);
-    const ownerObj = s.ownerId && typeof s.ownerId === 'object' ? s.ownerId : null;
-    if (!groupsMap.has(oid)) {
-      groupsMap.set(oid, { owner: ownerObj || { _id: oid, name: 'Dono desconhecido' }, stores: [] });
+  // ── Agrega todas as pendências do MESMO usuário num único registro ──
+  const byId = new Map<string, AggUser>();
+  const ensureUser = (id: string, base?: any): AggUser => {
+    if (!byId.has(id)) byId.set(id, { _id: id, name: '', roles: [], stores: [] });
+    const u = byId.get(id)!;
+    if (base) {
+      if (base.name) u.name = base.name;
+      if (base.email) u.email = base.email;
+      const r: string[] = base.roles || (base.role ? [base.role] : []);
+      if (r.length) u.roles = Array.from(new Set([...u.roles, ...r]));
     }
-    groupsMap.get(oid)!.stores.push(s);
+    return u;
+  };
+
+  for (const d of docs) {
+    const u = ensureUser(String(d._id), d);
+    u.doc = d.verification?.document || null;
   }
-  // Donos com facial pendente mas sem loja pendente também viram card
   for (const f of facialOwners) {
-    const oid = String(f._id);
-    if (!groupsMap.has(oid)) groupsMap.set(oid, { owner: f, stores: [] });
+    const u = ensureUser(String(f._id), f);
+    u.facial = f.verification?.facial || u.facial;
+  }
+  for (const m of motoboys) {
+    const u = ensureUser(String(m._id), m);
+    u.courier = m.verification?.courier || null;
+    if (!u.facial && m.verification?.facial?.status === 'pending') u.facial = m.verification.facial;
+    if (!u.roles.includes('motoboy')) u.roles.push('motoboy');
+  }
+  for (const s of stores) {
+    const owner = s.ownerId && typeof s.ownerId === 'object' ? s.ownerId : null;
+    const oid = owner?._id ? String(owner._id) : (typeof s.ownerId === 'string' ? s.ownerId : '');
+    if (!oid) continue;
+    const u = ensureUser(oid, owner);
+    u.stores.push(s);
+    if (!u.roles.includes('lojista')) u.roles.push('lojista');
   }
 
-  // Anexa documento + facial de cada dono ao seu grupo e marca os "consumidos"
-  const consumedDocIds = new Set<string>();
-  const groups = Array.from(groupsMap.values()).map((g) => {
-    const oid = String(g.owner._id);
-    const doc = docsByOwner.get(oid);
-    if (doc) consumedDocIds.add(oid);
-    return { ...g, doc, facial: facialByOwner.get(oid) };
-  });
+  const all = Array.from(byId.values());
+  const isLojista = (u: AggUser) => u.roles.includes('lojista') || u.stores.length > 0;
+  const isMotoboy = (u: AggUser) => !isLojista(u) && (u.roles.includes('motoboy') || !!u.courier);
 
-  // Documentos de clientes que NÃO são donos de loja
-  const clientDocs = docs.filter((u) => !consumedDocIds.has(String(u._id)));
+  const lojistas = all.filter(isLojista);
+  const motoboyUsers = all.filter(isMotoboy);
+  const clientes = all.filter((u) => !isLojista(u) && !isMotoboy(u));
 
-  const total = groups.length + clientDocs.length + motoboys.length;
+  const total = lojistas.length + motoboyUsers.length + clientes.length;
 
   return (
     <ProtectedRoute required_role="ceo,gerente_geral,gerente_clientes,gerente_lojistas,gerente_motoboys">
@@ -85,102 +106,67 @@ export default function AdminVerificacoes() {
           {msg && <div style={banner}>{msg}</div>}
           {loading ? <p>Carregando...</p> : total === 0 ? <p style={hint}>Nada pendente. 🎉</p> : null}
 
-          {/* ───── LOJAS & DONOS (tudo do mesmo dono junto) ───── */}
-          {groups.length > 0 && <h2 style={h2}>Lojas &amp; donos ({groups.length})</h2>}
-          {groups.map((g) => {
-            const storeNames = g.stores.map((s) => s.name).filter(Boolean);
-            return (
-              <div key={String(g.owner._id)} style={card}>
-                <div style={groupHead}>
-                  <div>
-                    {storeNames.length > 0 && <span style={storeTag}>🏪 {storeNames.join(' · ')}</span>}
-                    <div style={{ marginTop: storeNames.length ? 6 : 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{g.owner.name || 'Usuário'}</strong>
-                      <TypeBadge user={g.owner} />
-                      {g.owner.email && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{g.owner.email}</span>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Documento do dono (Fase 1) */}
-                {g.doc && (
-                  <div style={sub}>
-                    <p style={subLabel}>📄 Documento</p>
-                    <p style={hint}>
-                      Tipo: {g.doc.verification?.document?.type?.toUpperCase()} · Nº {g.doc.verification?.document?.number || '-'}
-                    </p>
-                    <Imgs urls={[g.doc.verification?.document?.frontUrl, g.doc.verification?.document?.backUrl]} labels={['Frente', 'Verso']} />
-                    <Actions
-                      onApprove={() => approve(`/verification/admin/${g.doc._id}/approve`)}
-                      onReject={() => reject(`/verification/admin/${g.doc._id}/reject`)}
-                    />
-                  </div>
-                )}
-
-                {/* Facial do dono (Fase 2) */}
-                {g.facial && (
-                  <div style={sub}>
-                    <p style={subLabel}>🤳 Facial / selfie (comparar com o documento)</p>
-                    <Imgs urls={[g.facial.verification?.facial?.selfieUrl]} labels={['Selfie']} />
-                    <Actions
-                      onApprove={() => approve(`/verification/admin/facial/${g.facial._id}/approve`)}
-                      onReject={() => reject(`/verification/admin/facial/${g.facial._id}/reject`)}
-                    />
-                  </div>
-                )}
-
-                {/* CNPJ e endereço de cada loja do dono */}
-                {g.stores.map((s) => (
-                  <React.Fragment key={s._id}>
-                    {s.verification?.cnpj?.status === 'pending' && (
-                      <div style={sub}>
-                        <p style={subLabel}>🧾 CNPJ — {s.name}</p>
-                        <p style={hint}>{s.verification.cnpj.number} · {s.verification.cnpj.razaoSocial || '?'} · {s.verification.cnpj.situacao || '?'}</p>
-                        <Actions
-                          onApprove={() => approve(`/verification/admin/store/${s._id}/cnpj/approve`)}
-                          onReject={() => reject(`/verification/admin/store/${s._id}/cnpj/reject`)}
-                        />
-                      </div>
-                    )}
-                    {s.verification?.address?.status === 'pending' && (
-                      <div style={sub}>
-                        <p style={subLabel}>📍 Endereço — {s.name}</p>
-                        <Imgs urls={[s.verification.address.comprovanteUrl]} labels={['Comprovante']} />
-                        <Actions
-                          onApprove={() => approve(`/verification/admin/store/${s._id}/address/approve`)}
-                          onReject={() => reject(`/verification/admin/store/${s._id}/address/reject`)}
-                        />
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-            );
-          })}
-
-          {/* ───── CLIENTES (documento, sem loja) ───── */}
-          {clientDocs.length > 0 && <h2 style={h2}>Documentos de clientes ({clientDocs.length})</h2>}
-          {clientDocs.map((u) => (
+          {/* ───── LOJISTAS ───── */}
+          {lojistas.length > 0 && <h2 style={h2}>Lojistas ({lojistas.length})</h2>}
+          {lojistas.map((u) => (
             <div key={u._id} style={card}>
-              <Row user={u} name={u.name} email={u.email} extra={`Tipo: ${u.verification?.document?.type?.toUpperCase()} · Nº ${u.verification?.document?.number || '-'}`} />
-              <Imgs urls={[u.verification?.document?.frontUrl, u.verification?.document?.backUrl]} labels={['Frente', 'Verso']} />
-              <Actions
-                onApprove={() => approve(`/verification/admin/${u._id}/approve`)}
-                onReject={() => reject(`/verification/admin/${u._id}/reject`)}
-              />
+              <UserHead u={u} />
+              <DocBlock u={u} approve={approve} reject={reject} />
+              <FacialBlock u={u} approve={approve} reject={reject} />
+              {u.stores.map((s) => (
+                <React.Fragment key={s._id}>
+                  {s.verification?.cnpj?.status === 'pending' && (
+                    <div style={sub}>
+                      <p style={subLabel}>🧾 CNPJ — {s.name}</p>
+                      <p style={hint}>{s.verification.cnpj.number} · {s.verification.cnpj.razaoSocial || '?'} · {s.verification.cnpj.situacao || '?'}</p>
+                      <Actions
+                        onApprove={() => approve(`/verification/admin/store/${s._id}/cnpj/approve`)}
+                        onReject={() => reject(`/verification/admin/store/${s._id}/cnpj/reject`)}
+                      />
+                    </div>
+                  )}
+                  {s.verification?.address?.status === 'pending' && (
+                    <div style={sub}>
+                      <p style={subLabel}>📍 Endereço — {s.name}</p>
+                      <Imgs urls={[s.verification.address.comprovanteUrl]} labels={['Comprovante']} />
+                      <Actions
+                        onApprove={() => approve(`/verification/admin/store/${s._id}/address/approve`)}
+                        onReject={() => reject(`/verification/admin/store/${s._id}/address/reject`)}
+                      />
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           ))}
 
           {/* ───── MOTOBOYS ───── */}
-          {motoboys.length > 0 && <h2 style={h2}>Motoboys — CNH/placa ({motoboys.length})</h2>}
-          {motoboys.map((u) => (
+          {motoboyUsers.length > 0 && <h2 style={h2}>Motoboys ({motoboyUsers.length})</h2>}
+          {motoboyUsers.map((u) => (
             <div key={u._id} style={card}>
-              <Row user={u} name={u.name} email={u.email} extra={`CNH: ${u.verification?.courier?.cnhNumber || '-'} · Placa: ${u.verification?.courier?.plate || '-'}`} />
-              <Imgs urls={[u.verification?.courier?.cnhPhotoUrl, u.verification?.courier?.platePhotoUrl, u.verification?.facial?.selfieUrl]} labels={['Foto da CNH', 'Foto da placa', 'Selfie']} />
-              <Actions
-                onApprove={() => approve(`/verification/admin/motoboy/${u._id}/approve`)}
-                onReject={() => reject(`/verification/admin/motoboy/${u._id}/reject`)}
-              />
+              <UserHead u={u} />
+              <DocBlock u={u} approve={approve} reject={reject} />
+              <FacialBlock u={u} approve={approve} reject={reject} />
+              {u.courier && (
+                <div style={sub}>
+                  <p style={subLabel}>🏍️ CNH e placa</p>
+                  <p style={hint}>CNH: {u.courier.cnhNumber || '-'} · Placa: {u.courier.plate || '-'}</p>
+                  <Imgs urls={[u.courier.cnhPhotoUrl, u.courier.platePhotoUrl]} labels={['Foto da CNH', 'Foto da placa']} />
+                  <Actions
+                    onApprove={() => approve(`/verification/admin/motoboy/${u._id}/approve`)}
+                    onReject={() => reject(`/verification/admin/motoboy/${u._id}/reject`)}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* ───── CLIENTES ───── */}
+          {clientes.length > 0 && <h2 style={h2}>Clientes ({clientes.length})</h2>}
+          {clientes.map((u) => (
+            <div key={u._id} style={card}>
+              <UserHead u={u} />
+              <DocBlock u={u} approve={approve} reject={reject} />
             </div>
           ))}
         </div>
@@ -205,18 +191,49 @@ function TypeBadge({ user }: { user: any }) {
   );
 }
 
-function Row({ name, email, extra, user }: { name: string; email?: string; extra?: string; user?: any }) {
+function UserHead({ u }: { u: AggUser }) {
+  const storeNames = (u.stores || []).map((s) => s.name).filter(Boolean);
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{name}</strong>
-        {user && <TypeBadge user={user} />}
-        {email && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{email}</span>}
+    <div style={{ marginBottom: 4 }}>
+      {storeNames.length > 0 && <span style={storeTag}>🏪 {storeNames.join(' · ')}</span>}
+      <div style={{ marginTop: storeNames.length ? 6 : 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{u.name || 'Usuário'}</strong>
+        <TypeBadge user={u} />
+        {u.email && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{u.email}</span>}
       </div>
-      {extra && <p style={hint}>{extra}</p>}
     </div>
   );
 }
+
+function DocBlock({ u, approve, reject }: { u: AggUser; approve: (url: string) => void; reject: (url: string) => void }) {
+  if (!u.doc || u.doc.status !== 'pending') return null;
+  return (
+    <div style={sub}>
+      <p style={subLabel}>📄 Documento</p>
+      <p style={hint}>Tipo: {u.doc.type?.toUpperCase()} · Nº {u.doc.number || '-'}</p>
+      <Imgs urls={[u.doc.frontUrl, u.doc.backUrl]} labels={['Frente', 'Verso']} />
+      <Actions
+        onApprove={() => approve(`/verification/admin/${u._id}/approve`)}
+        onReject={() => reject(`/verification/admin/${u._id}/reject`)}
+      />
+    </div>
+  );
+}
+
+function FacialBlock({ u, approve, reject }: { u: AggUser; approve: (url: string) => void; reject: (url: string) => void }) {
+  if (!u.facial || u.facial.status !== 'pending') return null;
+  return (
+    <div style={sub}>
+      <p style={subLabel}>🤳 Facial / selfie (comparar com o documento)</p>
+      <Imgs urls={[u.facial.selfieUrl]} labels={['Selfie']} />
+      <Actions
+        onApprove={() => approve(`/verification/admin/facial/${u._id}/approve`)}
+        onReject={() => reject(`/verification/admin/facial/${u._id}/reject`)}
+      />
+    </div>
+  );
+}
+
 function Imgs({ urls, labels }: { urls: (string | undefined)[]; labels: string[] }) {
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '8px 0' }}>
@@ -242,7 +259,6 @@ const wrap: React.CSSProperties = { minHeight: '100vh', background: '#0A0A0A', c
 const card: React.CSSProperties = { background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 18, marginTop: 12 };
 const sub: React.CSSProperties = { borderTop: '1px solid rgba(255,255,255,0.07)', marginTop: 10, paddingTop: 10 };
 const subLabel: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', margin: '0 0 4px' };
-const groupHead: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 };
 const storeTag: React.CSSProperties = { display: 'inline-block', background: 'rgba(108,43,217,0.15)', border: '1px solid #6C2BD9', borderRadius: 8, padding: '2px 10px', fontSize: 12, fontWeight: 600, color: '#C4B5FD' };
 const h2: React.CSSProperties = { fontFamily: 'Space Grotesk, sans-serif', marginTop: 28, fontSize: 18 };
 const banner: React.CSSProperties = { background: 'rgba(108,43,217,0.15)', border: '1px solid #6C2BD9', borderRadius: 10, padding: '10px 14px', marginTop: 12, fontSize: 14 };
