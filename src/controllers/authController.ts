@@ -342,6 +342,11 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
     );
 
+    // Atualiza o cookie httpOnly com o novo role (senão o cookie ficaria com o role antigo)
+    const { setTokenCookie, setUserCookie } = require('../utils/cookieManager');
+    setTokenCookie(res, token);
+    setUserCookie(res, { id: user._id, name: user.name, email: user.email, role: newRole, activeRole: newRole, roles: user.roles });
+
     return res.json({
       token,
       user: {
