@@ -987,7 +987,7 @@ export default function ChatWidgetWithTabs({
                       textAlign: 'center',
                       color: 'rgba(255,255,255,0.35)',
                     }}>
-                      <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}>👋</div>
+                      <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}><Icon name="chat" size={28} /></div>
                       <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Nenhuma conversa</p>
                       <p style={{ fontSize: 11 }}>
                         Clique em "Chat com a loja" nos produtos

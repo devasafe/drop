@@ -158,7 +158,7 @@ export default function ChatConversationList({
           </div>
         ) : filteredConversations.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.35)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}><Icon name="chat" size={36} /></div>
+            <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}></div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>
               Nenhuma conversa
             </div>

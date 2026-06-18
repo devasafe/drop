@@ -788,6 +788,23 @@ export default function StoreDashboard() {
                 <span>{tab.label}</span>
               </button>
             ))}
+
+            <div className={styles.sidebarNavLabel}>Gerenciar</div>
+            {[
+              { href: '/seller/products', label: 'Meus Produtos', icon: 'package' as const },
+              { href: '/seller/analytics', label: 'Analytics', icon: 'chart-up' as const },
+              { href: '/seller/coupons', label: 'Meus Cupons', icon: 'tag' as const },
+              { href: '/editar-conta', label: 'Editar meus dados', icon: 'settings' as const },
+            ].map(link => (
+              <button
+                key={link.href}
+                onClick={() => { setSidebarOpen(false); router.push(link.href); }}
+                className={styles.sidebarNavItem}
+              >
+                <Icon name={link.icon} size={16} />
+                <span>{link.label}</span>
+              </button>
+            ))}
           </nav>
 
           {store && (

@@ -261,9 +261,11 @@ export default function Nav() {
                       <a href="/user-profile" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Meu Perfil
                       </a>
-                      <a href="/editar-conta" onClick={close} className={styles.item}>
-                        <span className={styles.itemIcon}><Icon name="settings" size={14} /></span> Editar meus dados
-                      </a>
+                      {activeRole !== 'lojista' && (
+                        <a href="/editar-conta" onClick={close} className={styles.item}>
+                          <span className={styles.itemIcon}><Icon name="settings" size={14} /></span> Editar meus dados
+                        </a>
+                      )}
                       <a href={activeRole === 'lojista' ? '/seller/wallet' : activeRole === 'motoboy' ? '/motoboy/wallet' : '/my-wallet'} onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="wallet" size={14} /></span> Minha Carteira
                       </a>
@@ -274,13 +276,7 @@ export default function Nav() {
                       )}
                       {activeRole === 'lojista' && (
                         hasStore ? (
-                          <>
-                            <a href="/seller/dashboard" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Meu Painel</a>
-                            <a href="/seller/analytics" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="chart-up" size={14} /></span> Analytics</a>
-                            <a href="/seller/products" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="package" size={14} /></span> Meus Produtos</a>
-                            <a href="/seller/coupons" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="tag" size={14} /></span> Meus Cupons</a>
-                            <a href="/seller/transfer-wallet" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="arrow-right" size={14} /></span> Transferir Saldo</a>
-                          </>
+                          <a href="/seller/dashboard" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Meu Painel</a>
                         ) : (
                           <a href="/seller/create-store" onClick={close} className={`${styles.item} ${styles.itemPurple}`}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Criar Loja</a>
                         )
@@ -389,19 +385,16 @@ export default function Nav() {
             <div className={styles.mobileSectionLabel}>Conta</div>
             <nav aria-label="Conta" className={styles.mobileNav}>
               <a href="/user-profile" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
-              <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
+              {activeRole !== 'lojista' && (
+                <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
+              )}
               <a href={activeRole === 'lojista' ? '/seller/wallet' : activeRole === 'motoboy' ? '/motoboy/wallet' : '/my-wallet'} className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="wallet" size={16} /> Minha Carteira</a>
               {activeRole === 'cliente' && (
                 <a href="/user-dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="package" size={16} /> Meus Pedidos</a>
               )}
               {activeRole === 'lojista' && (
                 hasStore ? (
-                  <>
-                    <a href="/seller/dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Meu Painel</a>
-                    <a href="/seller/products" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="package" size={16} /> Meus Produtos</a>
-                    <a href="/seller/coupons" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="tag" size={16} /> Meus Cupons</a>
-                    <a href="/seller/transfer-wallet" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="arrow-right" size={16} /> Transferir Saldo</a>
-                  </>
+                  <a href="/seller/dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Meu Painel</a>
                 ) : (
                   <a href="/seller/create-store" className={`${styles.mobileNavLink} ${styles.mobileNavLinkPurple}`} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Criar Loja</a>
                 )
