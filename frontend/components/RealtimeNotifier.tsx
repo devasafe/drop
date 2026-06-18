@@ -16,6 +16,7 @@ export default function RealtimeNotifier() {
 
   const role = user?.activeRole || user?.role;
   const isLojista = role === 'lojista';
+  const isMotoboy = role === 'motoboy';
 
   // Habilita o áudio e pede permissão de notificação no 1º gesto do usuário
   useEffect(() => {
@@ -60,6 +61,22 @@ export default function RealtimeNotifier() {
     const unsub = on('new_order', handler);
     return () => unsub();
   }, [user, isLojista, on]);
+
+  // Nova entrega disponível (motoboy entra na sala "motoboys" no connect) → notifica
+  useEffect(() => {
+    if (!user || !isMotoboy) return;
+    const handler = () => {
+      notify({
+        kind: 'order',
+        title: 'Nova entrega disponível! 🏍️',
+        body: 'Apareceu uma nova entrega para você aceitar.',
+        url: '/motoboy',
+        tag: 'new-delivery',
+      });
+    };
+    const unsub = on('delivery:available', handler);
+    return () => unsub();
+  }, [user, isMotoboy, on]);
 
   return null;
 }
