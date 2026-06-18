@@ -1,7 +1,9 @@
 .carousel {
   position: relative;
   width: 100%;
-  height: 350px;
+  /* Mesma proporção da imagem (1400x350 = 4:1): no desktop fica ~350px e no
+     mobile encolhe proporcionalmente, mostrando a imagem inteira sem cortar. */
+  aspect-ratio: 4 / 1;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 32px;
@@ -127,11 +129,16 @@
   transform: scale(1.2);
 }
 
-/* Faixa de altura fixa (350px). A imagem é enviada na proporção do
-   mostruário (~1400×350), então cobre a faixa praticamente sem corte. */
+/* A altura acompanha a largura via aspect-ratio (4:1), então a imagem
+   aparece inteira (sem corte) em qualquer tela, inclusive no celular. */
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .carousel { border-radius: 8px; }
+  .overlay { padding: 8px 12px; gap: 2px; background: linear-gradient(to right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 100%); }
+  .premiumBadge { font-size: 9px; }
+  .storeName { font-size: 13px; }
+  .ctaBtn { padding: 3px 9px; font-size: 10px; margin-top: 2px; }
+  .dots { bottom: 6px; }
   .dot { width: 6px; height: 6px; }
 }

@@ -656,8 +656,10 @@
 }
 
 @media (max-width: 640px) {
-  .hero { height: 400px; }
-  .heroBottom { padding: 24px 20px; }
+  /* Mostra a capa inteira (mesma proporção 3:1 da imagem) e coloca o perfil
+     abaixo da imagem, em vez de sobrepor e cortar. */
+  .hero { height: auto; aspect-ratio: 3 / 1; }
+  .heroBottom { position: static; padding: 16px 20px; background: var(--drop-bg); flex-direction: column; align-items: stretch; gap: 12px; }
   .heroAvatar { width: 72px; height: 72px; font-size: 28px; }
   .heroName { font-size: 24px; }
   .heroStatsRow { gap: 20px; }
