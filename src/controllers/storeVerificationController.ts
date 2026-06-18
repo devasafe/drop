@@ -11,6 +11,7 @@ import {
   recomputeStoresForOwner,
 } from '../utils/storeVerification';
 import logger from '../config/logger';
+import { emitAdminNotification } from '../utils/socketEmitter';
 
 const ensureUserVerification = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -42,6 +43,12 @@ export const submitFacial = async (req: AuthenticatedRequest, res: Response) => 
     user.verification!.facial = { status: 'pending', selfieUrl, submittedAt: new Date() };
     user.markModified('verification');
     await user.save();
+    emitAdminNotification({
+      title: 'Nova verificação pendente',
+      body: `${user.name} enviou uma selfie (facial) para análise.`,
+      url: '/admin/verificacoes',
+      tag: 'verification',
+    });
     return res.json({ message: 'Selfie enviada para análise', status: 'pending' });
   } catch (err) {
     logger.error('Erro ao enviar facial', err as Error);
@@ -79,6 +86,12 @@ export const submitStoreCnpj = async (req: AuthenticatedRequest, res: Response) 
     };
     store.markModified('verification');
     await store.save();
+    emitAdminNotification({
+      title: 'Nova verificação pendente',
+      body: `Loja "${store.name}" enviou o CNPJ para análise.`,
+      url: '/admin/verificacoes',
+      tag: 'verification',
+    });
     return res.json({ message: 'CNPJ enviado para análise', lookup, status: 'pending' });
   } catch (err) {
     logger.error('Erro ao enviar CNPJ', err as Error);
@@ -103,6 +116,12 @@ export const submitStoreAddress = async (req: AuthenticatedRequest, res: Respons
     store.verification!.address = { status: 'pending', comprovanteUrl, submittedAt: new Date() };
     store.markModified('verification');
     await store.save();
+    emitAdminNotification({
+      title: 'Nova verificação pendente',
+      body: `Loja "${store.name}" enviou o comprovante de endereço para análise.`,
+      url: '/admin/verificacoes',
+      tag: 'verification',
+    });
     return res.json({ message: 'Comprovante enviado para análise', status: 'pending' });
   } catch (err) {
     logger.error('Erro ao enviar comprovante', err as Error);

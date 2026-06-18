@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import Conversation from '../models/Conversation';
 import SupportTicket from '../models/SupportTicket';
 import User from '../models/User';
-import { emitToRoom } from '../utils/socketEmitter';
+import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import logger from '../config/logger';
 
 // Mapeamento de role para gerente responsável e categoria
@@ -89,6 +89,12 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
         subject: ticket.subject,
         category,
         openedBy: { userId, name: user.name, role: activeRole },
+      });
+      emitAdminNotification({
+        title: 'Novo ticket de suporte',
+        body: `${user.name}: ${ticket.subject}`,
+        url: '/admin/suporte',
+        tag: 'support',
       });
     } catch (err) {
       logger.warn('Falha ao emitir evento de novo ticket', { ticketId: ticket._id });

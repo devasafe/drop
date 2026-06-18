@@ -26,7 +26,7 @@ export default function NotificationToaster() {
       const id = Date.now() + Math.random();
       const toast: Toast = {
         id,
-        kind: d.kind === 'order' ? 'order' : 'message',
+        kind: d.kind === 'order' ? 'order' : d.kind === 'announcement' ? 'announcement' : 'message',
         title: d.title || 'Notificação',
         body: d.body,
         url: d.url,
@@ -57,7 +57,9 @@ export default function NotificationToaster() {
     >
       {toasts.map(t => {
         const isOrder = t.kind === 'order';
-        const accent = isOrder ? '#F59E0B' : '#8B5CF6';
+        const isAnnouncement = t.kind === 'announcement';
+        const accent = isOrder ? '#F59E0B' : isAnnouncement ? '#38BDF8' : '#8B5CF6';
+        const iconName = isOrder ? 'package' : isAnnouncement ? 'megaphone' : 'chat';
         return (
           <div
             key={t.id}
@@ -94,7 +96,7 @@ export default function NotificationToaster() {
                 flexShrink: 0,
               }}
             >
-              <Icon name={isOrder ? 'package' : 'chat'} size={18} />
+              <Icon name={iconName} size={18} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", marginBottom: 2 }}>

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import PlatformConfig from '../models/PlatformConfig';
 import StoreSubscription from '../models/StoreSubscription';
 import Store from '../models/Store';
-import { emitToAll } from '../utils/socketEmitter';
+import { emitToAll, emitAdminNotification } from '../utils/socketEmitter';
 
 // ✅ GET Current Platform Config
 export const getPlatformConfig = async (req: Request, res: Response) => {
@@ -180,6 +180,12 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
     await subscription.save();
 
     console.log('✅ Plan change requested:', { storeId: store._id, newPlan });
+    emitAdminNotification({
+      title: 'Solicitação de mudança de plano',
+      body: `Loja "${store.name}" solicitou mudança para ${newPlan}.`,
+      url: '/admin/plan-approvals',
+      tag: 'plan-request',
+    });
     return res.json({
       message: 'Solicitação enviada para o CEO',
       subscription,

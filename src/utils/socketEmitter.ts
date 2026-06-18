@@ -38,6 +38,14 @@ export const emitToRoom = (room: string, event: string, data: any) => {
 };
 
 /**
+ * Notificação genérica para o painel admin (som + toast + pop-up no front).
+ * Todos os admins entram na sala 'admin' no connect.
+ */
+export const emitAdminNotification = (payload: { title: string; body?: string; url?: string; tag?: string }) => {
+  emitToRoom('admin', 'admin:notification', payload);
+};
+
+/**
  * Força logout de um usuário específico via socket (best-effort).
  * Frontend (AuthContext) escuta 'auth:force_logout' e limpa token + redireciona.
  * Se o user estiver offline (sem socket), o evento se perde — o bloqueio de login

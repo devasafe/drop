@@ -10,6 +10,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidCPF, isValidRG, toE164BR } from '../utils/documentValidation';
 import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
+import { emitAdminNotification } from '../utils/socketEmitter';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const ensureVerification = (user: any) => {
@@ -230,6 +231,12 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
     user.markModified('verification');
     await user.save();
 
+    emitAdminNotification({
+      title: 'Nova verificação pendente',
+      body: `${user.name} enviou um documento (${String(type).toUpperCase()}) para análise.`,
+      url: '/admin/verificacoes',
+      tag: 'verification',
+    });
     return res.json({ message: 'Documento enviado para análise', status: 'pending' });
   } catch (err) {
     logger.error('Erro ao enviar documento', err as Error);

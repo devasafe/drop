@@ -17,6 +17,7 @@ export default function RealtimeNotifier() {
   const role = user?.activeRole || user?.role;
   const isLojista = role === 'lojista';
   const isMotoboy = role === 'motoboy';
+  const isAdmin = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(role);
 
   // Habilita o áudio e pede permissão de notificação no 1º gesto do usuário
   useEffect(() => {
@@ -78,5 +79,39 @@ export default function RealtimeNotifier() {
     return () => unsub();
   }, [user, isMotoboy, on]);
 
+  // Admin: verificações pendentes, mudança de plano, novo ticket de suporte
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    const handler = (data: any) => {
+      notify({
+        kind: 'order',
+        title: data?.title || 'Nova solicitação',
+        body: data?.body,
+        url: data?.url,
+        tag: data?.tag || 'admin',
+      });
+    };
+    const unsub = on('admin:notification', handler);
+    return () => unsub();
+  }, [user, isAdmin, on]);
+
+  // Anúncio (broadcast do admin) → som próprio, para quem recebe
+  useEffect(() => {
+    if (!user) return;
+    const handler = (data: any) => {
+      if (data?.type !== 'broadcast') return;
+      notify({
+        kind: 'announcement',
+        title: data?.title || 'Anúncio',
+        body: data?.message,
+        url: '/notifications',
+        tag: 'broadcast',
+      });
+    };
+    const unsub = on('notification:received', handler);
+    return () => unsub();
+  }, [user, on]);
+
   return null;
 }
+

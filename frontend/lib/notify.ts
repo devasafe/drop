@@ -40,6 +40,10 @@ export function playSound(kind: NotifyKind) {
     tone(ctx, 660, 0, 0.18, 0.25);
     tone(ctx, 880, 0.2, 0.18, 0.25);
     tone(ctx, 1175, 0.4, 0.35, 0.28);
+  } else if (kind === 'announcement') {
+    // Anúncio: "ding-dong" descendente — bem diferente dos demais
+    tone(ctx, 784, 0, 0.22, 0.22);     // sol
+    tone(ctx, 523, 0.24, 0.4, 0.24);   // dó (mais grave)
   } else {
     // Mensagem: dois toques curtos
     tone(ctx, 880, 0, 0.12, 0.18);
@@ -56,7 +60,7 @@ export function requestNotificationPermission() {
   }
 }
 
-export type NotifyKind = 'message' | 'order';
+export type NotifyKind = 'message' | 'order' | 'announcement';
 
 export interface NotifyInput {
   kind: NotifyKind;

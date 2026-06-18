@@ -5,6 +5,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidCNH, isValidPlate, normalizePlate, onlyDigits } from '../utils/documentValidation';
 import { missingMotoboyVerifications } from '../utils/courierVerification';
 import logger from '../config/logger';
+import { emitAdminNotification } from '../utils/socketEmitter';
 
 const ensureV = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -43,6 +44,12 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     };
     user.markModified('verification');
     await user.save();
+    emitAdminNotification({
+      title: 'Nova verificação pendente',
+      body: `${user.name} (motoboy) enviou CNH e placa para análise.`,
+      url: '/admin/verificacoes',
+      tag: 'verification',
+    });
     return res.json({ message: 'Dados de motoboy enviados para análise', status: 'pending' });
   } catch (err) {
     logger.error('Erro ao enviar dados de motoboy', err as Error);
