@@ -37,19 +37,11 @@ export const setAuthToken = (token?: string) => {
   }
 };
 
-// Garante que toda request tenha o Authorization header, mesmo que setAuthToken
-// ainda não tenha sido chamado (evita race condition no boot do app, quando o
-// AuthContext está hidratando e hooks como useNotifications já disparam fetch).
+// A autenticação agora é via cookie httpOnly (enviado por withCredentials).
+// Não injetamos mais o token do localStorage no header.
 api.interceptors.request.use((config) => {
-  if (!config.headers['Authorization'] && typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
   if (process.env.NODE_ENV === 'development') {
-    const auth = config.headers['Authorization'];
-    console.log('📡 Request to', config.url, 'Auth header:', auth ? 'present' : 'missing');
+    console.log('📡 Request to', config.url);
   }
   return config;
 }, (error) => {

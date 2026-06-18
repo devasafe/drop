@@ -10,7 +10,7 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType | null>(null);
 
-export const SocketProvider = ({ children, token }: { children: ReactNode; token?: string | null }) => {
+export const SocketProvider = ({ children, enabled }: { children: ReactNode; enabled?: boolean }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const reconnectAttemptsRef = useRef(0);
@@ -18,9 +18,9 @@ export const SocketProvider = ({ children, token }: { children: ReactNode; token
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!enabled) return;
 
-    const socket = connectSocket(token);
+    const socket = connectSocket();
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -37,7 +37,7 @@ export const SocketProvider = ({ children, token }: { children: ReactNode; token
       // Reconectar automaticamente se for desconexão anormal
       if (!['io client namespace disconnect', 'io server namespace disconnect', 'nsp namespace disconnect', 'io server namespace disconnect'].includes(reason)) {
         setIsReconnecting(true);
-        scheduleReconnect(socket, token);
+        scheduleReconnect(socket);
       }
     });
 
@@ -51,9 +51,9 @@ export const SocketProvider = ({ children, token }: { children: ReactNode; token
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [token]);
+  }, [enabled]);
 
-  const scheduleReconnect = (socket: any, token: string) => {
+  const scheduleReconnect = (socket: any) => {
     // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
     const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
     reconnectAttemptsRef.current += 1;

@@ -192,8 +192,8 @@ export const useNotifications = () => {
   useEffect(() => {
     // Não tentar buscar notificações sem token (usuário deslogado em páginas
     // públicas como /inicio). Evita 401 ruidoso no console.
-    const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
-    if (!hasToken) {
+    const hasUser = typeof window !== 'undefined' && !!localStorage.getItem('user');
+    if (!hasUser) {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);

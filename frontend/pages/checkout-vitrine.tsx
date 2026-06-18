@@ -56,7 +56,7 @@ export default function CheckoutVitrinePage() {
   // Pré-preencher endereço principal
   useEffect(() => {
     let cancelled = false;
-    if (!auth?.token) return;
+    if (!auth?.user) return;
     api.get('/user/me').then(res => {
       if (cancelled) return;
       const addr = res.data?.mainAddress;
@@ -71,7 +71,7 @@ export default function CheckoutVitrinePage() {
       }
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [auth?.token]);
+  }, [auth?.user]);
 
   const subtotal = cart.reduce((sum, c) => sum + (c.price || 0) * c.quantity, 0);
   const total = subtotal; // Sem taxa de entrega para Plano 1

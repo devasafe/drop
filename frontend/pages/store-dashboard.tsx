@@ -648,23 +648,23 @@ export default function StoreDashboard() {
   };
 
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       fetchDashboard();
     }
     // eslint-disable-next-line
-  }, [user, token]);
+  }, [user]);
 
   // Join socket room — lean, apenas gerencia a sala
   useEffect(() => {
-    if (!user || !token || !storeId) return;
-    const socket = connectSocket(token);
+    if (!user || !storeId) return;
+    const socket = connectSocket();
     if (!socket.connected) socket.connect();
     const doJoin = () => socket.emit('join', { room: `store:${storeId}`, storeId });
     doJoin();
     socket.on('connect', doJoin);
     return () => { socket.off('connect', doJoin); };
     // eslint-disable-next-line
-  }, [user, token, storeId]);
+  }, [user, storeId]);
 
   const handlePinInput = (orderId: string, value: string) => {
     setPinInputs(prev => ({ ...prev, [orderId]: value }));

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import api, { setAuthToken } from '../lib/api';
+import api from '../lib/api';
 
 export type AuthUser = {
   _id?: string;
@@ -15,7 +15,7 @@ export type AuthUser = {
 
 interface AuthContextType {
   user: AuthUser | null;
-  token: string | null;
+  token: string | null; // mantido por compat; a sessão agora é pelo cookie httpOnly
   loading: boolean;
   activeRole?: string;
   login: (email: string, password: string) => Promise<any>;
@@ -28,53 +28,51 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = localStorage.getItem('token');
-    const u = localStorage.getItem('user');
-    if (t) {
-      setToken(t);
-      setAuthToken(t);
-    }
-    if (u) setUser(JSON.parse(u));
+    // A sessão é mantida pelo cookie httpOnly (não acessível via JS).
+    // Aqui lemos apenas os DADOS do usuário (não-sensíveis) para a UI.
+    try {
+      const u = localStorage.getItem('user');
+      if (u) setUser(JSON.parse(u));
+      localStorage.removeItem('token'); // migração: remove token legado do localStorage
+    } catch { /* ignore */ }
     setLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
-    const { token, user } = res.data;
-    localStorage.setItem('token', token);
+    const { user } = res.data; // backend já setou o cookie httpOnly
     localStorage.setItem('user', JSON.stringify(user));
-    setAuthToken(token);
     setUser(user);
-    setToken(token);
     return res;
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    // clear cached store on logout
-    try { localStorage.removeItem('myStore'); } catch (e) { /* ignore */ }
-    setAuthToken(undefined);
+    // Limpa o cookie no servidor (best-effort) e os dados locais
+    api.post('/auth/logout').catch(() => { /* ignore */ });
+    try {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('myStore');
+    } catch { /* ignore */ }
     setUser(null);
-    setToken(null);
   };
 
   const switchRole = async (newRole: string) => {
     const res = await api.post('/auth/switch-role', { newRole });
-    const { token: newToken, user } = res.data;
-    localStorage.setItem('token', newToken);
+    const { user } = res.data; // backend atualizou o cookie httpOnly com o novo role
     localStorage.setItem('user', JSON.stringify(user));
-    setAuthToken(newToken);
     setUser(user);
-    setToken(newToken);
     return res;
   };
 
-  return <AuthContext.Provider value={{ user, token, login, logout, switchRole, loading, setUser }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = (): AuthContextType => {

@@ -26,9 +26,10 @@ const getSocketUrl = () => {
   return 'https://api.dropapp.com.br';
 };
 
-export const connectSocket = (token: string) => {
+export const connectSocket = (_token?: string) => {
   if (socket) return socket;
-  socket = io(getSocketUrl(), { auth: { token } });
+  // Autentica via cookie httpOnly enviado no handshake (withCredentials).
+  socket = io(getSocketUrl(), { withCredentials: true });
   return socket;
 };
 

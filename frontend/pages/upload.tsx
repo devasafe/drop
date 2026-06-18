@@ -23,15 +23,14 @@ export default function UploadPage() {
     if (!productId) return alert('Informe productId');
     if (!file) return alert('Escolha um arquivo');
 
-    const token = localStorage.getItem('token');
-    if (!token) return alert('Faça login como lojista antes');
+    if (!localStorage.getItem('user')) return alert('Faça login como lojista antes');
 
     const fd = new FormData();
     fd.append('image', file as any);
 
     try {
       const res = await axios.post(`${API_URL}/uploads/product/${productId}`, fd, {
-        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
       });
       alert('Upload OK');
       router.push('/');

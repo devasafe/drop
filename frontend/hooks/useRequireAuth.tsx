@@ -10,9 +10,9 @@ export default function useRequireAuth(roles?: string[]) {
     // Se ainda está carregando, não faz nada
     if (loading) return;
 
-    // if no user and no token, redirect to login
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!user && !token) {
+    // Sessão é mantida pelo cookie httpOnly; aqui checamos os dados do usuário.
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    if (!user && !storedUser) {
       router.replace('/login');
       return;
     }

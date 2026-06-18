@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import api, { setAuthToken } from '../lib/api';
+import api from '../lib/api';
 import AuthContext from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useOrders, useNotifications } from '../hooks/useSync';
@@ -11,7 +11,7 @@ import styles from './UserDashboard.module.css';
 const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
 
 export default function UserDashboard() {
-  const { token } = useContext(AuthContext);
+  const { user: authUser } = useContext(AuthContext);
   const [user, setUser] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders();
@@ -46,8 +46,7 @@ export default function UserDashboard() {
   );
 
   useEffect(() => {
-    if (!token) return;
-    setAuthToken(token);
+    if (!authUser) return;
     async function fetchAll() {
       setLoading(true);
       try {
@@ -72,7 +71,7 @@ export default function UserDashboard() {
       setLoading(false);
     }
     fetchAll();
-  }, [token]);
+  }, [authUser]);
 
   // Escutar mudanças em localStorage para recarregar endereços quando novo é salvo no checkout
   useEffect(() => {

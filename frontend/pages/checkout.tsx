@@ -56,8 +56,8 @@ export default function CheckoutPage() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        if (!auth?.token) {
-          if (process.env.NODE_ENV === 'development') console.log('[Checkout] Token não disponível ainda, aguardando...');
+        if (!auth?.user) {
+          if (process.env.NODE_ENV === 'development') console.log('[Checkout] Usuário não logado ainda, aguardando...');
           return;
         }
 
@@ -85,7 +85,7 @@ export default function CheckoutPage() {
     };
 //
     fetchUserData();
-  }, [auth?.token]);
+  }, [auth?.user]);
 
   // Pega o storeId do primeiro item do carrinho
   const storeId = cart.length > 0 ? cart[0].storeId : '';

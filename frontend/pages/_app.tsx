@@ -26,7 +26,7 @@ function LivePresenceMount() {
 }
 
 function AppWrapper({ Component, pageProps }: AppProps) {
-  const { token, user } = useAuth() || {};
+  const { user } = useAuth() || {};
   const router = useRouter();
   const [isSeller, setIsSeller] = useState(false);
 
@@ -53,10 +53,10 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   const shouldShowFooter = !isDashboard;
 
   return (
-    <SocketProvider token={token}>
+    <SocketProvider enabled={!!user}>
       <LivePresenceMount />
       <ForceLogoutListener />
-      {token && <RealtimeNotifier />}
+      {user && <RealtimeNotifier />}
       <NotificationToaster />
       <CartProvider>
         <SeasonalThemeProvider>
@@ -73,7 +73,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         </SeasonalThemeProvider>
 
         {/* Chat Widget - Mostrar para todos os usuários autenticados */}
-        {token && shouldShowChat && (
+        {user && shouldShowChat && (
           <ChatWidgetWithTabs
             mode={isSeller ? 'seller' : 'customer'}
             storeId={isSeller ? user?._id : undefined}
@@ -82,7 +82,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         )}
 
         {/* Inbox de solicitações de acesso à carteira (clientes) */}
-        {token && user?.role === 'cliente' && <WalletAccessInbox />}
+        {user?.role === 'cliente' && <WalletAccessInbox />}
       </CartProvider>
     </SocketProvider>
   );
