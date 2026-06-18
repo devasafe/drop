@@ -1,28 +1,55 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
+import { maskCPF, maskRG } from '../lib/masks';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface CourierVer {
   verified: boolean;
   missing: string[];
   courier: { status: St; plate?: string; rejectionReason?: string };
-  facial: { status: St };
+  facial: { status: St; rejectionReason?: string };
+}
+interface DocInfo {
+  status: St;
+  type?: string;
+  number?: string;
+  rejectionReason?: string;
 }
 
 export default function VerificacaoMotoboyPage() {
   const [ver, setVer] = useState<CourierVer | null>(null);
+  const [doc, setDoc] = useState<DocInfo>({ status: 'none' });
+  const [account, setAccount] = useState<{ cpf: string; rg: string }>({ cpf: '', rg: '' });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
 
+  // documento
+  const [docType, setDocType] = useState<'cpf' | 'rg'>('cpf');
+  const [docFront, setDocFront] = useState<File | null>(null);
+  const [docBack, setDocBack] = useState<File | null>(null);
+
+  // facial
+  const [selfie, setSelfie] = useState<File | null>(null);
+
+  // CNH / placa
   const [cnh, setCnh] = useState('');
   const [plate, setPlate] = useState('');
   const [platePhoto, setPlatePhoto] = useState<File | null>(null);
 
   const load = async () => {
     try {
-      const { data } = await api.get('/verification/motoboy/me');
-      setVer(data);
+      const [c, v, u] = await Promise.all([
+        api.get('/verification/motoboy/me'),
+        api.get('/verification/me').catch(() => ({ data: { verification: { document: { status: 'none' } } } })),
+        api.get('/user/me').catch(() => ({ data: {} })),
+      ]);
+      setVer(c.data);
+      setDoc(v.data?.verification?.document || { status: 'none' });
+      const cpf = u.data?.cpf || '';
+      const rg = u.data?.rg || '';
+      setAccount({ cpf, rg });
+      setDocType(cpf ? 'cpf' : rg ? 'rg' : 'cpf');
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Faça login como motoboy para acessar.');
     } finally {
@@ -31,31 +58,49 @@ export default function VerificacaoMotoboyPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const sendCourier = async () => {
+  const run = async (fn: () => Promise<any>, ok: string) => {
     setMsg('');
-    try {
-      if (!platePhoto) { setMsg('Selecione a foto da placa.'); return; }
-      const fd = new FormData();
-      fd.append('cnhNumber', cnh);
-      fd.append('plate', plate);
-      fd.append('platePhoto', platePhoto);
-      await api.post('/verification/motoboy', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setMsg('Dados enviados para análise.');
-      await load();
-    } catch (e: any) {
-      setMsg(e?.response?.data?.error || 'Erro ao enviar.');
-    }
+    try { await fn(); setMsg(ok); await load(); }
+    catch (e: any) { setMsg(e?.response?.data?.error || 'Erro na operação.'); }
   };
+
+  const submitDoc = () => run(async () => {
+    if (!docFront || !docBack) throw { response: { data: { error: 'Envie frente e verso do documento.' } } };
+    const fd = new FormData();
+    fd.append('type', docType);
+    fd.append('front', docFront);
+    fd.append('back', docBack);
+    await api.post('/verification/document', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }, 'Documento enviado para análise.');
+
+  const sendFacial = () => run(async () => {
+    if (!selfie) throw { response: { data: { error: 'Selecione a selfie.' } } };
+    const fd = new FormData();
+    fd.append('selfie', selfie);
+    await api.post('/verification/facial', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }, 'Selfie enviada para análise.');
+
+  const sendCourier = () => run(async () => {
+    if (!platePhoto) throw { response: { data: { error: 'Selecione a foto da placa.' } } };
+    const fd = new FormData();
+    fd.append('cnhNumber', cnh);
+    fd.append('plate', plate);
+    fd.append('platePhoto', platePhoto);
+    await api.post('/verification/motoboy', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }, 'Dados enviados para análise.');
 
   if (loading) return <div style={wrap}><p>Carregando...</p></div>;
   if (err) return <div style={wrap}><div style={card}><p>{err}</p></div></div>;
 
+  const hasCpf = !!account.cpf;
+  const hasRg = !!account.rg;
+  const hasAnyDoc = hasCpf || hasRg;
+  const selectedNumber = docType === 'cpf' ? account.cpf : account.rg;
+  const maskedNumber = docType === 'cpf' ? maskCPF(selectedNumber) : maskRG(selectedNumber);
+
   const cs = ver?.courier.status || 'none';
-  const map: Record<string, [string, string]> = {
-    approved: ['✅ Aprovado', '#22C55E'], pending: ['Em análise', '#F59E0B'],
-    rejected: ['Recusado', '#EF4444'], none: ['Pendente', 'rgba(255,255,255,0.5)'],
-  };
-  const [label, color] = map[cs];
+  const fs = ver?.facial.status || 'none';
+  const ds = doc.status || 'none';
 
   return (
     <div style={wrap}>
@@ -69,12 +114,54 @@ export default function VerificacaoMotoboyPage() {
         </p>
         {msg && <div style={banner}>{msg}</div>}
 
+        {/* Documento (CPF/RG) */}
         <section style={card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>CNH, placa e foto da placa</strong>
-            <span style={{ color, fontSize: 13, fontWeight: 600 }}>{label}</span>
-          </div>
+          <Head title="Documento (CPF ou RG)" s={ds} />
+          {ds === 'rejected' && <p style={errp}>Recusado: {doc.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
+          {ds === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+          {(ds === 'none' || ds === 'rejected') && (
+            !hasAnyDoc ? (
+              <p style={hint}>
+                Cadastre seu CPF ou RG em <a href="/editar-conta" style={link}>Editar meus dados</a> antes de enviar o documento.
+              </p>
+            ) : (
+              <>
+                <label style={hint}>Qual documento você vai enviar?</label>
+                <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
+                  {hasCpf && <option value="cpf">CPF</option>}
+                  {hasRg && <option value="rg">RG</option>}
+                </select>
+                <label style={hint}>Número (cadastrado em Editar meus dados)</label>
+                <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
+                <label style={hint}>Frente</label>
+                <input type="file" accept="image/*" onChange={e => setDocFront(e.target.files?.[0] || null)} style={file} />
+                <label style={hint}>Verso</label>
+                <input type="file" accept="image/*" onChange={e => setDocBack(e.target.files?.[0] || null)} style={file} />
+                <button style={btn} onClick={submitDoc}>Enviar documento</button>
+              </>
+            )
+          )}
+        </section>
+
+        {/* Selfie facial */}
+        <section style={card}>
+          <Head title="Selfie (facial)" s={fs} />
+          {fs === 'rejected' && <p style={errp}>Recusado: {ver?.facial.rejectionReason || 'reenvie com boa iluminação.'}</p>}
+          {fs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+          {(fs === 'none' || fs === 'rejected') && (
+            <>
+              <p style={hint}>Tire uma selfie do seu rosto (para comparar com o documento).</p>
+              <input type="file" accept="image/*" onChange={e => setSelfie(e.target.files?.[0] || null)} style={file} />
+              <button style={btn} onClick={sendFacial}>Enviar selfie</button>
+            </>
+          )}
+        </section>
+
+        {/* CNH / placa */}
+        <section style={card}>
+          <Head title="CNH, placa e foto da placa" s={cs} />
           {cs === 'rejected' && <p style={errp}>Recusado: {ver?.courier.rejectionReason}</p>}
+          {cs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
           {(cs === 'none' || cs === 'rejected') && (
             <>
               <input style={input} placeholder="Número de registro da CNH (11 dígitos)" value={cnh} onChange={e => setCnh(e.target.value)} />
@@ -84,17 +171,32 @@ export default function VerificacaoMotoboyPage() {
               <button style={btn} onClick={sendCourier}>Enviar para análise</button>
             </>
           )}
-          {cs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
         </section>
 
         <p style={hint}>
-          Email, documento (CPF/RG) e a <strong>selfie facial</strong> são verificados na
-          página da conta (/verificacao). Todos precisam estar aprovados para liberar entregas.
+          O <strong>e-mail</strong> é verificado na <a href="/verificacao" style={link}>página da conta</a>. Todos os passos
+          precisam estar aprovados para liberar as entregas.
         </p>
         {ver && ver.missing.length > 0 && (
           <p style={hint}>Ainda falta: {ver.missing.join(', ')}.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function Head({ title, s }: { title: string; s: St }) {
+  const map: Record<St, [string, string]> = {
+    approved: ['✅ Aprovado', '#22C55E'],
+    pending: ['Em análise', '#F59E0B'],
+    rejected: ['Recusado', '#EF4444'],
+    none: ['Pendente', 'rgba(255,255,255,0.5)'],
+  };
+  const [label, color] = map[s];
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{title}</strong>
+      <span style={{ color, fontSize: 13, fontWeight: 600 }}>{label}</span>
     </div>
   );
 }
@@ -107,3 +209,4 @@ const errp: React.CSSProperties = { color: '#EF4444', fontSize: 13, margin: '6px
 const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 };
 const file: React.CSSProperties = { color: '#fff', marginBottom: 10, display: 'block' };
 const btn: React.CSSProperties = { background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer' };
+const link: React.CSSProperties = { color: '#8B5CF6' };
