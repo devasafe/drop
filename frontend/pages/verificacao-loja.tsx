@@ -19,7 +19,7 @@ export default function VerificacaoLojaPage() {
   const [msg, setMsg] = useState('');
 
   const [selfie, setSelfie] = useState<File | null>(null);
-  const [cnpj, setCnpj] = useState('');
+  const [storeCnpj, setStoreCnpj] = useState('');
   const [comprovante, setComprovante] = useState<File | null>(null);
 
   const loadStatus = async (id: string) => {
@@ -33,6 +33,7 @@ export default function VerificacaoLojaPage() {
       const id = data?.store?._id || data?._id || data?.storeId || data?.store?.id;
       if (!id) { setErr('Não foi possível identificar sua loja.'); return; }
       setStoreId(id);
+      setStoreCnpj(data?.store?.cnpj || '');
       await loadStatus(id);
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Faça login como lojista para acessar.');
@@ -54,7 +55,7 @@ export default function VerificacaoLojaPage() {
     await api.post('/verification/facial', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   }, 'Selfie enviada para análise.');
 
-  const sendCnpj = () => run(() => api.post(`/verification/store/${storeId}/cnpj`, { number: cnpj }), 'CNPJ enviado para análise.');
+  const sendCnpj = () => run(() => api.post(`/verification/store/${storeId}/cnpj`, {}), 'CNPJ enviado para análise.');
 
   const sendAddress = () => run(async () => {
     if (!comprovante) throw { response: { data: { error: 'Selecione o comprovante.' } } };
@@ -103,10 +104,20 @@ export default function VerificacaoLojaPage() {
           {ver?.cnpj.razaoSocial && <p style={hint}>Razão social: {ver.cnpj.razaoSocial} · {ver.cnpj.situacao}</p>}
           {ver?.cnpj.status === 'rejected' && <p style={errp}>Recusado: {ver.cnpj.rejectionReason}</p>}
           {(ver?.cnpj.status === 'none' || ver?.cnpj.status === 'rejected') && (
-            <>
-              <input style={input} placeholder="00.000.000/0000-00" value={cnpj} onChange={e => setCnpj(maskCNPJ(e.target.value))} />
-              <button style={btn} onClick={sendCnpj}>Enviar CNPJ</button>
-            </>
+            storeCnpj ? (
+              <>
+                <p style={hint}>CNPJ cadastrado (em Editar meus dados):</p>
+                <input style={{ ...input, opacity: 0.7 }} value={maskCNPJ(storeCnpj)} readOnly />
+                <p style={{ ...hint, fontSize: 12 }}>
+                  Para alterar, edite em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a>.
+                </p>
+                <button style={btn} onClick={sendCnpj}>Enviar CNPJ para análise</button>
+              </>
+            ) : (
+              <p style={hint}>
+                Cadastre o CNPJ da loja em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a> antes de enviar para verificação.
+              </p>
+            )
           )}
         </section>
 

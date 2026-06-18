@@ -53,8 +53,6 @@ export const submitFacial = async (req: AuthenticatedRequest, res: Response) => 
 export const submitStoreCnpj = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { storeId } = req.params;
-    const { number } = req.body;
-    if (!isValidCNPJ(String(number))) return res.status(400).json({ error: 'CNPJ inválido' });
 
     const owned = await assertStoreOwner(storeId, req.user?.id);
     if (owned.code === 404) return res.status(404).json({ error: 'Loja não encontrada' });
@@ -62,10 +60,20 @@ export const submitStoreCnpj = async (req: AuthenticatedRequest, res: Response) 
     const store = owned.store;
     ensureStoreVerification(store);
 
-    const lookup = await consultarCNPJ(String(number));
+    // O CNPJ verificado é SEMPRE o do cadastro da loja (editar-conta), nunca digitado aqui.
+    // Garante que o CNPJ aprovado e o salvo no cadastro da loja nunca divirjam.
+    const cnpj = store.cnpj;
+    if (!cnpj) {
+      return res.status(400).json({ error: 'Cadastre o CNPJ da loja em "Editar meus dados" antes de enviar para verificação' });
+    }
+    if (!isValidCNPJ(cnpj)) {
+      return res.status(400).json({ error: 'O CNPJ cadastrado é inválido. Corrija em "Editar meus dados".' });
+    }
+
+    const lookup = await consultarCNPJ(cnpj);
     store.verification!.cnpj = {
       status: 'pending',
-      number: onlyDigits(String(number)),
+      number: onlyDigits(cnpj),
       razaoSocial: lookup?.razaoSocial,
       situacao: lookup?.situacao,
     };
