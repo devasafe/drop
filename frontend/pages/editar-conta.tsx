@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
+import { useAuth } from '../contexts/AuthContext';
+import StoreSettingsEditor from '../components/StoreSettingsEditor';
 
 export default function EditarContaPage() {
+  const { user } = useAuth() || {};
+  const isLojista = (user?.activeRole || user?.role) === 'lojista';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
   const [rg, setRg] = useState('');
+  const [store, setStore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -22,6 +27,15 @@ export default function EditarContaPage() {
       .catch((e) => setErr(e?.response?.data?.error || 'Faça login para editar seus dados.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!isLojista) { setStore(null); return; }
+    let cancelled = false;
+    api.get('/stores/dashboard')
+      .then(({ data }) => { if (!cancelled) setStore(data.store); })
+      .catch(() => { if (!cancelled) setStore(null); });
+    return () => { cancelled = true; };
+  }, [isLojista]);
 
   const salvar = async () => {
     setMsg(''); setErr('');
@@ -63,6 +77,10 @@ export default function EditarContaPage() {
           <input style={input} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" />
           <button style={btn} onClick={salvar}>Salvar alterações</button>
         </section>
+
+        {isLojista && store && (
+          <StoreSettingsEditor store={store} onSaved={(u) => setStore((prev: any) => ({ ...prev, ...u }))} />
+        )}
       </div>
     </div>
   );

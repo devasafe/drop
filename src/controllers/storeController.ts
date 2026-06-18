@@ -267,7 +267,7 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { street, number, neighborhood, city, state, zip, latitude, longitude, cnpj } = req.body;
+    const { name, street, number, neighborhood, city, state, zip, latitude, longitude, cnpj } = req.body;
     const ownerId = req.user?.id;
 
     if (!ownerId) return res.status(401).json({ error: 'Not authenticated' });
@@ -280,8 +280,14 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
 
-    // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente
-    const addressChanged = [street, number, neighborhood, city, state, zip].some(v => v !== undefined);
+    // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente.
+    // Compara com o valor atual (não basta vir no body) — assim salvar só o nome
+    // não derruba a verificação de endereço da loja.
+    const norm = (v: any) => (v === undefined || v === null) ? undefined : String(v).trim();
+    const addressChanged = ([
+      ['street', street], ['number', number], ['neighborhood', neighborhood],
+      ['city', city], ['state', state], ['zip', zip],
+    ] as [string, any][]).some(([k, v]) => v !== undefined && norm(v) !== norm((store as any)[k]));
     const { onlyDigits } = require('../utils/documentValidation');
     const cnpjChanged = cnpj !== undefined && onlyDigits(String(cnpj)) !== onlyDigits(String(store.cnpj || ''));
     if (!store.verification) store.verification = { cnpj: { status: 'none' }, address: { status: 'none' } } as any;
@@ -290,6 +296,7 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (addressChanged || cnpjChanged) store.markModified('verification');
 
     // Atualizar campos individuais
+    if (typeof name === 'string' && name.trim()) store.name = name.trim();
     if (street) store.street = street;
     if (number) store.number = number;
     if (neighborhood) store.neighborhood = neighborhood;

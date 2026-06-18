@@ -1,5 +1,4 @@
 import { useEffect, useState, useContext, useRef, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import AuthContext from '../contexts/AuthContext';
@@ -16,8 +15,6 @@ import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
 import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import styles from './StoreDashboard.module.css';
-
-const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -337,9 +334,6 @@ export default function StoreDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('orders');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showEditAddress, setShowEditAddress] = useState(false);
-  const [editAddressForm, setEditAddressForm] = useState<any>({ street: '', number: '', neighborhood: '', city: '', state: '', zip: '', latitude: '', longitude: '' });
-  const [addressError, setAddressError] = useState<string | null>(null);
   const [pinInputs, setPinInputs] = useState<{[id:string]:string}>({});
   const [pinStatuses, setPinStatuses] = useState<{[id:string]:string}>({});
   const pollingRef = useRef<any>(null);
@@ -645,16 +639,6 @@ export default function StoreDashboard() {
       }
       if (r.data.store && r.data.store._id) {
         setStoreId(r.data.store._id);
-        setEditAddressForm({
-          street: r.data.store.street || '',
-          number: r.data.store.number || '',
-          neighborhood: r.data.store.neighborhood || '',
-          city: r.data.store.city || '',
-          state: r.data.store.state || '',
-          zip: r.data.store.zip || '',
-          latitude: r.data.store.latitude || '',
-          longitude: r.data.store.longitude || ''
-        });
       }
     } finally {
       setLoading(false);
@@ -816,13 +800,6 @@ export default function StoreDashboard() {
                 <Icon name="shield" size={14} /> Verificação
               </button>
               <button
-                onClick={() => { setShowEditAddress(!showEditAddress); setActiveTab('metrics'); setSidebarOpen(false); }}
-                className={`${styles.btnStoreAction} ${styles.btnStoreActionPrimary}`}
-              >
-                <Icon name="map-pin" size={14} />
-                {showEditAddress ? 'Fechar Edição' : 'Editar Endereço'}
-              </button>
-              <button
                 onClick={() => router.push('/seller/select-plan')}
                 className={`${styles.btnStoreAction} ${styles.btnStoreActionSuccess}`}
               >
@@ -875,288 +852,6 @@ export default function StoreDashboard() {
 
           <div className={styles.tabContent}>
 
-          {/* Edição de Endereço (no main area, não no sidebar) */}
-          {showEditAddress && store && (
-            <div className={styles.addressEditPanel}>
-              <h3 className={styles.addressEditTitle}><Icon name="map-pin" size={16} /> Editar Endereço da Loja</h3>
-                  <div className={styles.addressForm}>
-                    <form onSubmit={async e => {
-                      e.preventDefault();
-                      setAddressError(null);
-                      const requiredFields = ['street', 'number', 'city', 'state', 'zip', 'latitude', 'longitude'];
-                      for (const field of requiredFields) {
-                        if (!editAddressForm[field]) {
-                          setAddressError('Preencha todos os campos e posicione no mapa.');
-                          return;
-                        }
-                      }
-                      try {
-                        const payload = {
-                          street: editAddressForm.street,
-                          number: editAddressForm.number,
-                          neighborhood: editAddressForm.neighborhood,
-                          city: editAddressForm.city,
-                          state: editAddressForm.state,
-                          zip: editAddressForm.zip,
-                          latitude: editAddressForm.latitude,
-                          longitude: editAddressForm.longitude
-                        };
-                        await api.put(`/stores/${storeId}`, payload);
-                        setStore((prev: any) => ({ ...prev, ...payload }));
-                        setShowEditAddress(false);
-                        setAddressError(null);
-                      } catch (err) {
-                        setAddressError('Erro ao salvar endereço');
-                      }
-                    }}>
-                      <div className={styles.formGrid}>
-                        <div>
-                          <label className={styles.formLabel}>CEP</label>
-                          <div className={styles.formInputRow}>
-                            <input
-                              placeholder="CEP"
-                              value={editAddressForm.zip}
-                              onChange={(e) => setEditAddressForm({ ...editAddressForm, zip: e.target.value })}
-                              className={styles.formInput}
-                            />
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!editAddressForm.zip) {
-                                  setAddressError('Digite o CEP primeiro');
-                                  return;
-                                }
-                                try {
-                                  setAddressError(null);
-                                  // Remove caracteres não numéricos
-                                  const cleanZip = editAddressForm.zip.replace(/\D/g, '');
-                                  if (cleanZip.length !== 8) {
-                                    setAddressError('CEP deve ter 8 dígitos');
-                                    return;
-                                  }
-
-                                  const response = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`);
-                                  const data = await response.json();
-                                  if (data.erro) {
-                                    setAddressError('CEP não encontrado. Verifique o CEP e tente novamente.');
-                                    return;
-                                  }
-
-                                  const newForm = {
-                                    ...editAddressForm,
-                                    street: data.logradouro || '',
-                                    neighborhood: data.bairro || '',
-                                    city: data.localidade || '',
-                                    state: data.uf || '',
-                                    zip: cleanZip
-                                  };
-                                  setEditAddressForm(newForm);
-
-                                  // Geocodificar para obter latitude e longitude mais precisas
-                                  const fullAddress = `${data.logradouro}, ${data.localidade}, ${data.uf}`;
-                                  if (typeof window !== 'undefined' && (window as any).google) {
-                                    const geocoder = new (window as any).google.maps.Geocoder();
-                                    geocoder.geocode({ address: fullAddress }, (results: any, status: any) => {
-                                      if (status === 'OK' && results[0]) {
-                                        const lat = results[0].geometry.location.lat();
-                                        const lng = results[0].geometry.location.lng();
-                                        setEditAddressForm((prev: any) => ({
-                                          ...prev,
-                                          latitude: lat,
-                                          longitude: lng
-                                        }));
-                                        setAddressError(null);
-                                      } else {
-                                        setAddressError('Não foi possível localizar no mapa. Reposicione manualmente.');
-                                      }
-                                    });
-                                  } else {
-                                    setAddressError('Mapa não carregado. Atualize a página.');
-                                  }
-                                } catch (err) {
-                                  setAddressError('Erro ao buscar CEP. Tente novamente.');
-                                }
-                              }}
-                              className={styles.btnFormSearch}
-                            >
-                              Buscar
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className={styles.formLabel}>Rua</label>
-                          <div className={styles.formInputRow}>
-                            <input
-                              placeholder="Rua"
-                              value={editAddressForm.street}
-                              onChange={(e) => setEditAddressForm({ ...editAddressForm, street: e.target.value })}
-                              className={styles.formInput}
-                            />
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!editAddressForm.street || !editAddressForm.city) {
-                                  setAddressError('Digite a rua e cidade para buscar');
-                                  return;
-                                }
-                                try {
-                                  setAddressError(null);
-                                  const address = `${editAddressForm.street}${editAddressForm.number ? ', ' + editAddressForm.number : ''}, ${editAddressForm.city}, ${editAddressForm.state || 'Brasil'}`;
-
-                                  if (typeof window !== 'undefined' && (window as any).google) {
-                                    const geocoder = new (window as any).google.maps.Geocoder();
-                                    geocoder.geocode({ address }, (results: any, status: any) => {
-                                      if (status === 'OK' && results[0]) {
-                                        const lat = results[0].geometry.location.lat();
-                                        const lng = results[0].geometry.location.lng();
-                                        const addressComponents = results[0].address_components;
-
-                                        let updatedForm = {
-                                          ...editAddressForm,
-                                          latitude: lat,
-                                          longitude: lng
-                                        };
-
-                                        // Tenta extrair componentes do endereço
-                                        addressComponents.forEach((comp: any) => {
-                                          if (comp.types.includes('route')) updatedForm.street = comp.long_name;
-                                          if (comp.types.includes('street_number')) updatedForm.number = comp.long_name;
-                                          if (comp.types.includes('sublocality') || comp.types.includes('sublocality_level_1')) updatedForm.neighborhood = comp.long_name;
-                                          if (comp.types.includes('administrative_area_level_2')) updatedForm.city = comp.long_name;
-                                          if (comp.types.includes('administrative_area_level_1')) updatedForm.state = comp.short_name;
-                                          if (comp.types.includes('postal_code')) updatedForm.zip = comp.long_name;
-                                        });
-
-                                        setEditAddressForm(updatedForm);
-                                        setAddressError(null);
-                                      } else {
-                                        setAddressError('Endereço não encontrado no mapa. Reposicione manualmente.');
-                                      }
-                                    });
-                                  } else {
-                                    setAddressError('Mapa não carregado. Atualize a página.');
-                                  }
-                                } catch (err) {
-                                  setAddressError('Erro ao buscar endereço');
-                                }
-                              }}
-                              className={styles.btnFormSearch}
-                            >
-                              Buscar
-                            </button>
-                          </div>
-                        </div>
-                        <input
-                          placeholder="Número"
-                          value={editAddressForm.number}
-                          onChange={(e) => setEditAddressForm({ ...editAddressForm, number: e.target.value })}
-                          className={styles.formInput}
-                        />
-                        <input
-                          placeholder="Bairro"
-                          value={editAddressForm.neighborhood}
-                          onChange={(e) => setEditAddressForm({ ...editAddressForm, neighborhood: e.target.value })}
-                          className={styles.formInput}
-                        />
-                        <input
-                          placeholder="Cidade"
-                          value={editAddressForm.city}
-                          onChange={(e) => setEditAddressForm({ ...editAddressForm, city: e.target.value })}
-                          className={styles.formInput}
-                        />
-                        <input
-                          placeholder="UF"
-                          maxLength={2}
-                          value={editAddressForm.state}
-                          onChange={(e) => setEditAddressForm({ ...editAddressForm, state: e.target.value.toUpperCase() })}
-                          className={styles.formInput}
-                        />
-                      </div>
-
-                      {addressError && (
-                        <div className={styles.addressError}>
-                          <Icon name="alert-triangle" size={12} /> {addressError}
-                        </div>
-                      )}
-
-                      {/* Mapa inline */}
-                      {editAddressForm.latitude && editAddressForm.longitude && (
-                        <div style={{ marginTop: 12 }}>
-                          <label className={styles.mapLabel}><Icon name="map-pin" /> Posicione no Mapa</label>
-                          <MapPicker
-                            lat={editAddressForm.latitude}
-                            lng={editAddressForm.longitude}
-                            onChange={(lat, lng, address) => {
-                              console.log('Pin movido para:', lat, lng);
-                              console.log('Endereço retornado:', address);
-
-                              // Atualiza com os dados retornados pelo MapPicker
-                              const updatedForm: any = {
-                                latitude: lat,
-                                longitude: lng
-                              };
-
-                              // Se o MapPicker retornou dados de endereço, usa eles
-                              if (address && Object.keys(address).length > 0) {
-                                if (address.street) updatedForm.street = address.street;
-                                if (address.number) updatedForm.number = address.number;
-                                if (address.neighborhood) updatedForm.neighborhood = address.neighborhood;
-                                if (address.city) updatedForm.city = address.city;
-                                if (address.state) updatedForm.state = address.state;
-                                if (address.zip) updatedForm.zip = address.zip;
-                              } else {
-                                // Se não retornou dados, fazer reverse geocoding manual (bug do MapPicker na primeira vez)
-                                console.warn('⚠️ Address vazio, fazendo reverse geocode manual');
-                                if (typeof window !== 'undefined' && (window as any).google) {
-                                  const geocoder = new (window as any).google.maps.Geocoder();
-                                  geocoder.geocode({ location: { lat: parseFloat(lat), lng: parseFloat(lng) } }, (results: any, status: any) => {
-                                    if (status === 'OK' && results && results[0]) {
-                                      const addressComponents = results[0].address_components;
-                                      let form: any = {};
-                                      addressComponents.forEach((comp: any) => {
-                                        if (comp.types.includes('route')) form.street = comp.long_name;
-                                        if (comp.types.includes('street_number')) form.number = comp.long_name;
-                                        if (comp.types.includes('sublocality') || comp.types.includes('sublocality_level_1')) form.neighborhood = comp.long_name;
-                                        if (comp.types.includes('administrative_area_level_2')) form.city = comp.long_name;
-                                        if (comp.types.includes('administrative_area_level_1')) form.state = comp.short_name;
-                                        if (comp.types.includes('postal_code')) form.zip = comp.long_name;
-                                      });
-                                      setEditAddressForm((prev: any) => ({ ...prev, ...form, latitude: lat, longitude: lng }));
-                                    }
-                                  });
-                                }
-                              }
-
-                              setEditAddressForm((prev: any) => ({
-                                ...prev,
-                                ...updatedForm
-                              }));
-                            }}
-                          />
-                          <div className={styles.mapCoords}>
-                            <div><strong>Lat:</strong> {editAddressForm.latitude}</div>
-                            <div><strong>Lng:</strong> {editAddressForm.longitude}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className={styles.formBtnRow}>
-                        <button type="submit" className={styles.btnFormSubmit}>
-                          ✓ Salvar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowEditAddress(false)}
-                          className={styles.btnFormCancel}
-                        >
-                          Fechar
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-            </div>
-          )}
 
           {/* Métricas */}
           {activeTab === 'metrics' && (
