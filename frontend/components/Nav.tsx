@@ -261,7 +261,7 @@ export default function Nav() {
                       <a href="/user-profile" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Meu Perfil
                       </a>
-                      {activeRole !== 'lojista' && (
+                      {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                         <a href="/editar-conta" onClick={close} className={styles.item}>
                           <span className={styles.itemIcon}><Icon name="settings" size={14} /></span> Editar meus dados
                         </a>
@@ -282,11 +282,7 @@ export default function Nav() {
                         )
                       )}
                       {activeRole === 'motoboy' && (
-                        <>
-                          <a href="/motoboy" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="motorcycle" size={14} /></span> Meu Painel</a>
-                          <a href="/motoboy/transfer-wallet" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="arrow-right" size={14} /></span> Transferir Saldo</a>
-                          <a href="/motoboy/request-withdrawal" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="send" size={14} /></span> Solicitar Saque</a>
-                        </>
+                        <a href="/motoboy" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="motorcycle" size={14} /></span> Meu Painel</a>
                       )}
                       <a href="/suporte" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="headphones" size={14} /></span> Suporte
@@ -385,7 +381,7 @@ export default function Nav() {
             <div className={styles.mobileSectionLabel}>Conta</div>
             <nav aria-label="Conta" className={styles.mobileNav}>
               <a href="/user-profile" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
-              {activeRole !== 'lojista' && (
+              {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                 <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
               )}
               <a href={activeRole === 'lojista' ? '/seller/wallet' : activeRole === 'motoboy' ? '/motoboy/wallet' : '/my-wallet'} className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="wallet" size={16} /> Minha Carteira</a>
@@ -400,11 +396,7 @@ export default function Nav() {
                 )
               )}
               {activeRole === 'motoboy' && (
-                <>
-                  <a href="/motoboy" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="motorcycle" size={16} /> Meu Painel</a>
-                  <a href="/motoboy/transfer-wallet" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="arrow-right" size={16} /> Transferir Saldo</a>
-                  <a href="/motoboy/request-withdrawal" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="send" size={16} /> Solicitar Saque</a>
-                </>
+                <a href="/motoboy" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="motorcycle" size={16} /> Meu Painel</a>
               )}
               <a href="/suporte" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="headphones" size={16} /> Suporte</a>
             </nav>
