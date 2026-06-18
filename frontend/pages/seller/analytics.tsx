@@ -6,9 +6,11 @@ import ChartCard from '../../components/analytics/ChartCard';
 import PeriodFilter from '../../components/analytics/PeriodFilter';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import api from '../../lib/api';
+import Icon from '../../components/Icon';
 import {
   storeAnalytics,
   type Period,
+  type DateRange,
   type StoreOverview,
   type TimelinePoint,
   type TopProduct,
@@ -52,6 +54,7 @@ const COLORS = ['#6C2BD9', '#8B5CF6', '#38BDF8', '#22C55E', '#F59E0B', '#EC4899'
 
 function SellerAnalyticsInner() {
   const [period, setPeriod] = useState<Period>('30d');
+  const [range, setRange] = useState<DateRange>({ from: '', to: '' });
   const [overview, setOverview] = useState<StoreOverview | null>(null);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
@@ -72,19 +75,22 @@ function SellerAnalyticsInner() {
     return () => { cancelled = true; };
   }, []);
 
+  const customIncomplete = period === 'custom' && (!range.from || !range.to);
+
   useEffect(() => {
+    if (customIncomplete) return; // espera as duas datas serem escolhidas
     let cancelled = false;
     setLoading(true);
     setError(null);
 
     Promise.all([
-      storeAnalytics.overview(period),
-      storeAnalytics.salesTimeline(period),
-      storeAnalytics.topProducts(period, 10),
-      storeAnalytics.topCategories(period),
-      storeAnalytics.peakHours(period),
-      storeAnalytics.paymentMethods(period),
-      storeAnalytics.customerInsights(period),
+      storeAnalytics.overview(period, range),
+      storeAnalytics.salesTimeline(period, range),
+      storeAnalytics.topProducts(period, 10, range),
+      storeAnalytics.topCategories(period, range),
+      storeAnalytics.peakHours(period, range),
+      storeAnalytics.paymentMethods(period, range),
+      storeAnalytics.customerInsights(period, range),
     ])
       .then(([ov, tl, tp, cat, ph, pm, ci]) => {
         if (cancelled) return;
@@ -107,7 +113,7 @@ function SellerAnalyticsInner() {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, [period, range.from, range.to]);
 
   // ---------- Insights automáticos ----------
   const insights = useMemo(() => {
@@ -184,8 +190,20 @@ function SellerAnalyticsInner() {
             <h1 className={styles.title}>Analytics</h1>
             <p className={styles.subtitle}>Entenda seu desempenho e descubra como crescer</p>
           </div>
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter
+            value={period}
+            onChange={setPeriod}
+            options={['7d', '30d', '90d', 'custom']}
+            range={range}
+            onRangeChange={setRange}
+          />
         </header>
+
+        {customIncomplete && (
+          <p style={{ color: 'rgba(255,255,255,0.6)', margin: '16px 0' }}>
+            Selecione as datas inicial e final para ver as métricas do período.
+          </p>
+        )}
 
         {/* ---- Resumo geral (todos os tempos) ---- */}
         {general && (
@@ -205,28 +223,28 @@ function SellerAnalyticsInner() {
               label="Receita"
               value={BRL(overview.current.revenue)}
               delta={overview.delta.revenue}
-              icon="dollar-sign"
+              icon={<Icon name="dollar-sign" size={16} />}
               variant="purple"
             />
             <StatCard
               label="Pedidos"
               value={overview.current.orders}
               delta={overview.delta.orders}
-              icon="shopping-bag"
+              icon={<Icon name="shopping-bag" size={16} />}
               variant="blue"
             />
             <StatCard
               label="Ticket médio"
               value={BRL(overview.current.avgTicket)}
               delta={overview.delta.avgTicket}
-              icon="target"
+              icon={<Icon name="target" size={16} />}
               variant="green"
             />
             <StatCard
               label="Produtos vendidos"
               value={overview.current.productsSold}
               delta={overview.delta.productsSold}
-              icon="shopping-cart"
+              icon={<Icon name="shopping-cart" size={16} />}
               variant="pink"
             />
             <StatCard
@@ -234,7 +252,7 @@ function SellerAnalyticsInner() {
               value={`${overview.current.cancellationRate.toFixed(1)}%`}
               delta={overview.delta.cancellationRate}
               invertDelta
-              icon="x-circle"
+              icon={<Icon name="x-circle" size={16} />}
               variant="orange"
               hint="Menor é melhor"
             />

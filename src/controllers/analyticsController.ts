@@ -17,13 +17,24 @@ type Period = '7d' | '30d' | '90d';
 /** Status de pedido considerados "faturáveis" (contam como venda efetiva) */
 const BILLABLE_STATUSES = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
 
-function parsePeriod(q: any): { days: number; start: Date; prevStart: Date } {
+function parsePeriod(q: any): { days: number; start: Date; end: Date; prevStart: Date } {
+  const DAY = 24 * 60 * 60 * 1000;
+  // Intervalo personalizado: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+  const from = q?.from ? new Date(String(q.from)) : null;
+  const to = q?.to ? new Date(String(q.to)) : null;
+  if (from && to && !isNaN(from.getTime()) && !isNaN(to.getTime())) {
+    const start = new Date(from); start.setHours(0, 0, 0, 0);
+    const end = new Date(to); end.setHours(23, 59, 59, 999);
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY) + 1);
+    const prevStart = new Date(start.getTime() - days * DAY);
+    return { days, start, end, prevStart };
+  }
   const raw = (q?.period as string) || '30d';
   const days = raw === '7d' ? 7 : raw === '90d' ? 90 : 30;
   const now = new Date();
-  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  const prevStart = new Date(start.getTime() - days * 24 * 60 * 60 * 1000);
-  return { days, start, prevStart };
+  const start = new Date(now.getTime() - days * DAY);
+  const prevStart = new Date(start.getTime() - days * DAY);
+  return { days, start, end: now, prevStart };
 }
 
 function pctDelta(current: number, previous: number): number {
@@ -58,12 +69,12 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { days, start, prevStart } = parsePeriod(req.query);
+    const { days, start, end, prevStart } = parsePeriod(req.query);
 
     const [currentOrders, previousOrders] = await Promise.all([
       Order.find({
         storeId: store._id,
-        createdAt: { $gte: start },
+        createdAt: { $gte: start, $lte: end },
       }).lean(),
       Order.find({
         storeId: store._id,
@@ -94,7 +105,7 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
     const previous = computeMetrics(previousOrders);
 
     return res.json({
-      period: { days, start, end: new Date() },
+      period: { days, start, end },
       current,
       previous,
       delta: {
@@ -123,13 +134,13 @@ export const storeSalesTimeline = async (req: AuthenticatedRequest, res: Respons
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { days, start } = parsePeriod(req.query);
+    const { days, start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -182,14 +193,14 @@ export const storeTopProducts = async (req: AuthenticatedRequest, res: Response)
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
     const rows = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -243,13 +254,13 @@ export const storeTopCategories = async (req: AuthenticatedRequest, res: Respons
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -315,13 +326,13 @@ export const storePeakHours = async (req: AuthenticatedRequest, res: Response) =
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -377,13 +388,13 @@ export const storePaymentMethods = async (req: AuthenticatedRequest, res: Respon
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -423,14 +434,14 @@ export const storeCustomerInsights = async (req: AuthenticatedRequest, res: Resp
     const store = await getStoreByOwner(userId);
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     // Clientes distintos no período + contagem de pedidos
     const topCustomers = await Order.aggregate([
       {
         $match: {
           storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -473,7 +484,7 @@ export const storeCustomerInsights = async (req: AuthenticatedRequest, res: Resp
     const customerIdsInPeriod = new Set(topCustomers.map((c: any) => String(c._id)));
     for (const f of firstOrders) {
       if (!customerIdsInPeriod.has(String(f._id))) continue;
-      if (f.firstOrderAt >= start) newCustomers++;
+      if (f.firstOrderAt >= start && f.firstOrderAt <= end) newCustomers++;
       else returningCustomers++;
     }
 
@@ -498,7 +509,7 @@ export const storeCustomerInsights = async (req: AuthenticatedRequest, res: Resp
  */
 export const platformOverview = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { days, start, prevStart } = parsePeriod(req.query);
+    const { days, start, end, prevStart } = parsePeriod(req.query);
 
     const [
       totalUsers,
@@ -512,14 +523,14 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
       billablePrev,
     ] = await Promise.all([
       User.countDocuments({}),
-      User.countDocuments({ createdAt: { $gte: start } }),
+      User.countDocuments({ createdAt: { $gte: start, $lte: end } }),
       User.countDocuments({ createdAt: { $gte: prevStart, $lt: start } }),
       Store.countDocuments({}),
-      Store.countDocuments({ createdAt: { $gte: start } }),
-      Order.distinct('customerId', { createdAt: { $gte: start }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
+      Store.countDocuments({ createdAt: { $gte: start, $lte: end } }),
+      Order.distinct('customerId', { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
       Order.distinct('customerId', { createdAt: { $gte: prevStart, $lt: start }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start }, status: { $in: BILLABLE_STATUSES } } },
+        { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
         {
           $group: {
             _id: null,
@@ -546,7 +557,7 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
     const prev = billablePrev[0] || { gmv: 0, commission: 0, orders: 0 };
 
     return res.json({
-      period: { days, start, end: new Date() },
+      period: { days, start, end },
       current: {
         totalUsers,
         newUsers,
@@ -583,10 +594,10 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
  */
 export const platformUserGrowth = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { days, start } = parsePeriod(req.query);
+    const { days, start, end } = parsePeriod(req.query);
 
     const rows = await User.aggregate([
-      { $match: { createdAt: { $gte: start } } },
+      { $match: { createdAt: { $gte: start, $lte: end } } },
       {
         $group: {
           _id: {
@@ -630,10 +641,10 @@ export const platformUserGrowth = async (req: AuthenticatedRequest, res: Respons
  */
 export const platformOrdersTimeline = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { days, start } = parsePeriod(req.query);
+    const { days, start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start }, status: { $in: BILLABLE_STATUSES } } },
+      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
@@ -672,11 +683,11 @@ export const platformOrdersTimeline = async (req: AuthenticatedRequest, res: Res
  */
 export const platformFunnel = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     // Usuários cadastrados no período
     const registered = await User.countDocuments({
-      createdAt: { $gte: start },
+      createdAt: { $gte: start, $lte: end },
       $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
     });
 
@@ -684,7 +695,7 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
     const ordersByCustomer = await Order.aggregate([
       {
         $match: {
-          createdAt: { $gte: start },
+          createdAt: { $gte: start, $lte: end },
           status: { $in: BILLABLE_STATUSES },
         },
       },
@@ -693,7 +704,7 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
 
     // Filtrar só os que cadastraram no período
     const newUsers = await User.find({
-      createdAt: { $gte: start },
+      createdAt: { $gte: start, $lte: end },
       $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
     })
       .select('_id')
@@ -730,11 +741,11 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
  */
 export const platformTopStores = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
     const limit = Math.min(Number(req.query.limit) || 20, 50);
 
     const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start }, status: { $in: BILLABLE_STATUSES } } },
+      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
       {
         $group: {
           _id: '$storeId',
@@ -779,10 +790,10 @@ export const platformTopStores = async (req: AuthenticatedRequest, res: Response
  */
 export const platformTopCategories = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start }, status: { $in: BILLABLE_STATUSES } } },
+      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
       { $unwind: '$products' },
       {
         $lookup: {
@@ -888,10 +899,10 @@ export const platformUserHeatmap = async (_req: AuthenticatedRequest, res: Respo
  */
 export const platformRetention = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { start } = parsePeriod(req.query);
+    const { start, end } = parsePeriod(req.query);
 
     const users = await User.find({
-      createdAt: { $gte: start },
+      createdAt: { $gte: start, $lte: end },
       $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
     })
       .select('_id createdAt')
@@ -909,7 +920,7 @@ export const platformRetention = async (req: AuthenticatedRequest, res: Response
 
     // Para cada pedido, computar mês de atividade e qual cohort o cliente pertence
     const orders = await Order.find({
-      createdAt: { $gte: start },
+      createdAt: { $gte: start, $lte: end },
       status: { $in: BILLABLE_STATUSES },
     })
       .select('customerId createdAt')

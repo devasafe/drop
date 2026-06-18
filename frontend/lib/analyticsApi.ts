@@ -1,6 +1,20 @@
 import api from './api';
 
-export type Period = '7d' | '30d' | '90d';
+export type Period = '7d' | '30d' | '90d' | 'custom';
+
+/** Intervalo personalizado (datas no formato YYYY-MM-DD) */
+export interface DateRange {
+  from: string;
+  to: string;
+}
+
+/** Monta os query params: intervalo custom quando válido, senão o preset */
+function periodParams(period: Period, range?: DateRange): Record<string, string> {
+  if (period === 'custom' && range?.from && range?.to) {
+    return { from: range.from, to: range.to };
+  }
+  return { period };
+}
 
 // ---------- Store (lojista) ----------
 
@@ -67,20 +81,20 @@ export interface CustomerInsights {
 }
 
 export const storeAnalytics = {
-  overview: (period: Period = '30d') =>
-    api.get<StoreOverview>('/analytics/store/overview', { params: { period } }).then(r => r.data),
-  salesTimeline: (period: Period = '30d') =>
-    api.get<{ timeline: TimelinePoint[] }>('/analytics/store/sales-timeline', { params: { period } }).then(r => r.data),
-  topProducts: (period: Period = '30d', limit = 10) =>
-    api.get<{ products: TopProduct[] }>('/analytics/store/top-products', { params: { period, limit } }).then(r => r.data),
-  topCategories: (period: Period = '30d') =>
-    api.get<{ categories: CategoryRow[]; totalRevenue: number }>('/analytics/store/top-categories', { params: { period } }).then(r => r.data),
-  peakHours: (period: Period = '30d') =>
-    api.get<{ matrix: PeakHourCell[] }>('/analytics/store/peak-hours', { params: { period } }).then(r => r.data),
-  paymentMethods: (period: Period = '30d') =>
-    api.get<{ methods: PaymentMethodRow[] }>('/analytics/store/payment-methods', { params: { period } }).then(r => r.data),
-  customerInsights: (period: Period = '30d') =>
-    api.get<CustomerInsights>('/analytics/store/customer-insights', { params: { period } }).then(r => r.data),
+  overview: (period: Period = '30d', range?: DateRange) =>
+    api.get<StoreOverview>('/analytics/store/overview', { params: periodParams(period, range) }).then(r => r.data),
+  salesTimeline: (period: Period = '30d', range?: DateRange) =>
+    api.get<{ timeline: TimelinePoint[] }>('/analytics/store/sales-timeline', { params: periodParams(period, range) }).then(r => r.data),
+  topProducts: (period: Period = '30d', limit = 10, range?: DateRange) =>
+    api.get<{ products: TopProduct[] }>('/analytics/store/top-products', { params: { ...periodParams(period, range), limit } }).then(r => r.data),
+  topCategories: (period: Period = '30d', range?: DateRange) =>
+    api.get<{ categories: CategoryRow[]; totalRevenue: number }>('/analytics/store/top-categories', { params: periodParams(period, range) }).then(r => r.data),
+  peakHours: (period: Period = '30d', range?: DateRange) =>
+    api.get<{ matrix: PeakHourCell[] }>('/analytics/store/peak-hours', { params: periodParams(period, range) }).then(r => r.data),
+  paymentMethods: (period: Period = '30d', range?: DateRange) =>
+    api.get<{ methods: PaymentMethodRow[] }>('/analytics/store/payment-methods', { params: periodParams(period, range) }).then(r => r.data),
+  customerInsights: (period: Period = '30d', range?: DateRange) =>
+    api.get<CustomerInsights>('/analytics/store/customer-insights', { params: periodParams(period, range) }).then(r => r.data),
 };
 
 // ---------- Platform (CEO) ----------

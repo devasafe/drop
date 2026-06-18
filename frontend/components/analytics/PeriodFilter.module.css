@@ -33,3 +33,37 @@
 .active:hover {
   color: #fff;
 }
+
+.wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.customRange {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dateInput {
+  background: var(--drop-bg-3, #161616);
+  border: 1px solid var(--drop-border, rgba(255, 255, 255, 0.12));
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.dateInput:focus {
+  outline: none;
+  border-color: var(--drop-purple, #6C2BD9);
+}
+
+.dateSep {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+}
