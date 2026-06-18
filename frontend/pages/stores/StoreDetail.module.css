@@ -675,4 +675,11 @@
   .heroActions { width: 100%; }
   .chatBtn { flex: 1; justify-content: center; }
   .locationBtn { flex: 1; justify-content: center; }
+  /* Card de produto no card estreito (2 colunas): empilha nome/preço para o
+     valor não ser cortado e reduz o padding. */
+  .productBody { padding: 12px; }
+  .productHeader { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 6px; }
+  .productName { font-size: 14px; }
+  .productPrice { font-size: 15px; }
+  .productDesc { font-size: 12px; margin-bottom: 12px; }
 }
