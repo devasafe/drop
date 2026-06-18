@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') {
   console.log('🔌 API Base URL:', BASE, '| Hostname:', window.location.hostname);
 }
 
-export const api = axios.create({ baseURL: BASE });
+export const api = axios.create({ baseURL: BASE, withCredentials: true });
 
 export const setAuthToken = (token?: string) => {
   if (token) {

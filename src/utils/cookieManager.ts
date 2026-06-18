@@ -9,7 +9,7 @@ const COOKIE_OPTIONS = {
   httpOnly: true,      // Não acessível via JavaScript (previne XSS)
   secure: process.env.NODE_ENV === 'production', // HTTPS only em produção
   sameSite: 'lax' as const, // CSRF protection
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+  maxAge: 2 * 24 * 60 * 60 * 1000, // 2 dias (alinhado ao JWT)
   path: '/',
 };
 
@@ -45,7 +45,7 @@ export function setUserCookie(res: Response, user: any): void {
     httpOnly: false, // Acessível ao frontend
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+    maxAge: 2 * 24 * 60 * 60 * 1000, // 2 dias (alinhado ao JWT)
     path: '/',
   });
 }

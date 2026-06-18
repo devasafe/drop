@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest } from '../types';
 import env from '../config/env';
+import { extractTokenFromCookie } from '../utils/cookieManager';
 
 interface JwtPayload {
   id: string;
@@ -30,19 +31,20 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     return res.status(500).json({ error: 'Erro de configuração do servidor' });
   }
 
+  // Token pode vir do header Authorization OU do cookie httpOnly (fallback).
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    if (isDev) console.error(`🔐 [AUTH FAIL] ${req.path} - No Authorization header`);
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2) token = parts[1];
+  }
+  if (!token) {
+    token = extractTokenFromCookie(req) || undefined;
+  }
+  if (!token) {
+    if (isDev) console.error(`🔐 [AUTH FAIL] ${req.path} - No token (header/cookie)`);
     return res.status(401).json({ error: 'No token provided' });
   }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2) {
-    if (isDev) console.error(`🔐 [AUTH FAIL] ${req.path} - Invalid token format: ${parts.length} parts`);
-    return res.status(401).json({ error: 'Token error' });
-  }
-
-  const [, token] = parts;
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
