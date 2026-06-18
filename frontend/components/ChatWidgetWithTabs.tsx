@@ -434,7 +434,7 @@ export default function ChatWidgetWithTabs({
         console.log('📡 Fazendo POST para /chat/conversations/pre-purchase (loja)');
         response = await api.post('/chat/conversations/pre-purchase', {
           storeId: participantId,
-          conversationType: 'loja_cliente',
+          conversationType: 'user',
         });
       }
 

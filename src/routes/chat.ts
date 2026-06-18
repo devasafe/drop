@@ -20,7 +20,7 @@ const CreateConversationSchema = z.object({
 const CreatePrePurchaseSchema = z.object({
   storeId: z.string().regex(objectIdRegex, 'ID da loja inválido'),
   productId: z.string().regex(objectIdRegex, 'ID do produto inválido').optional(),
-  conversationType: z.enum(['user', 'store']).optional().default('user'),
+  conversationType: z.enum(['user', 'product']).optional().default('user'),
 });
 
 const SendMessageSchema = z.object({
