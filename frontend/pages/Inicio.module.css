@@ -503,9 +503,22 @@
 
 /* Responsive */
 @media (max-width: 640px) {
+  /* No celular o hero deixa de ser 100vh e empilha o conteúdo; a statsBar sai
+     do absoluto e vai para o fluxo, abaixo dos botões (não sobrepõe mais). */
+  .hero { min-height: auto; flex-direction: column; padding: 48px 0 36px; }
   .heroTitle { font-size: 38px; }
   .heroDesc { font-size: 15px; }
-  .statsBar { padding: 16px 24px; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .statsBar {
+    position: static;
+    transform: none;
+    left: auto;
+    bottom: auto;
+    margin: 28px auto 0;
+    padding: 16px 24px;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
   .statValue { font-size: 22px; }
   .sectionTitle { font-size: 28px; }
   .bentoBig { min-height: 320px; padding: 24px; }
