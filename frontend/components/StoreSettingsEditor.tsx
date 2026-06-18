@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import api from '../lib/api';
-import { maskCEP } from '../lib/masks';
+import { maskCEP, maskCNPJ, onlyDigits } from '../lib/masks';
 
 const MapPicker = dynamic(() => import('./MapPicker'), { ssr: false });
 
 interface StoreLike {
   _id: string;
   name?: string;
+  cnpj?: string;
   street?: string;
   number?: string;
   neighborhood?: string;
@@ -25,6 +26,7 @@ interface Props {
 
 type Form = {
   name: string;
+  cnpj: string;
   street: string;
   number: string;
   neighborhood: string;
@@ -38,6 +40,7 @@ type Form = {
 export default function StoreSettingsEditor({ store, onSaved }: Props) {
   const [form, setForm] = useState<Form>({
     name: store.name || '',
+    cnpj: maskCNPJ(store.cnpj || ''),
     street: store.street || '',
     number: store.number || '',
     neighborhood: store.neighborhood || '',
@@ -114,6 +117,8 @@ export default function StoreSettingsEditor({ store, onSaved }: Props) {
   const salvar = async () => {
     setError(null); setMsg(null);
     if (!form.name.trim()) { setError('Informe o nome da loja.'); return; }
+    const cnpjDigits = onlyDigits(form.cnpj);
+    if (cnpjDigits && cnpjDigits.length !== 14) { setError('CNPJ deve ter 14 dígitos.'); return; }
     const required: (keyof Form)[] = ['street', 'number', 'city', 'state', 'zip', 'latitude', 'longitude'];
     for (const f of required) {
       if (!form[f]) { setError('Preencha todos os campos do endereço e posicione no mapa.'); return; }
@@ -122,6 +127,7 @@ export default function StoreSettingsEditor({ store, onSaved }: Props) {
       setSaving(true);
       const payload = {
         name: form.name.trim(),
+        cnpj: cnpjDigits,
         street: form.street,
         number: form.number,
         neighborhood: form.neighborhood,
@@ -132,7 +138,7 @@ export default function StoreSettingsEditor({ store, onSaved }: Props) {
         longitude: form.longitude,
       };
       await api.put(`/stores/${store._id}`, payload);
-      setMsg('Dados da loja salvos. Alterar o endereço exige reaprovação na verificação da loja.');
+      setMsg('Dados da loja salvos. Alterar o endereço ou o CNPJ exige reaprovação na verificação da loja.');
       onSaved?.(payload);
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Erro ao salvar os dados da loja.');
@@ -144,12 +150,15 @@ export default function StoreSettingsEditor({ store, onSaved }: Props) {
   return (
     <section style={card}>
       <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, marginTop: 0 }}>Dados da loja</h2>
-      <p style={hint}>Alterar o <strong>endereço</strong> exige passar pela verificação da loja novamente.</p>
+      <p style={hint}>Alterar o <strong>endereço</strong> ou o <strong>CNPJ</strong> exige passar pela verificação da loja novamente.</p>
       {msg && <div style={banner}>{msg}</div>}
       {error && <div style={{ ...banner, borderColor: '#EF4444', background: 'rgba(239,68,68,0.12)' }}>{error}</div>}
 
       <label style={hint}>Nome da loja</label>
       <input style={input} value={form.name} onChange={e => set({ name: e.target.value })} />
+
+      <label style={hint}>CNPJ</label>
+      <input style={input} value={form.cnpj} onChange={e => set({ cnpj: maskCNPJ(e.target.value) })} placeholder="00.000.000/0000-00" inputMode="numeric" />
 
       <label style={hint}>CEP</label>
       <div style={{ display: 'flex', gap: 8 }}>
