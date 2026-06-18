@@ -7,7 +7,7 @@ import EmailVerificationToken from '../models/EmailVerificationToken';
 import otpProvider from '../services/otpProvider';
 import { sendEmail } from '../services/emailProvider';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { isValidCPF, isValidRG, toE164BR, onlyDigits } from '../utils/documentValidation';
+import { isValidCPF, isValidRG, toE164BR } from '../utils/documentValidation';
 import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
 
@@ -183,15 +183,8 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
 // ===================== DOCUMENTO (CPF/RG) =====================
 export const submitDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, number } = req.body;
+    const { type } = req.body;
     if (!['cpf', 'rg'].includes(type)) return res.status(400).json({ error: 'Tipo de documento inválido' });
-
-    if (type === 'cpf' && !isValidCPF(String(number))) {
-      return res.status(400).json({ error: 'CPF inválido' });
-    }
-    if (type === 'rg' && !isValidRG(String(number))) {
-      return res.status(400).json({ error: 'RG inválido' });
-    }
 
     const files = req.files as { front?: any[]; back?: any[] } | undefined;
     if (!files?.front?.[0] || !files?.back?.[0]) {
@@ -208,6 +201,20 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
       return res.status(409).json({ error: 'Documento já aprovado' });
     }
 
+    // O número verificado é SEMPRE o do cadastro (editar-conta), nunca digitado aqui.
+    // Garante que o documento aprovado e o CPF/RG salvos no perfil nunca divirjam.
+    const docNumber = type === 'cpf' ? user.cpf : user.rg;
+    if (!docNumber) {
+      const label = type === 'cpf' ? 'CPF' : 'RG';
+      return res.status(400).json({ error: `Cadastre seu ${label} em "Editar meus dados" antes de enviar o documento para verificação` });
+    }
+    if (type === 'cpf' && !isValidCPF(docNumber)) {
+      return res.status(400).json({ error: 'O CPF cadastrado é inválido. Corrija em "Editar meus dados".' });
+    }
+    if (type === 'rg' && !isValidRG(docNumber)) {
+      return res.status(400).json({ error: 'O RG cadastrado é inválido. Corrija em "Editar meus dados".' });
+    }
+
     const folder = `verifications/${user.id}`;
     const frontUrl = await uploadToCloudinary(files.front[0].buffer, folder);
     const backUrl = await uploadToCloudinary(files.back[0].buffer, folder);
@@ -215,7 +222,7 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
     user.verification!.document = {
       type,
       status: 'pending',
-      number: onlyDigits(String(number)),
+      number: docNumber,
       frontUrl,
       backUrl,
       submittedAt: new Date(),

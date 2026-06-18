@@ -18,9 +18,9 @@ export default function VerificacaoPage() {
   const [emailSent, setEmailSent] = useState(false);
   const [emailCode, setEmailCode] = useState('');
 
-  // documento
+  // documento — o número vem do cadastro (editar-conta), não é digitado aqui
   const [docType, setDocType] = useState<'cpf' | 'rg'>('cpf');
-  const [docNumber, setDocNumber] = useState('');
+  const [account, setAccount] = useState<{ cpf: string; rg: string }>({ cpf: '', rg: '' });
   const [front, setFront] = useState<File | null>(null);
   const [back, setBack] = useState<File | null>(null);
 
@@ -28,8 +28,16 @@ export default function VerificacaoPage() {
 
   const load = async () => {
     try {
-      const { data } = await api.get('/verification/me');
-      setV(data.verification);
+      const [vRes, uRes] = await Promise.all([
+        api.get('/verification/me'),
+        api.get('/user/me'),
+      ]);
+      setV(vRes.data.verification);
+      const cpf = uRes.data?.cpf || '';
+      const rg = uRes.data?.rg || '';
+      setAccount({ cpf, rg });
+      // Seleciona por padrão um documento que o usuário realmente cadastrou
+      setDocType(cpf ? 'cpf' : rg ? 'rg' : 'cpf');
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Faça login para acessar a verificação.');
     } finally {
@@ -50,7 +58,6 @@ export default function VerificacaoPage() {
     if (!front || !back) throw { response: { data: { error: 'Envie frente e verso.' } } };
     const fd = new FormData();
     fd.append('type', docType);
-    fd.append('number', docNumber);
     fd.append('front', front);
     fd.append('back', back);
     await api.post('/verification/document', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -62,6 +69,12 @@ export default function VerificacaoPage() {
   const emailOk = v?.email?.status === 'verified';
   const docStatus = v?.document?.status || 'none';
   const allOk = emailOk && docStatus === 'approved';
+
+  const hasCpf = !!account.cpf;
+  const hasRg = !!account.rg;
+  const hasAnyDoc = hasCpf || hasRg;
+  const selectedNumber = docType === 'cpf' ? account.cpf : account.rg;
+  const maskedNumber = docType === 'cpf' ? maskCPF(selectedNumber) : maskRG(selectedNumber);
 
   return (
     <div style={wrap}>
@@ -97,18 +110,29 @@ export default function VerificacaoPage() {
           {docStatus === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
           {docStatus === 'rejected' && <p style={{ ...hint, color: '#EF4444' }}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
           {(docStatus === 'none' || docStatus === 'rejected') && (
-            <>
-              <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
-                <option value="cpf">CPF</option>
-                <option value="rg">RG</option>
-              </select>
-              <input style={input} placeholder="Número do documento" value={docNumber} onChange={e => setDocNumber(docType === 'cpf' ? maskCPF(e.target.value) : maskRG(e.target.value))} />
-              <label style={hint}>Frente</label>
-              <input type="file" accept="image/*" onChange={e => setFront(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
-              <label style={hint}>Verso</label>
-              <input type="file" accept="image/*" onChange={e => setBack(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
-              <button style={btn} onClick={submitDoc}>Enviar documento</button>
-            </>
+            !hasAnyDoc ? (
+              <p style={hint}>
+                Cadastre seu CPF ou RG em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a> antes de enviar o documento. O número verificado é sempre o mesmo do seu cadastro.
+              </p>
+            ) : (
+              <>
+                <label style={hint}>Qual documento você vai enviar?</label>
+                <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
+                  {hasCpf && <option value="cpf">CPF</option>}
+                  {hasRg && <option value="rg">RG</option>}
+                </select>
+                <label style={hint}>Número (cadastrado em Editar meus dados)</label>
+                <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
+                <p style={{ ...hint, fontSize: 12 }}>
+                  Para alterar este número, edite em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a>.
+                </p>
+                <label style={hint}>Frente</label>
+                <input type="file" accept="image/*" onChange={e => setFront(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
+                <label style={hint}>Verso</label>
+                <input type="file" accept="image/*" onChange={e => setBack(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
+                <button style={btn} onClick={submitDoc}>Enviar documento</button>
+              </>
+            )
           )}
         </section>
       </div>
