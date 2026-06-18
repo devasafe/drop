@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import Icon from './Icon';
+import { notify } from '../lib/notify';
 
 interface Message {
   _id?: string;
@@ -54,6 +55,15 @@ export default function ChatWidgetWithTabs({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
 
+  // Refs com o estado atual da janela (para o listener de mensagens saber se o
+  // usuário já está vendo a conversa e não notificar à toa)
+  const isOpenRef = useRef(isOpen);
+  const isMinimizedRef = useRef(isMinimized);
+  const activeTabIdRef = useRef(activeTabId);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+  useEffect(() => { isMinimizedRef.current = isMinimized; }, [isMinimized]);
+  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
+
   // Calcular total de mensagens não lidas
   const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
 
@@ -73,7 +83,24 @@ export default function ChatWidgetWithTabs({
 
     unsubs.push(on('chat:new_message', (data: any) => {
       console.log('📨 Nova mensagem recebida:', data);
-      
+
+      // 🔔 Som + toast + pop-up — exceto se a mensagem é minha ou eu já estou
+      // vendo exatamente essa conversa com a janela em foco.
+      const isOwn = data.senderId === user.id;
+      const viewingThis =
+        isOpenRef.current &&
+        !isMinimizedRef.current &&
+        activeTabIdRef.current === data.conversationId &&
+        typeof document !== 'undefined' && !document.hidden;
+      if (!isOwn && !viewingThis) {
+        notify({
+          kind: 'message',
+          title: data.senderName ? `Mensagem de ${data.senderName}` : 'Nova mensagem',
+          body: data.text,
+          tag: `msg-${data.conversationId}`,
+        });
+      }
+
       // Atualizar tabs
       setTabs((prevTabs) =>
         prevTabs.map((tab) =>

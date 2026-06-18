@@ -11,6 +11,8 @@ import PageTransition from '../components/PageTransition';
 import ChatWidgetWithTabs from '../components/ChatWidgetWithTabs';
 import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
+import RealtimeNotifier from '../components/RealtimeNotifier';
+import NotificationToaster from '../components/NotificationToaster';
 import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
@@ -54,6 +56,8 @@ function AppWrapper({ Component, pageProps }: AppProps) {
     <SocketProvider token={token}>
       <LivePresenceMount />
       <ForceLogoutListener />
+      {token && <RealtimeNotifier />}
+      <NotificationToaster />
       <CartProvider>
         <SeasonalThemeProvider>
         <Nav />
