@@ -192,10 +192,8 @@ function SellerAnalyticsInner() {
           <section style={{ marginBottom: 24 }}>
             <h3 className={styles.insightsTitle}>Resumo geral · todos os tempos</h3>
             <div className={styles.kpiGrid}>
-              <StatCard label="Total de vendas" value={general.totalSales} variant="blue" />
               <StatCard label="Pedidos entregues" value={general.delivered} variant="green" />
               <StatCard label="Em andamento" value={general.ongoing} variant="orange" />
-              <StatCard label="Receita total" value={BRL(general.revenue)} variant="purple" />
             </div>
           </section>
         )}
