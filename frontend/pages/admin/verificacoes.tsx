@@ -93,10 +93,11 @@ export default function AdminVerificacoes() {
               <div key={String(g.owner._id)} style={card}>
                 <div style={groupHead}>
                   <div>
-                    <span style={storeTag}>🏪 {storeNames.length ? storeNames.join(' · ') : 'Sem loja pendente'}</span>
-                    <div style={{ marginTop: 6 }}>
-                      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{g.owner.name || 'Dono'}</strong>
-                      {g.owner.email && <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 8, fontSize: 13 }}>{g.owner.email}</span>}
+                    {storeNames.length > 0 && <span style={storeTag}>🏪 {storeNames.join(' · ')}</span>}
+                    <div style={{ marginTop: storeNames.length ? 6 : 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{g.owner.name || 'Usuário'}</strong>
+                      <TypeBadge user={g.owner} />
+                      {g.owner.email && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{g.owner.email}</span>}
                     </div>
                   </div>
                 </div>
@@ -104,7 +105,7 @@ export default function AdminVerificacoes() {
                 {/* Documento do dono (Fase 1) */}
                 {g.doc && (
                   <div style={sub}>
-                    <p style={subLabel}>📄 Documento do dono</p>
+                    <p style={subLabel}>📄 Documento</p>
                     <p style={hint}>
                       Tipo: {g.doc.verification?.document?.type?.toUpperCase()} · Nº {g.doc.verification?.document?.number || '-'}
                     </p>
@@ -119,7 +120,7 @@ export default function AdminVerificacoes() {
                 {/* Facial do dono (Fase 2) */}
                 {g.facial && (
                   <div style={sub}>
-                    <p style={subLabel}>🤳 Facial do dono (comparar com o documento)</p>
+                    <p style={subLabel}>🤳 Facial / selfie (comparar com o documento)</p>
                     <Imgs urls={[g.facial.verification?.facial?.selfieUrl]} labels={['Selfie']} />
                     <Actions
                       onApprove={() => approve(`/verification/admin/facial/${g.facial._id}/approve`)}
@@ -161,7 +162,7 @@ export default function AdminVerificacoes() {
           {clientDocs.length > 0 && <h2 style={h2}>Documentos de clientes ({clientDocs.length})</h2>}
           {clientDocs.map((u) => (
             <div key={u._id} style={card}>
-              <Row name={u.name} email={u.email} extra={`Tipo: ${u.verification?.document?.type?.toUpperCase()} · Nº ${u.verification?.document?.number || '-'}`} />
+              <Row user={u} name={u.name} email={u.email} extra={`Tipo: ${u.verification?.document?.type?.toUpperCase()} · Nº ${u.verification?.document?.number || '-'}`} />
               <Imgs urls={[u.verification?.document?.frontUrl, u.verification?.document?.backUrl]} labels={['Frente', 'Verso']} />
               <Actions
                 onApprove={() => approve(`/verification/admin/${u._id}/approve`)}
@@ -174,8 +175,8 @@ export default function AdminVerificacoes() {
           {motoboys.length > 0 && <h2 style={h2}>Motoboys — CNH/placa ({motoboys.length})</h2>}
           {motoboys.map((u) => (
             <div key={u._id} style={card}>
-              <Row name={u.name} email={u.email} extra={`CNH: ${u.verification?.courier?.cnhNumber || '-'} · Placa: ${u.verification?.courier?.plate || '-'}`} />
-              <Imgs urls={[u.verification?.courier?.platePhotoUrl, u.verification?.facial?.selfieUrl]} labels={['Foto da placa', 'Selfie']} />
+              <Row user={u} name={u.name} email={u.email} extra={`CNH: ${u.verification?.courier?.cnhNumber || '-'} · Placa: ${u.verification?.courier?.plate || '-'}`} />
+              <Imgs urls={[u.verification?.courier?.cnhPhotoUrl, u.verification?.courier?.platePhotoUrl, u.verification?.facial?.selfieUrl]} labels={['Foto da CNH', 'Foto da placa', 'Selfie']} />
               <Actions
                 onApprove={() => approve(`/verification/admin/motoboy/${u._id}/approve`)}
                 onReject={() => reject(`/verification/admin/motoboy/${u._id}/reject`)}
@@ -188,11 +189,30 @@ export default function AdminVerificacoes() {
   );
 }
 
-function Row({ name, email, extra }: { name: string; email?: string; extra?: string }) {
+function userType(u: any): { label: string; color: string } {
+  const roles: string[] = u?.roles || (u?.role ? [u.role] : []);
+  if (roles.includes('lojista')) return { label: 'Lojista', color: '#8B5CF6' };
+  if (roles.includes('motoboy')) return { label: 'Motoboy', color: '#38BDF8' };
+  return { label: 'Cliente', color: '#22C55E' };
+}
+
+function TypeBadge({ user }: { user: any }) {
+  const t = userType(user);
+  return (
+    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}55` }}>
+      {t.label}
+    </span>
+  );
+}
+
+function Row({ name, email, extra, user }: { name: string; email?: string; extra?: string; user?: any }) {
   return (
     <div style={{ marginBottom: 8 }}>
-      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{name}</strong>
-      {email && <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 8, fontSize: 13 }}>{email}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{name}</strong>
+        {user && <TypeBadge user={user} />}
+        {email && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{email}</span>}
+      </div>
       {extra && <p style={hint}>{extra}</p>}
     </div>
   );

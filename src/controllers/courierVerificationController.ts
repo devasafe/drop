@@ -18,8 +18,11 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     if (!isValidCNH(String(cnhNumber))) return res.status(400).json({ error: 'Número de CNH inválido' });
     if (!isValidPlate(String(plate))) return res.status(400).json({ error: 'Placa inválida' });
 
-    const file = (req.file as any) || (req.files as any)?.platePhoto?.[0];
-    if (!file) return res.status(400).json({ error: 'Envie a foto da placa' });
+    const files = req.files as { platePhoto?: any[]; cnhPhoto?: any[] } | undefined;
+    const plateFile = files?.platePhoto?.[0] || (req.file as any);
+    const cnhFile = files?.cnhPhoto?.[0];
+    if (!plateFile) return res.status(400).json({ error: 'Envie a foto da placa' });
+    if (!cnhFile) return res.status(400).json({ error: 'Envie a foto da CNH' });
 
     const user = await User.findById(req.user?.id);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -27,10 +30,13 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     if (user.verification!.courier!.status === 'pending') return res.status(409).json({ error: 'Dados já em análise' });
     if (user.verification!.courier!.status === 'approved') return res.status(409).json({ error: 'Dados já aprovados' });
 
-    const platePhotoUrl = await uploadToCloudinary(file.buffer, `verifications/${user.id}/courier`);
+    const folder = `verifications/${user.id}/courier`;
+    const platePhotoUrl = await uploadToCloudinary(plateFile.buffer, folder);
+    const cnhPhotoUrl = await uploadToCloudinary(cnhFile.buffer, folder);
     user.verification!.courier = {
       status: 'pending',
       cnhNumber: onlyDigits(String(cnhNumber)),
+      cnhPhotoUrl,
       plate: normalizePlate(String(plate)),
       platePhotoUrl,
       submittedAt: new Date(),
@@ -65,7 +71,7 @@ export const getMyCourierVerification = async (req: AuthenticatedRequest, res: R
 export const listPendingCourier = async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const users = await User.find({ 'verification.courier.status': 'pending' })
-      .select('name email verification.courier verification.facial')
+      .select('name email roles role verification.courier verification.facial')
       .lean();
     return res.json({ count: users.length, items: users });
   } catch (err) {

@@ -49,6 +49,16 @@ export function maskCNPJ(v: string): string {
   return d;
 }
 
+// CNH: 11 dígitos (somente números)
+export function maskCNH(v: string): string {
+  return onlyDigits(v).slice(0, 11);
+}
+
+// Placa: ABC1D23 (Mercosul) ou ABC1234 (antiga) — maiúsculas, sem símbolos, até 7 chars
+export function maskPlate(v: string): string {
+  return (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+}
+
 // CEP: 00000-000
 export function maskCEP(v: string): string {
   const d = onlyDigits(v).slice(0, 8);

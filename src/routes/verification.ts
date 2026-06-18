@@ -79,7 +79,7 @@ router.post('/admin/store/:storeId/address/approve', authenticate, storeReviewer
 router.post('/admin/store/:storeId/address/reject', authenticate, storeReviewers, rejectStoreAddress);
 
 // ===================== FASE 3: MOTOBOY =====================
-router.post('/motoboy', authenticate, upload.single('platePhoto'), submitCourier);
+router.post('/motoboy', authenticate, upload.fields([{ name: 'platePhoto', maxCount: 1 }, { name: 'cnhPhoto', maxCount: 1 }]), submitCourier);
 router.get('/motoboy/me', authenticate, getMyCourierVerification);
 
 const courierReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_motoboys');

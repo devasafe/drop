@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { maskCPF, maskRG } from '../lib/masks';
+import { maskCPF, maskRG, maskCNH, maskPlate } from '../lib/masks';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface CourierVer {
@@ -35,6 +35,7 @@ export default function VerificacaoMotoboyPage() {
   // CNH / placa
   const [cnh, setCnh] = useState('');
   const [plate, setPlate] = useState('');
+  const [cnhPhoto, setCnhPhoto] = useState<File | null>(null);
   const [platePhoto, setPlatePhoto] = useState<File | null>(null);
 
   const load = async () => {
@@ -81,10 +82,12 @@ export default function VerificacaoMotoboyPage() {
   }, 'Selfie enviada para análise.');
 
   const sendCourier = () => run(async () => {
+    if (!cnhPhoto) throw { response: { data: { error: 'Selecione a foto da CNH.' } } };
     if (!platePhoto) throw { response: { data: { error: 'Selecione a foto da placa.' } } };
     const fd = new FormData();
     fd.append('cnhNumber', cnh);
     fd.append('plate', plate);
+    fd.append('cnhPhoto', cnhPhoto);
     fd.append('platePhoto', platePhoto);
     await api.post('/verification/motoboy', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   }, 'Dados enviados para análise.');
@@ -164,8 +167,10 @@ export default function VerificacaoMotoboyPage() {
           {cs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
           {(cs === 'none' || cs === 'rejected') && (
             <>
-              <input style={input} placeholder="Número de registro da CNH (11 dígitos)" value={cnh} onChange={e => setCnh(e.target.value)} />
-              <input style={input} placeholder="Placa da moto (ABC1D23)" value={plate} onChange={e => setPlate(e.target.value)} />
+              <input style={input} placeholder="Número de registro da CNH (11 dígitos)" value={cnh} onChange={e => setCnh(maskCNH(e.target.value))} inputMode="numeric" />
+              <input style={input} placeholder="Placa da moto (ABC1D23)" value={plate} onChange={e => setPlate(maskPlate(e.target.value))} />
+              <label style={hint}>Foto da CNH</label>
+              <input type="file" accept="image/*" onChange={e => setCnhPhoto(e.target.files?.[0] || null)} style={file} />
               <label style={hint}>Foto da placa da moto</label>
               <input type="file" accept="image/*" onChange={e => setPlatePhoto(e.target.files?.[0] || null)} style={file} />
               <button style={btn} onClick={sendCourier}>Enviar para análise</button>

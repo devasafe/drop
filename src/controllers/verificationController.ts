@@ -241,7 +241,7 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
 export const listPendingVerifications = async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const users = await User.find({ 'verification.document.status': 'pending' })
-      .select('name email verification')
+      .select('name email roles role verification')
       .sort({ 'verification.document.submittedAt': 1 })
       .lean();
     return res.json({ count: users.length, items: users });

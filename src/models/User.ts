@@ -90,6 +90,7 @@ export interface IUser extends Document {
     courier?: {
       status: 'none' | 'pending' | 'approved' | 'rejected';
       cnhNumber?: string;
+      cnhPhotoUrl?: string;
       plate?: string;
       platePhotoUrl?: string;
       submittedAt?: Date;
@@ -207,6 +208,7 @@ const UserSchema = new Schema<IUser>({
       courier: {
         status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
         cnhNumber: { type: String },
+        cnhPhotoUrl: { type: String },
         plate: { type: String },
         platePhotoUrl: { type: String },
         submittedAt: { type: Date },

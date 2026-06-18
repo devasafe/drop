@@ -146,11 +146,11 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
       ],
     })
       .select('name ownerId verification isVerified')
-      .populate('ownerId', 'name email')
+      .populate('ownerId', 'name email roles role')
       .lean();
 
     const facialPendingOwners = await User.find({ 'verification.facial.status': 'pending' })
-      .select('name email verification.facial').lean();
+      .select('name email roles role verification.facial').lean();
 
     return res.json({ stores, facialPendingOwners });
   } catch (err) {
