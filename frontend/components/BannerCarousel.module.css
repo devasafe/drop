@@ -1,7 +1,7 @@
 .carousel {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 220px;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 32px;
@@ -127,8 +127,8 @@
   transform: scale(1.2);
 }
 
-/* A altura é derivada de aspect-ratio (16/9), então acompanha a largura
-   automaticamente em qualquer dispositivo — sem altura fixa por breakpoint. */
+/* Faixa de altura fixa (220px). A imagem é enviada na proporção do
+   mostruário (~1400×220), então cobre a faixa praticamente sem corte. */
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
