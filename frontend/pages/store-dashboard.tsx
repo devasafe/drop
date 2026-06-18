@@ -365,6 +365,7 @@ export default function StoreDashboard() {
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterProductName, setFilterProductName] = useState<string>('');
   const [storeCategories, setStoreCategories] = useState<string[]>([]);
+  const [historyLimit, setHistoryLimit] = useState(10);
 
 
   const { acceptOrder, rejectOrder } = useCancellation();
@@ -483,6 +484,9 @@ export default function StoreDashboard() {
     };
     return statusMap[status] || { label: status.toUpperCase(), color: '#6c757d', bg: '#6c757d' };
   }
+
+  // Volta a exibir 10 ao mudar qualquer filtro do histórico
+  useEffect(() => { setHistoryLimit(10); }, [filterStatus, filterCustomer, filterDateFrom, filterDateTo, filterMinValue, filterMaxValue, filterCategory, filterProductName]);
 
   // 🔍 Função para filtrar histórico de pedidos
   const getFilteredHistoryOrders = () => {
@@ -1206,8 +1210,12 @@ export default function StoreDashboard() {
                   <div className={styles.emptyStateText}>Nenhum pedido no histórico</div>
                 </div>
               ) : (
+                <>
                 <div className={styles.ordersList}>
-                  {[...getFilteredHistoryOrders()].reverse().map(order => (
+                  {[...getFilteredHistoryOrders()]
+                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                    .slice(0, historyLimit)
+                    .map(order => (
                     <div key={order._id} className={styles.historyCard}>
                       {/* TOPO: Info básica + Status + Total */}
                       <div className={styles.historyCardTop}>
@@ -1309,6 +1317,16 @@ export default function StoreDashboard() {
                     </div>
                   ))}
                 </div>
+                {getFilteredHistoryOrders().length > historyLimit && (
+                  <button
+                    onClick={() => setHistoryLimit(n => n + 10)}
+                    className={styles.btnMoreDetails}
+                    style={{ margin: '20px auto 0', display: 'flex' }}
+                  >
+                    <Icon name="clipboard" size={12} /> Ver mais ({getFilteredHistoryOrders().length - historyLimit} restantes)
+                  </button>
+                )}
+                </>
               )}
             </div>
           )}
