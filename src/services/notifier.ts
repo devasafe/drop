@@ -165,10 +165,27 @@ export const emitMessagesRead = (conversationId: string, messageIds: string[], u
 };
 
 export const initSocket = (server: any) => {
-  io = new IOServer(server, { cors: { origin: '*' } });
+  const socketOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+  io = new IOServer(server, {
+    cors: {
+      origin: (origin, cb) => {
+        if (!origin) return cb(null, true);
+        if (socketOrigins.includes(origin)) return cb(null, true);
+        if (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost')) return cb(null, true);
+        return cb(new Error('Socket CORS not allowed'));
+      },
+      credentials: true,
+    },
+  });
 
   io.use((socket: Socket, next: (err?: any) => void) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    // Token via handshake auth (compat) OU via cookie httpOnly (novo)
+    let token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) {
+      const cookieHeader = socket.handshake.headers?.cookie || '';
+      const m = cookieHeader.split(';').map((c) => c.trim()).find((c) => c.startsWith('token='));
+      if (m) token = decodeURIComponent(m.slice('token='.length));
+    }
     if (!token) return next(new Error('Authentication error'));
     try {
       const decoded = jwt.verify(token as string, JWT_SECRET) as any;

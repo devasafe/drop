@@ -283,6 +283,14 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
+// POST /auth/logout — limpa os cookies de sessão (token httpOnly + user)
+export const logout = async (_req: AuthenticatedRequest, res: Response) => {
+  const { clearTokenCookie, clearUserCookie } = require('../utils/cookieManager');
+  clearTokenCookie(res);
+  clearUserCookie(res);
+  return res.json({ message: 'Logout efetuado' });
+};
+
 export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { newRole } = req.body;
