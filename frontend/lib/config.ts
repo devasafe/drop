@@ -7,7 +7,7 @@
 const getApiUrl = () => {
   if (typeof window === 'undefined') {
     // Server-side (build-time)
-    return 'https://xdxrxoxpx.onrender.com';
+    return 'https://api.dropapp.com.br';
   }
   
   // Client-side - verifica o hostname
@@ -19,7 +19,7 @@ const getApiUrl = () => {
   }
   
   // Production
-  return 'https://xdxrxoxpx.onrender.com';
+  return 'https://api.dropapp.com.br';
 };
 
 export const API_URL = getApiUrl();

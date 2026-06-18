@@ -4,7 +4,7 @@ import axios from 'axios';
 const getBaseURL = () => {
   if (typeof window === 'undefined') {
     // Server-side (build-time) - sempre retorna produção
-    return 'https://xdxrxoxpx.onrender.com/api';
+    return 'https://api.dropapp.com.br/api';
   }
   
   // Client-side - verifica o hostname
@@ -16,7 +16,7 @@ const getBaseURL = () => {
   }
   
   // Production (Vercel, qualquer outro host)
-  return 'https://xdxrxoxpx.onrender.com/api';
+  return 'https://api.dropapp.com.br/api';
 };
 
 const BASE = getBaseURL();

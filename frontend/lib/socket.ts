@@ -12,7 +12,7 @@ let socket: Socket | null = null;
 const getSocketUrl = () => {
   if (typeof window === 'undefined') {
     // Server-side
-    return 'https://xdxrxoxpx.onrender.com';
+    return 'https://api.dropapp.com.br';
   }
   
   const hostname = window.location.hostname;
@@ -23,7 +23,7 @@ const getSocketUrl = () => {
   }
   
   // Production
-  return 'https://xdxrxoxpx.onrender.com';
+  return 'https://api.dropapp.com.br';
 };
 
 export const connectSocket = (token: string) => {
