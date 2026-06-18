@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { register, login, switchRole, migrateUsersToMultiRole } from '../controllers/authController';
+import { register, login, switchRole, migrateUsersToMultiRole, forgotPassword, resetPassword } from '../controllers/authController';
 import upload from '../middleware/upload';
 import { authenticate } from '../middleware/auth';
 import { authorizeByActiveRole } from '../middleware/authorizeRoles';
@@ -32,6 +32,8 @@ const handleUploadError = (err: any, req: any, res: any, next: any) => {
 
 router.post('/register', authLimiter, upload.single('photo'), handleUploadError, register);
 router.post('/login', authLimiter, login);
+router.post('/forgot-password', authLimiter, forgotPassword);
+router.post('/reset-password', authLimiter, resetPassword);
 router.post('/switch-role', authenticate, switchRole);
 router.post('/migrate-users', authenticate, authorizeByActiveRole('ceo'), migrateUsersToMultiRole);
 

@@ -91,6 +91,8 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} className={styles.submitBtn}>
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
+
+          <a href="/esqueci-senha" className={styles.forgotLink}>Esqueceu a senha?</a>
         </form>
 
         <div className={styles.divider}>

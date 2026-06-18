@@ -1,11 +1,16 @@
 import { Response } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import User from '../models/User';
+import PasswordResetToken from '../models/PasswordResetToken';
 import { AuthenticatedRequest } from '../types';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
+
+const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
@@ -185,6 +190,78 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     // eslint-disable-next-line no-console
     console.error(err);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// POST /auth/forgot-password — envia código de redefinição por email
+export const forgotPassword = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email obrigatório' });
+
+    const user = await User.findOne({ email });
+    // Resposta genérica: nunca revela se o email existe ou não
+    const genericOk = { message: 'Se o email estiver cadastrado, enviamos um código de redefinição.' };
+
+    if (user) {
+      // Anti-spam: no máximo 1 código a cada 60s
+      const recent = await PasswordResetToken.findOne({ userId: user.id }).sort({ createdAt: -1 });
+      if (recent && Date.now() - recent.createdAt.getTime() < 60_000) {
+        return res.json(genericOk);
+      }
+      await PasswordResetToken.deleteMany({ userId: user.id });
+      const code = String(crypto.randomInt(100000, 1000000)); // 6 dígitos
+      await PasswordResetToken.create({
+        userId: user.id,
+        tokenHash: sha256(code),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+      });
+      try {
+        await sendEmail(
+          user.email,
+          'Redefinição de senha — DROP',
+          `Seu código para redefinir a senha é <b style="font-size:22px;letter-spacing:2px">${code}</b>.<br/>Ele expira em 15 minutos.<br/><br/>Se não foi você que pediu, ignore este email.`
+        );
+      } catch (mailErr: any) {
+        await PasswordResetToken.deleteMany({ userId: user.id });
+        const detail = mailErr?.response?.data?.message || mailErr?.message || 'erro desconhecido';
+        return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });
+      }
+    }
+    return res.json(genericOk);
+  } catch (err) {
+    console.error('[forgotPassword] error', err);
+    return res.status(500).json({ error: 'Erro ao processar a solicitação' });
+  }
+};
+
+// POST /auth/reset-password — valida o código e define a nova senha
+export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, código e nova senha são obrigatórios' });
+    if (String(newPassword).length < 6) return res.status(400).json({ error: 'A senha deve ter ao menos 6 caracteres' });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: 'Código inválido ou expirado' });
+
+    const record = await PasswordResetToken.findOne({ userId: user.id }).sort({ createdAt: -1 });
+    if (!record || record.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ error: 'Código inválido ou expirado' });
+    }
+    if (record.tokenHash !== sha256(String(code).trim())) {
+      return res.status(400).json({ error: 'Código incorreto' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(String(newPassword), salt);
+    await user.save();
+    await PasswordResetToken.deleteMany({ userId: user.id });
+
+    return res.json({ message: 'Senha redefinida com sucesso. Você já pode entrar.' });
+  } catch (err) {
+    console.error('[resetPassword] error', err);
+    return res.status(500).json({ error: 'Erro ao redefinir a senha' });
   }
 };
 

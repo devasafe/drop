@@ -176,6 +176,17 @@
   cursor: not-allowed;
 }
 
+.forgotLink {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--drop-purple-2, #8B5CF6);
+  text-decoration: none;
+}
+
+.forgotLink:hover { text-decoration: underline; }
+
 /* ---- Divider ---- */
 .divider {
   display: flex;
