@@ -258,11 +258,8 @@ export default function Nav() {
                     {/* Links pessoais */}
                     <div className={styles.section}>
                       <div className={styles.sectionLabel}>Conta</div>
-                      <a href="/user-profile" onClick={close} className={styles.item}>
+                      <a href={activeRole === 'motoboy' ? '/motoboy/profile' : '/user-profile'} onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Meu Perfil
-                      </a>
-                      <a href="/minha-conta" onClick={close} className={styles.item}>
-                        <span className={styles.itemIcon}><Icon name="check-circle" size={14} /></span> Minha Conta
                       </a>
                       {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                         <a href="/editar-conta" onClick={close} className={styles.item}>
@@ -383,8 +380,7 @@ export default function Nav() {
           <>
             <div className={styles.mobileSectionLabel}>Conta</div>
             <nav aria-label="Conta" className={styles.mobileNav}>
-              <a href="/user-profile" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
-              <a href="/minha-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="check-circle" size={16} /> Minha Conta</a>
+              <a href={activeRole === 'motoboy' ? '/motoboy/profile' : '/user-profile'} className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
               {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                 <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
               )}

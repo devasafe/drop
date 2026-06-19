@@ -1,8 +1,9 @@
-import Link from 'next/link';
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import MeusDadosForm from '../components/MeusDadosForm';
+import VerificationHub from '../components/VerificationHub';
 import styles from './UserProfile.module.css';
 
 const roleLabel = (role: string) => {
@@ -22,6 +23,8 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
+    // Motoboy tem a sua própria página de perfil (com avaliações).
+    if (!loading && user && (user.activeRole || user.role) === 'motoboy') router.replace('/motoboy/profile');
   }, [user, loading, router]);
 
   if (!user) return (
@@ -32,58 +35,33 @@ export default function UserProfile() {
 
   const activeRole = user.activeRole || user.role || 'cliente';
 
-  const infoRows = [
-    { label: 'Nome', value: user.name },
-    { label: 'Email', value: user.email },
-    { label: 'Role Ativo', value: roleLabel(activeRole) },
-    { label: 'Roles Disponíveis', value: (user.roles || [user.role]).map(roleLabel).join(', ') || 'Nenhum' },
-  ];
-
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-
-        {/* Back */}
-        <Link href="/inicio" className={styles.backLink}>
-          ← Início
-        </Link>
-
         {/* Avatar card */}
         <div className={styles.avatarCard}>
           <div className={styles.avatarGlow} />
-          <div className={styles.avatar}>
-            {user.name.charAt(0).toUpperCase()}
-          </div>
+          <div className={styles.avatar}>{user.name.charAt(0).toUpperCase()}</div>
           <h1 className={styles.userName}>{user.name}</h1>
           <p className={styles.userEmail}>{user.email}</p>
-          <div className={styles.roleBadge}>
-            {roleLabel(activeRole)}
-          </div>
+          <div className={styles.roleBadge}>{roleLabel(activeRole)}</div>
         </div>
 
-        {/* Info table */}
-        <div className={styles.infoTable}>
-          <div className={styles.infoTableHeader}>
-            <h2 className={styles.infoTableTitle}>Informações Pessoais</h2>
-          </div>
-          {infoRows.map((row, i) => (
-            <div key={row.label} className={styles.infoRow}>
-              <span className={styles.infoLabel}>{row.label}</span>
-              <span className={styles.infoValue}>{row.value}</span>
-            </div>
-          ))}
-        </div>
+        {/* Verificações e recebimento */}
+        <h2 style={sectionTitle}>Verificações e recebimento</h2>
+        <VerificationHub />
 
-        {/* Actions */}
-        <div className={styles.actions}>
-          <Link href="/inicio" className={styles.btnBack}>
-            ← Voltar ao Início
-          </Link>
-          <button onClick={logout} className={styles.btnLogout}>
-            Sair
-          </button>
-        </div>
+        {/* Meus dados */}
+        <h2 style={{ ...sectionTitle, marginTop: 28 }}>Meus dados</h2>
+        <MeusDadosForm />
+
+        {/* Sair */}
+        <button onClick={logout} className={styles.btnLogout} style={{ marginTop: 24, width: '100%' }}>
+          Sair
+        </button>
       </div>
     </div>
   );
 }
+
+const sectionTitle: React.CSSProperties = { fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.92)', margin: '24px 0 4px' };
