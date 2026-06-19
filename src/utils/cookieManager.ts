@@ -5,12 +5,19 @@ import { Response } from 'express';
  * Previne XSS attacks removendo tokens do localStorage
  */
 
+// Domínio do cookie. Em produção, setar COOKIE_DOMAIN=.dropapp.com.br faz o cookie
+// valer pra TODOS os subdomínios (dropapp.com.br + api.dropapp.com.br), sendo tratado
+// como first-party — evita bloqueio em navegadores estritos (ex: Brave Shields).
+// Em dev (localhost) fica undefined.
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined;
+
 const COOKIE_OPTIONS = {
   httpOnly: true,      // Não acessível via JavaScript (previne XSS)
   secure: process.env.NODE_ENV === 'production', // HTTPS only em produção
   sameSite: 'lax' as const, // CSRF protection
   maxAge: 2 * 24 * 60 * 60 * 1000, // 2 dias (alinhado ao JWT)
   path: '/',
+  ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
 };
 
 /**
@@ -24,7 +31,7 @@ export function setTokenCookie(res: Response, token: string): void {
  * Limpa o cookie de token (logout)
  */
 export function clearTokenCookie(res: Response): void {
-  res.clearCookie('token', { path: '/' });
+  res.clearCookie('token', { path: '/', ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}) });
 }
 
 /**
@@ -47,6 +54,7 @@ export function setUserCookie(res: Response, user: any): void {
     sameSite: 'lax',
     maxAge: 2 * 24 * 60 * 60 * 1000, // 2 dias (alinhado ao JWT)
     path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
   });
 }
 
@@ -54,7 +62,7 @@ export function setUserCookie(res: Response, user: any): void {
  * Limpa cookie do usuário
  */
 export function clearUserCookie(res: Response): void {
-  res.clearCookie('user', { path: '/' });
+  res.clearCookie('user', { path: '/', ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}) });
 }
 
 /**

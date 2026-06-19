@@ -456,4 +456,59 @@ router.put('/app-cashbox/withdrawals/:id/reject', authenticate, checkAdmin, reje
 // POST /admin/app-cashbox/deposit - Registrar depósito
 router.post('/app-cashbox/deposit', authenticate, checkAdmin, registerDeposit);
 
+// ═══════════════════════════════════════════════════════════
+// 🏦 SUBCONTAS ASAAS (gateway) — criar/backfill p/ recebedores já verificados
+// ═══════════════════════════════════════════════════════════
+import Store from '../models/Store';
+import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
+
+// POST /admin/asaas/subaccount/store/:storeId  (body opcional: { pixKey, pixKeyType })
+router.post('/asaas/subaccount/store/:storeId', authenticate, checkAdmin, async (req: any, res: Response) => {
+  try {
+    await ensureStoreSubaccount(req.params.storeId);
+    const store = await Store.findById(req.params.storeId).select('name asaas');
+    if (store && req.body?.pixKey) {
+      store.asaas!.pixKey = String(req.body.pixKey).trim();
+      if (req.body.pixKeyType) store.asaas!.pixKeyType = req.body.pixKeyType;
+      store.markModified('asaas');
+      await store.save();
+    }
+    return res.json({ name: store?.name, asaas: store?.asaas });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
+  }
+});
+
+// POST /admin/asaas/subaccount/motoboy/:userId  (body opcional: { pixKey, pixKeyType })
+router.post('/asaas/subaccount/motoboy/:userId', authenticate, checkAdmin, async (req: any, res: Response) => {
+  try {
+    await ensureMotoboySubaccount(req.params.userId);
+    const user = await User.findById(req.params.userId).select('name asaas');
+    if (user && req.body?.pixKey) {
+      user.asaas!.pixKey = String(req.body.pixKey).trim();
+      if (req.body.pixKeyType) user.asaas!.pixKeyType = req.body.pixKeyType;
+      user.markModified('asaas');
+      await user.save();
+    }
+    return res.json({ name: user?.name, asaas: user?.asaas });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
+  }
+});
+
+// GET /admin/asaas/subaccounts — diagnóstico: recebedores e status da subconta
+router.get('/asaas/subaccounts', authenticate, checkAdmin, async (_req: any, res: Response) => {
+  try {
+    const stores = await Store.find({ isVerified: true }).select('name cnpj asaas').lean();
+    const motoboys = await User.find({ roles: 'motoboy' }).select('name cpf asaas').lean();
+    const fmt = (a: any) => ({ status: a?.status || 'none', hasWallet: !!a?.walletId, hasPix: !!a?.pixKey, lastError: a?.lastError });
+    return res.json({
+      stores: stores.map((s: any) => ({ id: String(s._id), name: s.name, asaas: fmt(s.asaas) })),
+      motoboys: motoboys.map((u: any) => ({ id: String(u._id), name: u.name, asaas: fmt(u.asaas) })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Erro' });
+  }
+});
+
 export default router;
