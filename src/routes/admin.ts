@@ -462,35 +462,73 @@ router.post('/app-cashbox/deposit', authenticate, checkAdmin, registerDeposit);
 import Store from '../models/Store';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
 
-// POST /admin/asaas/subaccount/store/:storeId  (body opcional: { pixKey, pixKeyType })
+// POST /admin/asaas/subaccount/store/:storeId
+// body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
 router.post('/asaas/subaccount/store/:storeId', authenticate, checkAdmin, async (req: any, res: Response) => {
   try {
-    await ensureStoreSubaccount(req.params.storeId);
-    const store = await Store.findById(req.params.storeId).select('name asaas');
-    if (store && req.body?.pixKey) {
-      store.asaas!.pixKey = String(req.body.pixKey).trim();
-      if (req.body.pixKeyType) store.asaas!.pixKeyType = req.body.pixKeyType;
-      store.markModified('asaas');
+    const store = await Store.findById(req.params.storeId);
+    if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
+
+    // Preenche endereço da loja se enviado (necessário p/ a subconta Asaas)
+    const a = req.body?.address;
+    if (a) {
+      if (a.street) store.street = a.street;
+      if (a.number) store.number = a.number;
+      if (a.neighborhood) store.neighborhood = a.neighborhood;
+      if (a.city) store.city = a.city;
+      if (a.state) store.state = a.state;
+      if (a.zip || a.cep) store.zip = a.zip || a.cep;
       await store.save();
     }
-    return res.json({ name: store?.name, asaas: store?.asaas });
+
+    await ensureStoreSubaccount(req.params.storeId);
+    const fresh = await Store.findById(req.params.storeId).select('name asaas');
+    if (fresh && req.body?.pixKey) {
+      fresh.asaas!.pixKey = String(req.body.pixKey).trim();
+      if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
+      fresh.markModified('asaas');
+      await fresh.save();
+    }
+    return res.json({ name: fresh?.name, asaas: fresh?.asaas });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
   }
 });
 
-// POST /admin/asaas/subaccount/motoboy/:userId  (body opcional: { pixKey, pixKeyType })
+// POST /admin/asaas/subaccount/motoboy/:userId
+// body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
 router.post('/asaas/subaccount/motoboy/:userId', authenticate, checkAdmin, async (req: any, res: Response) => {
   try {
-    await ensureMotoboySubaccount(req.params.userId);
-    const user = await User.findById(req.params.userId).select('name asaas');
-    if (user && req.body?.pixKey) {
-      user.asaas!.pixKey = String(req.body.pixKey).trim();
-      if (req.body.pixKeyType) user.asaas!.pixKeyType = req.body.pixKeyType;
-      user.markModified('asaas');
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    // Adiciona endereço ao motoboy se enviado (necessário p/ a subconta Asaas)
+    const a = req.body?.address;
+    if (a?.street) {
+      user.addresses = user.addresses || [];
+      user.addresses.push({
+        street: a.street,
+        number: a.number || 'S/N',
+        neighborhood: a.neighborhood || 'Centro',
+        city: a.city || '',
+        state: a.state || '',
+        cep: a.zip || a.cep || '',
+        latitude: '0',
+        longitude: '0',
+        isDefault: true,
+      } as any);
       await user.save();
     }
-    return res.json({ name: user?.name, asaas: user?.asaas });
+
+    await ensureMotoboySubaccount(req.params.userId);
+    const fresh = await User.findById(req.params.userId).select('name asaas');
+    if (fresh && req.body?.pixKey) {
+      fresh.asaas!.pixKey = String(req.body.pixKey).trim();
+      if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
+      fresh.markModified('asaas');
+      await fresh.save();
+    }
+    return res.json({ name: fresh?.name, asaas: fresh?.asaas });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
   }

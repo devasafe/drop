@@ -161,6 +161,11 @@ export default function SellerWalletPage() {
             <p className={styles.headerSubtitle}>Acompanhe os ganhos e despesas da sua loja</p>
           </div>
 
+          {/* Dados de recebimento (PIX) */}
+          <a href="/dados-recebimento" style={{ display: 'block', background: 'rgba(108,43,217,0.12)', border: '1px solid #6C2BD9', borderRadius: 12, padding: '12px 16px', margin: '0 0 16px', color: '#C4B5FD', textDecoration: 'none', fontWeight: 600 }}>
+            💳 Dados de recebimento (chave PIX) — configure para receber e sacar →
+          </a>
+
           {/* Saldo Principal */}
           {wallet && (
             <div className={styles.balanceCard}>
