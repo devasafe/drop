@@ -18,6 +18,8 @@ import { getDefaultAddress } from '../utils/userHelpers';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 import walletService from '../services/wallet.service';
 import payoutService from '../services/payout.service';
+import env from '../config/env';
+import { releaseOrderViaAsaas } from '../services/asaas/release';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 
 // Loja valida PIN de retirada informado pelo motoboy
@@ -337,26 +339,43 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         });
       }
 
-      const payoutSession = await mongoose.startSession();
-      try {
-        await payoutSession.withTransaction(async () => {
-          // Criar payout do motoboy (já released — entrega concluída)
-          if (motoboyAmount > 0) {
-            await payoutService.createPendingPayout({
-              recipientType: 'motoboy',
-              recipientId: userId,
-              orderId: order._id.toString(),
-              deliveryId: delivery._id.toString(),
-              amount: motoboyAmount,
-              session: payoutSession,
-            });
-          }
+      const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
+      if (useAsaas) {
+        // Cria o Payout do motoboy (pending) e LIBERA via Asaas: transfere de verdade
+        // da conta-mãe p/ as subcontas da loja e do motoboy (chamadas externas — fora
+        // de transação Mongo). releaseOrderViaAsaas marca os payouts como released.
+        if (motoboyAmount > 0) {
+          await payoutService.createPendingPayout({
+            recipientType: 'motoboy',
+            recipientId: userId,
+            orderId: order._id.toString(),
+            deliveryId: delivery._id.toString(),
+            amount: motoboyAmount,
+          });
+        }
+        await releaseOrderViaAsaas(order._id.toString());
+      } else {
+        const payoutSession = await mongoose.startSession();
+        try {
+          await payoutSession.withTransaction(async () => {
+            // Criar payout do motoboy (já released — entrega concluída)
+            if (motoboyAmount > 0) {
+              await payoutService.createPendingPayout({
+                recipientType: 'motoboy',
+                recipientId: userId,
+                orderId: order._id.toString(),
+                deliveryId: delivery._id.toString(),
+                amount: motoboyAmount,
+                session: payoutSession,
+              });
+            }
 
-          // Liberar TODOS os payouts do pedido (loja pending→released + motoboy pending→released)
-          await payoutService.releasePayoutsForOrder(order._id.toString(), payoutSession);
-        });
-      } finally {
-        payoutSession.endSession();
+            // Liberar TODOS os payouts do pedido (loja pending→released + motoboy pending→released)
+            await payoutService.releasePayoutsForOrder(order._id.toString(), payoutSession);
+          });
+        } finally {
+          payoutSession.endSession();
+        }
       }
 
       console.log(`✅ [finalizarEntrega] Payouts released for order ${order._id}. Motoboy: R$ ${motoboyAmount.toFixed(2)}`);

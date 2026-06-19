@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import env from '../config/env';
 import logger from '../config/logger';
 import WebhookEvent from '../models/WebhookEvent';
-import { confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
+import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/orderPayment';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -90,7 +90,10 @@ async function dispatchAsaasEvent(eventId: string, body: any): Promise<void> {
       case 'PAYMENT_CONFIRMED':
         if (payment.id) await confirmOrderPaidByPayment(payment.id, payment.status);
         break;
-      // Fases seguintes: PAYMENT_REFUNDED, PAYMENT_CHARGEBACK_REQUESTED, etc.
+      case 'PAYMENT_REFUNDED':
+        if (payment.id) await markOrderRefunded(payment.id);
+        break;
+      // Fase 6: PAYMENT_CHARGEBACK_REQUESTED, etc.
       default:
         // Evento não tratado ainda — fica registrado para auditoria/reprocesso.
         break;

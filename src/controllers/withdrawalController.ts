@@ -6,6 +6,7 @@ import User from '../models/User';
 import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
+import env from '../config/env';
 
 // ✅ Motoboy/Lojista - Solicitar saque (consome payouts FIFO)
 export const requestWithdrawal = async (req: Request & { user?: any }, res: Response) => {
@@ -167,6 +168,9 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
           withdrawal.payoutIds!,
           transferResult.gatewayTransferId || `manual_${Date.now()}`,
           session,
+          // Em modo Asaas o dinheiro está na subconta (não no AppCashbox virtual);
+          // o saque sai da subconta direto pro banco, então NÃO debita o caixa.
+          { skipCashboxDebit: env.PAYOUT_GATEWAY === 'asaas' },
         );
       } else {
         // Saque de user wallet: liberar blockedBalance. NÃO debitar AppCashbox —

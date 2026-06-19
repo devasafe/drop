@@ -37,8 +37,11 @@ export class AsaasNotConfiguredError extends Error {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
-async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  if (!env.ASAAS_API_KEY) {
+// apiKey opcional: quando informada, a chamada é feita COMO aquela subconta
+// (necessário p/ saque da subconta). Sem ela, usa a conta-mãe (env.ASAAS_API_KEY).
+async function request<T>(method: Method, path: string, body?: unknown, apiKey?: string): Promise<T> {
+  const key = apiKey || env.ASAAS_API_KEY;
+  if (!key) {
     throw new AsaasNotConfiguredError();
   }
 
@@ -46,7 +49,7 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
   const res = await fetch(url, {
     method,
     headers: {
-      access_token: env.ASAAS_API_KEY,
+      access_token: key,
       'Content-Type': 'application/json',
       // O Asaas recomenda identificar a aplicação no User-Agent.
       'User-Agent': 'DROP-Marketplace',
@@ -80,6 +83,10 @@ export const asaasClient = {
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
+
+  // Chamadas autenticadas COMO uma subconta (usa a apiKey dela).
+  postAs: <T>(apiKey: string, path: string, body?: unknown) => request<T>('POST', path, body, apiKey),
+  getAs: <T>(apiKey: string, path: string) => request<T>('GET', path, undefined, apiKey),
 
   /** Saldo da conta-mãe — útil pra smoke test de conectividade. */
   getBalance: () => request<{ balance: number }>('GET', '/finance/balance'),

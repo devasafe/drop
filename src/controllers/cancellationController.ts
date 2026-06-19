@@ -29,6 +29,8 @@ import logger from '../config/logger';
 import StoreSubscription from '../models/StoreSubscription';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
 import CustomerDebt from '../models/CustomerDebt';
+import env from '../config/env';
+import { refundOrderCharge } from '../services/asaas/refund';
 
 // Validações de permissão
 const validateOrderOwnership = async (orderId: string, userId: string) => {
@@ -87,6 +89,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     const isLate = order.status === 'enviado';
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
+    const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
     const refundAmount = order.totalValue || 0;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
 
@@ -127,41 +130,62 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
             });
           }
 
-          // Creditar cliente de volta
-          const clientWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(refundSession);
-          if (clientWallet) {
-            clientWallet.balance += refundAmount;
-            clientWallet.totalIncome += refundAmount;
-            clientWallet.history.push({
-              date: new Date(),
-              type: 'credit',
-              category: 'refund',
-              amount: refundAmount,
-              reason: 'Reembolso - Pedido cancelado pelo cliente',
-              relatedId: orderId,
-            });
-            await clientWallet.save({ session: refundSession });
-          }
+          // Fluxo legado (carteira virtual): credita cliente + debita AppCashbox.
+          // Em modo Asaas, o estorno é REAL (fora da transação, abaixo) — não mexe aqui.
+          if (!useAsaas) {
+            const clientWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(refundSession);
+            if (clientWallet) {
+              clientWallet.balance += refundAmount;
+              clientWallet.totalIncome += refundAmount;
+              clientWallet.history.push({
+                date: new Date(),
+                type: 'credit',
+                category: 'refund',
+                amount: refundAmount,
+                reason: 'Reembolso - Pedido cancelado pelo cliente',
+                relatedId: orderId,
+              });
+              await clientWallet.save({ session: refundSession });
+            }
 
-          // Debitar AppCashbox (dinheiro volta pro cliente)
-          const appCashbox = await AppCashbox.findOne().session(refundSession);
-          if (appCashbox) {
-            appCashbox.balance -= refundAmount;
-            appCashbox.totalExpenses += refundAmount;
-            appCashbox.history.push({
-              type: 'expense',
-              source: 'order_refund',
-              amount: refundAmount,
-              orderId,
-              reason: 'Reembolso - Pedido cancelado pelo cliente',
-              date: new Date(),
-            });
-            await appCashbox.save({ session: refundSession });
+            const appCashbox = await AppCashbox.findOne().session(refundSession);
+            if (appCashbox) {
+              appCashbox.balance -= refundAmount;
+              appCashbox.totalExpenses += refundAmount;
+              appCashbox.history.push({
+                type: 'expense',
+                source: 'order_refund',
+                amount: refundAmount,
+                orderId,
+                reason: 'Reembolso - Pedido cancelado pelo cliente',
+                date: new Date(),
+              });
+              await appCashbox.save({ session: refundSession });
+            }
           }
         });
 
-        refundStatus = 'processed';
-        emitWalletRefund(customerId, 'user', refundAmount, `Reembolso do pedido ${orderId}`);
+        if (useAsaas) {
+          // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se já pago.
+          if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
+            try {
+              await refundOrderCharge(order.asaasPaymentId);
+              order.asaasChargeStatus = 'refunded';
+              order.paymentStatus = 'refunded';
+              await order.save();
+              refundStatus = 'processed';
+            } catch (refundErr) {
+              logger.error('Falha no estorno Asaas — escala pro admin', refundErr as Error, { orderId });
+              refundStatus = 'pending';
+            }
+          } else {
+            // Não pago ainda: nada a estornar (a cobrança PIX simplesmente expira).
+            refundStatus = 'processed';
+          }
+        } else {
+          refundStatus = 'processed';
+          emitWalletRefund(customerId, 'user', refundAmount, `Reembolso do pedido ${orderId}`);
+        }
       } catch (walletError: any) {
         if (walletError?.needsManualReview) {
           logger.warn('Reembolso retido para revisão manual — payout já liquidado', { orderId, payoutErrors: walletError.payoutErrors });
@@ -689,6 +713,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     const isLate = order.status === 'enviado';
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
+    const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
     const refundAmount = order.totalValue || 0;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'processed';
 
@@ -724,37 +749,55 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
             });
           }
 
-          const clientWallet = await Wallet.findOne({ owner: order.customerId.toString(), ownerType: 'user' }).session(rejectSession);
-          if (clientWallet) {
-            clientWallet.balance += refundAmount;
-            clientWallet.totalIncome += refundAmount;
-            clientWallet.history.push({
-              date: new Date(),
-              type: 'credit',
-              category: 'refund',
-              amount: refundAmount,
-              reason: 'Reembolso - Pedido rejeitado pela loja',
-              relatedId: orderId,
-            });
-            await clientWallet.save({ session: rejectSession });
-          }
+          // Fluxo legado (carteira virtual). Em modo Asaas o estorno é REAL (abaixo).
+          if (!useAsaas) {
+            const clientWallet = await Wallet.findOne({ owner: order.customerId.toString(), ownerType: 'user' }).session(rejectSession);
+            if (clientWallet) {
+              clientWallet.balance += refundAmount;
+              clientWallet.totalIncome += refundAmount;
+              clientWallet.history.push({
+                date: new Date(),
+                type: 'credit',
+                category: 'refund',
+                amount: refundAmount,
+                reason: 'Reembolso - Pedido rejeitado pela loja',
+                relatedId: orderId,
+              });
+              await clientWallet.save({ session: rejectSession });
+            }
 
-          const appCashbox = await AppCashbox.findOne().session(rejectSession);
-          if (appCashbox) {
-            appCashbox.balance -= refundAmount;
-            appCashbox.totalExpenses += refundAmount;
-            appCashbox.history.push({
-              type: 'expense',
-              source: 'order_refund',
-              amount: refundAmount,
-              orderId,
-              reason: 'Reembolso - Pedido rejeitado pela loja',
-              date: new Date(),
-            });
-            await appCashbox.save({ session: rejectSession });
+            const appCashbox = await AppCashbox.findOne().session(rejectSession);
+            if (appCashbox) {
+              appCashbox.balance -= refundAmount;
+              appCashbox.totalExpenses += refundAmount;
+              appCashbox.history.push({
+                type: 'expense',
+                source: 'order_refund',
+                amount: refundAmount,
+                orderId,
+                reason: 'Reembolso - Pedido rejeitado pela loja',
+                date: new Date(),
+              });
+              await appCashbox.save({ session: rejectSession });
+            }
           }
         });
-        emitWalletRefund(order.customerId.toString(), 'user', refundAmount, `Reembolso do pedido ${orderId}`);
+
+        if (useAsaas) {
+          if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
+            try {
+              await refundOrderCharge(order.asaasPaymentId);
+              order.asaasChargeStatus = 'refunded';
+              order.paymentStatus = 'refunded';
+              await order.save();
+            } catch (refundErr) {
+              logger.error('Falha no estorno Asaas (rejeição da loja) — escala pro admin', refundErr as Error, { orderId });
+              refundStatus = 'pending';
+            }
+          }
+        } else {
+          emitWalletRefund(order.customerId.toString(), 'user', refundAmount, `Reembolso do pedido ${orderId}`);
+        }
       } catch (walletError: any) {
         if (walletError?.needsManualReview) {
           logger.warn('Reembolso retido para revisão manual — payout já liquidado', { orderId, payoutErrors: walletError.payoutErrors });

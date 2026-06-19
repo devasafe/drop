@@ -530,9 +530,23 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         });
         order.asaasPaymentId = pixCharge.paymentId;
         await order.save();
-      } catch (chargeErr) {
+      } catch (chargeErr: any) {
         logger.error('Falha ao gerar cobrança PIX', chargeErr as Error, { orderId: order._id });
-        return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', orderId: order._id });
+        // Compensação: o pedido e a baixa de estoque já foram commitados. Sem a cobrança,
+        // o pedido é inútil — devolve o estoque e apaga o pedido órfão pra não travar nada.
+        try {
+          for (const it of items) {
+            if ((it as any).productId && (it as any).quantity) {
+              await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+            }
+          }
+          await Order.deleteOne({ _id: order._id });
+        } catch (compErr) {
+          logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId: order._id });
+        }
+        // Surfacing do erro REAL do Asaas (errors[].description) p/ diagnóstico.
+        const detail = chargeErr?.errors?.[0]?.description || chargeErr?.message || 'erro desconhecido';
+        return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', detail });
       }
     }
 

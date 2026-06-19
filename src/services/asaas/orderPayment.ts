@@ -51,4 +51,19 @@ export async function confirmOrderPaidByPayment(
   logger.info('Pedido confirmado como pago via Asaas', { orderId: order._id, asaasPaymentId });
 }
 
-export default { confirmOrderPaidByPayment };
+/**
+ * Marca o pedido como estornado a partir do webhook PAYMENT_REFUNDED.
+ * Idempotente. O estorno em si pode ter sido iniciado por nós (cancelamento) ou
+ * pelo painel do Asaas — aqui só refletimos o estado final.
+ */
+export async function markOrderRefunded(asaasPaymentId: string): Promise<void> {
+  const order = await Order.findOne({ asaasPaymentId });
+  if (!order) return;
+  if (order.asaasChargeStatus === 'refunded') return; // idempotente
+  order.asaasChargeStatus = 'refunded';
+  order.paymentStatus = 'refunded';
+  await order.save();
+  logger.info('Pedido marcado como estornado via Asaas', { orderId: order._id, asaasPaymentId });
+}
+
+export default { confirmOrderPaidByPayment, markOrderRefunded };
