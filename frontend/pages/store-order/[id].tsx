@@ -8,6 +8,7 @@ import { useOrder, useDelivery } from '../../hooks/useSync';
 import { useSocket } from '../../contexts/SocketContext';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
 import { CancellationStatusDisplay } from '../../components/order/CancellationStatusDisplay';
+import PixPaymentModal from '../../components/PixPaymentModal';
 import styles from './StoreOrderStatus.module.css';
 
 export default function StoreOrderStatus() {
@@ -26,6 +27,26 @@ export default function StoreOrderStatus() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [confirmingReceived, setConfirmingReceived] = useState(false);
   const [receivedError, setReceivedError] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<any>(null);
+  const [loadingPix, setLoadingPix] = useState(false);
+
+  // Retomar pagamento PIX de um pedido pendente
+  const openPix = async () => {
+    if (!id) return;
+    setLoadingPix(true);
+    try {
+      const res = await api.get(`/orders/${id}/pix`);
+      if (res.data?.paid) {
+        setOrder((prev: any) => ({ ...prev, paymentStatus: 'paid' }));
+      } else {
+        setPixData({ ...res.data, orderId: id });
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Não foi possível carregar o PIX.');
+    } finally {
+      setLoadingPix(false);
+    }
+  };
 
   // Helper: Refetch delivery data from API
   const refetchDelivery = async (deliveryId: string) => {
@@ -359,6 +380,28 @@ export default function StoreOrderStatus() {
             <p className={styles.statusRaw}>Status: {delivery?.status || order.status}</p>
           </div>
 
+          {/* Retomar pagamento PIX (pedido pendente) */}
+          {order.paymentMethod === 'pix' &&
+            order.paymentStatus !== 'paid' &&
+            order.asaasPaymentId &&
+            !['cancelado', 'rejeitado'].includes(order.status) && (
+              <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid #F59E0B', borderRadius: 14, padding: 16, marginBottom: 16, textAlign: 'center' }}>
+                <p style={{ margin: '0 0 10px', color: '#F59E0B', fontWeight: 600 }}>
+                  <Icon name="alert-triangle" size={16} /> Pagamento pendente
+                </p>
+                <p style={{ margin: '0 0 12px', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+                  Seu pedido só é confirmado após o pagamento PIX.
+                </p>
+                <button
+                  onClick={openPix}
+                  disabled={loadingPix}
+                  style={{ background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 20px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {loadingPix ? 'Carregando…' : 'Pagar com PIX'}
+                </button>
+              </div>
+            )}
+
           {/* PIN Display */}
           {delivery && delivery.pin && (delivery.status === 'assigned' || delivery.status === 'picked') && (
             <div className={styles.pinBox}>
@@ -628,6 +671,17 @@ export default function StoreOrderStatus() {
               router.replace(router.asPath);
             }}
           />
+
+          {/* Retomar pagamento PIX */}
+          {pixData && (
+            <PixPaymentModal
+              pix={pixData}
+              onPaid={() => {
+                setPixData(null);
+                setOrder((prev: any) => ({ ...prev, paymentStatus: 'paid' }));
+              }}
+            />
+          )}
         </div>
       </div>
     </ProtectedRoute>

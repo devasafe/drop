@@ -14,6 +14,7 @@ import app from './app';
 import { connectDB } from './db';
 import notifier from './services/notifier';
 import { startDeliveryTimeoutJob } from './jobs/deliveryTimeout.job';
+import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
 
 console.log('📍 [INDEX] Starting application...');
 
@@ -51,6 +52,14 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Delivery timeout job failed to start', e);
+  }
+
+  // ✅ Expiração de pedidos PIX não pagos (devolve estoque) — só em modo Asaas
+  try {
+    startExpirePixOrdersJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Expire PIX orders job failed to start', e);
   }
 
   console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);

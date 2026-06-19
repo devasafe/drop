@@ -1,7 +1,7 @@
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createOrder, getOrder, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order } from '../controllers/orderController';
+import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order } from '../controllers/orderController';
 import {
   cancelOrderByCustomer,
   acceptOrderByStore,
@@ -39,6 +39,8 @@ router.get('/stats/cancellations', authenticate, authorizeRoles('lojista'), getC
 
 // Get single order details
 router.get('/:id', authenticate, getOrder);
+// Retomar pagamento PIX de um pedido pendente
+router.get('/:id/pix', authenticate, getOrderPix);
 
 // ========== STORE OPERATIONS ==========
 // store accepts order -> moves to processing

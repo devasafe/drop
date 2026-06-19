@@ -22,6 +22,13 @@ export async function confirmOrderPaidByPayment(
     return;
   }
   if (order.paymentStatus === 'paid') return; // idempotente
+  // Não ressuscita pedido já cancelado/rejeitado (ex: expirou e a cobrança foi excluída).
+  // Obs: se a cobrança foi excluída na expiração, o Asaas nem envia confirmação — este
+  // guard é a rede de segurança contra corrida.
+  if (order.status === 'cancelado' || order.status === 'rejeitado') {
+    logger.warn('Pagamento recebido para pedido já cancelado — ignorado', { orderId: order._id, asaasPaymentId });
+    return;
+  }
 
   order.paymentStatus = 'paid';
   order.asaasChargeStatus = asaasStatus === 'CONFIRMED' ? 'confirmed' : 'received';

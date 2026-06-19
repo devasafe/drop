@@ -45,6 +45,7 @@ const envSchema = z.object({
   RESERVE_PERCENT: z.string().transform(Number).default('5'),
   RESERVE_DAYS: z.string().transform(Number).default('15'),
   RELEASE_FALLBACK_DAYS: z.string().transform(Number).default('3'),
+  PIX_EXPIRATION_MINUTES: z.string().transform(Number).default('30'),
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
@@ -131,6 +132,7 @@ export const env = (() => {
         RESERVE_PERCENT: 5,
         RESERVE_DAYS: 15,
         RELEASE_FALLBACK_DAYS: 3,
+        PIX_EXPIRATION_MINUTES: 30,
       };
     }
     throw error;

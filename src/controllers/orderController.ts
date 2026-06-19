@@ -33,7 +33,7 @@ import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import Coupon from '../models/Coupon';
 import env from '../config/env';
-import { ensureAsaasCustomer, createPixCharge, PixCharge } from '../services/asaas/payment';
+import { ensureAsaasCustomer, createPixCharge, getPixQrCode, PixCharge } from '../services/asaas/payment';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -561,6 +561,35 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json({ error: 'Erro interno do servidor' });
   } finally {
     session.endSession();
+  }
+};
+
+// GET /orders/:id/pix — retoma o pagamento PIX de um pedido pendente (Fase 2/B)
+export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (String(order.customerId) !== String(userId)) return res.status(403).json({ error: 'Sem permissão' });
+
+    if (order.paymentStatus === 'paid') return res.json({ paid: true });
+    if (!order.asaasPaymentId) return res.status(400).json({ error: 'Pedido sem cobrança PIX' });
+    if (['cancelado', 'rejeitado'].includes(order.status)) {
+      return res.status(409).json({ error: 'Pedido cancelado — cobrança não disponível' });
+    }
+
+    try {
+      const qr = await getPixQrCode(order.asaasPaymentId);
+      return res.json({ paid: false, orderId: String(order._id), ...qr });
+    } catch {
+      return res.status(502).json({ error: 'Não foi possível obter a cobrança PIX' });
+    }
+  } catch (err) {
+    logger.error('Erro ao obter PIX do pedido', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
 

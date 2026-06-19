@@ -1,6 +1,7 @@
 import asaasClient from './client';
 import logger from '../../config/logger';
 import User from '../../models/User';
+import { isValidCPF, isValidCNPJ } from '../../utils/documentValidation';
 
 /**
  * Cobrança de ENTRADA (cliente paga). Custódia: o valor cai INTEIRO na conta-mãe
@@ -37,10 +38,18 @@ export async function ensureAsaasCustomer(userId: string): Promise<string | null
   if (user.asaas?.customerId) return user.asaas.customerId;
 
   const cpf = onlyDigits(user.cpf);
+  // O Asaas exige CPF/CNPJ válido p/ cobrança PIX. Validar localmente dá uma
+  // mensagem clara e acionável em vez do erro genérico do gateway.
+  if (!cpf || (!isValidCPF(cpf) && !isValidCNPJ(cpf))) {
+    const err: any = new Error('Seu CPF é inválido ou não foi cadastrado. Corrija em "Editar meus dados" para pagar.');
+    err.errors = [{ code: 'invalid_cpf', description: err.message }];
+    throw err;
+  }
+
   const customer = await asaasClient.post<AsaasCustomer>('/customers', {
     name: user.name,
     email: user.email,
-    cpfCnpj: cpf || undefined,
+    cpfCnpj: cpf,
     mobilePhone: onlyDigits(user.telefone || user.verification?.phone?.e164),
     externalReference: String(user._id),
   });
@@ -88,4 +97,26 @@ export async function createPixCharge(params: {
   return charge;
 }
 
-export default { ensureAsaasCustomer, createPixCharge };
+/** Busca o QR Code PIX de uma cobrança existente (p/ retomar pagamento). */
+export async function getPixQrCode(asaasPaymentId: string): Promise<{ qrCodeImage?: string; qrCodePayload?: string; expiresAt?: string }> {
+  const qr = await asaasClient.get<{ encodedImage: string; payload: string; expirationDate: string }>(
+    `/payments/${asaasPaymentId}/pixQrCode`
+  );
+  return { qrCodeImage: qr.encodedImage, qrCodePayload: qr.payload, expiresAt: qr.expirationDate };
+}
+
+/**
+ * Cancela/exclui uma cobrança ainda não paga no Asaas.
+ * Retorna true se foi excluída (não estava paga); false se não pôde (ex: já recebida).
+ */
+export async function cancelCharge(asaasPaymentId: string): Promise<boolean> {
+  try {
+    await asaasClient.delete(`/payments/${asaasPaymentId}`);
+    return true;
+  } catch (err) {
+    logger.warn('Não foi possível excluir a cobrança no Asaas (provavelmente já paga)', { asaasPaymentId });
+    return false;
+  }
+}
+
+export default { ensureAsaasCustomer, createPixCharge, cancelCharge };
