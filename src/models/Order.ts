@@ -19,6 +19,9 @@ export interface IOrder extends Document {
   debtCollected?: number; // valor de dívida cobrada neste pedido
   paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentId?: string; // payment gateway ID
+  // ✅ Fase 2 (gateway): cobrança Asaas (entrada)
+  asaasPaymentId?: string; // id da cobrança no Asaas
+  asaasChargeStatus?: 'none' | 'pending' | 'received' | 'confirmed' | 'refunded' | 'chargeback';
   cancellationId?: Types.ObjectId; // ref Cancellation
   idempotentKey?: string; // ✅ NOVO: Para prevenir duplicação
   
@@ -75,6 +78,9 @@ const OrderSchema = new Schema<IOrder>({
   debtCollected: { type: Number },
   paymentStatus: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' },
   paymentId: { type: String },
+  // ✅ Fase 2 (gateway): cobrança Asaas (entrada)
+  asaasPaymentId: { type: String, index: true },
+  asaasChargeStatus: { type: String, enum: ['none', 'pending', 'received', 'confirmed', 'refunded', 'chargeback'], default: 'none' },
   cancellationId: { type: Schema.Types.ObjectId, ref: 'Cancellation' },
   idempotentKey: { type: String, sparse: true, unique: true },  // ✅ NOVO
   

@@ -34,8 +34,17 @@ const envSchema = z.object({
   // Redis (optional)
   REDIS_URL: z.string().optional(),
 
-  // Payout Gateway
+  // Payout Gateway (SAÍDA — saque pra conta do recebedor)
   PAYOUT_GATEWAY: z.enum(['manual', 'asaas', 'pagarme', 'efi']).default('manual'),
+
+  // Payment Gateway (ENTRADA — cobrança do cliente) + Asaas
+  PAYMENT_GATEWAY: z.enum(['none', 'asaas']).default('none'),
+  ASAAS_API_KEY: z.string().optional(),
+  ASAAS_API_URL: z.string().default('https://sandbox.asaas.com/api/v3'),
+  ASAAS_WEBHOOK_TOKEN: z.string().optional(),
+  RESERVE_PERCENT: z.string().transform(Number).default('5'),
+  RESERVE_DAYS: z.string().transform(Number).default('15'),
+  RELEASE_FALLBACK_DAYS: z.string().transform(Number).default('3'),
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
@@ -115,6 +124,13 @@ export const env = (() => {
         AUTH_LIMITER_WINDOW_MS: 900000,
         REDIS_URL: undefined,
         PAYOUT_GATEWAY: 'manual' as const,
+        PAYMENT_GATEWAY: 'none' as const,
+        ASAAS_API_KEY: undefined,
+        ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
+        ASAAS_WEBHOOK_TOKEN: undefined,
+        RESERVE_PERCENT: 5,
+        RESERVE_DAYS: 15,
+        RELEASE_FALLBACK_DAYS: 3,
       };
     }
     throw error;

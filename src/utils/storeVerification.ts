@@ -1,6 +1,9 @@
 import Store from '../models/Store';
 import User from '../models/User';
 import { isClientVerified } from './clientVerification';
+import env from '../config/env';
+import { ensureStoreSubaccount } from '../services/asaas/subaccount';
+import logger from '../config/logger';
 
 export type MissingStoreVerification = 'owner' | 'facial' | 'cnpj' | 'address';
 
@@ -32,6 +35,14 @@ export async function recomputeStoreVerification(storeId: string): Promise<boole
   if (store.isVerified !== verified) {
     store.isVerified = verified;
     await store.save();
+    // Ao virar verificada, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).
+    if (verified && env.PAYMENT_GATEWAY === 'asaas') {
+      try {
+        await ensureStoreSubaccount(String(store._id));
+      } catch (err) {
+        logger.error('Falha ao garantir subconta da loja na verificação', err as Error, { storeId });
+      }
+    }
   }
   return verified;
 }

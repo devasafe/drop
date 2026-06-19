@@ -118,7 +118,13 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           // Cancelar todos os payouts do pedido
           const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_cancelled', refundSession);
           if (result.errors.length > 0) {
-            logger.warn('Alguns payouts não puderam ser cancelados automaticamente', { orderId, errors: result.errors });
+            // #3: há payout já requested/paid — o dinheiro pode já ter saído pra loja/motoboy.
+            // NÃO reembolsar o cliente automaticamente (risco de gasto duplo). Aborta a
+            // transação e escala pro admin resolver manualmente.
+            throw Object.assign(new Error('PAYOUT_ALREADY_SETTLED'), {
+              needsManualReview: true,
+              payoutErrors: result.errors,
+            });
           }
 
           // Creditar cliente de volta
@@ -156,9 +162,14 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
         refundStatus = 'processed';
         emitWalletRefund(customerId, 'user', refundAmount, `Reembolso do pedido ${orderId}`);
-      } catch (walletError) {
-        logger.error('Erro ao reverter pagamento no cancelamento pelo cliente', walletError as Error, { orderId });
-        refundStatus = 'failed';
+      } catch (walletError: any) {
+        if (walletError?.needsManualReview) {
+          logger.warn('Reembolso retido para revisão manual — payout já liquidado', { orderId, payoutErrors: walletError.payoutErrors });
+          refundStatus = 'pending';
+        } else {
+          logger.error('Erro ao reverter pagamento no cancelamento pelo cliente', walletError as Error, { orderId });
+          refundStatus = 'failed';
+        }
       } finally {
         refundSession.endSession();
       }
@@ -224,38 +235,37 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           }
         }
 
-        // Creditar motoboy share na wallet do motoboy da delivery
+        // Creditar motoboy share como Payout released (#1). Crédito cru em
+        // motoboyWallet.balance é sobrescrito pela reconciliação em getMotoboyWallet
+        // e não é sacável (o saque consome só Payouts). Um Payout released é reconciliável.
         if (motoboyShare > 0 && order.deliveryId) {
           const delivery = await Delivery.findById(order.deliveryId).session(session);
           if (delivery?.motoboyId) {
-            const motoboyWallet = await Wallet.findOne({ owner: delivery.motoboyId, ownerType: 'motoboy' }).session(session);
-            if (motoboyWallet) {
-              motoboyWallet.balance += motoboyShare;
-              motoboyWallet.totalIncome += motoboyShare;
-              motoboyWallet.history.push({
-                type: 'credit',
-                category: 'transfer',
-                amount: motoboyShare,
-                reason: 'Compensação por cancelamento tardio do cliente',
-                date: new Date(),
-                reference: `LATE_CANCEL_COMP_${orderId}`,
-              });
-              await motoboyWallet.save({ session });
-            }
+            const compPayout = await payoutService.createPendingPayout({
+              recipientType: 'motoboy',
+              recipientId: String(delivery.motoboyId),
+              orderId: String(order._id),
+              deliveryId: String(delivery._id),
+              amount: motoboyShare,
+              session,
+            });
+            await payoutService.releasePayout(String(compPayout._id), session);
           }
         }
 
-        // Creditar app share no AppCashbox
-        if (appShare > 0) {
+        // Creditar a multa INTEIRA no AppCashbox (#1). O motoboyShare é pago depois como
+        // Payout (debita o cashbox no saque), restando appShare de lucro líquido. Creditar
+        // só appShare deixaria o Payout do motoboy sem lastro no cofre.
+        if (totalFee > 0) {
           const appCashbox = await AppCashbox.findOne().session(session);
           if (appCashbox) {
-            appCashbox.balance += appShare;
-            appCashbox.totalIncome += appShare;
+            appCashbox.balance += totalFee;
+            appCashbox.totalIncome += totalFee;
             appCashbox.history.push({
               type: 'income',
               source: 'cancelled_order',
-              amount: appShare,
-              reason: `Taxa cancelamento tardio - Pedido ${orderId}`,
+              amount: totalFee,
+              reason: `Taxa cancelamento tardio (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
               date: new Date(),
               orderId: orderId,
             });
@@ -680,7 +690,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     const isLate = order.status === 'enviado';
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
     const refundAmount = order.totalValue || 0;
-    const refundStatus: 'pending' | 'processed' | 'failed' = 'processed';
+    let refundStatus: 'pending' | 'processed' | 'failed' = 'processed';
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: só UM request consegue mover para 'rejeitado'.
     // Bloqueia duplo-reembolso por requisições concorrentes.
@@ -705,7 +715,14 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       const rejectSession = await mongoose.startSession();
       try {
         await rejectSession.withTransaction(async () => {
-          await payoutService.cancelPayoutsForOrder(orderId, 'order_rejected_by_store', rejectSession);
+          const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_rejected_by_store', rejectSession);
+          if (result.errors.length > 0) {
+            // #3: payout já liquidado — não reembolsar cego; escala pro admin.
+            throw Object.assign(new Error('PAYOUT_ALREADY_SETTLED'), {
+              needsManualReview: true,
+              payoutErrors: result.errors,
+            });
+          }
 
           const clientWallet = await Wallet.findOne({ owner: order.customerId.toString(), ownerType: 'user' }).session(rejectSession);
           if (clientWallet) {
@@ -738,6 +755,14 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
           }
         });
         emitWalletRefund(order.customerId.toString(), 'user', refundAmount, `Reembolso do pedido ${orderId}`);
+      } catch (walletError: any) {
+        if (walletError?.needsManualReview) {
+          logger.warn('Reembolso retido para revisão manual — payout já liquidado', { orderId, payoutErrors: walletError.payoutErrors });
+          refundStatus = 'pending';
+        } else {
+          logger.error('Erro ao reverter pagamento na rejeição pela loja', walletError as Error, { orderId });
+          refundStatus = 'failed';
+        }
       } finally {
         rejectSession.endSession();
       }
@@ -781,38 +806,33 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
           await storeWallet.save({ session });
         }
 
-        // Creditar motoboy share
+        // Creditar motoboy share como Payout released (#1) — ver explicação no fluxo do cliente.
         if (motoboyShare > 0 && order.deliveryId) {
           const delivery = await Delivery.findById(order.deliveryId).session(session);
           if (delivery?.motoboyId) {
-            const motoboyWallet = await Wallet.findOne({ owner: delivery.motoboyId, ownerType: 'motoboy' }).session(session);
-            if (motoboyWallet) {
-              motoboyWallet.balance += motoboyShare;
-              motoboyWallet.totalIncome += motoboyShare;
-              motoboyWallet.history.push({
-                type: 'credit',
-                category: 'transfer',
-                amount: motoboyShare,
-                reason: 'Compensação por cancelamento tardio pela loja',
-                date: new Date(),
-                reference: `LATE_CANCEL_COMP_${orderId}`,
-              });
-              await motoboyWallet.save({ session });
-            }
+            const compPayout = await payoutService.createPendingPayout({
+              recipientType: 'motoboy',
+              recipientId: String(delivery.motoboyId),
+              orderId: String(order._id),
+              deliveryId: String(delivery._id),
+              amount: motoboyShare,
+              session,
+            });
+            await payoutService.releasePayout(String(compPayout._id), session);
           }
         }
 
-        // Creditar app share no AppCashbox
-        if (appShare > 0) {
+        // Creditar a multa INTEIRA no AppCashbox (#1) — dá lastro ao Payout do motoboy.
+        if (totalFee > 0) {
           const appCashbox = await AppCashbox.findOne().session(session);
           if (appCashbox) {
-            appCashbox.balance += appShare;
-            appCashbox.totalIncome += appShare;
+            appCashbox.balance += totalFee;
+            appCashbox.totalIncome += totalFee;
             appCashbox.history.push({
               type: 'income',
               source: 'cancelled_order',
-              amount: appShare,
-              reason: `Taxa cancelamento tardio loja - Pedido ${orderId}`,
+              amount: totalFee,
+              reason: `Taxa cancelamento tardio loja (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
               date: new Date(),
               orderId: orderId,
             });

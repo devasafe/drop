@@ -16,6 +16,8 @@ process.env.DELIVERY_TIMEOUT_MINUTES = '30';
 process.env.AUTH_LIMITER_MAX = '5';
 process.env.AUTH_LIMITER_WINDOW_MS = '900000';
 process.env.KYC_ENFORCED = 'true'; // testa o gate de verificação
+// Chave de criptografia FIXA p/ testes (64 hex chars). Não usar em produção.
+process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 // Desabilitar logs em testes
 global.console = {

@@ -36,6 +36,8 @@ import walletAccessRoutes from './routes/walletAccess'; // ✅ NOVO - Wallet acc
 import payoutsRoutes from './routes/payouts'; // ✅ NOVO - Payout management
 import deliveryInvoicesRoutes from './routes/deliveryInvoices';
 import verificationRoutes from './routes/verification'; // ✅ NOVO - KYC/verificação de conta
+import webhooksRoutes from './routes/webhooks'; // ✅ NOVO - Webhooks de gateways (Asaas)
+import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
 
 const app = express();
 
@@ -145,7 +147,12 @@ app.use('/api/wallet-access', walletAccessRoutes);
 app.use('/api/payouts', payoutsRoutes);
 app.use('/api/invoices', deliveryInvoicesRoutes);
 app.use('/api/verification', verificationRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
+
+// Webhooks de gateways (server-to-server) — fora de /api para escapar do rate
+// limiter; a origem é validada por token dentro do controller.
+app.use('/webhooks', webhooksRoutes);
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/uploads', uploadsRoutes);

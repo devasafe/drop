@@ -32,6 +32,8 @@ import CustomerDebt from '../models/CustomerDebt';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import Coupon from '../models/Coupon';
+import env from '../config/env';
+import { ensureAsaasCustomer, createPixCharge, PixCharge } from '../services/asaas/payment';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -84,6 +86,17 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       logger.warn('Tentativa de compra com role inválido', { activeRole, userId: customerId });
       return res.status(403).json({
         error: `Compras não são permitidas para usuários no modo ${activeRole}. Alterne para 'cliente'.`,
+      });
+    }
+
+    // ❌ COD descontinuado (decisão de design 2026-06-18): todo pedido é pago online.
+    // Bloqueia novos pedidos "dinheiro na entrega" — evita o bug #2 (livro-caixa inflado
+    // por dinheiro vivo na mão do motoboy sem lastro digital).
+    if (paymentMethod === 'cash_on_delivery') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        error: 'Pagamento na entrega foi descontinuado. Use PIX ou cartão.',
+        code: 'COD_DISABLED',
       });
     }
 
@@ -240,6 +253,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const isCashOnDelivery = paymentMethod === 'cash_on_delivery';
+    // Fase 2: gateway de entrada. Quando ativo, o fluxo pré-pago (débito de carteira)
+    // dá lugar à cobrança real no Asaas (custódia na conta-mãe).
+    const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
+
+    // Por enquanto o Asaas só processa PIX aqui (cartão entra na Fase 6).
+    if (useAsaas && paymentMethod !== 'pix') {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'No momento apenas PIX está disponível. Cartão em breve.' });
+    }
 
     // Cobrar dívida pendente (apenas para pedidos não-COD)
     let pendingDebt: any = null;
@@ -251,7 +273,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    if (!isCashOnDelivery) {
+    if (!isCashOnDelivery && !useAsaas) {
       if (clientWallet.balance < totalValue + debtAmount) {
         await session.abortTransaction();
         return res.status(400).json({
@@ -288,7 +310,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       await clientWallet.save({ session });
     }
 
-    if (!isCashOnDelivery) {
+    if (!isCashOnDelivery && !useAsaas) {
       // --- NOVO FLUXO: Todo dinheiro entra no AppCashbox (custódia) ---
       // Creditar AppCashbox com valor total do pedido
       let appCashbox = await AppCashbox.findOne().session(session);
@@ -392,12 +414,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         appCommission: distribution.product.appCommission,
         commissionPercent: distribution.product.commissionPercent,
       },
+      asaasChargeStatus: useAsaas ? 'pending' : 'none',
     });
 
     await order.save({ session });
 
-    // Criar Payout pending para a loja (será released na entrega)
-    if (!isCashOnDelivery && distribution.storeAmount > 0) {
+    // Criar Payout pending para a loja (será released na entrega).
+    // Com Asaas, o Payout nasce só na confirmação do pagamento (webhook), não aqui.
+    if (!isCashOnDelivery && !useAsaas && distribution.storeAmount > 0) {
       await payoutService.createPendingPayout({
         recipientType: 'store',
         recipientId: storeIdStr,
@@ -475,7 +499,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // feito dentro da transação (order_payment). Não é mais necessário
     // chamar addCommissionToAppCashbox separadamente.
 
-    emitOrderCreated(order);
+    // Com Asaas, o pedido só notifica a loja DEPOIS do pagamento confirmado (webhook).
+    // No fluxo legado (pré-pago), notifica na hora.
+    if (!useAsaas) emitOrderCreated(order);
 
     // Registrar transação (pagamento via carteira já debitado acima)
     // Status permanece 'criado' até a loja aceitar o pedido
@@ -490,7 +516,27 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       await transaction.save();
     }
 
-    return res.status(201).json(order);
+    // Fase 2: cobrança PIX no Asaas (chamada externa — fora da transação).
+    let pixCharge: PixCharge | null = null;
+    if (useAsaas) {
+      try {
+        const asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+        if (!asaasCustomerId) throw new Error('Cliente Asaas não pôde ser criado');
+        pixCharge = await createPixCharge({
+          customerId: asaasCustomerId,
+          value: totalValue,
+          orderId: String(order._id),
+          description: `Pedido em ${store.name || 'loja'}`,
+        });
+        order.asaasPaymentId = pixCharge.paymentId;
+        await order.save();
+      } catch (chargeErr) {
+        logger.error('Falha ao gerar cobrança PIX', chargeErr as Error, { orderId: order._id });
+        return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', orderId: order._id });
+      }
+    }
+
+    return res.status(201).json(useAsaas ? { order, pix: pixCharge } : order);
 
   } catch (err: any) {
     // Se a transação ainda está ativa, abortar

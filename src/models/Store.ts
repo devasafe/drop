@@ -60,6 +60,16 @@ export interface IStore extends Document {
       rejectionReason?: string;
     };
   };
+  // ✅ Fase 1 (gateway): subconta Asaas da loja (pela CNPJ, ou CPF do dono se MEI/sem CNPJ).
+  asaas?: {
+    accountId?: string;
+    walletId?: string;
+    apiKeyEncrypted?: string;
+    pixKey?: string;
+    pixKeyType?: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP';
+    status: 'none' | 'pending' | 'active' | 'error';
+    lastError?: string;
+  };
 }
 
 const StoreSchema = new Schema<IStore>({
@@ -118,6 +128,19 @@ const StoreSchema = new Schema<IStore>({
       },
     },
     default: () => ({ cnpj: { status: 'none' }, address: { status: 'none' } }),
+  },
+  // ✅ Fase 1 (gateway): subconta Asaas da loja
+  asaas: {
+    type: {
+      accountId: { type: String },
+      walletId: { type: String },
+      apiKeyEncrypted: { type: String, select: false },
+      pixKey: { type: String },
+      pixKeyType: { type: String, enum: ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'] },
+      status: { type: String, enum: ['none', 'pending', 'active', 'error'], default: 'none' },
+      lastError: { type: String },
+    },
+    default: () => ({ status: 'none' }),
   },
 });
 

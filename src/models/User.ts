@@ -99,6 +99,17 @@ export interface IUser extends Document {
       rejectionReason?: string;
     };
   };
+  // ✅ Fase 1 (gateway): subconta Asaas para custódia/split. Uma por pessoa (CPF/CNPJ).
+  asaas?: {
+    customerId?: string;       // id do cliente Asaas (quando COMPRA — conta-mãe)
+    accountId?: string;        // id da subconta no Asaas (quando RECEBE — motoboy)
+    walletId?: string;         // walletId usado no split das cobranças
+    apiKeyEncrypted?: string;  // chave da subconta (cifrada) — usada nos saques
+    pixKey?: string;           // chave PIX de saque do recebedor
+    pixKeyType?: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP';
+    status: 'none' | 'pending' | 'active' | 'error';
+    lastError?: string;
+  };
 }
 
 
@@ -222,6 +233,20 @@ const UserSchema = new Schema<IUser>({
       phone: { status: 'pending' },
       document: { status: 'none' },
     }),
+  },
+  // ✅ Fase 1 (gateway): subconta Asaas
+  asaas: {
+    type: {
+      customerId: { type: String }, // id do cliente Asaas (compras)
+      accountId: { type: String },
+      walletId: { type: String },
+      apiKeyEncrypted: { type: String, select: false }, // segredo — nunca retorna por padrão
+      pixKey: { type: String },
+      pixKeyType: { type: String, enum: ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'] },
+      status: { type: String, enum: ['none', 'pending', 'active', 'error'], default: 'none' },
+      lastError: { type: String },
+    },
+    default: () => ({ status: 'none' }),
   },
 });
 

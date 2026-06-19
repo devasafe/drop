@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { AddressSelector } from '../components/AddressSelector';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Icon from '../components/Icon';
+import PixPaymentModal from '../components/PixPaymentModal';
 import { useAddresses, useStores } from '../hooks/useSync';
 import styles from './Checkout.module.css';
 
@@ -134,6 +135,7 @@ export default function CheckoutPage() {
   // ✅ NOVO: Modal de confirmação e bloqueio de cliques duplos
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isPlacing, setIsPlacing] = useState(false);
+  const [pixData, setPixData] = useState<any>(null); // cobrança PIX (gateway Asaas)
   const [showManualForm, setShowManualForm] = useState(false); // ✅ NOVO: Controlar visibilidade do formulário manual
 
   // ✅ NOVO: Carregar saldo da carteira
@@ -572,6 +574,10 @@ export default function CheckoutPage() {
       // IMPORTANTE: Converter latitude/longitude para number
       const res = await api.post('/orders', payload);
 
+      // Resposta pode ser o pedido (fluxo legado) ou { order, pix } (gateway Asaas).
+      const order = res.data?.order || res.data;
+      const pix = res.data?.pix;
+
       // ✅ NOVO: Apenas limpar após sucesso confirmado
       localStorage.removeItem('cart');
       localStorage.removeItem('checkout_draft');  // ← Limpar draft
@@ -579,8 +585,15 @@ export default function CheckoutPage() {
 
       // ✅ NOVO: Fechar modal
       setShowConfirmation(false);
-      alert('Pedido criado com sucesso!');
-      window.location.href = `/store-order/${res.data._id}`;
+
+      if (pix) {
+        // Gateway Asaas: abrir tela de pagamento PIX (confirmação automática via webhook).
+        setPixData({ ...pix, orderId: order._id });
+      } else {
+        // Fluxo legado: pedido já criado/pago pela carteira.
+        alert('Pedido criado com sucesso!');
+        window.location.href = `/store-order/${order._id}`;
+      }
     } catch (err: any) {
       console.error('Erro ao criar pedido:', err);
       console.error('Response data:', err?.response?.data);
@@ -593,7 +606,8 @@ export default function CheckoutPage() {
   };
 
   // Derived values for wallet check
-  const isWalletInsufficient = paymentMethod !== 'cash_on_delivery' && walletBalance < total;
+  // PIX é cobrança externa (gateway) — não depende de saldo na carteira.
+  const isWalletInsufficient = paymentMethod !== 'cash_on_delivery' && paymentMethod !== 'pix' && walletBalance < total;
 
   return (
     <ProtectedRoute required_role="cliente">
@@ -859,7 +873,6 @@ export default function CheckoutPage() {
                         className={styles.select}
                       >
                         <option value="pix">Pix</option>
-                        <option value="cash_on_delivery">Dinheiro na entrega</option>
                         <option value="card">Cartão</option>
                       </select>
                     </div>
@@ -990,7 +1003,7 @@ export default function CheckoutPage() {
                         if (!street || !number || !neighborhood || !city || !state || !cep || !latitude || !longitude) {
                           return alert('Preencha todos os campos de endereço');
                         }
-                        if (paymentMethod !== 'cash_on_delivery' && walletBalance < total) {
+                        if (paymentMethod !== 'cash_on_delivery' && paymentMethod !== 'pix' && walletBalance < total) {
                           return alert(`Saldo insuficiente! Você precisa de R$ ${(total - walletBalance).toFixed(2)} a mais.`);
                         }
                         setShowConfirmation(true);
@@ -1105,6 +1118,9 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
+
+      {/* Pagamento PIX (gateway Asaas) — confirmação automática via webhook */}
+      {pixData && <PixPaymentModal pix={pixData} />}
     </ProtectedRoute>
   );
 }
