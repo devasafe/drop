@@ -3,6 +3,15 @@ import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Icon from '../components/Icon';
+import { maskCPF, maskCNPJ, maskPhone, maskCEP } from '../lib/masks';
+
+// Aplica máscara na chave PIX conforme o tipo escolhido.
+function maskPix(value: string, type: string): string {
+  if (type === 'CPF') return maskCPF(value).slice(0, 14);
+  if (type === 'CNPJ') return maskCNPJ(value).slice(0, 18);
+  if (type === 'PHONE') return maskPhone(value).slice(0, 15);
+  return value.slice(0, 80); // EMAIL / EVP / auto: texto livre, com teto
+}
 
 type Status = {
   target: 'store' | 'motoboy' | 'none';
@@ -58,7 +67,9 @@ export default function DadosRecebimento() {
     setSaving(true);
     setMsg(null);
     try {
-      const body: any = { pixKey: pixKey.trim() };
+      // CPF/CNPJ/telefone vão como dígitos limpos (o Asaas não aceita máscara).
+      const cleanPix = ['CPF', 'CNPJ', 'PHONE'].includes(pixKeyType) ? pixKey.replace(/\D/g, '') : pixKey.trim();
+      const body: any = { pixKey: cleanPix };
       if (pixKeyType) body.pixKeyType = pixKeyType;
       if (needsAddress) body.address = addr;
       const res = await api.post('/onboarding/receiver', body);
@@ -104,26 +115,27 @@ export default function DadosRecebimento() {
         )}
 
         <form onSubmit={submit} style={card}>
-          <label style={label}>Chave PIX (para onde seu dinheiro vai)</label>
-          <input style={input} value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="CPF, e-mail, telefone ou chave aleatória" />
-
           <label style={label}>Tipo da chave</label>
-          <select style={input} value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value)}>
+          <select style={input} value={pixKeyType} onChange={(e) => { setPixKeyType(e.target.value); setPixKey(maskPix(pixKey, e.target.value)); }}>
             {PIX_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
           </select>
+
+          <label style={label}>Chave PIX (para onde seu dinheiro vai)</label>
+          <input style={input} value={pixKey} onChange={(e) => setPixKey(maskPix(e.target.value, pixKeyType))} maxLength={80} placeholder="CPF, e-mail, telefone ou chave aleatória" />
+          <p style={{ ...label, marginTop: 0, fontSize: 12 }}>Escolha o tipo acima para validar o formato da chave.</p>
 
           {status && !status.hasAddress && (
             <>
               <p style={{ ...label, marginTop: 16, color: '#F59E0B' }}>Endereço (obrigatório para o recebimento)</p>
-              <input style={input} placeholder="Rua" value={addr.street} onChange={(e) => setAddr({ ...addr, street: e.target.value })} />
+              <input style={input} placeholder="Rua" maxLength={120} value={addr.street} onChange={(e) => setAddr({ ...addr, street: e.target.value })} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <input style={input} placeholder="Número" value={addr.number} onChange={(e) => setAddr({ ...addr, number: e.target.value })} />
-                <input style={input} placeholder="CEP" value={addr.zip} onChange={(e) => setAddr({ ...addr, zip: e.target.value })} />
+                <input style={input} placeholder="Número" maxLength={10} value={addr.number} onChange={(e) => setAddr({ ...addr, number: e.target.value })} />
+                <input style={input} placeholder="CEP" maxLength={9} inputMode="numeric" value={addr.zip} onChange={(e) => setAddr({ ...addr, zip: maskCEP(e.target.value) })} />
               </div>
-              <input style={input} placeholder="Bairro" value={addr.neighborhood} onChange={(e) => setAddr({ ...addr, neighborhood: e.target.value })} />
+              <input style={input} placeholder="Bairro" maxLength={80} value={addr.neighborhood} onChange={(e) => setAddr({ ...addr, neighborhood: e.target.value })} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <input style={input} placeholder="Cidade" value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} />
-                <input style={{ ...input, maxWidth: 90 }} placeholder="UF" maxLength={2} value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value.toUpperCase() })} />
+                <input style={input} placeholder="Cidade" maxLength={80} value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} />
+                <input style={{ ...input, maxWidth: 90 }} placeholder="UF" maxLength={2} value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
               </div>
             </>
           )}
