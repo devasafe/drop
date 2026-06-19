@@ -47,8 +47,22 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     let docReset = false;
-    if (cpf !== undefined && digits(cpf) !== digits(user.cpf)) { user.cpf = cpf; docReset = true; }
-    if (rg !== undefined && digits(rg) !== digits(user.rg)) { user.rg = rg; docReset = true; }
+    if (cpf !== undefined && digits(cpf) !== digits(user.cpf)) {
+      const cpfDigits = digits(cpf);
+      if (cpfDigits) {
+        const dup = await User.findOne({ _id: { $ne: userId }, cpf: cpfDigits });
+        if (dup) return res.status(409).json({ error: 'Este CPF já está cadastrado em outra conta' });
+      }
+      user.cpf = cpfDigits; docReset = true;
+    }
+    if (rg !== undefined && digits(rg) !== digits(user.rg)) {
+      const rgDigits = digits(rg);
+      if (rgDigits) {
+        const dup = await User.findOne({ _id: { $ne: userId }, rg: rgDigits });
+        if (dup) return res.status(409).json({ error: 'Este RG já está cadastrado em outra conta' });
+      }
+      user.rg = rgDigits; docReset = true;
+    }
     if (docReset) user.verification!.document = { status: 'none' };
 
     let emailReset = false;
