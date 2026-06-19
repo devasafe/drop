@@ -70,7 +70,7 @@ async function request<T>(method: Method, path: string, body?: unknown, apiKey?:
   if (!res.ok) {
     const errors: AsaasError[] = Array.isArray(data?.errors)
       ? data.errors
-      : [{ code: 'unknown', description: data?._raw || `HTTP ${res.status}` }];
+      : [{ code: 'unknown', description: data?.message || data?._raw || `HTTP ${res.status}` }];
     logger.warn('Chamada Asaas falhou', { method, path, status: res.status, errors });
     throw new AsaasApiError(res.status, errors);
   }
