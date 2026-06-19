@@ -261,6 +261,9 @@ export default function Nav() {
                       <a href="/user-profile" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Meu Perfil
                       </a>
+                      <a href="/minha-conta" onClick={close} className={styles.item}>
+                        <span className={styles.itemIcon}><Icon name="check-circle" size={14} /></span> Minha Conta
+                      </a>
                       {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                         <a href="/editar-conta" onClick={close} className={styles.item}>
                           <span className={styles.itemIcon}><Icon name="settings" size={14} /></span> Editar meus dados
@@ -381,6 +384,7 @@ export default function Nav() {
             <div className={styles.mobileSectionLabel}>Conta</div>
             <nav aria-label="Conta" className={styles.mobileNav}>
               <a href="/user-profile" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="user" size={16} /> Meu Perfil</a>
+              <a href="/minha-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="check-circle" size={16} /> Minha Conta</a>
               {activeRole !== 'lojista' && activeRole !== 'motoboy' && (
                 <a href="/editar-conta" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="settings" size={16} /> Editar meus dados</a>
               )}
