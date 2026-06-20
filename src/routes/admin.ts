@@ -549,4 +549,50 @@ router.get('/asaas/subaccounts', authenticate, checkAdmin, async (_req: any, res
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// 🔑 CHAVE PIX DA CONTA-MÃE (necessária p/ receber cobranças)
+// ═══════════════════════════════════════════════════════════
+
+// POST /admin/asaas/release-order/:orderId — re-tenta transferir/liberar os payouts
+// PENDENTES de um pedido (ex: subconta criada DEPOIS da entrega, ou transferência falhou).
+router.post('/asaas/release-order/:orderId', authenticate, checkAdmin, async (req: any, res: Response) => {
+  try {
+    const { releaseOrderViaAsaas } = await import('../services/asaas/release');
+    await releaseOrderViaAsaas(req.params.orderId);
+    const Payout = (await import('../models/Payout')).default;
+    const mongoose2 = (await import('mongoose')).default;
+    const payouts = await Payout.find({ orderId: new mongoose2.Types.ObjectId(req.params.orderId) })
+      .select('recipientType amount status gatewayTransferId').lean();
+    return res.json({ orderId: req.params.orderId, payouts });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Erro ao re-liberar pedido' });
+  }
+});
+
+// GET /admin/asaas/conta-mae/pix — lista as chaves PIX da conta-mãe
+router.get('/asaas/conta-mae/pix', authenticate, checkAdmin, async (_req: any, res: Response) => {
+  try {
+    const asaasClient = (await import('../services/asaas/client')).default;
+    const keys = await asaasClient.get('/pix/addressKeys');
+    return res.json(keys);
+  } catch (err: any) {
+    return res.status(502).json({ error: err?.message || 'Erro ao listar chaves PIX' });
+  }
+});
+
+// POST /admin/asaas/conta-mae/pix — cria uma chave PIX aleatória (EVP) se não houver
+router.post('/asaas/conta-mae/pix', authenticate, checkAdmin, async (_req: any, res: Response) => {
+  try {
+    const asaasClient = (await import('../services/asaas/client')).default;
+    const existing: any = await asaasClient.get('/pix/addressKeys');
+    if (existing?.data?.length > 0) {
+      return res.json({ message: 'Conta-mãe já possui chave PIX', total: existing.totalCount, keys: existing.data });
+    }
+    const created = await asaasClient.post('/pix/addressKeys', { type: 'EVP' });
+    return res.json({ message: 'Chave PIX criada na conta-mãe', created });
+  } catch (err: any) {
+    return res.status(502).json({ error: err?.message || 'Erro ao criar chave PIX' });
+  }
+});
+
 export default router;

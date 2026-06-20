@@ -595,11 +595,13 @@ export default function CheckoutPage() {
         window.location.href = `/store-order/${order._id}`;
       }
     } catch (err: any) {
+      const data = err?.response?.data;
       console.error('Erro ao criar pedido:', err);
-      console.error('Response data:', err?.response?.data);
+      console.error('Response data:', JSON.stringify(data));
+      console.error('Detalhe Asaas:', data?.detail);
       console.error('Status:', err?.response?.status);
-      const errorMsg = err?.response?.data?.error || err?.message || 'Falha ao criar pedido. Tente novamente.';
-      alert(`${errorMsg}`);
+      const errorMsg = data?.detail ? `${data.error || 'Erro'} — ${data.detail}` : (data?.error || err?.message || 'Falha ao criar pedido. Tente novamente.');
+      alert(errorMsg);
     } finally {
       setIsPlacing(false);
     }

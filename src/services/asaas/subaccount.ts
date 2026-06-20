@@ -39,6 +39,16 @@ interface SubaccountInput {
 const onlyDigits = (s?: string) => (s || '').replace(/\D/g, '');
 const isCnpj = (doc: string) => onlyDigits(doc).length === 14;
 
+// O Asaas exige e-mail ÚNICO por subconta. Se a mesma pessoa é motoboy (subconta
+// no User, com o e-mail dela) E dono de loja (subconta no Store), os e-mails
+// colidiriam. Derivamos um e-mail "+loja" pra subconta da loja (plus-addressing
+// cai na mesma caixa no Gmail e na maioria dos provedores).
+function storeEmail(ownerEmail: string): string {
+  const [local, domain] = (ownerEmail || '').split('@');
+  if (!local || !domain) return ownerEmail;
+  return `${local}+loja@${domain}`;
+}
+
 /** Chamada de baixo nível: cria a subconta no Asaas. */
 async function createSubaccount(input: SubaccountInput): Promise<AsaasAccountResponse> {
   const cpfCnpj = onlyDigits(input.cpfCnpj);
@@ -170,7 +180,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
 
     const acc = await createSubaccount({
       name: store.name,
-      email: owner.email,
+      email: storeEmail(owner.email),
       cpfCnpj: doc,
       mobilePhone: owner.telefone || owner.verification?.phone?.e164,
       birthDate: doc.length === 11 ? owner.dataNascimento : undefined,
