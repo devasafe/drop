@@ -166,7 +166,11 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         });
 
         if (useAsaas) {
-          // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se já pago.
+          // Devolve o saldo da carteira que foi usado no pedido (se houve).
+          if (order.walletApplied && order.walletApplied > 0) {
+            await Wallet.updateOne({ owner: customerId, ownerType: 'user' }, { $inc: { balance: order.walletApplied, totalIncome: order.walletApplied } });
+          }
+          // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se a parte PIX foi paga.
           if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
             try {
               await refundOrderCharge(order.asaasPaymentId);
@@ -179,7 +183,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
               refundStatus = 'pending';
             }
           } else {
-            // Não pago ainda: nada a estornar (a cobrança PIX simplesmente expira).
+            // Não pago via PIX (não pago ainda, ou 100% saldo já devolvido acima).
             refundStatus = 'processed';
           }
         } else {
@@ -784,6 +788,10 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         });
 
         if (useAsaas) {
+          // Devolve o saldo da carteira usado no pedido (se houve).
+          if (order.walletApplied && order.walletApplied > 0) {
+            await Wallet.updateOne({ owner: order.customerId.toString(), ownerType: 'user' }, { $inc: { balance: order.walletApplied, totalIncome: order.walletApplied } });
+          }
           if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
             try {
               await refundOrderCharge(order.asaasPaymentId);

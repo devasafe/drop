@@ -34,6 +34,7 @@ import { computeCouponDiscount } from './couponController';
 import Coupon from '../models/Coupon';
 import env from '../config/env';
 import { ensureAsaasCustomer, createPixCharge, getPixQrCode, PixCharge } from '../services/asaas/payment';
+import { finalizeWalletPaidOrder } from '../services/asaas/orderPayment';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -71,7 +72,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
   session.startTransaction();
 
   try {
-    const { storeId, products, deliveryDistanceKm, paymentMethod, idempotentKey, address, latitude, longitude, cupomCode } = req.body;
+    const { storeId, products, deliveryDistanceKm, paymentMethod, idempotentKey, address, latitude, longitude, cupomCode, useWalletBalance } = req.body;
     const customerId = req.user?.id;
 
     if (!customerId) {
@@ -385,6 +386,25 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
+    // ✅ Saldo da carteira abatendo o total (só no fluxo Asaas). Debita o saldo aqui
+    // (dentro da transação) e o restante vai pra cobrança PIX. O dinheiro do saldo
+    // (cashback/recarga) já está na conta-mãe, então cobre o repasse na entrega.
+    let walletApplied = 0;
+    if (useAsaas && useWalletBalance && clientWallet.balance > 0) {
+      walletApplied = round2(Math.min(clientWallet.balance, totalValue));
+      clientWallet.balance -= walletApplied;
+      clientWallet.totalSpent += walletApplied;
+      clientWallet.history.push({
+        date: new Date(),
+        type: 'debit',
+        category: 'payment',
+        amount: walletApplied,
+        reason: 'Saldo usado no pedido',
+        relatedId: storeIdStr,
+      });
+      await clientWallet.save({ session });
+    }
+
     // Buscar dados da loja para snapshot no pedido
     const store = await Store.findById(storeIdStr).session(session);
     if (!store) {
@@ -415,6 +435,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         commissionPercent: distribution.product.commissionPercent,
       },
       asaasChargeStatus: useAsaas ? 'pending' : 'none',
+      walletApplied,
     });
 
     await order.save({ session });
@@ -519,42 +540,53 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Fase 2: cobrança PIX no Asaas (chamada externa — fora da transação).
     let pixCharge: PixCharge | null = null;
     if (useAsaas) {
-      const buildCharge = (cid: string) => createPixCharge({
-        customerId: cid, value: totalValue, orderId: String(order._id), description: `Pedido em ${store.name || 'loja'}`,
-      });
-      try {
-        let asaasCustomerId = await ensureAsaasCustomer(String(customerId));
-        if (!asaasCustomerId) throw new Error('Cliente Asaas não pôde ser criado');
+      const chargeAmount = round2(totalValue - walletApplied);
+
+      if (chargeAmount <= 0) {
+        // Pago 100% com saldo da carteira — confirma na hora, sem PIX.
+        await finalizeWalletPaidOrder(String(order._id));
+        order.paymentStatus = 'paid';
+        order.asaasChargeStatus = 'none';
+      } else {
+        const buildCharge = (cid: string) => createPixCharge({
+          customerId: cid, value: chargeAmount, orderId: String(order._id), description: `Pedido em ${store.name || 'loja'}`,
+        });
         try {
-          pixCharge = await buildCharge(asaasCustomerId);
-        } catch (firstErr) {
-          // Cliente Asaas pode estar obsoleto (ex: troca da conta-mãe Asaas) — o id
-          // cacheado não existe na conta nova. Recria o cliente e tenta 1x.
-          logger.warn('1ª cobrança falhou — recriando cliente Asaas e tentando novamente', { orderId: order._id });
-          await User.updateOne({ _id: customerId }, { $unset: { 'asaas.customerId': '' } });
-          asaasCustomerId = await ensureAsaasCustomer(String(customerId));
-          if (!asaasCustomerId) throw firstErr;
-          pixCharge = await buildCharge(asaasCustomerId);
-        }
-        order.asaasPaymentId = pixCharge.paymentId;
-        await order.save();
-      } catch (chargeErr: any) {
-        logger.error('Falha ao gerar cobrança PIX', chargeErr as Error, { orderId: order._id });
-        // Compensação: o pedido e a baixa de estoque já foram commitados. Sem a cobrança,
-        // o pedido é inútil — devolve o estoque e apaga o pedido órfão pra não travar nada.
-        try {
-          for (const it of items) {
-            if ((it as any).productId && (it as any).quantity) {
-              await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
-            }
+          let asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+          if (!asaasCustomerId) throw new Error('Cliente Asaas não pôde ser criado');
+          try {
+            pixCharge = await buildCharge(asaasCustomerId);
+          } catch (firstErr) {
+            // Cliente Asaas pode estar obsoleto (ex: troca da conta-mãe Asaas) — o id
+            // cacheado não existe na conta nova. Recria o cliente e tenta 1x.
+            logger.warn('1ª cobrança falhou — recriando cliente Asaas e tentando novamente', { orderId: order._id });
+            await User.updateOne({ _id: customerId }, { $unset: { 'asaas.customerId': '' } });
+            asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+            if (!asaasCustomerId) throw firstErr;
+            pixCharge = await buildCharge(asaasCustomerId);
           }
-          await Order.deleteOne({ _id: order._id });
-        } catch (compErr) {
-          logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId: order._id });
+          order.asaasPaymentId = pixCharge.paymentId;
+          await order.save();
+        } catch (chargeErr: any) {
+          logger.error('Falha ao gerar cobrança PIX', chargeErr as Error, { orderId: order._id });
+          // Compensação: pedido + baixa de estoque + saldo já foram commitados. Sem cobrança,
+          // o pedido é inútil — devolve estoque, devolve o saldo usado e apaga o pedido órfão.
+          try {
+            for (const it of items) {
+              if ((it as any).productId && (it as any).quantity) {
+                await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+              }
+            }
+            if (walletApplied > 0) {
+              await Wallet.updateOne({ owner: customerId, ownerType: 'user' }, { $inc: { balance: walletApplied, totalSpent: -walletApplied } });
+            }
+            await Order.deleteOne({ _id: order._id });
+          } catch (compErr) {
+            logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId: order._id });
+          }
+          const detail = chargeErr?.errors?.[0]?.description || chargeErr?.message || 'erro desconhecido';
+          return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', detail });
         }
-        // Surfacing do erro REAL do Asaas (errors[].description) p/ diagnóstico.
-        const detail = chargeErr?.errors?.[0]?.description || chargeErr?.message || 'erro desconhecido';
-        return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', detail });
       }
     }
 

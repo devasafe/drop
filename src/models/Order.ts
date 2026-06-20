@@ -22,6 +22,7 @@ export interface IOrder extends Document {
   // ✅ Fase 2 (gateway): cobrança Asaas (entrada)
   asaasPaymentId?: string; // id da cobrança no Asaas
   asaasChargeStatus?: 'none' | 'pending' | 'received' | 'confirmed' | 'refunded' | 'chargeback';
+  walletApplied?: number; // valor pago com saldo da carteira do cliente (resto vai pro PIX)
   cancellationId?: Types.ObjectId; // ref Cancellation
   idempotentKey?: string; // ✅ NOVO: Para prevenir duplicação
   
@@ -81,6 +82,7 @@ const OrderSchema = new Schema<IOrder>({
   // ✅ Fase 2 (gateway): cobrança Asaas (entrada)
   asaasPaymentId: { type: String, index: true },
   asaasChargeStatus: { type: String, enum: ['none', 'pending', 'received', 'confirmed', 'refunded', 'chargeback'], default: 'none' },
+  walletApplied: { type: Number, default: 0 },
   cancellationId: { type: Schema.Types.ObjectId, ref: 'Cancellation' },
   idempotentKey: { type: String, sparse: true, unique: true },  // ✅ NOVO
   

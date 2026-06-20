@@ -140,6 +140,7 @@ export default function CheckoutPage() {
 
   // ✅ NOVO: Carregar saldo da carteira
   const [walletBalance, setWalletBalance] = useState(0);
+  const [useWallet, setUseWallet] = useState(false);
   const [pendingDebt, setPendingDebt] = useState<{ amount: number } | null>(null);
   const [loadingWallet, setLoadingWallet] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -568,6 +569,7 @@ export default function CheckoutPage() {
         idempotentKey,
       };
       if (cupomCode.trim()) payload.cupomCode = cupomCode.trim().toUpperCase();
+      if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
       if (process.env.NODE_ENV === 'development') console.log('Carregando pedido:', payload);
 
       // ✅ NOVO: Enviar idempotentKey
@@ -878,6 +880,22 @@ export default function CheckoutPage() {
                         <option value="card">Cartão</option>
                       </select>
                     </div>
+
+                    {/* Usar saldo da carteira pra abater o total (só no PIX) */}
+                    {paymentMethod === 'pix' && walletBalance > 0 && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, cursor: 'pointer', color: 'var(--drop-text)' }}>
+                        <input type="checkbox" checked={useWallet} onChange={(e) => setUseWallet(e.target.checked)} />
+                        <span>
+                          Usar meu saldo (R$ {walletBalance.toFixed(2)})
+                          {useWallet && (
+                            <span style={{ color: 'var(--drop-success)', fontWeight: 600 }}>
+                              {' '}— PIX de R$ {Math.max(0, total - walletBalance).toFixed(2)}
+                              {walletBalance >= total ? ' (pago só com saldo!)' : ''}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
 

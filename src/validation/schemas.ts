@@ -67,6 +67,7 @@ export const CreateOrderSchema = z.object({
   longitude: z.number().min(-180, 'Longitude inválida').max(180, 'Longitude inválida').finite('Longitude deve ser um número válido').optional(),
   idempotentKey: z.string().uuid('Idempotent key deve ser um UUID válido').optional(),
   cupomCode: z.string().min(3, 'Cupom muito curto').max(20, 'Cupom muito longo').toUpperCase().optional(),
+  useWalletBalance: z.boolean().optional(), // usar saldo da carteira p/ abater o total (Asaas)
 }).strict();
 
 export const UpdateOrderStatusSchema = z.object({

@@ -124,6 +124,49 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/PIX/i);
   });
+
+  it('usa saldo parcial → cobra só o restante no PIX', async () => {
+    const { user, token } = await verifiedBuyer();
+    await Wallet.updateOne({ owner: String(user._id), ownerType: 'user' }, { $set: { balance: 30 } });
+    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
+    const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
+
+    const res = await request(app)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeId: String(store._id), products: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
+
+    expect(res.status).toBe(201);
+    // cobrança PIX só do restante (100 - 30 = 70)
+    expect((createPixCharge as jest.Mock).mock.calls[0][0].value).toBe(70);
+    expect(res.body.order?.walletApplied).toBe(30);
+    // saldo debitado
+    const wallet = await Wallet.findOne({ owner: String(user._id), ownerType: 'user' });
+    expect(wallet!.balance).toBe(0);
+  });
+
+  it('saldo cobre tudo → sem PIX, pedido já pago + payout da loja', async () => {
+    const { user, token } = await verifiedBuyer();
+    await Wallet.updateOne({ owner: String(user._id), ownerType: 'user' }, { $set: { balance: 200 } });
+    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
+    const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
+
+    const res = await request(app)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeId: String(store._id), products: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
+
+    expect(res.status).toBe(201);
+    expect(res.body.pix).toBeNull(); // sem PIX
+    expect(createPixCharge).not.toHaveBeenCalled();
+    expect(res.body.order?.paymentStatus).toBe('paid');
+    // saldo debitado (200 - 100)
+    const wallet = await Wallet.findOne({ owner: String(user._id), ownerType: 'user' });
+    expect(wallet!.balance).toBe(100);
+    // payout da loja criado (pago)
+    const payout = await Payout.findOne({ orderId: res.body.order._id, recipientType: 'store' });
+    expect(payout).not.toBeNull();
+  });
 });
 
 describe('Webhook confirma pagamento (Fase 2)', () => {

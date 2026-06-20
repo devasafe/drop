@@ -30,11 +30,20 @@ export async function confirmOrderPaidByPayment(
     return;
   }
 
-  order.paymentStatus = 'paid';
   order.asaasChargeStatus = asaasStatus === 'CONFIRMED' ? 'confirmed' : 'received';
+  await finalizeOrderAsPaid(order);
+  logger.info('Pedido confirmado como pago via Asaas', { orderId: order._id, asaasPaymentId });
+}
+
+/**
+ * Núcleo da confirmação: marca pago, cria Payout pending da loja (espelho da
+ * custódia, released na entrega) e notifica a loja. Reutilizado pelo webhook e
+ * pelo caso "pago 100% com saldo da carteira" (sem PIX).
+ */
+async function finalizeOrderAsPaid(order: any): Promise<void> {
+  order.paymentStatus = 'paid';
   await order.save();
 
-  // Espelho da custódia: Payout pending da loja (released na entrega).
   const storeAmount = order.walletDistribution?.storeAmount || 0;
   if (storeAmount > 0) {
     try {
@@ -49,13 +58,23 @@ export async function confirmOrderPaidByPayment(
     }
   }
 
-  // Agora sim a loja é notificada do pedido (pago).
   try {
     emitOrderCreated(order);
   } catch {
     /* socket best-effort */
   }
-  logger.info('Pedido confirmado como pago via Asaas', { orderId: order._id, asaasPaymentId });
+}
+
+/**
+ * Pedido pago 100% com saldo da carteira (sem cobrança PIX). Confirma na hora.
+ */
+export async function finalizeWalletPaidOrder(orderId: string): Promise<void> {
+  const order = await Order.findById(orderId);
+  if (!order || order.paymentStatus === 'paid') return;
+  if (order.status === 'cancelado' || order.status === 'rejeitado') return;
+  order.asaasChargeStatus = 'none';
+  await finalizeOrderAsPaid(order);
+  logger.info('Pedido pago integralmente com saldo da carteira', { orderId });
 }
 
 /**
@@ -73,4 +92,4 @@ export async function markOrderRefunded(asaasPaymentId: string): Promise<void> {
   logger.info('Pedido marcado como estornado via Asaas', { orderId: order._id, asaasPaymentId });
 }
 
-export default { confirmOrderPaidByPayment, markOrderRefunded };
+export default { confirmOrderPaidByPayment, markOrderRefunded, finalizeWalletPaidOrder };
