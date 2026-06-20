@@ -47,6 +47,7 @@ export default function SellerWalletPage() {
   const [activeTab, setActiveTab] = useState<'saldo' | 'historico' | 'payouts' | 'analises'>('saldo');
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [transferring, setTransferring] = useState(false);
+  const [resolvedStoreId, setResolvedStoreId] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<
     | { kind: 'payout'; data: PayoutItem; orderInfo?: any; invoice?: any }
     | { kind: 'history'; data: HistoryItem }
@@ -90,7 +91,7 @@ export default function SellerWalletPage() {
 
   // Saque direto: cai na chave PIX da loja (subconta Asaas). Sem dança de carteira.
   const handleSacar = async () => {
-    const storeId = user?.storeId || user?._id;
+    const storeId = resolvedStoreId || user?.storeId || user?._id;
     if (!storeId) return;
     const available = wallet?.availableBalance ?? 0;
     if (available <= 0) { alert('Nenhum saldo disponível para saque.'); return; }
@@ -110,8 +111,11 @@ export default function SellerWalletPage() {
   useEffect(() => {
     const fetchWallet = async () => {
       try {
-        const storeId = user?.storeId || user?._id;
+        // Resolve o storeId de forma robusta (o user do front pode não ter storeId).
+        const dash = await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
+        const storeId = dash?.store?._id || dash?._id || user?.storeId || user?._id;
         if (!storeId) return;
+        setResolvedStoreId(String(storeId));
 
         // Buscar carteira da loja
         const walletRes = await api.get(`/wallets/store/${storeId}`);
@@ -200,6 +204,12 @@ export default function SellerWalletPage() {
                   </h2>
                 </div>
               </div>
+            </div>
+          )}
+
+          {!wallet && (
+            <div style={{ background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, marginBottom: 16, color: 'rgba(255,255,255,0.7)' }}>
+              <p style={{ margin: 0 }}>Não foi possível carregar a carteira da loja. Verifique se sua loja está cadastrada e recarregue a página.</p>
             </div>
           )}
 
