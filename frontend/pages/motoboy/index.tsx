@@ -93,18 +93,6 @@ export default function MotoboyPage() {
 
           <div className={dash.sidebarActions}>
             <button
-              onClick={() => go('/verificacao-motoboy')}
-              className={`${dash.btnStoreAction} ${dash.btnStoreActionPrimary}`}
-            >
-              <Icon name="shield" size={14} /> Verificação
-            </button>
-            <button
-              onClick={() => go('/motoboy/transfer-wallet')}
-              className={`${dash.btnStoreAction} ${dash.btnStoreActionWarning}`}
-            >
-              <Icon name="wallet" size={14} /> Transferir Saldo
-            </button>
-            <button
               onClick={() => go('/motoboy/request-withdrawal')}
               className={`${dash.btnStoreAction} ${dash.btnStoreActionSuccess}`}
             >

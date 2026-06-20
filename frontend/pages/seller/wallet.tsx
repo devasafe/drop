@@ -88,18 +88,20 @@ export default function SellerWalletPage() {
     setPayouts(payoutsRes.data.payouts || []);
   };
 
-  const handleTransferToOwner = async () => {
+  // Saque direto: cai na chave PIX da loja (subconta Asaas). Sem dança de carteira.
+  const handleSacar = async () => {
     const storeId = user?.storeId || user?._id;
     if (!storeId) return;
     const available = wallet?.availableBalance ?? 0;
-    if (!confirm(`Transferir R$ ${available.toFixed(2)} da carteira da loja para a sua carteira pessoal? De lá você poderá sacar para o banco.`)) return;
+    if (available <= 0) { alert('Nenhum saldo disponível para saque.'); return; }
+    if (!confirm(`Sacar R$ ${available.toFixed(2)} para a chave PIX da loja?`)) return;
     setTransferring(true);
     try {
-      const res = await api.post(`/wallets/store/${storeId}/transfer-to-owner`);
-      alert(`R$ ${res.data.transferred.toFixed(2)} transferidos! Vá em "Minha Carteira" para sacar para o banco.`);
+      await api.post('/withdrawals/request', { amount: 'all', storeId });
+      alert('Saque solicitado! O valor cai na chave PIX cadastrada da loja.');
       await reload();
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao transferir');
+      alert(err?.response?.data?.error || 'Erro ao solicitar saque. Confira se você cadastrou sua chave PIX em Dados de Recebimento.');
     } finally {
       setTransferring(false);
     }
@@ -230,13 +232,13 @@ export default function SellerWalletPage() {
                 </p>
                 <button
                   className={styles.btnWithdraw}
-                  onClick={handleTransferToOwner}
+                  onClick={handleSacar}
                   disabled={(wallet.availableBalance ?? 0) <= 0 || transferring}
                 >
                   {transferring
-                    ? 'Transferindo...'
+                    ? 'Sacando...'
                     : (wallet.availableBalance ?? 0) > 0
-                      ? `Transferir R$ ${(wallet.availableBalance ?? 0).toFixed(2)} para Minha Carteira`
+                      ? `Sacar R$ ${(wallet.availableBalance ?? 0).toFixed(2)} para meu PIX`
                       : 'Nenhum saldo disponível'}
                 </button>
                 <p style={{ fontSize: 12, color: 'var(--drop-text-dim)', marginTop: 8, textAlign: 'center' }}>

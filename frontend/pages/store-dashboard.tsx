@@ -796,22 +796,16 @@ export default function StoreDashboard() {
           {store && (
             <div className={styles.sidebarActions}>
               <button
-                onClick={() => router.push('/verificacao-loja')}
-                className={`${styles.btnStoreAction} ${styles.btnStoreActionPrimary}`}
-              >
-                <Icon name="shield" size={14} /> Verificação
-              </button>
-              <button
                 onClick={() => router.push('/seller/select-plan')}
                 className={`${styles.btnStoreAction} ${styles.btnStoreActionSuccess}`}
               >
                 <Icon name="clipboard" size={14} /> Escolher Plano
               </button>
               <button
-                onClick={() => router.push('/seller/transfer-wallet')}
+                onClick={() => router.push('/seller/wallet')}
                 className={`${styles.btnStoreAction} ${styles.btnStoreActionWarning}`}
               >
-                <Icon name="wallet" size={14} /> Transferir Saldo
+                <Icon name="wallet" size={14} /> Carteira
               </button>
             </div>
           )}

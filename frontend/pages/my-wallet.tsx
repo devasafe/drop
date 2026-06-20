@@ -218,10 +218,13 @@ export default function MyWalletPage() {
     setWithdrawLoading(true);
     try {
       if (wallet?.ownerType === 'store') {
-        // Store wallet: transfere tudo que está em availableBalance pro user wallet do dono.
-        // O valor digitado é ignorado — transferência é do total disponível.
-        await api.post(`/wallets/store/${wallet.owner}/transfer-to-owner`);
-        alert('Saldo transferido para sua carteira pessoal! Vá na aba de cliente para sacar pro banco.');
+        // Saque direto da loja pro PIX da loja (sem dança de carteira).
+        await api.post('/withdrawals/request', { amount: 'all', storeId: wallet.owner });
+        alert('Saque solicitado! O valor cai na chave PIX cadastrada da loja.');
+      } else if ((wallet?.ownerType as string) === 'motoboy') {
+        // Saque direto do motoboy pro PIX dele.
+        await api.post('/withdrawals/request', { amount: 'all' });
+        alert('Saque solicitado! O valor cai na sua chave PIX.');
       } else {
         // User wallet: cria WithdrawalRequest pro admin aprovar
         if (!bankForm.bankName || !bankForm.accountNumber || !bankForm.ownerName) {

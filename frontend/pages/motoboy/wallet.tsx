@@ -116,20 +116,20 @@ export default function MototboyWalletPage() {
     fetchWallet();
   }, [(user?._id || user?.id)]);
 
-  const handleTransferToOwner = async () => {
+  // Saque direto: cai na chave PIX do motoboy (subconta Asaas). Sem dança de carteira.
+  const handleSacar = async () => {
     const motoboyId = user?._id || user?.id;
     if (!motoboyId) return;
     const available = wallet?.availableBalance ?? 0;
     if (available <= 0) {
-      alert('Nenhum saldo disponível para transferir');
+      alert('Nenhum saldo disponível para saque');
       return;
     }
-    if (!confirm(`Transferir R$ ${available.toFixed(2)} da carteira de motoboy para a sua carteira pessoal? De lá você poderá sacar para o banco.`)) return;
+    if (!confirm(`Sacar R$ ${available.toFixed(2)} para a sua chave PIX?`)) return;
     setTransferring(true);
     try {
-      const res = await api.post(`/wallets/motoboy/${motoboyId}/transfer-to-owner`);
-      alert(`R$ ${res.data.transferred.toFixed(2)} transferidos! Vá em "Minha Carteira" para sacar para o banco.`);
-      // Recarrega dados
+      await api.post('/withdrawals/request', { amount: 'all' });
+      alert('Saque solicitado! O valor cai na chave PIX cadastrada.');
       const walletRes = await api.get(`/wallets/motoboy/${motoboyId}`);
       setWallet(walletRes.data);
       try {
@@ -137,7 +137,7 @@ export default function MototboyWalletPage() {
         setPayouts(payoutsRes.data.payouts || []);
       } catch { /* ignore */ }
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao transferir');
+      alert(err?.response?.data?.error || 'Erro ao solicitar saque. Confira se cadastrou sua chave PIX em Dados de Recebimento.');
     } finally {
       setTransferring(false);
     }
@@ -427,30 +427,23 @@ export default function MototboyWalletPage() {
             <h3 className={styles.sacarTitle}><Icon name="bank" size={16} /> Sacar ganhos</h3>
 
             <p style={{ fontSize: 13, color: 'var(--drop-text-dim)', lineHeight: 1.5, margin: '8px 0 16px' }}>
-              O saque pro banco é feito pela sua carteira pessoal. Primeiro transfira o saldo disponível da carteira de motoboy pra lá, depois use "Minha Carteira" pra sacar pro banco.
+              O valor disponível cai direto na sua <strong>chave PIX</strong> cadastrada em Dados de Recebimento.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <button
-                onClick={handleTransferToOwner}
+                onClick={handleSacar}
                 disabled={(wallet?.availableBalance ?? 0) <= 0 || transferring}
                 className={styles.btnPrimary}
               >
                 {transferring
-                  ? 'Transferindo...'
-                  : `Transferir R$ ${(wallet?.availableBalance ?? 0).toFixed(2)} para Minha Carteira`}
-              </button>
-
-              <button
-                onClick={() => router.push('/my-wallet')}
-                className={styles.btnSacarNow}
-              >
-                <Icon name="bank" size={14} /> Ir para Minha Carteira
+                  ? 'Sacando...'
+                  : `Sacar R$ ${(wallet?.availableBalance ?? 0).toFixed(2)} para meu PIX`}
               </button>
             </div>
 
             <div className={styles.warningNote} style={{ marginTop: 16 }}>
-              <Icon name="clock" size={14} /> A transferência é instantânea. Saques pro banco a partir da carteira pessoal são processados em até 2 dias úteis.
+              <Icon name="clock" size={14} /> O saque cai na sua chave PIX. Configure a chave em "Dados de Recebimento" se ainda não fez.
             </div>
           </div>
         )}
