@@ -156,6 +156,33 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
     recipientName: withdrawal.motoboyName,
   });
 
+  // ✅ Se a transferência FALHOU, NÃO marca como pago: reverte o saldo e marca o saque
+  // como rejeitado. (Antes, qualquer resultado marcava pago — dinheiro "sumia" sem PIX.)
+  if (transferResult.status === 'failed') {
+    const failSession = await mongoose.startSession();
+    try {
+      await failSession.withTransaction(async () => {
+        if (withdrawal.payoutIds?.length) {
+          await payoutService.revertPayoutsToReleased(withdrawal.payoutIds, failSession);
+        } else {
+          // saque de user wallet: devolve blockedBalance → balance
+          const wallet = await Wallet.findOne({ owner: withdrawal.motoboyId, ownerType: 'user' }).session(failSession);
+          if (wallet) {
+            wallet.blockedBalance = Math.max(0, (wallet.blockedBalance || 0) - withdrawal.amount);
+            wallet.balance += withdrawal.amount;
+            await wallet.save({ session: failSession });
+          }
+        }
+      });
+    } finally {
+      failSession.endSession();
+    }
+    withdrawal.status = 'rejected';
+    withdrawal.rejectionReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
+    await withdrawal.save();
+    throw Object.assign(new Error(withdrawal.rejectionReason), { transferFailed: true });
+  }
+
   withdrawal.approvedAt = new Date();
   withdrawal.approvedBy = approverId;
   withdrawal.transactionId = transferResult.gatewayTransferId;
@@ -236,8 +263,12 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       withdrawal,
       gatewayStatus: transferResult.status,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[WITHDRAWAL ERROR]', err);
+    // Falha de transferência: já revertemos o saldo; devolve a mensagem real.
+    if (err?.transferFailed) {
+      return res.status(502).json({ error: err.message || 'Falha na transferência do saque' });
+    }
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

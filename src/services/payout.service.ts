@@ -160,6 +160,28 @@ class PayoutService {
     }
   }
 
+  /**
+   * Reverte payouts de 'requested' de volta pra 'released' (ex: a transferência do
+   * saque falhou). Devolve o valor pro availableBalance, deixando-o sacável de novo.
+   */
+  async revertPayoutsToReleased(payoutIds: string[], session?: ClientSession): Promise<void> {
+    for (const id of payoutIds) {
+      const payout = await Payout.findById(id).session(session || null);
+      if (!payout || payout.status !== 'requested') continue;
+      payout.status = 'released';
+      payout.requestedAt = null;
+      payout.withdrawalRequestId = null;
+      await payout.save({ session });
+
+      const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+      await Wallet.updateOne(
+        { owner: String(payout.recipientId), ownerType },
+        { $inc: { availableBalance: payout.amount } },
+        { session }
+      );
+    }
+  }
+
   async markPayoutsPaid(
     payoutIds: string[],
     gatewayTransferId: string,
