@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
+import { maskCPF, maskRG, maskPhone, onlyDigits, cleanRG } from '../lib/masks';
 import { useAuth } from '../contexts/AuthContext';
 import StoreSettingsEditor from './StoreSettingsEditor';
 
@@ -13,8 +13,10 @@ export default function MeusDadosForm() {
   const isLojista = (user?.activeRole || user?.role) === 'lojista';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [cpf, setCpf] = useState('');
   const [rg, setRg] = useState('');
+  const [docApproved, setDocApproved] = useState(false);
   const [store, setStore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -25,8 +27,10 @@ export default function MeusDadosForm() {
       .then(({ data }) => {
         setName(data.name || '');
         setEmail(data.email || '');
+        setTelefone(maskPhone(data.telefone || ''));
         setCpf(maskCPF(data.cpf || ''));
         setRg(maskRG(data.rg || ''));
+        setDocApproved(data?.verification?.document?.status === 'approved');
       })
       .catch((e) => setErr(e?.response?.data?.error || 'Faça login para editar seus dados.'))
       .finally(() => setLoading(false));
@@ -44,7 +48,9 @@ export default function MeusDadosForm() {
   const salvar = async () => {
     setMsg(''); setErr('');
     try {
-      const { data } = await api.patch('/user/me', { name, email, cpf: onlyDigits(cpf), rg: cleanRG(rg) });
+      const payload: any = { name, email, telefone: onlyDigits(telefone) };
+      if (!docApproved) { payload.cpf = onlyDigits(cpf); payload.rg = cleanRG(rg); }
+      const { data } = await api.patch('/user/me', payload);
       const reset = data?.verificationReset;
       const avisos: string[] = [];
       if (reset?.document) avisos.push('o documento precisará ser reenviado e reaprovado');
@@ -65,13 +71,16 @@ export default function MeusDadosForm() {
 
       <section style={card}>
         <label style={hint}>Nome</label>
-        <input style={input} value={name} onChange={e => setName(e.target.value)} />
+        <input style={input} value={name} onChange={e => setName(e.target.value)} maxLength={80} />
         <label style={hint}>Email</label>
-        <input style={input} type="email" value={email} onChange={e => setEmail(e.target.value)} />
+        <input style={input} type="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={120} />
+        <label style={hint}>Telefone</label>
+        <input style={input} value={telefone} onChange={e => setTelefone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} inputMode="numeric" />
         <label style={hint}>CPF</label>
-        <input style={input} value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" />
+        <input style={{ ...input, opacity: docApproved ? 0.6 : 1 }} value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} readOnly={docApproved} />
         <label style={hint}>RG</label>
-        <input style={input} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" />
+        <input style={{ ...input, opacity: docApproved ? 0.6 : 1 }} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" maxLength={12} readOnly={docApproved} />
+        {docApproved && <p style={{ ...hint, color: '#F59E0B' }}>CPF e RG não podem ser alterados após o documento aprovado.</p>}
         <button style={btn} onClick={salvar}>Salvar alterações</button>
       </section>
 

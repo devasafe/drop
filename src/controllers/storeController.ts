@@ -244,7 +244,15 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
     const existing = await Store.findOne({ ownerId });
     if (existing) return res.status(400).json({ error: 'User already has a store' });
 
-    const store = new Store({ ownerId, name, address, cnpj, latitude, longitude });
+    // ✅ CNPJ único entre lojas
+    const { onlyDigits } = require('../utils/documentValidation');
+    const cnpjDigits = cnpj ? onlyDigits(String(cnpj)) : '';
+    if (cnpjDigits) {
+      const dupCnpj = await Store.findOne({ cnpj: cnpjDigits });
+      if (dupCnpj) return res.status(409).json({ error: 'Este CNPJ já está cadastrado em outra loja' });
+    }
+
+    const store = new Store({ ownerId, name, address, cnpj: cnpjDigits || cnpj, latitude, longitude });
     await store.save();
     
     // ✅ FIX: Atualizar user.storeId para que o wallet funcione
@@ -292,7 +300,19 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     const cnpjChanged = cnpj !== undefined && onlyDigits(String(cnpj)) !== onlyDigits(String(store.cnpj || ''));
     if (!store.verification) store.verification = { cnpj: { status: 'none' }, address: { status: 'none' } } as any;
     if (addressChanged) store.verification!.address = { status: 'none' };
-    if (cnpjChanged) { store.cnpj = cnpj; store.verification!.cnpj = { status: 'none' }; }
+    if (cnpjChanged) {
+      // ✅ CNPJ não muda depois de aprovado, e tem que ser único entre lojas.
+      if (store.verification!.cnpj?.status === 'approved') {
+        return res.status(409).json({ error: 'O CNPJ não pode ser alterado após ser aprovado. Entre em contato com o suporte.' });
+      }
+      const cnpjDigits = onlyDigits(String(cnpj));
+      if (cnpjDigits) {
+        const dupCnpj = await Store.findOne({ _id: { $ne: store._id }, cnpj: cnpjDigits });
+        if (dupCnpj) return res.status(409).json({ error: 'Este CNPJ já está cadastrado em outra loja' });
+      }
+      store.cnpj = cnpjDigits;
+      store.verification!.cnpj = { status: 'none' };
+    }
     if (addressChanged || cnpjChanged) store.markModified('verification');
 
     // Atualizar campos individuais

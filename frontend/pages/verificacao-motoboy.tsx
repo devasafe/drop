@@ -6,7 +6,7 @@ type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface CourierVer {
   verified: boolean;
   missing: string[];
-  courier: { status: St; plate?: string; rejectionReason?: string };
+  courier: { status: St; plate?: string; cnhNumber?: string; rejectionReason?: string };
   facial: { status: St; rejectionReason?: string };
 }
 interface DocInfo {
@@ -37,6 +37,7 @@ export default function VerificacaoMotoboyPage() {
   const [plate, setPlate] = useState('');
   const [cnhPhoto, setCnhPhoto] = useState<File | null>(null);
   const [platePhoto, setPlatePhoto] = useState<File | null>(null);
+  const [editCourier, setEditCourier] = useState(false);
 
   const load = async () => {
     try {
@@ -82,14 +83,17 @@ export default function VerificacaoMotoboyPage() {
   }, 'Selfie enviada para análise.');
 
   const sendCourier = () => run(async () => {
-    if (!cnhPhoto) throw { response: { data: { error: 'Selecione a foto da CNH.' } } };
-    if (!platePhoto) throw { response: { data: { error: 'Selecione a foto da placa.' } } };
+    const isFirst = (ver?.courier?.status || 'none') === 'none';
+    // No 1º envio as duas fotos são obrigatórias; no reenvio pode mandar só a que quer trocar.
+    if (isFirst && !cnhPhoto) throw { response: { data: { error: 'Selecione a foto da CNH.' } } };
+    if (isFirst && !platePhoto) throw { response: { data: { error: 'Selecione a foto da placa.' } } };
     const fd = new FormData();
     fd.append('cnhNumber', cnh);
     fd.append('plate', plate);
-    fd.append('cnhPhoto', cnhPhoto);
-    fd.append('platePhoto', platePhoto);
+    if (cnhPhoto) fd.append('cnhPhoto', cnhPhoto);
+    if (platePhoto) fd.append('platePhoto', platePhoto);
     await api.post('/verification/motoboy', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    setEditCourier(false);
   }, 'Dados enviados para análise.');
 
   if (loading) return <div style={wrap}><p>Carregando...</p></div>;
@@ -164,14 +168,20 @@ export default function VerificacaoMotoboyPage() {
         <section style={card}>
           <Head title="CNH, placa e foto da placa" s={cs} />
           {cs === 'rejected' && <p style={errp}>Recusado: {ver?.courier.rejectionReason}</p>}
-          {cs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
-          {(cs === 'none' || cs === 'rejected') && (
+          {cs === 'pending' && !editCourier && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+          {cs === 'approved' && !editCourier && <p style={hint}>✅ Aprovado. Placa: {ver?.courier?.plate}</p>}
+          {(cs === 'pending' || cs === 'approved') && !editCourier && (
+            <button style={btn} onClick={() => { setCnh(ver?.courier?.cnhNumber || ''); setPlate(ver?.courier?.plate || ''); setEditCourier(true); }}>
+              Trocar foto da placa / reenviar
+            </button>
+          )}
+          {(cs === 'none' || cs === 'rejected' || editCourier) && (
             <>
               <input style={input} placeholder="Número de registro da CNH (11 dígitos)" value={cnh} onChange={e => setCnh(maskCNH(e.target.value))} inputMode="numeric" />
               <input style={input} placeholder="Placa da moto (ABC1D23)" value={plate} onChange={e => setPlate(maskPlate(e.target.value))} />
-              <label style={hint}>Foto da CNH</label>
+              <label style={hint}>Foto da CNH {editCourier && '(opcional — mantém a atual se não enviar)'}</label>
               <input type="file" accept="image/*" onChange={e => setCnhPhoto(e.target.files?.[0] || null)} style={file} />
-              <label style={hint}>Foto da placa da moto</label>
+              <label style={hint}>Foto da placa da moto {editCourier && '(opcional)'}</label>
               <input type="file" accept="image/*" onChange={e => setPlatePhoto(e.target.files?.[0] || null)} style={file} />
               <button style={btn} onClick={sendCourier}>Enviar para análise</button>
             </>

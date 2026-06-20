@@ -42,6 +42,7 @@ export default function DadosRecebimento() {
   const [pixKey, setPixKey] = useState('');
   const [pixKeyType, setPixKeyType] = useState('');
   const [addr, setAddr] = useState({ street: '', number: '', neighborhood: '', city: '', state: '', zip: '' });
+  const [editing, setEditing] = useState(false);
 
   const role = user?.activeRole || user?.role;
   const isReceiver = role === 'motoboy' || role === 'lojista' || role === 'seller';
@@ -74,7 +75,8 @@ export default function DadosRecebimento() {
       if (needsAddress) body.address = addr;
       const res = await api.post('/onboarding/receiver', body);
       const a = res.data?.asaas;
-      setStatus((s) => (s ? { ...s, accountStatus: a?.status, hasPixKey: a?.hasPix, hasAddress: true, lastError: a?.lastError } : s));
+      setStatus((s) => (s ? { ...s, accountStatus: a?.status, hasPixKey: a?.hasPix, hasAddress: true, pixKey: pixKey, lastError: a?.lastError } : s));
+      if (a?.hasPix) setEditing(false); // colapsa pro modo "Alterar chave PIX"
       if (a?.status === 'active') {
         setMsg({ type: 'ok', text: 'Conta de recebimento ativada! Você já pode receber e sacar.' });
       } else if (a?.status === 'error') {
@@ -114,6 +116,13 @@ export default function DadosRecebimento() {
           </div>
         )}
 
+        {status?.hasPixKey && !editing ? (
+          <div style={card}>
+            <label style={label}>Chave PIX cadastrada</label>
+            <div style={{ ...input, marginBottom: 12 }}>{status.pixKey || '••••••'}</div>
+            <button style={btn} onClick={() => setEditing(true)}>Alterar chave PIX</button>
+          </div>
+        ) : (
         <form onSubmit={submit} style={card}>
           <label style={label}>Tipo da chave</label>
           <select style={input} value={pixKeyType} onChange={(e) => { setPixKeyType(e.target.value); setPixKey(maskPix(pixKey, e.target.value)); }}>
@@ -144,6 +153,7 @@ export default function DadosRecebimento() {
             {saving ? 'Salvando...' : active ? 'Atualizar dados' : 'Ativar recebimento'}
           </button>
         </form>
+        )}
       </div>
     </div>
   );

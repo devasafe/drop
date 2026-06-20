@@ -21,26 +21,37 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     if (!isValidCNH(String(cnhNumber))) return res.status(400).json({ error: 'Número de CNH inválido' });
     if (!isValidPlate(String(plate))) return res.status(400).json({ error: 'Placa inválida' });
 
-    const files = req.files as { platePhoto?: any[]; cnhPhoto?: any[] } | undefined;
-    const plateFile = files?.platePhoto?.[0] || (req.file as any);
-    const cnhFile = files?.cnhPhoto?.[0];
-    if (!plateFile) return res.status(400).json({ error: 'Envie a foto da placa' });
-    if (!cnhFile) return res.status(400).json({ error: 'Envie a foto da CNH' });
-
     const user = await User.findById(req.user?.id);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureV(user);
-    if (user.verification!.courier!.status === 'pending') return res.status(409).json({ error: 'Dados já em análise' });
-    if (user.verification!.courier!.status === 'approved') return res.status(409).json({ error: 'Dados já aprovados' });
+    const cur: any = user.verification!.courier || { status: 'none' };
+    const isFirst = !cur.cnhPhotoUrl && !cur.platePhotoUrl; // ainda não enviou nada
+
+    const files = req.files as { platePhoto?: any[]; cnhPhoto?: any[] } | undefined;
+    const plateFile = files?.platePhoto?.[0] || (req.file as any);
+    const cnhFile = files?.cnhPhoto?.[0];
+    // 1º envio: as duas fotos são obrigatórias. Reenvio (ex: só trocar a foto da
+    // placa): manda só a que quer mudar — a outra é mantida.
+    if (isFirst && !plateFile) return res.status(400).json({ error: 'Envie a foto da placa' });
+    if (isFirst && !cnhFile) return res.status(400).json({ error: 'Envie a foto da CNH' });
+
+    const cnhDigits = onlyDigits(String(cnhNumber));
+    const plateNorm = normalizePlate(String(plate));
+
+    // ✅ Placa e CNH não podem se repetir entre motoboys
+    const dupPlate = await User.findOne({ _id: { $ne: user._id }, 'verification.courier.plate': plateNorm });
+    if (dupPlate) return res.status(409).json({ error: 'Esta placa já está cadastrada em outro motoboy' });
+    const dupCnh = await User.findOne({ _id: { $ne: user._id }, 'verification.courier.cnhNumber': cnhDigits });
+    if (dupCnh) return res.status(409).json({ error: 'Esta CNH já está cadastrada em outro motoboy' });
 
     const folder = `verifications/${user.id}/courier`;
-    const platePhotoUrl = await uploadToCloudinary(plateFile.buffer, folder);
-    const cnhPhotoUrl = await uploadToCloudinary(cnhFile.buffer, folder);
+    const platePhotoUrl = plateFile ? await uploadToCloudinary(plateFile.buffer, folder) : cur.platePhotoUrl;
+    const cnhPhotoUrl = cnhFile ? await uploadToCloudinary(cnhFile.buffer, folder) : cur.cnhPhotoUrl;
     user.verification!.courier = {
       status: 'pending',
-      cnhNumber: onlyDigits(String(cnhNumber)),
+      cnhNumber: cnhDigits,
       cnhPhotoUrl,
-      plate: normalizePlate(String(plate)),
+      plate: plateNorm,
       platePhotoUrl,
       submittedAt: new Date(),
     };

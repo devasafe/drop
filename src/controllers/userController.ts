@@ -46,8 +46,16 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
       user.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } } as any;
     }
 
+    const cpfChanging = cpf !== undefined && digits(cpf) !== digits(user.cpf);
+    const rgChanging = rg !== undefined && digits(rg) !== digits(user.rg);
+
+    // ✅ CPF/RG não podem mudar depois que o documento foi APROVADO (fraude/identidade).
+    if ((cpfChanging || rgChanging) && user.verification?.document?.status === 'approved') {
+      return res.status(409).json({ error: 'CPF e RG não podem ser alterados após o documento ser aprovado. Entre em contato com o suporte.' });
+    }
+
     let docReset = false;
-    if (cpf !== undefined && digits(cpf) !== digits(user.cpf)) {
+    if (cpfChanging) {
       const cpfDigits = digits(cpf);
       if (cpfDigits) {
         const dup = await User.findOne({ _id: { $ne: userId }, cpf: cpfDigits });
@@ -55,7 +63,7 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
       }
       user.cpf = cpfDigits; docReset = true;
     }
-    if (rg !== undefined && digits(rg) !== digits(user.rg)) {
+    if (rgChanging) {
       const rgDigits = digits(rg);
       if (rgDigits) {
         const dup = await User.findOne({ _id: { $ne: userId }, rg: rgDigits });
