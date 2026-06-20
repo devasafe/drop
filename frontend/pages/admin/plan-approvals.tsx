@@ -8,7 +8,7 @@ import styles from './AdminPlanApprovals.module.css';
 
 export default function PlanApprovals() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth() || {};
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth() || ({} as any);
   const [pending, setPending] = useState<any[]>([]);
   const [allSubs, setAllSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,17 +20,17 @@ export default function PlanApprovals() {
 
   // Verificar permissão
   useEffect(() => {
-    if (!authLoading && user?.role !== 'ceo') {
+    if (!authLoading && !permissionsLoading && user && !can('plan:view')) {
       router.push('/access-denied');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, permissionsLoading, can, router]);
 
   // Carregar dados
   useEffect(() => {
-    if (user?.role === 'ceo') {
+    if (!permissionsLoading && can('plan:view')) {
       loadData();
     }
-  }, [user]);
+  }, [user, permissionsLoading]);
 
   const loadData = async () => {
     try {
@@ -109,7 +109,7 @@ export default function PlanApprovals() {
     );
   }
 
-  if (user?.role !== 'ceo') {
+  if (!authLoading && !permissionsLoading && !can('plan:view')) {
     return null;
   }
 

@@ -176,7 +176,7 @@ export default function AdminUsersPanel() {
 
   if (loading) {
     return (
-      <ProtectedRoute required_role="ceo,gerente_geral">
+      <ProtectedRoute required_permission="user:view_all">
         <div className={styles.loadingScreen}>
           <LoadingSkeleton variant="list" count={6} />
         </div>
@@ -185,7 +185,7 @@ export default function AdminUsersPanel() {
   }
 
   return (
-    <ProtectedRoute required_role="ceo,gerente_geral">
+    <ProtectedRoute required_permission="user:view_all">
       <div className={styles.page}>
         <div className={styles.container}>
           <div className={styles.pageHeader}>

@@ -4,50 +4,49 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
   required_role?: string | string[];
+  /**
+   * Permissão(ões) exigida(s). Se informado, o acesso é liberado quando o usuário
+   * tem QUALQUER uma delas (ou é CEO, que tem acesso total). É o mecanismo alinhado
+   * ao painel /admin/permissoes. Pode coexistir com required_role (basta satisfazer um).
+   */
+  required_permission?: string | string[];
   children: React.ReactNode;
 }
 
-export default function ProtectedRoute({ required_role, children }: ProtectedRouteProps) {
+function toArray(v?: string | string[]): string[] {
+  if (!v) return [];
+  return typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v;
+}
+
+export default function ProtectedRoute({ required_role, required_permission, children }: ProtectedRouteProps) {
   const auth = useAuth();
-  const { user, loading } = auth || { user: null, loading: true };
+  const { user, loading, permissionsLoading, can } = auth || ({} as any);
   const router = useRouter();
   const activeRole = user?.activeRole || user?.role;
 
+  const allowedRoles = toArray(required_role);
+  const allowedPerms = toArray(required_permission);
+  const hasRequirement = allowedRoles.length > 0 || allowedPerms.length > 0;
+
+  // Precisamos esperar as permissões carregarem antes de decidir, quando o gate é por permissão.
+  const waitingPermissions = allowedPerms.length > 0 && permissionsLoading;
+
+  const roleAllowed = allowedRoles.length > 0 && allowedRoles.includes(activeRole);
+  const permAllowed = allowedPerms.length > 0 && allowedPerms.some((p) => can?.(p));
+  const granted = !hasRequirement || roleAllowed || permAllowed;
+
   useEffect(() => {
-    // Se ainda está carregando, não faz nada
-    if (loading) {
-      console.log('ProtectedRoute: Carregando contexto de autenticação...');
-      return;
-    }
-
-    console.log('ProtectedRoute: Verificando acesso');
-    console.log('  - Usuário:', user ? `${user.name} (${user.email})` : 'NÃO LOGADO');
-    console.log('  - Role ativo:', activeRole);
-    console.log('  - Role requerido:', required_role);
-
+    if (loading || waitingPermissions) return;
     if (!user) {
-      console.log('  → Redirecionando para /login');
       router.push('/login');
       return;
     }
-
-    if (required_role) {
-      // Converte string separada por vírgula em array
-      const allowedRoles = typeof required_role === 'string' 
-        ? required_role.split(',').map(r => r.trim()) 
-        : required_role;
-      
-      if (!allowedRoles.includes(activeRole)) {
-        console.log('  → Acesso negado. Redirecionando para /access-denied');
-        router.push('/access-denied');
-        return;
-      }
-      console.log('  Acesso permitido');
+    if (hasRequirement && !granted) {
+      router.push('/access-denied');
     }
-  }, [user, activeRole, required_role, router, loading]);
+  }, [user, loading, waitingPermissions, hasRequirement, granted, router]);
 
-  // Se está carregando, mostra spinner
-  if (loading) {
+  if (loading || waitingPermissions) {
     return (
       <div style={{
         display: 'flex',
@@ -62,21 +61,8 @@ export default function ProtectedRoute({ required_role, children }: ProtectedRou
     );
   }
 
-  // Se não está autenticado ou sem permissão, retorna null (redirecionamento acontece no useEffect)
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
+  if (hasRequirement && !granted) return null;
 
-  if (required_role) {
-    const allowedRoles = typeof required_role === 'string' 
-      ? required_role.split(',').map(r => r.trim()) 
-      : required_role;
-    
-    if (!allowedRoles.includes(activeRole)) {
-      return null;
-    }
-  }
-
-  // Renderiza o conteúdo protegido
   return <>{children}</>;
 }

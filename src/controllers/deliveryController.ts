@@ -341,9 +341,10 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 
       const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
       if (useAsaas) {
-        // Cria o Payout do motoboy (pending) e LIBERA via Asaas: transfere de verdade
-        // da conta-mãe p/ as subcontas da loja e do motoboy (chamadas externas — fora
-        // de transação Mongo). releaseOrderViaAsaas marca os payouts como released.
+        // Cria o Payout do motoboy (pending). A liberação (transferência real conta-mãe
+        // → subcontas) só acontece automaticamente se a plataforma estiver com
+        // autoApprovePayouts. Caso contrário, os payouts ficam PENDING e o admin libera
+        // manualmente no painel de Payouts (que dispara a transferência no Asaas).
         if (motoboyAmount > 0) {
           await payoutService.createPendingPayout({
             recipientType: 'motoboy',
@@ -353,7 +354,12 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
             amount: motoboyAmount,
           });
         }
-        await releaseOrderViaAsaas(order._id.toString());
+        const cfg = await PlatformConfig.findOne();
+        if (cfg?.autoApprovePayouts === true) {
+          await releaseOrderViaAsaas(order._id.toString());
+        } else {
+          console.log(`⏸️ [finalizarEntrega] autoApprovePayouts OFF — payouts do pedido ${order._id} ficam PENDING para liberação manual do admin`);
+        }
       } else {
         const payoutSession = await mongoose.startSession();
         try {

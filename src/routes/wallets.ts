@@ -19,7 +19,7 @@ import {
   getMotoboyWallet,
   transferMotoboyToOwner
 } from '../controllers/walletController';
-import { authorizePermission, authorizeCEO, authorizeWalletOwner, authorizeWalletOwnerById } from '../middleware/authorize';
+import { authorizePermission, authorizeWalletOwner, authorizeWalletOwnerById } from '../middleware/authorize';
 import {
   CreditWalletSchema,
   TransferWalletSchema
@@ -85,10 +85,10 @@ router.post(
 // Carteira da loja
 router.get('/store/:storeId', authenticate, getStoreWallet);
 
-// Métricas da plataforma (CEO only)
-router.get('/platform/metrics', authenticate, authorizeCEO, getPlatformMetrics);
+// Métricas da plataforma
+router.get('/platform/metrics', authenticate, authorizePermission('analytics:view_platform'), getPlatformMetrics);
 
 // Inicializar carteira da plataforma (admin setup)
-router.post('/platform/initialize', authenticate, authorizeCEO, initializePlatformWallet);
+router.post('/platform/initialize', authenticate, authorizePermission('settings:manage'), initializePlatformWallet);
 
 export default router;

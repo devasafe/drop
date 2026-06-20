@@ -34,11 +34,6 @@ export const getPlatformConfig = async (req: Request, res: Response) => {
 export const updatePlatformConfig = async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode alterar configurações' });
-    }
 
     const {
       commissionPlan1,
@@ -199,12 +194,6 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
 // ✅ GET Pending Plan Changes (CEO vê requisições)
 export const getPendingPlanChanges = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode ver requisições' });
-    }
-
     const pending = await StoreSubscription.find({ planChangeStatus: 'pending' });
     return res.json(pending);
   } catch (err) {
@@ -217,12 +206,7 @@ export const getPendingPlanChanges = async (req: Request & { user?: any }, res: 
 export const approvePlanChange = async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
     const { subscriptionId } = req.body;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode aprovar' });
-    }
 
     const subscription = await StoreSubscription.findById(subscriptionId);
     if (!subscription) {
@@ -273,12 +257,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
 export const rejectPlanChange = async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
     const { subscriptionId, reason } = req.body;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode rejeitar' });
-    }
 
     const subscription = await StoreSubscription.findById(subscriptionId);
     if (!subscription) {
@@ -304,12 +283,7 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
 export const updateStorePlan = async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
     const { subscriptionId, newPlan } = req.body;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode alterar planos' });
-    }
 
     if (!['plan1', 'plan2', 'plan3'].includes(newPlan)) {
       return res.status(400).json({ error: 'Plano inválido' });
@@ -358,12 +332,6 @@ export const updateStorePlan = async (req: Request & { user?: any }, res: Respon
 // ✅ GET All Stores Subscriptions (CEO vê todos os planos)
 export const getAllStoreSubscriptions = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode ver todos os planos' });
-    }
-
     const subscriptions = await StoreSubscription.find().sort({ updatedAt: -1 });
     return res.json(subscriptions);
   } catch (err) {

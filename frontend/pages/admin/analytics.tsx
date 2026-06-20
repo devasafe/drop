@@ -380,7 +380,7 @@ function CeoAnalyticsInner() {
 
 export default function CeoAnalyticsPage() {
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="analytics:view_platform">
       <CeoAnalyticsInner />
     </ProtectedRoute>
   );

@@ -1,8 +1,11 @@
 import { Router } from 'express';
-import { listAllRoles, getRolePermissions, updateRolePermissions, resetRolePermissions } from '../controllers/rolePermissionsController';
+import { listAllRoles, getRolePermissions, updateRolePermissions, resetRolePermissions, getMyPermissions } from '../controllers/rolePermissionsController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
+
+// Qualquer autenticado lê as PRÓPRIAS permissões (para a UI). Antes de '/:role'.
+router.get('/me', authenticate, getMyPermissions);
 
 // Apenas CEO pode gerenciar permissões
 router.get('/', authenticate, authorizeRoles('ceo'), listAllRoles);

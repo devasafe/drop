@@ -10,6 +10,7 @@ import {
   getCancellationStats,
 } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
 import { validate } from '../middleware/validate';  // ✅ NOVO
 import { CreateOrderSchema } from '../validation/schemas';  // ✅ NOVO
@@ -62,7 +63,7 @@ router.post('/:id/evaluate-store', authenticate, avaliarLoja);
 // Cliente confirma que recebeu o produto (sem motoboy)
 router.post('/:id/deliver', authenticate, authorizeRoles('cliente'), deliverPlan1Order);
 
-// ✅ NOVO: CEO altera status de pagamento (temporário até gateway)
-router.put('/payment-status/update', authenticate, authorizeRoles('ceo'), updatePaymentStatus);
+// Admin altera status de pagamento (temporário até gateway)
+router.put('/payment-status/update', authenticate, authorizePermission('order:manage_payment'), updatePaymentStatus);
 
 export default router;

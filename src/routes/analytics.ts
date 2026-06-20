@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireSellerRole } from '../middleware/authorizeRoles';
-import { authorizeCEO } from '../middleware/authorize';
+import { authorizePermission } from '../middleware/authorize';
 import * as analytics from '../controllers/analyticsController';
 
 const router = Router();
@@ -19,14 +19,14 @@ router.get('/store/payment-methods', requireSellerRole, analytics.storePaymentMe
 router.get('/store/customer-insights', requireSellerRole, analytics.storeCustomerInsights);
 
 // ---------- PLATFORM (CEO) ----------
-router.get('/platform/overview', authorizeCEO, analytics.platformOverview);
-router.get('/platform/user-growth', authorizeCEO, analytics.platformUserGrowth);
-router.get('/platform/orders-timeline', authorizeCEO, analytics.platformOrdersTimeline);
-router.get('/platform/funnel', authorizeCEO, analytics.platformFunnel);
-router.get('/platform/top-stores', authorizeCEO, analytics.platformTopStores);
-router.get('/platform/top-categories', authorizeCEO, analytics.platformTopCategories);
-router.get('/platform/live-users', authorizeCEO, analytics.platformLiveUsers);
-router.get('/platform/user-heatmap', authorizeCEO, analytics.platformUserHeatmap);
-router.get('/platform/retention', authorizeCEO, analytics.platformRetention);
+router.get('/platform/overview', authorizePermission('analytics:view_platform'), analytics.platformOverview);
+router.get('/platform/user-growth', authorizePermission('analytics:view_platform'), analytics.platformUserGrowth);
+router.get('/platform/orders-timeline', authorizePermission('analytics:view_platform'), analytics.platformOrdersTimeline);
+router.get('/platform/funnel', authorizePermission('analytics:view_platform'), analytics.platformFunnel);
+router.get('/platform/top-stores', authorizePermission('analytics:view_platform'), analytics.platformTopStores);
+router.get('/platform/top-categories', authorizePermission('analytics:view_platform'), analytics.platformTopCategories);
+router.get('/platform/live-users', authorizePermission('analytics:view_platform'), analytics.platformLiveUsers);
+router.get('/platform/user-heatmap', authorizePermission('analytics:view_platform'), analytics.platformUserHeatmap);
+router.get('/platform/retention', authorizePermission('analytics:view_platform'), analytics.platformRetention);
 
 export default router;

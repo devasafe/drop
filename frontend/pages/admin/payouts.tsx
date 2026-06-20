@@ -184,7 +184,7 @@ export default function AdminPayoutsPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute required_role="ceo">
+      <ProtectedRoute required_permission="payout:view">
         <div className={styles.loadingScreen}>
           <LoadingSkeleton variant="dashboard" />
         </div>
@@ -193,7 +193,7 @@ export default function AdminPayoutsPage() {
   }
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="payout:view">
       <div className={styles.page}>
         <div className={styles.container}>
           <div className={styles.pageHeader}>

@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
-import { authorizeCEO } from '../middleware/authorize';
+import { authorizePermission } from '../middleware/authorize';
 import { validate } from '../middleware/validate';
 import * as chatController from '../controllers/chatController';
 
@@ -60,8 +60,8 @@ router.put('/conversations/:conversationId/block', validate(BlockSchema), chatCo
 router.delete('/conversations/:conversationId', chatController.deleteConversation);
 
 // Admin CEO: visualizar todas as conversas (ANTES das rotas dinâmicas com :id)
-router.get('/admin/conversations', authorizeCEO, chatController.listAllConversations);
-router.get('/admin/conversations/:conversationId/messages', authorizeCEO, chatController.getConversationMessagesAdmin);
+router.get('/admin/conversations', authorizePermission('conversations:view_all'), chatController.listAllConversations);
+router.get('/admin/conversations/:conversationId/messages', authorizePermission('conversations:view_all'), chatController.getConversationMessagesAdmin);
 
 // Mensagens
 router.post('/messages', validate(SendMessageSchema), chatController.sendMessage);

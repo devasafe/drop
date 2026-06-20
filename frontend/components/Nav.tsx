@@ -7,6 +7,7 @@ import { useCart } from '../contexts/CartContext';
 import api from '../lib/api';
 import { useNotifications } from '../hooks/useSync';
 import Icon, { IconName } from './Icon';
+import { visibleAdminMenu } from '../lib/adminMenu';
 import styles from './Nav.module.css';
 
 const ROLE_META: Record<string, { icon: IconName; label: string }> = {
@@ -22,64 +23,8 @@ const ROLE_META: Record<string, { icon: IconName; label: string }> = {
   gerente_motoboys:  { icon: 'truck',        label: 'Ger. Motoboys' },
 };
 
-const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
-
-// Links do painel admin por role
-const ADMIN_LINKS: Record<string, { href: string; label: string; icon: IconName }[]> = {
-  ceo: [
-    { href: '/admin/dashboard',   label: 'Dashboard',   icon: 'chart-bar' },
-    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
-    { href: '/admin/analytics',   label: 'Analytics',   icon: 'chart-up' },
-    { href: '/admin/users',       label: 'Usuários',    icon: 'users' },
-    { href: '/admin/wallets',     label: 'Carteiras',   icon: 'wallet' },
-    { href: '/admin/withdrawals', label: 'Saques',      icon: 'send' },
-    { href: '/admin/payouts',     label: 'Payouts',     icon: 'clipboard' },
-    { href: '/admin/app-cashbox', label: 'Caixa',       icon: 'bank' },
-    { href: '/admin/plan-approvals', label: 'Planos',   icon: 'check-circle' },
-    { href: '/admin/conversas',   label: 'Conversas',   icon: 'chat' },
-    { href: '/admin/broadcasts',  label: 'Anúncios',    icon: 'megaphone' },
-    { href: '/admin/permissoes',  label: 'Permissões',  icon: 'lock' },
-    { href: '/admin/suporte',     label: 'Suporte',     icon: 'headphones' },
-    { href: '/admin/coupons',         label: 'Cupons',      icon: 'tag' },
-    { href: '/admin/settings',        label: 'Config.',     icon: 'settings' },
-    { href: '/admin/seasonal-theme',  label: 'Tema',        icon: 'palette' },
-  ],
-  marketing: [
-    { href: '/admin/dashboard',  label: 'Dashboard', icon: 'chart-bar' },
-    { href: '/admin/broadcasts', label: 'Anúncios',  icon: 'megaphone' },
-    { href: '/admin/coupons',    label: 'Cupons',    icon: 'tag' },
-  ],
-  gerente_geral: [
-    { href: '/admin/dashboard', label: 'Dashboard', icon: 'chart-bar' },
-    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
-    { href: '/admin/users',     label: 'Usuários',  icon: 'users' },
-    { href: '/admin/wallets',   label: 'Carteiras', icon: 'wallet' },
-    { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
-    { href: '/admin/settings',  label: 'Config.',   icon: 'settings' },
-  ],
-  gerente_clientes: [
-    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
-    { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
-    { href: '/admin/users',     label: 'Usuários',  icon: 'users' },
-    { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
-    { href: '/admin/tickets',   label: 'Tickets',   icon: 'tag' },
-  ],
-  gerente_lojistas: [
-    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
-    { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
-    { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
-    { href: '/admin/stores',    label: 'Lojas',     icon: 'store' },
-  ],
-  gerente_motoboys: [
-    { href: '/admin/verificacoes', label: 'Verificações', icon: 'shield' },
-    { href: '/admin/suporte',   label: 'Suporte',   icon: 'headphones' },
-    { href: '/admin/broadcasts',label: 'Anúncios',  icon: 'megaphone' },
-    { href: '/admin/motoboys',  label: 'Motoboys',  icon: 'motorcycle' },
-  ],
-};
-
 export default function Nav() {
-  const { user, logout, switchRole } = useAuth() || {};
+  const { user, logout, switchRole, can } = useAuth() || {};
   const { cart } = useCart() || { cart: [] };
   const router = useRouter();
   const count = cart ? cart.reduce((s: number, it: any) => s + (it.quantity || 0), 0) : 0;
@@ -118,7 +63,10 @@ export default function Nav() {
 
   const activeRole = user?.activeRole || user?.role || 'cliente';
   const roles: string[] = user?.roles || (user?.role ? [user.role] : []);
-  const isAdmin = ADMIN_ROLES.includes(activeRole);
+  // Itens do painel admin que ESTE usuário pode ver (por permissão; CEO vê tudo).
+  const adminItems = can ? visibleAdminMenu(can, activeRole === 'ceo') : [];
+  const isAdmin = adminItems.length > 0;
+  const adminHome = adminItems[0]?.href || '/admin/dashboard';
   const otherRoles = roles.filter((r: string) => r !== activeRole);
   const meta = ROLE_META[activeRole] || { icon: 'user' as IconName, label: activeRole };
 
@@ -150,8 +98,6 @@ export default function Nav() {
   const unread = notifUnreadCount;
   const isActive = (path: string) => router.pathname === path || router.pathname.startsWith(path + '/');
 
-  const adminLinks = ADMIN_LINKS[activeRole] || [];
-
   return (
     <>
     <header className={styles.header}>
@@ -171,7 +117,7 @@ export default function Nav() {
             Lojas
           </Link>
           {isAdmin && (
-            <Link href="/admin/dashboard" className={`${styles.navLink} ${styles.navLinkAdmin} ${isActive('/admin') ? styles.navLinkActive : ''}`}>
+            <Link href={adminHome} className={`${styles.navLink} ${styles.navLinkAdmin} ${isActive('/admin') ? styles.navLinkActive : ''}`}>
               <Icon name={meta.icon} size={14} /> Painel
             </Link>
           )}
@@ -290,11 +236,11 @@ export default function Nav() {
                     </div>
 
                     {/* Painel Admin (grid) */}
-                    {isAdmin && adminLinks.length > 0 && (
+                    {isAdmin && (
                       <div className={styles.section}>
                         <div className={styles.sectionLabel}>Painel Admin</div>
                         <div className={styles.adminGrid}>
-                          {adminLinks.map(link => (
+                          {adminItems.map(link => (
                             <a
                               key={link.href}
                               href={link.href}
@@ -350,7 +296,7 @@ export default function Nav() {
           <Link href="/" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="home" size={16} /> Produtos</Link>
           <Link href="/stores" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Lojas</Link>
           {isAdmin && (
-            <Link href="/admin/dashboard" className={`${styles.mobileNavLink} ${styles.mobileNavLinkAdmin}`} onClick={() => setMobileMenuOpen(false)}>
+            <Link href={adminHome} className={`${styles.mobileNavLink} ${styles.mobileNavLinkAdmin}`} onClick={() => setMobileMenuOpen(false)}>
               <Icon name={meta.icon} size={16} /> Painel Admin
             </Link>
           )}

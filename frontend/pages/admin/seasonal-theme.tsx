@@ -43,7 +43,7 @@ export default function SeasonalThemePage() {
   };
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="theme:edit">
       <div className={styles.page}>
         <div className={styles.container}>
 

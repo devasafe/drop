@@ -5,6 +5,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import { visibleAdminMenu } from '../../lib/adminMenu';
 import styles from './AdminDashboard.module.css';
 
 interface PlatformMetrics {
@@ -22,10 +23,16 @@ interface PlatformMetrics {
 }
 
 export default function CeoDashboard() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('month');
+
+  const activeRole = user?.activeRole || user?.role;
+  // Cards de acesso rápido = itens do painel que o usuário pode ver (menos o próprio dashboard)
+  const quickItems = can
+    ? visibleAdminMenu(can, activeRole === 'ceo').filter((i) => i.href !== '/admin/dashboard')
+    : [];
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -44,7 +51,7 @@ export default function CeoDashboard() {
 
   if (loading) {
     return (
-      <ProtectedRoute required_role="ceo">
+      <ProtectedRoute required_permission="dashboard:view_all">
         <div className={styles.loadingScreen}>
           <LoadingSkeleton variant="dashboard" />
         </div>
@@ -53,7 +60,7 @@ export default function CeoDashboard() {
   }
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="dashboard:view_all">
       <div className={styles.page}>
         <div className={styles.container}>
           {/* Header */}
@@ -74,72 +81,14 @@ export default function CeoDashboard() {
             </select>
           </div>
 
-          {/* Acesso Rápido */}
+          {/* Acesso Rápido — só mostra o que este usuário pode acessar */}
           <div className={styles.quickAccessGrid}>
-            <Link href="/admin/analytics" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="chart-up" size={20} /></span>
-              <span className={styles.quickLabel}>Analytics</span>
-            </Link>
-            <Link href="/admin/verificacoes" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="shield" size={20} /></span>
-              <span className={styles.quickLabel}>Verificações</span>
-            </Link>
-            <Link href="/admin/users" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="users" size={20} /></span>
-              <span className={styles.quickLabel}>Usuários</span>
-            </Link>
-            <Link href="/admin/wallets" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="wallet" size={20} /></span>
-              <span className={styles.quickLabel}>Carteiras</span>
-            </Link>
-            <Link href="/admin/withdrawals" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="send" size={20} /></span>
-              <span className={styles.quickLabel}>Saques</span>
-            </Link>
-            <Link href="/admin/payouts" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="clipboard" size={20} /></span>
-              <span className={styles.quickLabel}>Payouts</span>
-            </Link>
-            <Link href="/admin/app-cashbox" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="bank" size={20} /></span>
-              <span className={styles.quickLabel}>Caixa</span>
-            </Link>
-            <Link href="/admin/plan-approvals" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="check-circle" size={20} /></span>
-              <span className={styles.quickLabel}>Planos</span>
-            </Link>
-            <Link href="/admin/settings" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="settings" size={20} /></span>
-              <span className={styles.quickLabel}>Configurações</span>
-            </Link>
-            <Link href="/admin/conversas" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="chat" size={20} /></span>
-              <span className={styles.quickLabel}>Conversas</span>
-            </Link>
-            <Link href="/admin/broadcasts" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="megaphone" size={20} /></span>
-              <span className={styles.quickLabel}>Anúncios</span>
-            </Link>
-            <Link href="/admin/permissoes" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="lock" size={20} /></span>
-              <span className={styles.quickLabel}>Permissões</span>
-            </Link>
-            <Link href="/admin/suporte" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="headphones" size={20} /></span>
-              <span className={styles.quickLabel}>Suporte</span>
-            </Link>
-            <Link href="/admin/coupons" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="tag" size={20} /></span>
-              <span className={styles.quickLabel}>Cupons</span>
-            </Link>
-            <Link href="/admin/ranking-config" className={`${styles.quickCard} ${styles.quickCardNew}`}>
-              <span className={styles.quickIcon}><Icon name="trophy" size={20} /></span>
-              <span className={styles.quickLabel}>Ranking</span>
-            </Link>
-            <Link href="/admin/seasonal-theme" className={styles.quickCard}>
-              <span className={styles.quickIcon}><Icon name="palette" size={20} /></span>
-              <span className={styles.quickLabel}>Tema Sazonal</span>
-            </Link>
+            {quickItems.map((item) => (
+              <Link key={item.href} href={item.href} className={styles.quickCard}>
+                <span className={styles.quickIcon}><Icon name={item.icon} size={20} /></span>
+                <span className={styles.quickLabel}>{item.label}</span>
+              </Link>
+            ))}
           </div>
 
           {/* KPIs Principais */}

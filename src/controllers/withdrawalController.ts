@@ -101,12 +101,6 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 // ✅ CEO - Ver saques pendentes
 export const getPendingWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode ver saques' });
-    }
-
     const pending = await WithdrawalRequest.find({ status: 'pending' }).sort({ requestedAt: -1 });
     return res.json(pending);
   } catch (err) {
@@ -118,12 +112,6 @@ export const getPendingWithdrawals = async (req: Request & { user?: any }, res: 
 // ✅ CEO - Ver todos os saques
 export const getAllWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode ver saques' });
-    }
-
     const limit = parseInt(req.query.limit as string) || 50;
     const skip = parseInt(req.query.skip as string) || 0;
 
@@ -241,12 +229,7 @@ export async function maybeAutoApproveWithdrawal(withdrawalId: string) {
 export const approveWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
     const ceoId = req.user?.id || (req as any).userId;
-    const userRole = req.user?.activeRole || req.user?.role;
     const { withdrawalId } = req.body;
-
-    if (userRole !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode aprovar saques' });
-    }
 
     const withdrawal = await WithdrawalRequest.findById(withdrawalId);
     if (!withdrawal) {
@@ -276,11 +259,6 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
 // Admin/CEO - Toggle auto-aprovação de saques
 export const toggleAutoApproveWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode alterar a configuração' });
-    }
-
     const PlatformConfig = (await import('../models/PlatformConfig')).default;
     const { enabled } = req.body;
 
@@ -315,12 +293,7 @@ export const getWithdrawalConfig = async (_req: Request & { user?: any }, res: R
 export const rejectWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
     const ceoId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
     const { withdrawalId, reason } = req.body;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode rejeitar saques' });
-    }
 
     const withdrawal = await WithdrawalRequest.findById(withdrawalId);
     if (!withdrawal) {
@@ -476,11 +449,6 @@ export const getMyWithdrawals = async (req: Request & { user?: any }, res: Respo
 export const getCEOWallet = async (req: Request & { user?: any }, res: Response) => {
   try {
     const ceoId = req.user?.id || (req as any).userId;
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar esta carteira' });
-    }
 
     const wallet = await Wallet.findOne({
       owner: ceoId,

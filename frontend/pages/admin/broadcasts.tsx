@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
-import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,7 +27,6 @@ interface Broadcast {
 }
 
 export default function AdminBroadcasts() {
-  useRequireAuth(['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys']);
   const router = useRouter();
   const { user } = useAuth() || {};
   const isCeo = (user?.activeRole || user?.role) === 'ceo';
@@ -94,7 +92,7 @@ export default function AdminBroadcasts() {
   };
 
   return (
-    <ProtectedRoute required_role={['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys']}>
+    <ProtectedRoute required_permission="broadcast:send">
       <div style={{ minHeight: '100vh', background: 'var(--drop-bg)', padding: '32px 20px' }}>
         <div className="drop-fade-in" style={{ maxWidth: 760, margin: '0 auto' }}>
 

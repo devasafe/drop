@@ -8,7 +8,7 @@ import styles from './AdminWithdrawals.module.css';
 
 export default function WithdrawalApprovals() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth() || {};
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth() || ({} as any);
   const [pending, setPending] = useState<any[]>([]);
   const [all, setAll] = useState<any[]>([]);
   const [ceoWallet, setCeoWallet] = useState<any>(null);
@@ -22,18 +22,18 @@ export default function WithdrawalApprovals() {
 
   // Verificar permissão
   useEffect(() => {
-    if (!authLoading && user?.role !== 'ceo') {
+    if (!authLoading && !permissionsLoading && user && !can('withdrawal:view')) {
       router.push('/access-denied');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, permissionsLoading, can, router]);
 
   // Carregar dados
   useEffect(() => {
-    if (user?.role === 'ceo') {
+    if (!permissionsLoading && can('withdrawal:view')) {
       loadData();
       loadConfig();
     }
-  }, [user]);
+  }, [user, permissionsLoading]);
 
   const loadConfig = async () => {
     try {
@@ -143,7 +143,7 @@ export default function WithdrawalApprovals() {
     );
   }
 
-  if (user?.role !== 'ceo') {
+  if (!authLoading && !permissionsLoading && !can('withdrawal:view')) {
     return null;
   }
 

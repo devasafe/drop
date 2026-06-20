@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import PricingPlan from '../models/PricingPlan';
 import User from '../models/User';
 import { authenticate } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 
 const router = Router();
 
@@ -22,14 +23,8 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
  * PUT /api/admin/pricing-plans/:planId
  * Atualiza um plano específico (APENAS ADMIN/CEO)
  */
-router.put('/:planId', authenticate, async (req: Request, res: Response) => {
+router.put('/:planId', authenticate, authorizePermission('plan:manage'), async (req: Request, res: Response) => {
   try {
-    // Verificar se é CEO
-    const user = (req as any).user;
-    if (user.role !== 'ceo' && !user.roles?.includes('ceo')) {
-      return res.status(403).json({ error: 'Apenas CEO pode alterar planos' });
-    }
-
     const { planId } = req.params;
     const { commission, motorcycleTaxes, minWithdraw } = req.body;
 

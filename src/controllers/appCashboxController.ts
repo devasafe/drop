@@ -13,12 +13,6 @@ const OPERATIONAL_SOURCES = new Set(['manual_withdrawal', 'withdrawal_fee']);
 
 export const getAppCashbox = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar o caixa do app' });
-    }
-
     let cashbox = await AppCashbox.findOne();
 
     if (!cashbox) {
@@ -40,10 +34,29 @@ export const getAppCashbox = async (req: Request & { user?: any }, res: Response
       .filter((h: any) => !OPERATIONAL_SOURCES.has(h.source))
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+    // No modo Asaas o dinheiro real NÃO fica no AppCashbox (legado): a custódia está na
+    // conta-mãe Asaas e os repasses nas subcontas. Buscamos o saldo real da conta-mãe
+    // para o caixa refletir o que de fato está disponível. Best-effort: se o Asaas falhar
+    // ou não estiver configurado, devolvemos null (não quebra o caixa).
+    let asaas: { enabled: boolean; balance: number | null; error?: string } = {
+      enabled: process.env.PAYMENT_GATEWAY === 'asaas',
+      balance: null,
+    };
+    if (asaas.enabled) {
+      try {
+        const asaasClient = (await import('../services/asaas/client')).default;
+        const data: any = await asaasClient.get('/finance/balance');
+        asaas.balance = typeof data?.balance === 'number' ? data.balance : Number(data?.balance ?? 0);
+      } catch (e: any) {
+        asaas.error = e?.message || 'Falha ao consultar saldo da conta-mãe Asaas';
+      }
+    }
+
     return res.json({
       ...cashboxObj,
       pendingObligations,
       platformNet,
+      asaas,
     });
   } catch (err) {
     console.error('❌ Erro ao buscar caixa do app:', err);
@@ -57,12 +70,6 @@ export const getAppCashbox = async (req: Request & { user?: any }, res: Response
  */
 export const getAppCashboxStatement = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-    
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar o caixa do app' });
-    }
-
     const { startDate, endDate, source, type, page = 1, limit = 50 } = req.query;
     
     let cashbox = await AppCashbox.findOne();
@@ -138,13 +145,6 @@ export const getAppCashboxStatement = async (req: Request & { user?: any }, res:
  */
 export const requestWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-    const userId = req.user?.id;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode solicitar saques' });
-    }
-
     const { amount, bankInfo, reason } = req.body;
 
     if (!amount || amount <= 0) {
@@ -195,12 +195,6 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
  */
 export const getWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar saques' });
-    }
-
     const { status, page = 1, limit = 20 } = req.query;
 
     let query: any = {};
@@ -233,13 +227,7 @@ export const getWithdrawals = async (req: Request & { user?: any }, res: Respons
  */
 export const approveWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
     const userId = req.user?.id;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode aprovar saques' });
-    }
-
     const { id } = req.params;
 
     const withdrawal = await Withdrawal.findById(id);
@@ -295,13 +283,7 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
  */
 export const rejectWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
     const userId = req.user?.id;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode rejeitar saques' });
-    }
-
     const { id } = req.params;
     const { rejectionReason } = req.body;
 
@@ -340,13 +322,6 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
  */
 export const registerDeposit = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.role;
-    const userId = req.user?.id;
-
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode registrar depósitos' });
-    }
-
     const { amount, reason } = req.body;
 
     if (!amount || amount <= 0) {

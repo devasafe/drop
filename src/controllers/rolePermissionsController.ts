@@ -60,12 +60,48 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'theme:edit',                  label: 'Editar temas sazonais',       category: 'Marketing' },
   // Suporte
   { key: 'support:attend',              label: 'Atender tickets de suporte',  category: 'Suporte' },
+  // Verificação (KYC)
+  { key: 'verification:view_queue',     label: 'Ver fila de verificações',     category: 'Verificação (KYC)' },
+  { key: 'verification:review_clients', label: 'Verificar documentos de clientes', category: 'Verificação (KYC)' },
+  { key: 'verification:review_stores',  label: 'Verificar lojas (CNPJ/endereço/facial)', category: 'Verificação (KYC)' },
+  { key: 'verification:review_motoboys',label: 'Verificar motoboys (CNH/placa)', category: 'Verificação (KYC)' },
   // Cupons
   { key: 'coupon:create_global',        label: 'Criar cupons globais',        category: 'Cupons' },
   // Conversas
   { key: 'conversations:view_all',      label: 'Ver todas as conversas',      category: 'Conversas' },
   // Endereço
   { key: 'address:manage_own',          label: 'Gerenciar endereços',         category: 'Endereços' },
+  // Financeiro — Repasses (payouts)
+  { key: 'payout:view',                 label: 'Ver repasses e obrigações',   category: 'Financeiro — Repasses' },
+  { key: 'payout:release',              label: 'Liberar repasse',             category: 'Financeiro — Repasses' },
+  { key: 'payout:block',                label: 'Bloquear/desbloquear repasse', category: 'Financeiro — Repasses' },
+  { key: 'payout:mark_paid',            label: 'Marcar repasse como pago',    category: 'Financeiro — Repasses' },
+  { key: 'payout:config',               label: 'Configurar aprovação automática de repasses', category: 'Financeiro — Repasses' },
+  // Financeiro — Caixa do app
+  { key: 'cashbox:view',                label: 'Ver caixa do app e extrato',  category: 'Financeiro — Caixa do app' },
+  { key: 'cashbox:deposit',             label: 'Registrar depósito no caixa', category: 'Financeiro — Caixa do app' },
+  { key: 'cashbox:withdraw',            label: 'Solicitar saque do caixa',    category: 'Financeiro — Caixa do app' },
+  { key: 'cashbox:approve_withdrawal',  label: 'Aprovar/rejeitar saque do caixa', category: 'Financeiro — Caixa do app' },
+  // Financeiro — Saques de recebedores
+  { key: 'withdrawal:view',             label: 'Ver saques de lojas/motoboys', category: 'Financeiro — Saques' },
+  { key: 'withdrawal:approve',          label: 'Aprovar/rejeitar saques de lojas/motoboys', category: 'Financeiro — Saques' },
+  { key: 'withdrawal:config',           label: 'Configurar aprovação automática de saques', category: 'Financeiro — Saques' },
+  // Financeiro — Gateway (Asaas)
+  { key: 'gateway:manage',              label: 'Gerenciar subcontas/chaves do gateway', category: 'Financeiro — Gateway' },
+  // Usuários (administração)
+  { key: 'user:manage_roles',           label: 'Alterar cargo de usuários',   category: 'Usuários' },
+  { key: 'user:block',                  label: 'Bloquear/desbloquear/desconectar usuários', category: 'Usuários' },
+  // Planos e assinaturas
+  { key: 'plan:view',                   label: 'Ver assinaturas e mudanças de plano', category: 'Planos' },
+  { key: 'plan:approve',                label: 'Aprovar/rejeitar mudança de plano', category: 'Planos' },
+  { key: 'plan:manage',                 label: 'Alterar plano de loja / planos de preço', category: 'Planos' },
+  // Configurações da plataforma
+  { key: 'settings:manage',             label: 'Editar configurações da plataforma', category: 'Configurações' },
+  { key: 'ranking:manage',              label: 'Configurar prêmios de ranking', category: 'Configurações' },
+  // Pedidos (administração)
+  { key: 'order:manage_payment',        label: 'Alterar status de pagamento de pedidos', category: 'Pedidos' },
+  // Analytics
+  { key: 'analytics:view_platform',     label: 'Ver analytics da plataforma', category: 'Analytics' },
 ];
 
 // Retorna permissões de um role: primeiro tenta no DB, depois usa padrão estático
@@ -79,6 +115,19 @@ export async function getEffectivePermissions(role: string): Promise<{ permissio
   }
   return { permissions: rolePermissions[role] || [], notificationTargets: [] };
 }
+
+// GET /role-permissions/me — permissões efetivas do usuário logado (para o frontend
+// decidir o que mostrar). Qualquer autenticado pode ler as PRÓPRIAS permissões.
+export const getMyPermissions = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = (req.user as any)?.activeRole || req.user?.role || 'cliente';
+    const { permissions } = await getEffectivePermissions(role);
+    return res.json({ role, permissions });
+  } catch (err) {
+    logger.error('Erro ao buscar permissões do usuário', err as Error);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+};
 
 // GET /role-permissions — lista todos os roles com suas permissões atuais
 export const listAllRoles = async (req: AuthenticatedRequest, res: Response) => {

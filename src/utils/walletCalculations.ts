@@ -289,7 +289,11 @@ export const rolePermissions: { [key: string]: string[] } = {
     'user:view_all',
     'store:view_all',
     'wallet:view_all',
-    'dashboard:view_all'
+    'dashboard:view_all',
+    'verification:view_queue',
+    'verification:review_clients',
+    'verification:review_stores',
+    'verification:review_motoboys'
   ],
 
   gerente_clientes: [
@@ -297,7 +301,9 @@ export const rolePermissions: { [key: string]: string[] } = {
     'user:view_clients',
     'user:edit_clients',
     'wallet:view_clients',
-    'dashboard:view_client_metrics'
+    'dashboard:view_client_metrics',
+    'verification:view_queue',
+    'verification:review_clients'
   ],
 
   gerente_lojistas: [
@@ -305,7 +311,9 @@ export const rolePermissions: { [key: string]: string[] } = {
     'store:view_all',
     'store:edit',
     'wallet:view_stores',
-    'dashboard:view_store_metrics'
+    'dashboard:view_store_metrics',
+    'verification:view_queue',
+    'verification:review_stores'
   ],
 
   gerente_motoboys: [
@@ -313,7 +321,9 @@ export const rolePermissions: { [key: string]: string[] } = {
     'user:view_motoboys',
     'user:edit_motoboys',
     'wallet:view_motoboys',
-    'dashboard:view_motoboy_metrics'
+    'dashboard:view_motoboy_metrics',
+    'verification:view_queue',
+    'verification:review_motoboys'
   ],
 
   lojista: [

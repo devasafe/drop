@@ -22,7 +22,7 @@ interface PlatformConfig {
 
 export default function AdminSettings() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth() as any;
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [editConfig, setEditConfig] = useState<PlatformConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,17 +31,17 @@ export default function AdminSettings() {
 
   // Verificar permissão
   useEffect(() => {
-    if (!authLoading && user?.role !== 'ceo') {
+    if (!authLoading && !permissionsLoading && user && !can('settings:manage')) {
       router.push('/access-denied');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, permissionsLoading, can, router]);
 
   // Carregar configurações
   useEffect(() => {
-    if (user?.role === 'ceo') {
+    if (!permissionsLoading && can('settings:manage')) {
       loadConfig();
     }
-  }, [user]);
+  }, [user, permissionsLoading]);
 
   const loadConfig = async () => {
     try {
@@ -81,7 +81,7 @@ export default function AdminSettings() {
 
   if (authLoading || loading) {
     return (
-      <ProtectedRoute required_role="ceo">
+      <ProtectedRoute required_permission="settings:manage">
         <div className={styles.loadingScreen}>
           <LoadingSkeleton variant="form" />
         </div>
@@ -90,7 +90,7 @@ export default function AdminSettings() {
   }
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="settings:manage">
       <div className={styles.page}>
         <h1 className={styles.pageTitle}><Icon name="settings" size={20} /> Configurações do Sistema</h1>
         <p className={styles.pageSub}>

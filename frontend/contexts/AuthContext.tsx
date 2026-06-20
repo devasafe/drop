@@ -18,6 +18,9 @@ interface AuthContextType {
   token: string | null; // mantido por compat; a sessão agora é pelo cookie httpOnly
   loading: boolean;
   activeRole?: string;
+  permissions: string[];
+  permissionsLoading: boolean;
+  can: (permission: string) => boolean;
   login: (email: string, password: string) => Promise<any>;
   logout: () => void;
   switchRole: (newRole: string) => Promise<any>;
@@ -29,6 +32,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
     // A sessão é mantida pelo cookie httpOnly (não acessível via JS).
@@ -40,6 +45,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
+
+  // Carrega as permissões efetivas do usuário (definidas em /admin/permissoes).
+  // Re-busca quando o usuário ou o papel ativo muda (ex: switchRole).
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setPermissions([]);
+      return;
+    }
+    setPermissionsLoading(true);
+    api.get('/role-permissions/me')
+      .then((res) => { if (!cancelled) setPermissions(res.data?.permissions || []); })
+      .catch(() => { if (!cancelled) setPermissions([]); })
+      .finally(() => { if (!cancelled) setPermissionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.id, user?.activeRole]);
+
+  const can = (permission: string) =>
+    permissions.includes('*') || permissions.includes(permission);
 
   const login = async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
@@ -69,7 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, setUser }}>
+    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, permissions, permissionsLoading, can, setUser }}>
       {children}
     </AuthContext.Provider>
   );

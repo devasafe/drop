@@ -41,11 +41,6 @@ export const getMyPayouts = async (req: Request & { user?: any }, res: Response)
 // Admin/CEO - Ver todos os payouts
 export const getAdminPayouts = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar' });
-    }
-
     const { status, recipientType, recipientId, orderId, page, limit } = req.query;
 
     const result = await payoutService.listPayouts({
@@ -150,11 +145,6 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
 // Admin/CEO - Bloquear payout (fraude, inconsistência)
 export const blockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode bloquear payouts' });
-    }
-
     const Payout = (await import('../models/Payout')).default;
     const { id } = req.params;
     const { reason } = req.body;
@@ -181,11 +171,6 @@ export const blockPayout = async (req: Request & { user?: any }, res: Response) 
 // Admin/CEO - Desbloquear payout
 export const unblockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode desbloquear payouts' });
-    }
-
     const Payout = (await import('../models/Payout')).default;
     const { id } = req.params;
 
@@ -208,11 +193,6 @@ export const unblockPayout = async (req: Request & { user?: any }, res: Response
 // Admin/CEO - Toggle auto-aprovação
 export const toggleAutoApprove = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode alterar a configuração' });
-    }
-
     const PlatformConfig = (await import('../models/PlatformConfig')).default;
     const { enabled } = req.body;
 
@@ -246,19 +226,35 @@ export const getPayoutConfig = async (req: Request & { user?: any }, res: Respon
 // Admin/CEO - Liberar payout manualmente
 export const releasePayoutManually = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode liberar payouts' });
+    const { id } = req.params;
+    const payout = await Payout.findById(id);
+    if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
+    if (payout.blocked) {
+      return res.status(400).json({ error: `Payout bloqueado: ${payout.blockReason || 'sem motivo'}` });
     }
 
-    const { id } = req.params;
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await payoutService.releasePayout(id, session);
-      });
-    } finally {
-      session.endSession();
+    // No modo Asaas, liberar = transferir de verdade da conta-mãe p/ a subconta do
+    // recebedor. releaseOrderViaAsaas processa os payouts pendentes do pedido (loja +
+    // motoboy) e marca como released. No modo legado, apenas move o espelho contábil.
+    if (process.env.PAYMENT_GATEWAY === 'asaas') {
+      const { releaseOrderViaAsaas } = await import('../services/asaas/release');
+      await releaseOrderViaAsaas(String(payout.orderId));
+
+      const stillPending = await Payout.findById(id).select('status');
+      if (stillPending?.status === 'pending') {
+        return res.status(502).json({
+          error: 'Transferência no Asaas não concluída. Verifique se o recebedor tem subconta/chave PIX e tente novamente.',
+        });
+      }
+    } else {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await payoutService.releasePayout(id, session);
+        });
+      } finally {
+        session.endSession();
+      }
     }
 
     return res.json({ message: 'Payout liberado com sucesso' });
@@ -271,11 +267,6 @@ export const releasePayoutManually = async (req: Request & { user?: any }, res: 
 // Admin/CEO - Marcar payouts como pagos
 export const markPayoutsPaid = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode marcar payouts como pagos' });
-    }
-
     const { payoutIds, gatewayTransferId } = req.body;
     if (!payoutIds?.length) {
       return res.status(400).json({ error: 'payoutIds obrigatório' });
@@ -305,11 +296,6 @@ export const markPayoutsPaid = async (req: Request & { user?: any }, res: Respon
 // Obrigações pendentes (usado pelo admin/app-cashbox)
 export const getPendingObligations = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const role = req.user?.activeRole || req.user?.role;
-    if (role !== 'ceo') {
-      return res.status(403).json({ error: 'Apenas CEO pode acessar' });
-    }
-
     const total = await payoutService.getPendingObligations();
     return res.json({ pendingObligations: total });
   } catch (err) {

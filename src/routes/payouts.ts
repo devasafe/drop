@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import {
   getMyPayouts,
   getAdminPayouts,
@@ -14,27 +15,27 @@ import {
 
 const router = Router();
 
-// Lojista/Motoboy - Ver meus payouts
+// Lojista/Motoboy - Ver meus payouts (papel-base, segue por papel)
 router.get('/my', authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyPayouts);
 
-// Admin/CEO - Ver todos os payouts
-router.get('/admin', authenticate, authorizeRoles('ceo'), getAdminPayouts);
+// Admin - Ver todos os payouts
+router.get('/admin', authenticate, authorizePermission('payout:view'), getAdminPayouts);
 
-// Admin/CEO - Obrigações pendentes
-router.get('/admin/obligations', authenticate, authorizeRoles('ceo'), getPendingObligations);
+// Admin - Obrigações pendentes
+router.get('/admin/obligations', authenticate, authorizePermission('payout:view'), getPendingObligations);
 
-// Admin/CEO - Liberar payout manualmente
-router.post('/admin/:id/release', authenticate, authorizeRoles('ceo'), releasePayoutManually);
+// Admin - Liberar payout manualmente
+router.post('/admin/:id/release', authenticate, authorizePermission('payout:release'), releasePayoutManually);
 
-// Admin/CEO - Marcar payouts como pagos
-router.post('/admin/mark-paid', authenticate, authorizeRoles('ceo'), markPayoutsPaid);
+// Admin - Marcar payouts como pagos
+router.post('/admin/mark-paid', authenticate, authorizePermission('payout:mark_paid'), markPayoutsPaid);
 
-// Admin/CEO - Bloquear/desbloquear payout
-router.post('/admin/:id/block', authenticate, authorizeRoles('ceo'), blockPayout);
-router.post('/admin/:id/unblock', authenticate, authorizeRoles('ceo'), unblockPayout);
+// Admin - Bloquear/desbloquear payout
+router.post('/admin/:id/block', authenticate, authorizePermission('payout:block'), blockPayout);
+router.post('/admin/:id/unblock', authenticate, authorizePermission('payout:block'), unblockPayout);
 
-// Admin/CEO - Config de auto-aprovação
-router.get('/admin/config', authenticate, authorizeRoles('ceo'), getPayoutConfig);
-router.put('/admin/config', authenticate, authorizeRoles('ceo'), toggleAutoApprove);
+// Admin - Config de auto-aprovação
+router.get('/admin/config', authenticate, authorizePermission('payout:view'), getPayoutConfig);
+router.put('/admin/config', authenticate, authorizePermission('payout:config'), toggleAutoApprove);
 
 export default router;

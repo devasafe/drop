@@ -99,7 +99,7 @@ export default function AdminVerificacoes() {
   const total = lojistas.length + motoboyUsers.length + clientes.length;
 
   return (
-    <ProtectedRoute required_role="ceo,gerente_geral,gerente_clientes,gerente_lojistas,gerente_motoboys">
+    <ProtectedRoute required_permission="verification:view_queue">
       <div style={wrap}>
         <div style={{ maxWidth: 820, width: '100%' }}>
           <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificações pendentes</h1>

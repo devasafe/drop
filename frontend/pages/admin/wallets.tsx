@@ -261,7 +261,7 @@ export default function AdminWalletsPanel() {
 
   if (pageLoading) {
     return (
-      <ProtectedRoute required_role="ceo,gerente_geral">
+      <ProtectedRoute required_permission="wallet:view_all">
         <div className={styles.loadingScreen}>
           <LoadingSkeleton variant="dashboard" />
         </div>
@@ -270,7 +270,7 @@ export default function AdminWalletsPanel() {
   }
 
   return (
-    <ProtectedRoute required_role="ceo,gerente_geral">
+    <ProtectedRoute required_permission="wallet:view_all">
       <div className={styles.page}>
         {/* HEADER */}
         <div className={styles.header}>

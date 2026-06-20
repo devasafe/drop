@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import {
   getPlatformConfig,
   updatePlatformConfig,
@@ -17,28 +18,28 @@ const router = Router();
 // Public - Get current config
 router.get('/platform-config', getPlatformConfig);
 
-// CEO Only - Update config
-router.put('/platform-config', authenticate, updatePlatformConfig);
+// Admin - Update config
+router.put('/platform-config', authenticate, authorizePermission('settings:manage'), updatePlatformConfig);
 
-// Store - Get own subscription
+// Store - Get own subscription (papel-base)
 router.get('/store-subscription', authenticate, getStoreSubscription);
 
-// Store - Request plan change
+// Store - Request plan change (papel-base)
 router.post('/store-subscription/request-change', authenticate, requestPlanChange);
 
-// CEO - Get pending changes
-router.get('/pending-plan-changes', authenticate, getPendingPlanChanges);
+// Admin - Get pending changes
+router.get('/pending-plan-changes', authenticate, authorizePermission('plan:view'), getPendingPlanChanges);
 
-// CEO - Approve plan change
-router.post('/approve-plan-change', authenticate, approvePlanChange);
+// Admin - Approve plan change
+router.post('/approve-plan-change', authenticate, authorizePermission('plan:approve'), approvePlanChange);
 
-// CEO - Reject plan change
-router.post('/reject-plan-change', authenticate, rejectPlanChange);
+// Admin - Reject plan change
+router.post('/reject-plan-change', authenticate, authorizePermission('plan:approve'), rejectPlanChange);
 
-// CEO - Get all subscriptions
-router.get('/all-store-subscriptions', authenticate, getAllStoreSubscriptions);
+// Admin - Get all subscriptions
+router.get('/all-store-subscriptions', authenticate, authorizePermission('plan:view'), getAllStoreSubscriptions);
 
-// ✨ CEO - Update store plan directly (+ comissão)
-router.put('/store-plan', authenticate, updateStorePlan);
+// Admin - Update store plan directly (+ comissão)
+router.put('/store-plan', authenticate, authorizePermission('plan:manage'), updateStorePlan);
 
 export default router;

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import Icon from '../../components/Icon';
 import api from '../../lib/api';
@@ -21,7 +20,6 @@ const DEFAULT_PRIZES: PrizeEntry[] = [
 ];
 
 export default function AdminRankingConfig() {
-  useRequireAuth(['ceo']);
   const router = useRouter();
 
   const [current, setCurrent] = useState<PrizesData | null>(null);
@@ -83,7 +81,7 @@ export default function AdminRankingConfig() {
   };
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="ranking:manage">
       <div style={{ minHeight: '100vh', background: 'var(--drop-bg)', padding: '32px 20px' }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
 

@@ -14,6 +14,7 @@ interface AppCashboxData {
   totalExpenses: number;
   pendingObligations: number;
   platformNet: number;
+  asaas?: { enabled: boolean; balance: number | null; error?: string };
   history: Array<{
     type: 'income' | 'expense' | 'withdrawal' | 'deposit';
     source: string;
@@ -40,7 +41,7 @@ interface WithdrawalRequest {
 
 export default function AppCashbox() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth();
   const [cashbox, setCashbox] = useState<AppCashboxData | null>(null);
   const [statement, setStatement] = useState<any>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -66,17 +67,17 @@ export default function AppCashbox() {
 
   // Verificar permissão
   useEffect(() => {
-    if (!authLoading && user?.role !== 'ceo') {
+    if (!authLoading && !permissionsLoading && user && !can('cashbox:view')) {
       router.push('/access-denied');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, permissionsLoading, can, router]);
 
   // Carregar dados
   useEffect(() => {
-    if (user?.role === 'ceo') {
+    if (!permissionsLoading && can('cashbox:view')) {
       loadCashboxData();
     }
-  }, [user]);
+  }, [user, permissionsLoading]);
 
   const loadCashboxData = async () => {
     try {
@@ -177,7 +178,7 @@ export default function AppCashbox() {
 
   if (authLoading || loading) {
     return (
-      <ProtectedRoute required_role="ceo">
+      <ProtectedRoute required_permission="cashbox:view">
         <div className={styles.loadingWrapper}>
           <LoadingSkeleton variant="dashboard" />
         </div>
@@ -200,7 +201,7 @@ export default function AppCashbox() {
   };
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="cashbox:view">
       <div className={styles.page}>
         <div className={styles.header}>
           <div>
@@ -247,6 +248,28 @@ export default function AppCashbox() {
         {/* Overview Tab */}
         {activeTab === 'overview' && cashbox && (
           <div>
+            {/* Modo Asaas: o dinheiro real fica na conta-mãe do gateway, não no caixa legado */}
+            {cashbox.asaas?.enabled && (
+              <div
+                className={styles.statCard}
+                style={{ marginBottom: 16, borderColor: 'var(--drop-purple, #6C2BD9)' }}
+              >
+                <div className={styles.statLabel}>
+                  <Icon name="bank" size={14} /> Saldo real — conta-mãe Asaas (custódia)
+                </div>
+                <div className={styles.statValueGreen}>
+                  {cashbox.asaas.balance != null
+                    ? `R$ ${cashbox.asaas.balance.toFixed(2)}`
+                    : '— indisponível'}
+                </div>
+                <div className={styles.historyDate} style={{ marginTop: 6 }}>
+                  {cashbox.asaas.error
+                    ? `Não foi possível consultar o Asaas: ${cashbox.asaas.error}`
+                    : 'Neste modo, a custódia e os repasses ficam no Asaas. Os números abaixo (caixa legado) são apenas contábeis.'}
+                </div>
+              </div>
+            )}
+
             <div className={styles.statsGrid}>
               {/* Custodia Total */}
               <div className={styles.statCard}>

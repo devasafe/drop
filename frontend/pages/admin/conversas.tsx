@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
-import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
@@ -89,7 +88,6 @@ const AVATAR_COLORS = ['#6c2bd9', '#2d9cdb', '#27ae60', '#e67e22', '#e84393'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0) || 0) % AVATAR_COLORS.length];
 
 export default function AdminConversas() {
-  useRequireAuth(['ceo']);
   const router = useRouter();
 
   const [typeFilter, setTypeFilter]   = useState('');
@@ -162,7 +160,7 @@ export default function AdminConversas() {
   };
 
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="conversations:view_all">
       <div className={styles.page}>
         <div className={styles.layout}>
 

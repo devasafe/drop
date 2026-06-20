@@ -1,41 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import User from '../models/User';
 import { emitForceLogout } from '../utils/socketEmitter';
 
 const router = Router();
-
-// Middleware para verificar se é admin
-const checkAdmin = async (req: any, res: Response, next: any) => {
-  try {
-    // O middleware authenticate passa req.user, não req.userId
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const user = await User.findById(req.user.id);
-    
-    // ✅ NOVO: Verificar activeRole ou roles[]
-    const userRoles = user?.roles || (user?.role ? [user.role] : []);
-    const activeRole = user?.activeRole || user?.role || '';
-    const isAdmin = ['ceo', 'gerente_geral'].includes(activeRole) || 
-                    userRoles.some((r: string) => ['ceo', 'gerente_geral'].includes(r));
-    
-    if (!user || !isAdmin) {
-      return res.status(403).json({ error: 'Access denied. Admin role required.' });
-    }
-    next();
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 
 // ═══════════════════════════════════════════════════════════
 // 👥 GERENCIAR USUÁRIOS
 // ═══════════════════════════════════════════════════════════
 
 // GET /admin/users - Listar todos os usuários
-router.get('/users', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.get('/users', authenticate, authorizePermission('user:view_all'), async (req: any, res: Response) => {
   try {
     const users = await User.find({}, {
       name: 1,
@@ -61,7 +37,7 @@ router.get('/users', authenticate, checkAdmin, async (req: any, res: Response) =
 const ALLOWED_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'];
 
 // PUT /admin/users/:id/role - Atualizar role do usuário
-router.put('/users/:id/role', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.put('/users/:id/role', authenticate, authorizePermission('user:manage_roles'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { role } = req.body;
@@ -96,7 +72,7 @@ router.put('/users/:id/role', authenticate, checkAdmin, async (req: any, res: Re
 });
 
 // PUT /admin/users/:id/status - Bloquear/Desbloquear usuário
-router.put('/users/:id/status', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.put('/users/:id/status', authenticate, authorizePermission('user:block'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body;
@@ -138,7 +114,7 @@ router.put('/users/:id/status', authenticate, checkAdmin, async (req: any, res: 
 });
 
 // POST /admin/users/:id/disconnect - Força logout via socket sem bloquear a conta
-router.post('/users/:id/disconnect', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.post('/users/:id/disconnect', authenticate, authorizePermission('user:block'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -163,7 +139,7 @@ router.post('/users/:id/disconnect', authenticate, checkAdmin, async (req: any, 
 // ═══════════════════════════════════════════════════════════
 
 // GET /admin/settings - Obter configurações
-router.get('/settings', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.get('/settings', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
   try {
     // Por enquanto, retorna configurações padrão
     const settings = {
@@ -201,7 +177,7 @@ router.get('/settings', authenticate, checkAdmin, async (req: any, res: Response
 });
 
 // PUT /admin/settings - Atualizar configurações
-router.put('/settings', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.put('/settings', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
   try {
     const { settings } = req.body;
 
@@ -227,7 +203,7 @@ router.put('/settings', authenticate, checkAdmin, async (req: any, res: Response
 // ═══════════════════════════════════════════════════════════
 
 // GET /admin/dashboard - Dados do dashboard
-router.get('/dashboard', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.get('/dashboard', authenticate, authorizePermission('dashboard:view_all'), async (req: any, res: Response) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalAdmins = await User.countDocuments({ role: { $in: ['ceo', 'marketing', 'gerente_geral'] } });
@@ -253,28 +229,60 @@ router.get('/dashboard', authenticate, checkAdmin, async (req: any, res: Respons
 // 💰 GERENCIAR CARTEIRAS
 // ═══════════════════════════════════════════════════════════
 
-// GET /admin/wallets - Listar carteiras SEM saldos (admin precisa pedir acesso individual)
-router.get('/wallets', authenticate, checkAdmin, async (req: any, res: Response) => {
+// GET /admin/wallets - Listar carteiras de TODOS os papéis (clientes, lojistas, motoboys).
+// Carteira de cliente continua protegida: saldo só aparece com acesso aprovado vigente.
+// Carteiras de loja/motoboy são contas operacionais de recebimento → o admin vê o saldo direto.
+router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
   try {
     const Wallet = require('../models/Wallet').default || require('../models/Wallet');
     const { hasValidWalletAccess } = require('../controllers/walletAccessController');
 
-    const wallets = await Wallet.find({ ownerType: 'user' }).sort({ updatedAt: -1 });
+    const wallets = await Wallet.find({ ownerType: { $in: ['user', 'store', 'motoboy'] } }).sort({ updatedAt: -1 });
     const requesterId = String(req.user?.id);
 
-    // Por padrão: sem saldo. Só revela se existe acesso aprovado vigente pra esse alvo.
     const formattedWallets = await Promise.all(wallets.map(async (w: any) => {
-      const userData = await User.findById(w.owner, 'name email role');
-      const hasAccess = await hasValidWalletAccess(requesterId, String(w.owner));
+      // Resolver dono e papel conforme o tipo da carteira
+      let ownerName = 'Usuário Desconhecido';
+      let ownerEmail = 'N/A';
+      let userRole = 'cliente';
+      // userId = identidade pra solicitar acesso (no caso de loja, é o dono)
+      let accessTargetId = String(w.owner);
+
+      if (w.ownerType === 'store') {
+        const store = await Store.findById(w.owner).select('name ownerId');
+        ownerName = store?.name || 'Loja Desconhecida';
+        userRole = 'lojista';
+        if (store?.ownerId) {
+          accessTargetId = String(store.ownerId);
+          const owner = await User.findById(store.ownerId, 'name email');
+          ownerEmail = owner?.email || 'N/A';
+        }
+      } else {
+        const userData = await User.findById(w.owner, 'name email role');
+        ownerName = userData?.name || 'Usuário Desconhecido';
+        ownerEmail = userData?.email || 'N/A';
+        userRole = w.ownerType === 'motoboy' ? 'motoboy' : (userData?.role || 'cliente');
+      }
+
+      // Gating de privacidade: só carteira PESSOAL de cliente exige acesso aprovado.
+      const isClientWallet = w.ownerType === 'user' && userRole === 'cliente';
+      const hasAccess = isClientWallet
+        ? await hasValidWalletAccess(requesterId, accessTargetId)
+        : true;
+
       return {
         _id: w._id,
-        userId: w.owner,
-        userName: userData?.name || 'Usuário Desconhecido',
-        userEmail: userData?.email || 'N/A',
-        userRole: userData?.role || 'cliente',
+        userId: accessTargetId,
+        owner: w.owner,
+        ownerType: w.ownerType,
+        userName: ownerName,
+        userEmail: ownerEmail,
+        userRole,
         balance: hasAccess ? (w.balance || 0) : null,
         totalEarnings: hasAccess ? (w.totalIncome || 0) : null,
         totalSpent: hasAccess ? (w.totalSpent || 0) : null,
+        availableBalance: hasAccess ? (w.availableBalance || 0) : null,
+        pendingBalance: hasAccess ? (w.pendingBalance || 0) : null,
         totalWithdrawn: 0,
         hasAccess,
         createdAt: w.createdAt,
@@ -290,7 +298,7 @@ router.get('/wallets', authenticate, checkAdmin, async (req: any, res: Response)
 });
 
 // GET /admin/wallets/:id/transactions - Listar transações de uma carteira
-router.get('/wallets/:id/transactions', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.get('/wallets/:id/transactions', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const Wallet = require('../models/Wallet').default || require('../models/Wallet');
@@ -333,7 +341,7 @@ router.get('/wallets/:id/transactions', authenticate, checkAdmin, async (req: an
 });
 
 // POST /admin/wallets/:id/add-balance - Adicionar saldo à carteira
-router.post('/wallets/:id/add-balance', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.post('/wallets/:id/add-balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { amount, reason } = req.body;
@@ -375,7 +383,7 @@ router.post('/wallets/:id/add-balance', authenticate, checkAdmin, async (req: an
 });
 
 // PUT /admin/wallets/:id/balance - Adicionar saldo manual (ajuste administrativo)
-router.put('/wallets/:id/balance', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.put('/wallets/:id/balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { amount, reason } = req.body;
@@ -436,25 +444,25 @@ import {
 } from '../controllers/appCashboxController';
 
 // GET /admin/app-cashbox - Ver saldo e resumo
-router.get('/app-cashbox', authenticate, checkAdmin, getAppCashbox);
+router.get('/app-cashbox', authenticate, authorizePermission('cashbox:view'), getAppCashbox);
 
 // GET /admin/app-cashbox/statement - Ver extrato detalhado
-router.get('/app-cashbox/statement', authenticate, checkAdmin, getAppCashboxStatement);
+router.get('/app-cashbox/statement', authenticate, authorizePermission('cashbox:view'), getAppCashboxStatement);
 
 // POST /admin/app-cashbox/withdrawal - Solicitar saque
-router.post('/app-cashbox/withdrawal', authenticate, checkAdmin, requestWithdrawal);
+router.post('/app-cashbox/withdrawal', authenticate, authorizePermission('cashbox:withdraw'), requestWithdrawal);
 
 // GET /admin/app-cashbox/withdrawals - Ver saques
-router.get('/app-cashbox/withdrawals', authenticate, checkAdmin, getWithdrawals);
+router.get('/app-cashbox/withdrawals', authenticate, authorizePermission('cashbox:view'), getWithdrawals);
 
 // PUT /admin/app-cashbox/withdrawals/:id/approve - Aprovar saque
-router.put('/app-cashbox/withdrawals/:id/approve', authenticate, checkAdmin, approveWithdrawal);
+router.put('/app-cashbox/withdrawals/:id/approve', authenticate, authorizePermission('cashbox:approve_withdrawal'), approveWithdrawal);
 
 // PUT /admin/app-cashbox/withdrawals/:id/reject - Rejeitar saque
-router.put('/app-cashbox/withdrawals/:id/reject', authenticate, checkAdmin, rejectWithdrawal);
+router.put('/app-cashbox/withdrawals/:id/reject', authenticate, authorizePermission('cashbox:approve_withdrawal'), rejectWithdrawal);
 
 // POST /admin/app-cashbox/deposit - Registrar depósito
-router.post('/app-cashbox/deposit', authenticate, checkAdmin, registerDeposit);
+router.post('/app-cashbox/deposit', authenticate, authorizePermission('cashbox:deposit'), registerDeposit);
 
 // ═══════════════════════════════════════════════════════════
 // 🏦 SUBCONTAS ASAAS (gateway) — criar/backfill p/ recebedores já verificados
@@ -464,7 +472,7 @@ import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaa
 
 // POST /admin/asaas/subaccount/store/:storeId
 // body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
-router.post('/asaas/subaccount/store/:storeId', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.post('/asaas/subaccount/store/:storeId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
   try {
     const store = await Store.findById(req.params.storeId);
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
@@ -497,7 +505,7 @@ router.post('/asaas/subaccount/store/:storeId', authenticate, checkAdmin, async 
 
 // POST /admin/asaas/subaccount/motoboy/:userId
 // body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
-router.post('/asaas/subaccount/motoboy/:userId', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.post('/asaas/subaccount/motoboy/:userId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -535,7 +543,7 @@ router.post('/asaas/subaccount/motoboy/:userId', authenticate, checkAdmin, async
 });
 
 // GET /admin/asaas/subaccounts — diagnóstico: recebedores e status da subconta
-router.get('/asaas/subaccounts', authenticate, checkAdmin, async (_req: any, res: Response) => {
+router.get('/asaas/subaccounts', authenticate, authorizePermission('gateway:manage'), async (_req: any, res: Response) => {
   try {
     const stores = await Store.find({ isVerified: true }).select('name cnpj asaas').lean();
     const motoboys = await User.find({ roles: 'motoboy' }).select('name cpf asaas').lean();
@@ -555,7 +563,7 @@ router.get('/asaas/subaccounts', authenticate, checkAdmin, async (_req: any, res
 
 // POST /admin/asaas/release-order/:orderId — re-tenta transferir/liberar os payouts
 // PENDENTES de um pedido (ex: subconta criada DEPOIS da entrega, ou transferência falhou).
-router.post('/asaas/release-order/:orderId', authenticate, checkAdmin, async (req: any, res: Response) => {
+router.post('/asaas/release-order/:orderId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
   try {
     const { releaseOrderViaAsaas } = await import('../services/asaas/release');
     await releaseOrderViaAsaas(req.params.orderId);
@@ -570,7 +578,7 @@ router.post('/asaas/release-order/:orderId', authenticate, checkAdmin, async (re
 });
 
 // GET /admin/asaas/conta-mae/pix — lista as chaves PIX da conta-mãe
-router.get('/asaas/conta-mae/pix', authenticate, checkAdmin, async (_req: any, res: Response) => {
+router.get('/asaas/conta-mae/pix', authenticate, authorizePermission('gateway:manage'), async (_req: any, res: Response) => {
   try {
     const asaasClient = (await import('../services/asaas/client')).default;
     const keys = await asaasClient.get('/pix/addressKeys');
@@ -581,7 +589,7 @@ router.get('/asaas/conta-mae/pix', authenticate, checkAdmin, async (_req: any, r
 });
 
 // POST /admin/asaas/conta-mae/pix — cria uma chave PIX aleatória (EVP) se não houver
-router.post('/asaas/conta-mae/pix', authenticate, checkAdmin, async (_req: any, res: Response) => {
+router.post('/asaas/conta-mae/pix', authenticate, authorizePermission('gateway:manage'), async (_req: any, res: Response) => {
   try {
     const asaasClient = (await import('../services/asaas/client')).default;
     const existing: any = await asaasClient.get('/pix/addressKeys');

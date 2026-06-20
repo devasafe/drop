@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import { upload } from '../middleware/upload';
 import {
   getMyVerification,
@@ -54,11 +55,12 @@ router.post(
   submitDocument
 );
 
-// Admin — fila de revisão (documentos do cliente)
-const adminReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_clientes');
-router.get('/admin/pending', authenticate, adminReviewers, listPendingVerifications);
-router.post('/admin/:userId/approve', authenticate, adminReviewers, approveDocument);
-router.post('/admin/:userId/reject', authenticate, adminReviewers, rejectDocument);
+// Admin — fila de revisão (documentos do cliente).
+// Autorização por PERMISSÃO (configurável no painel de cargos), não por role fixo.
+const reviewClients = authorizePermission('verification:review_clients');
+router.get('/admin/pending', authenticate, reviewClients, listPendingVerifications);
+router.post('/admin/:userId/approve', authenticate, reviewClients, approveDocument);
+router.post('/admin/:userId/reject', authenticate, reviewClients, rejectDocument);
 
 // ===================== FASE 2: LOJA =====================
 // Facial do dono
@@ -69,7 +71,7 @@ router.post('/store/:storeId/address', authenticate, upload.single('comprovante'
 router.get('/store/:storeId', authenticate, getStoreVerification);
 
 // Admin — revisão de loja (facial/CNPJ/endereço)
-const storeReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_lojistas');
+const storeReviewers = authorizePermission('verification:review_stores');
 router.get('/admin/store-pending', authenticate, storeReviewers, listPendingStoreVerifications);
 router.post('/admin/facial/:userId/approve', authenticate, storeReviewers, approveFacial);
 router.post('/admin/facial/:userId/reject', authenticate, storeReviewers, rejectFacial);
@@ -82,7 +84,7 @@ router.post('/admin/store/:storeId/address/reject', authenticate, storeReviewers
 router.post('/motoboy', authenticate, upload.fields([{ name: 'platePhoto', maxCount: 1 }, { name: 'cnhPhoto', maxCount: 1 }]), submitCourier);
 router.get('/motoboy/me', authenticate, getMyCourierVerification);
 
-const courierReviewers = authorizeRoles('ceo', 'gerente_geral', 'gerente_motoboys');
+const courierReviewers = authorizePermission('verification:review_motoboys');
 router.get('/admin/motoboy-pending', authenticate, courierReviewers, listPendingCourier);
 router.post('/admin/motoboy/:userId/approve', authenticate, courierReviewers, approveCourier);
 router.post('/admin/motoboy/:userId/reject', authenticate, courierReviewers, rejectCourier);

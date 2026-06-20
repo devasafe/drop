@@ -2,7 +2,6 @@ import { useState, useEffect, useContext } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import AuthContext from '../../contexts/AuthContext';
-import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import ChatPanel from '../../components/ChatPanel';
@@ -33,7 +32,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function AdminSuporte() {
-  useRequireAuth(['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys']);
   const router = useRouter();
   const { user, token } = useContext(AuthContext);
 
@@ -171,7 +169,7 @@ export default function AdminSuporte() {
   const assignedNames = activeTicket?.assignedTo.map(a => a.name) ?? [];
 
   return (
-    <ProtectedRoute required_role={['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys']}>
+    <ProtectedRoute required_permission="support:attend">
       <div style={{ minHeight: '100vh', background: 'var(--drop-bg)', padding: '24px 20px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 

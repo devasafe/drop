@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
 import {
   requestWithdrawal,
@@ -25,23 +26,23 @@ router.post('/request-user', authenticate, requireActiveUser, requestUserWithdra
 // Motoboy - Ver seus saques
 router.get('/my-withdrawals', authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyWithdrawals);
 
-// CEO - Ver saques pendentes
-router.get('/pending', authenticate, authorizeRoles('ceo'), getPendingWithdrawals);
+// Admin - Ver saques pendentes
+router.get('/pending', authenticate, authorizePermission('withdrawal:view'), getPendingWithdrawals);
 
-// CEO - Ver todos os saques
-router.get('/all', authenticate, authorizeRoles('ceo'), getAllWithdrawals);
+// Admin - Ver todos os saques
+router.get('/all', authenticate, authorizePermission('withdrawal:view'), getAllWithdrawals);
 
-// CEO - Aprovar saque
-router.post('/approve', authenticate, authorizeRoles('ceo'), approveWithdrawal);
+// Admin - Aprovar saque
+router.post('/approve', authenticate, authorizePermission('withdrawal:approve'), approveWithdrawal);
 
-// CEO - Rejeitar saque
-router.post('/reject', authenticate, authorizeRoles('ceo'), rejectWithdrawal);
+// Admin - Rejeitar saque
+router.post('/reject', authenticate, authorizePermission('withdrawal:approve'), rejectWithdrawal);
 
-// CEO - Ver carteira CEO
-router.get('/ceo-wallet', authenticate, authorizeRoles('ceo'), getCEOWallet);
+// Admin - Ver carteira CEO
+router.get('/ceo-wallet', authenticate, authorizePermission('withdrawal:view'), getCEOWallet);
 
-// CEO - Config de auto-aprovação
-router.get('/admin/config', authenticate, authorizeRoles('ceo'), getWithdrawalConfig);
-router.put('/admin/config', authenticate, authorizeRoles('ceo'), toggleAutoApproveWithdrawals);
+// Admin - Config de auto-aprovação
+router.get('/admin/config', authenticate, authorizePermission('withdrawal:view'), getWithdrawalConfig);
+router.put('/admin/config', authenticate, authorizePermission('withdrawal:config'), toggleAutoApproveWithdrawals);
 
 export default router;
