@@ -519,15 +519,23 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Fase 2: cobrança PIX no Asaas (chamada externa — fora da transação).
     let pixCharge: PixCharge | null = null;
     if (useAsaas) {
+      const buildCharge = (cid: string) => createPixCharge({
+        customerId: cid, value: totalValue, orderId: String(order._id), description: `Pedido em ${store.name || 'loja'}`,
+      });
       try {
-        const asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+        let asaasCustomerId = await ensureAsaasCustomer(String(customerId));
         if (!asaasCustomerId) throw new Error('Cliente Asaas não pôde ser criado');
-        pixCharge = await createPixCharge({
-          customerId: asaasCustomerId,
-          value: totalValue,
-          orderId: String(order._id),
-          description: `Pedido em ${store.name || 'loja'}`,
-        });
+        try {
+          pixCharge = await buildCharge(asaasCustomerId);
+        } catch (firstErr) {
+          // Cliente Asaas pode estar obsoleto (ex: troca da conta-mãe Asaas) — o id
+          // cacheado não existe na conta nova. Recria o cliente e tenta 1x.
+          logger.warn('1ª cobrança falhou — recriando cliente Asaas e tentando novamente', { orderId: order._id });
+          await User.updateOne({ _id: customerId }, { $unset: { 'asaas.customerId': '' } });
+          asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+          if (!asaasCustomerId) throw firstErr;
+          pixCharge = await buildCharge(asaasCustomerId);
+        }
         order.asaasPaymentId = pixCharge.paymentId;
         await order.save();
       } catch (chargeErr: any) {
