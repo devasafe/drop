@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import Head from 'next/head';
 import type { AppProps } from 'next/app';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { SocketProvider } from '../contexts/SocketContext';
@@ -54,6 +55,10 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
   return (
     <SocketProvider enabled={!!user}>
+      {/* Título padrão da aba (páginas podem sobrescrever com seu próprio <title>) */}
+      <Head>
+        <title>DROP</title>
+      </Head>
       <LivePresenceMount />
       <ForceLogoutListener />
       {user && <RealtimeNotifier />}
