@@ -69,9 +69,11 @@ export default function AdminUsersPanel() {
   };
 
   useEffect(() => {
-    if (me && token) fetchUsers();
+    // A sessão é mantida por cookie httpOnly — não há token em JS (é sempre null).
+    // Basta haver usuário logado para buscar.
+    if (me) fetchUsers();
     else setLoading(false);
-  }, [me, token]);
+  }, [me]);
 
   const filteredUsers = users.filter(u => {
     const roleToMatch = u.activeRole || u.role;

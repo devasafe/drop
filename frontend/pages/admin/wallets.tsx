@@ -71,8 +71,8 @@ export default function AdminWalletsPanel() {
   };
 
   useEffect(() => {
-    if (user && token) loadOutgoing();
-  }, [user, token]);
+    if (user) loadOutgoing();
+  }, [user]);
 
   const getRequestStatus = (targetUserId: string): AccessRequest | null => {
     const rel = outgoing.filter(r => {
@@ -119,12 +119,12 @@ export default function AdminWalletsPanel() {
       }
     };
 
-    if (user && token) {
+    if (user) {
       loadWallets();
     } else {
       setPageLoading(false);
     }
-  }, [user, token]);
+  }, [user]);
 
   // Carregar transações ao selecionar carteira
   const handleSelectWallet = async (wallet: WalletData) => {
