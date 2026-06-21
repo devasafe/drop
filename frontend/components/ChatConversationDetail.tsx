@@ -82,7 +82,9 @@ export default function ChatConversationDetail({
 
     unsubs.push(on('chat:new_message', (data: Message) => {
       if (data.conversationId === conversationId) {
-        setMessages(prev => [...prev, data]);
+        // Dedup por _id: o remetente recebe o eco da própria mensagem via socket
+        // (já está na sala), o que duplicava a mensagem adicionada no envio.
+        setMessages(prev => (data._id && prev.some(m => m._id === data._id)) ? prev : [...prev, data]);
         if (isMinimized) {
           setUnreadCount(prev => prev + 1);
           if (Notification.permission === 'granted') {
@@ -164,7 +166,8 @@ export default function ChatConversationDetail({
         attachments: [],
         ...(otherParticipantId && { otherParticipantId }),
       });
-      setMessages(prev => [...prev, response.data]);
+      // Dedup: se o eco do socket chegou antes da resposta do POST, não duplica.
+      setMessages(prev => (response.data?._id && prev.some(m => m._id === response.data._id)) ? prev : [...prev, response.data]);
       setMessageText('');
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
