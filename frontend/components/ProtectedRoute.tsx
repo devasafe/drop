@@ -24,15 +24,17 @@ export default function ProtectedRoute({ required_role, required_permission, chi
   const router = useRouter();
   const activeRole = user?.activeRole || user?.role;
 
+  const isCeo = activeRole === 'ceo';
   const allowedRoles = toArray(required_role);
   const allowedPerms = toArray(required_permission);
   const hasRequirement = allowedRoles.length > 0 || allowedPerms.length > 0;
 
-  // Precisamos esperar as permissões carregarem antes de decidir, quando o gate é por permissão.
-  const waitingPermissions = allowedPerms.length > 0 && permissionsLoading;
+  // CEO nunca espera/é barrado por permissão. Para os demais, esperamos as
+  // permissões carregarem antes de decidir um gate por permissão.
+  const waitingPermissions = !isCeo && allowedPerms.length > 0 && permissionsLoading;
 
   const roleAllowed = allowedRoles.length > 0 && allowedRoles.includes(activeRole);
-  const permAllowed = allowedPerms.length > 0 && allowedPerms.some((p) => can?.(p));
+  const permAllowed = allowedPerms.length > 0 && (isCeo || allowedPerms.some((p) => can?.(p)));
   const granted = !hasRequirement || roleAllowed || permAllowed;
 
   useEffect(() => {

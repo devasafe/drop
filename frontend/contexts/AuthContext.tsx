@@ -62,8 +62,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => { cancelled = true; };
   }, [user?.id, user?.activeRole]);
 
+  // CEO tem acesso total SEMPRE (via papel), independente da API de permissões ter
+  // carregado ou não — evita travar o CEO se /role-permissions/me falhar/atrasar.
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
   const can = (permission: string) =>
-    permissions.includes('*') || permissions.includes(permission);
+    isCeo || permissions.includes('*') || permissions.includes(permission);
 
   const login = async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });

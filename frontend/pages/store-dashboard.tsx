@@ -8,8 +8,6 @@ import Icon from '../components/Icon';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useCancellation } from '../hooks/useCancellation';
 import { useSocketListener } from '../hooks/useAutoRefetch';
-import ContactInfo from '../components/delivery/ContactInfo';
-import useChat from '../hooks/useChat';
 import ChatConversationList from '../components/ChatConversationList';
 import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
@@ -22,24 +20,34 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
   const [changingPayment, setChangingPayment] = useState(false);
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(order?.paymentStatus || 'pending');
   const [showChat, setShowChat] = useState(false);
-  const [activeChatTab, setActiveChatTab] = useState<'customer' | null>(null);
+  const [chatConvId, setChatConvId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
-  // Hook de chat para comunicação com cliente
-  const customerChatId = `store-customer-${order.storeId}-${order.customerId}`;
-  const {
-    socket: customerSocket,
-    isConnected: customerIsConnected,
-    conversationId: customerConversationId,
-    messages: customerMessages,
-    error: customerChatError,
-    typingUsers: customerTypingUsers,
-    sendMessage: sendCustomerMessage,
-    markAsRead: markCustomerAsRead,
-    setUserTyping: onCustomerTyping,
-  } = useChat({
-    token: token || '',
-    userId: user?._id || ''
-  });
+  const customerId = order?.customerId || order?.customerObj?._id;
+
+  // Abre (ou cria) a conversa loja↔cliente deste pedido e exibe o chat real.
+  // Antes o chat não abria porque nenhuma conversa era criada/obtida no backend.
+  const handleToggleChat = async () => {
+    if (showChat) { setShowChat(false); return; }
+    if (chatConvId) { setShowChat(true); return; }
+    if (!customerId) { alert('Comprador não identificado neste pedido.'); return; }
+    try {
+      setChatLoading(true);
+      const res = await api.post('/chat/conversations', {
+        type: 'loja_cliente',
+        otherParticipantId: customerId,
+        orderId: order._id,
+      });
+      const convId = res.data?._id || res.data?.conversationId;
+      if (!convId) throw new Error('Conversa não retornada pelo servidor');
+      setChatConvId(convId);
+      setShowChat(true);
+    } catch (err: any) {
+      alert('Erro ao abrir chat: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   if (!order) return null;
 
@@ -270,43 +278,29 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
           )}
 
           {/* SEÇÃO DE CHAT */}
-          {showChat ? (
+          {showChat && chatConvId ? (
             <div className={styles.chatBox}>
               <div className={styles.chatBoxTitle}><Icon name="chat" size={14} /> Chat com Cliente</div>
-              <ContactInfo
-                name={order.customerName || 'Cliente'}
-                isOpen={true}
-                conversationId={customerConversationId}
-                userId={order.customerId}
-                messages={customerMessages}
-                typingUsers={customerTypingUsers}
-                onSendMessage={async (text: string, attachments?: any[]) => {
-                  if (customerConversationId) {
-                    sendCustomerMessage(text, attachments);
-                    // Aguardar um pouco para que a mensagem seja enviada
-                    return new Promise(resolve => setTimeout(resolve, 100));
-                  }
-                }}
-                onMarkAsRead={async () => {
-                  if (customerConversationId) {
-                    await markCustomerAsRead(customerConversationId);
-                  }
-                }}
-                onUserTyping={onCustomerTyping}
-                isConnected={customerIsConnected}
-                chatError={customerChatError}
-                onClose={() => setShowChat(false)}
-              />
+              <div style={{ height: 420 }}>
+                <ChatConversationDetail
+                  conversationId={chatConvId}
+                  currentUserId={user?._id}
+                  otherParticipantId={customerId}
+                  otherParticipantName={order.customerName || 'Cliente'}
+                  onBack={() => setShowChat(false)}
+                />
+              </div>
             </div>
           ) : null}
 
           {/* BOTÕES DE AÇÃO */}
           <div className={styles.actionBtns}>
             <button
-              onClick={() => setShowChat(!showChat)}
+              onClick={handleToggleChat}
+              disabled={chatLoading}
               className={`${styles.btnToggleChat} ${showChat ? styles.btnToggleChatClose : styles.btnToggleChatOpen}`}
             >
-              {showChat ? <><Icon name="x-circle" /> Fechar Chat</> : <><Icon name="chat" /> Abrir Chat</>}
+              {chatLoading ? 'Abrindo...' : showChat ? <><Icon name="x-circle" /> Fechar Chat</> : <><Icon name="chat" /> Abrir Chat</>}
             </button>
 
             {/* BOTÃO FECHAR */}
