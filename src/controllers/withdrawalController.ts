@@ -25,14 +25,18 @@ async function checkAsaasReceiverReady(
       ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas
       : (await User.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas;
 
-  if (!asaas?.apiKeyEncrypted || asaas.status !== 'active') {
+  // A subconta é considerada utilizável se TEM apiKeyEncrypted (foi criada com
+  // sucesso no Asaas). O campo `status` local pode ficar 'pending' (cosmético —
+  // "aguardando ativação" do login do titular) mesmo a subconta já recebendo/sacando,
+  // então NÃO bloqueamos por status — só por subconta inexistente ou erro real.
+  if (!asaas?.apiKeyEncrypted) {
     return {
       ok: false,
       code: 'SUBACCOUNT_NOT_READY',
       message:
-        asaas?.lastError
-          ? `Sua subconta de recebimento não está ativa: ${asaas.lastError}. Configure em Dados de Recebimento.`
-          : 'Sua subconta de recebimento ainda não está ativa. Configure seus dados de recebimento (PIX + endereço) para poder sacar.',
+        asaas?.status === 'error' && asaas?.lastError
+          ? `Sua subconta de recebimento falhou: ${asaas.lastError}. Reenvie seus dados em Dados de Recebimento.`
+          : 'Sua subconta de recebimento ainda não foi criada. Configure seus dados de recebimento (PIX + endereço) para poder sacar.',
     };
   }
   if (!asaas.pixKey) {

@@ -26,9 +26,9 @@ export default function PixPaymentModal({ pix, onPaid }: Props) {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await api.get(`/orders/${pix.orderId}`);
-        const ps = res.data?.paymentStatus || res.data?.order?.paymentStatus;
-        if (ps === 'paid') {
+        // /pix reconcilia direto com o Asaas (não depende do webhook chegar).
+        const res = await api.get(`/orders/${pix.orderId}/pix`);
+        if (res.data?.paid === true) {
           setStatus('paid');
           if (timer.current) clearInterval(timer.current);
           setTimeout(() => {

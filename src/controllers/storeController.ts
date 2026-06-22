@@ -19,8 +19,12 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     if (!ownerId) return res.status(401).json({ error: 'Not authenticated' });
     const store = await Store.findOne({ ownerId });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    // Pedidos da loja
-    const orders = await Order.find({ storeId: store._id }).lean();
+    // Pedidos da loja — NÃO mostrar PIX ainda não pago (cliente está na tela do QR;
+    // o pedido só "chega" pra loja depois que o pagamento é confirmado).
+    const orders = await Order.find({
+      storeId: store._id,
+      $nor: [{ paymentMethod: 'pix', paymentStatus: 'pending', status: 'criado' }],
+    }).lean();
     // Métricas
     const totalSales = orders.length;
     const delivered = orders.filter(o => o.status === 'entregue').length;

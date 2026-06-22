@@ -33,8 +33,8 @@ import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import Coupon from '../models/Coupon';
 import env from '../config/env';
-import { ensureAsaasCustomer, createPixCharge, getPixQrCode, PixCharge } from '../services/asaas/payment';
-import { finalizeWalletPaidOrder } from '../services/asaas/orderPayment';
+import { ensureAsaasCustomer, createPixCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
+import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -619,6 +619,19 @@ export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
     if (!order.asaasPaymentId) return res.status(400).json({ error: 'Pedido sem cobrança PIX' });
     if (['cancelado', 'rejeitado'].includes(order.status)) {
       return res.status(409).json({ error: 'Pedido cancelado — cobrança não disponível' });
+    }
+
+    // Reconciliação independente do webhook: pergunta ao Asaas o status real da
+    // cobrança. Se já foi paga, confirma na hora (não depende do webhook chegar) —
+    // assim o checkout aprova o pagamento mesmo que o webhook esteja mal configurado.
+    try {
+      const asaasStatus = await getPaymentStatus(order.asaasPaymentId);
+      if (asaasStatus && ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(asaasStatus)) {
+        await confirmOrderPaidByPayment(order.asaasPaymentId, asaasStatus);
+        return res.json({ paid: true });
+      }
+    } catch (e) {
+      logger.warn('Falha na reconciliação de pagamento PIX (segue mostrando o QR)');
     }
 
     try {

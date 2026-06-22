@@ -105,6 +105,17 @@ export async function getPixQrCode(asaasPaymentId: string): Promise<{ qrCodeImag
   return { qrCodeImage: qr.encodedImage, qrCodePayload: qr.payload, expiresAt: qr.expirationDate };
 }
 
+/** Status atual de uma cobrança no Asaas (reconciliação independente do webhook). */
+export async function getPaymentStatus(asaasPaymentId: string): Promise<string | null> {
+  try {
+    const p = await asaasClient.get<{ status: string }>(`/payments/${asaasPaymentId}`);
+    return p?.status || null;
+  } catch (err) {
+    logger.warn('Não foi possível consultar o status da cobrança no Asaas', { asaasPaymentId });
+    return null;
+  }
+}
+
 /**
  * Cancela/exclui uma cobrança ainda não paga no Asaas.
  * Retorna true se foi excluída (não estava paga); false se não pôde (ex: já recebida).
