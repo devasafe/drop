@@ -18,10 +18,12 @@ async function checkAsaasReceiverReady(
   recipientType: 'motoboy' | 'store',
   recipientId: string,
 ): Promise<{ ok: true } | { ok: false; message: string; code: string }> {
+  // `+asaas.apiKeyEncrypted` inclui o campo oculto SEM excluir o resto do doc.
+  // (Misturar com a inclusão de `asaas` causa colisão de projeção → erro 500.)
   const asaas =
     recipientType === 'store'
-      ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted asaas'))?.asaas
-      : (await User.findById(recipientId).select('+asaas.apiKeyEncrypted asaas'))?.asaas;
+      ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas
+      : (await User.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas;
 
   if (!asaas?.apiKeyEncrypted || asaas.status !== 'active') {
     return {
