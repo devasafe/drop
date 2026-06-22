@@ -236,7 +236,7 @@ export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Respons
 
 export const createStore = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, address, cnpj, latitude, longitude } = req.body;
+    const { name, address, cnpj, latitude, longitude, street, number, neighborhood, city, state, zip } = req.body;
     const ownerId = req.user?.id;
     if (!ownerId) return res.status(401).json({ error: 'Not authenticated' });
     if (!name) return res.status(400).json({ error: 'Missing name' });
@@ -252,7 +252,27 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
       if (dupCnpj) return res.status(409).json({ error: 'Este CNPJ já está cadastrado em outra loja' });
     }
 
-    const store = new Store({ ownerId, name, address, cnpj: cnpjDigits || cnpj, latitude, longitude });
+    // Persistir o endereço ESTRUTURADO já na criação (1º passo do fluxo) — vira o
+    // endereço oficial da loja. Sem isso, Store.street ficava vazio e a tela de
+    // Dados de Recebimento pedia o endereço de novo para o Asaas.
+    const composedAddress = address
+      || [street, number, neighborhood, city, state, zip].filter(Boolean).join(', ')
+      || undefined;
+
+    const store = new Store({
+      ownerId,
+      name,
+      address: composedAddress,
+      cnpj: cnpjDigits || cnpj,
+      latitude,
+      longitude,
+      ...(street ? { street } : {}),
+      ...(number ? { number } : {}),
+      ...(neighborhood ? { neighborhood } : {}),
+      ...(city ? { city } : {}),
+      ...(state ? { state } : {}),
+      ...(zip ? { zip: String(zip).replace(/\D/g, '') } : {}),
+    });
     await store.save();
     
     // ✅ FIX: Atualizar user.storeId para que o wallet funcione

@@ -245,6 +245,46 @@ export const useNotifications = () => {
   return { notifications, unreadCount, loading, setNotifications };
 };
 
+/**
+ * Contagens de "trabalho a fazer" para os badges do menu:
+ *  verifications (admin) / storeOrders (lojista) / deliveries (motoboy).
+ * Atualiza em tempo real pelos eventos socket já existentes.
+ */
+export const useBadgeCounts = () => {
+  const [counts, setCounts] = useState({ verifications: 0, storeOrders: 0, deliveries: 0 });
+  const { on } = useSocket();
+
+  useEffect(() => {
+    const hasUser = typeof window !== 'undefined' && !!localStorage.getItem('user');
+    if (!hasUser) return;
+
+    let active = true;
+    const fetchCounts = async () => {
+      try {
+        const res = await api.get('/badges');
+        if (active && res.data) setCounts(res.data);
+      } catch {
+        /* silencioso: badge é cosmético */
+      }
+    };
+    fetchCounts();
+
+    // Eventos que mudam alguma das contagens → re-busca (debounce simples).
+    let t: any = null;
+    const refetch = () => { if (t) clearTimeout(t); t = setTimeout(fetchCounts, 400); };
+    const events = [
+      'notification:received',
+      'new_order', 'order:created', 'order:status_changed', 'order_update',
+      'delivery:created', 'delivery:available', 'delivery:status_changed',
+    ];
+    const unsubs = events.map((e) => on(e, refetch));
+
+    return () => { active = false; if (t) clearTimeout(t); unsubs.forEach((u) => u()); };
+  }, [on]);
+
+  return counts;
+};
+
 export const useStores = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

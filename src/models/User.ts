@@ -110,6 +110,13 @@ export interface IUser extends Document {
     status: 'none' | 'pending' | 'active' | 'error';
     lastError?: string;
   };
+  // Localização do motoboy (despacho por raio). Atualizada via GPS enquanto online.
+  currentLocation?: {
+    lat: number;
+    lng: number;
+    updatedAt: Date;
+  };
+  isOnline?: boolean;
 }
 
 
@@ -248,6 +255,16 @@ const UserSchema = new Schema<IUser>({
     },
     default: () => ({ status: 'none' }),
   },
+  // Localização do motoboy p/ despacho por raio (haversine). Não-sensível.
+  currentLocation: {
+    type: {
+      lat: { type: Number },
+      lng: { type: Number },
+      updatedAt: { type: Date },
+    },
+    default: undefined,
+  },
+  isOnline: { type: Boolean, default: false },
 });
 
 // ✅ SEGURANÇA: Middlewares para criptografar/descriptografar bankInfo

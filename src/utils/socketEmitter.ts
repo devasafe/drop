@@ -134,14 +134,11 @@ export const emitOrderUpdated = (order: any) => {
     paymentStatus: order.paymentStatus,
   };
 
-  emitToAll('order:updated', payload);
-  
-  // Notificar a loja (store owner)
+  // Não usar broadcast global: cada pedido só interessa à sua loja e ao seu cliente.
+  // Enviar pra todos os clientes contaminava telas de outros pedidos.
   if (order.storeId) {
     emitToRoom(`store:${order.storeId}`, 'order:updated', payload);
   }
-  
-  // 🆕 Notificar o cliente
   if (order.customerId) {
     emitToRoom(`user:${order.customerId}`, 'order:updated', payload);
   }
@@ -155,15 +152,11 @@ export const emitOrderStatusChanged = (order: any) => {
     createdAt: order.createdAt,
     paymentStatus: order.paymentStatus,
   };
-  
-  emitToAll('order:status_changed', payload);
-  
-  // Notificar a loja (store owner)
+
+  // Direcionado à loja e ao cliente do pedido (sem broadcast global).
   if (order.storeId) {
     emitToRoom(`store:${order.storeId}`, 'order:status_changed', payload);
   }
-  
-  // 🆕 Notificar o cliente
   if (order.customerId) {
     emitToRoom(`user:${order.customerId}`, 'order:status_changed', payload);
   }
@@ -183,50 +176,48 @@ export const emitDeliveryCreated = (delivery: any) => {
 };
 
 export const emitDeliveryUpdated = (delivery: any) => {
-  emitToAll('delivery:updated', delivery);
-  
-  // Notificar o motoboy
+  // Sem broadcast global (o objeto da entrega carrega PINs). Direcionar só às
+  // partes envolvidas: motoboy atribuído, cliente e loja do pedido.
   if (delivery.motoboyId) {
     emitToRoom(`user:${delivery.motoboyId}`, 'delivery:updated', delivery);
   }
-  
-  // Notificar o cliente
+
   if (delivery.orderId) {
     const Order = require('../models/Order').default;
     Order.findById(delivery.orderId).then((order: any) => {
-      if (order && order.customerId) {
-        emitToRoom(`user:${order.customerId}`, 'delivery:updated', delivery);
-      }
+      if (!order) return;
+      if (order.customerId) emitToRoom(`user:${order.customerId}`, 'delivery:updated', delivery);
+      if (order.storeId) emitToRoom(`store:${order.storeId}`, 'delivery:updated', delivery);
     }).catch((err: any) => {
-      console.warn('[socketEmitter] Erro ao notificar cliente:', err.message);
+      console.warn('[socketEmitter] Erro ao notificar entrega atualizada:', err.message);
     });
   }
 };
 
 export const emitDeliveryStatusChanged = (delivery: any) => {
+  // Payload enxuto: NÃO espalhar o objeto inteiro (continha PINs) para todos os
+  // clientes — era a causa da contaminação de status entre pedidos diferentes.
   const payload = {
     _id: delivery._id,
+    deliveryId: delivery._id,
+    orderId: delivery.orderId,
     status: delivery.status,
-    ...delivery,
   };
-  
-  emitToAll('delivery:status_changed', payload);
-  
-  // Notificar o motoboy (se atribuído)
-  if (delivery.motoboyId) {
-    emitToRoom(`user:${delivery.motoboyId}`, 'delivery:status_changed', payload);
-  }
-  
-  // Notificar o cliente (através do pedido)
-  // O cliente precisa saber que a delivery foi aceita/atualizada
+
+  // Pool dos motoboys: ao aceitar/mudar status, os outros motoboys atualizam a
+  // lista de disponíveis (a entrega aceita some). O motoboy atribuído também está
+  // nessa sala, então não há emit duplicado para ele.
+  emitToRoom('motoboys', 'delivery:status_changed', payload);
+
+  // Cliente e loja do pedido.
   if (delivery.orderId) {
     const Order = require('../models/Order').default;
     Order.findById(delivery.orderId).then((order: any) => {
-      if (order && order.customerId) {
-        emitToRoom(`user:${order.customerId}`, 'delivery:status_changed', payload);
-      }
+      if (!order) return;
+      if (order.customerId) emitToRoom(`user:${order.customerId}`, 'delivery:status_changed', payload);
+      if (order.storeId) emitToRoom(`store:${order.storeId}`, 'delivery:status_changed', payload);
     }).catch((err: any) => {
-      console.warn('[socketEmitter] Erro ao notificar cliente:', err.message);
+      console.warn('[socketEmitter] Erro ao notificar status da entrega:', err.message);
     });
   }
 };

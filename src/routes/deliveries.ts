@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -38,6 +38,9 @@ router.post('/:id/reject', authenticate, authorizeRoles('motoboy'), rejectDelive
 
 // motoboy claims a delivery (first-claim-wins)
 router.post('/:id/claim', authenticate, authorizeRoles('motoboy'), claimDelivery);
+
+// motoboy reporta localização (GPS) p/ despacho por raio
+router.post('/location', authenticate, authorizeRoles('motoboy'), updateMotoboyLocation);
 
 // ✅ FIX #6: motoboy solicita devolução do produto (gera PIN)
 router.post('/:id/request-return', authenticate, authorizeRoles('motoboy'), requestReturn);

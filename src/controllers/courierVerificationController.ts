@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import User from '../models/User';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { uploadToCloudinary, kycFolder } from '../utils/cloudinary';
 import { isValidCNH, isValidPlate, normalizePlate, onlyDigits } from '../utils/documentValidation';
 import { missingMotoboyVerifications } from '../utils/courierVerification';
 import logger from '../config/logger';
@@ -44,7 +44,7 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     const dupCnh = await User.findOne({ _id: { $ne: user._id }, 'verification.courier.cnhNumber': cnhDigits });
     if (dupCnh) return res.status(409).json({ error: 'Esta CNH já está cadastrada em outro motoboy' });
 
-    const folder = `verifications/${user.id}/courier`;
+    const folder = kycFolder('motoboys', String(user.id), 'cnh-placa');
     const platePhotoUrl = plateFile ? await uploadToCloudinary(plateFile.buffer, folder) : cur.platePhotoUrl;
     const cnhPhotoUrl = cnhFile ? await uploadToCloudinary(cnhFile.buffer, folder) : cur.cnhPhotoUrl;
     user.verification!.courier = {

@@ -277,13 +277,19 @@ export default function AppCashbox() {
                 <div className={styles.statValueGreen}>
                   R$ {cashbox.balance.toFixed(2)}
                 </div>
+                <div className={styles.historyDate} style={{ marginTop: 4 }}>
+                  Dinheiro que entrou e será repassado às subcontas
+                </div>
               </div>
 
-              {/* Lucro Liquido */}
+              {/* Lucro Liquido = só as comissões embolsadas */}
               <div className={styles.statCard}>
                 <div className={styles.statLabel}>Lucro Liquido da Plataforma</div>
                 <div className={styles.statValueBlue}>
-                  R$ {(cashbox.platformNet ?? cashbox.balance).toFixed(2)}
+                  R$ {(cashbox.platformNet ?? 0).toFixed(2)}
+                </div>
+                <div className={styles.historyDate} style={{ marginTop: 4 }}>
+                  Só as comissões (produto + entrega) que a plataforma embolsa
                 </div>
               </div>
 

@@ -184,6 +184,14 @@ export default function CreateStore() {
         name,
         cnpj,
         address,
+        // Campos estruturados: viram o endereço oficial da loja (reusado no Asaas,
+        // evita pedir endereço de novo em Dados de Recebimento).
+        street,
+        number,
+        neighborhood,
+        city,
+        state,
+        zip: cep,
         latitude,
         longitude,
       });

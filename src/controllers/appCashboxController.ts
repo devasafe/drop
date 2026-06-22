@@ -11,6 +11,19 @@ import payoutService from '../services/payout.service';
 // Ficam ocultos do extrato do caixa (já existe aba Saques dedicada).
 const OPERATIONAL_SOURCES = new Set(['manual_withdrawal', 'withdrawal_fee']);
 
+// Lucro REAL da plataforma = só as comissões que ela de fato embolsa.
+// O `balance` mistura custódia (order_payment entra e payout_paid sai), por isso
+// dava negativo. As comissões são lançadas como income no momento da entrega.
+const COMMISSION_SOURCES = new Set(['product_commission', 'delivery_commission']);
+
+// Soma líquida das comissões no history (income soma, reversão subtrai).
+export function computeCommissionProfit(history: { type: string; source: string; amount: number }[]): number {
+  return history.reduce((sum, h) => {
+    if (!COMMISSION_SOURCES.has(h.source)) return sum;
+    return h.type === 'income' ? sum + h.amount : sum - h.amount;
+  }, 0);
+}
+
 export const getAppCashbox = async (req: Request & { user?: any }, res: Response) => {
   try {
     let cashbox = await AppCashbox.findOne();
@@ -24,9 +37,13 @@ export const getAppCashbox = async (req: Request & { user?: any }, res: Response
       });
     }
 
-    // Calcular obrigações pendentes e lucro líquido
+    // Calcular obrigações pendentes (custódia a repassar) e o lucro líquido REAL.
+    // Lucro = só as comissões que a plataforma embolsa (não o dinheiro que entrou
+    // e depois foi repassado às subcontas). `balance`/`pendingObligations` seguem
+    // expostos como números contábeis de custódia.
     const pendingObligations = await payoutService.getPendingObligations();
-    const platformNet = cashbox.balance - pendingObligations;
+    const platformNet = computeCommissionProfit(cashbox.history as any);
+    const custodyBalance = cashbox.balance - pendingObligations;
 
     // Filtrar fluxos operacionais de saque do extrato (aba Saques já lista) e ordenar por data desc
     const cashboxObj = cashbox.toObject();
@@ -55,7 +72,8 @@ export const getAppCashbox = async (req: Request & { user?: any }, res: Response
     return res.json({
       ...cashboxObj,
       pendingObligations,
-      platformNet,
+      platformNet,      // lucro real = comissões embolsadas
+      custodyBalance,   // saldo de custódia (entrada − obrigações), contábil
       asaas,
     });
   } catch (err) {

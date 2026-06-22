@@ -3,10 +3,45 @@ import mongoose from 'mongoose';
 import WithdrawalRequest from '../models/WithdrawalRequest';
 import Wallet from '../models/Wallet';
 import User from '../models/User';
+import Store from '../models/Store';
 import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
+
+/**
+ * Verifica se o recebedor (motoboy/loja) está pronto para sacar via Asaas:
+ * subconta criada/ativa (apiKeyEncrypted) + chave PIX cadastrada. Usado para
+ * barrar o saque cedo, com mensagem acionável, em vez de falhar na aprovação.
+ */
+async function checkAsaasReceiverReady(
+  recipientType: 'motoboy' | 'store',
+  recipientId: string,
+): Promise<{ ok: true } | { ok: false; message: string; code: string }> {
+  const asaas =
+    recipientType === 'store'
+      ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted asaas'))?.asaas
+      : (await User.findById(recipientId).select('+asaas.apiKeyEncrypted asaas'))?.asaas;
+
+  if (!asaas?.apiKeyEncrypted || asaas.status !== 'active') {
+    return {
+      ok: false,
+      code: 'SUBACCOUNT_NOT_READY',
+      message:
+        asaas?.lastError
+          ? `Sua subconta de recebimento não está ativa: ${asaas.lastError}. Configure em Dados de Recebimento.`
+          : 'Sua subconta de recebimento ainda não está ativa. Configure seus dados de recebimento (PIX + endereço) para poder sacar.',
+    };
+  }
+  if (!asaas.pixKey) {
+    return {
+      ok: false,
+      code: 'PIX_KEY_MISSING',
+      message: 'Você ainda não cadastrou uma chave PIX para receber. Configure em Dados de Recebimento.',
+    };
+  }
+  return { ok: true };
+}
 
 // ✅ Motoboy/Lojista - Solicitar saque (consome payouts FIFO)
 export const requestWithdrawal = async (req: Request & { user?: any }, res: Response) => {
@@ -30,6 +65,21 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     const recipientId = isMotoboy ? userId : storeId;
     if (!recipientId) {
       return res.status(400).json({ error: 'recipientId não informado' });
+    }
+
+    // No modo Asaas, o saque transfere da subconta do recebedor para a chave PIX dele.
+    // Barrar AQUI (e não só na aprovação do admin) quando faltar subconta ativa ou chave
+    // PIX — evita criar um saque que vai falhar lá na frente com "Subconta não configurada"
+    // / "Chave não encontrada". Mensagem aponta o caminho pra resolver.
+    if (env.PAYOUT_GATEWAY === 'asaas') {
+      const asaasReady = await checkAsaasReceiverReady(recipientType, recipientId);
+      if (asaasReady.ok === false) {
+        return res.status(400).json({
+          error: asaasReady.message,
+          code: asaasReady.code,
+          action: '/dados-recebimento',
+        });
+      }
     }
 
     // Buscar payouts released (fonte da verdade)

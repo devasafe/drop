@@ -313,10 +313,20 @@ export default function ChatWidgetWithTabs({
     };
   }, [user, on]);
 
-  // Auto-scroll
+  // Auto-scroll: ao abrir/trocar de conversa, vai pro fim sem animação
+  // (abre já nas últimas mensagens).
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [tabs, activeTabId]);
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    });
+  }, [activeTabId]);
+
+  // Mensagem nova na aba ativa: rola suave pro fim.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }, [tabs]);
 
   // Carregar conversas quando abre o widget
   useEffect(() => {

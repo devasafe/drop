@@ -234,16 +234,17 @@ export const releasePayoutManually = async (req: Request & { user?: any }, res: 
     }
 
     // No modo Asaas, liberar = transferir de verdade da conta-mãe p/ a subconta do
-    // recebedor. releaseOrderViaAsaas processa os payouts pendentes do pedido (loja +
-    // motoboy) e marca como released. No modo legado, apenas move o espelho contábil.
+    // recebedor. Liberar SÓ o payout deste id (liberar a loja não libera o motoboy do
+    // mesmo pedido, e vice-versa). No modo legado, apenas move o espelho contábil.
     if (process.env.PAYMENT_GATEWAY === 'asaas') {
-      const { releaseOrderViaAsaas } = await import('../services/asaas/release');
-      await releaseOrderViaAsaas(String(payout.orderId));
-
-      const stillPending = await Payout.findById(id).select('status');
-      if (stillPending?.status === 'pending') {
+      const { releaseSinglePayoutViaAsaas } = await import('../services/asaas/release');
+      try {
+        await releaseSinglePayoutViaAsaas(id);
+      } catch (err: any) {
         return res.status(502).json({
-          error: 'Transferência no Asaas não concluída. Verifique se o recebedor tem subconta/chave PIX e tente novamente.',
+          error: err?.message
+            ? `Transferência no Asaas não concluída: ${err.message}`
+            : 'Transferência no Asaas não concluída. Verifique se o recebedor tem subconta/chave PIX e tente novamente.',
         });
       }
     } else {

@@ -8,6 +8,21 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Organização das fotos de verificação no Cloudinary:
+//   drop/documentos/{clientes|motoboys|lojas}/{id}[/sub]
+// Facilita achar tudo de um usuário/loja num lugar só (ex.: pedido judicial).
+export type KycBucket = 'clientes' | 'motoboys' | 'lojas';
+
+export function bucketForRole(role?: string): KycBucket {
+  if (role === 'motoboy') return 'motoboys';
+  if (role === 'lojista' || role === 'seller') return 'lojas';
+  return 'clientes';
+}
+
+export function kycFolder(bucket: KycBucket, id: string, sub?: string): string {
+  return `drop/documentos/${bucket}/${id}${sub ? `/${sub}` : ''}`;
+}
+
 export function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload_stream(

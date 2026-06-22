@@ -15,6 +15,7 @@ import { calculateDeliveryFeeWithConfig, calculateMotoboyEarningsWithConfig, cal
 import { addCommissionToAppCashbox } from './appCashboxController';
 import { emitDeliveryStatusChanged, emitDeliveryUpdated, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged, emitDeliveryAssigned } from '../utils/socketEmitter';
 import { getDefaultAddress } from '../utils/userHelpers';
+import { isDeliveryWithinRadius } from '../services/dispatch';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 import walletService from '../services/wallet.service';
 import payoutService from '../services/payout.service';
@@ -753,22 +754,32 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     const limit = Math.min(100, Number((req.query as any).limit) || 20);
     const skip = (page - 1) * limit;
 
-    const deliveries = await Delivery.find({ 
-      status: 'pending', 
-      motoboyId: { $exists: false } 
+    // Despacho por raio: filtra o pool pela distância loja→motoboy, que cresce com a
+    // idade da entrega. Carregamos o lote pendente (cap defensivo) e filtramos em
+    // memória, pois o raio depende da idade de cada entrega + da localização atual.
+    const me = await User.findById(req.user.id).select('currentLocation');
+    const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
+      ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
+      : null;
+
+    const pendingAll = await Delivery.find({
+      status: 'pending',
+      motoboyId: { $exists: false },
     })
       .sort({ createdAt: 1 })
-      .skip(skip)
-      .limit(limit)
+      .limit(200)
       .lean();
 
-    const total = await Delivery.countDocuments({
-      status: 'pending',
-      motoboyId: { $exists: false }
-    });
+    const now = Date.now();
+    const visible = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now));
+
+    const total = visible.length;
+    const deliveries = visible.slice(skip, skip + limit);
 
     return res.json({
       deliveries,
+      // Sinaliza ao app que sem GPS o pool não é filtrado por proximidade.
+      locationKnown: !!motoboyLoc,
       pagination: {
         page,
         limit,
@@ -780,6 +791,31 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     // eslint-disable-next-line no-console
     console.error('[listAvailableDeliveries] error:', err);
     return res.status(500).json({ error: 'Failed to list available deliveries' });
+  }
+};
+
+// Motoboy reporta a localização atual (GPS) — alimenta o despacho por raio.
+export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
+
+    const lat = Number((req.body as any).lat);
+    const lng = Number((req.body as any).lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ error: 'Coordenadas inválidas' });
+    }
+    const isOnline = (req.body as any).isOnline;
+
+    await User.findByIdAndUpdate(req.user.id, {
+      currentLocation: { lat, lng, updatedAt: new Date() },
+      ...(typeof isOnline === 'boolean' ? { isOnline } : {}),
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[updateMotoboyLocation] error:', err);
+    return res.status(500).json({ error: 'Failed to update location' });
   }
 };
 

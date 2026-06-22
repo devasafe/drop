@@ -110,6 +110,24 @@ export default function DadosRecebimento() {
           </div>
         )}
 
+        {/* Subconta com problema: avisa e deixa reenviar (não dá pra sacar assim) */}
+        {!active && status?.accountStatus === 'error' && (
+          <div style={{ ...banner, borderColor: '#EF4444', background: 'rgba(239,68,68,0.12)' }}>
+            <Icon name="alert-triangle" size={16} /> Sua conta de recebimento <b>não está ativa</b>
+            {status?.lastError ? `: ${status.lastError}` : '.'} Você não conseguirá sacar até ativá-la.
+            <button style={{ ...btn, marginTop: 10 }} onClick={() => { setEditing(true); setMsg(null); }}>
+              Revisar dados e tentar novamente
+            </button>
+          </div>
+        )}
+
+        {/* Subconta em processamento */}
+        {!active && status?.accountStatus === 'pending' && (
+          <div style={{ ...banner, borderColor: '#F59E0B', background: 'rgba(245,158,11,0.12)' }}>
+            <Icon name="clock" size={16} /> Conta de recebimento <b>em processamento</b>. Aguarde a ativação para sacar.
+          </div>
+        )}
+
         {msg && (
           <div style={{ ...banner, borderColor: msg.type === 'ok' ? '#22C55E' : '#EF4444', background: msg.type === 'ok' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)' }}>
             {msg.text}

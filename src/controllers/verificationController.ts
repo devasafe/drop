@@ -6,7 +6,7 @@ import OtpCode from '../models/OtpCode';
 import EmailVerificationToken from '../models/EmailVerificationToken';
 import otpProvider from '../services/otpProvider';
 import { sendEmail } from '../services/emailProvider';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinary';
 import { isValidCPF, isValidRG, toE164BR } from '../utils/documentValidation';
 import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
@@ -216,7 +216,8 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: 'O RG cadastrado é inválido. Corrija em "Editar meus dados".' });
     }
 
-    const folder = `verifications/${user.id}`;
+    const role = (req.user as any)?.activeRole || req.user?.role;
+    const folder = kycFolder(bucketForRole(role), user.id, 'identidade');
     const frontUrl = await uploadToCloudinary(files.front[0].buffer, folder);
     const backUrl = await uploadToCloudinary(files.back[0].buffer, folder);
 

@@ -5,10 +5,28 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import api from '../lib/api';
-import { useNotifications } from '../hooks/useSync';
+import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import Icon, { IconName } from './Icon';
 import { visibleAdminMenu } from '../lib/adminMenu';
 import styles from './Nav.module.css';
+
+// Badge numérico reutilizável (chip roxo). Não renderiza nada se count <= 0.
+function CountPill({ count, style }: { count: number; style?: React.CSSProperties }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        minWidth: 18, height: 18, padding: '0 5px', marginLeft: 6,
+        borderRadius: 9, background: '#6C2BD9', color: '#fff',
+        fontSize: 11, fontWeight: 700, lineHeight: 1,
+        boxShadow: '0 0 8px rgba(108,43,217,0.5)', ...style,
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
 
 const ROLE_META: Record<string, { icon: IconName; label: string }> = {
   cliente:           { icon: 'shopping-bag', label: 'Cliente' },
@@ -59,6 +77,7 @@ export default function Nav() {
   }, [mobileMenuOpen]);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
   const { unreadCount: notifUnreadCount } = useNotifications();
+  const badges = useBadgeCounts();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const activeRole = user?.activeRole || user?.role || 'cliente';
@@ -96,6 +115,11 @@ export default function Nav() {
   const go = (href: string) => { setShowMenu(false); router.push(href); };
   const close = () => setShowMenu(false);
   const unread = notifUnreadCount;
+  // Total de pendências relevantes a ESTE usuário, exibido no toggle do menu.
+  const menuTotal =
+    (isAdmin ? badges.verifications : 0) +
+    (activeRole === 'lojista' ? badges.storeOrders : 0) +
+    (activeRole === 'motoboy' ? badges.deliveries : 0);
   const isActive = (path: string) => router.pathname === path || router.pathname.startsWith(path + '/');
 
   return (
@@ -167,6 +191,7 @@ export default function Nav() {
                 >
                   <span className={styles.avatar}>{user.name.charAt(0).toUpperCase()}</span>
                   <span className={styles.triggerName}>{user.name.split(' ')[0]}</span>
+                  <CountPill count={menuTotal} />
                   <svg className={`${styles.chevron} ${showMenu ? styles.chevronOpen : ''}`} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
@@ -222,13 +247,13 @@ export default function Nav() {
                       )}
                       {activeRole === 'lojista' && (
                         hasStore ? (
-                          <a href="/seller/dashboard" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Meu Painel</a>
+                          <a href="/seller/dashboard" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Meu Painel <CountPill count={badges.storeOrders} /></a>
                         ) : (
                           <a href="/seller/create-store" onClick={close} className={`${styles.item} ${styles.itemPurple}`}><span className={styles.itemIcon}><Icon name="store" size={14} /></span> Criar Loja</a>
                         )
                       )}
                       {activeRole === 'motoboy' && (
-                        <a href="/motoboy" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="motorcycle" size={14} /></span> Meu Painel</a>
+                        <a href="/motoboy" onClick={close} className={styles.item}><span className={styles.itemIcon}><Icon name="motorcycle" size={14} /></span> Meu Painel <CountPill count={badges.deliveries} /></a>
                       )}
                       <a href="/suporte" onClick={close} className={styles.item}>
                         <span className={styles.itemIcon}><Icon name="headphones" size={14} /></span> Suporte
@@ -246,9 +271,13 @@ export default function Nav() {
                               href={link.href}
                               onClick={close}
                               className={`${styles.adminCard} ${isActive(link.href) ? styles.adminCardActive : ''}`}
+                              style={{ position: 'relative' }}
                             >
                               <span className={styles.adminCardIcon}><Icon name={link.icon} size={16} /></span>
                               <span className={styles.adminCardLabel}>{link.label}</span>
+                              {link.href === '/admin/verificacoes' && badges.verifications > 0 && (
+                                <CountPill count={badges.verifications} style={{ position: 'absolute', top: 6, right: 6, marginLeft: 0 }} />
+                              )}
                             </a>
                           ))}
                         </div>
@@ -297,7 +326,7 @@ export default function Nav() {
           <Link href="/stores" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Lojas</Link>
           {isAdmin && (
             <Link href={adminHome} className={`${styles.mobileNavLink} ${styles.mobileNavLinkAdmin}`} onClick={() => setMobileMenuOpen(false)}>
-              <Icon name={meta.icon} size={16} /> Painel Admin
+              <Icon name={meta.icon} size={16} /> Painel Admin <CountPill count={badges.verifications} />
             </Link>
           )}
         </nav>
@@ -336,13 +365,13 @@ export default function Nav() {
               )}
               {activeRole === 'lojista' && (
                 hasStore ? (
-                  <a href="/seller/dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Meu Painel</a>
+                  <a href="/seller/dashboard" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Meu Painel <CountPill count={badges.storeOrders} /></a>
                 ) : (
                   <a href="/seller/create-store" className={`${styles.mobileNavLink} ${styles.mobileNavLinkPurple}`} onClick={() => setMobileMenuOpen(false)}><Icon name="store" size={16} /> Criar Loja</a>
                 )
               )}
               {activeRole === 'motoboy' && (
-                <a href="/motoboy" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="motorcycle" size={16} /> Meu Painel</a>
+                <a href="/motoboy" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="motorcycle" size={16} /> Meu Painel <CountPill count={badges.deliveries} /></a>
               )}
               <a href="/suporte" className={styles.mobileNavLink} onClick={() => setMobileMenuOpen(false)}><Icon name="headphones" size={16} /> Suporte</a>
             </nav>

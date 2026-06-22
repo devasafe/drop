@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import User from '../models/User';
 import Store from '../models/Store';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinary';
 import { isValidCNPJ, onlyDigits } from '../utils/documentValidation';
 import { consultarCNPJ } from '../services/cnpjLookup';
 import {
@@ -39,7 +39,8 @@ export const submitFacial = async (req: AuthenticatedRequest, res: Response) => 
     if (user.verification!.facial!.status === 'pending') return res.status(409).json({ error: 'Selfie já em análise' });
     if (user.verification!.facial!.status === 'approved') return res.status(409).json({ error: 'Facial já aprovada' });
 
-    const selfieUrl = await uploadToCloudinary(file.buffer, `verifications/${user.id}/facial`);
+    const role = (req.user as any)?.activeRole || req.user?.role;
+    const selfieUrl = await uploadToCloudinary(file.buffer, kycFolder(bucketForRole(role), user.id, 'facial'));
     user.verification!.facial = { status: 'pending', selfieUrl, submittedAt: new Date() };
     user.markModified('verification');
     await user.save();
@@ -112,7 +113,7 @@ export const submitStoreAddress = async (req: AuthenticatedRequest, res: Respons
     const store = owned.store;
     ensureStoreVerification(store);
 
-    const comprovanteUrl = await uploadToCloudinary(file.buffer, `verifications/store/${storeId}/address`);
+    const comprovanteUrl = await uploadToCloudinary(file.buffer, kycFolder('lojas', String(storeId), 'endereco'));
     store.verification!.address = { status: 'pending', comprovanteUrl, submittedAt: new Date() };
     store.markModified('verification');
     await store.save();
@@ -164,7 +165,7 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
         { 'verification.address.status': 'pending' },
       ],
     })
-      .select('name ownerId verification isVerified')
+      .select('name ownerId verification isVerified address street number neighborhood city state zip')
       .populate('ownerId', 'name email roles role')
       .lean();
 

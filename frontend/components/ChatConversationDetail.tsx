@@ -52,6 +52,9 @@ export default function ChatConversationDetail({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Na primeira renderização da conversa o scroll vai pro fim sem animação
+  // (abre já nas últimas mensagens); depois disso, mensagens novas rolam suave.
+  const initialScrollDone = useRef(false);
   const { on, emit, isConnected } = useSocket();
 
   const userId = currentUserId || (
@@ -69,6 +72,7 @@ export default function ChatConversationDetail({
 
   /* ── Load conversation ── */
   useEffect(() => {
+    initialScrollDone.current = false; // nova conversa: reabrir já no fim
     loadConversation();
   }, [conversationId]);
 
@@ -126,9 +130,15 @@ export default function ChatConversationDetail({
 
   /* ── Auto-scroll + mark as read ── */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length === 0 || isMinimized) return;
+    const behavior: ScrollBehavior = initialScrollDone.current ? 'smooth' : 'auto';
+    // rAF garante que o layout da lista já aconteceu antes de rolar pro fim
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior });
+    });
+    initialScrollDone.current = true;
     markMessagesAsRead();
-  }, [messages]);
+  }, [messages, isMinimized]);
 
   const loadConversation = async () => {
     try {

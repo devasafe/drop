@@ -128,7 +128,8 @@ export default function AdminVerificacoes() {
                   {s.verification?.address?.status === 'pending' && (
                     <div style={sub}>
                       <p style={subLabel}>📍 Endereço — {s.name}</p>
-                      <Imgs urls={[s.verification.address.comprovanteUrl]} labels={['Comprovante']} />
+                      <p style={hint}>{formatStoreAddress(s) || 'Endereço não informado'}</p>
+                      <Imgs urls={[s.verification.address.comprovanteUrl]} labels={['Comprovante de endereço']} />
                       <Actions
                         onApprove={() => approve(`/verification/admin/store/${s._id}/address/approve`)}
                         onReject={() => reject(`/verification/admin/store/${s._id}/address/reject`)}
@@ -173,6 +174,14 @@ export default function AdminVerificacoes() {
       </div>
     </ProtectedRoute>
   );
+}
+
+// Monta o endereço estruturado da loja para o admin conferir contra o comprovante.
+function formatStoreAddress(s: any): string {
+  const linha1 = [s.street, s.number].filter(Boolean).join(', ');
+  const linha2 = [s.neighborhood, s.city, s.state].filter(Boolean).join(' · ');
+  const cep = s.zip ? `CEP ${s.zip}` : '';
+  return [linha1, linha2, cep].filter(Boolean).join(' — ') || (s.address || '');
 }
 
 function userType(u: any): { label: string; color: string } {

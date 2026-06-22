@@ -280,6 +280,16 @@ export default function AdminWalletsPanel() {
           <p className={styles.headerSub}>
             Total: <strong>{wallets.length}</strong> carteira{wallets.length !== 1 ? 's' : ''} no sistema
           </p>
+          <div style={{
+            marginTop: 10, padding: '10px 14px', borderRadius: 10,
+            background: 'rgba(56,189,248,0.10)', border: '1px solid rgba(56,189,248,0.4)',
+            color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 1.5,
+          }}>
+            <Icon name="info" size={14} /> Página de <b>auditoria/consulta</b>. No modo Asaas, o
+            dinheiro de pedidos e repasses fica nas <b>subcontas do gateway</b> (não nesta carteira).
+            Adicionar valor aqui credita apenas <b>cashback/recarga</b> na carteira interna — não
+            transfere dinheiro real.
+          </div>
         </div>
 
         {/* CONTAINER 2 COLUNAS */}
@@ -416,15 +426,19 @@ export default function AdminWalletsPanel() {
                 onClick={() => setShowAddBalance(!showAddBalance)}
                 className={styles.btnAddBalance}
               >
-                {showAddBalance ? 'Cancelar' : <><Icon name="plus" size={14} /> Adicionar Saldo</>}
+                {showAddBalance ? 'Cancelar' : <><Icon name="plus" size={14} /> Adicionar Cashback</>}
               </button>
 
-              {/* FORMULÁRIO ADICIONAR SALDO */}
+              {/* FORMULÁRIO ADICIONAR CASHBACK/RECARGA (carteira interna, não Asaas) */}
               {showAddBalance && (
                 <div className={styles.addBalanceForm}>
                   <h3 className={styles.addBalanceTitle}>
-                    <Icon name="plus" size={14} /> Adicionar Saldo
+                    <Icon name="plus" size={14} /> Adicionar Cashback / Recarga
                   </h3>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: '0 0 10px' }}>
+                    Crédito na carteira interna (cashback/recarga voluntária). Não movimenta
+                    dinheiro real do gateway.
+                  </p>
 
                   <div className={styles.formField}>
                     <label className={styles.formLabel}>

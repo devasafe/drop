@@ -38,6 +38,7 @@ import deliveryInvoicesRoutes from './routes/deliveryInvoices';
 import verificationRoutes from './routes/verification'; // ✅ NOVO - KYC/verificação de conta
 import webhooksRoutes from './routes/webhooks'; // ✅ NOVO - Webhooks de gateways (Asaas)
 import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
+import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
 
 const app = express();
 
@@ -148,6 +149,7 @@ app.use('/api/payouts', payoutsRoutes);
 app.use('/api/invoices', deliveryInvoicesRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/badges', badgesRoutes);
 
 
 // Webhooks de gateways (server-to-server) — fora de /api para escapar do rate

@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import useRequireAuth from '../../hooks/useRequireAuth';
@@ -32,15 +32,64 @@ export default function MotoboyPage() {
   const router = useRouter();
   const { deliveries, loading, setDeliveries } = useDeliveries();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [takenMsg, setTakenMsg] = useState<string | null>(null);
+  const [gpsDenied, setGpsDenied] = useState(false);
+  const lastSentRef = useRef(0);
 
   const go = (href: string) => { setSidebarOpen(false); router.push(href); };
+
+  // Re-busca o pool (a entrega aceita some dos outros; e o raio cresce com o tempo).
+  const refetchPool = async () => {
+    try {
+      const res = await api.get('/deliveries/available');
+      const data = res.data?.deliveries || res.data || [];
+      setDeliveries(Array.isArray(data) ? data : []);
+    } catch { /* silencioso */ }
+  };
+
+  // GPS do motoboy → alimenta o despacho por raio. Throttle de ~15s.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    const sendLocation = (pos: GeolocationPosition) => {
+      const now = Date.now();
+      if (now - lastSentRef.current < 15000) return;
+      lastSentRef.current = now;
+      api.post('/deliveries/location', {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        isOnline: true,
+      }).then(refetchPool).catch(() => {});
+    };
+    const onErr = (e: GeolocationPositionError) => {
+      if (e.code === e.PERMISSION_DENIED) setGpsDenied(true);
+    };
+    // posição inicial imediata + acompanhamento contínuo
+    navigator.geolocation.getCurrentPosition(sendLocation, onErr, { enableHighAccuracy: true, timeout: 10000 });
+    const watchId = navigator.geolocation.watchPosition(sendLocation, onErr, {
+      enableHighAccuracy: true, maximumAge: 10000, timeout: 20000,
+    });
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  // Refetch periódico para captar a ampliação do raio sem depender de evento.
+  useEffect(() => {
+    const t = setInterval(refetchPool, 25000);
+    return () => clearInterval(t);
+  }, []);
 
   const claim = async (id: string) => {
     try {
       const res = await api.post(`/deliveries/${id}/claim`);
       window.location.href = `/motoboy/delivery/${res.data._id}`;
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'Falha ao reclamar');
+      // 409 = outro motoboy aceitou primeiro → popup + tira da lista.
+      if (err?.response?.status === 409) {
+        setTakenMsg('Essa corrida já foi aceita por outro motoboy.');
+        setDeliveries((prev: any) => prev.filter((del: any) => del._id !== id));
+        refetchPool();
+      } else {
+        setTakenMsg(err?.response?.data?.error || 'Falha ao aceitar a corrida.');
+      }
     }
   };
 
@@ -122,6 +171,15 @@ export default function MotoboyPage() {
           </div>
 
           <div className={dash.tabContent}>
+            {gpsDenied && (
+              <div style={{
+                background: 'rgba(245,158,11,0.12)', border: '1px solid #F59E0B', borderRadius: 10,
+                padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'rgba(255,255,255,0.85)',
+              }}>
+                <Icon name="alert-triangle" size={14} /> Ative a localização para receber as corridas mais próximas de você. Sem GPS, você vê todas as corridas (inclusive distantes).
+              </div>
+            )}
+
             {/* Stats */}
             <div className={styles.statsGrid}>
               {stats.map((stat) => (
@@ -187,6 +245,31 @@ export default function MotoboyPage() {
             </div>
           </div>
         </main>
+
+        {/* Popup: corrida já aceita por outro motoboy (first-accept-wins) */}
+        {takenMsg && (
+          <div
+            onClick={() => setTakenMsg(null)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+            }}
+          >
+            <div onClick={(e) => e.stopPropagation()} style={{
+              background: '#161616', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
+              padding: 24, maxWidth: 360, width: '100%', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}><Icon name="alert-triangle" size={32} /></div>
+              <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 15, margin: '0 0 16px' }}>{takenMsg}</p>
+              <button
+                onClick={() => setTakenMsg(null)}
+                style={{ background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );
