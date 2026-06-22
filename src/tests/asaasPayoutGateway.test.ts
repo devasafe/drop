@@ -13,6 +13,7 @@ import Payout from '../models/Payout';
 import { encryptSensitiveData } from '../utils/encryption';
 
 const postAs = (asaasClient as any).postAs as jest.Mock;
+const getAs = (asaasClient as any).getAs as jest.Mock;
 let mongod: MongoMemoryServer;
 
 beforeAll(async () => {
@@ -28,6 +29,7 @@ afterEach(async () => {
     await mongoose.connection.collections[key].deleteMany({});
   }
   postAs.mockReset();
+  getAs.mockReset();
 });
 
 describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
@@ -77,6 +79,46 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
 
     expect(result.status).toBe('failed');
     expect(result.errorMessage).toMatch(/PIX/i);
+    expect(postAs).not.toHaveBeenCalled();
+  });
+
+  it('limita o saque ao saldo REAL da subconta (diferença de centavos não trava)', async () => {
+    getAs.mockResolvedValue({ balance: 15.0 }); // subconta tem R$15,00
+    postAs.mockResolvedValue({ id: 'tr_cap', status: 'DONE' });
+
+    const store = await Store.create({
+      ownerId: new mongoose.Types.ObjectId(),
+      name: 'Loja',
+      asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
+    });
+    const payout = await Payout.create({
+      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 15.01, status: 'released',
+    });
+
+    const gw = new AsaasGateway();
+    const result = await gw.transfer({ payoutIds: [String(payout._id)], bankInfo: {} as any, amount: 15.01, recipientName: 'Loja' });
+
+    expect(result.status).toBe('paid');
+    // transferiu R$15,00 (saldo real), não R$15,01 (espelho)
+    expect(postAs.mock.calls[0][2]).toEqual({ value: 15.0, operationType: 'PIX', pixAddressKey: 'l@x.com' });
+  });
+
+  it('subconta zerada → falha clara, sem chamar o gateway', async () => {
+    getAs.mockResolvedValue({ balance: 0 });
+    const store = await Store.create({
+      ownerId: new mongoose.Types.ObjectId(),
+      name: 'Loja',
+      asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
+    });
+    const payout = await Payout.create({
+      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 10, status: 'released',
+    });
+
+    const gw = new AsaasGateway();
+    const result = await gw.transfer({ payoutIds: [String(payout._id)], bankInfo: {} as any, amount: 10, recipientName: 'Loja' });
+
+    expect(result.status).toBe('failed');
+    expect(result.errorMessage).toMatch(/sem saldo/i);
     expect(postAs).not.toHaveBeenCalled();
   });
 });

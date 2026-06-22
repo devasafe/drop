@@ -75,9 +75,26 @@ export class AsaasGateway implements IPayoutGateway {
       return { status: 'failed', gatewayTransferId: '', errorMessage: 'Erro ao acessar a subconta' };
     }
 
+    // O PIX debita a SUBCONTA. O espelho contábil (soma dos payouts) pode divergir
+    // do saldo real por centavos (arredondamento no split), e aí o Asaas recusa a
+    // operação inteira com "Saldo insuficiente". Consultamos o saldo real e sacamos
+    // no máximo o que existe na subconta — o centavo de diferença não trava o saque.
+    let value = Number(input.amount.toFixed(2));
+    try {
+      const bal = await asaasClient.getAs<{ balance: number }>(apiKey, '/finance/balance');
+      const real = typeof bal?.balance === 'number' ? bal.balance : Number(bal?.balance);
+      if (Number.isFinite(real)) value = Math.min(value, Number(real.toFixed(2)));
+    } catch (err) {
+      logger.warn('Não foi possível ler o saldo da subconta antes do saque; usando o valor pedido');
+    }
+
+    if (value <= 0) {
+      return { status: 'failed', gatewayTransferId: '', errorMessage: 'Subconta sem saldo disponível para saque' };
+    }
+
     try {
       const transfer = await asaasClient.postAs<AsaasTransfer>(apiKey, '/transfers', {
-        value: Number(input.amount.toFixed(2)),
+        value,
         operationType: 'PIX',
         pixAddressKey: pixKey,
       });
