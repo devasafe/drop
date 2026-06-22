@@ -76,13 +76,62 @@ function firstAddress(addresses?: any[]) {
   return addresses.find((a) => a.isDefault) || addresses[0];
 }
 
+/**
+ * Recupera uma subconta JÁ EXISTENTE no Asaas pelo CPF/CNPJ. A conta-mãe consegue
+ * listar suas subcontas (com id, walletId e apiKey). Usado para consertar registros
+ * que ficaram com a subconta criada no Asaas mas SEM a apiKey salva no nosso banco
+ * (criação parcial) — sem isso o saque "da subconta" é impossível.
+ */
+async function findExistingAsaasAccount(
+  cpfCnpj: string,
+): Promise<{ id: string; walletId?: string; apiKey?: string } | null> {
+  const digits = onlyDigits(cpfCnpj);
+  if (!digits) return null;
+  try {
+    const resp = await asaasClient.get<{ data?: any[] }>(`/accounts?cpfCnpj=${digits}`);
+    const list = Array.isArray(resp?.data) ? resp.data : [];
+    const match = list.find((a) => onlyDigits(a?.cpfCnpj) === digits) || list[0];
+    if (!match?.id) return null;
+    return { id: match.id, walletId: match.walletId, apiKey: match.apiKey };
+  } catch (err) {
+    logger.warn('Falha ao listar subcontas no Asaas para recuperação', { cpfCnpj: digits });
+    return null;
+  }
+}
+
+/** Indica se o erro do Asaas é "subconta/CPF já cadastrado". */
+function isAlreadyExistsError(err: any): boolean {
+  const msg = (err?.message || '').toLowerCase();
+  return msg.includes('já') || msg.includes('already') || msg.includes('existe') || msg.includes('cadastrad');
+}
+
 /** Cria/garante a subconta do MOTOBOY (no User, pelo CPF). */
 export async function ensureMotoboySubaccount(userId: string): Promise<void> {
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
   if (!user) return;
-  if (user.asaas?.accountId) return; // já criada
+  if (user.asaas?.accountId && user.asaas?.apiKeyEncrypted) return; // já criada e com apiKey
 
   const cpf = onlyDigits(user.cpf);
+
+  // Conserto: subconta já registrada (accountId) mas SEM apiKey no nosso banco
+  // (criação parcial). Recupera a apiKey listando a subconta no Asaas.
+  if (user.asaas?.accountId && !user.asaas?.apiKeyEncrypted) {
+    const found = await findExistingAsaasAccount(cpf);
+    if (!user.asaas) (user as any).asaas = { status: 'none' };
+    if (found?.apiKey) {
+      user.asaas!.walletId = found.walletId || user.asaas!.walletId;
+      user.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
+      user.asaas!.status = 'active';
+      user.asaas!.lastError = undefined;
+      logger.info('apiKey da subconta do motoboy recuperada do Asaas', { userId });
+    } else {
+      user.asaas!.status = 'error';
+      user.asaas!.lastError = 'Subconta existe no Asaas, mas a apiKey não pôde ser recuperada automaticamente.';
+    }
+    user.markModified('asaas');
+    await user.save();
+    return;
+  }
   const addr = firstAddress(user.addresses as any);
   const missing: string[] = [];
   if (!user.name) missing.push('nome');
@@ -129,6 +178,21 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
     await user.save();
     logger.info('Subconta Asaas do motoboy criada', { userId, accountId: acc.id });
   } catch (err: any) {
+    // A subconta já existia no Asaas (criação parcial anterior) → recupera credenciais.
+    if (isAlreadyExistsError(err)) {
+      const found = await findExistingAsaasAccount(cpf);
+      if (found?.id) {
+        user.asaas!.accountId = found.id;
+        user.asaas!.walletId = found.walletId || user.asaas!.walletId;
+        if (found.apiKey) user.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
+        user.asaas!.status = found.apiKey ? 'active' : 'error';
+        user.asaas!.lastError = found.apiKey ? undefined : 'Subconta recuperada sem apiKey — recupere manualmente.';
+        user.markModified('asaas');
+        await user.save();
+        logger.info('Subconta do motoboy recuperada após "já existe"', { userId, accountId: found.id });
+        return;
+      }
+    }
     user.asaas!.status = 'error';
     user.asaas!.lastError = err?.message?.slice(0, 300);
     user.markModified('asaas');
@@ -139,9 +203,9 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
 
 /** Cria/garante a subconta da LOJA (no Store, pela CNPJ ou CPF do dono). */
 export async function ensureStoreSubaccount(storeId: string): Promise<void> {
-  const store = await Store.findById(storeId);
+  const store = await Store.findById(storeId).select('+asaas.apiKeyEncrypted');
   if (!store) return;
-  if (store.asaas?.accountId) return;
+  if (store.asaas?.accountId && store.asaas?.apiKeyEncrypted) return;
 
   const owner = await User.findById(store.ownerId);
   if (!owner) return;
@@ -150,6 +214,25 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
   const cnpj = onlyDigits(store.cnpj);
   const cpf = onlyDigits(owner.cpf);
   const doc = cnpj.length === 14 ? cnpj : cpf;
+
+  // Conserto: subconta registrada (accountId) mas SEM apiKey → recupera do Asaas.
+  if (store.asaas?.accountId && !store.asaas?.apiKeyEncrypted) {
+    const found = await findExistingAsaasAccount(doc);
+    if (!store.asaas) (store as any).asaas = { status: 'none' };
+    if (found?.apiKey) {
+      store.asaas!.walletId = found.walletId || store.asaas!.walletId;
+      store.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
+      store.asaas!.status = 'active';
+      store.asaas!.lastError = undefined;
+      logger.info('apiKey da subconta da loja recuperada do Asaas', { storeId });
+    } else {
+      store.asaas!.status = 'error';
+      store.asaas!.lastError = 'Subconta existe no Asaas, mas a apiKey não pôde ser recuperada automaticamente.';
+    }
+    store.markModified('asaas');
+    await store.save();
+    return;
+  }
   const addr =
     store.street
       ? { street: store.street, number: store.number, neighborhood: store.neighborhood, cep: store.zip }
@@ -201,6 +284,20 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
     await store.save();
     logger.info('Subconta Asaas da loja criada', { storeId, accountId: acc.id });
   } catch (err: any) {
+    if (isAlreadyExistsError(err)) {
+      const found = await findExistingAsaasAccount(doc);
+      if (found?.id) {
+        store.asaas!.accountId = found.id;
+        store.asaas!.walletId = found.walletId || store.asaas!.walletId;
+        if (found.apiKey) store.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
+        store.asaas!.status = found.apiKey ? 'active' : 'error';
+        store.asaas!.lastError = found.apiKey ? undefined : 'Subconta recuperada sem apiKey — recupere manualmente.';
+        store.markModified('asaas');
+        await store.save();
+        logger.info('Subconta da loja recuperada após "já existe"', { storeId, accountId: found.id });
+        return;
+      }
+    }
     store.asaas!.status = 'error';
     store.asaas!.lastError = err?.message?.slice(0, 300);
     store.markModified('asaas');
