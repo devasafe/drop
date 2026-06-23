@@ -101,7 +101,12 @@ export class AsaasGateway implements IPayoutGateway {
       return { status: mapStatus(transfer.status), gatewayTransferId: transfer.id };
     } catch (err: any) {
       logger.error('Falha no saque PIX via Asaas', err as Error, { payoutId });
-      return { status: 'failed', gatewayTransferId: '', errorMessage: err?.message?.slice(0, 300) };
+      const raw = (err?.message || '').toLowerCase();
+      // Mensagem mais clara para o caso mais comum (chave de destino inexistente).
+      const friendly = raw.includes('não foi encontrada') || raw.includes('not found') || raw.includes('chave')
+        ? 'A chave PIX de destino não foi encontrada no sistema PIX. Verifique se a chave está cadastrada no banco do recebedor. (No ambiente de testes/sandbox, use uma chave PIX fictícia do BACEN.)'
+        : err?.message?.slice(0, 300);
+      return { status: 'failed', gatewayTransferId: '', errorMessage: friendly };
     }
   }
 

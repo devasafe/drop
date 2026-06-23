@@ -35,7 +35,9 @@ export const setPixKey = async (req: AuthenticatedRequest, res: Response) => {
     const type: PixKeyType = valid.includes(pixKeyType) ? pixKeyType : inferPixKeyType(pixKey.trim());
 
     if (role === 'motoboy') {
-      const user = await User.findById(userId);
+      // IMPORTANTE: carregar a apiKeyEncrypted (select:false). Sem isso, o markModified
+      // + save reescreve o objeto asaas SEM a apiKey e APAGA a chave da subconta.
+      const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
       if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
       if (!user.asaas) (user as any).asaas = { status: 'none' };
       user.asaas!.pixKey = pixKey.trim();
@@ -47,8 +49,8 @@ export const setPixKey = async (req: AuthenticatedRequest, res: Response) => {
 
     if (role === 'lojista' || (role as string) === 'seller') {
       const store = storeId
-        ? await Store.findOne({ _id: storeId, ownerId: userId })
-        : await Store.findOne({ ownerId: userId });
+        ? await Store.findOne({ _id: storeId, ownerId: userId }).select('+asaas.apiKeyEncrypted')
+        : await Store.findOne({ ownerId: userId }).select('+asaas.apiKeyEncrypted');
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
       if (!store.asaas) (store as any).asaas = { status: 'none' };
       store.asaas!.pixKey = pixKey.trim();
@@ -127,7 +129,8 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
     const fmt = (a: any) => ({ status: a?.status || 'none', hasWallet: !!a?.walletId, hasPix: !!a?.pixKey, lastError: a?.lastError });
 
     if (role === 'motoboy') {
-      const user = await User.findById(userId);
+      // carrega a apiKeyEncrypted p/ não apagá-la no markModified+save (vide setPixKey)
+      const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
       if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
       if (address?.street && !(user.addresses && user.addresses.length)) {
@@ -150,7 +153,7 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     if (role === 'lojista' || (role as string) === 'seller') {
-      const store = await Store.findOne({ ownerId: userId });
+      const store = await Store.findOne({ ownerId: userId }).select('+asaas.apiKeyEncrypted');
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
 
       if (address) {

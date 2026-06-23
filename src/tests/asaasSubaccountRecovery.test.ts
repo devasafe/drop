@@ -23,29 +23,60 @@ afterEach(async () => {
 });
 
 describe('recuperação de subconta Asaas (apiKey perdida)', () => {
-  it('subconta com accountId mas SEM apiKey → recupera a apiKey listando no Asaas', async () => {
-    // Asaas lista a subconta existente já com a apiKey
-    get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', apiKey: '$recovered', cpfCnpj: '68193836812' }] });
+  it('subconta com accountId mas SEM apiKey → gera nova chave via accessTokens', async () => {
+    // POST /accounts/{id}/accessTokens retorna a chave nova; o GET resolve o walletId.
+    post.mockImplementation((path: string) =>
+      path.includes('/accessTokens')
+        ? Promise.resolve({ id: 'tok_1', apiKey: '$nova_chave' })
+        : Promise.resolve({}),
+    );
+    get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
 
     const u = await User.create({
       name: 'Fernando', email: 'f@x.com', passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12',
-      asaas: { status: 'active', accountId: 'acc_1' }, // tem accountId mas SEM apiKeyEncrypted
+      asaas: { status: 'active', accountId: 'acc_1' }, // accountId sem apiKeyEncrypted
     } as any);
 
     await ensureMotoboySubaccount(String(u._id));
 
     const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
-    expect(fresh?.asaas?.apiKeyEncrypted).toBeTruthy();
-    expect(decryptSensitiveData(fresh!.asaas!.apiKeyEncrypted!)).toBe('$recovered');
+    expect(decryptSensitiveData(fresh!.asaas!.apiKeyEncrypted!)).toBe('$nova_chave');
     expect(fresh?.asaas?.walletId).toBe('wlt_1');
     expect(fresh?.asaas?.status).toBe('active');
-    expect(post).not.toHaveBeenCalled(); // não tentou recriar
+    // gerou a chave pelo endpoint certo
+    expect(post).toHaveBeenCalledWith('/accounts/acc_1/accessTokens', expect.any(Object));
   });
 
-  it('criação que falha com "já existe" → recupera credenciais da subconta existente', async () => {
-    post.mockRejectedValue(new Error('Já existe uma conta com este CPF/CNPJ'));
-    get.mockResolvedValue({ data: [{ id: 'acc_2', walletId: 'wlt_2', apiKey: '$rec2', cpfCnpj: '68193836812' }] });
+  it('quando o gerenciamento de chaves está OFF (POST falha) → status error com instrução', async () => {
+    post.mockImplementation((path: string) =>
+      path.includes('/accessTokens')
+        ? Promise.reject(new Error('forbidden'))
+        : Promise.resolve({}),
+    );
+    get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
+
+    const u = await User.create({
+      name: 'Fernando', email: 'f3@x.com', passwordHash: 'x', role: 'motoboy',
+      cpf: '681.938.368-12',
+      asaas: { status: 'active', accountId: 'acc_1' },
+    } as any);
+
+    await ensureMotoboySubaccount(String(u._id));
+
+    const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
+    expect(fresh?.asaas?.apiKeyEncrypted).toBeFalsy();
+    expect(fresh?.asaas?.status).toBe('error');
+    expect(fresh?.asaas?.lastError).toMatch(/whitelist|chaves de API/i);
+  });
+
+  it('criação falha com "já existe" → recupera accountId e gera a chave', async () => {
+    post.mockImplementation((path: string) =>
+      path.includes('/accessTokens')
+        ? Promise.resolve({ id: 'tok_2', apiKey: '$rec2' })
+        : Promise.reject(new Error('Já existe uma conta com este CPF/CNPJ')), // createSubaccount
+    );
+    get.mockResolvedValue({ data: [{ id: 'acc_2', walletId: 'wlt_2', cpfCnpj: '68193836812' }] }); // list sem apiKey
 
     const u = await User.create({
       name: 'Fernando', email: 'f2@x.com', passwordHash: 'x', role: 'motoboy',
@@ -57,7 +88,7 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
 
     const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
     expect(fresh?.asaas?.accountId).toBe('acc_2');
-    expect(fresh?.asaas?.apiKeyEncrypted).toBeTruthy();
+    expect(decryptSensitiveData(fresh!.asaas!.apiKeyEncrypted!)).toBe('$rec2');
     expect(fresh?.asaas?.status).toBe('active');
   });
 });

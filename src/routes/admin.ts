@@ -469,6 +469,7 @@ router.post('/app-cashbox/deposit', authenticate, authorizePermission('cashbox:d
 // ═══════════════════════════════════════════════════════════
 import Store from '../models/Store';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
+import { encryptSensitiveData } from '../utils/encryption';
 
 // POST /admin/asaas/subaccount/store/:storeId
 // body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
@@ -490,14 +491,40 @@ router.post('/asaas/subaccount/store/:storeId', authenticate, authorizePermissio
     }
 
     await ensureStoreSubaccount(req.params.storeId);
-    const fresh = await Store.findById(req.params.storeId).select('name asaas');
+    // +apiKeyEncrypted: sem isso o markModified+save apagaria a apiKey da subconta
+    const fresh = await Store.findById(req.params.storeId).select('+asaas.apiKeyEncrypted');
     if (fresh && req.body?.pixKey) {
       fresh.asaas!.pixKey = String(req.body.pixKey).trim();
       if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
       fresh.markModified('asaas');
       await fresh.save();
     }
-    return res.json({ name: fresh?.name, asaas: fresh?.asaas });
+    // Recuperação MANUAL: colar a apiKey/accountId/walletId da subconta (do painel
+    // Asaas) quando a recuperação automática não consegue. Destrava o saque.
+    if (fresh && (req.body?.apiKey || req.body?.accountId || req.body?.walletId)) {
+      if (!fresh.asaas) (fresh as any).asaas = { status: 'none' };
+      if (req.body.accountId) fresh.asaas!.accountId = String(req.body.accountId).trim();
+      if (req.body.walletId) fresh.asaas!.walletId = String(req.body.walletId).trim();
+      if (req.body.apiKey) {
+        fresh.asaas!.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
+        fresh.asaas!.status = 'active';
+        fresh.asaas!.lastError = undefined;
+      }
+      fresh.markModified('asaas');
+      await fresh.save();
+    }
+    return res.json({
+      name: fresh?.name,
+      asaas: fresh?.asaas ? {
+        status: fresh.asaas.status,
+        accountId: fresh.asaas.accountId,
+        walletId: fresh.asaas.walletId,
+        pixKey: fresh.asaas.pixKey,
+        pixKeyType: fresh.asaas.pixKeyType,
+        lastError: fresh.asaas.lastError,
+        hasApiKey: !!fresh.asaas.apiKeyEncrypted,
+      } : undefined,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
   }
@@ -529,14 +556,40 @@ router.post('/asaas/subaccount/motoboy/:userId', authenticate, authorizePermissi
     }
 
     await ensureMotoboySubaccount(req.params.userId);
-    const fresh = await User.findById(req.params.userId).select('name asaas');
+    // +apiKeyEncrypted: sem isso o markModified+save apagaria a apiKey da subconta
+    const fresh = await User.findById(req.params.userId).select('+asaas.apiKeyEncrypted');
     if (fresh && req.body?.pixKey) {
       fresh.asaas!.pixKey = String(req.body.pixKey).trim();
       if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
       fresh.markModified('asaas');
       await fresh.save();
     }
-    return res.json({ name: fresh?.name, asaas: fresh?.asaas });
+    // Recuperação MANUAL: colar a apiKey/accountId/walletId da subconta (do painel
+    // Asaas) quando a recuperação automática não consegue. Destrava o saque.
+    if (fresh && (req.body?.apiKey || req.body?.accountId || req.body?.walletId)) {
+      if (!fresh.asaas) (fresh as any).asaas = { status: 'none' };
+      if (req.body.accountId) fresh.asaas!.accountId = String(req.body.accountId).trim();
+      if (req.body.walletId) fresh.asaas!.walletId = String(req.body.walletId).trim();
+      if (req.body.apiKey) {
+        fresh.asaas!.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
+        fresh.asaas!.status = 'active';
+        fresh.asaas!.lastError = undefined;
+      }
+      fresh.markModified('asaas');
+      await fresh.save();
+    }
+    return res.json({
+      name: fresh?.name,
+      asaas: fresh?.asaas ? {
+        status: fresh.asaas.status,
+        accountId: fresh.asaas.accountId,
+        walletId: fresh.asaas.walletId,
+        pixKey: fresh.asaas.pixKey,
+        pixKeyType: fresh.asaas.pixKeyType,
+        lastError: fresh.asaas.lastError,
+        hasApiKey: !!fresh.asaas.apiKeyEncrypted,
+      } : undefined,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro ao criar subconta' });
   }

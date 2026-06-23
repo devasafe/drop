@@ -91,10 +91,53 @@ async function findExistingAsaasAccount(
     const resp = await asaasClient.get<{ data?: any[] }>(`/accounts?cpfCnpj=${digits}`);
     const list = Array.isArray(resp?.data) ? resp.data : [];
     const match = list.find((a) => onlyDigits(a?.cpfCnpj) === digits) || list[0];
-    if (!match?.id) return null;
-    return { id: match.id, walletId: match.walletId, apiKey: match.apiKey };
-  } catch (err) {
-    logger.warn('Falha ao listar subcontas no Asaas para recuperação', { cpfCnpj: digits });
+    if (!match?.id) {
+      logger.warn('Subconta não encontrada na listagem do Asaas', { cpfCnpj: digits, total: list.length });
+      return null;
+    }
+    // Diagnóstico: o Asaas retorna a apiKey nessa listagem? (logamos só os NOMES dos
+    // campos + se a apiKey veio, nunca o valor do segredo).
+    logger.info('Subconta encontrada no Asaas (recuperação)', {
+      cpfCnpj: digits,
+      fields: Object.keys(match),
+      hasApiKey: !!(match.apiKey || match.accessToken || match.apiKeys),
+      hasWalletId: !!match.walletId,
+    });
+    return { id: match.id, walletId: match.walletId, apiKey: match.apiKey || match.accessToken };
+  } catch (err: any) {
+    logger.warn('Falha ao listar subcontas no Asaas para recuperação', { cpfCnpj: digits, msg: err?.message });
+    return null;
+  }
+}
+
+/**
+ * Gera uma NOVA chave de API para uma subconta existente (recurso "Gerenciamento de
+ * chaves de API de subcontas" do Asaas). A apiKey original só é mostrada na criação;
+ * quando ela se perde, esta é a forma de obter uma chave utilizável de novo.
+ *
+ * Requer no painel Asaas: recurso habilitado (janela de 2h) + IP do servidor na
+ * whitelist (Mecanismos de Segurança). Retorna a chave (segredo) ou null.
+ */
+async function createSubaccountApiKey(accountId: string): Promise<string | null> {
+  try {
+    const resp = await asaasClient.post<any>(`/accounts/${accountId}/accessTokens`, {
+      name: 'DROP - saque',
+    });
+    const key = resp?.apiKey || resp?.accessToken || resp?.value || resp?.token;
+    if (!key) {
+      logger.warn('POST /accounts/{id}/accessTokens não retornou o valor da chave', {
+        accountId,
+        fields: Object.keys(resp || {}),
+      });
+      return null;
+    }
+    logger.info('Nova apiKey gerada para a subconta', { accountId });
+    return key;
+  } catch (err: any) {
+    logger.warn('Falha ao gerar accessToken da subconta (recurso habilitado? IP na whitelist?)', {
+      accountId,
+      msg: err?.message,
+    });
     return null;
   }
 }
@@ -114,19 +157,21 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
   const cpf = onlyDigits(user.cpf);
 
   // Conserto: subconta já registrada (accountId) mas SEM apiKey no nosso banco
-  // (criação parcial). Recupera a apiKey listando a subconta no Asaas.
+  // (criação parcial / chave perdida). Gera uma NOVA chave de API da subconta.
   if (user.asaas?.accountId && !user.asaas?.apiKeyEncrypted) {
-    const found = await findExistingAsaasAccount(cpf);
-    if (!user.asaas) (user as any).asaas = { status: 'none' };
-    if (found?.apiKey) {
-      user.asaas!.walletId = found.walletId || user.asaas!.walletId;
-      user.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
-      user.asaas!.status = 'active';
-      user.asaas!.lastError = undefined;
-      logger.info('apiKey da subconta do motoboy recuperada do Asaas', { userId });
+    const key = await createSubaccountApiKey(user.asaas.accountId);
+    if (!user.asaas.walletId) {
+      const found = await findExistingAsaasAccount(cpf);
+      if (found?.walletId) user.asaas.walletId = found.walletId;
+    }
+    if (key) {
+      user.asaas.apiKeyEncrypted = encryptSensitiveData(key);
+      user.asaas.status = 'active';
+      user.asaas.lastError = undefined;
+      logger.info('apiKey da subconta do motoboy regenerada', { userId });
     } else {
-      user.asaas!.status = 'error';
-      user.asaas!.lastError = 'Subconta existe no Asaas, mas a apiKey não pôde ser recuperada automaticamente.';
+      user.asaas.status = 'error';
+      user.asaas.lastError = 'Não foi possível gerar a chave da subconta. No painel Asaas: habilite "Gerenciamento de chaves de API de subcontas" e adicione o IP do servidor na whitelist (Mecanismos de Segurança).';
     }
     user.markModified('asaas');
     await user.save();
@@ -178,15 +223,17 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
     await user.save();
     logger.info('Subconta Asaas do motoboy criada', { userId, accountId: acc.id });
   } catch (err: any) {
-    // A subconta já existia no Asaas (criação parcial anterior) → recupera credenciais.
+    // A subconta já existia no Asaas (criação parcial anterior) → recupera credenciais
+    // e gera uma nova chave de API.
     if (isAlreadyExistsError(err)) {
       const found = await findExistingAsaasAccount(cpf);
       if (found?.id) {
+        const key = found.apiKey || (await createSubaccountApiKey(found.id));
         user.asaas!.accountId = found.id;
         user.asaas!.walletId = found.walletId || user.asaas!.walletId;
-        if (found.apiKey) user.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
-        user.asaas!.status = found.apiKey ? 'active' : 'error';
-        user.asaas!.lastError = found.apiKey ? undefined : 'Subconta recuperada sem apiKey — recupere manualmente.';
+        if (key) user.asaas!.apiKeyEncrypted = encryptSensitiveData(key);
+        user.asaas!.status = key ? 'active' : 'error';
+        user.asaas!.lastError = key ? undefined : 'Subconta recuperada, mas sem chave de API — habilite o gerenciamento de chaves + IP whitelist no Asaas.';
         user.markModified('asaas');
         await user.save();
         logger.info('Subconta do motoboy recuperada após "já existe"', { userId, accountId: found.id });
@@ -215,19 +262,21 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
   const cpf = onlyDigits(owner.cpf);
   const doc = cnpj.length === 14 ? cnpj : cpf;
 
-  // Conserto: subconta registrada (accountId) mas SEM apiKey → recupera do Asaas.
+  // Conserto: subconta registrada (accountId) mas SEM apiKey → gera nova chave.
   if (store.asaas?.accountId && !store.asaas?.apiKeyEncrypted) {
-    const found = await findExistingAsaasAccount(doc);
-    if (!store.asaas) (store as any).asaas = { status: 'none' };
-    if (found?.apiKey) {
-      store.asaas!.walletId = found.walletId || store.asaas!.walletId;
-      store.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
-      store.asaas!.status = 'active';
-      store.asaas!.lastError = undefined;
-      logger.info('apiKey da subconta da loja recuperada do Asaas', { storeId });
+    const key = await createSubaccountApiKey(store.asaas.accountId);
+    if (!store.asaas.walletId) {
+      const found = await findExistingAsaasAccount(doc);
+      if (found?.walletId) store.asaas.walletId = found.walletId;
+    }
+    if (key) {
+      store.asaas.apiKeyEncrypted = encryptSensitiveData(key);
+      store.asaas.status = 'active';
+      store.asaas.lastError = undefined;
+      logger.info('apiKey da subconta da loja regenerada', { storeId });
     } else {
-      store.asaas!.status = 'error';
-      store.asaas!.lastError = 'Subconta existe no Asaas, mas a apiKey não pôde ser recuperada automaticamente.';
+      store.asaas.status = 'error';
+      store.asaas.lastError = 'Não foi possível gerar a chave da subconta. No painel Asaas: habilite "Gerenciamento de chaves de API de subcontas" e adicione o IP do servidor na whitelist (Mecanismos de Segurança).';
     }
     store.markModified('asaas');
     await store.save();
@@ -287,11 +336,12 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
     if (isAlreadyExistsError(err)) {
       const found = await findExistingAsaasAccount(doc);
       if (found?.id) {
+        const key = found.apiKey || (await createSubaccountApiKey(found.id));
         store.asaas!.accountId = found.id;
         store.asaas!.walletId = found.walletId || store.asaas!.walletId;
-        if (found.apiKey) store.asaas!.apiKeyEncrypted = encryptSensitiveData(found.apiKey);
-        store.asaas!.status = found.apiKey ? 'active' : 'error';
-        store.asaas!.lastError = found.apiKey ? undefined : 'Subconta recuperada sem apiKey — recupere manualmente.';
+        if (key) store.asaas!.apiKeyEncrypted = encryptSensitiveData(key);
+        store.asaas!.status = key ? 'active' : 'error';
+        store.asaas!.lastError = key ? undefined : 'Subconta recuperada, mas sem chave de API — habilite o gerenciamento de chaves + IP whitelist no Asaas.';
         store.markModified('asaas');
         await store.save();
         logger.info('Subconta da loja recuperada após "já existe"', { storeId, accountId: found.id });

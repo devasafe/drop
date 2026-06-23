@@ -33,7 +33,9 @@ export interface PixCharge {
 
 /** Garante um customer Asaas pro comprador (cria e cacheia se não existir). */
 export async function ensureAsaasCustomer(userId: string): Promise<string | null> {
-  const user = await User.findById(userId);
+  // carrega a apiKeyEncrypted p/ não apagá-la no markModified('asaas')+save abaixo
+  // (o mesmo usuário pode ser comprador E recebedor com subconta)
+  const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
   if (!user) return null;
   if (user.asaas?.customerId) return user.asaas.customerId;
 
