@@ -61,7 +61,7 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
     const [usedKey, path, body] = postAs.mock.calls[0];
     expect(usedKey).toBe('$aact_sub_loja');
     expect(path).toBe('/transfers');
-    expect(body).toEqual({ value: 90, operationType: 'PIX', pixAddressKey: 'loja@pix.com' });
+    expect(body).toEqual({ value: 90, operationType: 'PIX', pixAddressKey: 'loja@pix.com', pixAddressKeyType: 'EMAIL' });
   });
 
   it('falha (sem chave PIX) → status failed e não chama o gateway', async () => {
@@ -100,7 +100,7 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
 
     expect(result.status).toBe('paid');
     // transferiu R$15,00 (saldo real), não R$15,01 (espelho)
-    expect(postAs.mock.calls[0][2]).toEqual({ value: 15.0, operationType: 'PIX', pixAddressKey: 'l@x.com' });
+    expect(postAs.mock.calls[0][2]).toEqual({ value: 15.0, operationType: 'PIX', pixAddressKey: 'l@x.com', pixAddressKeyType: 'EMAIL' });
   });
 
   it('subconta zerada → falha clara, sem chamar o gateway', async () => {

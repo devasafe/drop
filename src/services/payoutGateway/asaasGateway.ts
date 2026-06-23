@@ -21,6 +21,17 @@ interface AsaasTransfer {
   status: string;
 }
 
+/** Infere o tipo da chave PIX quando o tipo não foi salvo (fallback). */
+function inferPixKeyType(key?: string): string {
+  const k = (key || '').trim();
+  if (k.includes('@')) return 'EMAIL';
+  const digits = k.replace(/\D/g, '');
+  if (digits.length === 11 && digits === k) return 'CPF';
+  if (digits.length === 14) return 'CNPJ';
+  if (digits.length >= 10 && digits.length <= 13) return 'PHONE';
+  return 'EVP';
+}
+
 function mapStatus(asaasStatus?: string): 'pending' | 'paid' | 'failed' {
   switch (asaasStatus) {
     case 'DONE':
@@ -47,17 +58,20 @@ export class AsaasGateway implements IPayoutGateway {
       return { status: 'failed', gatewayTransferId: '', errorMessage: 'Payout não encontrado' };
     }
 
-    // Resolve a subconta (apiKey cifrada) e a chave PIX do recebedor.
+    // Resolve a subconta (apiKey cifrada), a chave PIX e o TIPO da chave do recebedor.
     let apiKeyEnc: string | undefined;
     let pixKey: string | undefined;
+    let pixKeyType: string | undefined;
     if (payout.recipientType === 'store') {
       const store = await Store.findById(payout.recipientId).select('+asaas.apiKeyEncrypted');
       apiKeyEnc = store?.asaas?.apiKeyEncrypted;
       pixKey = store?.asaas?.pixKey;
+      pixKeyType = store?.asaas?.pixKeyType;
     } else {
       const user = await User.findById(payout.recipientId).select('+asaas.apiKeyEncrypted');
       apiKeyEnc = user?.asaas?.apiKeyEncrypted;
       pixKey = user?.asaas?.pixKey;
+      pixKeyType = user?.asaas?.pixKeyType;
     }
 
     if (!apiKeyEnc) {
@@ -92,11 +106,16 @@ export class AsaasGateway implements IPayoutGateway {
       return { status: 'failed', gatewayTransferId: '', errorMessage: 'Subconta sem saldo disponível para saque' };
     }
 
+    // O Asaas EXIGE o tipo da chave (pixAddressKeyType) para resolver no DICT.
+    // Sem ele, a transferência falha com "chave não encontrada" mesmo a chave válida.
+    const resolvedType = (pixKeyType || inferPixKeyType(pixKey)).toUpperCase();
+
     try {
       const transfer = await asaasClient.postAs<AsaasTransfer>(apiKey, '/transfers', {
         value,
         operationType: 'PIX',
         pixAddressKey: pixKey,
+        pixAddressKeyType: resolvedType,
       });
       return { status: mapStatus(transfer.status), gatewayTransferId: transfer.id };
     } catch (err: any) {
