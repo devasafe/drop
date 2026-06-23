@@ -4,6 +4,7 @@ import Payout from '../../models/Payout';
 import Store from '../../models/Store';
 import User from '../../models/User';
 import payoutService from '../payout.service';
+import { ensureStoreSubaccount, ensureMotoboySubaccount } from './subaccount';
 import { Types } from 'mongoose';
 
 /**
@@ -27,11 +28,22 @@ interface AsaasTransfer {
 }
 
 async function resolveWalletId(payout: any): Promise<string | null> {
+  const id = String(payout.recipientId);
   if (payout.recipientType === 'store') {
-    const store = await Store.findById(payout.recipientId).select('asaas');
+    let store = await Store.findById(id).select('asaas');
+    // Auto-cura: se a subconta não tem walletId (criação parcial / nunca criada),
+    // tenta criar/recuperar agora. Só consegue se a loja já tiver PIX + endereço.
+    if (!store?.asaas?.walletId) {
+      await ensureStoreSubaccount(id);
+      store = await Store.findById(id).select('asaas');
+    }
     return store?.asaas?.walletId || null;
   }
-  const user = await User.findById(payout.recipientId).select('asaas');
+  let user = await User.findById(id).select('asaas');
+  if (!user?.asaas?.walletId) {
+    await ensureMotoboySubaccount(id);
+    user = await User.findById(id).select('asaas');
+  }
   return user?.asaas?.walletId || null;
 }
 
