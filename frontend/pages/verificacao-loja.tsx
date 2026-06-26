@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { maskCNPJ } from '../lib/masks';
+import OnboardingProgress from '../components/OnboardingProgress';
+import OnboardingFooter from '../components/OnboardingFooter';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface StoreVer {
@@ -21,6 +24,9 @@ export default function VerificacaoLojaPage() {
   const [selfie, setSelfie] = useState<File | null>(null);
   const [storeCnpj, setStoreCnpj] = useState('');
   const [comprovante, setComprovante] = useState<File | null>(null);
+
+  const router = useRouter();
+  const onboarding = router.query.onboarding === '1';
 
   const loadStatus = async (id: string) => {
     const { data } = await api.get(`/verification/store/${id}`);
@@ -69,8 +75,11 @@ export default function VerificacaoLojaPage() {
   return (
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
+        <OnboardingProgress />
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação da loja</h1>
-        <a href="/store-dashboard" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        {!onboarding && (
+          <a href="/store-dashboard" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        )}
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {ver?.isVerified
             ? '✅ Loja verificada — ela já aparece para os clientes.'
@@ -135,6 +144,7 @@ export default function VerificacaoLojaPage() {
         </section>
 
         <p style={hint}>Email, telefone e documento do dono são verificados na página da conta.</p>
+        <OnboardingFooter />
       </div>
     </div>
   );
