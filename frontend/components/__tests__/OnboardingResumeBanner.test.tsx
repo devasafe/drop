@@ -31,7 +31,7 @@ describe('OnboardingResumeBanner', () => {
       return Promise.resolve({ data: {} });
     });
     const { container } = render(<OnboardingResumeBanner />);
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/verification/me'));
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/onboarding/status'));
     expect(container).toBeEmptyDOMElement();
   });
 });
