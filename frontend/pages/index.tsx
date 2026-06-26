@@ -6,6 +6,7 @@ import { imageUrl } from '../lib/config';
 import Icon from '../components/Icon';
 import BannerCarousel from '../components/BannerCarousel';
 import styles from './Index.module.css';
+import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 
 type Product = {
   _id: string;
@@ -73,6 +74,8 @@ export default function ProductsPage() {
       <div className={styles.container}>
 
         <BannerCarousel />
+
+        <OnboardingResumeBanner />
 
         <div className={styles.header}>
           <h1 className={styles.title}>Produtos</h1>

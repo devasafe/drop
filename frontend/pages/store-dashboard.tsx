@@ -13,6 +13,7 @@ import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
 import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import styles from './StoreDashboard.module.css';
+import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -841,7 +842,7 @@ export default function StoreDashboard() {
           )}
 
           <div className={styles.tabContent}>
-
+            <OnboardingResumeBanner />
 
           {/* Configurações */}
           {activeTab === 'metrics' && (
