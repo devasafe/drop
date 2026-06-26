@@ -195,7 +195,7 @@ export default function CreateStore() {
         latitude,
         longitude,
       });
-      router.push('/seller/select-plan');
+      router.push('/verificacao?onboarding=1');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao cadastrar loja');
       setLoading(false);

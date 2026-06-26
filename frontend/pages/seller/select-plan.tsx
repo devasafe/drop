@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Link from 'next/link';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import OnboardingProgress from '../../components/OnboardingProgress';
+import OnboardingFooter from '../../components/OnboardingFooter';
 import api from '../../lib/api';
 import styles from './SelectPlan.module.css';
 
@@ -40,6 +42,7 @@ const PlanFeatures = {
 
 export default function SelectPlan() {
   const router = useRouter();
+  const onboarding = router.query.onboarding === '1';
   const { user, loading: authLoading } = useAuth() || {};
   const [subscription, setSubscription] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
@@ -164,6 +167,7 @@ export default function SelectPlan() {
 
   return (
     <div className={styles.page}>
+      <OnboardingProgress />
       <div className={styles.container}>
         <h1 className={styles.pageTitle}><Icon name="package" size={20} /> Escolher Plano</h1>
         <p className={styles.pageSubtitle}>
@@ -271,12 +275,15 @@ export default function SelectPlan() {
         </div>
 
         {/* Link para voltar */}
-        <div className={styles.backLinkWrapper}>
-          <Link href="/seller/dashboard" className={styles.backLink}>
-            ← Voltar ao Dashboard
-          </Link>
-        </div>
+        {!onboarding && (
+          <div className={styles.backLinkWrapper}>
+            <Link href="/seller/dashboard" className={styles.backLink}>
+              ← Voltar ao Dashboard
+            </Link>
+          </div>
+        )}
       </div>
+      <OnboardingFooter />
     </div>
   );
 }

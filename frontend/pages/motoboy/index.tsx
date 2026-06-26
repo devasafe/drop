@@ -9,6 +9,7 @@ import Icon, { IconName } from '../../components/Icon';
 import { useDeliveries } from '../../hooks/useSync';
 import dash from '../StoreDashboard.module.css';
 import styles from './MotoboyIndex.module.css';
+import OnboardingResumeBanner from '../../components/OnboardingResumeBanner';
 
 const NAV_ITEMS: { href: string; label: string; icon: IconName }[] = [
   { href: '/motoboy',              label: 'Entregas',      icon: 'package' },
@@ -171,6 +172,7 @@ export default function MotoboyPage() {
           </div>
 
           <div className={dash.tabContent}>
+            <OnboardingResumeBanner />
             {gpsDenied && (
               <div style={{
                 background: 'rgba(245,158,11,0.12)', border: '1px solid #F59E0B', borderRadius: 10,

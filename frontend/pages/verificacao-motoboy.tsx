@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { maskCPF, maskRG, maskCNH, maskPlate } from '../lib/masks';
+import OnboardingProgress from '../components/OnboardingProgress';
+import OnboardingFooter from '../components/OnboardingFooter';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface CourierVer {
@@ -38,6 +41,9 @@ export default function VerificacaoMotoboyPage() {
   const [cnhPhoto, setCnhPhoto] = useState<File | null>(null);
   const [platePhoto, setPlatePhoto] = useState<File | null>(null);
   const [editCourier, setEditCourier] = useState(false);
+
+  const router = useRouter();
+  const onboarding = router.query.onboarding === '1';
 
   const load = async () => {
     try {
@@ -109,11 +115,18 @@ export default function VerificacaoMotoboyPage() {
   const fs = ver?.facial.status || 'none';
   const ds = doc.status || 'none';
 
+  const shownMissing = onboarding
+    ? (ver?.missing ?? []).filter((m) => m !== 'document')
+    : (ver?.missing ?? []);
+
   return (
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
+        <OnboardingProgress />
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação de motoboy</h1>
-        <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        {!onboarding && (
+          <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        )}
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {ver?.verified
             ? '✅ Você está verificado — já pode aceitar entregas.'
@@ -121,34 +134,35 @@ export default function VerificacaoMotoboyPage() {
         </p>
         {msg && <div style={banner}>{msg}</div>}
 
-        {/* Documento (CPF/RG) */}
-        <section style={card}>
-          <Head title="Documento (CPF ou RG)" s={ds} />
-          {ds === 'rejected' && <p style={errp}>Recusado: {doc.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
-          {ds === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
-          {(ds === 'none' || ds === 'rejected') && (
-            !hasAnyDoc ? (
-              <p style={hint}>
-                Cadastre seu CPF ou RG em <a href="/editar-conta" style={link}>Editar meus dados</a> antes de enviar o documento.
-              </p>
-            ) : (
-              <>
-                <label style={hint}>Qual documento você vai enviar?</label>
-                <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
-                  {hasCpf && <option value="cpf">CPF</option>}
-                  {hasRg && <option value="rg">RG</option>}
-                </select>
-                <label style={hint}>Número (cadastrado em Editar meus dados)</label>
-                <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
-                <label style={hint}>Frente</label>
-                <input type="file" accept="image/*" onChange={e => setDocFront(e.target.files?.[0] || null)} style={file} />
-                <label style={hint}>Verso</label>
-                <input type="file" accept="image/*" onChange={e => setDocBack(e.target.files?.[0] || null)} style={file} />
-                <button style={btn} onClick={submitDoc}>Enviar documento</button>
-              </>
-            )
-          )}
-        </section>
+        {!onboarding && (
+          <section style={card}>
+            <Head title="Documento (CPF ou RG)" s={ds} />
+            {ds === 'rejected' && <p style={errp}>Recusado: {doc.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
+            {ds === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+            {(ds === 'none' || ds === 'rejected') && (
+              !hasAnyDoc ? (
+                <p style={hint}>
+                  Cadastre seu CPF ou RG em <a href="/editar-conta" style={link}>Editar meus dados</a> antes de enviar o documento.
+                </p>
+              ) : (
+                <>
+                  <label style={hint}>Qual documento você vai enviar?</label>
+                  <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
+                    {hasCpf && <option value="cpf">CPF</option>}
+                    {hasRg && <option value="rg">RG</option>}
+                  </select>
+                  <label style={hint}>Número (cadastrado em Editar meus dados)</label>
+                  <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
+                  <label style={hint}>Frente</label>
+                  <input type="file" accept="image/*" onChange={e => setDocFront(e.target.files?.[0] || null)} style={file} />
+                  <label style={hint}>Verso</label>
+                  <input type="file" accept="image/*" onChange={e => setDocBack(e.target.files?.[0] || null)} style={file} />
+                  <button style={btn} onClick={submitDoc}>Enviar documento</button>
+                </>
+              )
+            )}
+          </section>
+        )}
 
         {/* Selfie facial */}
         <section style={card}>
@@ -192,9 +206,10 @@ export default function VerificacaoMotoboyPage() {
           O <strong>e-mail</strong> é verificado na <a href="/verificacao" style={link}>página da conta</a>. Todos os passos
           precisam estar aprovados para liberar as entregas.
         </p>
-        {ver && ver.missing.length > 0 && (
-          <p style={hint}>Ainda falta: {ver.missing.join(', ')}.</p>
+        {shownMissing.length > 0 && (
+          <p style={hint}>Ainda falta: {shownMissing.join(', ')}.</p>
         )}
+        <OnboardingFooter />
       </div>
     </div>
   );
