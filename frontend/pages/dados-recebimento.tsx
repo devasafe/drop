@@ -35,7 +35,6 @@ const PIX_TYPES = [
 
 export default function DadosRecebimento() {
   const router = useRouter();
-  const onboarding = router.query.onboarding === '1';
   const { user, loading: authLoading } = useAuth() || ({} as any);
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);

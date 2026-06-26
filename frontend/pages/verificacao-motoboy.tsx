@@ -115,12 +115,18 @@ export default function VerificacaoMotoboyPage() {
   const fs = ver?.facial.status || 'none';
   const ds = doc.status || 'none';
 
+  const shownMissing = onboarding
+    ? (ver?.missing ?? []).filter((m) => m !== 'document')
+    : (ver?.missing ?? []);
+
   return (
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
         <OnboardingProgress />
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação de motoboy</h1>
-        <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        {!onboarding && (
+          <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        )}
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {ver?.verified
             ? '✅ Você está verificado — já pode aceitar entregas.'
@@ -200,8 +206,8 @@ export default function VerificacaoMotoboyPage() {
           O <strong>e-mail</strong> é verificado na <a href="/verificacao" style={link}>página da conta</a>. Todos os passos
           precisam estar aprovados para liberar as entregas.
         </p>
-        {ver && ver.missing.length > 0 && (
-          <p style={hint}>Ainda falta: {ver.missing.join(', ')}.</p>
+        {shownMissing.length > 0 && (
+          <p style={hint}>Ainda falta: {shownMissing.join(', ')}.</p>
         )}
         <OnboardingFooter />
       </div>

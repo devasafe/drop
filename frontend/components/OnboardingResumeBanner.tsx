@@ -11,17 +11,29 @@ async function firstPendingPath(role?: string): Promise<string | null> {
   const flow = getFlow(role);
   if (flow.length === 0) return null;
 
-  // Status agregado — reaproveita endpoints existentes.
-  const ver = await api.get('/verification/me').then((r) => r.data?.verification).catch(() => null);
+  // FAIL SILENT: erro no endpoint primário → não exibe o banner (evita ruído em falha transitória).
+  let ver: any;
+  try {
+    const r = await api.get('/verification/me');
+    ver = r.data?.verification;
+  } catch {
+    return null;
+  }
+
+  // SUBMITTED = DONE: enviado (pending ou approved) conta como concluído; rejected/none volta ao banner.
+  const submitted = (s?: string) => s === 'pending' || s === 'approved';
+
   const emailOk = ver?.email?.status === 'verified';
-  const docOk = ver?.document?.status === 'approved';
+  const docOk = submitted(ver?.document?.status);
   const identidadeOk = emailOk && docOk;
 
   let pixOk = false;
-  try {
-    const onb = await api.get('/onboarding/status').then((r) => r.data);
-    pixOk = !!onb?.pixKey;
-  } catch {}
+  if (flow.some((s) => s.key === 'pix')) {
+    try {
+      const onb = await api.get('/onboarding/status').then((r) => r.data);
+      pixOk = !!onb?.pixKey;
+    } catch {}
+  }
 
   let lojaOk = false;
   if (role === 'lojista') {
@@ -30,7 +42,10 @@ async function firstPendingPath(role?: string): Promise<string | null> {
       const storeId = dash?.store?._id || dash?._id || dash?.storeId;
       if (storeId) {
         const sv = await api.get(`/verification/store/${storeId}`).then((r) => r.data);
-        lojaOk = !!sv?.isVerified;
+        lojaOk =
+          submitted(sv?.facial?.status) &&
+          submitted(sv?.cnpj?.status) &&
+          submitted(sv?.address?.status);
       }
     } catch {}
   }
@@ -39,7 +54,7 @@ async function firstPendingPath(role?: string): Promise<string | null> {
   if (role === 'motoboy') {
     try {
       const mv = await api.get('/verification/motoboy/me').then((r) => r.data);
-      motoboyOk = !!mv?.verified;
+      motoboyOk = submitted(mv?.courier?.status) && submitted(mv?.facial?.status);
     } catch {}
   }
 

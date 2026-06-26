@@ -14,24 +14,77 @@ jest.mock('../../lib/api', () => ({ __esModule: true, default: { get: (...a: any
 beforeEach(() => { push.mockClear(); get.mockReset(); });
 
 describe('OnboardingResumeBanner', () => {
-  test('mostra o banner quando há etapa pendente (cliente sem email verificado)', async () => {
+  test('mostra o banner quando etapa nunca enviada (document.status none, sem pixKey)', async () => {
     get.mockImplementation((url: string) => {
-      if (url === '/verification/me') return Promise.resolve({ data: { verification: { email: { status: 'none' }, document: { status: 'none' } } } });
+      if (url === '/verification/me')
+        return Promise.resolve({
+          data: {
+            verification: {
+              email: { status: 'none' },
+              document: { status: 'none' },
+            },
+          },
+        });
       if (url === '/onboarding/status') return Promise.resolve({ data: { pixKey: null } });
       return Promise.resolve({ data: {} });
     });
     render(<OnboardingResumeBanner />);
-    await waitFor(() => expect(screen.getByText('Continuar configuração →')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Continuar configuração →')).toBeInTheDocument(),
+    );
   });
 
-  test('não renderiza quando tudo está concluído', async () => {
+  // NOVO comportamento: enviado-mas-pendente (pending) conta como FEITO → banner não aparece.
+  test('não renderiza quando etapa pendente (email verified, document pending) — submitted = done', async () => {
     get.mockImplementation((url: string) => {
-      if (url === '/verification/me') return Promise.resolve({ data: { verification: { email: { status: 'verified' }, document: { status: 'approved' } } } });
+      if (url === '/verification/me')
+        return Promise.resolve({
+          data: {
+            verification: {
+              email: { status: 'verified' },
+              document: { status: 'pending' },
+            },
+          },
+        });
       if (url === '/onboarding/status') return Promise.resolve({ data: { pixKey: 'x' } });
       return Promise.resolve({ data: {} });
     });
     const { container } = render(<OnboardingResumeBanner />);
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/onboarding/status'));
+    // cliente flow tem só 'identidade' (sem pix), então só /verification/me é chamado.
+    // Aguarda exactamente 1 chamada, garantindo que o async chain terminou.
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
+  // documento rejeitado → volta ao banner (rejected ≠ submitted).
+  test('mostra o banner quando document.status é rejected', async () => {
+    get.mockImplementation((url: string) => {
+      if (url === '/verification/me')
+        return Promise.resolve({
+          data: {
+            verification: {
+              email: { status: 'verified' },
+              document: { status: 'rejected' },
+            },
+          },
+        });
+      if (url === '/onboarding/status') return Promise.resolve({ data: { pixKey: 'x' } });
+      return Promise.resolve({ data: {} });
+    });
+    render(<OnboardingResumeBanner />);
+    await waitFor(() =>
+      expect(screen.getByText('Continuar configuração →')).toBeInTheDocument(),
+    );
+  });
+
+  // falha na chamada primária → banner não aparece (fail-silent).
+  test('não renderiza quando /verification/me lança erro (fail-silent)', async () => {
+    get.mockImplementation((url: string) => {
+      if (url === '/verification/me') return Promise.reject(new Error('network'));
+      return Promise.resolve({ data: {} });
+    });
+    const { container } = render(<OnboardingResumeBanner />);
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/verification/me'));
     expect(container).toBeEmptyDOMElement();
   });
 });
