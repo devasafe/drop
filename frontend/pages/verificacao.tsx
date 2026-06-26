@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { maskCPF, maskRG } from '../lib/masks';
+import OnboardingProgress from '../components/OnboardingProgress';
+import OnboardingFooter from '../components/OnboardingFooter';
 
 type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Verification {
@@ -25,6 +28,9 @@ export default function VerificacaoPage() {
   const [back, setBack] = useState<File | null>(null);
 
   const [msg, setMsg] = useState('');
+
+  const router = useRouter();
+  const onboarding = router.query.onboarding === '1';
 
   const load = async () => {
     try {
@@ -79,8 +85,11 @@ export default function VerificacaoPage() {
   return (
     <div style={wrap}>
       <div style={{ maxWidth: 560, width: '100%' }}>
+        <OnboardingProgress />
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação da conta</h1>
-        <a href="/" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        {!onboarding && (
+          <a href="/" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
+        )}
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
           {allOk ? '✅ Sua conta está totalmente verificada — você já pode comprar.'
                  : 'Conclua os passos abaixo para liberar suas compras.'}
@@ -135,6 +144,7 @@ export default function VerificacaoPage() {
             )
           )}
         </section>
+        <OnboardingFooter />
       </div>
     </div>
   );
