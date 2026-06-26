@@ -4,6 +4,8 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Icon from '../components/Icon';
 import { maskCPF, maskCNPJ, maskPhone, maskCEP } from '../lib/masks';
+import OnboardingProgress from '../components/OnboardingProgress';
+import OnboardingFooter from '../components/OnboardingFooter';
 
 // Aplica máscara na chave PIX conforme o tipo escolhido.
 function maskPix(value: string, type: string): string {
@@ -33,6 +35,7 @@ const PIX_TYPES = [
 
 export default function DadosRecebimento() {
   const router = useRouter();
+  const onboarding = router.query.onboarding === '1';
   const { user, loading: authLoading } = useAuth() || ({} as any);
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +101,7 @@ export default function DadosRecebimento() {
 
   return (
     <div style={wrap}>
+      <OnboardingProgress />
       <div style={{ maxWidth: 520, width: '100%' }}>
         <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Dados de Recebimento</h1>
         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
@@ -173,6 +177,7 @@ export default function DadosRecebimento() {
         </form>
         )}
       </div>
+      <OnboardingFooter />
     </div>
   );
 }
