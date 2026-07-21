@@ -21,3 +21,16 @@
 - **Campos `select: false` do Mongo** (ex.: apiKeyEncrypted): o Prisma não tem "select false"
   no schema — a proteção passa a ser explícita via `select`/`omit` nas queries. A implementar
   ao migrar os controllers que leem esses campos.
+- **`WalletEntry.category` enum fechado (6 valores):** o Mongoose (`src/models/Wallet.ts`)
+  removeu o enum de propósito, por "backward compatibility". Como o Postgres é greenfield
+  (sem dados legados a preservar), mantivemos o enum fechado — decisão intencional, mais
+  integridade. Risco: se algum código gravar `category` fora dos 6 valores
+  (`deposit/withdrawal/payment/refund/transfer/penalty`), o insert falha. Validar todos os
+  call sites que escrevem `WalletEntry.category` ao migrar o WalletService (Fase 3) e ao
+  remover o Mongoose (Fase 6).
+- **`PricingPlan.name`:** virou `String @unique` (o Mongoose tinha enum de 3 valores fixos).
+  Constraint relaxada intencionalmente — são nomes de exibição do plano, não um tipo fechado
+  de domínio.
+- **`Gamification.userId`:** no Mongoose o campo era `user_id` (snake_case); renomeado para
+  `userId` (camelCase) para seguir a convenção do resto do schema Prisma. Anotar para o script
+  de migração de dados da Fase 6 (mapear `user_id` → `userId` ao importar os documentos).
