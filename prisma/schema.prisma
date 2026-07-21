@@ -6,3 +6,294 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Role {
+  ceo
+  marketing
+  gerente_geral
+  gerente_clientes
+  gerente_lojistas
+  gerente_motoboys
+  lojista
+  cliente
+  motoboy
+}
+
+enum UserStatus {
+  active
+  blocked
+  inactive
+}
+
+enum OwnerType {
+  user
+  store
+  platform
+  motoboy
+}
+
+enum WalletEntryType {
+  credit
+  debit
+  refund
+}
+
+enum WalletEntryCategory {
+  deposit
+  withdrawal
+  payment
+  refund
+  transfer
+  penalty
+}
+
+enum StockType {
+  internal
+  api
+}
+
+enum OrderStatus {
+  criado
+  pago
+  aguardando_motoboy
+  enviado
+  entregue
+  cancelado
+  rejeitado
+}
+
+enum PaymentMethod {
+  credit_card
+  debit_card
+  pix
+  money
+  cash_on_delivery
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+enum AsaasChargeStatus {
+  none
+  pending
+  received
+  confirmed
+  refunded
+  chargeback
+}
+
+enum DeliveryStatus {
+  pending
+  assigned
+  picked
+  delivered
+  cancelled
+}
+
+enum ReturnStatus {
+  pending
+  aguardando_confirmacao
+  confirmado
+}
+
+enum PendingReturnAction {
+  reassign
+  cancel
+}
+
+enum PayoutStatus {
+  pending
+  released
+  requested
+  paid
+  cancelled
+}
+
+enum PayoutRecipientType {
+  store
+  motoboy
+}
+
+enum PayoutGatewayProvider {
+  manual
+  asaas
+  pagarme
+  efi
+}
+
+enum WithdrawalStatus {
+  pending
+  approved
+  paid
+  rejected
+}
+
+enum WithdrawalRequestStatus {
+  pending
+  approved
+  rejected
+  processed
+}
+
+enum CustomerDebtStatus {
+  pending
+  collected
+}
+
+enum AppCashboxEntryType {
+  income
+  expense
+  withdrawal
+  deposit
+  refund
+}
+
+enum AppCashboxSource {
+  product_commission
+  delivery_commission
+  manual_deposit
+  manual_withdrawal
+  withdrawal_fee
+  cancelled_order
+  cancelled_delivery
+  coupon_discount
+  order_payment
+  order_refund
+  payout_paid
+  store_payout_reserved
+  motoboy_payout_reserved
+}
+
+enum DeliveryInvoiceStatus {
+  issued
+  cancelled
+}
+
+enum WalletAccessStatus {
+  pending
+  approved
+  rejected
+  expired
+  revoked
+}
+
+enum CancelledBy {
+  customer
+  motoboy
+  store
+  admin
+}
+
+enum CancellationReasonCode {
+  customer_request
+  not_available
+  store_closed
+  store_busy
+  motoboy_unavailable
+  delivery_failed
+  customer_unreachable
+  address_invalid
+  payment_issue
+  wrong_order
+  damaged_items
+  motoboy_rejected
+  store_rejected
+  late_cancellation
+  other
+}
+
+enum RefundStatus {
+  pending
+  processed
+  failed
+}
+
+enum CouponType {
+  store
+  global
+}
+
+enum CouponDiscountType {
+  percent
+  fixed
+}
+
+enum ConversationKind {
+  loja_cliente
+  loja_motoboy
+  motoboy_cliente
+  loja_cliente_pre_compra
+  suporte
+}
+
+enum SupportCategory {
+  clientes
+  lojistas
+  motoboys
+  geral
+}
+
+enum SupportStatus {
+  aberto
+  em_atendimento
+  resolvido
+}
+
+enum ConversationContext {
+  product
+  user
+}
+
+enum MessageStatus {
+  sent
+  delivered
+  read
+}
+
+enum NotificationType {
+  system
+  broadcast
+  order
+  chat
+}
+
+enum GamificationLevel {
+  Bronze
+  Prata
+  Ouro
+  Platina
+  Diamante
+  Lendario
+}
+
+enum SeasonalTheme {
+  none
+  natal
+  pascoa
+  junina
+  halloween
+}
+
+enum StoreSubscriptionPlan {
+  plan1
+  plan2
+  plan3
+}
+
+enum PlanChangeStatus {
+  none
+  pending
+  approved
+  rejected
+}
+
+enum OtpChannel {
+  whatsapp
+}
+
+// Nota: GamificationLevel.Lendario sem acento — enums do Postgres não aceitam
+// acentos com segurança. O rótulo "Lendário" é aplicado na camada de apresentação.
