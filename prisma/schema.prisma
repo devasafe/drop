@@ -784,3 +784,227 @@ model WalletAccessRequest {
   @@index([targetUserId, status])
   @@index([requestedBy, createdAt])
 }
+
+model Conversation {
+  id                 String               @id @default(cuid())
+  type               ConversationKind
+  supportCategory    SupportCategory?
+  supportStatus      SupportStatus?       @default(aberto)
+  participant1       Json
+  participant2       Json
+  orderId            String?
+  deliveryId         String?
+  relatedOrderNumber String?
+  productId          String?
+  conversationType   ConversationContext? @default(user)
+  messageCount       Int                  @default(0)
+  unreadCount        Int[]                @default([0, 0])
+  isActive           Boolean              @default(true)
+  isBlocked          Boolean[]            @default([false, false])
+  isMuted            Boolean[]            @default([false, false])
+  deletedBy          String[]             @default([])
+  lastMessageAt      DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  messages Message[]
+
+  @@index([orderId, type])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  senderId       String
+  senderRole     String
+  senderName     String
+  text           String
+  attachments    Json?
+  status         MessageStatus @default(sent)
+  readAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([conversationId, status])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  message     String
+  title       String?
+  type        NotificationType @default(system)
+  broadcastId String?
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
+}
+
+model Gamification {
+  id          String            @id @default(cuid())
+  userId      String            @unique
+  points      Int               @default(0)
+  totalPoints Int               @default(0)
+  level       GamificationLevel @default(Bronze)
+  badges      String[]          @default([])
+  history     Json?
+}
+
+model RolePermissions {
+  id                  String   @id @default(cuid())
+  role                Role     @unique
+  permissions         String[] @default([])
+  notificationTargets Role[]   @default([])
+  updatedBy           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PlatformConfig {
+  id                          String        @id @default(cuid())
+  commissionPlan1             Decimal       @default(10) @db.Decimal(5, 2)
+  commissionPlan2             Decimal       @default(15) @db.Decimal(5, 2)
+  commissionPlan3             Decimal       @default(5) @db.Decimal(5, 2)
+  motoboyCutPerDelivery       Decimal       @default(5) @db.Decimal(12, 2)
+  motoboyCutPerKm             Decimal       @default(1) @db.Decimal(12, 2)
+  motoboyMinimumWithdraw      Decimal       @default(50) @db.Decimal(12, 2)
+  motoboyCommissionPercent    Decimal       @default(20) @db.Decimal(5, 2)
+  lateCancellationFeePercent  Decimal       @default(10) @db.Decimal(5, 2)
+  lateCancellationMotoboyShare Decimal      @default(50) @db.Decimal(5, 2)
+  autoApprovePayouts          Boolean       @default(false)
+  autoApproveWithdrawals      Boolean       @default(false)
+  seasonalTheme               SeasonalTheme @default(none)
+  updatedBy                   String
+  updatedAt                   DateTime      @updatedAt
+}
+
+model PricingPlan {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  commission     Decimal  @default(0) @db.Decimal(5, 2)
+  motorcycleTaxes Json
+  minWithdraw    Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model StoreSubscription {
+  id               String                @id @default(cuid())
+  storeId          String                @unique
+  storeName        String
+  currentPlan      StoreSubscriptionPlan @default(plan1)
+  requestedPlan    StoreSubscriptionPlan?
+  planChangeStatus PlanChangeStatus      @default(none)
+  requestedAt      DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  rejectionReason  String?
+  commissionRate   Decimal?              @default(10) @db.Decimal(5, 2)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+}
+
+model SupportTicket {
+  id             String          @id @default(cuid())
+  conversationId String
+  openedBy       Json
+  assignedTo     Json?
+  category       SupportCategory
+  subject        String
+  status         SupportStatus   @default(aberto)
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([category, status])
+}
+
+model Broadcast {
+  id            String   @id @default(cuid())
+  title         String
+  body          String
+  targetRoles   String[] @default([])
+  createdBy     String
+  deliveryCount Int      @default(0)
+  sentAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sentAt])
+}
+
+model RankingPrize {
+  id            String    @id @default(cuid())
+  month         Int
+  year          Int
+  prizes        Json
+  distributed   Boolean   @default(false)
+  distributedAt DateTime?
+  distributedBy String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([month, year])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+model OtpCode {
+  id        String     @id @default(cuid())
+  userId    String
+  channel   OtpChannel @default(whatsapp)
+  e164      String
+  codeHash  String
+  attempts  Int        @default(0)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  provider     String    @default("asaas")
+  eventId      String    @unique
+  event        String
+  payload      Json?
+  processed    Boolean   @default(false)
+  processedAt  DateTime?
+  processError String?
+  receivedAt   DateTime  @default(now())
+
+  @@index([provider])
+  @@index([event])
+  @@index([processed])
+}
