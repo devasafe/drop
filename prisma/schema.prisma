@@ -528,3 +528,259 @@ model WalletEntry {
   @@index([walletId, createdAt])
   @@index([relatedId])
 }
+
+model Delivery {
+  id                        String              @id @default(cuid())
+  orderId                   String
+  motoboyId                 String?
+  distance                  Float               @default(0)
+  fee                       Decimal             @db.Decimal(12, 2)
+  status                    DeliveryStatus      @default(pending)
+  pin                       String?
+  pinRetirada               String?
+  pinDevolucao              String?
+  statusDevolucao           ReturnStatus?       @default(pending)
+  dataConfirmacaoDevolucao  DateTime?
+  pendingReturnAction       PendingReturnAction?
+  rating                    Int?
+  comment                   String?
+  storeAddress              String?
+  storeLatitude             Float?
+  storeLongitude            Float?
+  customerAddress           String?
+  customerLatitude          Float?
+  customerLongitude         Float?
+  routePolyline             String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  cancelledAt               DateTime?
+
+  @@index([orderId])
+  @@index([motoboyId])
+  @@index([status])
+}
+
+model Transaction {
+  id                 String        @id @default(cuid())
+  orderId            String
+  paymentMethod      String
+  amount             Decimal       @db.Decimal(12, 2)
+  commissionProduct  Decimal       @db.Decimal(12, 2)
+  commissionDelivery Decimal       @db.Decimal(12, 2)
+  createdAt          DateTime      @default(now())
+
+  @@index([orderId])
+}
+
+model Payout {
+  id                  String                @id @default(cuid())
+  recipientType       PayoutRecipientType
+  recipientId         String
+  orderId             String
+  deliveryId          String?
+  amount              Decimal               @db.Decimal(12, 2)
+  currency            String                @default("BRL")
+  status              PayoutStatus          @default(pending)
+  releasedAt          DateTime?
+  requestedAt         DateTime?
+  paidAt              DateTime?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  gatewayProvider     PayoutGatewayProvider @default(manual)
+  gatewayTransferId   String?
+  withdrawalRequestId String?
+  blocked             Boolean               @default(false)
+  blockReason         String?
+  blockedAt           DateTime?
+  blockedBy           String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([recipientType, recipientId, status])
+  @@index([orderId])
+  @@index([status, releasedAt])
+  @@index([withdrawalRequestId])
+}
+
+model Withdrawal {
+  id             String           @id @default(cuid())
+  appCashboxId   String
+  amount         Decimal          @db.Decimal(12, 2)
+  status         WithdrawalStatus @default(pending)
+  bankInfo       Json?
+  requestedAt    DateTime         @default(now())
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  rejectedAt     DateTime?
+  processedBy    String?
+  rejectionReason String?
+  reason         String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([appCashboxId, status])
+  @@index([requestedAt])
+  @@index([status])
+}
+
+model WithdrawalRequest {
+  id             String                  @id @default(cuid())
+  motoboyId      String
+  motoboyName    String
+  motoboyEmail   String
+  amount         Decimal                 @db.Decimal(12, 2)
+  status         WithdrawalRequestStatus @default(pending)
+  bankAccount    Json?
+  requestedAt    DateTime                @default(now())
+  approvedAt     DateTime?
+  approvedBy     String?
+  rejectionReason String?
+  processedAt    DateTime?
+  transactionId  String?
+  payoutIds      String[]                @default([])
+
+  @@index([motoboyId])
+  @@index([status])
+}
+
+model CustomerDebt {
+  id               String             @id @default(cuid())
+  customerId       String
+  amount           Decimal            @db.Decimal(12, 2)
+  sourceOrderId    String
+  collectedOrderId String?
+  status           CustomerDebtStatus @default(pending)
+  reason           String
+  createdAt        DateTime           @default(now())
+  collectedAt      DateTime?
+  updatedAt        DateTime           @updatedAt
+
+  @@index([customerId, status])
+}
+
+model AppCashbox {
+  id            String            @id @default(cuid())
+  balance       Decimal           @default(0) @db.Decimal(12, 2)
+  totalIncome   Decimal           @default(0) @db.Decimal(12, 2)
+  totalExpenses Decimal           @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  entries AppCashboxEntry[]
+}
+
+model AppCashboxEntry {
+  id           String              @id @default(cuid())
+  appCashboxId String
+  type         AppCashboxEntryType
+  source       AppCashboxSource
+  amount       Decimal             @db.Decimal(12, 2)
+  orderId      String?
+  deliveryId   String?
+  withdrawalId String?
+  reason       String?
+  createdAt    DateTime            @default(now())
+
+  appCashbox AppCashbox @relation(fields: [appCashboxId], references: [id], onDelete: Cascade)
+
+  @@index([appCashboxId, createdAt])
+  @@index([orderId])
+  @@index([deliveryId])
+}
+
+model DeliveryInvoice {
+  id                 String                @id @default(cuid())
+  invoiceNumber      String                @unique
+  orderId            String
+  deliveryId         String
+  payoutId           String?
+  motoboyId          String
+  motoboyName        String
+  motoboyEmail       String?
+  motoboyCpf         String?
+  storeId            String
+  storeName          String
+  storeAddress       String?
+  storeCnpj          String?
+  customerId         String
+  customerName       String
+  customerAddress    String?
+  serviceDescription String                @default("Servico de entrega rapida por motoboy")
+  distance           Float?
+  deliveryFee        Decimal               @db.Decimal(12, 2)
+  motoboyAmount      Decimal               @db.Decimal(12, 2)
+  appCommission      Decimal               @db.Decimal(12, 2)
+  commissionPercent  Decimal               @db.Decimal(5, 2)
+  pickedAt           DateTime?
+  deliveredAt        DateTime?
+  issuedAt           DateTime              @default(now())
+  status             DeliveryInvoiceStatus @default(issued)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([motoboyId, issuedAt])
+  @@index([orderId])
+  @@index([deliveryId])
+  @@index([storeId, issuedAt])
+}
+
+model Cancellation {
+  id                  String                 @id @default(cuid())
+  orderId             String
+  deliveryId          String?
+  cancelledBy         CancelledBy
+  reason              String
+  reasonCode          CancellationReasonCode
+  details             String?
+  refundAmount        Decimal?               @db.Decimal(12, 2)
+  refundStatus        RefundStatus?          @default(pending)
+  isLateCancellation  Boolean                @default(false)
+  lateCancellationFee Decimal?               @db.Decimal(12, 2)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([orderId])
+  @@index([deliveryId])
+  @@index([cancelledBy])
+  @@index([createdAt])
+}
+
+model Coupon {
+  id            String             @id @default(cuid())
+  code          String             @unique
+  type          CouponType
+  discountType  CouponDiscountType
+  discountValue Decimal            @db.Decimal(12, 2)
+  storeId       String?
+  productIds    String[]           @default([])
+  minOrderValue Decimal?           @db.Decimal(12, 2)
+  maxUses       Int?
+  usedCount     Int                @default(0)
+  validFrom     DateTime
+  validUntil    DateTime
+  isActive      Boolean            @default(true)
+  createdBy     String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([storeId, isActive])
+  @@index([type, isActive])
+}
+
+model WalletAccessRequest {
+  id              String             @id @default(cuid())
+  requestedBy     String
+  requestedByRole Role
+  targetUserId    String
+  reason          String
+  status          WalletAccessStatus @default(pending)
+  expiresAt       DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([targetUserId, status])
+  @@index([requestedBy, createdAt])
+}
