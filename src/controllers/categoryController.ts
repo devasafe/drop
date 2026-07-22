@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Category from '../models/Category';
-import Store from '../models/Store';
+import { prisma } from '../lib/prisma';
 import { emitCategoryCreated, emitCategoryUpdated } from '../utils/socketEmitter';
 
 // List categories for a store
@@ -9,8 +8,9 @@ export const listCategories = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.query;
     if (!storeId) return res.status(400).json({ error: 'Missing storeId' });
-    const categories = await Category.find({ storeId }).lean();
-    return res.json(categories);
+    const categories = await prisma.category.findMany({ where: { storeId: String(storeId) } });
+    // `_id` junto de `id`: o frontend ainda lê `_id`.
+    return res.json(categories.map((c) => ({ ...c, _id: c.id })));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to list categories' });
@@ -22,20 +22,20 @@ export const createCategory = async (req: AuthenticatedRequest, res: Response) =
   try {
     const { storeId, name } = req.body;
     if (!storeId || !name) return res.status(400).json({ error: 'Missing storeId or name' });
-    const store = await Store.findById(storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    if (!req.user || store.ownerId.toString() !== req.user.id) {
+    if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
-    const exists = await Category.findOne({ storeId, name });
+    const exists = await prisma.category.findFirst({ where: { storeId: String(storeId), name } });
     if (exists) return res.status(400).json({ error: 'Category already exists' });
-    const category = new Category({ storeId, name });
-    await category.save();
-    
+
+    const category = await prisma.category.create({ data: { storeId: String(storeId), name } });
+
     // Broadcast category creation
-    emitCategoryCreated(category.toObject());
-    
-    return res.status(201).json(category);
+    emitCategoryCreated(category);
+
+    return res.status(201).json({ ...category, _id: category.id });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to create category' });
@@ -47,20 +47,20 @@ export const updateCategory = async (req: AuthenticatedRequest, res: Response) =
   try {
     const { id } = req.params;
     const { name } = req.body;
-    const category = await Category.findById(id);
+    const category = await prisma.category.findUnique({ where: { id } });
     if (!category) return res.status(404).json({ error: 'Category not found' });
-    const store = await Store.findById(category.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(category.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    if (!req.user || store.ownerId.toString() !== req.user.id) {
+    if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
-    category.name = name;
-    await category.save();
-    
+
+    const updated = await prisma.category.update({ where: { id }, data: { name } });
+
     // Broadcast category update
-    emitCategoryUpdated(category.toObject());
-    
-    return res.json(category);
+    emitCategoryUpdated(updated);
+
+    return res.json({ ...updated, _id: updated.id });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to update category' });
@@ -71,14 +71,14 @@ export const updateCategory = async (req: AuthenticatedRequest, res: Response) =
 export const deleteCategory = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const category = await Category.findById(id);
+    const category = await prisma.category.findUnique({ where: { id } });
     if (!category) return res.status(404).json({ error: 'Category not found' });
-    const store = await Store.findById(category.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(category.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    if (!req.user || store.ownerId.toString() !== req.user.id) {
+    if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
-    await category.deleteOne();
+    await prisma.category.delete({ where: { id } });
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);

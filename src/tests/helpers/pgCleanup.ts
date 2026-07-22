@@ -22,6 +22,10 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   const ids = users.map((u) => u.id);
   if (ids.length === 0) return;
 
+  // A ordem importa: `Store.owner → User` NÃO tem `onDelete: Cascade` (default é
+  // Restrict), então apagar um usuário que tem loja viola a FK e derruba o afterEach.
+  // As lojas saem primeiro — e elas, sim, cascateiam para Product e Category.
+  await prisma.store.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
 }

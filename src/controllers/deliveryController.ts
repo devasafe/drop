@@ -31,7 +31,8 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     const { pinRetirada } = req.body;
     const userId = req.user?.id;
     // Apenas a loja pode validar
-    const delivery = await Delivery.findById(id).populate('motoboyId');
+    // Sem `.populate('motoboyId')`: User vive no Postgres (o nome é resolvido abaixo).
+    const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     const order = await Order.findById(delivery.orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -46,7 +47,9 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     await delivery.save();
 
     // Get motoboy name
-    const motoboy = delivery.motoboyId as any;
+    const motoboy = delivery.motoboyId
+      ? await prisma.user.findUnique({ where: { id: String(delivery.motoboyId) }, select: { name: true } })
+      : null;
     const motoboyName = motoboy?.name || 'Motoboy';
 
     // ✅ WORKFLOW 4: Notificar CLIENTE que pedido foi retirado
