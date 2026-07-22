@@ -15,7 +15,7 @@ export interface IDeliveryInvoice extends Document {
   motoboyCpf?: string;
 
   // Tomador do servico (loja que contrata)
-  storeId: Types.ObjectId;
+  storeId: string;
   storeName: string;
   storeAddress?: string;
   storeCnpj?: string;
@@ -55,7 +55,7 @@ const DeliveryInvoiceSchema = new Schema<IDeliveryInvoice>(
     motoboyEmail: { type: String },
     motoboyCpf: { type: String },
 
-    storeId: { type: Schema.Types.ObjectId, required: true, ref: 'Store' },
+    storeId: { type: String, required: true },
     storeName: { type: String, required: true },
     storeAddress: { type: String },
     storeCnpj: { type: String },

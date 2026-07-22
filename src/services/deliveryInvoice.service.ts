@@ -1,8 +1,9 @@
+import { prisma } from '../lib/prisma';
 import { ClientSession, Types } from 'mongoose';
 import DeliveryInvoice, { IDeliveryInvoice } from '../models/DeliveryInvoice';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
-import Store from '../models/Store';
+
 import userRepository from '../repositories/user.repository';
 
 /**
@@ -63,7 +64,7 @@ class DeliveryInvoiceService {
     if (!delivery) throw new Error(`Delivery ${deliveryId} nao encontrado`);
 
     const [store, customer, motoboy] = await Promise.all([
-      Store.findById(order.storeId).session(session || null),
+      prisma.store.findUnique({ where: { id: String(order.storeId) } }),
       userRepository.findById(String(order.customerId)),
       delivery.motoboyId ? userRepository.findById(String(delivery.motoboyId)) : null,
     ]);

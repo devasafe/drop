@@ -1,11 +1,12 @@
 import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
+import { prisma } from '../lib/prisma';
 import Cancellation, { ICancellation } from '../models/Cancellation';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
-import Store from '../models/Store';
-import Product from '../models/Product';
+
+
 import Wallet from '../models/Wallet';
 import AppCashbox from '../models/AppCashbox';
 import PlatformConfig from '../models/PlatformConfig';
@@ -40,7 +41,7 @@ const validateOrderOwnership = async (orderId: string, userId: string) => {
 };
 
 const validateStoreOwnership = async (storeId: string, userId: string) => {
-  const store = await Store.findById(storeId);
+  const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
   if (!store) throw new Error('Loja não encontrada');
   if (store.ownerId.toString() !== userId) throw new Error('Permissão negada');
   return store;
@@ -108,7 +109,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Roda uma única vez graças à trava atômica acima.
     for (const it of (order.products || [])) {
       if ((it as any).productId && (it as any).quantity) {
-        await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
 
@@ -513,7 +514,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
     // Validar que a loja pertence ao usuário
-    const store = await Store.findOne({ _id: order.storeId, ownerId: userId });
+    const store = await prisma.store.findFirst({ where: { id: String(order.storeId), ownerId: userId } }) as any;
     if (!store) {
       return res.status(403).json({ error: 'Permissão negada' });
     }
@@ -702,7 +703,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
     // Validar que a loja pertence ao usuário
-    const store = await Store.findOne({ _id: order.storeId, ownerId: userId });
+    const store = await prisma.store.findFirst({ where: { id: String(order.storeId), ownerId: userId } }) as any;
     if (!store) {
       return res.status(403).json({ error: 'Permissão negada' });
     }
@@ -734,7 +735,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // ✅ Devolver estoque (uma única vez, graças à trava atômica acima)
     for (const it of (order.products || [])) {
       if ((it as any).productId && (it as any).quantity) {
-        await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
 
@@ -989,7 +990,7 @@ export const getCancellationHistory = async (req: AuthenticatedRequest, res: Res
     const isCustomer = String(order.customerId) === String(userId);
     let isStoreOwner = false;
     if (!isCustomer) {
-      const store = await Store.findById(order.storeId).select('ownerId').lean();
+      const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
       isStoreOwner = !!store && String(store.ownerId) === String(userId);
     }
     const isAdmin = ['ceo', 'gerente_geral'].includes(role);
@@ -1024,7 +1025,7 @@ export const getCancellationStats = async (req: AuthenticatedRequest, res: Respo
     }
 
     // Buscar a loja do usuário
-    const store = await Store.findOne({ ownerId: userId });
+    const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
     if (!store) {
       return res.status(403).json({ error: 'Usuário não é lojista' });
     }

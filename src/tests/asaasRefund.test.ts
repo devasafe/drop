@@ -10,10 +10,11 @@ jest.mock('../services/asaas/refund', () => ({
 }));
 
 import app from '../app';
+import { ownerIdForStore } from './helpers/storeOwner';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Store from '../models/Store';
+
 import Wallet from '../models/Wallet';
 import Order from '../models/Order';
 import Payout from '../models/Payout';
@@ -53,16 +54,16 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
     });
     await Wallet.create({ owner: customer.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
     const token = jwt.sign({ id: customer.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja' });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aref.test'), name: 'Loja' } });
 
     const order = await Order.create({
-      customerId: customer.id, storeId: store._id,
+      customerId: customer.id, storeId: store.id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100, deliveryFee: 0, status: 'pago', paymentMethod: 'pix',
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_1', asaasChargeStatus: 'received',
       walletDistribution: { storeAmount: 90, appCommission: 10, commissionPercent: 10 },
     });
-    await Payout.create({ recipientType: 'store', recipientId: store._id, orderId: order._id, amount: 90, status: 'pending' });
+    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId: order._id, amount: 90, status: 'pending' });
 
     const res = await request(app)
       .post(`/api/orders/${order._id}/cancel`)
@@ -88,9 +89,9 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
 
 describe('Webhook PAYMENT_REFUNDED (Fase 5)', () => {
   it('marca o pedido como estornado', async () => {
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja' });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aref.test'), name: 'Loja' } });
     const order = await Order.create({
-      customerId: new mongoose.Types.ObjectId(), storeId: store._id,
+      customerId: new mongoose.Types.ObjectId(), storeId: store.id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 50 }],
       totalValue: 50, deliveryFee: 0, status: 'pago', paymentMethod: 'pix',
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_2', asaasChargeStatus: 'received',

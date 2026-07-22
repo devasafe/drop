@@ -54,7 +54,6 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
     });
 
     // Enriquecer cada payout com dados do destinatario e do pedido (origem/destino)
-    const Store = (await import('../models/Store')).default;
     const Order = (await import('../models/Order')).default;
 
     const storeIds = result.payouts
@@ -66,7 +65,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
     const orderIds = result.payouts.map((p: any) => p.orderId);
 
     const [stores, users, orders] = await Promise.all([
-      storeIds.length ? Store.find({ _id: { $in: storeIds } }).select('_id name ownerId').lean() : [],
+      storeIds.length ? prisma.store.findMany({ where: { id: { in: storeIds.map(String) } }, select: { id: true, name: true, ownerId: true } }) : [],
       userIds.length ? prisma.user.findMany({ where: { id: { in: userIds.map(String) } }, select: { id: true, name: true, email: true } }) : [],
       orderIds.length ? Order.find({ _id: { $in: orderIds } }).select('_id customerId totalValue').lean() : [],
     ]);

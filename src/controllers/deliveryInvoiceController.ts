@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import DeliveryInvoice from '../models/DeliveryInvoice';
-import Store from '../models/Store';
+
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
+import { prisma } from '../lib/prisma';
 
 type AuthenticatedRequest = Request & { user?: any };
 
@@ -10,7 +11,7 @@ type AuthenticatedRequest = Request & { user?: any };
  * Usado para autorizar lojistas a verem notas de entregas feitas para sua(s) loja(s).
  */
 async function userOwnsStore(userId: string, storeId: string): Promise<boolean> {
-  const store = await Store.findOne({ _id: storeId, ownerId: userId }).select('_id').lean();
+  const store = await prisma.store.findFirst({ where: { id: String(storeId), ownerId: userId }, select: { id: true } });
   return !!store;
 }
 

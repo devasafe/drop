@@ -1,7 +1,7 @@
 import env from '../../config/env';
 import logger from '../../config/logger';
 import Order from '../../models/Order';
-import Product from '../../models/Product';
+import { prisma } from '../../lib/prisma';
 import { cancelCharge } from './payment';
 
 /**
@@ -36,7 +36,7 @@ export async function expireStalePixOrders(): Promise<number> {
 
     for (const it of order.products || []) {
       if ((it as any).productId && (it as any).quantity) {
-        await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
 

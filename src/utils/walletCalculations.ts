@@ -1,7 +1,8 @@
-import Store from '../models/Store';
+
 import userRepository from '../repositories/user.repository';
 import PricingPlan from '../models/PricingPlan';
 import PlatformConfig from '../models/PlatformConfig';
+import { prisma } from '../lib/prisma';
 import StoreSubscription from '../models/StoreSubscription';
 
 /**
@@ -36,7 +37,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     }
 
     // 3️⃣ Se não encontrou, tenta pelo Store (legacy)
-    const store = await Store.findById(storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     if (!store) throw new Error('Loja não encontrada');
 
     // Se houver customFee (caso especial), usa ela
@@ -183,7 +184,7 @@ export async function calculateOrderDistribution(
     const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
 
     // ✅ [Plan1] Verificar se a loja é Plano 1 (Vitrine): sem entrega integrada
-    const store = await Store.findById(storeId).select('plan').lean();
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     const storePlan = (store as any)?.plan ?? 2;
     let effectiveDeliveryFee = deliveryFeeTotal;
     if (storePlan === 1) {

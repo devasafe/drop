@@ -1,11 +1,12 @@
 import asaasClient from './client';
 import logger from '../../config/logger';
 import Payout from '../../models/Payout';
-import Store from '../../models/Store';
+
 import userRepository from '../../repositories/user.repository';
 import payoutService from '../payout.service';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from './subaccount';
 import { Types } from 'mongoose';
+import { prisma } from '../../lib/prisma';
 
 /**
  * Liberação na entrega (Fase 3).
@@ -30,12 +31,12 @@ interface AsaasTransfer {
 async function resolveWalletId(payout: any): Promise<string | null> {
   const id = String(payout.recipientId);
   if (payout.recipientType === 'store') {
-    let store = await Store.findById(id).select('asaas');
+    let store = await prisma.store.findUnique({ where: { id: String(id) } }) as any;
     // Auto-cura: se a subconta não tem walletId (criação parcial / nunca criada),
     // tenta criar/recuperar agora. Só consegue se a loja já tiver PIX + endereço.
     if (!store?.asaas?.walletId) {
       await ensureStoreSubaccount(id);
-      store = await Store.findById(id).select('asaas');
+      store = await prisma.store.findUnique({ where: { id: String(id) } }) as any;
     }
     return store?.asaas?.walletId || null;
   }

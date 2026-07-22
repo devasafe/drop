@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IOrderProduct {
-  productId: Types.ObjectId;
+  productId: string;
   quantity: number;
   price: number; // snapshot price
 }
@@ -9,7 +9,7 @@ export interface IOrderProduct {
 export interface IOrder extends Document {
   // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
   customerId: string;
-  storeId: Types.ObjectId;
+  storeId: string;
   products: IOrderProduct[];
   totalValue: number;
   subtotal?: number; // alias para totalValue
@@ -62,14 +62,14 @@ export interface IOrder extends Document {
 }
 
 const OrderProductSchema = new Schema<IOrderProduct>({
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  productId: { type: String, required: true },
   quantity: { type: Number, required: true },
   price: { type: Number, required: true }
 });
 
 const OrderSchema = new Schema<IOrder>({
   customerId: { type: String, required: true, index: true },
-  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  storeId: { type: String, required: true, index: true },
   products: [OrderProductSchema],
   totalValue: { type: Number, required: true },
   subtotal: { type: Number },

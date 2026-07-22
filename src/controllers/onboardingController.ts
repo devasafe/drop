@@ -1,7 +1,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
+import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Store from '../models/Store';
+
 import logger from '../config/logger';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
 
@@ -48,14 +49,13 @@ export const setPixKey = async (req: AuthenticatedRequest, res: Response) => {
 
     if (role === 'lojista' || (role as string) === 'seller') {
       const store = storeId
-        ? await Store.findOne({ _id: storeId, ownerId: userId }).select('+asaas.apiKeyEncrypted')
-        : await Store.findOne({ ownerId: userId }).select('+asaas.apiKeyEncrypted');
+        ? await prisma.store.findFirst({ where: { id: String(storeId), ownerId: userId } }) as any
+        : await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
       if (!store.asaas) (store as any).asaas = { status: 'none' };
       store.asaas!.pixKey = pixKey.trim();
       store.asaas!.pixKeyType = type;
-      store.markModified('asaas');
-      await store.save();
+      await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
       return res.json({ ok: true, target: 'store', pixKeyType: type });
     }
 
@@ -89,7 +89,7 @@ export const getOnboardingStatus = async (req: AuthenticatedRequest, res: Respon
       });
     }
     if (role === 'lojista' || (role as string) === 'seller') {
-      const store = await Store.findOne({ ownerId: userId }).select('asaas street');
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       const hasAddress = !!store?.street;
       return res.json({
         target: 'store',
@@ -151,7 +151,7 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     if (role === 'lojista' || (role as string) === 'seller') {
-      const store = await Store.findOne({ ownerId: userId }).select('+asaas.apiKeyEncrypted');
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
 
       if (address) {
@@ -165,11 +165,10 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
       if (!store.asaas) (store as any).asaas = { status: 'none' };
       store.asaas!.pixKey = pixKey.trim();
       store.asaas!.pixKeyType = type;
-      store.markModified('asaas');
-      await store.save();
+      await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
 
       await ensureStoreSubaccount(String(store._id));
-      const fresh = await Store.findById(store._id).select('asaas');
+      const fresh = await prisma.store.findUnique({ where: { id: String(store._id) } }) as any;
       return res.json({ ok: true, target: 'store', asaas: fmt(fresh?.asaas) });
     }
 

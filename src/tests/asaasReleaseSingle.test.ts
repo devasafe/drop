@@ -8,10 +8,11 @@ jest.mock('../services/asaas/client', () => ({
 
 import asaasClient from '../services/asaas/client';
 import { releaseSinglePayoutViaAsaas } from '../services/asaas/release';
-import Store from '../models/Store';
+
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Payout from '../models/Payout';
+import { ownerIdForStore } from './helpers/storeOwner';
 
 const post = (asaasClient as any).post as jest.Mock;
 let mongod: MongoMemoryServer;
@@ -37,18 +38,18 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
     post.mockResolvedValue({ id: 'tr_loja', status: 'DONE' });
 
     const orderId = new mongoose.Types.ObjectId();
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja',
       asaas: { status: 'active', walletId: 'wlt_loja' },
-    });
+    } });
     const motoboy = await prisma.user.create({ data: {
       name: 'Moto', email: `m-${Date.now()}-${Math.random().toString(36).slice(2)}@arels.test`, passwordHash: 'x', role: 'motoboy',
       asaas: { status: 'active', walletId: 'wlt_moto' },
     } } as any);
 
     const storePayout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId, amount: 70, status: 'pending',
+      recipientType: 'store', recipientId: store.id, orderId, amount: 70, status: 'pending',
     });
     const motoboyPayout = await Payout.create({
       recipientType: 'motoboy', recipientId: motoboy.id, orderId, amount: 20, status: 'pending',
@@ -68,13 +69,13 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
 
   it('relança erro quando o recebedor não tem subconta (admin vê a falha)', async () => {
     const orderId = new mongoose.Types.ObjectId();
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja sem subconta',
       asaas: { status: 'none' }, // sem walletId
-    });
+    } });
     const payout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId, amount: 50, status: 'pending',
+      recipientType: 'store', recipientId: store.id, orderId, amount: 50, status: 'pending',
     });
 
     await expect(releaseSinglePayoutViaAsaas(String(payout._id))).rejects.toThrow();

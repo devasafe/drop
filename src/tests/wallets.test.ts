@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
 import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -125,13 +126,8 @@ afterEach(async () => {
     await collections[key].deleteMany({});
   }
 
-  // O Postgres é o banco de dev e persiste entre execuções — limpamos só os
-  // usuários que os testes criam. (Base efêmera dedicada é a Fase 5.)
-  await prisma.user.deleteMany({
-    where: {
-      OR: [{ email: { startsWith: 'user-' } }, { email: { startsWith: 'wallet-' } }],
-    },
-  });
+  // O helper apaga Store antes de User (a FK Store.owner não é cascade).
+  await cleanupUsersByEmailDomain('@wal.test');
 });
 
 // ============================================================
@@ -139,19 +135,19 @@ afterEach(async () => {
 // ============================================================
 describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
   it('deve transferir saldo entre carteira de usuario e carteira de loja', async () => {
-    const Store = require('../models/Store').default;
+    
 
     // Criar lojista com loja
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista' });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: seller.userId,
       name: 'Loja Transfer',
-    });
-    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
+    } });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
 
     // Criar carteira da loja
     await Wallet.create({
-      owner: store._id.toString(),
+      owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
@@ -180,21 +176,21 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     const clientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
     expect(clientWallet!.balance).toBe(150);
 
-    const storeWallet = await Wallet.findOne({ owner: store._id.toString(), ownerType: 'store' });
+    const storeWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
     expect(storeWallet!.balance).toBe(50);
   });
 
   it('deve rejeitar transferencia com saldo insuficiente', async () => {
-    const Store = require('../models/Store').default;
+    
 
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista' });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: seller.userId,
       name: 'Loja Insuf',
-    });
-    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
+    } });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
     await Wallet.create({
-      owner: store._id.toString(),
+      owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
@@ -251,17 +247,17 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
   // Duas transferencias simultaneas do mesmo usuario
   // ============================================================
   it('deve manter consistencia de saldo em transferencias concorrentes (race condition)', async () => {
-    const Store = require('../models/Store').default;
+    
 
     // Setup: lojista com loja
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista Race' });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: seller.userId,
       name: 'Loja Race',
-    });
-    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
+    } });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
     await Wallet.create({
-      owner: store._id.toString(),
+      owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
@@ -287,7 +283,7 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
 
     // Verificar saldo final da carteira do cliente
     const finalClientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
-    const finalStoreWallet = await Wallet.findOne({ owner: store._id.toString(), ownerType: 'store' });
+    const finalStoreWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
 
     // INVARIANTE: saldo do cliente NUNCA pode ficar negativo
     expect(finalClientWallet!.balance).toBeGreaterThanOrEqual(0);
@@ -322,16 +318,16 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
   });
 
   it('deve manter consistencia em multiplas transferencias sequenciais', async () => {
-    const Store = require('../models/Store').default;
+    
 
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista Seq' });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: seller.userId,
       name: 'Loja Seq',
-    });
-    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
+    } });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
     await Wallet.create({
-      owner: store._id.toString(),
+      owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
@@ -351,7 +347,7 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     }
 
     const clientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
-    const storeWallet = await Wallet.findOne({ owner: store._id.toString(), ownerType: 'store' });
+    const storeWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
 
     expect(clientWallet!.balance).toBe(50);
     expect(storeWallet!.balance).toBe(50);

@@ -11,8 +11,8 @@ import jwt from 'jsonwebtoken';
 import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Store from '../models/Store';
-import Product from '../models/Product';
+
+
 import { isValidCNPJ } from '../utils/documentValidation';
 import { computeStoreVerified } from '../utils/storeVerification';
 
@@ -85,8 +85,8 @@ afterEach(async () => {
 describe('Gate de listagem de lojas (KYC Fase 2)', () => {
   it('listStores esconde loja não verificada e mostra a verificada', async () => {
     const dono = await mkUser('lojista', { ...fase1OK, facial: { status: 'approved' } });
-    await Store.create({ ownerId: dono.userId, name: 'Verificada', isOpen: true, isVerified: true });
-    await Store.create({ ownerId: dono.userId, name: 'NaoVerificada', isOpen: true, isVerified: false });
+    await prisma.store.create({ data: { ownerId: dono.userId, name: 'Verificada', isOpen: true, isVerified: true } });
+    await prisma.store.create({ data: { ownerId: dono.userId, name: 'NaoVerificada', isOpen: true, isVerified: false } });
 
     const res = await request(app).get('/api/stores');
     expect(res.status).toBe(200);
@@ -97,17 +97,17 @@ describe('Gate de listagem de lojas (KYC Fase 2)', () => {
 
   it('getStore retorna 404 para loja não verificada', async () => {
     const dono = await mkUser('lojista');
-    const store = await Store.create({ ownerId: dono.userId, name: 'Oculta', isOpen: true, isVerified: false });
-    const res = await request(app).get(`/api/stores/${store._id.toString()}`);
+    const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Oculta', isOpen: true, isVerified: false } });
+    const res = await request(app).get(`/api/stores/${store.id.toString()}`);
     expect(res.status).toBe(404);
   });
 
   it('listProducts não retorna produtos de loja não verificada', async () => {
     const dono = await mkUser('lojista');
-    const verificada = await Store.create({ ownerId: dono.userId, name: 'V', isOpen: true, isVerified: true });
-    const naoVerificada = await Store.create({ ownerId: dono.userId, name: 'NV', isOpen: true, isVerified: false });
-    await Product.create({ storeId: verificada._id, name: 'ProdOk', price: 10, quantity: 5 });
-    await Product.create({ storeId: naoVerificada._id, name: 'ProdOculto', price: 10, quantity: 5 });
+    const verificada = await prisma.store.create({ data: { ownerId: dono.userId, name: 'V', isOpen: true, isVerified: true } });
+    const naoVerificada = await prisma.store.create({ data: { ownerId: dono.userId, name: 'NV', isOpen: true, isVerified: false } });
+    await prisma.product.create({ data: { storeId: verificada.id, name: 'ProdOk', price: 10, quantity: 5 } });
+    await prisma.product.create({ data: { storeId: naoVerificada.id, name: 'ProdOculto', price: 10, quantity: 5 } });
 
     const res = await request(app).get('/api/products');
     expect(res.status).toBe(200);
@@ -121,31 +121,31 @@ describe('Aprovação da loja pelo admin marca isVerified', () => {
   it('aprovar CNPJ e endereço (dono já Fase1+facial) deixa a loja verificada', async () => {
     const ceo = await mkUser('ceo');
     const dono = await mkUser('lojista', { ...fase1OK, facial: { status: 'approved' } });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: dono.userId, name: 'Loja', isOpen: true, isVerified: false,
       verification: { cnpj: { status: 'pending', number: '11444777000161' }, address: { status: 'pending', comprovanteUrl: 'x' } },
-    });
+    } });
 
-    const r1 = await request(app).post(`/api/verification/admin/store/${store._id}/cnpj/approve`).set('Authorization', `Bearer ${ceo.token}`);
+    const r1 = await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/approve`).set('Authorization', `Bearer ${ceo.token}`);
     expect(r1.status).toBe(200);
-    const r2 = await request(app).post(`/api/verification/admin/store/${store._id}/address/approve`).set('Authorization', `Bearer ${ceo.token}`);
+    const r2 = await request(app).post(`/api/verification/admin/store/${store.id}/address/approve`).set('Authorization', `Bearer ${ceo.token}`);
     expect(r2.status).toBe(200);
 
-    const updated = await Store.findById(store._id);
+    const updated = await prisma.store.findUnique({ where: { id: store.id } });
     expect(updated!.isVerified).toBe(true);
   });
 
   it('não verifica se faltar a facial do dono', async () => {
     const ceo = await mkUser('ceo');
     const dono = await mkUser('lojista', { ...fase1OK, facial: { status: 'pending' } });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: dono.userId, name: 'Loja2', isOpen: true, isVerified: false,
       verification: { cnpj: { status: 'pending', number: '11444777000161' }, address: { status: 'pending', comprovanteUrl: 'x' } },
-    });
-    await request(app).post(`/api/verification/admin/store/${store._id}/cnpj/approve`).set('Authorization', `Bearer ${ceo.token}`);
-    await request(app).post(`/api/verification/admin/store/${store._id}/address/approve`).set('Authorization', `Bearer ${ceo.token}`);
+    } });
+    await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/approve`).set('Authorization', `Bearer ${ceo.token}`);
+    await request(app).post(`/api/verification/admin/store/${store.id}/address/approve`).set('Authorization', `Bearer ${ceo.token}`);
 
-    const updated = await Store.findById(store._id);
+    const updated = await prisma.store.findUnique({ where: { id: store.id } });
     expect(updated!.isVerified).toBe(false); // facial pendente
   });
 });
@@ -153,16 +153,16 @@ describe('Aprovação da loja pelo admin marca isVerified', () => {
 describe('Editar dados da loja reseta verificação', () => {
   it('editar endereço (PUT /stores/:id) reseta address e isVerified', async () => {
     const dono = await mkUser('lojista', { ...fase1OK, facial: { status: 'approved' } });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: dono.userId, name: 'LojaEdit', isOpen: true, isVerified: true,
       verification: { cnpj: { status: 'approved' }, address: { status: 'approved' } },
-    });
-    const res = await request(app).put(`/api/stores/${store._id}`)
+    } });
+    const res = await request(app).put(`/api/stores/${store.id}`)
       .set('Authorization', `Bearer ${dono.token}`)
       .send({ street: 'Rua Nova', number: '999', neighborhood: 'Centro', city: 'SP', state: 'SP', zip: '01001000' });
     expect(res.status).toBe(200);
-    const updated = await Store.findById(store._id);
-    expect(updated!.verification!.address.status).toBe('none');
+    const updated = await prisma.store.findUnique({ where: { id: store.id } });
+    expect((updated!.verification as any)!.address.status).toBe('none');
     expect(updated!.isVerified).toBe(false);
   });
 });

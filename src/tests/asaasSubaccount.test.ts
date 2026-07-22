@@ -14,7 +14,7 @@ import asaasClient from '../services/asaas/client';
 import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Store from '../models/Store';
+
 import { ensureMotoboySubaccount, ensureStoreSubaccount } from '../services/asaas/subaccount';
 import { decryptSensitiveData } from '../utils/encryption';
 
@@ -72,9 +72,9 @@ describe('ensureMotoboySubaccount (Fase 1)', () => {
 
     const updated = await prisma.user.findUnique({ where: { id: user.id } }) as any;
     expect(post).toHaveBeenCalledTimes(1);
-    expect(updated!.asaas!.accountId).toBe('acc_moto');
+    expect((updated!.asaas as any)!.accountId).toBe('acc_moto');
     expect(updated!.asaas!.walletId).toBe('wlt_moto');
-    expect(updated!.asaas!.status).toBe('active');
+    expect((updated!.asaas as any)!.status).toBe('active');
     // apiKey guardada cifrada e recuperável
     expect(updated!.asaas!.apiKeyEncrypted).toBeTruthy();
     expect(decryptSensitiveData(updated!.asaas!.apiKeyEncrypted!)).toBe('$aact_sub_moto');
@@ -93,7 +93,7 @@ describe('ensureMotoboySubaccount (Fase 1)', () => {
     await ensureMotoboySubaccount(user.id);
     const updated = await prisma.user.findUnique({ where: { id: user.id } }) as any;
     expect(post).not.toHaveBeenCalled();
-    expect(updated!.asaas!.status).toBe('error');
+    expect((updated!.asaas as any)!.status).toBe('error');
     expect(updated!.asaas!.lastError).toMatch(/nascimento/i);
   });
 });
@@ -102,7 +102,7 @@ describe('ensureStoreSubaccount (Fase 1)', () => {
   it('cria a subconta da loja pela CNPJ', async () => {
     post.mockResolvedValue({ id: 'acc_loja', walletId: 'wlt_loja', apiKey: '$aact_sub_loja' });
     const owner = await makeMotoboy({ role: 'lojista', roles: ['lojista', 'cliente'], activeRole: 'lojista' });
-    const store = await Store.create({
+    const store = await prisma.store.create({ data: {
       ownerId: owner.id,
       name: 'Loja X',
       cnpj: '11222333000181',
@@ -110,14 +110,14 @@ describe('ensureStoreSubaccount (Fase 1)', () => {
       number: '20',
       neighborhood: 'Centro',
       zip: '01002000',
-    });
+    } });
 
-    await ensureStoreSubaccount(String(store._id));
+    await ensureStoreSubaccount(store.id);
 
-    const updated = await Store.findById(store._id);
+    const updated = await prisma.store.findUnique({ where: { id: store.id } });
     expect(post).toHaveBeenCalledTimes(1);
-    expect(updated!.asaas!.accountId).toBe('acc_loja');
-    expect(updated!.asaas!.status).toBe('active');
+    expect((updated!.asaas as any)!.accountId).toBe('acc_loja');
+    expect((updated!.asaas as any)!.status).toBe('active');
     // payload enviado com CNPJ (14 dígitos) e companyType
     const payload = post.mock.calls[0][1];
     expect(payload.cpfCnpj).toBe('11222333000181');

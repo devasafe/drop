@@ -251,7 +251,7 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
       let accessTargetId = String(w.owner);
 
       if (w.ownerType === 'store') {
-        const store = await Store.findById(w.owner).select('name ownerId');
+        const store = await prisma.store.findUnique({ where: { id: String(w.owner) } }) as any;
         ownerName = store?.name || 'Loja Desconhecida';
         userRole = 'lojista';
         if (store?.ownerId) {
@@ -469,7 +469,7 @@ router.post('/app-cashbox/deposit', authenticate, authorizePermission('cashbox:d
 // ═══════════════════════════════════════════════════════════
 // 🏦 SUBCONTAS ASAAS (gateway) — criar/backfill p/ recebedores já verificados
 // ═══════════════════════════════════════════════════════════
-import Store from '../models/Store';
+
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
 import { encryptSensitiveData } from '../utils/encryption';
 
@@ -477,29 +477,32 @@ import { encryptSensitiveData } from '../utils/encryption';
 // body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
 router.post('/asaas/subaccount/store/:storeId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
   try {
-    const store = await Store.findById(req.params.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(req.params.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
 
     // Preenche endereço da loja se enviado (necessário p/ a subconta Asaas)
     const a = req.body?.address;
     if (a) {
-      if (a.street) store.street = a.street;
-      if (a.number) store.number = a.number;
-      if (a.neighborhood) store.neighborhood = a.neighborhood;
-      if (a.city) store.city = a.city;
-      if (a.state) store.state = a.state;
-      if (a.zip || a.cep) store.zip = a.zip || a.cep;
-      await store.save();
+      await prisma.store.update({
+        where: { id: store.id },
+        data: {
+          ...(a.street ? { street: a.street } : {}),
+          ...(a.number ? { number: a.number } : {}),
+          ...(a.neighborhood ? { neighborhood: a.neighborhood } : {}),
+          ...(a.city ? { city: a.city } : {}),
+          ...(a.state ? { state: a.state } : {}),
+          ...(a.zip || a.cep ? { zip: a.zip || a.cep } : {}),
+        },
+      });
     }
 
     await ensureStoreSubaccount(req.params.storeId);
     // +apiKeyEncrypted: sem isso o markModified+save apagaria a apiKey da subconta
-    const fresh = await Store.findById(req.params.storeId).select('+asaas.apiKeyEncrypted');
+    const fresh = await prisma.store.findUnique({ where: { id: String(req.params.storeId) } }) as any;
     if (fresh && req.body?.pixKey) {
       fresh.asaas!.pixKey = String(req.body.pixKey).trim();
       if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
-      fresh.markModified('asaas');
-      await fresh.save();
+      await prisma.store.update({ where: { id: fresh.id }, data: { asaas: fresh.asaas } });
     }
     // Recuperação MANUAL: colar a apiKey/accountId/walletId da subconta (do painel
     // Asaas) quando a recuperação automática não consegue. Destrava o saque.
@@ -599,7 +602,7 @@ router.post('/asaas/subaccount/motoboy/:userId', authenticate, authorizePermissi
 // GET /admin/asaas/subaccounts — diagnóstico: recebedores e status da subconta
 router.get('/asaas/subaccounts', authenticate, authorizePermission('gateway:manage'), async (_req: any, res: Response) => {
   try {
-    const stores = await Store.find({ isVerified: true }).select('name cnpj asaas').lean();
+    const stores = await prisma.store.findMany({ where: { isVerified: true }, select: { id: true, name: true, cnpj: true, asaas: true } });
     const motoboys = await prisma.user.findMany({
       where: { roles: { has: 'motoboy' } },
       select: { id: true, name: true, cpf: true, asaas: true },

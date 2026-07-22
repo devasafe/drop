@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Product from '../models/Product';
-import Store from '../models/Store';
+import { prisma } from '../lib/prisma';
+
 import {
   emitProductCreated,
   emitProductUpdated,
@@ -19,9 +19,9 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // verify store ownership: only store owner (lojista) can create product
-    const store = await Store.findById(storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    if (!req.user || store.ownerId.toString() !== req.user.id) {
+    if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
 
@@ -54,23 +54,26 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
       }
     }
 
-    const product = new Product({
-      storeId, name, description, price, quantity, category, subCategory, tags,
-      image: imagePath,
-      images: imageUrls,
-      video: videoUrl
+    const product = await prisma.product.create({
+      data: {
+        storeId: String(storeId), name, description,
+        price, quantity: Number(quantity) || 0,
+        categoryId: category || undefined, subCategory, tags,
+        image: imagePath,
+        images: imageUrls,
+        video: videoUrl,
+      },
     });
-    await product.save();
     
     // Emit socket event (com error handling)
     try {
-      emitProductCreated(product.toObject());
+      emitProductCreated(product);
     } catch (socketErr) {
       console.error('[createProduct] Socket emit error:', socketErr);
       // Não falha a requisição se socket falhar
     }
     
-    console.log(`[createProduct] Produto criado: ${product._id} (${name})`);
+    console.log(`[createProduct] Produto criado: ${product.id} (${name})`);
     return res.status(201).json(product);
   } catch (err: any) {
     console.error('[createProduct] Erro:', err);
@@ -86,8 +89,8 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
 
     // ✅ GATE KYC Fase 2: com KYC_ENFORCED, só produtos de lojas verificadas
     if (process.env.KYC_ENFORCED === 'true') {
-      const verifiedStores = await Store.find({ isVerified: true }).select('_id').lean();
-      filter.storeId = { $in: verifiedStores.map((s: any) => s._id) };
+      const verifiedStores = await prisma.store.findMany({ where: { isVerified: true }, select: { id: true } });
+      filter.storeId = { in: verifiedStores.map((st) => st.id) };
     }
 
     // ✅ SEGURANÇA: Paginação
@@ -95,12 +98,10 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const limit = Math.min(100, Number(req.query.limit) || 20);
     const skip = (page - 1) * limit;
 
-    const products = await Product.find(filter)
-      .skip(skip)
-      .limit(limit)
-      .lean();
-    
-    const total = await Product.countDocuments(filter);
+    const rows = await prisma.product.findMany({ where: filter, skip, take: limit });
+    const products = rows.map((pr) => ({ ...pr, _id: pr.id }));
+
+    const total = await prisma.product.count({ where: filter });
 
     return res.json({
       products,
@@ -121,9 +122,9 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
 export const getProduct = async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
-    const product = await Product.findById(id).lean();
+    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    return res.json(product);
+    return res.json({ ...product, _id: product.id });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -136,11 +137,11 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     const { id } = req.params;
     const { name, description, price, quantity, category, subCategory, tags, keepImages, removeVideo } = req.body;
 
-    const productDoc = await Product.findById(id);
+    const productDoc: any = await prisma.product.findUnique({ where: { id } });
     if (!productDoc) return res.status(404).json({ error: 'Product not found' });
 
     // check ownership
-    const store = await Store.findById(productDoc.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(productDoc.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {
@@ -213,10 +214,10 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
 export const deleteProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const productDoc = await Product.findById(id);
+    const productDoc: any = await prisma.product.findUnique({ where: { id } });
     if (!productDoc) return res.status(404).json({ error: 'Product not found' });
 
-    const store = await Store.findById(productDoc.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(productDoc.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {
@@ -241,10 +242,10 @@ export const updateStock = async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params; // product id
     const { quantity } = req.body;
     if (typeof quantity !== 'number') return res.status(400).json({ error: 'quantity must be a number' });
-    const productDoc = await Product.findById(id);
+    const productDoc: any = await prisma.product.findUnique({ where: { id } });
     if (!productDoc) return res.status(404).json({ error: 'Product not found' });
 
-    const store = await Store.findById(productDoc.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(productDoc.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {

@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Store from '../models/Store';
+
 import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinary';
 import { isValidCNPJ, onlyDigits } from '../utils/documentValidation';
 import { consultarCNPJ } from '../services/cnpjLookup';
@@ -23,7 +23,7 @@ const ensureStoreVerification = (s: any) => {
 };
 
 async function assertStoreOwner(storeId: string, userId?: string): Promise<{ store: any | null; code: number }> {
-  const store = await Store.findById(storeId);
+  const store: any = await prisma.store.findUnique({ where: { id: String(storeId) } });
   if (!store) return { store: null, code: 404 };
   if (String(store.ownerId) !== String(userId)) return { store: null, code: 403 };
   return { store, code: 200 };
@@ -85,8 +85,7 @@ export const submitStoreCnpj = async (req: AuthenticatedRequest, res: Response) 
       razaoSocial: lookup?.razaoSocial,
       situacao: lookup?.situacao,
     };
-    store.markModified('verification');
-    await store.save();
+    await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
     emitAdminNotification({
       title: 'Nova verificação pendente',
       body: `Loja "${store.name}" enviou o CNPJ para análise.`,
@@ -115,8 +114,7 @@ export const submitStoreAddress = async (req: AuthenticatedRequest, res: Respons
 
     const comprovanteUrl = await uploadToCloudinary(file.buffer, kycFolder('lojas', String(storeId), 'endereco'));
     store.verification!.address = { status: 'pending', comprovanteUrl, submittedAt: new Date() };
-    store.markModified('verification');
-    await store.save();
+    await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
     emitAdminNotification({
       title: 'Nova verificação pendente',
       body: `Loja "${store.name}" enviou o comprovante de endereço para análise.`,
@@ -134,7 +132,7 @@ export const submitStoreAddress = async (req: AuthenticatedRequest, res: Respons
 export const getStoreVerification = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { storeId } = req.params;
-    const store = await Store.findById(storeId);
+    const store: any = await prisma.store.findUnique({ where: { id: String(storeId) } });
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
     const owner = await userRepository.findById(String(store.ownerId)) as any;
 
@@ -159,15 +157,23 @@ export const getStoreVerification = async (req: AuthenticatedRequest, res: Respo
 // ===================== ADMIN =====================
 export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const stores = await Store.find({
-      $or: [
-        { 'verification.cnpj.status': 'pending' },
-        { 'verification.address.status': 'pending' },
-      ],
-    })
-      .select('name ownerId verification isVerified address street number neighborhood city state zip')
-      .populate('ownerId', 'name email roles role')
-      .lean();
+    // dot-notation em subdocumento -> filtro por caminho no JSONB.
+    // O `.populate('ownerId')` some: o dono é um User do Postgres, resolvido via relação.
+    const rows = await prisma.store.findMany({
+      where: {
+        OR: [
+          { verification: { path: ['cnpj', 'status'], equals: 'pending' } },
+          { verification: { path: ['address', 'status'], equals: 'pending' } },
+        ],
+      },
+      select: {
+        id: true, name: true, ownerId: true, verification: true, isVerified: true,
+        address: true, street: true, number: true, neighborhood: true,
+        city: true, state: true, zip: true,
+        owner: { select: { id: true, name: true, email: true, roles: true, role: true } },
+      },
+    });
+    const stores = rows.map((st) => ({ ...st, _id: st.id, ownerId: st.owner ?? st.ownerId }));
 
     const facialPendingRaw = await prisma.user.findMany({
       where: { verification: { path: ['facial', 'status'], equals: 'pending' } },
@@ -206,7 +212,7 @@ export const rejectFacial = (req: AuthenticatedRequest, res: Response) => decide
 
 async function decideStoreItem(req: AuthenticatedRequest, res: Response, item: 'cnpj' | 'address', approved: boolean) {
   const { storeId } = req.params;
-  const store = await Store.findById(storeId);
+  const store: any = await prisma.store.findUnique({ where: { id: String(storeId) } });
   if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
   ensureStoreVerification(store);
   if (store.verification![item].status !== 'pending') return res.status(400).json({ error: `${item} não está pendente` });
@@ -214,8 +220,7 @@ async function decideStoreItem(req: AuthenticatedRequest, res: Response, item: '
   store.verification![item].reviewedBy = req.user?.id;
   store.verification![item].reviewedAt = new Date();
   store.verification![item].rejectionReason = approved ? undefined : (req.body?.reason || 'Não aprovado');
-  store.markModified('verification');
-  await store.save();
+  await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
   await recomputeStoreVerification(storeId);
   logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id });
   return res.json({ message: `${item} ${approved ? 'aprovado' : 'rejeitado'}` });

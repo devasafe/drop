@@ -6,7 +6,7 @@ import Delivery from '../models/Delivery';
 import Order from '../models/Order';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Store from '../models/Store';
+
 import Wallet from '../models/Wallet';
 import PlatformConfig from '../models/PlatformConfig';
 import Gamification from '../models/Gamification';
@@ -31,11 +31,12 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     const { pinRetirada } = req.body;
     const userId = req.user?.id;
     // Apenas a loja pode validar
-    const delivery = await Delivery.findById(id).populate('motoboyId');
+    // Sem `.populate('motoboyId')`: User vive no Postgres (o nome é resolvido abaixo).
+    const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     const order = await Order.findById(delivery.orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const store = await Store.findById(order.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Store not found' });
     if (!userId || store.ownerId.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden - only store owner can validate PIN'});
@@ -46,7 +47,9 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     await delivery.save();
 
     // Get motoboy name
-    const motoboy = delivery.motoboyId as any;
+    const motoboy = delivery.motoboyId
+      ? await prisma.user.findUnique({ where: { id: String(delivery.motoboyId) }, select: { name: true } })
+      : null;
     const motoboyName = motoboy?.name || 'Motoboy';
 
     // ✅ WORKFLOW 4: Notificar CLIENTE que pedido foi retirado
@@ -451,7 +454,7 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     // only store owner can create a delivery for this order
-    const store = await Store.findById(order.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Store not found' });
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {
@@ -554,7 +557,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     // only store owner can assign motoboy for this delivery
     const order = await Order.findById(delivery.orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const store = await Store.findById(order.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Store not found' });
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {
@@ -666,7 +669,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     let storeObj = null;
     let storeOwner = null;
     if (order && order.storeId) {
-      storeObj = await Store.findById(order.storeId).lean();
+      storeObj = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
       if (storeObj && storeObj.ownerId) {
         storeOwner = await userRepository.findById(String(storeObj.ownerId)) as any;
       }
@@ -880,7 +883,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     console.log(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId} with PIN: ${pinEntrega}`);
 
     // 🔴 BROADCAST 2: Notificar LOJA que motoboy foi atribuído
-    const store = await Store.findById(order.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (store) {
       // Emit to the room keyed by the store document ID (order.storeId)
       emitToRoom(`store:${order.storeId}`, 'motoboy:assigned_to_order', {
@@ -1045,7 +1048,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
 
-    const store = await Store.findById(order.storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     console.log(`📋 [confirmReturn] userId: ${userId}, store.ownerId: ${store?.ownerId}`);
     if (!store || store.ownerId.toString() !== userId) {
       console.error(`📋 [confirmReturn] ❌ AUTH FAIL - userId: ${userId}, storeOwnerId: ${store?.ownerId?.toString()}`);

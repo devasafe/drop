@@ -2,11 +2,11 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import Order from '../models/Order';
-import Store from '../models/Store';
+
 import { calculateRoute, calculateDistance } from '../services/routeCalculator';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Product from '../models/Product';
+
 import Transaction from '../models/Transaction';
 import Delivery from '../models/Delivery';
 import Wallet from '../models/Wallet';
@@ -141,7 +141,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     const storeIdStr = String(storeId);
 
     // Verificar se loja existe e está aberta
-    const storeForCheck = await Store.findById(storeIdStr);
+    const storeForCheck: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!storeForCheck) {
       await session.abortTransaction();
       return res.status(404).json({ error: 'Loja não encontrada' });
@@ -166,7 +166,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         return res.status(400).json({ error: `Produto inválido: ${JSON.stringify(p)}` });
       }
 
-      const prod = await Product.findById(p.productId).session(session);
+      // Sem `.session(session)`: Product vive no Postgres e não entra na transação Mongo.
+      const prod = await prisma.product.findUnique({ where: { id: String(p.productId) } });
       if (!prod) {
         await session.abortTransaction();
         return res.status(404).json({ error: `Produto ${p.productId} não encontrado` });
@@ -174,33 +175,41 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
       // ✅ SEGURANÇA: NUNCA confiar no preço enviado pelo frontend.
       // O preço é SEMPRE o que está no banco de dados (fonte da verdade).
-      const productPrice = prod.price;
+      // `price` é Decimal no Postgres; o Order ainda vive no Mongo com number.
+      // Convertemos na fronteira — quando o Order migrar (Fatia 3), a cadeia
+      // fica Decimal ponta a ponta e esta conversão sai.
+      const productPrice = prod.price.toNumber();
       if (productPrice <= 0) {
         await session.abortTransaction();
         return res.status(400).json({ error: `Produto ${prod.name} com preço inválido` });
       }
 
-      // Decremento atômico com verificação de estoque
-      const updated = await Product.findByIdAndUpdate(
-        p.productId,
-        { $inc: { quantity: -p.quantity } },
-        { new: true, session }
-      );
+      // Decremento atômico com verificação de estoque.
+      // O `WHERE quantity >= n` deixa a checagem no banco: sob concorrência o
+      // estoque nunca fica negativo, nem transitoriamente (antes o valor era
+      // decrementado e só depois conferido).
+      const dec = await prisma.product.updateMany({
+        where: { id: String(p.productId), quantity: { gte: p.quantity } },
+        data: { quantity: { decrement: p.quantity } },
+      });
 
-      if (!updated || updated.quantity < 0) {
-        // Reverter decrementos anteriores dentro da transação
+      if (dec.count === 0) {
+        // Devolve o que já havia sido decrementado neste pedido. Product está no
+        // Postgres e não participa do rollback da transação Mongo — a compensação
+        // é explícita (já era assim, agora é obrigatória).
         for (const item of items) {
-          await Product.findByIdAndUpdate(item.productId, { $inc: { quantity: item.quantity } }, { session });
+          await prisma.product.updateMany({ where: { id: String(item.productId) }, data: { quantity: { increment: item.quantity } } });
         }
         await session.abortTransaction();
-        const available = (updated?.quantity ?? 0) + p.quantity;
+        const current = await prisma.product.findUnique({ where: { id: String(p.productId) }, select: { quantity: true } });
+        const available = current?.quantity ?? 0;
         return res.status(409).json({
           error: `Estoque insuficiente para ${prod.name}. Disponível: ${available}.`,
         });
       }
 
       subtotal += productPrice * p.quantity;
-      items.push({ productId: prod._id, quantity: p.quantity, price: productPrice });
+      items.push({ productId: prod.id, quantity: p.quantity, price: productPrice });
     }
 
     if (subtotal <= 0) {
@@ -409,7 +418,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Buscar dados da loja para snapshot no pedido
-    const store = await Store.findById(storeIdStr).session(session);
+    const store: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!store) {
       await session.abortTransaction();
       return res.status(404).json({ error: 'Loja não encontrada' });
@@ -581,7 +590,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           try {
             for (const it of items) {
               if ((it as any).productId && (it as any).quantity) {
-                await Product.findByIdAndUpdate((it as any).productId, { $inc: { quantity: (it as any).quantity } });
+                await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
               }
             }
             if (walletApplied > 0) {
@@ -676,12 +685,12 @@ export const listOrders = async (req: AuthenticatedRequest, res: Response) => {
     const productIds = [...new Set(orders.flatMap(o => (o.products || []).map((p: any) => p.productId?.toString()).filter(Boolean)))];
 
     const [stores, productsData] = await Promise.all([
-      Store.find({ _id: { $in: storeIds } }).select('name').lean(),
-      Product.find({ _id: { $in: productIds } }).select('name image').lean(),
+      prisma.store.findMany({ where: { id: { in: storeIds.map(String) } }, select: { id: true, name: true } }),
+      prisma.product.findMany({ where: { id: { in: productIds.map(String) } }, select: { id: true, name: true, image: true } }),
     ]);
 
-    const storeMap = new Map(stores.map(s => [s._id.toString(), s]));
-    const productMap = new Map(productsData.map(p => [p._id.toString(), p]));
+    const storeMap = new Map(stores.map(s => [s.id, s]));
+    const productMap = new Map(productsData.map(p => [p.id, p]));
 
     const enrichedOrders = orders.map(o => {
       const storeObj = storeMap.get(o.storeId?.toString() ?? '');
@@ -725,9 +734,9 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       // O nome é resolvido logo abaixo, num lookup explícito.
       order.deliveryId ? Delivery.findById(order.deliveryId).lean() : null,
       order.customerId ? userRepository.findById(String(order.customerId)) : null,
-      order.storeId ? Store.findById(order.storeId).lean() : null,
+      order.storeId ? prisma.store.findUnique({ where: { id: String(order.storeId) } }) : null,
       order.products?.length
-        ? Product.find({ _id: { $in: order.products.map((p: any) => p.productId) } }).select('name image').lean()
+        ? prisma.product.findMany({ where: { id: { in: order.products.map((p: any) => String(p.productId)) } }, select: { id: true, name: true, image: true } })
         : [],
     ]);
 
@@ -790,7 +799,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     const order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const store = await Store.findById(order.storeId);
+    const store: any = await prisma.store.findUnique({ where: { id: String(order.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const userId = req.user?.id;
@@ -916,7 +925,7 @@ export const deliverPlan1Order = async (req: AuthenticatedRequest, res: Response
       return res.status(400).json({ error: `Pedido no estado '${order.status}' não pode ser confirmado como recebido` });
     }
 
-    const store = await Store.findById(order.storeId);
+    const store: any = await prisma.store.findUnique({ where: { id: String(order.storeId) } });
     const storeSub = store ? await StoreSubscription.findOne({ storeId: store._id.toString() }).lean() : null;
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store?.plan ?? 1);

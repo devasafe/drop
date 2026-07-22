@@ -1,8 +1,9 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import Coupon from '../models/Coupon';
-import Store from '../models/Store';
+
 import logger from '../config/logger';
+import { prisma } from '../lib/prisma';
 
 // Criar cupom
 // Lojista: type='store', storeId obrigatório
@@ -28,7 +29,7 @@ export const createCoupon = async (req: AuthenticatedRequest, res: Response) => 
 
     let resolvedStoreId = storeId;
     if (type === 'store' && activeRole === 'lojista') {
-      const store = await Store.findOne({ ownerId: userId });
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
       resolvedStoreId = store._id;
     }
@@ -79,7 +80,7 @@ export const listCoupons = async (req: AuthenticatedRequest, res: Response) => {
       if (req.query.storeId) query.storeId = req.query.storeId;
       if (req.query.type) query.type = req.query.type;
     } else if (activeRole === 'lojista') {
-      const store = await Store.findOne({ ownerId: userId });
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
       query = { storeId: store._id };
     } else {
@@ -105,7 +106,7 @@ export const toggleCoupon = async (req: AuthenticatedRequest, res: Response) => 
     if (!coupon) return res.status(404).json({ error: 'Cupom não encontrado' });
 
     if (activeRole === 'lojista') {
-      const store = await Store.findOne({ ownerId: userId });
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store || coupon.storeId?.toString() !== store._id.toString()) {
         return res.status(403).json({ error: 'Sem permissão' });
       }
@@ -133,7 +134,7 @@ export const deleteCoupon = async (req: AuthenticatedRequest, res: Response) => 
     if (!coupon) return res.status(404).json({ error: 'Cupom não encontrado' });
 
     if (activeRole === 'lojista') {
-      const store = await Store.findOne({ ownerId: userId });
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store || coupon.storeId?.toString() !== store._id.toString()) {
         return res.status(403).json({ error: 'Sem permissão' });
       }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import Product from '../models/Product';
+import { prisma } from '../lib/prisma';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { uploadToCloudinary } from '../utils/cloudinary';
 
@@ -17,17 +17,16 @@ router.post('/product/:id', authenticate, authorizeRoles('lojista'), upload.sing
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const product = await Product.findById(id);
+    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    const Store = (await import('../models/Store')).default;
-    const store = await Store.findById(product.storeId.toString());
+    const store = await prisma.store.findUnique({ where: { id: String(product.storeId) } });
     if (!store) return res.status(404).json({ error: 'Store not found' });
-    if (store.ownerId.toString() !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
+    if (String(store.ownerId) !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
 
-    product.image = await uploadToCloudinary(file.buffer, 'drop/products');
-    await product.save();
-    return res.json(product);
+    const image = await uploadToCloudinary(file.buffer, 'drop/products');
+    const updated = await prisma.product.update({ where: { id }, data: { image } });
+    return res.json(updated);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Upload failed' });

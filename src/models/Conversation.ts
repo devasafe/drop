@@ -24,7 +24,7 @@ export interface IConversation extends Document {
   orderId?: mongoose.Types.ObjectId;
   deliveryId?: mongoose.Types.ObjectId;
   relatedOrderNumber?: string;
-  productId?: mongoose.Types.ObjectId; // 👈 NOVO: Conversa iniciada em um produto específico
+  productId?: string; // 👈 NOVO: Conversa iniciada em um produto específico
   conversationType?: 'product' | 'user'; // 👈 NOVO: Type diferencia se é de produto ou usuário geral
   
   // Metadados
@@ -106,8 +106,8 @@ const conversationSchema = new Schema<IConversation>(
     },
     relatedOrderNumber: String,
     productId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Product',
+      // 🔀 Migração: Product vive no Postgres (id = cuid) — ver Store.ownerId.
+      type: String,
       index: true
     },
     conversationType: {

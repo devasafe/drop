@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+/**
+ * Id de entidade.
+ *
+ * Era `/^[0-9a-f]{24}$/` (formato ObjectId do Mongo). Com a migração para o
+ * Postgres os ids viraram `cuid()` — 25 chars começando em 'c' — e o regex antigo
+ * rejeitava TODOS eles: nenhum pedido ou produto passava da validação (400).
+ * Mantemos uma checagem de sanidade (sem espaços, tamanho plausível) em vez de
+ * amarrar o schema a um formato específico de banco.
+ */
+const entityId = (label: string) =>
+  z.string().trim().min(1, label).max(64, label).regex(/^[A-Za-z0-9_-]+$/, label);
+
+
 // ============= AUTH SCHEMAS =============
 export const RegisterSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres').max(100),
@@ -27,7 +40,7 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 
 // ============= PRODUCT SCHEMAS =============
 export const CreateProductSchema = z.object({
-  storeId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID da loja inválido'),
+  storeId: entityId('ID da loja inválido'),
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres').max(200),
   price: z.number().positive('Preço deve ser positivo'),
   quantity: z.number().int().nonnegative('Quantidade não pode ser negativa').default(0),
@@ -50,7 +63,7 @@ export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
 
 // ============= ORDER SCHEMAS =============
 export const OrderProductSchema = z.object({
-  productId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID do produto inválido'),
+  productId: entityId('ID do produto inválido'),
   quantity: z.number().int().positive('Quantidade deve ser maior que 0').max(99, 'Quantidade máxima é 99'),
   // ⚠️ SEGURANÇA: preço é aceito por compatibilidade mas IGNORADO pelo servidor.
   // O preço real vem sempre do banco (ver orderController.createOrder). Nunca confiar no frontend.
@@ -58,7 +71,7 @@ export const OrderProductSchema = z.object({
 });
 
 export const CreateOrderSchema = z.object({
-  storeId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID da loja inválido'),
+  storeId: entityId('ID da loja inválido'),
   products: z.array(OrderProductSchema).min(1, 'Pedido deve ter pelo menos 1 produto').max(50, 'Máximo 50 produtos por pedido'),
   deliveryDistanceKm: z.number().min(0, 'Distância inválida').max(100, 'Distância máxima é 100km').finite('Distância deve ser um número válido'), // 0 = Plano 1 (sem entrega integrada)
   paymentMethod: z.enum(['credit_card', 'pix', 'money']).optional(),
@@ -85,8 +98,8 @@ export type RateStoreInput = z.infer<typeof RateStoreSchema>;
 
 // ============= DELIVERY SCHEMAS =============
 export const CreateDeliverySchema = z.object({
-  orderId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID do pedido inválido'),
-  driverId: z.string().regex(/^[0-9a-f]{24}$/i, 'ID do motorista inválido').optional(),
+  orderId: entityId('ID do pedido inválido'),
+  driverId: entityId('ID do motorista inválido').optional(),
   pickupAddress: z.object({
     street: z.string().min(3),
     number: z.string().min(1),

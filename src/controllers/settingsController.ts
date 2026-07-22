@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import PlatformConfig from '../models/PlatformConfig';
 import StoreSubscription from '../models/StoreSubscription';
-import Store from '../models/Store';
+
 import { emitToAll, emitAdminNotification } from '../utils/socketEmitter';
+import { prisma } from '../lib/prisma';
 
 // ✅ GET Current Platform Config
 export const getPlatformConfig = async (req: Request, res: Response) => {
@@ -115,7 +116,7 @@ export const getStoreSubscription = async (req: Request & { user?: any }, res: R
     const userId = req.user?.id || (req as any).userId;
 
     // Encontrar loja do usuário
-    const store = await Store.findOne({ ownerId: userId });
+    const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
     if (!store) {
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
@@ -148,7 +149,7 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
     }
 
     // Encontrar loja do usuário
-    const store = await Store.findOne({ ownerId: userId });
+    const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
     if (!store) {
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
@@ -240,7 +241,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
     // Sincronizar Store.plan com o plano aprovado
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const planNumber = planNumberMap[subscription.currentPlan] ?? 1;
-    await Store.findOneAndUpdate({ _id: subscription.storeId }, { plan: planNumber });
+    await prisma.store.update({ where: { id: String(subscription.storeId) }, data: { plan: planNumber } });
 
     console.log('✅ Plan change approved:', { subscriptionId, newPlan: subscription.currentPlan, planNumber });
     return res.json({
@@ -317,7 +318,7 @@ export const updateStorePlan = async (req: Request & { user?: any }, res: Respon
 
     // Sincronizar Store.plan com o novo plano
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
-    await Store.findOneAndUpdate({ _id: subscription.storeId }, { plan: planNumberMap[newPlan] ?? 1 });
+    await prisma.store.update({ where: { id: String(subscription.storeId) }, data: { plan: planNumberMap[newPlan] ?? 1 } });
 
     return res.json({
       message: `Plano alterado de ${oldPlan} para ${newPlan}`,

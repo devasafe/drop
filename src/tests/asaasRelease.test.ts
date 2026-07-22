@@ -7,11 +7,12 @@ jest.mock('../services/asaas/client', () => ({
 }));
 
 import asaasClient from '../services/asaas/client';
-import Store from '../models/Store';
+
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Payout from '../models/Payout';
 import { releaseOrderViaAsaas } from '../services/asaas/release';
+import { ownerIdForStore } from './helpers/storeOwner';
 
 const post = (asaasClient as any).post as jest.Mock;
 let mongod: MongoMemoryServer;
@@ -37,13 +38,13 @@ describe('releaseOrderViaAsaas (Fase 3)', () => {
     post.mockResolvedValue({ id: 'tr_1', status: 'PENDING' });
 
     const orderId = new mongoose.Types.ObjectId();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', asaas: { status: 'active', walletId: 'wlt_store' } });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@arel.test'), name: 'Loja', asaas: { status: 'active', walletId: 'wlt_store' } } });
     const motoboy = await prisma.user.create({ data: {
       name: 'Moto', email: `m-${Date.now()}@arel.test`, passwordHash: 'x', role: 'motoboy', roles: ['motoboy'], activeRole: 'motoboy',
       asaas: { status: 'active', walletId: 'wlt_moto' },
     } });
 
-    await Payout.create({ recipientType: 'store', recipientId: store._id, orderId, amount: 90, status: 'pending' });
+    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId, amount: 90, status: 'pending' });
     await Payout.create({ recipientType: 'motoboy', recipientId: motoboy.id, orderId, amount: 8, status: 'pending' });
 
     await releaseOrderViaAsaas(String(orderId));
@@ -63,8 +64,8 @@ describe('releaseOrderViaAsaas (Fase 3)', () => {
 
   it('recebedor sem subconta → Payout segue pending, sem transferir', async () => {
     const orderId = new mongoose.Types.ObjectId();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja sem subconta' }); // sem asaas.walletId
-    await Payout.create({ recipientType: 'store', recipientId: store._id, orderId, amount: 50, status: 'pending' });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@arel.test'), name: 'Loja sem subconta' } }); // sem asaas.walletId
+    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId, amount: 50, status: 'pending' });
 
     await releaseOrderViaAsaas(String(orderId));
 
@@ -76,8 +77,8 @@ describe('releaseOrderViaAsaas (Fase 3)', () => {
   it('é idempotente — payout já released não é transferido de novo', async () => {
     post.mockResolvedValue({ id: 'tr_2', status: 'PENDING' });
     const orderId = new mongoose.Types.ObjectId();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', asaas: { status: 'active', walletId: 'wlt_store' } });
-    await Payout.create({ recipientType: 'store', recipientId: store._id, orderId, amount: 90, status: 'released' });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@arel.test'), name: 'Loja', asaas: { status: 'active', walletId: 'wlt_store' } } });
+    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId, amount: 90, status: 'released' });
 
     await releaseOrderViaAsaas(String(orderId));
     expect(post).not.toHaveBeenCalled();

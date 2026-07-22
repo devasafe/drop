@@ -17,11 +17,12 @@ jest.mock('../services/asaas/payment', () => ({
 }));
 
 import app from '../app';
+import { ownerIdForStore } from './helpers/storeOwner';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Store from '../models/Store';
-import Product from '../models/Product';
+
+
 import Wallet from '../models/Wallet';
 import Order from '../models/Order';
 import Payout from '../models/Payout';
@@ -84,15 +85,15 @@ async function verifiedBuyer() {
 describe('createOrder com Asaas (Fase 2)', () => {
   it('cria cobrança PIX, devolve o copia-e-cola e NÃO debita carteira nem cria Payout', async () => {
     const { user, token } = await verifiedBuyer();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja PIX', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja PIX', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 100, quantity: 10 } } as any);
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        storeId: String(store._id),
-        products: [{ productId: String(product._id), quantity: 1 }],
+        storeId: store.id,
+        products: [{ productId: product.id, quantity: 1 }],
         paymentMethod: 'pix',
         deliveryDistanceKm: 0,
         address: 'Rua X, 1 - Centro',
@@ -117,13 +118,13 @@ describe('createOrder com Asaas (Fase 2)', () => {
 
   it('recusa cartão por enquanto (só PIX na Fase 2)', async () => {
     const { token } = await verifiedBuyer();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Item', price: 50, quantity: 5 } as any);
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 50, quantity: 5 } } as any);
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeId: String(store._id), products: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'credit_card', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro' });
+      .send({ storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'credit_card', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/PIX/i);
@@ -132,13 +133,13 @@ describe('createOrder com Asaas (Fase 2)', () => {
   it('usa saldo parcial → cobra só o restante no PIX', async () => {
     const { user, token } = await verifiedBuyer();
     await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 30 } });
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 100, quantity: 10 } } as any);
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeId: String(store._id), products: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
+      .send({ storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
 
     expect(res.status).toBe(201);
     // cobrança PIX só do restante (100 - 30 = 70)
@@ -152,13 +153,13 @@ describe('createOrder com Asaas (Fase 2)', () => {
   it('saldo cobre tudo → sem PIX, pedido já pago + payout da loja', async () => {
     const { user, token } = await verifiedBuyer();
     await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 200 } });
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 100, quantity: 10 } } as any);
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeId: String(store._id), products: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
+      .send({ storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro', useWalletBalance: true });
 
     expect(res.status).toBe(201);
     expect(res.body.pix).toBeNull(); // sem PIX
@@ -176,11 +177,11 @@ describe('createOrder com Asaas (Fase 2)', () => {
 describe('Webhook confirma pagamento (Fase 2)', () => {
   it('PAYMENT_RECEIVED → pedido vira pago e cria Payout pending da loja', async () => {
     const { user } = await verifiedBuyer();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
 
     const order = await Order.create({
       customerId: user.id,
-      storeId: store._id,
+      storeId: store.id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100,
       deliveryFee: 0,
@@ -214,9 +215,9 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
 
   it('é idempotente: webhook repetido não cria Payout duplicado', async () => {
     const { user } = await verifiedBuyer();
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
     const order = await Order.create({
-      customerId: user.id, storeId: store._id,
+      customerId: user.id, storeId: store.id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100, deliveryFee: 0, status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending',
       asaasPaymentId: 'pay_hook_2', asaasChargeStatus: 'pending',

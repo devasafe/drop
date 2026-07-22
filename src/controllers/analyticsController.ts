@@ -3,9 +3,9 @@ import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import Order from '../models/Order';
 import { prisma } from '../lib/prisma';
-import Store from '../models/Store';
-import Product from '../models/Product';
-import Category from '../models/Category';
+
+
+
 import onlineTracker from '../services/onlineTracker';
 
 // ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ function storeRevenueOfOrder(o: any): number {
 }
 
 async function getStoreByOwner(userId: string) {
-  return Store.findOne({ ownerId: userId }).lean();
+  return prisma.store.findFirst({ where: { ownerId: userId } }) as any;
 }
 
 // ===========================================================================
@@ -525,8 +525,8 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
       prisma.user.count(),
       prisma.user.count({ where: { createdAt: { gte: start, lte: end } } }),
       prisma.user.count({ where: { createdAt: { gte: prevStart, lt: start } } }),
-      Store.countDocuments({}),
-      Store.countDocuments({ createdAt: { $gte: start, $lte: end } }),
+      prisma.store.count(),
+      prisma.store.count({ where: { createdAt: { gte: start, lte: end } } }),
       Order.distinct('customerId', { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
       Order.distinct('customerId', { createdAt: { $gte: prevStart, $lt: start }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
       Order.aggregate([
