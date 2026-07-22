@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Wallet from '../models/Wallet';
-import User from '../models/User';
+// 🔀 Migração: User já vive no Postgres; Wallet/Store seguem no Mongoose até suas fatias.
+import userRepository from '../repositories/user.repository';
 import Store from '../models/Store';
 import Payout from '../models/Payout';
 import payoutService from '../services/payout.service';
@@ -26,7 +27,7 @@ export const getWallet = async (req: Request, res: Response) => {
 
     if (!wallet) {
       // Autoheal: cria carteira pessoal sob demanda se o user existe
-      const userDoc = await User.findById(userId).select('_id').lean();
+      const userDoc = await userRepository.findById(userId);
       if (!userDoc) return res.status(404).json({ error: 'Carteira não encontrada' });
       wallet = await Wallet.create({ owner: userId, ownerType: 'user' });
     }
@@ -76,7 +77,7 @@ export const getStoreWallet = async (req: Request, res: Response) => {
     // Reconcilia saldos a partir dos Payouts (self-healing): a fonte da verdade
     // são os registros de Payout, não os contadores denormalizados na wallet.
     const agg = await Payout.aggregate([
-      { $match: { recipientType: 'store', recipientId: new mongoose.Types.ObjectId(storeId) } },
+      { $match: { recipientType: 'store', recipientId: String(storeId) } },
       { $group: { _id: '$status', total: { $sum: '$amount' } } },
     ]);
     const sums: Record<string, number> = {};
@@ -162,7 +163,7 @@ export const transferStoreToOwner = async (req: Request, res: Response) => {
     // Payouts released (disponíveis para transferência)
     const releasedPayouts = await Payout.find({
       recipientType: 'store',
-      recipientId: new mongoose.Types.ObjectId(storeId),
+      recipientId: String(storeId),
       status: 'released',
     }).session(session);
 
@@ -263,14 +264,14 @@ export const getMotoboyWallet = async (req: Request, res: Response) => {
     let wallet = await Wallet.findOne({ owner: motoboyId, ownerType: 'motoboy' });
 
     if (!wallet) {
-      const exists = await User.findById(motoboyId).select('_id role').lean();
+      const exists = await userRepository.findById(motoboyId);
       if (!exists) return res.status(404).json({ error: 'Carteira do motoboy não encontrada' });
       wallet = await Wallet.create({ owner: motoboyId, ownerType: 'motoboy' });
     }
 
     // Reconcilia saldos a partir dos Payouts (fonte da verdade)
     const agg = await Payout.aggregate([
-      { $match: { recipientType: 'motoboy', recipientId: new mongoose.Types.ObjectId(motoboyId) } },
+      { $match: { recipientType: 'motoboy', recipientId: String(motoboyId) } },
       { $group: { _id: '$status', total: { $sum: '$amount' } } },
     ]);
     const sums: Record<string, number> = {};
@@ -340,7 +341,7 @@ export const transferMotoboyToOwner = async (req: Request, res: Response) => {
 
     const releasedPayouts = await Payout.find({
       recipientType: 'motoboy',
-      recipientId: new mongoose.Types.ObjectId(motoboyId),
+      recipientId: String(motoboyId),
       status: 'released',
     }).session(session);
 
@@ -562,7 +563,7 @@ export const getWalletHistory = async (req: Request, res: Response) => {
     if (!wallet) {
       // Autoheal: cria wallet sob demanda (user, motoboy ou store)
       const [userDoc, storeDoc] = await Promise.all([
-        User.findById(userId).select('_id role').lean(),
+        userRepository.findById(userId),
         Store.findById(userId).select('_id').lean(),
       ]);
       if (!userDoc && !storeDoc) {
@@ -633,7 +634,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
     // Buscar user com segurança
     let user: any = null;
     try {
-      user = await User.findById(userId);
+      user = await userRepository.findById(userId);
       console.log('✅ User encontrado:', { userId, name: user?.name });
     } catch (userErr: any) {
       console.warn('⚠️ Erro ao buscar user:', userErr.message);
@@ -861,7 +862,7 @@ export const transferBetweenWallets = async (req: Request, res: Response) => {
     if (toUserId) {
       // Destino é um USUÁRIO
       console.log('🔍 Buscando carteira de destino para usuário:', toUserId);
-      const targetUser = await User.findById(toUserId);
+      const targetUser = await userRepository.findById(toUserId);
       
       if (!targetUser) {
         return res.status(404).json({ error: 'Usuário não encontrado' });

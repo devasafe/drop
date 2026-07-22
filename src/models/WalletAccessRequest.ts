@@ -4,9 +4,9 @@ import { AppRole } from './RolePermissions';
 export type WalletAccessStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
 
 export interface IWalletAccessRequest extends Document {
-  requestedBy: Types.ObjectId;
+  requestedBy: string;
   requestedByRole: AppRole;
-  targetUserId: Types.ObjectId;
+  targetUserId: string;
   reason: string;
   status: WalletAccessStatus;
   expiresAt: Date | null;
@@ -18,9 +18,9 @@ export interface IWalletAccessRequest extends Document {
 }
 
 const WalletAccessRequestSchema = new Schema<IWalletAccessRequest>({
-  requestedBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  requestedBy:     { type: String, required: true },
   requestedByRole: { type: String, required: true },
-  targetUserId:    { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  targetUserId:    { type: String, required: true },
   reason:          { type: String, required: true, trim: true, maxlength: 500 },
   status:          { type: String, enum: ['pending', 'approved', 'rejected', 'expired', 'revoked'], default: 'pending', index: true },
   expiresAt:       { type: Date, default: null },

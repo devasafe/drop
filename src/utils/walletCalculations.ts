@@ -1,5 +1,5 @@
 import Store from '../models/Store';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import PricingPlan from '../models/PricingPlan';
 import PlatformConfig from '../models/PlatformConfig';
 import StoreSubscription from '../models/StoreSubscription';
@@ -25,7 +25,8 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     }
 
     // 2️⃣ Se não encontrou, procura User (lojista) pelo planId
-    const user = await User.findById(storeId).populate('planId');
+    // Sem `.populate('planId')`: `planId` é só o id e o plano é buscado logo abaixo.
+    const user = (await userRepository.findById(String(storeId))) as any;
     if (user && user.planId) {
       const plan = await PricingPlan.findById(user.planId);
       if (plan) {

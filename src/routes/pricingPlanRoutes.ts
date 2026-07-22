@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import PricingPlan from '../models/PricingPlan';
-import User from '../models/User';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 

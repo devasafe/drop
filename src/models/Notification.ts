@@ -1,7 +1,8 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface INotification extends Document {
-  userId: Types.ObjectId;
+  // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+  userId: string;
   message: string;
   title?: string;
   type: 'system' | 'broadcast' | 'order' | 'chat';
@@ -11,7 +12,7 @@ export interface INotification extends Document {
 }
 
 const NotificationSchema = new Schema<INotification>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: String, required: true, index: true },
   message: { type: String, required: true },
   title: { type: String },
   type: { type: String, enum: ['system', 'broadcast', 'order', 'chat'], default: 'system' },

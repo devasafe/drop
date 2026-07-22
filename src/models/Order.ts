@@ -7,7 +7,8 @@ export interface IOrderProduct {
 }
 
 export interface IOrder extends Document {
-  customerId: Types.ObjectId;
+  // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+  customerId: string;
   storeId: Types.ObjectId;
   products: IOrderProduct[];
   totalValue: number;
@@ -67,7 +68,7 @@ const OrderProductSchema = new Schema<IOrderProduct>({
 });
 
 const OrderSchema = new Schema<IOrder>({
-  customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  customerId: { type: String, required: true, index: true },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
   products: [OrderProductSchema],
   totalValue: { type: Number, required: true },

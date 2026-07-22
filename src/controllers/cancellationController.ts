@@ -4,7 +4,6 @@ import { AuthenticatedRequest } from '../types';
 import Cancellation, { ICancellation } from '../models/Cancellation';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
-import User from '../models/User';
 import Store from '../models/Store';
 import Product from '../models/Product';
 import Wallet from '../models/Wallet';

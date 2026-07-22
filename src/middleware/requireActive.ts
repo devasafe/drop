@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 
 /**
  * Middleware que verifica se o usuario autenticado NAO esta bloqueado.
@@ -19,14 +19,17 @@ export const requireActiveUser = async (req: AuthenticatedRequest, res: Response
     const userId = (req.user as any)?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const user = await User.findById(userId).select('status blockReason').lean();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true, blockReason: true },
+    });
     if (!user) return res.status(401).json({ error: 'User not found' });
 
-    if ((user as any).status === 'blocked') {
+    if (user.status === 'blocked') {
       return res.status(403).json({
         error: 'ACCOUNT_BLOCKED',
         message: 'Sua conta esta bloqueada. Entre em contato com o suporte.',
-        reason: (user as any).blockReason || undefined,
+        reason: user.blockReason || undefined,
       });
     }
 

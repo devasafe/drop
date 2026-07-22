@@ -2,7 +2,8 @@ import { Response, Request } from 'express';
 import { AuthenticatedRequest } from '../types';
 import Store, { IStore, IOperatingHoursDay } from '../models/Store';
 import Order from '../models/Order';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import Product from '../models/Product';
 import Category from '../models/Category';
 import Delivery from '../models/Delivery';
@@ -60,7 +61,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       let customerName = undefined;
       let customerObj = undefined;
       if (o.customerId) {
-        customerObj = await User.findById(o.customerId).select('name').lean();
+        customerObj = await prisma.user.findUnique({ where: { id: String(o.customerId) }, select: { id: true, name: true } });
         if (customerObj && customerObj.name) customerName = customerObj.name;
       }
       // Busca nome da loja
@@ -230,7 +231,7 @@ export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Respons
     // Remove loja
     await store.deleteOne();
     // Remove usuário lojista
-    await User.findByIdAndDelete(store.ownerId);
+    await prisma.user.delete({ where: { id: String(store.ownerId) } });
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -280,8 +281,7 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
     await store.save();
     
     // ✅ FIX: Atualizar user.storeId para que o wallet funcione
-    const User = require('../models/User').default;
-    await User.findByIdAndUpdate(ownerId, { storeId: store._id }, { new: true });
+    await prisma.user.update({ where: { id: String(ownerId) }, data: { storeId: String(store._id) } });
     console.log('✅ [CREATE_STORE] User.storeId atualizado:', { ownerId, storeId: store._id });
     
     // Broadcast store creation

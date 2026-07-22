@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import Gamification, { IGamification, GamificationLevel } from '../models/Gamification';
 import Delivery from '../models/Delivery';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import Wallet from '../models/Wallet';
 import { BENEFITS } from '../config/benefits';
 import { emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitRankingUpdated } from '../utils/socketEmitter';
@@ -218,7 +218,7 @@ export const getMonthlyRanking = async (_req: Request, res: Response) => {
   const gamifications = await Gamification.find();
   const ranking = [];
   for (const g of gamifications) {
-    const user = await User.findById(g.user_id);
+    const user = await userRepository.findById(String(g.user_id)) as any;
     if (!user || (user.role !== 'motoboy' && !user.roles?.includes('motoboy'))) continue;
     const pontosMes = (g.history || [])
       .filter(h => h.date >= start && h.date <= end)
@@ -279,7 +279,7 @@ export const getRanking = async (_req: Request, res: Response) => {
   const top = await Gamification.find().sort({ points: -1 }).limit(100);
   if (!Array.isArray(top)) return res.json([]);
   const withNames = await Promise.all(top.map(async (g) => {
-    const user = await User.findById(g.user_id);
+    const user = await userRepository.findById(String(g.user_id)) as any;
     return { ...g.toObject(), name: user?.name || '' };
   }));
   emitRankingUpdated(withNames);

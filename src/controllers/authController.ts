@@ -3,8 +3,9 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
-import User from '../models/User';
-import PasswordResetToken from '../models/PasswordResetToken';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import { AuthenticatedRequest } from '../types';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -70,7 +71,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    const existing = await User.findOne({ email });
+    const existing = await userRepository.findByEmail(email);
     if (existing) return res.status(409).json({ error: 'User already exists' });
 
     const salt = await bcrypt.genSalt(10);
@@ -80,29 +81,30 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     const photoPath = req.file ? await uploadToCloudinary(req.file.buffer, 'drop/users') : undefined;
 
     // Todos os usuários podem ser cliente + seu role específico
-    const roles = role && role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
+    const roles = (role && role !== 'cliente' ? [role, 'cliente'] : ['cliente']) as Role[];
 
-    const user = new User({
+    const user = await userRepository.create({
       name,
       email,
       passwordHash,
-      role, // Legacy
+      role: (role as Role) || undefined, // Legacy
       roles, // Novo - agora inclui 'cliente' para todos
-      activeRole: role || 'cliente', // Novo
+      activeRole: (role as Role) || 'cliente', // Novo
       telefone,
       cpf,
       rg,
       dataNascimento,
       sexo,
-      photo: photoPath
+      photo: photoPath,
     });
-    await user.save();
 
     // ✨ CRIAR CARTEIRA AUTOMATICAMENTE
+    // Segue no Mongoose: a carteira só migra na Fatia 5 (financeiro). Como antes,
+    // uma falha aqui não impede o cadastro — a carteira é criada sob demanda depois.
     if (Wallet) {
       try {
         const wallet = new Wallet({
-          owner: user._id.toString(),
+          owner: user.id,
           ownerType: 'user',
           balance: 0,
           totalIncome: 0,
@@ -112,15 +114,15 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
           updatedAt: new Date()
         });
         await wallet.save();
-        console.log(`✅ Carteira criada automaticamente para usuário: ${user._id}`);
+        console.log(`✅ Carteira criada automaticamente para usuário: ${user.id}`);
       } catch (err) {
-        console.warn(`⚠️ Erro ao criar carteira para ${user._id}:`, err);
+        console.warn(`⚠️ Erro ao criar carteira para ${user.id}:`, err);
         // Continuar mesmo se falhar na carteira
       }
     }
 
     // Não criar loja automaticamente. Loja será criada após cadastro pelo painel.
-    return res.status(201).json({ id: user._id, email: user.email, role: user.role });
+    return res.status(201).json({ id: user.id, email: user.email, role: user.role });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -133,7 +135,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
 
-    const user = await User.findOne({ email });
+    const user = await userRepository.findByEmailWithAddresses(email);
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     const matched = await bcrypt.compare(password, user.passwordHash);
@@ -164,7 +166,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     if (!allRoles.includes('cliente')) {
       allRoles.push('cliente');
       user.roles = allRoles;
-      await user.save();
+      await userRepository.update(user.id, { roles: allRoles });
       if (process.env.NODE_ENV === 'development') console.log('✅ Updated user roles in login. Now has:', allRoles);
     }
 
@@ -173,7 +175,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, role: activeRole, activeRole, roles: allRoles },
+      { id: user.id, role: activeRole, activeRole, roles: allRoles },
       JWT_SECRET as jwt.Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
     );
@@ -182,25 +184,25 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     const { setTokenCookie, setUserCookie } = require('../utils/cookieManager');
     setTokenCookie(res, token);
     setUserCookie(res, {
-      id: user._id,
+      id: user.id,
       name: user.name,
       email: user.email,
       role: activeRole,
       activeRole: activeRole,
       roles: allRoles,
-      storeId: user.storeId?.toString() || null, // ✅ CRÍTICO: incluir storeId
+      storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
     });
 
     return res.json({
       token, // Retornar para compatibilidade com clientes antigos
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: activeRole, // Manter compatibilidade
         activeRole: activeRole, // Novo
         roles: allRoles, // Novo - múltiplos roles
-        storeId: user.storeId?.toString() || null, // ✅ CRÍTICO: incluir storeId
+        storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
         mainAddress: getDefaultAddress(user)
       }
     });
@@ -217,22 +219,27 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email obrigatório' });
 
-    const user = await User.findOne({ email });
+    const user = await userRepository.findByEmail(email);
     // Resposta genérica: nunca revela se o email existe ou não
     const genericOk = { message: 'Se o email estiver cadastrado, enviamos um código de redefinição.' };
 
     if (user) {
       // Anti-spam: no máximo 1 código a cada 60s
-      const recent = await PasswordResetToken.findOne({ userId: user.id }).sort({ createdAt: -1 });
+      const recent = await prisma.passwordResetToken.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+      });
       if (recent && Date.now() - recent.createdAt.getTime() < 60_000) {
         return res.json(genericOk);
       }
-      await PasswordResetToken.deleteMany({ userId: user.id });
+      await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
       const code = String(crypto.randomInt(100000, 1000000)); // 6 dígitos
-      await PasswordResetToken.create({
-        userId: user.id,
-        tokenHash: sha256(code),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: sha256(code),
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+        },
       });
       try {
         await sendEmail(
@@ -241,7 +248,7 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
           `Seu código para redefinir a senha é <b style="font-size:22px;letter-spacing:2px">${code}</b>.<br/>Ele expira em 15 minutos.<br/><br/>Se não foi você que pediu, ignore este email.`
         );
       } catch (mailErr: any) {
-        await PasswordResetToken.deleteMany({ userId: user.id });
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
         const detail = mailErr?.response?.data?.message || mailErr?.message || 'erro desconhecido';
         return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });
       }
@@ -260,10 +267,15 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, código e nova senha são obrigatórios' });
     if (String(newPassword).length < 8) return res.status(400).json({ error: 'A senha deve ter ao menos 8 caracteres' });
 
-    const user = await User.findOne({ email });
+    const user = await userRepository.findByEmail(email);
     if (!user) return res.status(400).json({ error: 'Código inválido ou expirado' });
 
-    const record = await PasswordResetToken.findOne({ userId: user.id }).sort({ createdAt: -1 });
+    // ⚠️ O Postgres não tem TTL como o índice do Mongo: a expiração é sempre
+    // conferida aqui, e a limpeza física fica para o job da fatia de auth.
+    const record = await prisma.passwordResetToken.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
     if (!record || record.expiresAt.getTime() < Date.now()) {
       return res.status(400).json({ error: 'Código inválido ou expirado' });
     }
@@ -272,9 +284,10 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     const salt = await bcrypt.genSalt(10);
-    user.passwordHash = await bcrypt.hash(String(newPassword), salt);
-    await user.save();
-    await PasswordResetToken.deleteMany({ userId: user.id });
+    await userRepository.update(user.id, {
+      passwordHash: await bcrypt.hash(String(newPassword), salt),
+    });
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
     return res.json({ message: 'Senha redefinida com sucesso. Você já pode entrar.' });
   } catch (err) {
@@ -306,7 +319,7 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const user = await User.findById(userId);
+    const user = await userRepository.findByIdWithAddresses(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -319,9 +332,9 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
 
     // Se é motoboy ou lojista, adicionar também cliente se não tiver
     if ((user.role === 'motoboy' || user.role === 'lojista') && !roles.includes('cliente')) {
-      roles.push('cliente');
+      roles.push('cliente' as Role);
       user.roles = roles;
-      await user.save();
+      await userRepository.update(user.id, { roles });
     }
 
     if (!roles.includes(newRole)) {
@@ -329,15 +342,15 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Atualizar activeRole
-    user.activeRole = newRole as any;
-    await user.save();
+    user.activeRole = newRole as Role;
+    await userRepository.update(user.id, { activeRole: newRole as Role });
 
     if (!JWT_SECRET) {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
     const token = jwt.sign(
-      { id: user._id, role: newRole, activeRole: newRole, roles },
+      { id: user.id, role: newRole, activeRole: newRole, roles },
       JWT_SECRET as jwt.Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
     );
@@ -345,18 +358,18 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
     // Atualiza o cookie httpOnly com o novo role (senão o cookie ficaria com o role antigo)
     const { setTokenCookie, setUserCookie } = require('../utils/cookieManager');
     setTokenCookie(res, token);
-    setUserCookie(res, { id: user._id, name: user.name, email: user.email, role: newRole, activeRole: newRole, roles: user.roles });
+    setUserCookie(res, { id: user.id, name: user.name, email: user.email, role: newRole, activeRole: newRole, roles: user.roles });
 
     return res.json({
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: newRole,
         activeRole: newRole,
         roles: user.roles || [user.role || 'cliente'],
-        storeId: user.storeId?.toString() || null, // ✅ CRÍTICO: incluir storeId
+        storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
         mainAddress: getDefaultAddress(user)
       }
     });
@@ -370,29 +383,23 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
 // Endpoint para migrar usuários antigos e adicionar 'cliente' a todos
 export const migrateUsersToMultiRole = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // Buscar todos os usuários que não têm 'cliente' nos roles
-    const usersToUpdate = await User.find({
-      $or: [
-        { roles: { $exists: false } },
-        { roles: { $type: 'string' } }, // roles é string em vez de array
-        { roles: { $not: { $in: ['cliente'] } } } // roles é array mas não contém 'cliente'
-      ]
+    // Buscar todos os usuários que não têm 'cliente' nos roles.
+    // No Postgres `roles` é sempre uma lista de enum (nunca ausente nem string
+    // solta, como acontecia no Mongo), então basta a condição de conteúdo.
+    const usersToUpdate = await prisma.user.findMany({
+      where: { NOT: { roles: { has: 'cliente' } } },
     });
 
     let updated = 0;
     for (const user of usersToUpdate) {
-      let roles = user.roles || [user.role || 'cliente'];
-      if (!Array.isArray(roles)) {
-        roles = [roles];
-      }
-      if (!roles.includes('cliente')) {
-        roles.push('cliente');
-      }
-      user.roles = roles;
-      if (!user.activeRole) {
-        user.activeRole = user.role || 'cliente';
-      }
-      await user.save();
+      const roles = [...user.roles, 'cliente' as Role];
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          roles,
+          activeRole: user.activeRole || user.role || 'cliente',
+        },
+      });
       updated++;
     }
 

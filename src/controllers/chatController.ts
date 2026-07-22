@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 import Store from '../models/Store';
@@ -97,7 +97,7 @@ export const createOrGetConversation = async (
     }
 
     // Buscar dados dos participantes
-    const user = await User.findById(userId).select('name role activeRole').lean();
+    const user = await userRepository.findById(String(userId)) as any;
     
     let otherUser;
     
@@ -108,14 +108,10 @@ export const createOrGetConversation = async (
         return res.status(404).json({ error: 'Loja não encontrada' });
       }
       otherUserId = store.ownerId.toString();
-      otherUser = await User.findById(otherUserId)
-        .select('name role activeRole')
-        .lean();
+      otherUser = await userRepository.findById(String(otherUserId)) as any;
     } else {
       // Para outros tipos, otherParticipantId é userId direto
-      otherUser = await User.findById(otherParticipantId)
-        .select('name role activeRole')
-        .lean();
+      otherUser = await userRepository.findById(String(otherParticipantId)) as any;
     }
 
     if (!user || !otherUser) {
@@ -126,12 +122,12 @@ export const createOrGetConversation = async (
     const newConversation = new Conversation({
       type,
       participant1: {
-        userId: user._id,
+        userId: user.id,
         role: normalizeRole(user.activeRole || user.role),
         name: user.name
       },
       participant2: {
-        userId: otherUser._id,
+        userId: otherUser.id,
         role: normalizeRole(otherUser.activeRole || otherUser.role),
         name: otherUser.name
       },
@@ -445,7 +441,7 @@ export const sendMessage = async (
       }
 
       // Buscar dados dos participantes
-      const user = await User.findById(userId).select('name role activeRole').lean();
+      const user = await userRepository.findById(String(userId)) as any;
       
       // 🆕 Se for conversa loja-motoboy, otherParticipantId pode ser storeId
       let otherUser;
@@ -457,14 +453,14 @@ export const sendMessage = async (
         const store = await Store.findById(otherParticipantId).select('ownerId name').lean();
         if (store) {
           otherUserIdForNotif = store.ownerId.toString();
-          otherUser = await User.findById(otherUserIdForNotif).select('name role activeRole').lean();
+          otherUser = await userRepository.findById(String(otherUserIdForNotif)) as any;
         } else {
           // Se não for store, é userId
-          otherUser = await User.findById(otherParticipantId).select('name role activeRole').lean();
+          otherUser = await userRepository.findById(String(otherParticipantId)) as any;
         }
       } else {
         // Para outros tipos, otherParticipantId é userId
-        otherUser = await User.findById(otherParticipantId).select('name role activeRole').lean();
+        otherUser = await userRepository.findById(String(otherParticipantId)) as any;
       }
 
       if (!user || !otherUser) {
@@ -490,12 +486,12 @@ export const sendMessage = async (
       conversation = new Conversation({
         type: determinedType,
         participant1: {
-          userId: user._id,
+          userId: user.id,
           role: normalizeRole(userRole),
           name: user.name
         },
         participant2: {
-          userId: otherUser._id,
+          userId: otherUser.id,
           role: normalizeRole(otherRole),
           name: otherUser.name
         },
@@ -1078,8 +1074,8 @@ export const createOrGetPrePurchaseConversation = async (
     console.log(`📨 [CONTROLLER] Conversa não encontrada, buscando participantes`);
 
     // Buscar dados dos participantes
-    const customer = await User.findById(userId).select('name role').lean();
-    const storeOwner = await User.findById(storeOwnerId).select('name role').lean();
+    const customer = await userRepository.findById(String(userId)) as any;
+    const storeOwner = await userRepository.findById(String(storeOwnerId)) as any;
 
     console.log(`📨 [CONTROLLER] customer:`, customer ? customer.name : 'NOT FOUND');
     console.log(`📨 [CONTROLLER] storeOwner:`, storeOwner ? storeOwner.name : 'NOT FOUND');

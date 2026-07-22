@@ -10,7 +10,9 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 import Store from '../models/Store';
 import Product from '../models/Product';
@@ -71,14 +73,16 @@ let mongod: MongoMemoryReplSet;
 async function createUser(role = 'cliente', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
   const roles = role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
-  const user = await User.create({
-    name: `User ${role}`,
-    email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
-    passwordHash, role, roles, activeRole: role,
-    verification,
+  const user = await prisma.user.create({
+    data: {
+      name: `User ${role}`,
+      email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@verif.test`,
+      passwordHash, role: role as Role, roles: roles as Role[], activeRole: role as Role,
+      verification,
+    },
   });
-  const token = jwt.sign({ id: user._id.toString(), role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
-  return { token, userId: user._id.toString() };
+  const token = jwt.sign({ id: user.id, role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
+  return { token, userId: user.id };
 }
 
 beforeAll(async () => {
@@ -101,6 +105,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@verif.test');
   const collections = mongoose.connection.collections;
   for (const key in collections) await collections[key].deleteMany({});
 });
@@ -165,7 +170,7 @@ describe('Verificação de email por código', () => {
       .set('Authorization', `Bearer ${token}`).send({ code });
     expect(res.status).toBe(200);
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } }) as any;
     expect(user!.verification!.email.status).toBe('verified');
   });
 
@@ -193,7 +198,7 @@ describe('Aprovação de documento pelo admin', () => {
       .set('Authorization', `Bearer ${ceo.token}`);
     expect(res.status).toBe(200);
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } }) as any;
     expect(user!.verification!.document.status).toBe('approved');
   });
 
@@ -231,7 +236,7 @@ describe('Editar dados pessoais reseta verificação', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ cpf: '111.444.777-35' });
     expect(res.status).toBe(200);
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } }) as any;
     expect(user!.cpf).toBe('11144477735'); // armazenado em dígitos
     expect(user!.verification!.document.status).toBe('none');
   });
@@ -240,9 +245,9 @@ describe('Editar dados pessoais reseta verificação', () => {
     const { token, userId } = await createUser('cliente', { email: { status: 'verified' }, document: { status: 'approved' } });
     const res = await request(app).patch('/api/user/me')
       .set('Authorization', `Bearer ${token}`)
-      .send({ email: `novo-${Date.now()}@test.com` });
+      .send({ email: `novo-${Date.now()}@verif.test` });
     expect(res.status).toBe(200);
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } }) as any;
     expect(user!.verification!.email.status).toBe('pending');
   });
 });

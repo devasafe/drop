@@ -3,7 +3,7 @@ import DeliveryInvoice, { IDeliveryInvoice } from '../models/DeliveryInvoice';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 import Store from '../models/Store';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 
 /**
  * Gera numero sequencial NS-000001 baseado na contagem atual.
@@ -64,8 +64,8 @@ class DeliveryInvoiceService {
 
     const [store, customer, motoboy] = await Promise.all([
       Store.findById(order.storeId).session(session || null),
-      User.findById(order.customerId).session(session || null),
-      delivery.motoboyId ? User.findById(delivery.motoboyId).session(session || null) : null,
+      userRepository.findById(String(order.customerId)),
+      delivery.motoboyId ? userRepository.findById(String(delivery.motoboyId)) : null,
     ]);
 
     if (!motoboy) throw new Error(`Motoboy nao encontrado para delivery ${deliveryId}`);
@@ -86,7 +86,7 @@ class DeliveryInvoiceService {
           deliveryId: new Types.ObjectId(deliveryId),
           payoutId: payoutId ? new Types.ObjectId(payoutId) : undefined,
 
-          motoboyId: motoboy._id,
+          motoboyId: motoboy.id,
           motoboyName: (motoboy as any).name || 'Motoboy',
           motoboyEmail: (motoboy as any).email,
           motoboyCpf: (motoboy as any).cpf,

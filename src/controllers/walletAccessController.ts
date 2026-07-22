@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import WalletAccessRequest from '../models/WalletAccessRequest';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import { emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
 
@@ -47,7 +47,7 @@ export const requestWalletAccess = async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ error: 'Justificativa (reason) é obrigatória (mín 5 caracteres)' });
     }
 
-    const target = await User.findById(targetUserId).select('_id name');
+    const target = await userRepository.findById(String(targetUserId)) as any;
     if (!target) return res.status(404).json({ error: 'Usuário alvo não encontrado' });
 
     // Não permitir pedir pra si mesmo

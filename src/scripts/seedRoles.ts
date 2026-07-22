@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import crypto from 'crypto';
 
 // Simular bcrypt com crypto (alternativa)
@@ -54,7 +54,7 @@ const seedRoles = async () => {
 
     for (const [key, roleData] of Object.entries(ROLES)) {
       // Verificar se já existe
-      const exists = await User.findOne({ role: roleData.name });
+      const exists = await prisma.user.findFirst({ where: { role: roleData.name as any } });
       
       if (exists) {
         console.log(`⚠️  Role "${roleData.name}" já existe. Pulando...`);
@@ -65,17 +65,18 @@ const seedRoles = async () => {
       const hashedPassword = hashPassword(roleData.password);
 
       // Criar usuário
-      const user = new User({
-        name: roleData.name,
-        email: roleData.email,
-        password: hashedPassword,
-        role: roleData.name,
-        permissions: roleData.permissions,
-        isAdmin: true,
-        status: 'active'
+      await prisma.user.create({
+        data: {
+          name: roleData.name,
+          email: roleData.email,
+          passwordHash: hashedPassword,
+          role: roleData.name as any,
+          activeRole: roleData.name as any,
+          roles: [roleData.name as any],
+          permissions: roleData.permissions,
+          status: 'active',
+        },
       });
-
-      await user.save();
       
       console.log(`✅ Role criada: ${roleData.name}`);
       console.log(`   Email: ${roleData.email}`);

@@ -1,7 +1,8 @@
 import { Response } from 'express';
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import OtpCode from '../models/OtpCode';
 import EmailVerificationToken from '../models/EmailVerificationToken';
 import otpProvider from '../services/otpProvider';
@@ -22,7 +23,7 @@ const ensureVerification = (user: any) => {
 // GET /api/verification/me — status do próprio usuário
 export const getMyVerification = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const user = await User.findById(req.user?.id).select('verification');
+    const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     return res.json({
@@ -39,7 +40,7 @@ export const getMyVerification = async (req: AuthenticatedRequest, res: Response
 // ===================== EMAIL =====================
 export const resendEmailVerification = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     if (user.verification!.email.status === 'verified') {
@@ -95,12 +96,11 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Código incorreto' });
     }
 
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(userId) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     user.verification!.email = { status: 'verified', verifiedAt: new Date() };
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
     await EmailVerificationToken.deleteMany({ userId });
 
     return res.json({ message: 'Email verificado com sucesso' });
@@ -117,7 +117,7 @@ export const sendPhoneOtp = async (req: AuthenticatedRequest, res: Response) => 
     const e164 = toE164BR(String(phone || ''));
     if (!e164) return res.status(400).json({ error: 'Telefone inválido' });
 
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     // Anti-spam: 1 envio a cada 60s
@@ -149,7 +149,7 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'Código obrigatório' });
 
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const otp = await OtpCode.findOne({ userId: user.id }).sort({ createdAt: -1 });
@@ -170,8 +170,10 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
     ensureVerification(user);
     user.verification!.phone = { status: 'verified', e164: otp.e164, verifiedAt: new Date() };
     if (!user.telefone) user.telefone = otp.e164;
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, {
+      verification: user.verification,
+      telefone: user.telefone,
+    });
     await OtpCode.deleteMany({ userId: user.id });
 
     return res.json({ message: 'Telefone verificado com sucesso' });
@@ -192,7 +194,7 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: 'Envie a frente e o verso do documento' });
     }
 
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     if (user.verification!.document.status === 'pending') {
@@ -229,8 +231,7 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
       backUrl,
       submittedAt: new Date(),
     };
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
 
     emitAdminNotification({
       title: 'Nova verificação pendente',
@@ -248,11 +249,23 @@ export const submitDocument = async (req: AuthenticatedRequest, res: Response) =
 // ===================== ADMIN =====================
 export const listPendingVerifications = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const users = await User.find({ 'verification.document.status': 'pending' })
-      .select('name email roles role verification')
-      .sort({ 'verification.document.submittedAt': 1 })
-      .lean();
-    return res.json({ count: users.length, items: users });
+    // `verification` é JSONB: o filtro por caminho substitui a dot-notation do Mongo.
+    // A ordenação por `document.submittedAt` não é expressável em `orderBy` sobre JSON,
+    // então ordenamos em memória (a fila de KYC pendente é pequena por natureza).
+    const users = await prisma.user.findMany({
+      where: { verification: { path: ['document', 'status'], equals: 'pending' } },
+      select: { id: true, name: true, email: true, roles: true, role: true, verification: true },
+    });
+
+    const items = users
+      .map((u) => ({ ...u, _id: u.id }))
+      .sort((a, b) => {
+        const at = new Date((a.verification as any)?.document?.submittedAt ?? 0).getTime();
+        const bt = new Date((b.verification as any)?.document?.submittedAt ?? 0).getTime();
+        return at - bt;
+      });
+
+    return res.json({ count: items.length, items });
   } catch (err) {
     logger.error('Erro ao listar verificações', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -262,7 +275,7 @@ export const listPendingVerifications = async (_req: AuthenticatedRequest, res: 
 export const approveDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId } = req.params;
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(userId) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     if (user.verification!.document.status !== 'pending') {
@@ -272,8 +285,7 @@ export const approveDocument = async (req: AuthenticatedRequest, res: Response) 
     user.verification!.document.reviewedBy = req.user?.id;
     user.verification!.document.reviewedAt = new Date();
     user.verification!.document.rejectionReason = undefined;
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
     logger.info('[verification][AUDIT] documento aprovado', { userId, by: req.user?.id });
     return res.json({ message: 'Documento aprovado' });
   } catch (err) {
@@ -286,7 +298,7 @@ export const rejectDocument = async (req: AuthenticatedRequest, res: Response) =
   try {
     const { userId } = req.params;
     const { reason } = req.body;
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(userId) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureVerification(user);
     if (user.verification!.document.status !== 'pending') {
@@ -296,8 +308,7 @@ export const rejectDocument = async (req: AuthenticatedRequest, res: Response) =
     user.verification!.document.reviewedBy = req.user?.id;
     user.verification!.document.reviewedAt = new Date();
     user.verification!.document.rejectionReason = reason || 'Documento não aprovado';
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
     logger.info('[verification][AUDIT] documento rejeitado', { userId, by: req.user?.id, reason });
     return res.json({ message: 'Documento rejeitado' });
   } catch (err) {

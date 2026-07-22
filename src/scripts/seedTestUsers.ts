@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import Store from '../models/Store';
 
 /**
@@ -19,15 +19,12 @@ const PASS = 'Senha@123456';
 
 async function upsertUser(email: string, fields: any) {
   const passwordHash = await bcrypt.hash(PASS, 10);
-  const existing = await User.findOne({ email });
-  if (existing) {
-    Object.assign(existing, fields);
-    existing.passwordHash = passwordHash;
-    existing.markModified('verification');
-    await existing.save();
-    return existing;
-  }
-  return User.create({ email, passwordHash, ...fields });
+  // O upsert do Prisma cobre os dois caminhos (criar / atualizar) numa chamada só.
+  return prisma.user.upsert({
+    where: { email },
+    update: { ...fields, passwordHash },
+    create: { email, passwordHash, ...fields },
+  });
 }
 
 async function run() {
@@ -81,11 +78,11 @@ async function run() {
     },
   });
 
-  let store = await Store.findOne({ ownerId: lojista._id });
+  let store = await Store.findOne({ ownerId: lojista.id });
   if (!store) {
-    store = await Store.create({ ownerId: lojista._id, name: 'Loja Teste', isOpen: true });
+    store = await Store.create({ ownerId: lojista.id, name: 'Loja Teste', isOpen: true });
   }
-  await User.findByIdAndUpdate(lojista._id, { storeId: store._id });
+  await prisma.user.update({ where: { id: lojista.id }, data: { storeId: String(store._id) } });
 
   console.log('\n═══════════════════════════════════════════');
   console.log('✅ Seeds criados (senha de todos:', PASS, ')');

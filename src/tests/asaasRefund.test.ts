@@ -11,7 +11,8 @@ jest.mock('../services/asaas/refund', () => ({
 
 import app from '../app';
 import env from '../config/env';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Store from '../models/Store';
 import Wallet from '../models/Wallet';
 import Order from '../models/Order';
@@ -37,22 +38,25 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@aref.test');
   for (const key in mongoose.connection.collections) await mongoose.connection.collections[key].deleteMany({});
   refundMock.mockClear();
 });
 
 describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
   it('estorna de verdade no Asaas e NÃO credita carteira virtual', async () => {
-    const customer = await User.create({
-      name: 'Cliente', email: `c-${Date.now()}@t.com`, passwordHash: await bcrypt.hash('Senha123!', 10),
-      role: 'cliente', roles: ['cliente'], activeRole: 'cliente',
+    const customer = await prisma.user.create({
+      data: {
+        name: 'Cliente', email: `c-${Date.now()}@aref.test`, passwordHash: await bcrypt.hash('Senha123!', 10),
+        role: 'cliente', roles: ['cliente'], activeRole: 'cliente',
+      },
     });
-    await Wallet.create({ owner: String(customer._id), ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
-    const token = jwt.sign({ id: String(customer._id), role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
+    await Wallet.create({ owner: customer.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
+    const token = jwt.sign({ id: customer.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja' });
 
     const order = await Order.create({
-      customerId: customer._id, storeId: store._id,
+      customerId: customer.id, storeId: store._id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100, deliveryFee: 0, status: 'pago', paymentMethod: 'pix',
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_1', asaasChargeStatus: 'received',
@@ -73,7 +77,7 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
     expect(updated!.asaasChargeStatus).toBe('refunded');
 
     // carteira virtual NÃO foi creditada (estorno é real, volta pro PIX)
-    const wallet = await Wallet.findOne({ owner: String(customer._id), ownerType: 'user' });
+    const wallet = await Wallet.findOne({ owner: String(customer.id), ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
 
     // payout da loja foi cancelado (espelho)

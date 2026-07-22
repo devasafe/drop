@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import PricingPlan from '../models/PricingPlan';
 import { authenticate } from '../middleware/auth';
 
@@ -15,7 +15,7 @@ router.put('/plan', authenticate, async (req: Request, res: Response) => {
     const { planId } = req.body;
 
     // Verificar se o user é lojista
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(String(userId)) as any;
     if (!user || !user.roles?.includes('lojista')) {
       return res.status(403).json({ error: 'Apenas lojistas podem escolher plano' });
     }
@@ -49,7 +49,7 @@ router.get('/plan', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
 
-    const user = await User.findById(userId).populate('planId');
+    const user = await userRepository.findById(String(userId)) as any;
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }

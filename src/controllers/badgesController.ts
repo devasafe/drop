@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import Store from '../models/Store';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
@@ -29,9 +29,9 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
     );
     if (isStaff) {
       const [docs, facial, courier, stores] = await Promise.all([
-        User.countDocuments({ 'verification.document.status': 'pending' }),
-        User.countDocuments({ 'verification.facial.status': 'pending' }),
-        User.countDocuments({ 'verification.courier.status': 'pending' }),
+        prisma.user.count({ where: { verification: { path: ['document', 'status'], equals: 'pending' } } }),
+        prisma.user.count({ where: { verification: { path: ['facial', 'status'], equals: 'pending' } } }),
+        prisma.user.count({ where: { verification: { path: ['courier', 'status'], equals: 'pending' } } }),
         Store.countDocuments({
           $or: [
             { 'verification.cnpj.status': 'pending' },

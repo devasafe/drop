@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import Store from '../models/Store';
 import logger from '../config/logger';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
@@ -37,13 +37,12 @@ export const setPixKey = async (req: AuthenticatedRequest, res: Response) => {
     if (role === 'motoboy') {
       // IMPORTANTE: carregar a apiKeyEncrypted (select:false). Sem isso, o markModified
       // + save reescreve o objeto asaas SEM a apiKey e APAGA a chave da subconta.
-      const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
+      const user = await userRepository.findById(String(userId)) as any;
       if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
       if (!user.asaas) (user as any).asaas = { status: 'none' };
       user.asaas!.pixKey = pixKey.trim();
       user.asaas!.pixKeyType = type;
-      user.markModified('asaas');
-      await user.save();
+      await userRepository.update(user.id, { asaas: user.asaas });
       return res.json({ ok: true, target: 'motoboy', pixKeyType: type });
     }
 
@@ -78,7 +77,7 @@ export const getOnboardingStatus = async (req: AuthenticatedRequest, res: Respon
     if (!userId) return res.status(401).json({ error: 'Não autenticado' });
 
     if (role === 'motoboy') {
-      const user = await User.findById(userId).select('asaas addresses');
+      const user = await userRepository.findById(String(userId)) as any;
       const hasAddress = !!(user?.addresses && user.addresses.length > 0);
       return res.json({
         target: 'motoboy',
@@ -130,7 +129,7 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
 
     if (role === 'motoboy') {
       // carrega a apiKeyEncrypted p/ não apagá-la no markModified+save (vide setPixKey)
-      const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
+      const user = await userRepository.findById(String(userId)) as any;
       if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
       if (address?.street && !(user.addresses && user.addresses.length)) {
@@ -144,11 +143,10 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
       if (!user.asaas) (user as any).asaas = { status: 'none' };
       user.asaas!.pixKey = pixKey.trim();
       user.asaas!.pixKeyType = type;
-      user.markModified('asaas');
-      await user.save();
+      await userRepository.update(user.id, { asaas: user.asaas });
 
-      await ensureMotoboySubaccount(String(user._id));
-      const fresh = await User.findById(user._id).select('asaas');
+      await ensureMotoboySubaccount(user.id);
+      const fresh = await userRepository.findById(user.id) as any;
       return res.json({ ok: true, target: 'motoboy', asaas: fmt(fresh?.asaas) });
     }
 

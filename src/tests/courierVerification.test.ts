@@ -9,7 +9,8 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { isValidPlate, isValidCNH } from '../utils/documentValidation';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 
@@ -60,12 +61,12 @@ let mongod: MongoMemoryReplSet;
 async function mkUser(role = 'motoboy', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
   const roles = role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
-  const user = await User.create({
-    name: `User ${role}`, email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@t.com`,
+  const user = await prisma.user.create({ data: {
+    name: `User ${role}`, email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@cour.test`,
     passwordHash, role, roles, activeRole: role, verification,
-  });
-  const token = jwt.sign({ id: user._id.toString(), role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
-  return { token, userId: user._id.toString() };
+  } } as any);
+  const token = jwt.sign({ id: user.id.toString(), role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
+  return { token, userId: user.id.toString() };
 }
 
 beforeAll(async () => {
@@ -74,6 +75,7 @@ beforeAll(async () => {
 }, 60000);
 afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@cour.test');
   const c = mongoose.connection.collections;
   for (const k in c) await c[k].deleteMany({});
 });
@@ -115,7 +117,7 @@ describe('Aprovação do motoboy pelo admin', () => {
       .set('Authorization', `Bearer ${ceo.token}`);
     expect(r.status).toBe(200);
 
-    const u = await User.findById(motoboy.userId);
+    const u = await prisma.user.findUnique({ where: { id: motoboy.userId } }) as any;
     expect(u!.verification!.courier!.status).toBe('approved');
     expect(isMotoboyVerified(u)).toBe(true);
   });

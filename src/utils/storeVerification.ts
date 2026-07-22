@@ -1,5 +1,6 @@
 import Store from '../models/Store';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import { isClientVerified } from './clientVerification';
 import env from '../config/env';
 import { ensureStoreSubaccount } from '../services/asaas/subaccount';
@@ -30,7 +31,7 @@ export function computeStoreVerified(store: any, owner: any): boolean {
 export async function recomputeStoreVerification(storeId: string): Promise<boolean> {
   const store = await Store.findById(storeId);
   if (!store) return false;
-  const owner = await User.findById(store.ownerId).select('verification');
+  const owner = await userRepository.findById(String(store.ownerId)) as any;
   const verified = computeStoreVerified(store, owner);
   if (store.isVerified !== verified) {
     store.isVerified = verified;

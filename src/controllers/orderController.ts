@@ -4,7 +4,8 @@ import { AuthenticatedRequest } from '../types';
 import Order from '../models/Order';
 import Store from '../models/Store';
 import { calculateRoute, calculateDistance } from '../services/routeCalculator';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import Product from '../models/Product';
 import Transaction from '../models/Transaction';
 import Delivery from '../models/Delivery';
@@ -105,7 +106,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // verificados e documento aprovado. Desligado por padrão para não travar
     // compras antes do frontend de verificação existir — ligue com KYC_ENFORCED=true.
     if (process.env.KYC_ENFORCED === 'true') {
-      const buyer = await User.findById(customerId).select('verification').session(session);
+      // Sem `.session(session)`: o User está no Postgres e não participa da transação
+      // Mongo. É uma leitura de gate (KYC), não uma escrita — não há o que reverter.
+      const buyer = await userRepository.findById(String(customerId));
       const missingKyc = missingClientVerifications(buyer);
       if (missingKyc.length > 0) {
         await session.abortTransaction();
@@ -560,7 +563,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
             // Cliente Asaas pode estar obsoleto (ex: troca da conta-mãe Asaas) — o id
             // cacheado não existe na conta nova. Recria o cliente e tenta 1x.
             logger.warn('1ª cobrança falhou — recriando cliente Asaas e tentando novamente', { orderId: order._id });
-            await User.updateOne({ _id: customerId }, { $unset: { 'asaas.customerId': '' } });
+            // `asaas` é JSONB: não há `$unset` de subcampo — lemos, removemos a chave e regravamos.
+            const stale = await prisma.user.findUnique({ where: { id: String(customerId) }, select: { asaas: true } });
+            const asaasData = { ...((stale?.asaas as any) ?? {}) };
+            delete asaasData.customerId;
+            await prisma.user.update({ where: { id: String(customerId) }, data: { asaas: asaasData } });
             asaasCustomerId = await ensureAsaasCustomer(String(customerId));
             if (!asaasCustomerId) throw firstErr;
             pixCharge = await buildCharge(asaasCustomerId);
@@ -714,10 +721,10 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Carregar dados relacionados em paralelo
     const [delivery, customerObj, storeObj, productsData] = await Promise.all([
-      order.deliveryId
-        ? Delivery.findById(order.deliveryId).populate({ path: 'motoboyId', select: 'name' }).lean()
-        : null,
-      order.customerId ? User.findById(order.customerId).lean() : null,
+      // Sem `.populate('motoboyId')`: o motoboy é um User, que agora vive no Postgres.
+      // O nome é resolvido logo abaixo, num lookup explícito.
+      order.deliveryId ? Delivery.findById(order.deliveryId).lean() : null,
+      order.customerId ? userRepository.findById(String(order.customerId)) : null,
       order.storeId ? Store.findById(order.storeId).lean() : null,
       order.products?.length
         ? Product.find({ _id: { $in: order.products.map((p: any) => p.productId) } }).select('name image').lean()
@@ -744,9 +751,11 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       };
     });
 
-    const motoboyName = delivery && (delivery as any).motoboyId
-      ? (delivery as any).motoboyId?.name
-      : undefined;
+    const motoboyId = (delivery as any)?.motoboyId;
+    const motoboy = motoboyId
+      ? await prisma.user.findUnique({ where: { id: String(motoboyId) }, select: { name: true } })
+      : null;
+    const motoboyName = motoboy?.name;
 
     return res.json({
       ...order,

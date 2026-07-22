@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import { uploadToCloudinary, kycFolder } from '../utils/cloudinary';
 import { isValidCNH, isValidPlate, normalizePlate, onlyDigits } from '../utils/documentValidation';
 import { missingMotoboyVerifications } from '../utils/courierVerification';
@@ -21,7 +22,7 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     if (!isValidCNH(String(cnhNumber))) return res.status(400).json({ error: 'Número de CNH inválido' });
     if (!isValidPlate(String(plate))) return res.status(400).json({ error: 'Placa inválida' });
 
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(String(req.user?.id)) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureV(user);
     const cur: any = user.verification!.courier || { status: 'none' };
@@ -39,9 +40,20 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
     const plateNorm = normalizePlate(String(plate));
 
     // ✅ Placa e CNH não podem se repetir entre motoboys
-    const dupPlate = await User.findOne({ _id: { $ne: user._id }, 'verification.courier.plate': plateNorm });
+    // `verification` é JSONB: o filtro por caminho substitui a dot-notation do Mongo.
+    const dupPlate = await prisma.user.findFirst({
+      where: {
+        id: { not: user.id },
+        verification: { path: ['courier', 'plate'], equals: plateNorm },
+      },
+    });
     if (dupPlate) return res.status(409).json({ error: 'Esta placa já está cadastrada em outro motoboy' });
-    const dupCnh = await User.findOne({ _id: { $ne: user._id }, 'verification.courier.cnhNumber': cnhDigits });
+    const dupCnh = await prisma.user.findFirst({
+      where: {
+        id: { not: user.id },
+        verification: { path: ['courier', 'cnhNumber'], equals: cnhDigits },
+      },
+    });
     if (dupCnh) return res.status(409).json({ error: 'Esta CNH já está cadastrada em outro motoboy' });
 
     const folder = kycFolder('motoboys', String(user.id), 'cnh-placa');
@@ -55,8 +67,7 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
       platePhotoUrl,
       submittedAt: new Date(),
     };
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
     emitAdminNotification({
       title: 'Nova verificação pendente',
       body: `${user.name} (motoboy) enviou CNH e placa para análise.`,
@@ -73,7 +84,7 @@ export const submitCourier = async (req: AuthenticatedRequest, res: Response) =>
 // GET /api/verification/motoboy/me — status do motoboy
 export const getMyCourierVerification = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const user = await User.findById(req.user?.id).select('verification');
+    const user = await userRepository.findById(String(req.user?.id)) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     return res.json({
       missing: missingMotoboyVerifications(user),
@@ -90,9 +101,22 @@ export const getMyCourierVerification = async (req: AuthenticatedRequest, res: R
 // ===================== ADMIN =====================
 export const listPendingCourier = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const users = await User.find({ 'verification.courier.status': 'pending' })
-      .select('name email roles role verification.courier verification.facial')
-      .lean();
+    // O Mongo permitia projetar subcampos (`verification.courier`); no JSONB o campo
+    // vem inteiro e recortamos aqui, preservando a forma da resposta.
+    const found = await prisma.user.findMany({
+      where: { verification: { path: ['courier', 'status'], equals: 'pending' } },
+      select: { id: true, name: true, email: true, roles: true, role: true, verification: true },
+    });
+
+    const users = found.map((u) => ({
+      ...u,
+      _id: u.id,
+      verification: {
+        courier: (u.verification as any)?.courier,
+        facial: (u.verification as any)?.facial,
+      },
+    }));
+
     return res.json({ count: users.length, items: users });
   } catch (err) {
     logger.error('Erro ao listar motoboys pendentes', err as Error);
@@ -102,7 +126,7 @@ export const listPendingCourier = async (_req: AuthenticatedRequest, res: Respon
 
 async function decideCourier(req: AuthenticatedRequest, res: Response, approved: boolean) {
   const { userId } = req.params;
-  const user = await User.findById(userId);
+  const user = await userRepository.findById(String(userId)) as any;
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
   ensureV(user);
   if (user.verification!.courier!.status !== 'pending') return res.status(400).json({ error: 'Dados não estão pendentes' });
@@ -110,8 +134,7 @@ async function decideCourier(req: AuthenticatedRequest, res: Response, approved:
   user.verification!.courier!.reviewedBy = req.user?.id;
   user.verification!.courier!.reviewedAt = new Date();
   user.verification!.courier!.rejectionReason = approved ? undefined : (req.body?.reason || 'Dados não aprovados');
-  user.markModified('verification');
-  await user.save();
+  await userRepository.update(user.id, { verification: user.verification });
   // Ao aprovar o motoboy, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).
   if (approved && env.PAYMENT_GATEWAY === 'asaas') {
     try {

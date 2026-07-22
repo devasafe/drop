@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import Conversation from '../models/Conversation';
 import SupportTicket from '../models/SupportTicket';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import logger from '../config/logger';
 
@@ -31,7 +31,7 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
     const { subject, category: requestedCategory } = req.body;
     if (!subject?.trim()) return res.status(400).json({ error: 'Assunto é obrigatório' });
 
-    const user = await User.findById(userId).select('name');
+    const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { id: true, name: true } });
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const category: 'clientes' | 'lojistas' | 'motoboys' | 'geral' =
@@ -40,9 +40,10 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
     const managerRole = CATEGORY_TO_MANAGER_ROLE[category];
 
     // Buscar um gerente disponível para atribuir
-    const manager = await User.findOne({
-      $or: [{ role: managerRole }, { roles: managerRole }],
-    }).select('_id name');
+    const manager = await prisma.user.findFirst({
+      where: { OR: [{ role: managerRole as any }, { roles: { has: managerRole as any } }] },
+      select: { id: true, name: true },
+    });
 
     // Se não há gerente disponível, criar ticket sem atribuição
     if (!manager) {
@@ -60,7 +61,7 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
       },
       participant2: {
-        userId: manager?._id ?? userId,
+        userId: manager?.id ?? userId,
         role: 'gerente',
         name: manager?.name ?? 'Suporte DROP',
       },
@@ -75,7 +76,7 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
     const ticket = await SupportTicket.create({
       conversationId: conversation._id,
       openedBy: { userId, role: activeRole, name: user.name },
-      assignedTo: manager ? [{ userId: manager._id, name: manager.name }] : [],
+      assignedTo: manager ? [{ userId: manager.id, name: manager.name }] : [],
       category,
       subject: subject.trim(),
       status: 'aberto',
@@ -162,7 +163,7 @@ export const assignTicket = async (req: AuthenticatedRequest, res: Response) => 
       }
     }
 
-    const user = await User.findById(userId).select('name').lean();
+    const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { id: true, name: true } });
     const adminName = (user as any)?.name || 'Admin';
 
     const alreadyAssigned = ticket.assignedTo.some(a => a.userId.toString() === userId);

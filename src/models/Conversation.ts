@@ -60,8 +60,8 @@ const conversationSchema = new Schema<IConversation>(
     },
     participant1: {
       userId: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
+        // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+        type: String,
         required: true,
         index: true
       },
@@ -78,8 +78,8 @@ const conversationSchema = new Schema<IConversation>(
     },
     participant2: {
       userId: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
+        // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+        type: String,
         required: true,
         index: true
       },
@@ -136,9 +136,9 @@ const conversationSchema = new Schema<IConversation>(
       default: [false, false]
     },
     deletedBy: {
-      type: [Schema.Types.ObjectId],
-      default: [],
-      ref: 'User'
+      // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+      type: [String],
+      default: []
     },
     lastMessageAt: {
       type: Date,

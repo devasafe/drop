@@ -9,7 +9,7 @@ export interface IDeliveryInvoice extends Document {
   payoutId?: Types.ObjectId;
 
   // Prestador do servico
-  motoboyId: Types.ObjectId;
+  motoboyId: string;
   motoboyName: string;
   motoboyEmail?: string;
   motoboyCpf?: string;
@@ -21,7 +21,7 @@ export interface IDeliveryInvoice extends Document {
   storeCnpj?: string;
 
   // Destinatario (cliente final que recebeu)
-  customerId: Types.ObjectId;
+  customerId: string;
   customerName: string;
   customerAddress?: string;
 
@@ -50,7 +50,7 @@ const DeliveryInvoiceSchema = new Schema<IDeliveryInvoice>(
     deliveryId: { type: Schema.Types.ObjectId, required: true, ref: 'Delivery' },
     payoutId: { type: Schema.Types.ObjectId, ref: 'Payout' },
 
-    motoboyId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
+    motoboyId: { type: String, required: true },
     motoboyName: { type: String, required: true },
     motoboyEmail: { type: String },
     motoboyCpf: { type: String },
@@ -60,7 +60,7 @@ const DeliveryInvoiceSchema = new Schema<IDeliveryInvoice>(
     storeAddress: { type: String },
     storeCnpj: { type: String },
 
-    customerId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
+    customerId: { type: String, required: true },
     customerName: { type: String, required: true },
     customerAddress: { type: String },
 

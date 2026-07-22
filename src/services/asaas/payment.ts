@@ -1,6 +1,6 @@
 import asaasClient from './client';
 import logger from '../../config/logger';
-import User from '../../models/User';
+import userRepository from '../../repositories/user.repository';
 import { isValidCPF, isValidCNPJ } from '../../utils/documentValidation';
 
 /**
@@ -35,7 +35,7 @@ export interface PixCharge {
 export async function ensureAsaasCustomer(userId: string): Promise<string | null> {
   // carrega a apiKeyEncrypted p/ não apagá-la no markModified('asaas')+save abaixo
   // (o mesmo usuário pode ser comprador E recebedor com subconta)
-  const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
+  const user = await userRepository.findById(String(userId)) as any;
   if (!user) return null;
   if (user.asaas?.customerId) return user.asaas.customerId;
 
@@ -53,13 +53,12 @@ export async function ensureAsaasCustomer(userId: string): Promise<string | null
     email: user.email,
     cpfCnpj: cpf,
     mobilePhone: onlyDigits(user.telefone || user.verification?.phone?.e164),
-    externalReference: String(user._id),
+    externalReference: user.id,
   });
 
   if (!user.asaas) (user as any).asaas = { status: 'none' };
   user.asaas!.customerId = customer.id;
-  user.markModified('asaas');
-  await user.save();
+  await userRepository.update(user.id, { asaas: user.asaas });
   return customer.id;
 }
 

@@ -9,7 +9,8 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Store from '../models/Store';
 import Product from '../models/Product';
 import { isValidCNPJ } from '../utils/documentValidation';
@@ -58,12 +59,12 @@ let mongod: MongoMemoryReplSet;
 async function mkUser(role = 'cliente', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
   const roles = role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
-  const user = await User.create({
-    name: `User ${role}`, email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@t.com`,
+  const user = await prisma.user.create({ data: {
+    name: `User ${role}`, email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@sver.test`,
     passwordHash, role, roles, activeRole: role, verification,
-  });
-  const token = jwt.sign({ id: user._id.toString(), role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
-  return { token, userId: user._id.toString() };
+  } } as any);
+  const token = jwt.sign({ id: user.id.toString(), role, activeRole: role, roles }, JWT_SECRET, { expiresIn: '7d' });
+  return { token, userId: user.id.toString() };
 }
 
 beforeAll(async () => {
@@ -76,6 +77,7 @@ beforeAll(async () => {
 
 afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@sver.test');
   const c = mongoose.connection.collections;
   for (const k in c) await c[k].deleteMany({});
 });

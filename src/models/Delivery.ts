@@ -3,7 +3,8 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IDelivery extends Document {
   orderId: Types.ObjectId;
-  motoboyId?: Types.ObjectId;
+  // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+  motoboyId?: string;
   distance: number;
   fee: number;
   status: 'pending' | 'assigned' | 'picked' | 'delivered' | 'cancelled';
@@ -32,7 +33,7 @@ export interface IDelivery extends Document {
 
 const DeliverySchema = new Schema<IDelivery>({
   orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
-  motoboyId: { type: Schema.Types.ObjectId, ref: 'User' },
+  motoboyId: { type: String, index: true },
   distance: { type: Number, default: 0 },
   fee: { type: Number, required: true },
   status: { type: String, enum: ['pending','assigned','picked','delivered','cancelled'], default: 'pending' },
