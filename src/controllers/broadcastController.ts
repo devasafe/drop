@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import Broadcast from '../models/Broadcast';
 import Notification from '../models/Notification';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import { emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
 import { getEffectivePermissions } from './rolePermissionsController';
@@ -54,13 +54,16 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
     });
 
     // Buscar todos os usuários com os roles alvo (em lotes para não sobrecarregar)
-    const users = await User.find({
-      $or: [
-        { role: { $in: targetRoles } },
-        { roles: { $in: targetRoles } },
-        { activeRole: { $in: targetRoles } },
-      ]
-    }).select('_id').lean();
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { role: { in: targetRoles as any } },
+          { roles: { hasSome: targetRoles as any } },
+          { activeRole: { in: targetRoles as any } },
+        ],
+      },
+      select: { id: true },
+    });
 
     if (users.length === 0) {
       await Broadcast.findByIdAndUpdate(broadcast._id, { deliveryCount: 0 });
@@ -73,7 +76,7 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
     for (let i = 0; i < users.length; i += BATCH) {
       const batch = users.slice(i, i + BATCH);
       const notifDocs = batch.map(u => ({
-        userId: u._id,
+        userId: u.id,
         title: title.trim(),
         message: body.trim(),
         type: 'broadcast' as const,
@@ -86,9 +89,9 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
       // Emite via socket para cada usuário (notification:received — ouvido por useNotifications)
       for (const u of batch) {
         try {
-          emitToRoom(`user:${u._id}`, 'notification:received', {
-            _id: `broadcast_${broadcast._id}_${u._id}`,
-            userId: u._id.toString(),
+          emitToRoom(`user:${u.id}`, 'notification:received', {
+            _id: `broadcast_${broadcast._id}_${u.id}`,
+            userId: u.id,
             title: title.trim(),
             message: body.trim(),
             type: 'broadcast',

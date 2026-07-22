@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import { emitForceLogout } from '../utils/socketEmitter';
 
 const router = Router();
@@ -13,19 +14,25 @@ const router = Router();
 // GET /admin/users - Listar todos os usuários
 router.get('/users', authenticate, authorizePermission('user:view_all'), async (req: any, res: Response) => {
   try {
-    const users = await User.find({}, {
-      name: 1,
-      email: 1,
-      role: 1,
-      roles: 1,
-      activeRole: 1,
-      permissions: 1,
-      status: 1,
-      blockedAt: 1,
-      blockReason: 1,
-      createdAt: 1,
-      updatedAt: 1
-    }).sort({ createdAt: -1 });
+    const found = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        roles: true,
+        activeRole: true,
+        permissions: true,
+        status: true,
+        blockedAt: true,
+        blockReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    // `_id` junto de `id`: o painel admin ainda lê `_id`.
+    const users = found.map((u) => ({ ...u, _id: u.id }));
 
     res.json(users);
   } catch (err) {
@@ -52,15 +59,10 @@ router.put('/users/:id/role', authenticate, authorizePermission('user:manage_rol
       return res.status(400).json({ error: 'Voce nao pode alterar o proprio role. Peca para outro admin.' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      id,
-      {
-        role,
-        activeRole: role,
-        roles: [role],
-      },
-      { new: true }
-    );
+    const user = await prisma.user.update({
+      where: { id },
+      data: { role, activeRole: role, roles: [role] },
+    }).catch(() => null);
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -97,7 +99,7 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
       update.blockReason = null;
     }
 
-    const user = await User.findByIdAndUpdate(id, update, { new: true });
+    const user = await prisma.user.update({ where: { id }, data: update }).catch(() => null);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Ao bloquear, emite force_logout via socket (best-effort). Se o user estiver
@@ -122,7 +124,7 @@ router.post('/users/:id/disconnect', authenticate, authorizePermission('user:blo
       return res.status(400).json({ error: 'Voce nao pode desconectar a propria conta' });
     }
 
-    const user = await User.findById(id).select('_id name').lean();
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     emitForceLogout(String(id), 'admin_disconnect');
@@ -205,10 +207,10 @@ router.put('/settings', authenticate, authorizePermission('settings:manage'), as
 // GET /admin/dashboard - Dados do dashboard
 router.get('/dashboard', authenticate, authorizePermission('dashboard:view_all'), async (req: any, res: Response) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const totalAdmins = await User.countDocuments({ role: { $in: ['ceo', 'marketing', 'gerente_geral'] } });
-    const activeUsers = await User.countDocuments({ status: 'active' });
-    const blockedUsers = await User.countDocuments({ status: 'blocked' });
+    const totalUsers = await prisma.user.count();
+    const totalAdmins = await prisma.user.count({ where: { role: { in: ['ceo', 'marketing', 'gerente_geral'] } } });
+    const activeUsers = await prisma.user.count({ where: { status: 'active' } });
+    const blockedUsers = await prisma.user.count({ where: { status: 'blocked' } });
 
     res.json({
       stats: {
@@ -254,11 +256,11 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
         userRole = 'lojista';
         if (store?.ownerId) {
           accessTargetId = String(store.ownerId);
-          const owner = await User.findById(store.ownerId, 'name email');
+          const owner = await prisma.user.findUnique({ where: { id: String(store.ownerId) }, select: { name: true, email: true } });
           ownerEmail = owner?.email || 'N/A';
         }
       } else {
-        const userData = await User.findById(w.owner, 'name email role');
+        const userData = await prisma.user.findUnique({ where: { id: String(w.owner) }, select: { name: true, email: true, role: true } });
         ownerName = userData?.name || 'Usuário Desconhecido';
         ownerEmail = userData?.email || 'N/A';
         userRole = w.ownerType === 'motoboy' ? 'motoboy' : (userData?.role || 'cliente');
@@ -502,16 +504,15 @@ router.post('/asaas/subaccount/store/:storeId', authenticate, authorizePermissio
     // Recuperação MANUAL: colar a apiKey/accountId/walletId da subconta (do painel
     // Asaas) quando a recuperação automática não consegue. Destrava o saque.
     if (fresh && (req.body?.apiKey || req.body?.accountId || req.body?.walletId)) {
-      if (!fresh.asaas) (fresh as any).asaas = { status: 'none' };
-      if (req.body.accountId) fresh.asaas!.accountId = String(req.body.accountId).trim();
-      if (req.body.walletId) fresh.asaas!.walletId = String(req.body.walletId).trim();
+      if (!fresh.asaas) fresh.asaas = { status: 'none' };
+      if (req.body.accountId) fresh.asaas.accountId = String(req.body.accountId).trim();
+      if (req.body.walletId) fresh.asaas.walletId = String(req.body.walletId).trim();
       if (req.body.apiKey) {
-        fresh.asaas!.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
-        fresh.asaas!.status = 'active';
-        fresh.asaas!.lastError = undefined;
+        fresh.asaas.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
+        fresh.asaas.status = 'active';
+        fresh.asaas.lastError = undefined;
       }
-      fresh.markModified('asaas');
-      await fresh.save();
+      await userRepository.update(fresh.id, { asaas: fresh.asaas });
     }
     return res.json({
       name: fresh?.name,
@@ -534,49 +535,49 @@ router.post('/asaas/subaccount/store/:storeId', authenticate, authorizePermissio
 // body opcional: { pixKey, pixKeyType, address:{ street, number, neighborhood, city, state, zip } }
 router.post('/asaas/subaccount/motoboy/:userId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
   try {
-    const user = await User.findById(req.params.userId);
+    const user = await userRepository.findById(String(req.params.userId));
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    // Adiciona endereço ao motoboy se enviado (necessário p/ a subconta Asaas)
+    // Adiciona endereço ao motoboy se enviado (necessário p/ a subconta Asaas).
+    // `addresses` virou tabela relacionada: inserimos uma linha em vez de dar push no array.
     const a = req.body?.address;
     if (a?.street) {
-      user.addresses = user.addresses || [];
-      user.addresses.push({
-        street: a.street,
-        number: a.number || 'S/N',
-        neighborhood: a.neighborhood || 'Centro',
-        city: a.city || '',
-        state: a.state || '',
-        cep: a.zip || a.cep || '',
-        latitude: '0',
-        longitude: '0',
-        isDefault: true,
-      } as any);
-      await user.save();
+      await prisma.address.create({
+        data: {
+          userId: user.id,
+          street: a.street,
+          number: a.number || 'S/N',
+          neighborhood: a.neighborhood || 'Centro',
+          city: a.city || '',
+          state: a.state || '',
+          cep: a.zip || a.cep || '',
+          latitude: '0',
+          longitude: '0',
+          isDefault: true,
+        },
+      });
     }
 
     await ensureMotoboySubaccount(req.params.userId);
-    // +apiKeyEncrypted: sem isso o markModified+save apagaria a apiKey da subconta
-    const fresh = await User.findById(req.params.userId).select('+asaas.apiKeyEncrypted');
+    // O bloco `asaas` vem inteiro (JSONB) — alterar e regravar preserva a apiKey.
+    const fresh = (await userRepository.findById(String(req.params.userId))) as any;
     if (fresh && req.body?.pixKey) {
-      fresh.asaas!.pixKey = String(req.body.pixKey).trim();
-      if (req.body.pixKeyType) fresh.asaas!.pixKeyType = req.body.pixKeyType;
-      fresh.markModified('asaas');
-      await fresh.save();
+      fresh.asaas.pixKey = String(req.body.pixKey).trim();
+      if (req.body.pixKeyType) fresh.asaas.pixKeyType = req.body.pixKeyType;
+      await userRepository.update(fresh.id, { asaas: fresh.asaas });
     }
     // Recuperação MANUAL: colar a apiKey/accountId/walletId da subconta (do painel
     // Asaas) quando a recuperação automática não consegue. Destrava o saque.
     if (fresh && (req.body?.apiKey || req.body?.accountId || req.body?.walletId)) {
-      if (!fresh.asaas) (fresh as any).asaas = { status: 'none' };
-      if (req.body.accountId) fresh.asaas!.accountId = String(req.body.accountId).trim();
-      if (req.body.walletId) fresh.asaas!.walletId = String(req.body.walletId).trim();
+      if (!fresh.asaas) fresh.asaas = { status: 'none' };
+      if (req.body.accountId) fresh.asaas.accountId = String(req.body.accountId).trim();
+      if (req.body.walletId) fresh.asaas.walletId = String(req.body.walletId).trim();
       if (req.body.apiKey) {
-        fresh.asaas!.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
-        fresh.asaas!.status = 'active';
-        fresh.asaas!.lastError = undefined;
+        fresh.asaas.apiKeyEncrypted = encryptSensitiveData(String(req.body.apiKey).trim());
+        fresh.asaas.status = 'active';
+        fresh.asaas.lastError = undefined;
       }
-      fresh.markModified('asaas');
-      await fresh.save();
+      await userRepository.update(fresh.id, { asaas: fresh.asaas });
     }
     return res.json({
       name: fresh?.name,
@@ -599,11 +600,14 @@ router.post('/asaas/subaccount/motoboy/:userId', authenticate, authorizePermissi
 router.get('/asaas/subaccounts', authenticate, authorizePermission('gateway:manage'), async (_req: any, res: Response) => {
   try {
     const stores = await Store.find({ isVerified: true }).select('name cnpj asaas').lean();
-    const motoboys = await User.find({ roles: 'motoboy' }).select('name cpf asaas').lean();
+    const motoboys = await prisma.user.findMany({
+      where: { roles: { has: 'motoboy' } },
+      select: { id: true, name: true, cpf: true, asaas: true },
+    });
     const fmt = (a: any) => ({ status: a?.status || 'none', hasWallet: !!a?.walletId, hasPix: !!a?.pixKey, lastError: a?.lastError });
     return res.json({
       stores: stores.map((s: any) => ({ id: String(s._id), name: s.name, asaas: fmt(s.asaas) })),
-      motoboys: motoboys.map((u: any) => ({ id: String(u._id), name: u.name, asaas: fmt(u.asaas) })),
+      motoboys: motoboys.map((u: any) => ({ id: u.id, name: u.name, asaas: fmt(u.asaas) })),
     });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro' });

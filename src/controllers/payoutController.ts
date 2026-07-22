@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import payoutService from '../services/payout.service';
 import Payout from '../models/Payout';
+import { prisma } from '../lib/prisma';
 import mongoose from 'mongoose';
 
 // Lojista/Motoboy - Ver meus payouts
@@ -54,7 +55,6 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
 
     // Enriquecer cada payout com dados do destinatario e do pedido (origem/destino)
     const Store = (await import('../models/Store')).default;
-    const User = (await import('../models/User')).default;
     const Order = (await import('../models/Order')).default;
 
     const storeIds = result.payouts
@@ -67,7 +67,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
 
     const [stores, users, orders] = await Promise.all([
       storeIds.length ? Store.find({ _id: { $in: storeIds } }).select('_id name ownerId').lean() : [],
-      userIds.length ? User.find({ _id: { $in: userIds } }).select('_id name email').lean() : [],
+      userIds.length ? prisma.user.findMany({ where: { id: { in: userIds.map(String) } }, select: { id: true, name: true, email: true } }) : [],
       orderIds.length ? Order.find({ _id: { $in: orderIds } }).select('_id customerId totalValue').lean() : [],
     ]);
 
@@ -78,7 +78,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
     // Para lojas, buscar tambem o dono (user por tras da store)
     const ownerIds = stores.map((s: any) => s.ownerId).filter(Boolean);
     const owners = ownerIds.length
-      ? await User.find({ _id: { $in: ownerIds } }).select('_id name email').lean()
+      ? await prisma.user.findMany({ where: { id: { in: ownerIds.map(String) } }, select: { id: true, name: true, email: true } })
       : [];
     const ownerMap = new Map<string, any>((owners as any[]).map((u) => [String(u._id), u] as [string, any]));
 
@@ -87,7 +87,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
       .map((o: any) => o.customerId)
       .filter(Boolean);
     const buyers = buyerIds.length
-      ? await User.find({ _id: { $in: buyerIds } }).select('_id name email').lean()
+      ? await prisma.user.findMany({ where: { id: { in: buyerIds.map(String) } }, select: { id: true, name: true, email: true } })
       : [];
     const buyerMap = new Map<string, any>((buyers as any[]).map((u) => [String(u._id), u] as [string, any]));
 

@@ -4,7 +4,7 @@ import { decryptSensitiveData } from '../../utils/encryption';
 import logger from '../../config/logger';
 import Payout from '../../models/Payout';
 import Store from '../../models/Store';
-import User from '../../models/User';
+import userRepository from '../../repositories/user.repository';
 
 /**
  * Gateway de SAÍDA (saque) via Asaas.
@@ -68,7 +68,7 @@ export class AsaasGateway implements IPayoutGateway {
       pixKey = store?.asaas?.pixKey;
       pixKeyType = store?.asaas?.pixKeyType;
     } else {
-      const user = await User.findById(payout.recipientId).select('+asaas.apiKeyEncrypted');
+      const user = await userRepository.findById(String(payout.recipientId)) as any;
       apiKeyEnc = user?.asaas?.apiKeyEncrypted;
       pixKey = user?.asaas?.pixKey;
       pixKeyType = user?.asaas?.pixKeyType;

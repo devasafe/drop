@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import WithdrawalRequest from '../models/WithdrawalRequest';
 import Wallet from '../models/Wallet';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import Store from '../models/Store';
 import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
@@ -23,7 +23,7 @@ async function checkAsaasReceiverReady(
   const asaas =
     recipientType === 'store'
       ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas
-      : (await User.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas;
+      : (await userRepository.findById(String(recipientId)) as any)?.asaas;
 
   // A subconta é considerada utilizável se TEM apiKeyEncrypted (foi criada com
   // sucesso no Asaas). O campo `status` local pode ficar 'pending' (cosmético —
@@ -114,7 +114,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
       actualAmount = selection.total;
     }
 
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(String(userId)) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const session = await mongoose.startSession();
@@ -428,7 +428,7 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
       });
     }
 
-    const user = await User.findById(userId).session(session);
+    const user = await userRepository.findById(String(userId)) as any;
     if (!user) {
       await session.abortTransaction(); session.endSession();
       return res.status(404).json({ error: 'Usuário não encontrado' });

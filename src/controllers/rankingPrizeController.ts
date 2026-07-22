@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import RankingPrize from '../models/RankingPrize';
 import Gamification from '../models/Gamification';
 import Wallet from '../models/Wallet';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 import { emitGamificationBadgeUnlocked } from '../utils/socketEmitter';
 
 const DEFAULT_PRIZES = [
@@ -102,7 +102,7 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
     const gamifications = await Gamification.find();
     const ranking: { user_id: string; pontosMes: number }[] = [];
     for (const g of gamifications) {
-      const user = await User.findById(g.user_id);
+      const user = await userRepository.findById(String(g.user_id)) as any;
       if (!user || (user.role !== 'motoboy' && !user.roles?.includes('motoboy'))) continue;
       const pontosMes = (g.history || [])
         .filter(h => h.date >= start && h.date <= end)

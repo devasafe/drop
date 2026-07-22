@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import Order from '../models/Order';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import Store from '../models/Store';
 import Product from '../models/Product';
 import Category from '../models/Category';
@@ -522,9 +522,9 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
       billableCurrent,
       billablePrev,
     ] = await Promise.all([
-      User.countDocuments({}),
-      User.countDocuments({ createdAt: { $gte: start, $lte: end } }),
-      User.countDocuments({ createdAt: { $gte: prevStart, $lt: start } }),
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: start, lte: end } } }),
+      prisma.user.count({ where: { createdAt: { gte: prevStart, lt: start } } }),
       Store.countDocuments({}),
       Store.countDocuments({ createdAt: { $gte: start, $lte: end } }),
       Order.distinct('customerId', { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
@@ -596,18 +596,23 @@ export const platformUserGrowth = async (req: AuthenticatedRequest, res: Respons
   try {
     const { days, start, end } = parsePeriod(req.query);
 
-    const rows = await User.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end } } },
-      {
-        $group: {
-          _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-            role: { $ifNull: ['$activeRole', { $ifNull: ['$role', 'cliente'] }] },
-          },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    // O `$dateToString` do Mongo não tem equivalente no `groupBy` do Prisma:
+    // buscamos o período e agrupamos em memória, mantendo a mesma forma de saída.
+    const usersInPeriod = await prisma.user.findMany({
+      where: { createdAt: { gte: start, lte: end } },
+      select: { createdAt: true, activeRole: true, role: true },
+    });
+
+    const grouped = new Map<string, { _id: { date: string; role: string }; count: number }>();
+    for (const u of usersInPeriod) {
+      const date = u.createdAt.toISOString().slice(0, 10); // YYYY-MM-DD
+      const role = u.activeRole ?? u.role ?? 'cliente';
+      const key = `${date}|${role}`;
+      const existing = grouped.get(key);
+      if (existing) existing.count += 1;
+      else grouped.set(key, { _id: { date, role }, count: 1 });
+    }
+    const rows = Array.from(grouped.values());
 
     const byDate = new Map<string, { clientes: number; lojistas: number; motoboys: number; outros: number }>();
     for (const r of rows) {
@@ -686,9 +691,11 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
     const { start, end } = parsePeriod(req.query);
 
     // Usuários cadastrados no período
-    const registered = await User.countDocuments({
-      createdAt: { $gte: start, $lte: end },
-      $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
+    const registered = await prisma.user.count({
+      where: {
+        createdAt: { gte: start, lte: end },
+        OR: [{ activeRole: 'cliente' }, { role: 'cliente' }],
+      },
     });
 
     // Desses, quantos fizeram ≥1 pedido e ≥2 pedidos
@@ -703,13 +710,14 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
     ]);
 
     // Filtrar só os que cadastraram no período
-    const newUsers = await User.find({
-      createdAt: { $gte: start, $lte: end },
-      $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
-    })
-      .select('_id')
-      .lean();
-    const newUserIds = new Set(newUsers.map((u: any) => String(u._id)));
+    const newUsers = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        OR: [{ activeRole: 'cliente' }, { role: 'cliente' }],
+      },
+      select: { id: true },
+    });
+    const newUserIds = new Set(newUsers.map((u) => u.id));
 
     let firstOrder = 0;
     let secondOrder = 0;
@@ -865,13 +873,15 @@ export const platformLiveUsers = async (_req: AuthenticatedRequest, res: Respons
  */
 export const platformUserHeatmap = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const users = await User.find({
-      $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
-      'addresses.0': { $exists: true },
-    })
-      .select('addresses')
-      .limit(5000)
-      .lean();
+    // `'addresses.0': { $exists: true }` (array embutido) vira `some` na relação.
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [{ activeRole: 'cliente' }, { role: 'cliente' }],
+        addresses: { some: {} },
+      },
+      select: { addresses: true },
+      take: 5000,
+    });
 
     const points: Array<{ lat: number; lng: number }> = [];
     for (const u of users) {
@@ -901,12 +911,13 @@ export const platformRetention = async (req: AuthenticatedRequest, res: Response
   try {
     const { start, end } = parsePeriod(req.query);
 
-    const users = await User.find({
-      createdAt: { $gte: start, $lte: end },
-      $or: [{ activeRole: 'cliente' }, { role: 'cliente' }],
-    })
-      .select('_id createdAt')
-      .lean();
+    const users = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        OR: [{ activeRole: 'cliente' }, { role: 'cliente' }],
+      },
+      select: { id: true, createdAt: true },
+    });
 
     // Agrupar usuários por mês de cadastro (YYYY-MM)
     const cohorts = new Map<string, { userIds: Set<string>; size: number }>();
@@ -914,7 +925,7 @@ export const platformRetention = async (req: AuthenticatedRequest, res: Response
       const month = (u.createdAt as Date).toISOString().slice(0, 7);
       if (!cohorts.has(month)) cohorts.set(month, { userIds: new Set(), size: 0 });
       const c = cohorts.get(month)!;
-      c.userIds.add(String(u._id));
+      c.userIds.add(u.id);
       c.size++;
     }
 

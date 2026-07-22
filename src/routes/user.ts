@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getMe, updateMe, getBankInfo, setBankInfo } from '../controllers/userController';
 import { addAddress, listAddresses, removeAddress, editAddress, setDefaultAddress } from '../controllers/addressController';
 import { authenticate } from '../middleware/auth';
-import User from '../models/User';
+import userRepository from '../repositories/user.repository';
 
 const router = Router();
 
@@ -31,7 +31,7 @@ router.put('/active-role', authenticate, async (req: Request, res: Response) => 
       return res.status(400).json({ error: 'activeRole é obrigatório' });
     }
 
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(String(userId)) as any;
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
@@ -61,9 +61,7 @@ router.get('/public/:userId', async (req: Request, res: Response) => {
     const { userId } = req.params;
 
     // ✅ SEGURANÇA: endpoint PÚBLICO — não expor PII (email/telefone).
-    const user = await User.findById(userId).select(
-      'name roles activeRole createdAt'
-    );
+    const user = await userRepository.findById(String(userId)) as any;
 
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
