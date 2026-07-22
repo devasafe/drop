@@ -4,7 +4,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import Wallet from '../models/Wallet';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -20,12 +20,28 @@ beforeAll(async () => {
 afterAll(async () => {
   await mongoose.disconnect();
   await mongod.stop();
+  await prisma.$disconnect();
 });
 
 afterEach(async () => {
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany({});
+  }
+
+  // O Mongo daqui é em memória e morre junto com a suíte; o Postgres é o banco de
+  // dev e persiste. Limpamos só o que os testes criam — e-mails de domínio de
+  // exemplo/teste. (Base efêmera dedicada é a Fase 5.)
+  const testUsers = await prisma.user.findMany({
+    where: {
+      OR: [{ email: { endsWith: '@example.com' } }, { email: { endsWith: '@test.com' } }],
+    },
+    select: { id: true },
+  });
+  const ids = testUsers.map((u) => u.id);
+  if (ids.length > 0) {
+    await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.user.deleteMany({ where: { id: { in: ids } } });
   }
 });
 
@@ -39,22 +55,24 @@ async function createUserDirect(overrides: Record<string, any> = {}) {
   const roles = overrides.roles || (role !== 'cliente' ? [role, 'cliente'] : ['cliente']);
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({
-    name: overrides.name || 'Test User',
-    email,
-    passwordHash,
-    role,
-    roles,
-    activeRole: role,
+  const user = await prisma.user.create({
+    data: {
+      name: overrides.name || 'Test User',
+      email,
+      passwordHash,
+      role,
+      roles,
+      activeRole: role,
+    },
   });
 
   const token = jwt.sign(
-    { id: user._id.toString(), role },
+    { id: user.id, role },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 
-  return { userId: user._id.toString(), token, email, password, user };
+  return { userId: user.id, token, email, password, user };
 }
 
 // ============================================================
@@ -115,7 +133,7 @@ describe('POST /api/auth/register', () => {
 
   it('deve registrar motoboy com roles corretos quando criado diretamente', async () => {
     const { userId } = await createUserDirect({ role: 'motoboy', name: 'Motoboy Direto' });
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
 
     expect(user!.roles).toContain('motoboy');
     expect(user!.roles).toContain('cliente');
@@ -216,7 +234,7 @@ describe('POST /api/auth/switch-role', () => {
     expect(res.body).toHaveProperty('token');
     expect(res.body.user.activeRole).toBe('cliente');
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     expect(user!.activeRole).toBe('cliente');
   });
 

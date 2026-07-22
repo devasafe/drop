@@ -1,4 +1,4 @@
-import { Prisma, User } from '@prisma/client';
+import { Address, Prisma, User } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { encryptSensitiveData, decryptSensitiveData } from '../utils/encryption';
 
@@ -12,6 +12,12 @@ import { encryptSensitiveData, decryptSensitiveData } from '../utils/encryption'
  */
 
 export type UserWithBankInfo = User & { bankInfo: Prisma.JsonValue | null };
+
+/**
+ * `addresses` era um subdocumento do User no Mongo; virou tabela com FK. Quem
+ * respondia `user.addresses` direto (login, switchRole) precisa carregá-lo.
+ */
+export type UserWithAddresses = UserWithBankInfo & { addresses: Address[] };
 
 /**
  * Cifra `bankInfo` e zera o campo em texto puro.
@@ -51,6 +57,16 @@ class UserRepository {
 
   async findByEmail(email: string): Promise<UserWithBankInfo | null> {
     return decryptBankInfo(await prisma.user.findUnique({ where: { email } }));
+  }
+
+  async findByIdWithAddresses(id: string): Promise<UserWithAddresses | null> {
+    const user = await prisma.user.findUnique({ where: { id }, include: { addresses: true } });
+    return decryptBankInfo(user) as UserWithAddresses | null;
+  }
+
+  async findByEmailWithAddresses(email: string): Promise<UserWithAddresses | null> {
+    const user = await prisma.user.findUnique({ where: { email }, include: { addresses: true } });
+    return decryptBankInfo(user) as UserWithAddresses | null;
   }
 
   async create(data: Prisma.UserCreateInput): Promise<UserWithBankInfo> {
