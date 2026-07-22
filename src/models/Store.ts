@@ -7,7 +7,9 @@ export interface IOperatingHoursDay {
 }
 
 export interface IStore extends Document {
-  ownerId: Types.ObjectId;
+  // 🔀 Migração: User vive no Postgres (id = cuid), então esta referência é String.
+  // Volta a ser FK de verdade quando Store migrar (Fatia 2).
+  ownerId: string;
   name: string;
   address?: string;
   street?: string;
@@ -73,7 +75,7 @@ export interface IStore extends Document {
 }
 
 const StoreSchema = new Schema<IStore>({
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  ownerId: { type: String, required: true, index: true },
   name: { type: String, required: true },
   address: { type: String },
   street: { type: String },

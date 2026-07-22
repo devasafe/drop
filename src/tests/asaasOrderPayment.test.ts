@@ -18,7 +18,8 @@ jest.mock('../services/asaas/payment', () => ({
 
 import app from '../app';
 import env from '../config/env';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Store from '../models/Store';
 import Product from '../models/Product';
 import Wallet from '../models/Wallet';
@@ -50,6 +51,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@aop.test');
   for (const key in mongoose.connection.collections) {
     await mongoose.connection.collections[key].deleteMany({});
   }
@@ -58,22 +60,24 @@ afterEach(async () => {
 });
 
 async function verifiedBuyer() {
-  const user = await User.create({
-    name: 'Comprador',
-    email: `buyer-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
-    passwordHash: await bcrypt.hash('Senha123!', 10),
-    role: 'cliente',
-    roles: ['cliente'],
-    activeRole: 'cliente',
-    cpf: '39053344705',
-    verification: {
-      email: { status: 'verified' },
-      phone: { status: 'verified' },
-      document: { status: 'approved', type: 'cpf', number: '39053344705' },
+  const user = await prisma.user.create({
+    data: {
+      name: 'Comprador',
+      email: `buyer-${Date.now()}-${Math.random().toString(36).slice(2)}@aop.test`,
+      passwordHash: await bcrypt.hash('Senha123!', 10),
+      role: 'cliente',
+      roles: ['cliente'],
+      activeRole: 'cliente',
+      cpf: '39053344705',
+      verification: {
+        email: { status: 'verified' },
+        phone: { status: 'verified' },
+        document: { status: 'approved', type: 'cpf', number: '39053344705' },
+      },
     },
   });
-  await Wallet.create({ owner: String(user._id), ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
-  const token = jwt.sign({ id: String(user._id), role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
+  await Wallet.create({ owner: user.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
+  const token = jwt.sign({ id: user.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
   return { user, token };
 }
 
@@ -103,7 +107,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(createPixCharge).toHaveBeenCalledTimes(1);
 
     // NÃO debitou a carteira do cliente (saldo segue 0)
-    const wallet = await Wallet.findOne({ owner: String(user._id), ownerType: 'user' });
+    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
 
     // Ainda NÃO criou Payout (só nasce na confirmação do webhook)
@@ -127,7 +131,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
 
   it('usa saldo parcial → cobra só o restante no PIX', async () => {
     const { user, token } = await verifiedBuyer();
-    await Wallet.updateOne({ owner: String(user._id), ownerType: 'user' }, { $set: { balance: 30 } });
+    await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 30 } });
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
     const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
 
@@ -141,13 +145,13 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect((createPixCharge as jest.Mock).mock.calls[0][0].value).toBe(70);
     expect(res.body.order?.walletApplied).toBe(30);
     // saldo debitado
-    const wallet = await Wallet.findOne({ owner: String(user._id), ownerType: 'user' });
+    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
   });
 
   it('saldo cobre tudo → sem PIX, pedido já pago + payout da loja', async () => {
     const { user, token } = await verifiedBuyer();
-    await Wallet.updateOne({ owner: String(user._id), ownerType: 'user' }, { $set: { balance: 200 } });
+    await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 200 } });
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
     const product = await Product.create({ storeId: store._id, name: 'Item', price: 100, quantity: 10 } as any);
 
@@ -161,7 +165,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(createPixCharge).not.toHaveBeenCalled();
     expect(res.body.order?.paymentStatus).toBe('paid');
     // saldo debitado (200 - 100)
-    const wallet = await Wallet.findOne({ owner: String(user._id), ownerType: 'user' });
+    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(100);
     // payout da loja criado (pago)
     const payout = await Payout.findOne({ orderId: res.body.order._id, recipientType: 'store' });
@@ -175,7 +179,7 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
 
     const order = await Order.create({
-      customerId: user._id,
+      customerId: user.id,
       storeId: store._id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100,
@@ -212,7 +216,7 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     const { user } = await verifiedBuyer();
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', isOpen: true });
     const order = await Order.create({
-      customerId: user._id, storeId: store._id,
+      customerId: user.id, storeId: store._id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
       totalValue: 100, deliveryFee: 0, status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending',
       asaasPaymentId: 'pay_hook_2', asaasChargeStatus: 'pending',

@@ -4,7 +4,7 @@ export interface IMessage extends Document {
   conversationId: mongoose.Types.ObjectId;
   
   // Autor
-  senderId: mongoose.Types.ObjectId;
+  senderId: string;
   senderRole: 'loja' | 'lojista' | 'cliente' | 'motoboy' | 'suporte';
   senderName: string;
   
@@ -40,8 +40,8 @@ const messageSchema = new Schema<IMessage>(
       index: true
     },
     senderId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
+      type: String,
       required: true,
       index: true
     },

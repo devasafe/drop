@@ -1,6 +1,8 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import { getDefaultAddress } from '../utils/userHelpers';
 
 // Retorna os dados do usuário autenticado
@@ -9,17 +11,21 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     console.log(`[getMe] Requisição para usuário: ${userId}`);
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    const user = await User.findById(userId).select('-passwordHash');
+    const user = await userRepository.findByIdWithAddresses(userId);
     console.log(`[getMe] Resultado: ${user ? 'Usuário encontrado' : 'Usuário NÃO encontrado'}`);
     if (user) {
       console.log(`[getMe] User name: ${user.name}, addresses count: ${(user.addresses || []).length}`);
     }
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    
-    // ✅ NOVO: Computar mainAddress dinamicamente (retrocompat)
-    const userData = user.toObject() as any;
-    userData.mainAddress = getDefaultAddress(user);
-    
+
+    // Nunca devolver credenciais. O Mongoose fazia isso com .select('-passwordHash');
+    // aqui é explícito.
+    const { passwordHash, bankInfoEncrypted, ...safe } = user as any;
+
+    // `_id` é mantido junto de `id`: o frontend ainda lê `_id` do tempo do Mongo.
+    const userData: any = { ...safe, _id: user.id };
+    userData.mainAddress = getDefaultAddress(user as any);
+
     return res.json(userData);
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -36,21 +42,27 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const { name, email, cpf, rg, telefone } = req.body;
-    const digits = (v?: string) => (v || '').replace(/\D/g, '');
+    const digits = (v?: string | null) => (v || '').replace(/\D/g, '');
 
-    if (!user.verification) {
-      user.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } } as any;
-    }
+    // `verification` é JSONB: montamos o objeto inteiro e gravamos de uma vez
+    // (não há `markModified` como no Mongoose).
+    const verification: any = user.verification ?? {
+      email: { status: 'pending' },
+      phone: { status: 'pending' },
+      document: { status: 'none' },
+    };
+
+    const data: Prisma.UserUpdateInput = {};
 
     const cpfChanging = cpf !== undefined && digits(cpf) !== digits(user.cpf);
     const rgChanging = rg !== undefined && digits(rg) !== digits(user.rg);
 
     // ✅ CPF/RG não podem mudar depois que o documento foi APROVADO (fraude/identidade).
-    if ((cpfChanging || rgChanging) && user.verification?.document?.status === 'approved') {
+    if ((cpfChanging || rgChanging) && verification?.document?.status === 'approved') {
       return res.status(409).json({ error: 'CPF e RG não podem ser alterados após o documento ser aprovado. Entre em contato com o suporte.' });
     }
 
@@ -58,35 +70,35 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
     if (cpfChanging) {
       const cpfDigits = digits(cpf);
       if (cpfDigits) {
-        const dup = await User.findOne({ _id: { $ne: userId }, cpf: cpfDigits });
+        const dup = await prisma.user.findFirst({ where: { id: { not: userId }, cpf: cpfDigits } });
         if (dup) return res.status(409).json({ error: 'Este CPF já está cadastrado em outra conta' });
       }
-      user.cpf = cpfDigits; docReset = true;
+      data.cpf = cpfDigits; docReset = true;
     }
     if (rgChanging) {
       const rgDigits = digits(rg);
       if (rgDigits) {
-        const dup = await User.findOne({ _id: { $ne: userId }, rg: rgDigits });
+        const dup = await prisma.user.findFirst({ where: { id: { not: userId }, rg: rgDigits } });
         if (dup) return res.status(409).json({ error: 'Este RG já está cadastrado em outra conta' });
       }
-      user.rg = rgDigits; docReset = true;
+      data.rg = rgDigits; docReset = true;
     }
-    if (docReset) user.verification!.document = { status: 'none' };
+    if (docReset) verification.document = { status: 'none' };
 
     let emailReset = false;
     if (email !== undefined && email !== user.email) {
-      const exists = await User.findOne({ email });
+      const exists = await prisma.user.findUnique({ where: { email } });
       if (exists) return res.status(409).json({ error: 'Email já está em uso' });
-      user.email = email;
-      user.verification!.email = { status: 'pending' };
+      data.email = email;
+      verification.email = { status: 'pending' };
       emailReset = true;
     }
 
-    if (name !== undefined) user.name = name;
-    if (telefone !== undefined) user.telefone = telefone;
+    if (name !== undefined) data.name = name;
+    if (telefone !== undefined) data.telefone = telefone;
 
-    user.markModified('verification');
-    await user.save();
+    data.verification = verification;
+    await userRepository.update(userId, data);
 
     // Documento alterado afeta a verificação de loja/motoboy do dono
     if (docReset) {
@@ -110,16 +122,18 @@ export const getBankInfo = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const user = await User.findById(userId).select('bankInfo');
+    // O repositório decifra `bankInfo` na leitura.
+    const user = await userRepository.findById(userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const bankInfo = user.bankInfo as any;
 
     return res.json({
-      isConfigured: user.bankInfo?.isConfigured || false,
-      bankInfo: user.bankInfo?.isConfigured ? {
-        banco: user.bankInfo.banco,
-        agencia: user.bankInfo.agencia,
-        conta: user.bankInfo.conta,
-        cpfBanco: user.bankInfo.cpfBanco
+      isConfigured: bankInfo?.isConfigured || false,
+      bankInfo: bankInfo?.isConfigured ? {
+        banco: bankInfo.banco,
+        agencia: bankInfo.agencia,
+        conta: bankInfo.conta,
+        cpfBanco: bankInfo.cpfBanco
       } : null
     });
   } catch (err: any) {
@@ -137,11 +151,11 @@ export const setBankInfo = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const user = await User.findById(userId);
+    const user = await userRepository.findById(userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     // Verifica se já foi configurado
-    if (user.bankInfo?.isConfigured) {
+    if ((user.bankInfo as any)?.isConfigured) {
       return res.status(400).json({
         error: 'Dados bancários já foram configurados. Não é possível editá-los novamente.'
       });
@@ -158,25 +172,15 @@ export const setBankInfo = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'CPF deve ter exatamente 11 dígitos' });
     }
 
-    // Configura os dados bancários
-    user.bankInfo = {
-      banco,
-      agencia,
-      conta,
-      cpfBanco,
-      isConfigured: true
-    };
-
-    await user.save();
+    // Configura os dados bancários — o repositório cifra antes de gravar.
+    await userRepository.update(userId, {
+      bankInfo: { banco, agencia, conta, cpfBanco, isConfigured: true },
+    });
 
     return res.json({
       success: true,
       message: 'Dados bancários configurados com sucesso',
-      bankInfo: {
-        banco: user.bankInfo.banco,
-        agencia: user.bankInfo.agencia,
-        conta: user.bankInfo.conta
-      }
+      bankInfo: { banco, agencia, conta }
     });
   } catch (err: any) {
     console.error('[USER ERROR]', err);

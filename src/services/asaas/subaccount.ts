@@ -1,7 +1,7 @@
 import asaasClient from './client';
 import { encryptSensitiveData } from '../../utils/encryption';
 import logger from '../../config/logger';
-import User from '../../models/User';
+import userRepository from '../../repositories/user.repository';
 import Store from '../../models/Store';
 
 /**
@@ -150,7 +150,7 @@ function isAlreadyExistsError(err: any): boolean {
 
 /** Cria/garante a subconta do MOTOBOY (no User, pelo CPF). */
 export async function ensureMotoboySubaccount(userId: string): Promise<void> {
-  const user = await User.findById(userId).select('+asaas.apiKeyEncrypted');
+  const user = await userRepository.findById(String(userId)) as any;
   if (!user) return;
   if (user.asaas?.accountId && user.asaas?.apiKeyEncrypted) return; // já criada e com apiKey
 
@@ -173,8 +173,7 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
       user.asaas.status = 'error';
       user.asaas.lastError = 'Não foi possível gerar a chave da subconta. No painel Asaas: habilite "Gerenciamento de chaves de API de subcontas" e adicione o IP do servidor na whitelist (Mecanismos de Segurança).';
     }
-    user.markModified('asaas');
-    await user.save();
+    await userRepository.update(user.id, { asaas: user.asaas });
     return;
   }
   const addr = firstAddress(user.addresses as any);
@@ -190,16 +189,14 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
   if (missing.length) {
     user.asaas!.status = 'error';
     user.asaas!.lastError = `Faltam dados p/ subconta: ${missing.join(', ')}`;
-    user.markModified('asaas');
-    await user.save();
+    await userRepository.update(user.id, { asaas: user.asaas });
     logger.warn('Subconta motoboy não criada — dados faltando', { userId, missing });
     return;
   }
 
   try {
     user.asaas!.status = 'pending';
-    user.markModified('asaas');
-    await user.save();
+    await userRepository.update(user.id, { asaas: user.asaas });
 
     const acc = await createSubaccount({
       name: user.name,
@@ -219,8 +216,7 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
     user.asaas!.apiKeyEncrypted = encryptSensitiveData(acc.apiKey);
     user.asaas!.status = 'active';
     user.asaas!.lastError = undefined;
-    user.markModified('asaas');
-    await user.save();
+    await userRepository.update(user.id, { asaas: user.asaas });
     logger.info('Subconta Asaas do motoboy criada', { userId, accountId: acc.id });
   } catch (err: any) {
     // A subconta já existia no Asaas (criação parcial anterior) → recupera credenciais
@@ -234,16 +230,14 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
         if (key) user.asaas!.apiKeyEncrypted = encryptSensitiveData(key);
         user.asaas!.status = key ? 'active' : 'error';
         user.asaas!.lastError = key ? undefined : 'Subconta recuperada, mas sem chave de API — habilite o gerenciamento de chaves + IP whitelist no Asaas.';
-        user.markModified('asaas');
-        await user.save();
+        await userRepository.update(user.id, { asaas: user.asaas });
         logger.info('Subconta do motoboy recuperada após "já existe"', { userId, accountId: found.id });
         return;
       }
     }
     user.asaas!.status = 'error';
     user.asaas!.lastError = err?.message?.slice(0, 300);
-    user.markModified('asaas');
-    await user.save();
+    await userRepository.update(user.id, { asaas: user.asaas });
     logger.error('Falha ao criar subconta do motoboy', err as Error, { userId });
   }
 }
@@ -254,7 +248,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
   if (!store) return;
   if (store.asaas?.accountId && store.asaas?.apiKeyEncrypted) return;
 
-  const owner = await User.findById(store.ownerId);
+  const owner = await userRepository.findById(String(store.ownerId)) as any;
   if (!owner) return;
 
   // CNPJ da loja se houver; senão CPF do dono (MEI / autônomo).

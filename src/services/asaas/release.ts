@@ -2,7 +2,7 @@ import asaasClient from './client';
 import logger from '../../config/logger';
 import Payout from '../../models/Payout';
 import Store from '../../models/Store';
-import User from '../../models/User';
+import userRepository from '../../repositories/user.repository';
 import payoutService from '../payout.service';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from './subaccount';
 import { Types } from 'mongoose';
@@ -39,10 +39,10 @@ async function resolveWalletId(payout: any): Promise<string | null> {
     }
     return store?.asaas?.walletId || null;
   }
-  let user = await User.findById(id).select('asaas');
+  let user = await userRepository.findById(String(id)) as any;
   if (!user?.asaas?.walletId) {
     await ensureMotoboySubaccount(id);
-    user = await User.findById(id).select('asaas');
+    user = await userRepository.findById(String(id)) as any;
   }
   return user?.asaas?.walletId || null;
 }

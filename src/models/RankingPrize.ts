@@ -12,8 +12,8 @@ export interface IRankingPrize extends Document {
   prizes: IPrizeEntry[];
   distributed: boolean;
   distributedAt?: Date;
-  distributedBy?: Types.ObjectId;
-  createdBy: Types.ObjectId;
+  distributedBy?: string;
+  createdBy: string;
 }
 
 const RankingPrizeSchema = new Schema<IRankingPrize>({
@@ -26,8 +26,8 @@ const RankingPrizeSchema = new Schema<IRankingPrize>({
   }],
   distributed: { type: Boolean, default: false },
   distributedAt: { type: Date },
-  distributedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  distributedBy: { type: String },
+  createdBy: { type: String, required: true },
 }, { timestamps: true });
 
 RankingPrizeSchema.index({ month: 1, year: 1 }, { unique: true });

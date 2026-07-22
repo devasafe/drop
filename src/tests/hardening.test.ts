@@ -14,7 +14,9 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 import Store from '../models/Store';
 import Product from '../models/Product';
@@ -27,26 +29,28 @@ let mongod: MongoMemoryReplSet;
 async function createUser(role = 'cliente'): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
   const roles = role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
-  const user = await User.create({
-    name: `User ${role}`,
-    email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
-    passwordHash,
-    role,
-    roles,
-    activeRole: role,
-    // Cliente já verificado para passar pelo gate KYC nos testes de pedido
-    verification: {
-      email: { status: 'verified', verifiedAt: new Date() },
-      phone: { status: 'verified', e164: '+5511988887777', verifiedAt: new Date() },
-      document: { type: 'cpf', status: 'approved' },
+  const user = await prisma.user.create({
+    data: {
+      name: `User ${role}`,
+      email: `u-${Date.now()}-${Math.random().toString(36).slice(2)}@hard.test`,
+      passwordHash,
+      role: role as Role,
+      roles: roles as Role[],
+      activeRole: role as Role,
+      // Cliente já verificado para passar pelo gate KYC nos testes de pedido
+      verification: {
+        email: { status: 'verified', verifiedAt: new Date() },
+        phone: { status: 'verified', e164: '+5511988887777', verifiedAt: new Date() },
+        document: { type: 'cpf', status: 'approved' },
+      },
     },
   });
   const token = jwt.sign(
-    { id: user._id.toString(), role, activeRole: role, roles },
+    { id: user.id, role, activeRole: role, roles },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
-  return { token, userId: user._id.toString() };
+  return { token, userId: user.id };
 }
 
 async function setBalance(owner: string, ownerType: 'user' | 'store' | 'motoboy', amount: number) {
@@ -78,6 +82,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@hard.test');
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany({});

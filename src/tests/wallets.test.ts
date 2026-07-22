@@ -4,7 +4,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
 import Wallet from '../models/Wallet';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -15,24 +15,26 @@ let mongod: MongoMemoryReplSet;
 async function createUserDirect(
   overrides: Record<string, any> = {}
 ): Promise<{ token: string; userId: string }> {
-  const email = overrides.email || `user-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const email = overrides.email || `user-${Date.now()}-${Math.random().toString(36).slice(2)}@wal.test`;
   const password = overrides.password || 'Senha123!';
   const role = overrides.role || 'cliente';
   const roles = overrides.roles || (role !== 'cliente' ? [role, 'cliente'] : ['cliente']);
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({
-    name: overrides.name || 'Wallet User',
-    email,
-    passwordHash,
-    role,
-    roles,
-    activeRole: role,
+  const user = await prisma.user.create({
+    data: {
+      name: overrides.name || 'Wallet User',
+      email,
+      passwordHash,
+      role,
+      roles,
+      activeRole: role,
+    },
   });
 
   // Criar carteira automaticamente
   await Wallet.create({
-    owner: user._id.toString(),
+    owner: user.id,
     ownerType: 'user',
     balance: 0,
     totalIncome: 0,
@@ -41,12 +43,12 @@ async function createUserDirect(
   });
 
   const token = jwt.sign(
-    { id: user._id.toString(), role, activeRole: role, roles },
+    { id: user.id, role, activeRole: role, roles },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 
-  return { token, userId: user._id.toString() };
+  return { token, userId: user.id };
 }
 
 // Helper: criar usuario via HTTP (apenas para role cliente)
@@ -62,7 +64,7 @@ async function createUserAndLogin(
 
   const data = {
     name: 'Wallet User',
-    email: `wallet-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
+    email: `wallet-${Date.now()}-${Math.random().toString(36).slice(2)}@wal.test`,
     password: 'Senha123!',
     ...overrides,
   };
@@ -114,6 +116,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await mongoose.disconnect();
   await mongod.stop();
+  await prisma.$disconnect();
 });
 
 afterEach(async () => {
@@ -121,6 +124,14 @@ afterEach(async () => {
   for (const key in collections) {
     await collections[key].deleteMany({});
   }
+
+  // O Postgres é o banco de dev e persiste entre execuções — limpamos só os
+  // usuários que os testes criam. (Base efêmera dedicada é a Fase 5.)
+  await prisma.user.deleteMany({
+    where: {
+      OR: [{ email: { startsWith: 'user-' } }, { email: { startsWith: 'wallet-' } }],
+    },
+  });
 });
 
 // ============================================================
@@ -133,10 +144,10 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     // Criar lojista com loja
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista' });
     const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(seller.userId),
+      ownerId: seller.userId,
       name: 'Loja Transfer',
     });
-    await User.findByIdAndUpdate(seller.userId, { storeId: store._id });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
 
     // Criar carteira da loja
     await Wallet.create({
@@ -178,10 +189,10 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
 
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista' });
     const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(seller.userId),
+      ownerId: seller.userId,
       name: 'Loja Insuf',
     });
-    await User.findByIdAndUpdate(seller.userId, { storeId: store._id });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
     await Wallet.create({
       owner: store._id.toString(),
       ownerType: 'store',
@@ -245,10 +256,10 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     // Setup: lojista com loja
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista Race' });
     const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(seller.userId),
+      ownerId: seller.userId,
       name: 'Loja Race',
     });
-    await User.findByIdAndUpdate(seller.userId, { storeId: store._id });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
     await Wallet.create({
       owner: store._id.toString(),
       ownerType: 'store',
@@ -315,10 +326,10 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
 
     const seller = await createUserAndLogin({ role: 'lojista', name: 'Lojista Seq' });
     const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(seller.userId),
+      ownerId: seller.userId,
       name: 'Loja Seq',
     });
-    await User.findByIdAndUpdate(seller.userId, { storeId: store._id });
+    await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store._id.toString() } });
     await Wallet.create({
       owner: store._id.toString(),
       ownerType: 'store',

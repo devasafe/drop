@@ -6,7 +6,7 @@ export interface IRolePermissions extends Document {
   role: AppRole;
   permissions: string[];
   notificationTargets: AppRole[]; // quais roles pode enviar broadcast
-  updatedBy: Types.ObjectId;
+  updatedBy: string;
   updatedAt: Date;
 }
 
@@ -14,7 +14,7 @@ const RolePermissionsSchema = new Schema<IRolePermissions>({
   role: { type: String, required: true, unique: true },
   permissions: [{ type: String }],
   notificationTargets: [{ type: String }],
-  updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  updatedBy: { type: String, required: true },
 }, { timestamps: true });
 
 export default model<IRolePermissions>('RolePermissions', RolePermissionsSchema);

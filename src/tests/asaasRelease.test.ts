@@ -8,7 +8,8 @@ jest.mock('../services/asaas/client', () => ({
 
 import asaasClient from '../services/asaas/client';
 import Store from '../models/Store';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Payout from '../models/Payout';
 import { releaseOrderViaAsaas } from '../services/asaas/release';
 
@@ -24,6 +25,7 @@ afterAll(async () => {
   await mongod.stop();
 });
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@arel.test');
   for (const key in mongoose.connection.collections) {
     await mongoose.connection.collections[key].deleteMany({});
   }
@@ -36,13 +38,13 @@ describe('releaseOrderViaAsaas (Fase 3)', () => {
 
     const orderId = new mongoose.Types.ObjectId();
     const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja', asaas: { status: 'active', walletId: 'wlt_store' } });
-    const motoboy = await User.create({
-      name: 'Moto', email: `m-${Date.now()}@t.com`, passwordHash: 'x', role: 'motoboy', roles: ['motoboy'], activeRole: 'motoboy',
+    const motoboy = await prisma.user.create({ data: {
+      name: 'Moto', email: `m-${Date.now()}@arel.test`, passwordHash: 'x', role: 'motoboy', roles: ['motoboy'], activeRole: 'motoboy',
       asaas: { status: 'active', walletId: 'wlt_moto' },
-    });
+    } });
 
     await Payout.create({ recipientType: 'store', recipientId: store._id, orderId, amount: 90, status: 'pending' });
-    await Payout.create({ recipientType: 'motoboy', recipientId: motoboy._id, orderId, amount: 8, status: 'pending' });
+    await Payout.create({ recipientType: 'motoboy', recipientId: motoboy.id, orderId, amount: 8, status: 'pending' });
 
     await releaseOrderViaAsaas(String(orderId));
 

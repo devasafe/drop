@@ -12,7 +12,8 @@ jest.mock('../services/asaas/client', () => ({
 
 import asaasClient from '../services/asaas/client';
 import app from '../app';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Store from '../models/Store';
 import { ensureMotoboySubaccount, ensureStoreSubaccount } from '../services/asaas/subaccount';
 import { decryptSensitiveData } from '../utils/encryption';
@@ -33,6 +34,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@asub.test');
   for (const key in mongoose.connection.collections) {
     await mongoose.connection.collections[key].deleteMany({});
   }
@@ -40,18 +42,24 @@ afterEach(async () => {
 });
 
 async function makeMotoboy(overrides: any = {}) {
-  return User.create({
-    name: 'Moto Boy',
-    email: `moto-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
-    passwordHash: await bcrypt.hash('Senha123!', 10),
-    role: 'motoboy',
-    roles: ['motoboy', 'cliente'],
-    activeRole: 'motoboy',
-    cpf: '39053344705',
-    dataNascimento: '1990-05-10',
-    telefone: '11987654321',
-    addresses: [{ street: 'Rua A', number: '10', neighborhood: 'Centro', city: 'SP', state: 'SP', cep: '01001000', latitude: '0', longitude: '0', isDefault: true }],
-    ...overrides,
+  return prisma.user.create({
+    data: {
+      name: 'Moto Boy',
+      email: `moto-${Date.now()}-${Math.random().toString(36).slice(2)}@asub.test`,
+      passwordHash: await bcrypt.hash('Senha123!', 10),
+      role: 'motoboy',
+      roles: ['motoboy', 'cliente'],
+      activeRole: 'motoboy',
+      cpf: '39053344705',
+      dataNascimento: '1990-05-10',
+      telefone: '11987654321',
+      // `addresses` era subdocumento no Mongo; agora é tabela relacionada.
+      addresses: {
+        create: [{ street: 'Rua A', number: '10', neighborhood: 'Centro', city: 'SP', state: 'SP', cep: '01001000', latitude: '0', longitude: '0', isDefault: true }],
+      },
+      ...overrides,
+    },
+    include: { addresses: true },
   });
 }
 
@@ -60,9 +68,9 @@ describe('ensureMotoboySubaccount (Fase 1)', () => {
     post.mockResolvedValue({ id: 'acc_moto', walletId: 'wlt_moto', apiKey: '$aact_sub_moto' });
     const user = await makeMotoboy();
 
-    await ensureMotoboySubaccount(String(user._id));
+    await ensureMotoboySubaccount(user.id);
 
-    const updated = await User.findById(user._id).select('+asaas.apiKeyEncrypted');
+    const updated = await prisma.user.findUnique({ where: { id: user.id } }) as any;
     expect(post).toHaveBeenCalledTimes(1);
     expect(updated!.asaas!.accountId).toBe('acc_moto');
     expect(updated!.asaas!.walletId).toBe('wlt_moto');
@@ -75,15 +83,15 @@ describe('ensureMotoboySubaccount (Fase 1)', () => {
   it('é idempotente — não recria se já existe accountId', async () => {
     post.mockResolvedValue({ id: 'acc_moto', walletId: 'wlt_moto', apiKey: '$aact_sub_moto' });
     const user = await makeMotoboy();
-    await ensureMotoboySubaccount(String(user._id));
-    await ensureMotoboySubaccount(String(user._id));
+    await ensureMotoboySubaccount(user.id);
+    await ensureMotoboySubaccount(user.id);
     expect(post).toHaveBeenCalledTimes(1);
   });
 
   it('marca status=error quando faltam dados (sem chamar o Asaas)', async () => {
     const user = await makeMotoboy({ dataNascimento: undefined });
-    await ensureMotoboySubaccount(String(user._id));
-    const updated = await User.findById(user._id);
+    await ensureMotoboySubaccount(user.id);
+    const updated = await prisma.user.findUnique({ where: { id: user.id } }) as any;
     expect(post).not.toHaveBeenCalled();
     expect(updated!.asaas!.status).toBe('error');
     expect(updated!.asaas!.lastError).toMatch(/nascimento/i);
@@ -95,7 +103,7 @@ describe('ensureStoreSubaccount (Fase 1)', () => {
     post.mockResolvedValue({ id: 'acc_loja', walletId: 'wlt_loja', apiKey: '$aact_sub_loja' });
     const owner = await makeMotoboy({ role: 'lojista', roles: ['lojista', 'cliente'], activeRole: 'lojista' });
     const store = await Store.create({
-      ownerId: owner._id,
+      ownerId: owner.id,
       name: 'Loja X',
       cnpj: '11222333000181',
       street: 'Av B',
@@ -120,7 +128,7 @@ describe('ensureStoreSubaccount (Fase 1)', () => {
 describe('POST /api/onboarding/pix-key (Fase 1)', () => {
   it('salva a chave PIX do motoboy e infere o tipo', async () => {
     const user = await makeMotoboy();
-    const token = jwt.sign({ id: String(user._id), role: 'motoboy', activeRole: 'motoboy', roles: ['motoboy'] }, JWT_SECRET);
+    const token = jwt.sign({ id: user.id, role: 'motoboy', activeRole: 'motoboy', roles: ['motoboy'] }, JWT_SECRET);
 
     const res = await request(app)
       .post('/api/onboarding/pix-key')
@@ -131,7 +139,7 @@ describe('POST /api/onboarding/pix-key (Fase 1)', () => {
     expect(res.body.target).toBe('motoboy');
     expect(res.body.pixKeyType).toBe('EMAIL');
 
-    const updated = await User.findById(user._id);
+    const updated = await prisma.user.findUnique({ where: { id: user.id } }) as any;
     expect(updated!.asaas!.pixKey).toBe('moto@pix.com');
   });
 });

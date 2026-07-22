@@ -8,7 +8,8 @@ jest.mock('../services/asaas/client', () => ({
 
 import asaasClient from '../services/asaas/client';
 import { ensureMotoboySubaccount } from '../services/asaas/subaccount';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { decryptSensitiveData } from '../utils/encryption';
 
 const post = (asaasClient as any).post as jest.Mock;
@@ -18,6 +19,7 @@ let mongod: MongoMemoryServer;
 beforeAll(async () => { mongod = await MongoMemoryServer.create(); await mongoose.connect(mongod.getUri()); });
 afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@arec.test');
   for (const key in mongoose.connection.collections) await mongoose.connection.collections[key].deleteMany({});
   post.mockReset(); get.mockReset();
 });
@@ -32,15 +34,15 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     );
     get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
 
-    const u = await User.create({
+    const u = await prisma.user.create({ data: {
       name: 'Fernando', email: 'f@x.com', passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12',
       asaas: { status: 'active', accountId: 'acc_1' }, // accountId sem apiKeyEncrypted
-    } as any);
+    } } as any);
 
-    await ensureMotoboySubaccount(String(u._id));
+    await ensureMotoboySubaccount(String(u.id));
 
-    const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
+    const fresh = await prisma.user.findUnique({ where: { id: u.id } }) as any;
     expect(decryptSensitiveData(fresh!.asaas!.apiKeyEncrypted!)).toBe('$nova_chave');
     expect(fresh?.asaas?.walletId).toBe('wlt_1');
     expect(fresh?.asaas?.status).toBe('active');
@@ -56,15 +58,15 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     );
     get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
 
-    const u = await User.create({
+    const u = await prisma.user.create({ data: {
       name: 'Fernando', email: 'f3@x.com', passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12',
       asaas: { status: 'active', accountId: 'acc_1' },
-    } as any);
+    } } as any);
 
-    await ensureMotoboySubaccount(String(u._id));
+    await ensureMotoboySubaccount(String(u.id));
 
-    const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
+    const fresh = await prisma.user.findUnique({ where: { id: u.id } }) as any;
     expect(fresh?.asaas?.apiKeyEncrypted).toBeFalsy();
     expect(fresh?.asaas?.status).toBe('error');
     expect(fresh?.asaas?.lastError).toMatch(/whitelist|chaves de API/i);
@@ -78,15 +80,15 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     );
     get.mockResolvedValue({ data: [{ id: 'acc_2', walletId: 'wlt_2', cpfCnpj: '68193836812' }] }); // list sem apiKey
 
-    const u = await User.create({
+    const u = await prisma.user.create({ data: {
       name: 'Fernando', email: 'f2@x.com', passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12', dataNascimento: '1990-01-01',
       addresses: [{ street: 'Rua A', number: '1', neighborhood: 'Centro', city: 'Cabo Frio', state: 'RJ', cep: '28900000', latitude: '0', longitude: '0', isDefault: true }],
-    } as any);
+    } } as any);
 
-    await ensureMotoboySubaccount(String(u._id));
+    await ensureMotoboySubaccount(String(u.id));
 
-    const fresh = await User.findById(u._id).select('+asaas.apiKeyEncrypted');
+    const fresh = await prisma.user.findUnique({ where: { id: u.id } }) as any;
     expect(fresh?.asaas?.accountId).toBe('acc_2');
     expect(decryptSensitiveData(fresh!.asaas!.apiKeyEncrypted!)).toBe('$rec2');
     expect(fresh?.asaas?.status).toBe('active');

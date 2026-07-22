@@ -13,7 +13,7 @@ export interface ICoupon extends Document {
   validFrom: Date;
   validUntil: Date;
   isActive: boolean;
-  createdBy: Types.ObjectId;
+  createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +31,7 @@ const CouponSchema = new Schema<ICoupon>({
   validFrom: { type: Date, required: true },
   validUntil: { type: Date, required: true },
   isActive: { type: Boolean, default: true },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  createdBy: { type: String, required: true },
 }, { timestamps: true });
 
 CouponSchema.index({ code: 1 });

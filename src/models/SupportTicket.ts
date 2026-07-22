@@ -19,12 +19,12 @@ export interface ISupportTicket extends Document {
 const SupportTicketSchema = new Schema<ISupportTicket>({
   conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation', required: true },
   openedBy: {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: String, required: true },
     role: { type: String, required: true },
     name: { type: String, required: true },
   },
   assignedTo: [{
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: String, required: true },
     name: { type: String, required: true },
   }],
   category: { type: String, enum: ['clientes', 'lojistas', 'motoboys', 'geral'], required: true },

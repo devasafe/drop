@@ -2,7 +2,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ICustomerDebt extends Document {
-  customerId: Types.ObjectId;
+  customerId: string;
   amount: number;
   sourceOrderId: Types.ObjectId;
   collectedOrderId?: Types.ObjectId;
@@ -13,7 +13,7 @@ export interface ICustomerDebt extends Document {
 }
 
 const CustomerDebtSchema = new Schema<ICustomerDebt>({
-  customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  customerId: { type: String, required: true, index: true },
   amount: { type: Number, required: true, min: 0 },
   sourceOrderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
   collectedOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },

@@ -49,7 +49,7 @@ afterEach(async () => {
  * Helper: criar usuario diretamente no banco (bypassa validacao de foto para motoboy/lojista)
  */
 async function createUserDirect(overrides: Record<string, any> = {}) {
-  const email = overrides.email || `user-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const email = overrides.email || `user-${Date.now()}-${Math.random().toString(36).slice(2)}@auth.test`;
   const password = overrides.password || 'Senha123!';
   const role = overrides.role || 'cliente';
   const roles = overrides.roles || (role !== 'cliente' ? [role, 'cliente'] : ['cliente']);

@@ -4,7 +4,9 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import User from '../models/User';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 import Store from '../models/Store';
 import Order from '../models/Order';
@@ -36,6 +38,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@late.test');
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany({});
@@ -45,20 +48,22 @@ afterEach(async () => {
 async function createUser(role: string) {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
   const roles = role !== 'cliente' ? [role, 'cliente'] : ['cliente'];
-  const user = await User.create({
-    name: `${role} test`,
-    email: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`,
-    passwordHash,
-    role,
-    roles,
-    activeRole: role,
+  const user = await prisma.user.create({
+    data: {
+      name: `${role} test`,
+      email: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}@late.test`,
+      passwordHash,
+      role: role as Role,
+      roles: roles as Role[],
+      activeRole: role as Role,
+    },
   });
   const token = jwt.sign(
-    { id: user._id.toString(), role, activeRole: role, roles },
+    { id: user.id, role, activeRole: role, roles },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
-  return { user, token, id: user._id.toString() };
+  return { user, token, id: user.id };
 }
 
 // ============================================================
@@ -84,7 +89,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
 
     // Pedido já 'enviado' (em trânsito) → cancelamento será tardio (isLate)
     const order = await Order.create({
-      customerId: new mongoose.Types.ObjectId(customer.id),
+      customerId: customer.id,
       storeId: store._id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 200 }],
       totalValue: 200,
@@ -96,7 +101,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
 
     const delivery = await Delivery.create({
       orderId: order._id,
-      motoboyId: new mongoose.Types.ObjectId(motoboy.id),
+      motoboyId: motoboy.id,
       fee: 0,
       status: 'picked',
     });
@@ -116,7 +121,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     // PROVA #1: existe um Payout 'released' do motoboy com a compensação.
     const compPayout = await Payout.findOne({
       recipientType: 'motoboy',
-      recipientId: new mongoose.Types.ObjectId(motoboy.id),
+      recipientId: motoboy.id,
       status: 'released',
     });
     expect(compPayout).not.toBeNull();
