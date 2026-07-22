@@ -19,7 +19,7 @@ class PayoutService {
       [
         {
           recipientType,
-          recipientId: new Types.ObjectId(recipientId),
+          recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
           orderId: new Types.ObjectId(orderId),
           deliveryId: deliveryId ? new Types.ObjectId(deliveryId) : undefined,
           amount,
@@ -243,7 +243,7 @@ class PayoutService {
   ): Promise<IPayout[]> {
     return Payout.find({
       recipientType,
-      recipientId: new Types.ObjectId(recipientId),
+      recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
       status: 'released',
     }).sort({ createdAt: 1 });
   }
@@ -290,7 +290,7 @@ class PayoutService {
     const query: any = {};
     if (filters.status) query.status = filters.status;
     if (filters.recipientType) query.recipientType = filters.recipientType;
-    if (filters.recipientId) query.recipientId = new Types.ObjectId(filters.recipientId);
+    if (filters.recipientId) query.recipientId = filters.recipientId; // String (ver createPendingPayout)
     if (filters.orderId) query.orderId = new Types.ObjectId(filters.orderId);
 
     const page = filters.page || 1;

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import Store from '../models/Store';
 import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinary';
 import { isValidCNPJ, onlyDigits } from '../utils/documentValidation';
@@ -33,7 +34,7 @@ export const submitFacial = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const file = (req.file as any) || (req.files as any)?.selfie?.[0];
     if (!file) return res.status(400).json({ error: 'Envie a selfie' });
-    const user = await User.findById(req.user?.id);
+    const user = await userRepository.findById(String(req.user?.id)) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     ensureUserVerification(user);
     if (user.verification!.facial!.status === 'pending') return res.status(409).json({ error: 'Selfie já em análise' });
@@ -42,8 +43,7 @@ export const submitFacial = async (req: AuthenticatedRequest, res: Response) => 
     const role = (req.user as any)?.activeRole || req.user?.role;
     const selfieUrl = await uploadToCloudinary(file.buffer, kycFolder(bucketForRole(role), user.id, 'facial'));
     user.verification!.facial = { status: 'pending', selfieUrl, submittedAt: new Date() };
-    user.markModified('verification');
-    await user.save();
+    await userRepository.update(user.id, { verification: user.verification });
     emitAdminNotification({
       title: 'Nova verificação pendente',
       body: `${user.name} enviou uma selfie (facial) para análise.`,
@@ -136,7 +136,7 @@ export const getStoreVerification = async (req: AuthenticatedRequest, res: Respo
     const { storeId } = req.params;
     const store = await Store.findById(storeId);
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-    const owner = await User.findById(store.ownerId).select('verification');
+    const owner = await userRepository.findById(String(store.ownerId)) as any;
 
     const role = (req.user as any)?.activeRole || (req.user as any)?.role;
     const isOwner = String(store.ownerId) === String(req.user?.id);
@@ -169,8 +169,15 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
       .populate('ownerId', 'name email roles role')
       .lean();
 
-    const facialPendingOwners = await User.find({ 'verification.facial.status': 'pending' })
-      .select('name email roles role verification.facial').lean();
+    const facialPendingRaw = await prisma.user.findMany({
+      where: { verification: { path: ['facial', 'status'], equals: 'pending' } },
+      select: { id: true, name: true, email: true, roles: true, role: true, verification: true },
+    });
+    const facialPendingOwners = facialPendingRaw.map((u) => ({
+      ...u,
+      _id: u.id,
+      verification: { facial: (u.verification as any)?.facial },
+    }));
 
     return res.json({ stores, facialPendingOwners });
   } catch (err) {
@@ -181,7 +188,7 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
 
 async function decideUserFacial(req: AuthenticatedRequest, res: Response, approved: boolean) {
   const { userId } = req.params;
-  const user = await User.findById(userId);
+  const user = await userRepository.findById(String(userId)) as any;
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
   ensureUserVerification(user);
   if (user.verification!.facial!.status !== 'pending') return res.status(400).json({ error: 'Facial não está pendente' });
@@ -189,8 +196,7 @@ async function decideUserFacial(req: AuthenticatedRequest, res: Response, approv
   user.verification!.facial!.reviewedBy = req.user?.id;
   user.verification!.facial!.reviewedAt = new Date();
   user.verification!.facial!.rejectionReason = approved ? undefined : (req.body?.reason || 'Selfie não aprovada');
-  user.markModified('verification');
-  await user.save();
+  await userRepository.update(user.id, { verification: user.verification });
   await recomputeStoresForOwner(userId);
   logger.info(`[verification][AUDIT] facial ${approved ? 'aprovada' : 'rejeitada'}`, { userId, by: req.user?.id });
   return res.json({ message: approved ? 'Facial aprovada' : 'Facial rejeitada' });

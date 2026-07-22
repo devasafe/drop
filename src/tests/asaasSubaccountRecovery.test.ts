@@ -35,7 +35,7 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
 
     const u = await prisma.user.create({ data: {
-      name: 'Fernando', email: 'f@x.com', passwordHash: 'x', role: 'motoboy',
+      name: 'Fernando', email: `f-${Date.now()}-${Math.random().toString(36).slice(2)}@arec.test`, passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12',
       asaas: { status: 'active', accountId: 'acc_1' }, // accountId sem apiKeyEncrypted
     } } as any);
@@ -59,7 +59,7 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     get.mockResolvedValue({ data: [{ id: 'acc_1', walletId: 'wlt_1', cpfCnpj: '68193836812' }] });
 
     const u = await prisma.user.create({ data: {
-      name: 'Fernando', email: 'f3@x.com', passwordHash: 'x', role: 'motoboy',
+      name: 'Fernando', email: `f3-${Date.now()}-${Math.random().toString(36).slice(2)}@arec.test`, passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12',
       asaas: { status: 'active', accountId: 'acc_1' },
     } } as any);
@@ -81,9 +81,10 @@ describe('recuperação de subconta Asaas (apiKey perdida)', () => {
     get.mockResolvedValue({ data: [{ id: 'acc_2', walletId: 'wlt_2', cpfCnpj: '68193836812' }] }); // list sem apiKey
 
     const u = await prisma.user.create({ data: {
-      name: 'Fernando', email: 'f2@x.com', passwordHash: 'x', role: 'motoboy',
+      name: 'Fernando', email: `f2-${Date.now()}-${Math.random().toString(36).slice(2)}@arec.test`, passwordHash: 'x', role: 'motoboy',
       cpf: '681.938.368-12', dataNascimento: '1990-01-01',
-      addresses: [{ street: 'Rua A', number: '1', neighborhood: 'Centro', city: 'Cabo Frio', state: 'RJ', cep: '28900000', latitude: '0', longitude: '0', isDefault: true }],
+      // `addresses` virou tabela relacionada: array literal não vale mais.
+      addresses: { create: [{ street: 'Rua A', number: '1', neighborhood: 'Centro', city: 'Cabo Frio', state: 'RJ', cep: '28900000', latitude: '0', longitude: '0', isDefault: true }] },
     } } as any);
 
     await ensureMotoboySubaccount(String(u.id));

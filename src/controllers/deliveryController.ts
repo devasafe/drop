@@ -4,7 +4,8 @@ import mongoose, { Types } from 'mongoose';
 import AppCashbox from '../models/AppCashbox';
 import Delivery from '../models/Delivery';
 import Order from '../models/Order';
-import User from '../models/User';
+import { prisma } from '../lib/prisma';
+import userRepository from '../repositories/user.repository';
 import Store from '../models/Store';
 import Wallet from '../models/Wallet';
 import PlatformConfig from '../models/PlatformConfig';
@@ -534,7 +535,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
-    const motoboy = await User.findById(motoboyId);
+    const motoboy = await userRepository.findById(String(motoboyId)) as any;
     if (!motoboy) return res.status(404).json({ error: 'Motoboy not found' });
     if (motoboy.role !== 'motoboy') return res.status(400).json({ error: 'User is not a motoboy' });
 
@@ -667,13 +668,13 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     if (order && order.storeId) {
       storeObj = await Store.findById(order.storeId).lean();
       if (storeObj && storeObj.ownerId) {
-        storeOwner = await User.findById(storeObj.ownerId).lean();
+        storeOwner = await userRepository.findById(String(storeObj.ownerId)) as any;
       }
     }
     // Busca dados completos do cliente
     let customerObj = null;
     if (order && order.customerId) {
-      customerObj = await User.findById(order.customerId).lean();
+      customerObj = await userRepository.findById(String(order.customerId)) as any;
       // ✅ NOVO: Computar mainAddress dinamicamente
     }
 
@@ -743,7 +744,7 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
 
     // ✅ GATE KYC Fase 3: motoboy não verificado não vê entregas disponíveis
     if (process.env.KYC_ENFORCED === 'true') {
-      const me = await User.findById(req.user.id).select('verification');
+      const me = await userRepository.findById(String(req.user.id)) as any;
       if (!isMotoboyVerified(me)) {
         return res.json({ deliveries: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 }, requiresVerification: true });
       }
@@ -757,7 +758,7 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     // Despacho por raio: filtra o pool pela distância loja→motoboy, que cresce com a
     // idade da entrega. Carregamos o lote pendente (cap defensivo) e filtramos em
     // memória, pois o raio depende da idade de cada entrega + da localização atual.
-    const me = await User.findById(req.user.id).select('currentLocation');
+    const me = await userRepository.findById(String(req.user.id)) as any;
     const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
       ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
       : null;
@@ -807,9 +808,12 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
     }
     const isOnline = (req.body as any).isOnline;
 
-    await User.findByIdAndUpdate(req.user.id, {
-      currentLocation: { lat, lng, updatedAt: new Date() },
-      ...(typeof isOnline === 'boolean' ? { isOnline } : {}),
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        currentLocation: { lat, lng, updatedAt: new Date() },
+        ...(typeof isOnline === 'boolean' ? { isOnline } : {}),
+      },
     });
 
     return res.json({ ok: true });
@@ -828,7 +832,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
 
     // ✅ GATE KYC Fase 3: motoboy só recebe entrega se estiver verificado
     if (process.env.KYC_ENFORCED === 'true') {
-      const motoboyUser = await User.findById(userId).select('verification');
+      const motoboyUser = await userRepository.findById(String(userId)) as any;
       if (!isMotoboyVerified(motoboyUser)) {
         return res.status(403).json({
           error: 'Conta de motoboy não verificada. Conclua a verificação para aceitar entregas.',
@@ -859,7 +863,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Buscar motoboy para nome
-    const motoboy = await User.findById(userId);
+    const motoboy = await userRepository.findById(String(userId)) as any;
     const motoboyName = motoboy?.name || 'Motoboy';
 
     // 🔴 BROADCAST 1: Notificar CLIENTE que motoboy aceitou + enviar PIN

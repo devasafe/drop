@@ -77,7 +77,7 @@ export const getStoreWallet = async (req: Request, res: Response) => {
     // Reconcilia saldos a partir dos Payouts (self-healing): a fonte da verdade
     // são os registros de Payout, não os contadores denormalizados na wallet.
     const agg = await Payout.aggregate([
-      { $match: { recipientType: 'store', recipientId: new mongoose.Types.ObjectId(storeId) } },
+      { $match: { recipientType: 'store', recipientId: String(storeId) } },
       { $group: { _id: '$status', total: { $sum: '$amount' } } },
     ]);
     const sums: Record<string, number> = {};
@@ -163,7 +163,7 @@ export const transferStoreToOwner = async (req: Request, res: Response) => {
     // Payouts released (disponíveis para transferência)
     const releasedPayouts = await Payout.find({
       recipientType: 'store',
-      recipientId: new mongoose.Types.ObjectId(storeId),
+      recipientId: String(storeId),
       status: 'released',
     }).session(session);
 
@@ -271,7 +271,7 @@ export const getMotoboyWallet = async (req: Request, res: Response) => {
 
     // Reconcilia saldos a partir dos Payouts (fonte da verdade)
     const agg = await Payout.aggregate([
-      { $match: { recipientType: 'motoboy', recipientId: new mongoose.Types.ObjectId(motoboyId) } },
+      { $match: { recipientType: 'motoboy', recipientId: String(motoboyId) } },
       { $group: { _id: '$status', total: { $sum: '$amount' } } },
     ]);
     const sums: Record<string, number> = {};
@@ -341,7 +341,7 @@ export const transferMotoboyToOwner = async (req: Request, res: Response) => {
 
     const releasedPayouts = await Payout.find({
       recipientType: 'motoboy',
-      recipientId: new mongoose.Types.ObjectId(motoboyId),
+      recipientId: String(motoboyId),
       status: 'released',
     }).session(session);
 

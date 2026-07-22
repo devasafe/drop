@@ -150,7 +150,7 @@ function isAlreadyExistsError(err: any): boolean {
 
 /** Cria/garante a subconta do MOTOBOY (no User, pelo CPF). */
 export async function ensureMotoboySubaccount(userId: string): Promise<void> {
-  const user = await userRepository.findById(String(userId)) as any;
+  const user = await userRepository.findByIdWithAddresses(String(userId)) as any;
   if (!user) return;
   if (user.asaas?.accountId && user.asaas?.apiKeyEncrypted) return; // já criada e com apiKey
 
@@ -248,7 +248,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
   if (!store) return;
   if (store.asaas?.accountId && store.asaas?.apiKeyEncrypted) return;
 
-  const owner = await userRepository.findById(String(store.ownerId)) as any;
+  const owner = await userRepository.findByIdWithAddresses(String(store.ownerId)) as any;
   if (!owner) return;
 
   // CNPJ da loja se houver; senão CPF do dono (MEI / autônomo).

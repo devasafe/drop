@@ -43,7 +43,7 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
       asaas: { status: 'active', walletId: 'wlt_loja' },
     });
     const motoboy = await prisma.user.create({ data: {
-      name: 'Moto', email: 'm@x.com', passwordHash: 'x', role: 'motoboy',
+      name: 'Moto', email: `m-${Date.now()}-${Math.random().toString(36).slice(2)}@arels.test`, passwordHash: 'x', role: 'motoboy',
       asaas: { status: 'active', walletId: 'wlt_moto' },
     } } as any);
 
