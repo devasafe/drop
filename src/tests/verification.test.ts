@@ -14,8 +14,8 @@ import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
-import Store from '../models/Store';
-import Product from '../models/Product';
+
+
 import EmailVerificationToken from '../models/EmailVerificationToken';
 import { isValidCPF, isValidRG } from '../utils/documentValidation';
 import { isClientVerified, missingClientVerifications } from '../utils/clientVerification';
@@ -115,15 +115,15 @@ describe('Gate de compra (KYC)', () => {
     const customer = await createUser('cliente'); // sem verification
     const lojista = await createUser('lojista');
     await Wallet.create({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
-    const store = await Store.create({ ownerId: lojista.userId, name: 'Loja KYC', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'P', price: 50, quantity: 10 });
+    const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja KYC', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'P', price: 50, quantity: 10 } });
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${customer.token}`)
       .send({
-        storeId: store._id.toString(),
-        products: [{ productId: product._id.toString(), quantity: 1 }],
+        storeId: store.id,
+        products: [{ productId: product.id, quantity: 1 }],
         deliveryDistanceKm: 0,
         paymentMethod: 'pix',
       });
@@ -141,15 +141,15 @@ describe('Gate de compra (KYC)', () => {
     });
     const lojista = await createUser('lojista');
     await Wallet.create({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
-    const store = await Store.create({ ownerId: lojista.userId, name: 'Loja KYC2', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'P', price: 50, quantity: 10 });
+    const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja KYC2', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'P', price: 50, quantity: 10 } });
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${customer.token}`)
       .send({
-        storeId: store._id.toString(),
-        products: [{ productId: product._id.toString(), quantity: 1 }],
+        storeId: store.id,
+        products: [{ productId: product.id, quantity: 1 }],
         deliveryDistanceKm: 0,
         paymentMethod: 'pix',
       });

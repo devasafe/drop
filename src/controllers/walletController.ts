@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Wallet from '../models/Wallet';
-// 🔀 Migração: User já vive no Postgres; Wallet/Store seguem no Mongoose até suas fatias.
+// 🔀 Migração: User e Store já vivem no Postgres; Wallet segue no Mongoose (Fatia 5).
+import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Store from '../models/Store';
+
 import Payout from '../models/Payout';
 import payoutService from '../services/payout.service';
 import {
@@ -61,7 +62,7 @@ export const getStoreWallet = async (req: Request, res: Response) => {
     const requesterId = (req as any).user?.id;
     const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
     const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_lojistas'];
-    const storeOwner = await Store.findById(storeId).select('ownerId');
+    const storeOwner = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     if (!storeOwner) return res.status(404).json({ error: 'Carteira da loja não encontrada' });
     if (String(storeOwner.ownerId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
       return res.status(403).json({ error: 'Acesso negado à carteira da loja' });
@@ -105,7 +106,7 @@ export const getStoreWallet = async (req: Request, res: Response) => {
       await wallet.save();
     }
 
-    const store = await Store.findById(storeId);
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     const plan = store?.plan || 1;
     const feePercent = await getStorePlanFee(storeId);
 
@@ -147,7 +148,7 @@ export const transferStoreToOwner = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const store = await Store.findById(storeId).session(session);
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     if (!store) {
       await session.abortTransaction();
       session.endSession();
@@ -564,7 +565,7 @@ export const getWalletHistory = async (req: Request, res: Response) => {
       // Autoheal: cria wallet sob demanda (user, motoboy ou store)
       const [userDoc, storeDoc] = await Promise.all([
         userRepository.findById(userId),
-        Store.findById(userId).select('_id').lean(),
+        prisma.store.findUnique({ where: { id: String(userId) } }),
       ]);
       if (!userDoc && !storeDoc) {
         return res.status(404).json({ error: 'Carteira não encontrada' });
@@ -705,7 +706,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
     let storeInfo: any = null;
     if (role === 'lojista' && user?.storeId) {
       try {
-        const store = await Store.findById(user.storeId).select('name').lean();
+        const store = await prisma.store.findUnique({ where: { id: String(user.storeId) } }) as any;
         storeInfo = {
           _id: user.storeId,
           name: store?.name || 'Loja'

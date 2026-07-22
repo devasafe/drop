@@ -3,8 +3,9 @@ import asaasClient from '../asaas/client';
 import { decryptSensitiveData } from '../../utils/encryption';
 import logger from '../../config/logger';
 import Payout from '../../models/Payout';
-import Store from '../../models/Store';
+
 import userRepository from '../../repositories/user.repository';
+import { prisma } from '../../lib/prisma';
 
 /**
  * Gateway de SAÍDA (saque) via Asaas.
@@ -63,7 +64,7 @@ export class AsaasGateway implements IPayoutGateway {
     let pixKey: string | undefined;
     let pixKeyType: string | undefined;
     if (payout.recipientType === 'store') {
-      const store = await Store.findById(payout.recipientId).select('+asaas.apiKeyEncrypted');
+      const store = await prisma.store.findUnique({ where: { id: String(payout.recipientId) } }) as any;
       apiKeyEnc = store?.asaas?.apiKeyEncrypted;
       pixKey = store?.asaas?.pixKey;
       pixKeyType = store?.asaas?.pixKeyType;

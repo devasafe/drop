@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { hasPermission } from '../utils/walletCalculations';
 import Wallet from '../models/Wallet';
-import Store from '../models/Store';
+
 import { getEffectivePermissions } from '../controllers/rolePermissionsController';
 import { hasValidWalletAccess } from '../controllers/walletAccessController';
+import { prisma } from '../lib/prisma';
 
 const ADMIN_ROLES = ['ceo', 'gerente_geral'];
 
@@ -116,7 +117,7 @@ export async function authorizeWalletOwner(req: Request, res: Response, next: Ne
   // Dono de loja pode acessar a wallet da própria loja (quando userId é um storeId)
   if (userId) {
     try {
-      const store = await Store.findById(userId).select('ownerId');
+      const store = await prisma.store.findUnique({ where: { id: String(userId) }, select: { ownerId: true } });
       if (store && String(store.ownerId) === String(user.id)) {
         return next();
       }

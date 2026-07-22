@@ -3,7 +3,7 @@ dotenv.config();
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
-import Store from '../models/Store';
+
 
 /**
  * Seeds de teste:
@@ -78,17 +78,17 @@ async function run() {
     },
   });
 
-  let store = await Store.findOne({ ownerId: lojista.id });
+  let store = await prisma.store.findFirst({ where: { ownerId: lojista.id } });
   if (!store) {
-    store = await Store.create({ ownerId: lojista.id, name: 'Loja Teste', isOpen: true });
+    store = await prisma.store.create({ data: { ownerId: lojista.id, name: 'Loja Teste', isOpen: true } });
   }
-  await prisma.user.update({ where: { id: lojista.id }, data: { storeId: String(store._id) } });
+  await prisma.user.update({ where: { id: lojista.id }, data: { storeId: store.id } });
 
   console.log('\n═══════════════════════════════════════════');
   console.log('✅ Seeds criados (senha de todos:', PASS, ')');
   console.log('   admin@drop.test    → CEO, tudo aprovado');
   console.log('   motoboy@drop.test  → motoboy, só e-mail aprovado');
-  console.log('   lojista@drop.test  → lojista, só e-mail aprovado (loja: ' + store._id + ')');
+  console.log('   lojista@drop.test  → lojista, só e-mail aprovado (loja: ' + store.id + ')');
   console.log('═══════════════════════════════════════════\n');
   await mongoose.disconnect();
   process.exit(0);

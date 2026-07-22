@@ -1,11 +1,11 @@
 import { Response, Request } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Store, { IStore, IOperatingHoursDay } from '../models/Store';
+
 import Order from '../models/Order';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import Product from '../models/Product';
-import Category from '../models/Category';
+
+
 import Delivery from '../models/Delivery';
 import { slugify } from '../utils/slugify';
 import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
@@ -77,7 +77,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
           let prodId = prod.productId;
           let productObj = null;
           if (prodId) {
-            productObj = await Product.findById(prodId).populate('category', 'name').lean();
+            productObj = await prisma.product.findUnique({ where: { id: String(prodId) }, include: { category: { select: { name: true } } } }) as any;
           }
           // Garante que sempre retorna nome, imagem e categoria
           return {
@@ -106,7 +106,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     const historyOrders = ordersWithDelivery.filter(o => o.status === 'entregue' || o.status === 'cancelado' || o.status === 'rejeitado');
     
     // 🔍 Buscar todas as categorias únicas dos produtos da loja (com populate para trazer nomes)
-    const products = await Product.find({ storeId: store.id }).populate('category', 'name').lean();
+    const products = await prisma.product.findMany({ where: { storeId: store.id }, include: { category: { select: { name: true } } } }) as any[];
     const categories = [...new Set(
       products
         .map(p => {
@@ -145,7 +145,8 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 type DayKey = typeof DAYS[number];
 
-export function isStoreCurrentlyOpen(store: IStore): boolean {
+/** `store` aceita tanto o registro do Prisma quanto o objeto plano usado nas rotas. */
+export function isStoreCurrentlyOpen(store: { isOpen?: boolean | null; operatingHours?: any }): boolean {
   // Toggle manual sobrepõe tudo
   if (!store.isOpen) return false;
 
@@ -155,7 +156,7 @@ export function isStoreCurrentlyOpen(store: IStore): boolean {
 
   const now = new Date();
   const dayKey = DAYS[now.getDay()] as DayKey;
-  const dayConfig = (hours as any)[dayKey] as IOperatingHoursDay | undefined;
+  const dayConfig = (hours as any)[dayKey] as { open?: string; close?: string; closed?: boolean } | undefined;
 
   // Dia sem configuração = aberta
   if (!dayConfig) return true;

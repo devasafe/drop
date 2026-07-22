@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
-import Store from '../models/Store';
+
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 
@@ -32,11 +32,13 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
         prisma.user.count({ where: { verification: { path: ['document', 'status'], equals: 'pending' } } }),
         prisma.user.count({ where: { verification: { path: ['facial', 'status'], equals: 'pending' } } }),
         prisma.user.count({ where: { verification: { path: ['courier', 'status'], equals: 'pending' } } }),
-        Store.countDocuments({
-          $or: [
-            { 'verification.cnpj.status': 'pending' },
-            { 'verification.address.status': 'pending' },
-          ],
+        prisma.store.count({
+          where: {
+            OR: [
+              { verification: { path: ['cnpj', 'status'], equals: 'pending' } },
+              { verification: { path: ['address', 'status'], equals: 'pending' } },
+            ],
+          },
         }),
       ]);
       out.verifications = docs + facial + courier + stores;
@@ -44,7 +46,7 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
 
     // Pedidos novos da loja (aguardando aceite). Ignora PIX ainda não pago.
     if (role === 'lojista' || (role as string) === 'seller') {
-      const store = await Store.findOne({ ownerId: userId }).select('_id');
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (store) {
         out.storeOrders = await Order.countDocuments({
           storeId: store._id,

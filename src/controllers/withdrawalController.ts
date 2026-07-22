@@ -3,11 +3,12 @@ import mongoose from 'mongoose';
 import WithdrawalRequest from '../models/WithdrawalRequest';
 import Wallet from '../models/Wallet';
 import userRepository from '../repositories/user.repository';
-import Store from '../models/Store';
+
 import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
+import { prisma } from '../lib/prisma';
 
 /**
  * Verifica se o recebedor (motoboy/loja) está pronto para sacar via Asaas:
@@ -22,7 +23,7 @@ async function checkAsaasReceiverReady(
   // (Misturar com a inclusão de `asaas` causa colisão de projeção → erro 500.)
   const asaas =
     recipientType === 'store'
-      ? (await Store.findById(recipientId).select('+asaas.apiKeyEncrypted'))?.asaas
+      ? (await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any)?.asaas
       : (await userRepository.findById(String(recipientId)) as any)?.asaas;
 
   // A subconta é considerada utilizável se TEM apiKeyEncrypted (foi criada com

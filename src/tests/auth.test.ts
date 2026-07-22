@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
 import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -32,17 +33,8 @@ afterEach(async () => {
   // O Mongo daqui é em memória e morre junto com a suíte; o Postgres é o banco de
   // dev e persiste. Limpamos só o que os testes criam — e-mails de domínio de
   // exemplo/teste. (Base efêmera dedicada é a Fase 5.)
-  const testUsers = await prisma.user.findMany({
-    where: {
-      OR: [{ email: { endsWith: '@example.com' } }, { email: { endsWith: '@test.com' } }],
-    },
-    select: { id: true },
-  });
-  const ids = testUsers.map((u) => u.id);
-  if (ids.length > 0) {
-    await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
-  }
+  await cleanupUsersByEmailDomain('@example.com');
+  await cleanupUsersByEmailDomain('@auth.test');
 });
 
 /**

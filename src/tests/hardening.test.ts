@@ -18,8 +18,8 @@ import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
-import Store from '../models/Store';
-import Product from '../models/Product';
+
+
 import walletService from '../services/wallet.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -98,15 +98,15 @@ describe('Segurança: preço do pedido vem sempre do banco', () => {
     const lojista = await createUser('lojista');
     await setBalance(customer.userId, 'user', 1000);
 
-    const store = await Store.create({ ownerId: lojista.userId, name: 'Loja A', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Produto', price: 100, quantity: 10 });
+    const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja A', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Produto', price: 100, quantity: 10 } });
 
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${customer.token}`)
       .send({
-        storeId: store._id.toString(),
-        products: [{ productId: product._id.toString(), quantity: 1, price: 1 }], // preço malicioso
+        storeId: store.id,
+        products: [{ productId: product.id, quantity: 1, price: 1 }], // preço malicioso
         deliveryDistanceKm: 0,
         paymentMethod: 'pix',
       });
@@ -129,15 +129,15 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
     const lojista = await createUser('lojista');
     await setBalance(customer.userId, 'user', 1000);
 
-    const store = await Store.create({ ownerId: lojista.userId, name: 'Loja B', isOpen: true });
-    const product = await Product.create({ storeId: store._id, name: 'Produto', price: 100, quantity: 10 });
+    const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja B', isOpen: true } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Produto', price: 100, quantity: 10 } });
 
     const orderRes = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${customer.token}`)
       .send({
-        storeId: store._id.toString(),
-        products: [{ productId: product._id.toString(), quantity: 3 }],
+        storeId: store.id,
+        products: [{ productId: product.id, quantity: 3 }],
         deliveryDistanceKm: 0,
         paymentMethod: 'pix',
       });
@@ -145,7 +145,7 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
     const orderId = orderRes.body._id;
 
     // Estoque decrementado e saldo debitado
-    expect((await Product.findById(product._id))!.quantity).toBe(7);
+    expect((await prisma.product.findUnique({ where: { id: product.id } }))!.quantity).toBe(7);
     expect((await Wallet.findOne({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(700);
 
     // 1º cancelamento: sucesso
@@ -156,7 +156,7 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
     expect(cancel1.status).toBe(200);
 
     // Estoque restaurado e reembolso creditado
-    expect((await Product.findById(product._id))!.quantity).toBe(10);
+    expect((await prisma.product.findUnique({ where: { id: product.id } }))!.quantity).toBe(10);
     expect((await Wallet.findOne({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(1000);
 
     // 2º cancelamento (duplicado): bloqueado por uma das duas camadas de defesa —
@@ -178,20 +178,20 @@ describe('Segurança (IDOR): acesso a carteira de loja/motoboy', () => {
   it('impede um lojista de ver a carteira de outra loja', async () => {
     const donoA = await createUser('lojista');
     const donoB = await createUser('lojista');
-    const lojaB = await Store.create({ ownerId: donoB.userId, name: 'Loja do B', isOpen: true });
+    const lojaB = await prisma.store.create({ data: { ownerId: donoB.userId, name: 'Loja do B', isOpen: true } });
 
     const res = await request(app)
-      .get(`/api/wallets/store/${lojaB._id.toString()}`)
+      .get(`/api/wallets/store/${lojaB.id}`)
       .set('Authorization', `Bearer ${donoA.token}`);
     expect(res.status).toBe(403);
   });
 
   it('permite o dono ver a carteira da própria loja', async () => {
     const dono = await createUser('lojista');
-    const loja = await Store.create({ ownerId: dono.userId, name: 'Minha Loja', isOpen: true });
+    const loja = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Minha Loja', isOpen: true } });
 
     const res = await request(app)
-      .get(`/api/wallets/store/${loja._id.toString()}`)
+      .get(`/api/wallets/store/${loja.id}`)
       .set('Authorization', `Bearer ${dono.token}`);
     expect(res.status).toBe(200);
   });

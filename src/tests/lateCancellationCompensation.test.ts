@@ -4,11 +4,12 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
+import { ownerIdForStore } from './helpers/storeOwner';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
-import Store from '../models/Store';
+
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 import Payout from '../models/Payout';
@@ -85,12 +86,12 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     // Caixa do app com saldo inicial
     await AppCashbox.create({ balance: 500, totalIncome: 500, totalExpenses: 0, history: [] });
 
-    const store = await Store.create({ ownerId: new mongoose.Types.ObjectId(), name: 'Loja Teste' });
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@late.test'), name: 'Loja Teste' } });
 
     // Pedido já 'enviado' (em trânsito) → cancelamento será tardio (isLate)
     const order = await Order.create({
       customerId: customer.id,
-      storeId: store._id,
+      storeId: store.id,
       products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 200 }],
       totalValue: 200,
       deliveryFee: 0,

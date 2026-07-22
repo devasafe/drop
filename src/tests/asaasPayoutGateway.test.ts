@@ -8,9 +8,12 @@ jest.mock('../services/asaas/client', () => ({
 
 import asaasClient from '../services/asaas/client';
 import { AsaasGateway } from '../services/payoutGateway/asaasGateway';
-import Store from '../models/Store';
+
 import Payout from '../models/Payout';
 import { encryptSensitiveData } from '../utils/encryption';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
+import { ownerIdForStore } from './helpers/storeOwner';
 
 const postAs = (asaasClient as any).postAs as jest.Mock;
 const getAs = (asaasClient as any).getAs as jest.Mock;
@@ -25,6 +28,7 @@ afterAll(async () => {
   await mongod.stop();
 });
 afterEach(async () => {
+  await cleanupUsersByEmailDomain('@apg.test');
   for (const key in mongoose.connection.collections) {
     await mongoose.connection.collections[key].deleteMany({});
   }
@@ -36,8 +40,8 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
   it('saca via PIX usando a apiKey da subconta e a chave PIX do recebedor', async () => {
     postAs.mockResolvedValue({ id: 'tr_saque', status: 'DONE' });
 
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@apg.test'),
       name: 'Loja',
       asaas: {
         status: 'active',
@@ -46,9 +50,9 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
         pixKey: 'loja@pix.com',
         pixKeyType: 'EMAIL',
       },
-    });
+    } });
     const payout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 90, status: 'released',
+      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 90, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -65,13 +69,13 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
   });
 
   it('falha (sem chave PIX) → status failed e não chama o gateway', async () => {
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@apg.test'),
       name: 'Loja sem pix',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$aact_x') },
-    });
+    } });
     const payout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 50, status: 'released',
+      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 50, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -86,13 +90,13 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
     getAs.mockResolvedValue({ balance: 15.0 }); // subconta tem R$15,00
     postAs.mockResolvedValue({ id: 'tr_cap', status: 'DONE' });
 
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@apg.test'),
       name: 'Loja',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
-    });
+    } });
     const payout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 15.01, status: 'released',
+      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 15.01, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -105,13 +109,13 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
 
   it('subconta zerada → falha clara, sem chamar o gateway', async () => {
     getAs.mockResolvedValue({ balance: 0 });
-    const store = await Store.create({
-      ownerId: new mongoose.Types.ObjectId(),
+    const store = await prisma.store.create({ data: {
+      ownerId: await ownerIdForStore('@apg.test'),
       name: 'Loja',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
-    });
+    } });
     const payout = await Payout.create({
-      recipientType: 'store', recipientId: store._id, orderId: new mongoose.Types.ObjectId(), amount: 10, status: 'released',
+      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 10, status: 'released',
     });
 
     const gw = new AsaasGateway();

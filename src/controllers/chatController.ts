@@ -5,9 +5,10 @@ import Message from '../models/Message';
 import userRepository from '../repositories/user.repository';
 import Order from '../models/Order';
 import Delivery from '../models/Delivery';
-import Store from '../models/Store';
+
 import notifier from '../services/notifier';
 import logger from '../config/logger';
+import { prisma } from '../lib/prisma';
 
 /**
  * Normalizar role para match com schema enum
@@ -56,7 +57,7 @@ export const createOrGetConversation = async (
 
     // Se for conversa loja-motoboy, otherParticipantId é storeId
     if (type === 'loja_motoboy') {
-      const store = await Store.findById(otherParticipantId).select('ownerId name').lean();
+      const store = await prisma.store.findUnique({ where: { id: String(otherParticipantId) } }) as any;
       if (!store) {
         return res.status(404).json({ error: 'Loja não encontrada' });
       }
@@ -103,7 +104,7 @@ export const createOrGetConversation = async (
     
     // 🆕 Se for conversa loja-motoboy, otherParticipantId é storeId, precisamos pegar o ownerId
     if (type === 'loja_motoboy') {
-      const store = await Store.findById(otherParticipantId).select('ownerId name').lean();
+      const store = await prisma.store.findUnique({ where: { id: String(otherParticipantId) } }) as any;
       if (!store) {
         return res.status(404).json({ error: 'Loja não encontrada' });
       }
@@ -450,7 +451,7 @@ export const sendMessage = async (
       
       if (convType === 'loja_motoboy' || conversationType === 'loja_motoboy') {
         // Tentar buscar como Store primeiro
-        const store = await Store.findById(otherParticipantId).select('ownerId name').lean();
+        const store = await prisma.store.findUnique({ where: { id: String(otherParticipantId) } }) as any;
         if (store) {
           otherUserIdForNotif = store.ownerId.toString();
           otherUser = await userRepository.findById(String(otherUserIdForNotif)) as any;
@@ -1005,7 +1006,7 @@ export const createOrGetPrePurchaseConversation = async (
 
     // ✅ FIX: Buscar a Store e obter o ownerId
     console.log(`📨 [CONTROLLER] Buscando Store com ID: ${storeId}`);
-    const store = await Store.findById(storeId).lean();
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     
     if (!store) {
       console.log(`❌ [CONTROLLER] Store não encontrada com ID: ${storeId}`);
