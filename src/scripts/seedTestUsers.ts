@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config();
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 
@@ -28,10 +27,6 @@ async function upsertUser(email: string, fields: any) {
 }
 
 async function run() {
-  const uri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/drop';
-  await mongoose.connect(uri);
-  console.log('✅ Conectado ao Mongo');
-
   // 1) Admin (CEO) com tudo aprovado
   await upsertUser('admin@drop.test', {
     name: 'Admin Teste',
@@ -90,7 +85,7 @@ async function run() {
   console.log('   motoboy@drop.test  → motoboy, só e-mail aprovado');
   console.log('   lojista@drop.test  → lojista, só e-mail aprovado (loja: ' + store.id + ')');
   console.log('═══════════════════════════════════════════\n');
-  await mongoose.disconnect();
+  await prisma.$disconnect();
   process.exit(0);
 }
 

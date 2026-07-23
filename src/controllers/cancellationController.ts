@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 

@@ -1,6 +1,5 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import mongoose, { Types } from 'mongoose';
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 
 

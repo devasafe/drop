@@ -4,9 +4,7 @@
  * - Integração: gate de compra, verificação de email por token, aprovação pelo admin.
  */
 import request from 'supertest';
-import mongoose from 'mongoose';
 import crypto from 'crypto';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -67,7 +65,6 @@ describe('Unit: isClientVerified / missing', () => {
 });
 
 // ===================== INTEGRAÇÃO =====================
-let mongod: MongoMemoryReplSet;
 
 async function createUser(role = 'cliente', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
@@ -84,29 +81,11 @@ async function createUser(role = 'cliente', verification?: any): Promise<{ token
   return { token, userId: user.id };
 }
 
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  // warm-up: garante o primary pronto para transações (evita flaky na 1ª transação)
-  const s = await mongoose.startSession();
-  try {
-    await s.withTransaction(async () => {
-      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
-    });
-  } finally {
-    await s.endSession();
-  }
-}, 60000);
-
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@verif.test');
-  const collections = mongoose.connection.collections;
-  for (const key in collections) await collections[key].deleteMany({});
 });
 
 describe('Gate de compra (KYC)', () => {

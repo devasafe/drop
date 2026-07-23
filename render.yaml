@@ -7,14 +7,16 @@ services:
     rootDir: .
     # --include=dev é necessário: o build (tsc) precisa de typescript e @types,
     # que são devDependencies (NODE_ENV=production as omitiria por padrão).
-    buildCommand: npm install --include=dev --legacy-peer-deps && npm run build
-    startCommand: npm start
+    # `prisma generate` cria o client tipado a partir do schema.
+    buildCommand: npm install --include=dev --legacy-peer-deps && npx prisma generate && npm run build
+    # Aplica as migrations pendentes antes de subir o servidor.
+    startCommand: npx prisma migrate deploy && npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false

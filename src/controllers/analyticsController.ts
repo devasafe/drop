@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { prisma } from '../lib/prisma';

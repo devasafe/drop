@@ -9,8 +9,6 @@
  * Usa MongoMemoryReplSet porque o código usa transações Mongo (exigem replica set).
  */
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -22,7 +20,6 @@ import walletService from '../services/wallet.prisma.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-let mongod: MongoMemoryReplSet;
 
 async function createUser(role = 'cliente'): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
@@ -60,31 +57,14 @@ async function setBalance(owner: string, ownerType: 'user' | 'store' | 'motoboy'
 }
 
 beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  // warm-up: garante que o primary do replica set está pronto para transações
   // (evita flaky na 1ª transação, que usa startTransaction sem retry no createOrder)
-  const s = await mongoose.startSession();
-  try {
-    await s.withTransaction(async () => {
-      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
-    });
-  } finally {
-    await s.endSession();
-  }
 }, 60000);
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@hard.test');
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
 });
 
 // ============================================================

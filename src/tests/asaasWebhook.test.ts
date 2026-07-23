@@ -1,27 +1,13 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../app';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 
-let mongod: MongoMemoryServer;
-
-beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri());
-});
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
   // WebhookEvent agora vive no Postgres (persiste entre runs) — limpa os eventos de teste.
   await prisma.webhookEvent.deleteMany({
     where: { OR: [{ eventId: { startsWith: 'evt_' } }, { eventId: { startsWith: 'PAYMENT_RECEIVED:pay_999' } }] },

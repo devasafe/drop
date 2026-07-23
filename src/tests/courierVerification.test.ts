@@ -4,8 +4,7 @@
  * - Integração: gate de claim de entrega; aprovação pelo admin.
  */
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { fakeObjectId } from './helpers/ids';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -56,7 +55,6 @@ describe('Unit: isMotoboyVerified', () => {
 });
 
 // ===================== INTEGRAÇÃO =====================
-let mongod: MongoMemoryReplSet;
 
 async function mkUser(role = 'motoboy', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
@@ -69,21 +67,14 @@ async function mkUser(role = 'motoboy', verification?: any): Promise<{ token: st
   return { token, userId: user.id.toString() };
 }
 
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-}, 60000);
-afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@cour.test');
-  const c = mongoose.connection.collections;
-  for (const k in c) await c[k].deleteMany({});
 });
 
 describe('Gate de entrega (KYC Fase 3)', () => {
   it('claim bloqueado (403) para motoboy não verificado', async () => {
     const motoboy = await mkUser('motoboy'); // sem verificação
-    const fakeDeliveryId = new mongoose.Types.ObjectId().toString();
+    const fakeDeliveryId = fakeObjectId();
     const res = await request(app)
       .post(`/api/deliveries/${fakeDeliveryId}/claim`)
       .set('Authorization', `Bearer ${motoboy.token}`);

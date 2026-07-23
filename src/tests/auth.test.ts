@@ -1,6 +1,4 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -10,25 +8,12 @@ import { findWallet } from './helpers/financePg';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-let mongod: MongoMemoryServer;
-
-beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  const uri = mongod.getUri();
-  await mongoose.connect(uri);
-});
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
   await prisma.$disconnect();
 });
 
 afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
 
   // O Mongo daqui é em memória e morre junto com a suíte; o Postgres é o banco de
   // dev e persiste. Limpamos só o que os testes criam — e-mails de domínio de
