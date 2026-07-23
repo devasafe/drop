@@ -8,7 +8,7 @@ import { toApiDelivery, persistDelivery } from '../repositories/delivery.reposit
 
 
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
-import PlatformConfig from '../models/PlatformConfig';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import notifier from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateOrderDistribution, calculateLateCancellationFee } from '../utils/walletCalculations';
 import {
@@ -25,7 +25,7 @@ import { addCommissionToAppCashbox } from './appCashboxController';
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import logger from '../config/logger';
-import StoreSubscription from '../models/StoreSubscription';
+import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
 import CustomerDebt from '../models/CustomerDebt';
 import env from '../config/env';
@@ -187,7 +187,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     let lateCancellationFee = 0;
     if (isLate) {
       try {
-        const config = await PlatformConfig.findOne();
+        const config = await getPlatformConfig();
         const feeConfig = {
           lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
@@ -271,7 +271,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // Para COD antes do pickup: liberar reserva da loja se existir
     if (isCashOnDelivery && !isLate) {
-      const config = await PlatformConfig.findOne();
+      const config = await getPlatformConfig();
       const feePercent = config?.lateCancellationFeePercent ?? 10;
       const blockAmount = (order.totalValue || 0) * feePercent / 100;
       const storeWalletCOD = await walletService.getOrCreate(String(order.storeId), 'store');
@@ -483,7 +483,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // Se pedido COD: bloquear fee potencial na wallet da loja (atomicamente com o status).
     if (order.paymentMethod === 'cash_on_delivery') {
       try {
-        const config = await PlatformConfig.findOne();
+        const config = await getPlatformConfig();
         const feePercent = config?.lateCancellationFeePercent ?? 10;
         const requiredBlock = (order.totalValue || 0) * feePercent / 100;
 
@@ -518,7 +518,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     emitOrderAcceptedByStore(order);
 
     // [Plan1] Verificar plano da loja antes de criar Delivery
-    const storeSub = await StoreSubscription.findOne({ storeId: store._id.toString() }).lean();
+    const storeSub = await findSubByStoreId(store._id.toString());
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store.plan ?? 1);
 
@@ -737,7 +737,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     let lateCancellationFee = 0;
     if (isLate) {
       try {
-        const config = await PlatformConfig.findOne();
+        const config = await getPlatformConfig();
         const feeConfig = {
           lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
@@ -809,7 +809,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // Para COD antes do pickup: liberar reserva da loja
     if (isCashOnDelivery && !isLate) {
-      const config = await PlatformConfig.findOne();
+      const config = await getPlatformConfig();
       const feePercent = config?.lateCancellationFeePercent ?? 10;
       const blockAmount = (order.totalValue || 0) * feePercent / 100;
       const storeWalletCOD = await walletService.getOrCreate(String(order.storeId), 'store');

@@ -22,7 +22,7 @@ import {
   calculateDeliveryFeeWithConfig,
   round2,
 } from '../utils/walletCalculations';
-import StoreSubscription from '../models/StoreSubscription';
+import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { addCommissionToAppCashbox } from './appCashboxController';
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import walletService from '../services/wallet.prisma.service';
@@ -155,7 +155,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // [Plan1] Verificar plano da loja antes de calcular taxa de entrega
-    const storeSub = await StoreSubscription.findOne({ storeId: storeIdStr }).lean();
+    const storeSub = await findSubByStoreId(storeIdStr);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlanForOrder = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1; // default Plan 1
 
@@ -767,7 +767,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Resolver plano real da loja via StoreSubscription (source of truth)
-    const storeSub = await StoreSubscription.findOne({ storeId: store.id }).lean();
+    const storeSub = await findSubByStoreId(store.id);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planNumberMap[storeSub.currentPlan] ?? 1) : (store.plan ?? 1); // default Plan 1
 
@@ -890,7 +890,7 @@ export const deliverPlan1Order = async (req: AuthenticatedRequest, res: Response
     }
 
     const store: any = await prisma.store.findUnique({ where: { id: String(order.storeId) } });
-    const storeSub = store ? await StoreSubscription.findOne({ storeId: store.id }).lean() : null;
+    const storeSub = store ? await findSubByStoreId(store.id) : null;
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store?.plan ?? 1);
     if (storePlan !== 1) {

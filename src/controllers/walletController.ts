@@ -7,7 +7,7 @@ import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import payoutService from '../services/payout.service';
 import { calculateOrderDistribution, getStorePlanFee } from '../utils/walletCalculations';
 import WithdrawalRequest from '../models/WithdrawalRequest';
-import PlatformConfig from '../models/PlatformConfig';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
 
 /**
@@ -573,7 +573,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       // Buscar config do sistema
       try {
         console.log('🔄 Buscando PlatformConfig...');
-        const config = await PlatformConfig.findOne().lean();
+        const config = await getPlatformConfig();
         responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw || 50;
         responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery || 5;
         responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm || 1;

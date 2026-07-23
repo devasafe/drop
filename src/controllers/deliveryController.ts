@@ -10,7 +10,7 @@ import { toApiDelivery, persistDelivery } from '../repositories/delivery.reposit
 import userRepository from '../repositories/user.repository';
 
 
-import PlatformConfig from '../models/PlatformConfig';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import Gamification from '../models/Gamification';
 import { getLevel, checkAndAwardBadges } from './gamificationController';
 import notifier from '../services/notifier';
@@ -261,7 +261,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     // Distribuição financeira para pedidos COD (pagamento acontece na entrega)
     if (order.paymentMethod === 'cash_on_delivery') {
       try {
-        const config = await PlatformConfig.findOne();
+        const config = await getPlatformConfig();
         const feePercent = config?.lateCancellationFeePercent ?? 10;
         const requiredBlock = (order.totalValue || 0) * feePercent / 100;
 
@@ -304,7 +304,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 
     // --- NOVO FLUXO: Criar payout do motoboy + release de todos os payouts do pedido ---
     try {
-      const config = await PlatformConfig.findOne();
+      const config = await getPlatformConfig();
       const motoboyCommissionPercent = config?.motoboyCommissionPercent || 20;
       const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
       const motoboyAmount = delivery.fee * (1 - motoboyCommissionDecimal);
@@ -327,7 +327,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
             amount: motoboyAmount,
           });
         }
-        const cfg = await PlatformConfig.findOne();
+        const cfg = await getPlatformConfig();
         if (cfg?.autoApprovePayouts === true) {
           await releaseOrderViaAsaas(order._id.toString());
         } else {

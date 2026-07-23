@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import userRepository from '../repositories/user.repository';
-import PricingPlan from '../models/PricingPlan';
+import { findPlanById } from '../repositories/pricingPlan.repository';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -21,14 +21,13 @@ router.put('/plan', authenticate, async (req: Request, res: Response) => {
     }
 
     // Verificar se o plano existe
-    const plan = await PricingPlan.findById(planId);
+    const plan = await findPlanById(planId);
     if (!plan) {
       return res.status(404).json({ error: 'Plano não encontrado' });
     }
 
     // Atualizar user com o novo plano
-    user.planId = planId.toString();
-    await user.save();
+    await userRepository.update(String(userId), { planId: String(planId) });
 
     res.json({
       message: 'Plano atualizado com sucesso',

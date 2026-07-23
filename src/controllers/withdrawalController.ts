@@ -245,8 +245,8 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
 // Best-effort auto-approve após criação: se falhar, saque segue pending para aprovação manual.
 export async function maybeAutoApproveWithdrawal(withdrawalId: string) {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
-    const config = await PlatformConfig.findOne();
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const config = await getPlatformConfig();
     if (!config?.autoApproveWithdrawals) return;
 
     const w = await WithdrawalRequest.findById(withdrawalId);
@@ -292,17 +292,10 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
 // Admin/CEO - Toggle auto-aprovação de saques
 export const toggleAutoApproveWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
+    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const { enabled } = req.body;
 
-    let config = await PlatformConfig.findOne();
-    if (!config) {
-      config = new PlatformConfig({ updatedBy: req.user?.id });
-    }
-    config.autoApproveWithdrawals = !!enabled;
-    config.updatedAt = new Date();
-    config.updatedBy = req.user?.id;
-    await config.save();
+    const config = await updatePlatformConfig({ autoApproveWithdrawals: !!enabled }, req.user?.id);
 
     return res.json({ autoApproveWithdrawals: config.autoApproveWithdrawals });
   } catch (err: any) {
@@ -314,8 +307,8 @@ export const toggleAutoApproveWithdrawals = async (req: Request & { user?: any }
 // Admin/CEO - Ler configuração atual
 export const getWithdrawalConfig = async (_req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
-    const config = await PlatformConfig.findOne();
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const config = await getPlatformConfig();
     return res.json({ autoApproveWithdrawals: config?.autoApproveWithdrawals ?? false });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Erro' });

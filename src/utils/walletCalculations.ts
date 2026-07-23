@@ -1,9 +1,9 @@
 
 import userRepository from '../repositories/user.repository';
-import PricingPlan from '../models/PricingPlan';
-import PlatformConfig from '../models/PlatformConfig';
+import { findPlanById, findPlanByName } from '../repositories/pricingPlan.repository';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { prisma } from '../lib/prisma';
-import StoreSubscription from '../models/StoreSubscription';
+import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 
 /**
  * Arredonda valores monetários para 2 casas decimais (centavos).
@@ -19,7 +19,7 @@ export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 1
 export async function getStorePlanFee(storeId: string): Promise<number> {
   try {
     // 1️⃣ Primeiro, tenta buscar StoreSubscription (modelo atual)
-    const subscription = await StoreSubscription.findOne({ storeId });
+    const subscription = await findSubByStoreId(storeId);
     if (subscription && subscription.commissionRate !== undefined) {
       console.log(`📊 [getStorePlanFee] StoreSubscription ${storeId} - Plano: ${subscription.currentPlan}, Comissão: ${subscription.commissionRate}%`);
       return subscription.commissionRate;
@@ -29,7 +29,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     // Sem `.populate('planId')`: `planId` é só o id e o plano é buscado logo abaixo.
     const user = (await userRepository.findById(String(storeId))) as any;
     if (user && user.planId) {
-      const plan = await PricingPlan.findById(user.planId);
+      const plan = await findPlanById(user.planId);
       if (plan) {
         console.log(`📊 [getStorePlanFee] Lojista ${storeId} - Plano: ${plan.name}, Comissão: ${plan.commission}%`);
         return plan.commission || 0;
@@ -55,7 +55,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     };
     const planName = PLAN_NAMES[store.plan || 1];
     if (planName) {
-      const pricingPlan = await PricingPlan.findOne({ name: planName });
+      const pricingPlan = await findPlanByName(planName);
       if (pricingPlan && pricingPlan.commission != null) {
         console.log(`📊 [getStorePlanFee] Store ${storeId} - PricingPlan "${planName}": ${pricingPlan.commission}%`);
         return pricingPlan.commission;
@@ -115,7 +115,7 @@ export async function calculateMotoboyEarningsWithConfig(
   rating?: number
 ): Promise<number> {
   try {
-    const config = await PlatformConfig.findOne();
+    const config = await getPlatformConfig();
     const baseValue = config?.motoboyCutPerDelivery || 5;
     const perKmValue = config?.motoboyCutPerKm || 1;
     const distanceEarning = distanceKm * perKmValue;
@@ -142,7 +142,7 @@ export async function calculateMotoboyEarningsWithConfig(
  */
 export async function calculateDeliveryFeeWithConfig(distanceKm: number): Promise<number> {
   try {
-    const config = await PlatformConfig.findOne();
+    const config = await getPlatformConfig();
     const base = config?.motoboyCutPerDelivery || 5;
     const perKm = config?.motoboyCutPerKm || 1;
     return base + perKm * Math.max(0, distanceKm);
@@ -177,7 +177,7 @@ export async function calculateOrderDistribution(
   motoboyRating?: number
 ) {
   try {
-    const config = await PlatformConfig.findOne();
+    const config = await getPlatformConfig();
     const planCommissionPercent = await getStorePlanFee(storeId);
     const planCommissionDecimal = planCommissionPercent / 100;
     const motoboyCommissionPercent = config?.motoboyCommissionPercent || 20;
