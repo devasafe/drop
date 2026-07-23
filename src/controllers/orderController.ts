@@ -6,7 +6,6 @@ import { calculateRoute, calculateDistance } from '../services/routeCalculator';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
-import Transaction from '../models/Transaction';
 
 import notifier from '../services/notifier';
 import logger from '../config/logger';
@@ -31,7 +30,7 @@ import { missingClientVerifications } from '../utils/clientVerification';
 import { findPendingDebt, updateDebt } from '../repositories/customerDebt.repository';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
-import Coupon from '../models/Coupon';
+import { findCouponById, incrementCouponUse } from '../repositories/coupon.repository';
 import env from '../config/env';
 import { ensureAsaasCustomer, createPixCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
 import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
@@ -398,13 +397,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // apenas o primeiro incrementará (o segundo verá null e não ultrapassará maxUses).
     if (appliedCouponId) {
       try {
-        const couponDoc = await Coupon.findById(appliedCouponId).select('maxUses').lean();
-        const filter: any = { _id: appliedCouponId };
-        if (couponDoc?.maxUses != null) {
-          filter.usedCount = { $lt: couponDoc.maxUses };
-        }
-        const updated = await Coupon.findOneAndUpdate(filter, { $inc: { usedCount: 1 } });
-        if (!updated && couponDoc?.maxUses != null) {
+        const couponDoc = await findCouponById(appliedCouponId);
+        const counted = await incrementCouponUse(appliedCouponId, couponDoc?.maxUses ?? null);
+        if (!counted && couponDoc?.maxUses != null) {
           logger.warn('Cupom esgotado em race condition pós-commit', { couponId: appliedCouponId, orderId: order._id });
         }
         // Se cupom global: registrar desconto dado como saída do caixa do app
@@ -464,14 +459,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Registrar transação (pagamento via carteira já debitado acima)
     // Status permanece 'criado' até a loja aceitar o pedido
     if (paymentMethod) {
-      const transaction = new Transaction({
-        orderId: order.id,
-        paymentMethod,
-        amount: totalValue,
-        commissionProduct: distribution.product.appCommission,
-        commissionDelivery: distribution.delivery?.appCommission ?? 0, // [Plan1] delivery é undefined no Plano 1
+      await prisma.transaction.create({
+        data: {
+          orderId: String(order.id),
+          paymentMethod,
+          amount: totalValue,
+          commissionProduct: distribution.product.appCommission,
+          commissionDelivery: distribution.delivery?.appCommission ?? 0, // [Plan1] delivery é undefined no Plano 1
+        },
       });
-      await transaction.save();
     }
 
     // Fase 2: cobrança PIX no Asaas (chamada externa — fora da transação).

@@ -1,6 +1,13 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Coupon from '../models/Coupon';
+import {
+  insertCoupon,
+  findCoupons,
+  findCouponById,
+  findCouponByCode,
+  updateCoupon,
+  removeCoupon,
+} from '../repositories/coupon.repository';
 
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
@@ -29,9 +36,9 @@ export const createCoupon = async (req: AuthenticatedRequest, res: Response) => 
 
     let resolvedStoreId = storeId;
     if (type === 'store' && activeRole === 'lojista') {
-      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } });
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-      resolvedStoreId = store._id;
+      resolvedStoreId = store.id;
     }
 
     if (type === 'store' && !resolvedStoreId) {
@@ -42,7 +49,7 @@ export const createCoupon = async (req: AuthenticatedRequest, res: Response) => 
       return res.status(400).json({ error: 'Desconto percentual deve ser entre 1 e 100' });
     }
 
-    const coupon = await Coupon.create({
+    const coupon = await insertCoupon({
       code: String(code).toUpperCase().trim(),
       type,
       discountType,
@@ -59,7 +66,8 @@ export const createCoupon = async (req: AuthenticatedRequest, res: Response) => 
 
     return res.status(201).json(coupon);
   } catch (err: any) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Código de cupom já existe' });
+    // P2002 = violação de unique (code duplicado) no Prisma.
+    if (err.code === 'P2002') return res.status(409).json({ error: 'Código de cupom já existe' });
     logger.error('Erro ao criar cupom', err);
     return res.status(500).json({ error: 'Erro ao criar cupom' });
   }
@@ -77,17 +85,17 @@ export const listCoupons = async (req: AuthenticatedRequest, res: Response) => {
 
     if (activeRole === 'ceo') {
       // CEO vê tudo, com filtro opcional
-      if (req.query.storeId) query.storeId = req.query.storeId;
+      if (req.query.storeId) query.storeId = String(req.query.storeId);
       if (req.query.type) query.type = req.query.type;
     } else if (activeRole === 'lojista') {
-      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } });
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-      query = { storeId: store._id };
+      query = { storeId: store.id };
     } else {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
-    const coupons = await Coupon.find(query).sort({ createdAt: -1 }).lean();
+    const coupons = await findCoupons(query);
     return res.json(coupons);
   } catch (err) {
     logger.error('Erro ao listar cupons', err as Error);
@@ -102,21 +110,20 @@ export const toggleCoupon = async (req: AuthenticatedRequest, res: Response) => 
     const userId = req.user?.id;
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
 
-    const coupon = await Coupon.findById(id);
+    const coupon = await findCouponById(id);
     if (!coupon) return res.status(404).json({ error: 'Cupom não encontrado' });
 
     if (activeRole === 'lojista') {
-      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
-      if (!store || coupon.storeId?.toString() !== store._id.toString()) {
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+      if (!store || coupon.storeId?.toString() !== store.id.toString()) {
         return res.status(403).json({ error: 'Sem permissão' });
       }
     } else if (activeRole !== 'ceo') {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
-    coupon.isActive = !coupon.isActive;
-    await coupon.save();
-    return res.json({ success: true, isActive: coupon.isActive });
+    const updated = await updateCoupon(id, { isActive: !coupon.isActive });
+    return res.json({ success: true, isActive: updated.isActive });
   } catch (err) {
     logger.error('Erro ao toggler cupom', err as Error);
     return res.status(500).json({ error: 'Erro interno' });
@@ -130,19 +137,19 @@ export const deleteCoupon = async (req: AuthenticatedRequest, res: Response) => 
     const userId = req.user?.id;
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
 
-    const coupon = await Coupon.findById(id);
+    const coupon = await findCouponById(id);
     if (!coupon) return res.status(404).json({ error: 'Cupom não encontrado' });
 
     if (activeRole === 'lojista') {
-      const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
-      if (!store || coupon.storeId?.toString() !== store._id.toString()) {
+      const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+      if (!store || coupon.storeId?.toString() !== store.id.toString()) {
         return res.status(403).json({ error: 'Sem permissão' });
       }
     } else if (activeRole !== 'ceo') {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
-    await coupon.deleteOne();
+    await removeCoupon(id);
     return res.json({ success: true });
   } catch (err) {
     logger.error('Erro ao deletar cupom', err as Error);
@@ -181,7 +188,7 @@ export async function computeCouponDiscount(
   orderValue: number
 ): Promise<{ valid: boolean; discount: number; reason?: string; coupon?: any }> {
   const now = new Date();
-  const coupon = await Coupon.findOne({ code: code.toUpperCase().trim() });
+  const coupon = await findCouponByCode(code);
 
   if (!coupon) return { valid: false, discount: 0, reason: 'Cupom não encontrado' };
   if (!coupon.isActive) return { valid: false, discount: 0, reason: 'Cupom inativo' };
