@@ -20,7 +20,7 @@ class PayoutService {
         {
           recipientType,
           recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
-          orderId: new Types.ObjectId(orderId),
+          orderId,  // String (Order no Postgres)
           deliveryId: deliveryId ? new Types.ObjectId(deliveryId) : undefined,
           amount,
           status: 'pending',
@@ -71,7 +71,7 @@ class PayoutService {
     }
 
     const payouts = await Payout.find({
-      orderId: new Types.ObjectId(orderId),
+      orderId,  // String (Order no Postgres)
       status: 'pending',
       blocked: { $ne: true }, // pula os bloqueados
     }).session(session || null);
@@ -96,7 +96,7 @@ class PayoutService {
     session?: ClientSession
   ): Promise<{ cancelled: number; errors: Array<{ payoutId: string; status: string }> }> {
     const payouts = await Payout.find({
-      orderId: new Types.ObjectId(orderId),
+      orderId,  // String (Order no Postgres)
       status: { $in: ['pending', 'released', 'requested', 'paid'] },
     }).session(session || null);
 
@@ -291,7 +291,7 @@ class PayoutService {
     if (filters.status) query.status = filters.status;
     if (filters.recipientType) query.recipientType = filters.recipientType;
     if (filters.recipientId) query.recipientId = filters.recipientId; // String (ver createPendingPayout)
-    if (filters.orderId) query.orderId = new Types.ObjectId(filters.orderId);
+    if (filters.orderId) query.orderId = filters.orderId;  // String (Order no Postgres)
 
     const page = filters.page || 1;
     const limit = filters.limit || 50;

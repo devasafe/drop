@@ -3,8 +3,9 @@ import { AuthenticatedRequest } from '../types';
 import mongoose, { Types } from 'mongoose';
 import AppCashbox from '../models/AppCashbox';
 import Delivery from '../models/Delivery';
-import Order from '../models/Order';
+
 import { prisma } from '../lib/prisma';
+import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import userRepository from '../repositories/user.repository';
 
 import Wallet from '../models/Wallet';
@@ -34,7 +35,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     // Sem `.populate('motoboyId')`: User vive no Postgres (o nome é resolvido abaixo).
     const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Store not found' });
@@ -139,7 +140,7 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
     const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     // Só o cliente do pedido pode avaliar
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order || order.customerId.toString() !== userId) return res.status(403).json({ error: 'Apenas o cliente pode avaliar' });
     if (delivery.status !== 'delivered') return res.status(400).json({ error: 'Entrega ainda não finalizada' });
     if (delivery.rating) return res.status(409).json({ error: 'Entrega já avaliada' });
@@ -245,11 +246,11 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     await delivery.save();
 
     // Atualiza o status do pedido para 'delivered'
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
     order.status = 'entregue';
-    await order.save();
+    await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
     console.log(`✅ [finalizarEntrega] Order ${order._id} marked as 'entregue'`);
 
     // Distribuição financeira para pedidos COD (pagamento acontece na entrega)
@@ -450,7 +451,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 export const createDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { orderId, distance } = req.body;
-    const order = await Order.findById(orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     // only store owner can create a delivery for this order
@@ -555,7 +556,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     }
 
     // only store owner can assign motoboy for this delivery
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Store not found' });
@@ -634,10 +635,10 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
     
     // if delivered, optionally update order status
     if (status === 'delivered') {
-      const order = await Order.findById(delivery.orderId);
+      const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
       if (order) {
         order.status = 'entregue';
-        await order.save();
+        await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
         emitOrderStatusChanged(order.toObject());
       }
     }
@@ -664,7 +665,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     delivery = delivery.toObject();
 
     // Busca pedido completo
-    const order = await Order.findById(delivery.orderId).lean();
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     // Busca dados completos da loja e do usuário dono da loja
     let storeObj = null;
     let storeOwner = null;
@@ -859,7 +860,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     if (!delivery) return res.status(409).json({ error: 'Already claimed or not available' });
 
     // Buscar order para notificações
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) {
       console.error(`❌ [claimDelivery] Order not found: ${delivery.orderId}`);
       return res.status(404).json({ error: 'Order not found' });
@@ -984,7 +985,7 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
     await delivery.save();
 
     // Notificar loja que motoboy quer devolver
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (order) {
       emitToRoom(
         `store:${order.storeId}`,
@@ -1043,7 +1044,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(404).json({ error: 'Entrega não encontrada' });
     }
 
-    const order = await Order.findById(delivery.orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
@@ -1118,7 +1119,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       console.log(`📋 [confirmReturn] Cancelando Order para o cliente...`);
       order.status = 'cancelado';
       order.cancelledAt = new Date();
-      await order.save();
+      await prisma.order.update({ where: { id: order.id }, data: { status: 'cancelado', cancelledAt: order.cancelledAt } });
       console.log(`✅ [confirmReturn] Order cancelado: ${order._id}`);
 
       // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox

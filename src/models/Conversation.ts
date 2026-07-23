@@ -21,7 +21,7 @@ export interface IConversation extends Document {
   };
   
   // Contexto
-  orderId?: mongoose.Types.ObjectId;
+  orderId?: string;
   deliveryId?: mongoose.Types.ObjectId;
   relatedOrderNumber?: string;
   productId?: string; // 👈 NOVO: Conversa iniciada em um produto específico
@@ -95,8 +95,8 @@ const conversationSchema = new Schema<IConversation>(
       avatar: String
     },
     orderId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Order',
+      // 🔀 Migração: Order vive no Postgres (id = cuid).
+      type: String,
       index: true
     },
     deliveryId: {

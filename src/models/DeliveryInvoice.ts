@@ -4,7 +4,7 @@ export type DeliveryInvoiceStatus = 'issued' | 'cancelled';
 
 export interface IDeliveryInvoice extends Document {
   invoiceNumber: string;              // NS-000001 (sequencial)
-  orderId: Types.ObjectId;
+  orderId: string;
   deliveryId: Types.ObjectId;
   payoutId?: Types.ObjectId;
 
@@ -46,7 +46,7 @@ export interface IDeliveryInvoice extends Document {
 const DeliveryInvoiceSchema = new Schema<IDeliveryInvoice>(
   {
     invoiceNumber: { type: String, required: true, unique: true },
-    orderId: { type: Schema.Types.ObjectId, required: true, ref: 'Order' },
+    orderId: { type: String, required: true, index: true },
     deliveryId: { type: Schema.Types.ObjectId, required: true, ref: 'Delivery' },
     payoutId: { type: Schema.Types.ObjectId, ref: 'Payout' },
 

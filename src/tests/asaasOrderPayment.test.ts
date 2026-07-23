@@ -17,14 +17,14 @@ jest.mock('../services/asaas/payment', () => ({
 }));
 
 import app from '../app';
-import { ownerIdForStore } from './helpers/storeOwner';
+import { ownerIdForStore, productIdForItem } from './helpers/storeOwner';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 
 import Wallet from '../models/Wallet';
-import Order from '../models/Order';
+
 import Payout from '../models/Payout';
 import { ensureAsaasCustomer, createPixCharge } from '../services/asaas/payment';
 
@@ -112,7 +112,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(wallet!.balance).toBe(0);
 
     // Ainda NÃO criou Payout (só nasce na confirmação do webhook)
-    const payouts = await Payout.countDocuments({ orderId: res.body.order._id });
+    const payouts = await Payout.countDocuments({ orderId: res.body.order.id });
     expect(payouts).toBe(0);
   });
 
@@ -169,7 +169,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
     const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(100);
     // payout da loja criado (pago)
-    const payout = await Payout.findOne({ orderId: res.body.order._id, recipientType: 'store' });
+    const payout = await Payout.findOne({ orderId: res.body.order.id, recipientType: 'store' });
     expect(payout).not.toBeNull();
   });
 });
@@ -179,10 +179,10 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     const { user } = await verifiedBuyer();
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
 
-    const order = await Order.create({
+    const order = await prisma.order.create({ data: {
       customerId: user.id,
       storeId: store.id,
-      products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
+      items: { create: [{ productId: await productIdForItem('@aop.test', 100), quantity: 1, price: 100 }] },
       totalValue: 100,
       deliveryFee: 0,
       status: 'criado',
@@ -191,23 +191,23 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
       asaasPaymentId: 'pay_hook_1',
       asaasChargeStatus: 'pending',
       walletDistribution: { storeAmount: 90, appCommission: 10, commissionPercent: 10 },
-    });
+    }, include: { items: true } });
 
     const res = await request(app)
       .post('/webhooks/asaas')
       .send({
         id: 'evt_pay_1',
         event: 'PAYMENT_RECEIVED',
-        payment: { id: 'pay_hook_1', status: 'RECEIVED', externalReference: String(order._id) },
+        payment: { id: 'pay_hook_1', status: 'RECEIVED', externalReference: String(order.id) },
       });
 
     expect(res.status).toBe(200);
 
-    const updated = await Order.findById(order._id);
+    const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.paymentStatus).toBe('paid');
     expect(updated!.asaasChargeStatus).toBe('received');
 
-    const payout = await Payout.findOne({ orderId: order._id, recipientType: 'store' });
+    const payout = await Payout.findOne({ orderId: order.id, recipientType: 'store' });
     expect(payout).not.toBeNull();
     expect(payout!.amount).toBe(90);
     expect(payout!.status).toBe('pending');
@@ -216,19 +216,19 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
   it('é idempotente: webhook repetido não cria Payout duplicado', async () => {
     const { user } = await verifiedBuyer();
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
-    const order = await Order.create({
+    const order = await prisma.order.create({ data: {
       customerId: user.id, storeId: store.id,
-      products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
+      items: { create: [{ productId: await productIdForItem('@aop.test', 100), quantity: 1, price: 100 }] },
       totalValue: 100, deliveryFee: 0, status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending',
       asaasPaymentId: 'pay_hook_2', asaasChargeStatus: 'pending',
       walletDistribution: { storeAmount: 90, appCommission: 10, commissionPercent: 10 },
-    });
+    }, include: { items: true } });
 
-    const body = { id: 'evt_pay_2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_hook_2', status: 'RECEIVED', externalReference: String(order._id) } };
+    const body = { id: 'evt_pay_2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_hook_2', status: 'RECEIVED', externalReference: String(order.id) } };
     await request(app).post('/webhooks/asaas').send(body);
     await request(app).post('/webhooks/asaas').send(body); // duplicado
 
-    const payouts = await Payout.countDocuments({ orderId: order._id, recipientType: 'store' });
+    const payouts = await Payout.countDocuments({ orderId: order.id, recipientType: 'store' });
     expect(payouts).toBe(1);
   });
 });

@@ -108,7 +108,7 @@ async function transferPayout(payout: any, throwOnError = false): Promise<boolea
  */
 export async function releaseOrderViaAsaas(orderId: string): Promise<void> {
   const payouts = await Payout.find({
-    orderId: new Types.ObjectId(orderId),
+    orderId, // String (Order no Postgres)
     status: 'pending',
     blocked: { $ne: true },
   });

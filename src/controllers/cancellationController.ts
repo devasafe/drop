@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import Cancellation, { ICancellation } from '../models/Cancellation';
-import Order from '../models/Order';
+import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import Delivery from '../models/Delivery';
 
 
@@ -34,9 +34,11 @@ import { refundOrderCharge } from '../services/asaas/refund';
 
 // Validações de permissão
 const validateOrderOwnership = async (orderId: string, userId: string) => {
-  const order = await Order.findById(orderId);
+  // Devolve a forma de API (products[], _id, dinheiro em number) — os call sites
+  // dependem desses campos.
+  const order = toApiOrder(await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude }));
   if (!order) throw new Error('Pedido não encontrado');
-  if (order.customerId.toString() !== userId) throw new Error('Permissão negada');
+  if (String(order.customerId) !== userId) throw new Error('Permissão negada');
   return order;
 };
 
@@ -96,12 +98,14 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // ✅ IDEMPOTÊNCIA/ATÔMICO: "reivindica" o cancelamento de forma atômica.
     // Só UM request consegue mudar de um status cancelável → 'cancelado'.
     // Bloqueia duplo-reembolso por requisições concorrentes.
-    const claimed = await Order.findOneAndUpdate(
-      { _id: orderId, status: { $in: cancellableStatuses } },
-      { $set: { status: 'cancelado', cancelledAt: new Date() } },
-      { new: true }
-    );
-    if (!claimed) {
+    // A trava vira um UPDATE condicional: `WHERE status IN (canceláveis)`. Sob
+    // concorrência o Postgres serializa a linha e só um request muda o status,
+    // então `count === 1` é a reivindicação exclusiva (bloqueia duplo-reembolso).
+    const claim = await prisma.order.updateMany({
+      where: { id: orderId, status: { in: cancellableStatuses as any } },
+      data: { status: 'cancelado', cancelledAt: new Date() },
+    });
+    if (claim.count === 0) {
       return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
     }
 
@@ -176,7 +180,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
               await refundOrderCharge(order.asaasPaymentId);
               order.asaasChargeStatus = 'refunded';
               order.paymentStatus = 'refunded';
-              await order.save();
+              await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
               refundStatus = 'processed';
             } catch (refundErr) {
               logger.error('Falha no estorno Asaas — escala pro admin', refundErr as Error, { orderId });
@@ -241,7 +245,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           await new CustomerDebt({
             customerId,
             amount: totalFee,
-            sourceOrderId: order._id,
+            sourceOrderId: order.id,
             status: 'pending',
             reason: 'Multa de cancelamento tardio em pedido pagar na entrega',
           }).save({ session });
@@ -312,7 +316,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // Cria documento de cancelamento
     const cancellation = await Cancellation.create({
-      orderId: order._id,
+      orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'customer',
       reason: reason || 'Solicitado pelo cliente',
@@ -323,11 +327,10 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
     });
 
-    // Atualiza status do pedido
+    // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
-    order.cancelledAt = new Date();
-    order.cancellationId = cancellation._id;
-    await order.save();
+    order.cancellationId = String(cancellation._id);
+    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation._id) } });
 
     // Para COD antes do pickup: liberar reserva da loja se existir
     if (isCashOnDelivery && !isLate) {
@@ -363,11 +366,11 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     }
 
     // Emite evento de cancelamento
-    emitOrderCancelled(order.toObject(), cancellation.toObject());
+    emitOrderCancelled(order, cancellation.toObject());
 
     return res.json({
       success: true,
-      orderId: order._id,
+      orderId: order.id,
       status: 'cancelado',
       refundAmount,
       refundStatus,
@@ -426,18 +429,18 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
         delivery.pendingReturnAction = 'reassign';
         await delivery.save();
 
-        const orderForReturn = await Order.findById(delivery.orderId);
+        const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
         if (orderForReturn) {
           emitToRoom(`store:${orderForReturn.storeId}`, 'delivery:return_requested', {
             deliveryId: delivery._id,
-            orderId: orderForReturn._id,
+            orderId: orderForReturn.id,
             motoboyId: delivery.motoboyId,
             message: 'Motoboy precisa devolver o produto à loja antes da reatribuição',
             pinRequired: true,
             returnedAt: new Date(),
           });
           emitToRoom(`user:${orderForReturn.customerId}`, 'order:return_initiated', {
-            orderId: orderForReturn._id,
+            orderId: orderForReturn.id,
             message: 'O motoboy está retornando seu produto à loja. Em breve um novo entregador será atribuído.',
           });
         }
@@ -453,11 +456,11 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
 
       // PIN já gerado mas loja ainda não confirmou
       if (delivery.statusDevolucao !== 'confirmado') {
-        const orderForReturn = await Order.findById(delivery.orderId);
+        const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
         if (orderForReturn) {
           emitToRoom(`store:${orderForReturn.storeId}`, 'delivery:return_requested', {
             deliveryId: delivery._id,
-            orderId: orderForReturn._id,
+            orderId: orderForReturn.id,
             motoboyId: delivery.motoboyId,
             message: 'Motoboy precisa devolver o produto à loja antes da reatribuição',
             pinRequired: true,
@@ -510,7 +513,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const order = await Order.findById(orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
     // Validar que a loja pertence ao usuário
@@ -531,6 +534,12 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       order.status = 'pago';
     }
     order.acceptedAt = new Date();
+    // `order` vive no Postgres — a persistência acontece via prisma.order.update
+    // (não participa das transações Mongo de carteira, COD legado).
+    const persistOrder = () => prisma.order.update({
+      where: { id: order.id },
+      data: { status: order.status, acceptedAt: order.acceptedAt },
+    });
 
     // Se pedido COD: bloquear fee potencial na wallet da loja (atomicamente com order.save)
     if (order.paymentMethod === 'cash_on_delivery') {
@@ -563,21 +572,21 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
           reference: `COD_BLOCK_${order._id}`,
         });
         await storeWalletCOD.save({ session: codSession });
-        await order.save({ session: codSession });
         await codSession.commitTransaction();
         codSession.endSession();
+        await persistOrder();
       } catch (codErr) {
         await codSession.abortTransaction();
         codSession.endSession();
-        logger.error('Erro ao bloquear saldo para pedido COD', codErr as Error, { orderId: order._id });
+        logger.error('Erro ao bloquear saldo para pedido COD', codErr as Error, { orderId: order.id });
         return res.status(500).json({ error: 'Erro ao processar garantia do pedido COD' });
       }
     } else {
-      await order.save();
+      await persistOrder();
     }
 
     // Emite evento
-    emitOrderAcceptedByStore(order.toObject());
+    emitOrderAcceptedByStore(order);
 
     // [Plan1] Verificar plano da loja antes de criar Delivery
     const storeSub = await StoreSubscription.findOne({ storeId: store._id.toString() }).lean();
@@ -667,8 +676,8 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       }
 
       // Salva deliveryId no pedido
-      order.deliveryId = delivery._id;
-      await order.save();
+      order.deliveryId = String(delivery._id);
+      await prisma.order.update({ where: { id: order.id }, data: { deliveryId: String(delivery._id) } });
     }
 
     return res.json({
@@ -699,7 +708,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const order = await Order.findById(orderId);
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
     // Validar que a loja pertence ao usuário
@@ -722,13 +731,12 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     let refundStatus: 'pending' | 'processed' | 'failed' = 'processed';
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: só UM request consegue mover para 'rejeitado'.
-    // Bloqueia duplo-reembolso por requisições concorrentes.
-    const claimed = await Order.findOneAndUpdate(
-      { _id: orderId, status: { $in: ['criado', 'pago', 'enviado'] } },
-      { $set: { status: 'rejeitado', cancelledAt: new Date() } },
-      { new: true }
-    );
-    if (!claimed) {
+    // UPDATE condicional por status — bloqueia duplo-reembolso concorrente.
+    const claim = await prisma.order.updateMany({
+      where: { id: orderId, status: { in: ['criado', 'pago', 'enviado'] as any } },
+      data: { status: 'rejeitado', cancelledAt: new Date() },
+    });
+    if (claim.count === 0) {
       return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
     }
 
@@ -797,7 +805,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
               await refundOrderCharge(order.asaasPaymentId);
               order.asaasChargeStatus = 'refunded';
               order.paymentStatus = 'refunded';
-              await order.save();
+              await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
             } catch (refundErr) {
               logger.error('Falha no estorno Asaas (rejeição da loja) — escala pro admin', refundErr as Error, { orderId });
               refundStatus = 'pending';
@@ -902,7 +910,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // Cria documento de cancelamento
     const cancellation = await Cancellation.create({
-      orderId: order._id,
+      orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'store',
       reason: reason || 'Rejeitado pela loja',
@@ -913,11 +921,10 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
     });
 
-    // Atualiza status
+    // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'rejeitado';
-    order.cancelledAt = new Date();
-    order.cancellationId = cancellation._id;
-    await order.save();
+    order.cancellationId = String(cancellation._id);
+    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation._id) } });
 
     // Para COD antes do pickup: liberar reserva da loja
     if (isCashOnDelivery && !isLate) {
@@ -953,8 +960,8 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     }
 
     // Emite eventos
-    emitOrderRejectedByStore(order.toObject(), reason);
-    emitOrderCancelled(order.toObject(), cancellation.toObject());
+    emitOrderRejectedByStore(order, reason);
+    emitOrderCancelled(order, cancellation.toObject());
 
     return res.json({
       success: true,
@@ -985,7 +992,7 @@ export const getCancellationHistory = async (req: AuthenticatedRequest, res: Res
     // ✅ SEGURANÇA (IDOR): só o cliente dono, o dono da loja ou um admin podem ver.
     const userId = req.user?.id;
     const role = (req.user as any)?.activeRole || (req.user as any)?.role;
-    const order = await Order.findById(orderId).lean();
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
     const isCustomer = String(order.customerId) === String(userId);
     let isStoreOwner = false;
@@ -1031,8 +1038,8 @@ export const getCancellationStats = async (req: AuthenticatedRequest, res: Respo
     }
 
     // Busca todos os pedidos da loja para contar cancelamentos
-    const orders = await Order.find({ storeId: store._id }).select('_id status');
-    const orderIds = orders.map(o => o._id);
+    const orders = await prisma.order.findMany({ where: { storeId: store.id }, select: { id: true, status: true } });
+    const orderIds = orders.map(o => o.id);
 
     const stats = await Cancellation.aggregate([
       { $match: { orderId: { $in: orderIds } } },

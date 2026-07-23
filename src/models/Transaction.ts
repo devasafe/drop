@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ITransaction extends Document {
-  orderId: Types.ObjectId;
+  orderId: string;
   paymentMethod: string;
   amount: number;
   commissionProduct: number;
@@ -10,7 +10,7 @@ export interface ITransaction extends Document {
 }
 
 const TransactionSchema = new Schema<ITransaction>({
-  orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
+  orderId: { type: String, required: true, index: true },
   paymentMethod: { type: String, required: true },
   amount: { type: Number, required: true },
   commissionProduct: { type: Number, required: true },

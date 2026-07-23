@@ -10,13 +10,13 @@ jest.mock('../services/asaas/refund', () => ({
 }));
 
 import app from '../app';
-import { ownerIdForStore } from './helpers/storeOwner';
+import { ownerIdForStore, customerIdForOrder, productIdForItem } from './helpers/storeOwner';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 import Wallet from '../models/Wallet';
-import Order from '../models/Order';
+
 import Payout from '../models/Payout';
 import { refundOrderCharge } from '../services/asaas/refund';
 
@@ -56,24 +56,24 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
     const token = jwt.sign({ id: customer.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aref.test'), name: 'Loja' } });
 
-    const order = await Order.create({
+    const order = await prisma.order.create({ data: {
       customerId: customer.id, storeId: store.id,
-      products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 100 }],
+      items: { create: [{ productId: await productIdForItem('@aref.test', 100), quantity: 1, price: 100 }] },
       totalValue: 100, deliveryFee: 0, status: 'pago', paymentMethod: 'pix',
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_1', asaasChargeStatus: 'received',
       walletDistribution: { storeAmount: 90, appCommission: 10, commissionPercent: 10 },
-    });
-    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId: order._id, amount: 90, status: 'pending' });
+    }, include: { items: true } });
+    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId: order.id, amount: 90, status: 'pending' });
 
     const res = await request(app)
-      .post(`/api/orders/${order._id}/cancel`)
+      .post(`/api/orders/${order.id}/cancel`)
       .set('Authorization', `Bearer ${token}`)
       .send({ reason: 'Desisti' });
 
     expect(res.status).toBe(200);
     expect(refundMock).toHaveBeenCalledWith('pay_refund_1');
 
-    const updated = await Order.findById(order._id);
+    const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.paymentStatus).toBe('refunded');
     expect(updated!.asaasChargeStatus).toBe('refunded');
 
@@ -82,7 +82,7 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
     expect(wallet!.balance).toBe(0);
 
     // payout da loja foi cancelado (espelho)
-    const payout = await Payout.findOne({ orderId: order._id, recipientType: 'store' });
+    const payout = await Payout.findOne({ orderId: order.id, recipientType: 'store' });
     expect(payout!.status).toBe('cancelled');
   });
 });
@@ -90,20 +90,20 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
 describe('Webhook PAYMENT_REFUNDED (Fase 5)', () => {
   it('marca o pedido como estornado', async () => {
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aref.test'), name: 'Loja' } });
-    const order = await Order.create({
-      customerId: new mongoose.Types.ObjectId(), storeId: store.id,
-      products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 50 }],
+    const order = await prisma.order.create({ data: {
+      customerId: await customerIdForOrder('@aref.test'), storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@aref.test', 50), quantity: 1, price: 50 }] },
       totalValue: 50, deliveryFee: 0, status: 'pago', paymentMethod: 'pix',
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_2', asaasChargeStatus: 'received',
-    });
+    }, include: { items: true } });
 
     const res = await request(app).post('/webhooks/asaas').send({
       id: 'evt_refund_1', event: 'PAYMENT_REFUNDED',
-      payment: { id: 'pay_refund_2', status: 'REFUNDED', externalReference: String(order._id) },
+      payment: { id: 'pay_refund_2', status: 'REFUNDED', externalReference: String(order.id) },
     });
     expect(res.status).toBe(200);
 
-    const updated = await Order.findById(order._id);
+    const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.asaasChargeStatus).toBe('refunded');
     expect(updated!.paymentStatus).toBe('refunded');
   });

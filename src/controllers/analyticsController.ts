@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '../types';
-import Order from '../models/Order';
+import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { prisma } from '../lib/prisma';
 
 
@@ -53,6 +53,32 @@ async function getStoreByOwner(userId: string) {
   return prisma.store.findFirst({ where: { ownerId: userId } }) as any;
 }
 
+/**
+ * Busca pedidos para relatório e os devolve na forma de API (products[], dinheiro
+ * em number). Os pipelines de `aggregate` do Mongo não têm equivalente direto no
+ * Prisma; aqui buscamos os pedidos do recorte e agregamos em memória — o volume de
+ * um relatório é pequeno e o resultado é idêntico.
+ */
+async function fetchOrdersForReport(where: any): Promise<any[]> {
+  const rows = await prisma.order.findMany({ where, include: orderInclude });
+  return rows.map(toApiOrder);
+}
+
+/** Chave de data YYYY-MM-DD (UTC), como o `$dateToString` fazia. */
+function dateKey(d: Date): string {
+  return new Date(d).toISOString().slice(0, 10);
+}
+
+/** GMV / comissão / nº de pedidos de uma lista de pedidos (substitui o $group _id:null). */
+function gmvAgg(orders: any[]): { gmv: number; commission: number; orders: number } {
+  let gmv = 0, commission = 0;
+  for (const o of orders) {
+    gmv += o.totalValue || 0;
+    commission += o.walletDistribution?.appCommission || 0;
+  }
+  return { gmv, commission, orders: orders.length };
+}
+
 // ===========================================================================
 // STORE (lojista) — todos os endpoints filtrados por store.ownerId
 // ===========================================================================
@@ -72,14 +98,8 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
     const { days, start, end, prevStart } = parsePeriod(req.query);
 
     const [currentOrders, previousOrders] = await Promise.all([
-      Order.find({
-        storeId: store._id,
-        createdAt: { $gte: start, $lte: end },
-      }).lean(),
-      Order.find({
-        storeId: store._id,
-        createdAt: { $gte: prevStart, $lt: start },
-      }).lean(),
+      fetchOrdersForReport({ storeId: store.id, createdAt: { gte: start, lte: end } }),
+      fetchOrdersForReport({ storeId: store.id, createdAt: { gte: prevStart, lt: start } }),
     ]);
 
     const computeMetrics = (orders: any[]) => {
@@ -136,33 +156,20 @@ export const storeSalesTimeline = async (req: AuthenticatedRequest, res: Respons
 
     const { days, start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          orders: { $sum: 1 },
-          revenue: {
-            $sum: {
-              $ifNull: [
-                '$walletDistribution.storeAmount',
-                { $multiply: [{ $subtract: ['$totalValue', '$deliveryFee'] }, 0.9] },
-              ],
-            },
-          },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const orders = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
 
-    // Preencher dias sem venda com 0
-    const byDate = new Map(rows.map((r: any) => [r._id, r]));
+    const byDate = new Map<string, { orders: number; revenue: number }>();
+    for (const o of orders) {
+      const key = dateKey(o.createdAt);
+      const cur = byDate.get(key) || { orders: 0, revenue: 0 };
+      cur.orders += 1;
+      cur.revenue += storeRevenueOfOrder(o);
+      byDate.set(key, cur);
+    }
     const timeline: any[] = [];
     for (let i = 0; i < days; i++) {
       const d = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
@@ -196,45 +203,38 @@ export const storeTopProducts = async (req: AuthenticatedRequest, res: Response)
     const { start, end } = parsePeriod(req.query);
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      { $unwind: '$products' },
-      {
-        $group: {
-          _id: '$products.productId',
-          quantity: { $sum: '$products.quantity' },
-          revenue: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'products',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'product',
-        },
-      },
-      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          quantity: 1,
-          revenue: { $round: ['$revenue', 2] },
-          name: '$product.name',
-          image: '$product.image',
-          price: '$product.price',
-          category: '$product.category',
-        },
-      },
-    ]);
+    const orders = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
+
+    // Agrega por produto (soma quantidade e receita = preço × quantidade).
+    const agg = new Map<string, { quantity: number; revenue: number }>();
+    for (const o of orders) {
+      for (const it of o.products || []) {
+        const cur = agg.get(it.productId) || { quantity: 0, revenue: 0 };
+        cur.quantity += it.quantity;
+        cur.revenue += (it.price || 0) * it.quantity;
+        agg.set(it.productId, cur);
+      }
+    }
+    const topIds = [...agg.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
+    const productMap = new Map(
+      (await prisma.product.findMany({ where: { id: { in: topIds.map(([id]) => id) } } })).map((p) => [p.id, p as any]),
+    );
+    const rows = topIds.map(([id, v]) => {
+      const p = productMap.get(id);
+      return {
+        _id: id,
+        quantity: v.quantity,
+        revenue: Number(v.revenue.toFixed(2)),
+        name: p?.name,
+        image: p?.image,
+        price: p ? Number(p.price) : undefined,
+        category: p?.categoryId,
+      };
+    });
 
     return res.json({ products: rows });
   } catch (err) {
@@ -256,50 +256,40 @@ export const storeTopCategories = async (req: AuthenticatedRequest, res: Respons
 
     const { start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      { $unwind: '$products' },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'products.productId',
-          foreignField: '_id',
-          as: 'product',
-        },
-      },
-      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$product.category',
-          quantity: { $sum: '$products.quantity' },
-          revenue: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'category',
-        },
-      },
-      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          name: { $ifNull: ['$category.name', 'Sem categoria'] },
-          quantity: 1,
-          revenue: { $round: ['$revenue', 2] },
-        },
-      },
-    ]);
+    const orders = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
+
+    // Produto → categoria (categoryId). Agrega quantidade/receita por categoria.
+    const productIds = [...new Set(orders.flatMap((o) => (o.products || []).map((it: any) => it.productId)))];
+    const products = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, categoryId: true } });
+    const catOfProduct = new Map(products.map((p) => [p.id, p.categoryId]));
+
+    const agg = new Map<string, { quantity: number; revenue: number }>();
+    for (const o of orders) {
+      for (const it of o.products || []) {
+        const cat = catOfProduct.get(it.productId) || '__none__';
+        const cur = agg.get(cat) || { quantity: 0, revenue: 0 };
+        cur.quantity += it.quantity;
+        cur.revenue += (it.price || 0) * it.quantity;
+        agg.set(cat, cur);
+      }
+    }
+
+    const catIds = [...agg.keys()].filter((c) => c !== '__none__');
+    const catNames = new Map(
+      (await prisma.category.findMany({ where: { id: { in: catIds } }, select: { id: true, name: true } })).map((c) => [c.id, c.name]),
+    );
+    const rows = [...agg.entries()]
+      .map(([catId, v]) => ({
+        _id: catId === '__none__' ? null : catId,
+        name: catNames.get(catId) || 'Sem categoria',
+        quantity: v.quantity,
+        revenue: Number(v.revenue.toFixed(2)),
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
 
     const total = rows.reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
     const withPct = rows.map((r: any) => ({
@@ -328,39 +318,28 @@ export const storePeakHours = async (req: AuthenticatedRequest, res: Response) =
 
     const { start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            // MongoDB: dayOfWeek retorna 1 (dom) a 7 (sab)
-            dayOfWeek: { $dayOfWeek: '$createdAt' },
-            hour: { $hour: '$createdAt' },
-          },
-          count: { $sum: 1 },
-          revenue: {
-            $sum: {
-              $ifNull: [
-                '$walletDistribution.storeAmount',
-                { $multiply: [{ $subtract: ['$totalValue', '$deliveryFee'] }, 0.9] },
-              ],
-            },
-          },
-        },
-      },
-    ]);
+    const orders = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
+
+    // Agrega por (dia da semana 1..7 como no Mongo, hora 0..23). getUTCDay()=0..6 (dom=0).
+    const cells = new Map<string, { count: number; revenue: number }>();
+    for (const o of orders) {
+      const d = new Date(o.createdAt);
+      const key = `${d.getUTCDay() + 1}_${d.getUTCHours()}`;
+      const cur = cells.get(key) || { count: 0, revenue: 0 };
+      cur.count += 1;
+      cur.revenue += storeRevenueOfOrder(o);
+      cells.set(key, cur);
+    }
 
     // Matrix 7x24 inicializada com 0
     const matrix: { dayOfWeek: number; hour: number; count: number; revenue: number }[] = [];
     for (let d = 1; d <= 7; d++) {
       for (let h = 0; h < 24; h++) {
-        const found = rows.find((r: any) => r._id.dayOfWeek === d && r._id.hour === h);
+        const found = cells.get(`${d}_${h}`);
         matrix.push({
           dayOfWeek: d,
           hour: h,
@@ -390,23 +369,23 @@ export const storePaymentMethods = async (req: AuthenticatedRequest, res: Respon
 
     const { start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      {
-        $group: {
-          _id: { $ifNull: ['$paymentMethod', 'unknown'] },
-          count: { $sum: 1 },
-          revenue: { $sum: '$totalValue' },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
+    const orders = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
+
+    const agg = new Map<string, { count: number; revenue: number }>();
+    for (const o of orders) {
+      const method = o.paymentMethod || 'unknown';
+      const cur = agg.get(method) || { count: 0, revenue: 0 };
+      cur.count += 1;
+      cur.revenue += o.totalValue || 0;
+      agg.set(method, cur);
+    }
+    const rows = [...agg.entries()]
+      .map(([_id, v]) => ({ _id, count: v.count, revenue: v.revenue }))
+      .sort((a, b) => b.count - a.count);
 
     const total = rows.reduce((sum: number, r: any) => sum + r.count, 0);
     const result = rows.map((r: any) => ({
@@ -436,55 +415,44 @@ export const storeCustomerInsights = async (req: AuthenticatedRequest, res: Resp
 
     const { start, end } = parsePeriod(req.query);
 
-    // Clientes distintos no período + contagem de pedidos
-    const topCustomers = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id as any),
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      {
-        $group: {
-          _id: '$customerId',
-          orders: { $sum: 1 },
-          revenue: { $sum: '$totalValue' },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: 10 },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          name: '$user.name',
-          orders: 1,
-          revenue: { $round: ['$revenue', 2] },
-        },
-      },
-    ]);
+    // Clientes distintos no período + contagem de pedidos (top 10 por receita).
+    const inPeriod = await fetchOrdersForReport({
+      storeId: store.id,
+      createdAt: { gte: start, lte: end },
+      status: { in: BILLABLE_STATUSES as any },
+    });
+    const byCustomer = new Map<string, { orders: number; revenue: number }>();
+    for (const o of inPeriod) {
+      const cur = byCustomer.get(o.customerId) || { orders: 0, revenue: 0 };
+      cur.orders += 1;
+      cur.revenue += o.totalValue || 0;
+      byCustomer.set(o.customerId, cur);
+    }
+    const top = [...byCustomer.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 10);
+    const nameMap = new Map(
+      (await prisma.user.findMany({ where: { id: { in: top.map(([id]) => id) } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]),
+    );
+    const topCustomers = top.map(([id, v]) => ({
+      _id: id, name: nameMap.get(id), orders: v.orders, revenue: Number(v.revenue.toFixed(2)),
+    }));
 
-    // Novos vs recorrentes: novos = clientes cujo PRIMEIRO pedido na loja caiu no período
-    const firstOrders = await Order.aggregate([
-      { $match: { storeId: new Types.ObjectId(store._id as any), status: { $in: BILLABLE_STATUSES } } },
-      { $group: { _id: '$customerId', firstOrderAt: { $min: '$createdAt' } } },
-    ]);
+    // Novos vs recorrentes: primeiro pedido (de todos os tempos) de cada cliente da loja.
+    const allStoreOrders = await prisma.order.findMany({
+      where: { storeId: store.id, status: { in: BILLABLE_STATUSES as any } },
+      select: { customerId: true, createdAt: true },
+    });
+    const firstOrderAt = new Map<string, Date>();
+    for (const o of allStoreOrders) {
+      const prev = firstOrderAt.get(o.customerId);
+      if (!prev || o.createdAt < prev) firstOrderAt.set(o.customerId, o.createdAt);
+    }
 
     let newCustomers = 0;
     let returningCustomers = 0;
     const customerIdsInPeriod = new Set(topCustomers.map((c: any) => String(c._id)));
-    for (const f of firstOrders) {
-      if (!customerIdsInPeriod.has(String(f._id))) continue;
-      if (f.firstOrderAt >= start && f.firstOrderAt <= end) newCustomers++;
+    for (const [cid, first] of firstOrderAt) {
+      if (!customerIdsInPeriod.has(cid)) continue;
+      if (first >= start && first <= end) newCustomers++;
       else returningCustomers++;
     }
 
@@ -527,34 +495,14 @@ export const platformOverview = async (req: AuthenticatedRequest, res: Response)
       prisma.user.count({ where: { createdAt: { gte: prevStart, lt: start } } }),
       prisma.store.count(),
       prisma.store.count({ where: { createdAt: { gte: start, lte: end } } }),
-      Order.distinct('customerId', { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
-      Order.distinct('customerId', { createdAt: { $gte: prevStart, $lt: start }, status: { $in: BILLABLE_STATUSES } }).then(a => a.length),
-      Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
-        {
-          $group: {
-            _id: null,
-            gmv: { $sum: '$totalValue' },
-            commission: { $sum: { $ifNull: ['$walletDistribution.appCommission', 0] } },
-            orders: { $sum: 1 },
-          },
-        },
-      ]),
-      Order.aggregate([
-        { $match: { createdAt: { $gte: prevStart, $lt: start }, status: { $in: BILLABLE_STATUSES } } },
-        {
-          $group: {
-            _id: null,
-            gmv: { $sum: '$totalValue' },
-            commission: { $sum: { $ifNull: ['$walletDistribution.appCommission', 0] } },
-            orders: { $sum: 1 },
-          },
-        },
-      ]),
+      prisma.order.findMany({ where: { createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } }, distinct: ['customerId'], select: { customerId: true } }).then(a => a.length),
+      prisma.order.findMany({ where: { createdAt: { gte: prevStart, lt: start }, status: { in: BILLABLE_STATUSES as any } }, distinct: ['customerId'], select: { customerId: true } }).then(a => a.length),
+      fetchOrdersForReport({ createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } }).then(gmvAgg),
+      fetchOrdersForReport({ createdAt: { gte: prevStart, lt: start }, status: { in: BILLABLE_STATUSES as any } }).then(gmvAgg),
     ]);
 
-    const curr = billableCurrent[0] || { gmv: 0, commission: 0, orders: 0 };
-    const prev = billablePrev[0] || { gmv: 0, commission: 0, orders: 0 };
+    const curr = billableCurrent;
+    const prev = billablePrev;
 
     return res.json({
       period: { days, start, end },
@@ -648,20 +596,16 @@ export const platformOrdersTimeline = async (req: AuthenticatedRequest, res: Res
   try {
     const { days, start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-          orders: { $sum: 1 },
-          gmv: { $sum: '$totalValue' },
-          commission: { $sum: { $ifNull: ['$walletDistribution.appCommission', 0] } },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-
-    const byDate = new Map(rows.map((r: any) => [r._id, r]));
+    const orders = await fetchOrdersForReport({ createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } });
+    const byDate = new Map<string, { orders: number; gmv: number; commission: number }>();
+    for (const o of orders) {
+      const key = dateKey(o.createdAt);
+      const cur = byDate.get(key) || { orders: 0, gmv: 0, commission: 0 };
+      cur.orders += 1;
+      cur.gmv += o.totalValue || 0;
+      cur.commission += o.walletDistribution?.appCommission || 0;
+      byDate.set(key, cur);
+    }
     const timeline: any[] = [];
     for (let i = 0; i < days; i++) {
       const d = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
@@ -699,15 +643,13 @@ export const platformFunnel = async (req: AuthenticatedRequest, res: Response) =
     });
 
     // Desses, quantos fizeram ≥1 pedido e ≥2 pedidos
-    const ordersByCustomer = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-          status: { $in: BILLABLE_STATUSES },
-        },
-      },
-      { $group: { _id: '$customerId', count: { $sum: 1 } } },
-    ]);
+    const periodOrders = await prisma.order.findMany({
+      where: { createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } },
+      select: { customerId: true },
+    });
+    const countByCustomer = new Map<string, number>();
+    for (const o of periodOrders) countByCustomer.set(o.customerId, (countByCustomer.get(o.customerId) || 0) + 1);
+    const ordersByCustomer = [...countByCustomer.entries()].map(([_id, count]) => ({ _id, count }));
 
     // Filtrar só os que cadastraram no período
     const newUsers = await prisma.user.findMany({
@@ -752,39 +694,29 @@ export const platformTopStores = async (req: AuthenticatedRequest, res: Response
     const { start, end } = parsePeriod(req.query);
     const limit = Math.min(Number(req.query.limit) || 20, 50);
 
-    const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
-      {
-        $group: {
-          _id: '$storeId',
-          orders: { $sum: 1 },
-          revenue: { $sum: '$totalValue' },
-          commission: { $sum: { $ifNull: ['$walletDistribution.appCommission', 0] } },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'stores',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'store',
-        },
-      },
-      { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          name: '$store.name',
-          city: '$store.city',
-          orders: 1,
-          revenue: { $round: ['$revenue', 2] },
-          commission: { $round: ['$commission', 2] },
-          avgTicket: { $round: [{ $divide: ['$revenue', '$orders'] }, 2] },
-        },
-      },
-    ]);
+    const orders = await fetchOrdersForReport({ createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } });
+    const agg = new Map<string, { orders: number; revenue: number; commission: number }>();
+    for (const o of orders) {
+      const cur = agg.get(o.storeId) || { orders: 0, revenue: 0, commission: 0 };
+      cur.orders += 1;
+      cur.revenue += o.totalValue || 0;
+      cur.commission += o.walletDistribution?.appCommission || 0;
+      agg.set(o.storeId, cur);
+    }
+    const top = [...agg.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
+    const storeMap = new Map(
+      (await prisma.store.findMany({ where: { id: { in: top.map(([id]) => id) } }, select: { id: true, name: true, city: true } })).map((st) => [st.id, st]),
+    );
+    const rows = top.map(([id, v]) => {
+      const st = storeMap.get(id) as any;
+      return {
+        _id: id, name: st?.name, city: st?.city,
+        orders: v.orders,
+        revenue: Number(v.revenue.toFixed(2)),
+        commission: Number(v.commission.toFixed(2)),
+        avgTicket: v.orders > 0 ? Number((v.revenue / v.orders).toFixed(2)) : 0,
+      };
+    });
 
     return res.json({ stores: rows });
   } catch (err) {
@@ -800,45 +732,34 @@ export const platformTopCategories = async (req: AuthenticatedRequest, res: Resp
   try {
     const { start, end } = parsePeriod(req.query);
 
-    const rows = await Order.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: { $in: BILLABLE_STATUSES } } },
-      { $unwind: '$products' },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'products.productId',
-          foreignField: '_id',
-          as: 'product',
-        },
-      },
-      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$product.category',
-          quantity: { $sum: '$products.quantity' },
-          revenue: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: 15 },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'category',
-        },
-      },
-      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          name: { $ifNull: ['$category.name', 'Sem categoria'] },
-          quantity: 1,
-          revenue: { $round: ['$revenue', 2] },
-        },
-      },
-    ]);
+    const orders = await fetchOrdersForReport({ createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } });
+    const productIds = [...new Set(orders.flatMap((o) => (o.products || []).map((it: any) => it.productId)))];
+    const products = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, categoryId: true } });
+    const catOfProduct = new Map(products.map((p) => [p.id, p.categoryId]));
+
+    const agg = new Map<string, { quantity: number; revenue: number }>();
+    for (const o of orders) {
+      for (const it of o.products || []) {
+        const cat = catOfProduct.get(it.productId) || '__none__';
+        const cur = agg.get(cat) || { quantity: 0, revenue: 0 };
+        cur.quantity += it.quantity;
+        cur.revenue += (it.price || 0) * it.quantity;
+        agg.set(cat, cur);
+      }
+    }
+    const catIds = [...agg.keys()].filter((c) => c !== '__none__');
+    const catNames = new Map(
+      (await prisma.category.findMany({ where: { id: { in: catIds } }, select: { id: true, name: true } })).map((c) => [c.id, c.name]),
+    );
+    const rows = [...agg.entries()]
+      .map(([catId, v]) => ({
+        _id: catId === '__none__' ? null : catId,
+        name: catNames.get(catId) || 'Sem categoria',
+        quantity: v.quantity,
+        revenue: Number(v.revenue.toFixed(2)),
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 15);
 
     const total = rows.reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
     const withPct = rows.map((r: any) => ({
@@ -930,12 +851,10 @@ export const platformRetention = async (req: AuthenticatedRequest, res: Response
     }
 
     // Para cada pedido, computar mês de atividade e qual cohort o cliente pertence
-    const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
-      status: { $in: BILLABLE_STATUSES },
-    })
-      .select('customerId createdAt')
-      .lean();
+    const orders = await prisma.order.findMany({
+      where: { createdAt: { gte: start, lte: end }, status: { in: BILLABLE_STATUSES as any } },
+      select: { customerId: true, createdAt: true },
+    });
 
     const result: any[] = [];
     for (const [cohortMonth, cohort] of cohorts.entries()) {

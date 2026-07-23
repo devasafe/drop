@@ -7,7 +7,7 @@ export type PayoutGatewayProvider = 'manual' | 'asaas' | 'pagarme' | 'efi';
 export interface IPayout extends Document {
   recipientType: PayoutRecipientType;
   recipientId: string;
-  orderId: Types.ObjectId;
+  orderId: string;
   deliveryId?: Types.ObjectId;
   amount: number;
   currency: string;
@@ -42,7 +42,8 @@ const PayoutSchema = new Schema<IPayout>(
       required: true,
     },
     orderId: {
-      type: Schema.Types.ObjectId,
+      // 🔀 Migração: Order vive no Postgres (id = cuid).
+      type: String,
       required: true,
     },
     deliveryId: {

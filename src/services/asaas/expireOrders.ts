@@ -1,7 +1,7 @@
 import env from '../../config/env';
 import logger from '../../config/logger';
-import Order from '../../models/Order';
 import { prisma } from '../../lib/prisma';
+import { orderInclude } from '../../repositories/order.repository';
 import { cancelCharge } from './payment';
 
 /**
@@ -19,12 +19,16 @@ export async function expireStalePixOrders(): Promise<number> {
   const minutes = env.PIX_EXPIRATION_MINUTES || 30;
   const cutoff = new Date(Date.now() - minutes * 60 * 1000);
 
-  const stale = await Order.find({
-    asaasChargeStatus: 'pending',
-    paymentStatus: 'pending',
-    status: 'criado',
-    createdAt: { $lt: cutoff },
-  }).limit(100);
+  const stale = await prisma.order.findMany({
+    where: {
+      asaasChargeStatus: 'pending',
+      paymentStatus: 'pending',
+      status: 'criado',
+      createdAt: { lt: cutoff },
+    },
+    include: orderInclude,
+    take: 100,
+  });
 
   let expired = 0;
   for (const order of stale) {
@@ -34,19 +38,18 @@ export async function expireStalePixOrders(): Promise<number> {
       if (!deleted) continue; // já paga ou erro — deixa o webhook resolver
     }
 
-    for (const it of order.products || []) {
-      if ((it as any).productId && (it as any).quantity) {
-        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+    for (const it of order.items || []) {
+      if (it.productId && it.quantity) {
+        await prisma.product.updateMany({ where: { id: String(it.productId) }, data: { quantity: { increment: it.quantity } } });
       }
     }
 
-    order.status = 'cancelado';
-    order.cancelledAt = new Date();
-    order.asaasChargeStatus = 'none';
-    order.paymentStatus = 'failed';
-    await order.save();
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'cancelado', cancelledAt: new Date(), asaasChargeStatus: 'none', paymentStatus: 'failed' },
+    });
     expired++;
-    logger.info('Pedido PIX expirado e cancelado (estoque devolvido)', { orderId: order._id });
+    logger.info('Pedido PIX expirado e cancelado (estoque devolvido)', { orderId: order.id });
   }
 
   if (expired > 0) logger.info(`Expiração PIX: ${expired} pedido(s) cancelado(s)`);

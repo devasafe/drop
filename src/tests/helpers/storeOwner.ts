@@ -38,3 +38,32 @@ export async function storeIdForProduct(domain: string, name = 'Loja (teste)'): 
   });
   return store.id;
 }
+
+/**
+ * Cria um produto e devolve o id, para usar em `OrderItem.productId` (FK real p/ Product).
+ * Onde os testes antes jogavam um `new mongoose.Types.ObjectId()` solto no item do pedido.
+ */
+export async function productIdForItem(domain: string, price = 50): Promise<string> {
+  const product = await prisma.product.create({
+    data: { storeId: await storeIdForProduct(domain), name: 'Item (teste)', price, quantity: 999 },
+  });
+  return product.id;
+}
+
+/**
+ * Cria um cliente e devolve o id, para usar em `Order.customerId` (FK real p/ User).
+ * Onde os testes antes jogavam um `new mongoose.Types.ObjectId()` solto.
+ */
+export async function customerIdForOrder(domain: string): Promise<string> {
+  const user = await prisma.user.create({
+    data: {
+      name: 'Cliente (teste)',
+      email: `cust-${Date.now()}-${Math.random().toString(36).slice(2)}${domain}`,
+      passwordHash: await bcrypt.hash('Senha123!', 10),
+      role: 'cliente',
+      roles: ['cliente'],
+      activeRole: 'cliente',
+    },
+  });
+  return user.id;
+}

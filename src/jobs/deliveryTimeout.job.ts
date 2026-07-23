@@ -1,6 +1,5 @@
 import { CronJob } from 'cron';
 import Delivery from '../models/Delivery';
-import Order from '../models/Order';
 import notifier from '../services/notifier';
 import { emitDeliveryRejected, emitToRoom } from '../utils/socketEmitter';
 

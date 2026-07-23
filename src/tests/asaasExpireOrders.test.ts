@@ -7,11 +7,11 @@ jest.mock('../services/asaas/payment', () => ({
 }));
 
 import { cancelCharge } from '../services/asaas/payment';
-import Order from '../models/Order';
+
 
 import { expireStalePixOrders } from '../services/asaas/expireOrders';
 import { prisma } from '../lib/prisma';
-import { storeIdForProduct } from './helpers/storeOwner';
+import { storeIdForProduct, customerIdForOrder } from './helpers/storeOwner';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 const cancelMock = cancelCharge as jest.Mock;
@@ -30,14 +30,14 @@ afterEach(async () => {
 });
 
 async function staleOrder(productId: any, qty = 2, minutesAgo = 40, asaasPaymentId = 'pay_stale') {
-  const order = await Order.create({
-    customerId: new mongoose.Types.ObjectId(), storeId: await storeIdForProduct('@aexp.test'),
-    products: [{ productId, quantity: qty, price: 50 }],
+  const order = await prisma.order.create({ data: {
+    customerId: await customerIdForOrder('@aexp.test'), storeId: await storeIdForProduct('@aexp.test'),
+    items: { create: [{ productId, quantity: qty, price: 50 }] },
     totalValue: 100, deliveryFee: 0, status: 'criado', paymentMethod: 'pix',
     paymentStatus: 'pending', asaasPaymentId, asaasChargeStatus: 'pending',
-  });
+  }, include: { items: true } });
   // força createdAt no passado (timestamps:false p/ não sobrescrever)
-  await Order.updateOne({ _id: order._id }, { $set: { createdAt: new Date(Date.now() - minutesAgo * 60000) } }, { timestamps: false } as any);
+  await prisma.order.update({ where: { id: order.id }, data: { createdAt: new Date(Date.now() - minutesAgo * 60000) } });
   return order;
 }
 
@@ -50,7 +50,7 @@ describe('expireStalePixOrders (A — expiração PIX)', () => {
 
     expect(n).toBe(1);
     expect(cancelMock).toHaveBeenCalledWith('pay_stale');
-    const updated = await Order.findById(order._id);
+    const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.status).toBe('cancelado');
     const p = await prisma.product.findUnique({ where: { id: product.id } });
     expect(p!.quantity).toBe(7); // 5 + 2 devolvidos
@@ -73,7 +73,7 @@ describe('expireStalePixOrders (A — expiração PIX)', () => {
 
     const n = await expireStalePixOrders();
     expect(n).toBe(0);
-    const updated = await Order.findById(order._id);
+    const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.status).toBe('criado'); // intacto — webhook vai confirmar
     const p = await prisma.product.findUnique({ where: { id: product.id } });
     expect(p!.quantity).toBe(5); // estoque NÃO devolvido
