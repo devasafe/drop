@@ -22,7 +22,7 @@ export interface IConversation extends Document {
   
   // Contexto
   orderId?: string;
-  deliveryId?: mongoose.Types.ObjectId;
+  deliveryId?: string;
   relatedOrderNumber?: string;
   productId?: string; // 👈 NOVO: Conversa iniciada em um produto específico
   conversationType?: 'product' | 'user'; // 👈 NOVO: Type diferencia se é de produto ou usuário geral
@@ -100,8 +100,8 @@ const conversationSchema = new Schema<IConversation>(
       index: true
     },
     deliveryId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Delivery',
+      // 🔀 Migração: Delivery vive no Postgres (id = cuid).
+      type: String,
       index: true
     },
     relatedOrderNumber: String,
