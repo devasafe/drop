@@ -1,4 +1,5 @@
 import notifier from '../services/notifier';
+import { prisma } from '../lib/prisma';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -183,8 +184,7 @@ export const emitDeliveryUpdated = (delivery: any) => {
   }
 
   if (delivery.orderId) {
-    const Order = require('../models/Order').default;
-    Order.findById(delivery.orderId).then((order: any) => {
+    prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
       if (!order) return;
       if (order.customerId) emitToRoom(`user:${order.customerId}`, 'delivery:updated', delivery);
       if (order.storeId) emitToRoom(`store:${order.storeId}`, 'delivery:updated', delivery);
@@ -211,8 +211,7 @@ export const emitDeliveryStatusChanged = (delivery: any) => {
 
   // Cliente e loja do pedido.
   if (delivery.orderId) {
-    const Order = require('../models/Order').default;
-    Order.findById(delivery.orderId).then((order: any) => {
+    prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
       if (!order) return;
       if (order.customerId) emitToRoom(`user:${order.customerId}`, 'delivery:status_changed', payload);
       if (order.storeId) emitToRoom(`store:${order.storeId}`, 'delivery:status_changed', payload);
@@ -282,8 +281,7 @@ export const emitDeliveryLocationUpdated = (delivery: any) => {
   
   // Notificar o cliente
   if (delivery.orderId) {
-    const Order = require('../models/Order').default;
-    Order.findById(delivery.orderId).then((order: any) => {
+    prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
       if (order && order.customerId) {
         emitToRoom(`user:${order.customerId}`, 'delivery:location_updated', payload);
       }
@@ -388,8 +386,7 @@ export const emitDeliveryCancelled = (delivery: any, cancellation: any) => {
 
 export const emitDeliveryRejected = (delivery: any, rejectedBy: 'motoboy' | 'store', reason: string) => {
   // Buscar order para notificar cliente
-  const Order = require('../models/Order').default;
-  Order.findById(delivery.orderId).then((order: any) => {
+  prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
     if (!order) return;
 
     // 🔴 Notificar CLIENTE
@@ -610,8 +607,7 @@ export const emitWalletRefund = (userId: string, userType: string, amount: numbe
 export const emitDeliveryAssigned = (delivery: any, motoboy: any) => {
   console.log(`🏍️ [emitDeliveryAssigned] Delivery ${delivery._id} assigned to motoboy ${motoboy._id}`);
   
-  const Order = require('../models/Order').default;
-  Order.findById(delivery.orderId).then((order: any) => {
+  prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
     if (!order) return;
     
     // 🔴 Notificar CLIENTE

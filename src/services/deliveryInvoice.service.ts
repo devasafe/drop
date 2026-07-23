@@ -1,7 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { ClientSession, Types } from 'mongoose';
 import DeliveryInvoice, { IDeliveryInvoice } from '../models/DeliveryInvoice';
-import Order from '../models/Order';
 import Delivery from '../models/Delivery';
 
 import userRepository from '../repositories/user.repository';

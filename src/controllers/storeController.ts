@@ -1,7 +1,7 @@
 import { Response, Request } from 'express';
 import { AuthenticatedRequest } from '../types';
 
-import Order from '../models/Order';
+import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
@@ -22,10 +22,15 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     if (!store) return res.status(404).json({ error: 'Store not found' });
     // Pedidos da loja — NÃO mostrar PIX ainda não pago (cliente está na tela do QR;
     // o pedido só "chega" pra loja depois que o pagamento é confirmado).
-    const orders = await Order.find({
-      storeId: store.id,
-      $nor: [{ paymentMethod: 'pix', paymentStatus: 'pending', status: 'criado' }],
-    }).lean();
+    // `$nor` (não é PIX-pendente-criado) vira `NOT { AND ... }` no Prisma.
+    const rawOrders = await prisma.order.findMany({
+      where: {
+        storeId: store.id,
+        NOT: { paymentMethod: 'pix', paymentStatus: 'pending', status: 'criado' },
+      },
+      include: orderInclude,
+    });
+    const orders = rawOrders.map(toApiOrder);
     // Métricas
     const totalSales = orders.length;
     const delivered = orders.filter(o => o.status === 'entregue').length;
@@ -212,7 +217,11 @@ export const updateOperatingHours = async (req: AuthenticatedRequest, res: Respo
 export const listarAvaliacoesLoja = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params; // storeId
-    const avaliacoes = await Order.find({ storeId: id, storeRating: { $exists: true, $ne: null } }, { storeRating: 1, storeComment: 1, createdAt: 1 }).sort({ createdAt: -1 }).lean();
+    const avaliacoes = await prisma.order.findMany({
+      where: { storeId: id, storeRating: { not: null } },
+      select: { storeRating: true, storeComment: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
     return res.json(avaliacoes);
   } catch (err) {
     console.error(err);
@@ -473,51 +482,43 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
       return res.json({ products: [], premiumRequired: true });
     }
 
-    const BILLABLE_STATUSES = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
+    const BILLABLE_STATUSES: any[] = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
     const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const { Types } = require('mongoose');
 
-    const rows = await Order.aggregate([
-      {
-        $match: {
-          storeId: new Types.ObjectId(store._id),
-          createdAt: { $gte: start },
-          status: { $in: BILLABLE_STATUSES },
-        },
+    // Mais vendidos: agrupa OrderItem por produto, filtrando pelos pedidos da loja
+    // (billable, últimos 30d) via filtro na relação. Substitui o pipeline Mongo
+    // ($unwind products → $group → $lookup products).
+    const grouped = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: {
+        order: { storeId: store.id, createdAt: { gte: start }, status: { in: BILLABLE_STATUSES } },
       },
-      { $unwind: '$products' },
-      {
-        $group: {
-          _id: '$products.productId',
-          quantity: { $sum: '$products.quantity' },
-        },
-      },
-      { $sort: { quantity: -1 } },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'products',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'product',
-        },
-      },
-      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          quantity: 1,
-          name: '$product.name',
-          image: '$product.image',
-          price: '$product.price',
-          category: '$product.category',
-          stock: '$product.stock',
-        },
-      },
-    ]);
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: limit,
+    });
 
-    // Filtrar produtos órfãos (que foram deletados)
-    const products = rows.filter((r: any) => r.name);
+    const productMap = new Map(
+      (await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } }))
+        .map((p) => [p.id, p]),
+    );
+
+    // Filtra produtos órfãos (deletados) e monta a mesma forma de saída.
+    const products = grouped
+      .map((g) => {
+        const p = productMap.get(g.productId) as any;
+        if (!p) return null;
+        return {
+          _id: g.productId,
+          quantity: g._sum.quantity ?? 0,
+          name: p.name,
+          image: p.image,
+          price: Number(p.price),
+          category: p.categoryId,
+          stock: p.quantity,
+        };
+      })
+      .filter(Boolean);
 
     return res.json({ products });
   } catch (err) {

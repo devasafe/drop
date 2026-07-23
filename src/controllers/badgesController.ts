@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 
-import Order from '../models/Order';
+
 import Delivery from '../models/Delivery';
 
 /**
@@ -48,10 +48,13 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
     if (role === 'lojista' || (role as string) === 'seller') {
       const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (store) {
-        out.storeOrders = await Order.countDocuments({
-          storeId: store._id,
-          status: 'criado',
-          $or: [{ paymentStatus: { $ne: 'pending' } }, { paymentMethod: { $ne: 'pix' } }],
+        // "pedidos novos" para a loja = criados que não são PIX-ainda-pendente.
+        out.storeOrders = await prisma.order.count({
+          where: {
+            storeId: store.id,
+            status: 'criado',
+            OR: [{ NOT: { paymentStatus: 'pending' } }, { NOT: { paymentMethod: 'pix' } }],
+          },
         });
       }
     }

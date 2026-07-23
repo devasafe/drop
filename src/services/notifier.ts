@@ -3,6 +3,7 @@ import { Server as IOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { onlineTracker } from './onlineTracker';
 import env from '../config/env';
+import { prisma } from '../lib/prisma';
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
@@ -302,7 +303,6 @@ export const initSocket = (server: any) => {
 
       try {
         const Delivery = require('../models/Delivery').default;
-        const Order = require('../models/Order').default;
 
         const delivery = await Delivery.findById(deliveryId)
           .select('orderId motoboyId')
@@ -311,9 +311,10 @@ export const initSocket = (server: any) => {
         // Segurança: só o motoboy atribuído pode enviar localização
         if (!delivery || delivery.motoboyId?.toString() !== userId) return;
 
-        const order = await Order.findById(delivery.orderId)
-          .select('customerId storeId')
-          .lean();
+        const order = await prisma.order.findUnique({
+          where: { id: String(delivery.orderId) },
+          select: { customerId: true, storeId: true },
+        });
 
         if (!order) return;
 
