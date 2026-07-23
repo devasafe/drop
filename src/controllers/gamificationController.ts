@@ -1,8 +1,15 @@
 import { prisma } from '../lib/prisma';
 import dayjs from 'dayjs';
 import { Request, Response } from 'express';
-import { Types } from 'mongoose';
-import Gamification, { IGamification, GamificationLevel } from '../models/Gamification';
+import {
+  GamificationLevel,
+  GamRecord,
+  defaultGam,
+  findGamByUser,
+  listAllGam,
+  topGamByPoints,
+  persistGam,
+} from '../repositories/gamification.repository';
 
 import userRepository from '../repositories/user.repository';
 import walletService from '../services/wallet.prisma.service';
@@ -73,8 +80,8 @@ export const ALL_BADGES = [
 
 // Verifica e concede badges baseados nas stats do motoboy
 export const checkAndAwardBadges = async (
-  motoboyId: string | Types.ObjectId,
-  gamification: IGamification
+  motoboyId: string,
+  gamification: GamRecord
 ): Promise<string[]> => {
   const mid = motoboyId.toString();
   const newBadges: string[] = [];
@@ -200,7 +207,7 @@ export const checkAndAwardBadges = async (
 export const getMonthlyRanking = async (_req: Request, res: Response) => {
   const start = dayjs().startOf('month').format('YYYY-MM-DD');
   const end = dayjs().endOf('month').format('YYYY-MM-DD');
-  const gamifications = await Gamification.find();
+  const gamifications = await listAllGam();
   const ranking = [];
   for (const g of gamifications) {
     const user = await userRepository.findById(String(g.user_id)) as any;
@@ -228,10 +235,9 @@ export const getGamification = async (req: Request, res: Response) => {
   if (user_id === 'ranking-mensal') {
     return res.status(400).json({ error: 'user_id inválido' });
   }
-  let gam = await Gamification.findOne({ user_id });
+  let gam = await findGamByUser(user_id);
   if (!gam) {
-    gam = new Gamification({ user_id });
-    await gam.save();
+    gam = await persistGam(defaultGam(user_id));
   }
   return res.json(gam);
 };
@@ -239,8 +245,7 @@ export const getGamification = async (req: Request, res: Response) => {
 export const addPoints = async (req: Request, res: Response) => {
   const { user_id } = req.params;
   const { action = 'corrida', points = 20 } = req.body;
-  let gam = await Gamification.findOne({ user_id });
-  if (!gam) gam = new Gamification({ user_id });
+  const gam: GamRecord = (await findGamByUser(user_id)) ?? defaultGam(user_id);
 
   gam.points += points;
   gam.totalPoints += Math.max(0, points);
@@ -254,18 +259,18 @@ export const addPoints = async (req: Request, res: Response) => {
     newBadges.forEach(b => emitGamificationBadgeUnlocked(user_id, b));
   }
 
-  await gam.save();
-  emitGamificationPointsEarned(user_id, { points, totalPoints: gam.totalPoints, level: gam.level });
-  emitRankingUpdated({ user_id, points: gam.points, level: gam.level });
-  return res.json(gam);
+  const saved = await persistGam(gam);
+  emitGamificationPointsEarned(user_id, { points, totalPoints: saved.totalPoints, level: saved.level });
+  emitRankingUpdated({ user_id, points: saved.points, level: saved.level });
+  return res.json(saved);
 };
 
 export const getRanking = async (_req: Request, res: Response) => {
-  const top = await Gamification.find().sort({ points: -1 }).limit(100);
+  const top = await topGamByPoints(100);
   if (!Array.isArray(top)) return res.json([]);
   const withNames = await Promise.all(top.map(async (g) => {
     const user = await userRepository.findById(String(g.user_id)) as any;
-    return { ...g.toObject(), name: user?.name || '' };
+    return { ...g, name: user?.name || '' };
   }));
   emitRankingUpdated(withNames);
   return res.json(withNames);
@@ -280,12 +285,12 @@ export const redeem = async (req: AuthenticatedRequest, res: Response) => {
   const benefitDef = BENEFITS.find(b => b.id === benefitId);
   if (!benefitDef) return res.status(400).json({ error: 'Benefício inválido' });
 
-  let gam = await Gamification.findOne({ user_id });
+  const gam = await findGamByUser(user_id);
   if (!gam || gam.points < benefitDef.cost) return res.status(400).json({ error: 'Pontos insuficientes' });
 
   gam.points -= benefitDef.cost;
   gam.history.push({ date: new Date().toISOString().slice(0, 10), action: `Resgate: ${benefitDef.name}`, points: -benefitDef.cost });
-  await gam.save();
+  await persistGam(gam);
 
   // Se o benefício credita carteira, faz o crédito
   if (benefitDef.type === 'wallet') {

@@ -11,7 +11,7 @@ import userRepository from '../repositories/user.repository';
 
 
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
-import Gamification from '../models/Gamification';
+import { defaultGam, findGamByUser, persistGam } from '../repositories/gamification.repository';
 import { getLevel, checkAndAwardBadges } from './gamificationController';
 import notifier from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateMotoboyEarningsWithConfig, calculateOrderDistribution } from '../utils/walletCalculations';
@@ -158,10 +158,8 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
 
     // --- Gamificação ---
     if (delivery.motoboyId) {
-      let gamification = await Gamification.findOne({ user_id: delivery.motoboyId.toString() });
-      if (!gamification) {
-        gamification = new Gamification({ user_id: delivery.motoboyId.toString(), points: 0, totalPoints: 0, level: 'Bronze', badges: [], history: [] });
-      }
+      const mid = String(delivery.motoboyId);
+      const gamification = (await findGamByUser(mid)) ?? defaultGam(mid);
       // Pontuação base por entrega avaliada
       let pontos = 10;
       let acao = 'Entrega avaliada';
@@ -180,14 +178,14 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
       gamification.level = getLevel(gamification.totalPoints);
       gamification.history.push({ date: new Date().toISOString(), action: acao, points: pontos });
 
-      const newBadges = await checkAndAwardBadges(delivery.motoboyId, gamification);
-      await gamification.save();
+      const newBadges = await checkAndAwardBadges(mid, gamification);
+      const saved = await persistGam(gamification);
 
-      newBadges.forEach(b => emitGamificationBadgeUnlocked(delivery.motoboyId!.toString(), b));
-      emitGamificationPointsEarned(delivery.motoboyId.toString(), {
+      newBadges.forEach(b => emitGamificationBadgeUnlocked(mid, b));
+      emitGamificationPointsEarned(mid, {
         points: pontos,
-        totalPoints: gamification.totalPoints,
-        level: gamification.level,
+        totalPoints: saved.totalPoints,
+        level: saved.level,
       });
     }
     return res.json({ success: true });
@@ -385,21 +383,18 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     // --- Gamificação: pontos por entrega finalizada ---
     if (delivery.motoboyId) {
       const mid = delivery.motoboyId.toString();
-      let gamification = await Gamification.findOne({ user_id: mid });
-      if (!gamification) {
-        gamification = new Gamification({ user_id: mid, points: 0, totalPoints: 0, level: 'Bronze', badges: [], history: [] });
-      }
+      const gamification = (await findGamByUser(mid)) ?? defaultGam(mid);
       const pontos = 10;
       gamification.points += pontos;
       gamification.totalPoints += pontos;
       gamification.level = getLevel(gamification.totalPoints);
       gamification.history.push({ date: new Date().toISOString(), action: 'Entrega finalizada', points: pontos });
 
-      const newBadges = await checkAndAwardBadges(delivery.motoboyId, gamification);
-      await gamification.save();
+      const newBadges = await checkAndAwardBadges(mid, gamification);
+      const saved = await persistGam(gamification);
 
       newBadges.forEach(b => emitGamificationBadgeUnlocked(mid, b));
-      emitGamificationPointsEarned(mid, { points: pontos, totalPoints: gamification.totalPoints, level: gamification.level });
+      emitGamificationPointsEarned(mid, { points: pontos, totalPoints: saved.totalPoints, level: saved.level });
     }
 
     return res.json({ success: true });

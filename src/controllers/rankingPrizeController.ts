@@ -1,11 +1,17 @@
 import { Response } from 'express';
 import dayjs from 'dayjs';
 import { AuthenticatedRequest } from '../types';
-import RankingPrize from '../models/RankingPrize';
-import Gamification from '../models/Gamification';
+import { findPrizeConfig, listDistributedPrizes, upsertPrizeConfig } from '../repositories/rankingPrize.repository';
+import { findGamByUser, persistGam } from '../repositories/gamification.repository';
 import walletService from '../services/wallet.prisma.service';
 import userRepository from '../repositories/user.repository';
+import { prisma } from '../lib/prisma';
 import { emitGamificationBadgeUnlocked } from '../utils/socketEmitter';
+
+async function prismaUsersByIds(ids: string[]): Promise<Map<string, any>> {
+  const users = await prisma.user.findMany({ where: { id: { in: ids.map(String) } }, select: { id: true, name: true } });
+  return new Map(users.map((u) => [String(u.id), u]));
+}
 
 const DEFAULT_PRIZES = [
   { position: 1, amount: 500, type: 'wallet' as const },
@@ -18,7 +24,7 @@ export const getCurrentPrizes = async (_req: AuthenticatedRequest, res: Response
   try {
     const month = dayjs().month() + 1;
     const year = dayjs().year();
-    const config = await RankingPrize.findOne({ month, year });
+    const config = await findPrizeConfig(month, year);
     return res.json({
       month,
       year,
@@ -34,12 +40,17 @@ export const getCurrentPrizes = async (_req: AuthenticatedRequest, res: Response
 // GET /ranking-prizes/history — meses anteriores
 export const getPrizeHistory = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const history = await RankingPrize.find({ distributed: true })
-      .sort({ year: -1, month: -1 })
-      .limit(12)
-      .populate('distributedBy', 'name')
-      .lean();
-    return res.json(history);
+    const history = await listDistributedPrizes(12);
+    // `distributedBy` era populado com {name}: fazemos o lookup manual e reexpomos.
+    const byIds = [...new Set(history.map((h) => h.distributedBy).filter(Boolean))] as string[];
+    const users = byIds.length
+      ? await prismaUsersByIds(byIds)
+      : new Map<string, any>();
+    const enriched = history.map((h) => ({
+      ...h,
+      distributedBy: h.distributedBy ? { _id: h.distributedBy, name: users.get(String(h.distributedBy))?.name } : null,
+    }));
+    return res.json(enriched);
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
@@ -63,14 +74,11 @@ export const setPrizes = async (req: AuthenticatedRequest, res: Response) => {
     const targetMonth = month ?? dayjs().month() + 1;
     const targetYear = year ?? dayjs().year();
 
-    const config = await RankingPrize.findOneAndUpdate(
-      { month: targetMonth, year: targetYear },
-      {
-        prizes,
-        createdBy: userId,
-        $setOnInsert: { distributed: false },
-      },
-      { upsert: true, new: true }
+    const config = await upsertPrizeConfig(
+      targetMonth,
+      targetYear,
+      { prizes, createdBy: String(userId) },
+      { distributed: false },
     );
 
     return res.json(config);
@@ -88,7 +96,7 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
     const targetMonth = month ?? dayjs().subtract(1, 'month').month() + 1;
     const targetYear = year ?? (month === 1 ? dayjs().year() - 1 : dayjs().year());
 
-    const config = await RankingPrize.findOne({ month: targetMonth, year: targetYear });
+    const config = await findPrizeConfig(targetMonth, targetYear);
     if (config?.distributed) {
       return res.status(409).json({ error: 'Prêmios deste mês já foram distribuídos' });
     }
@@ -99,7 +107,8 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
     const start = dayjs(`${targetYear}-${String(targetMonth).padStart(2, '0')}-01`).startOf('month').format('YYYY-MM-DD');
     const end = dayjs(`${targetYear}-${String(targetMonth).padStart(2, '0')}-01`).endOf('month').format('YYYY-MM-DD');
 
-    const gamifications = await Gamification.find();
+    const { listAllGam } = await import('../repositories/gamification.repository');
+    const gamifications = await listAllGam();
     const ranking: { user_id: string; pontosMes: number }[] = [];
     for (const g of gamifications) {
       const user = await userRepository.findById(String(g.user_id)) as any;
@@ -134,7 +143,7 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
 
       // Conceder badges de ranking
       try {
-        const gam = await Gamification.findOne({ user_id: winner.user_id });
+        const gam = await findGamByUser(winner.user_id);
         if (gam) {
           const newBadges: string[] = [];
           if (prize.position === 1 && !gam.badges.includes('Campeão do Mês')) {
@@ -146,7 +155,7 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
             newBadges.push('Pódio');
           }
           if (newBadges.length > 0) {
-            await gam.save();
+            await persistGam(gam);
             newBadges.forEach(b => emitGamificationBadgeUnlocked(winner.user_id, b));
           }
         }
@@ -154,15 +163,11 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
     }
 
     // Marcar como distribuído
-    await RankingPrize.findOneAndUpdate(
-      { month: targetMonth, year: targetYear },
-      {
-        distributed: true,
-        distributedAt: new Date(),
-        distributedBy: userId,
-        $setOnInsert: { prizes: DEFAULT_PRIZES, createdBy: userId },
-      },
-      { upsert: true }
+    await upsertPrizeConfig(
+      targetMonth,
+      targetYear,
+      { distributed: true, distributedAt: new Date(), distributedBy: String(userId) },
+      { prizes: DEFAULT_PRIZES, createdBy: String(userId) },
     );
 
     return res.json({ success: true, results });
