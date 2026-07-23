@@ -4,13 +4,13 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
-import { ownerIdForStore } from './helpers/storeOwner';
+import { ownerIdForStore, productIdForItem } from './helpers/storeOwner';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 
-import Order from '../models/Order';
+
 import Delivery from '../models/Delivery';
 import Payout from '../models/Payout';
 import AppCashbox from '../models/AppCashbox';
@@ -89,28 +89,27 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@late.test'), name: 'Loja Teste' } });
 
     // Pedido já 'enviado' (em trânsito) → cancelamento será tardio (isLate)
-    const order = await Order.create({
+    const order = await prisma.order.create({ data: {
       customerId: customer.id,
       storeId: store.id,
-      products: [{ productId: new mongoose.Types.ObjectId(), quantity: 1, price: 200 }],
+      items: { create: [{ productId: await productIdForItem('@late.test', 200), quantity: 1, price: 200 }] },
       totalValue: 200,
       deliveryFee: 0,
       status: 'enviado',
       paymentMethod: 'pix',
       paymentStatus: 'paid',
-    });
+    }, include: { items: true } });
 
     const delivery = await Delivery.create({
-      orderId: order._id,
+      orderId: order.id,
       motoboyId: motoboy.id,
       fee: 0,
       status: 'picked',
     });
-    order.deliveryId = delivery._id;
-    await order.save();
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: String(delivery._id) } });
 
     const res = await request(app)
-      .post(`/api/orders/${order._id}/cancel`)
+      .post(`/api/orders/${order.id}/cancel`)
       .set('Authorization', `Bearer ${customer.token}`)
       .send({ reason: 'Mudei de ideia' });
 

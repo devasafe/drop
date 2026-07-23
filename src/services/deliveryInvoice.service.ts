@@ -46,17 +46,18 @@ class DeliveryInvoiceService {
   }): Promise<IDeliveryInvoice> {
     const { orderId, deliveryId, payoutId, motoboyAmount, appCommission, commissionPercent, session } = params;
 
-    // Idempotencia: checar se ja existe
+    // Idempotencia: checar se ja existe. orderId virou String (Order no Postgres).
     const existing = await DeliveryInvoice.findOne({
-      orderId: new Types.ObjectId(orderId),
+      orderId,
       deliveryId: new Types.ObjectId(deliveryId),
     }).session(session || null);
 
     if (existing) return existing;
 
-    // Buscar dados do pedido/entrega/loja/cliente/motoboy
+    // Buscar dados do pedido/entrega/loja/cliente/motoboy.
+    // Order vive no Postgres — sem `.session(session)` da transação Mongo.
     const [order, delivery] = await Promise.all([
-      Order.findById(orderId).session(session || null),
+      prisma.order.findUnique({ where: { id: String(orderId) } }),
       Delivery.findById(deliveryId).session(session || null),
     ]);
 
@@ -71,7 +72,7 @@ class DeliveryInvoiceService {
 
     if (!motoboy) throw new Error(`Motoboy nao encontrado para delivery ${deliveryId}`);
 
-    const deliveryFee = delivery.fee || order.deliveryFee || 0;
+    const deliveryFee = delivery.fee || Number(order.deliveryFee) || 0;
     const invoiceNumber = await generateInvoiceNumber();
 
     // Endereco de entrega do cliente
@@ -83,7 +84,7 @@ class DeliveryInvoiceService {
       [
         {
           invoiceNumber,
-          orderId: new Types.ObjectId(orderId),
+          orderId,
           deliveryId: new Types.ObjectId(deliveryId),
           payoutId: payoutId ? new Types.ObjectId(payoutId) : undefined,
 
@@ -121,7 +122,7 @@ class DeliveryInvoiceService {
   }
 
   async findByOrderId(orderId: string): Promise<IDeliveryInvoice | null> {
-    return DeliveryInvoice.findOne({ orderId: new Types.ObjectId(orderId) });
+    return DeliveryInvoice.findOne({ orderId });
   }
 
   async findById(id: string): Promise<IDeliveryInvoice | null> {
