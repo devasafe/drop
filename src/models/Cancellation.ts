@@ -1,7 +1,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ICancellation extends Document {
-  orderId: Types.ObjectId;
+  orderId: string;
   deliveryId?: Types.ObjectId;
   cancelledBy: 'customer' | 'motoboy' | 'store' | 'admin'; // quem cancelou
   reason: string; // motivo do cancelamento
@@ -16,7 +16,7 @@ export interface ICancellation extends Document {
 }
 
 const CancellationSchema = new Schema<ICancellation>({
-  orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
+  orderId: { type: String, required: true, index: true },
   deliveryId: { type: Schema.Types.ObjectId, ref: 'Delivery' },
   cancelledBy: { 
     type: String, 

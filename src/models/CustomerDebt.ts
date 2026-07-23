@@ -4,8 +4,8 @@ import { Schema, model, Document, Types } from 'mongoose';
 export interface ICustomerDebt extends Document {
   customerId: string;
   amount: number;
-  sourceOrderId: Types.ObjectId;
-  collectedOrderId?: Types.ObjectId;
+  sourceOrderId: string;
+  collectedOrderId?: string;
   status: 'pending' | 'collected';
   reason: string;
   createdAt: Date;
@@ -15,8 +15,8 @@ export interface ICustomerDebt extends Document {
 const CustomerDebtSchema = new Schema<ICustomerDebt>({
   customerId: { type: String, required: true, index: true },
   amount: { type: Number, required: true, min: 0 },
-  sourceOrderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
-  collectedOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+  sourceOrderId: { type: String, required: true, index: true },
+  collectedOrderId: { type: String, index: true },
   status: { type: String, enum: ['pending', 'collected'], default: 'pending' },
   reason: { type: String, required: true },
   collectedAt: { type: Date },

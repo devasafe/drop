@@ -2,7 +2,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 
 export interface IDelivery extends Document {
-  orderId: Types.ObjectId;
+  orderId: string;
   // 🔀 Migração: User vive no Postgres (id = cuid) — ver Store.ownerId.
   motoboyId?: string;
   distance: number;
@@ -32,7 +32,7 @@ export interface IDelivery extends Document {
 
 
 const DeliverySchema = new Schema<IDelivery>({
-  orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
+  orderId: { type: String, required: true, index: true },
   motoboyId: { type: String, index: true },
   distance: { type: Number, default: 0 },
   fee: { type: Number, required: true },
