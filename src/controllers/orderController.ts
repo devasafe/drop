@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 
@@ -7,7 +6,6 @@ import { calculateRoute, calculateDistance } from '../services/routeCalculator';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
-import Transaction from '../models/Transaction';
 
 import notifier from '../services/notifier';
 import logger from '../config/logger';
@@ -22,17 +20,17 @@ import {
   calculateDeliveryFeeWithConfig,
   round2,
 } from '../utils/walletCalculations';
-import StoreSubscription from '../models/StoreSubscription';
+import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { addCommissionToAppCashbox } from './appCashboxController';
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { missingClientVerifications } from '../utils/clientVerification';
-import CustomerDebt from '../models/CustomerDebt';
+import { findPendingDebt, updateDebt } from '../repositories/customerDebt.repository';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
-import Coupon from '../models/Coupon';
+import { findCouponById, incrementCouponUse } from '../repositories/coupon.repository';
 import env from '../config/env';
 import { ensureAsaasCustomer, createPixCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
 import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
@@ -67,22 +65,18 @@ export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
     const { storeId, products, deliveryDistanceKm, paymentMethod, idempotentKey, address, latitude, longitude, cupomCode, useWalletBalance } = req.body;
     const customerId = req.user?.id;
 
     if (!customerId) {
-      await session.abortTransaction();
       return res.status(401).json({ error: 'Usuário não autenticado' });
     }
 
     // Apenas 'cliente' pode fazer pedidos
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
     if (activeRole !== 'cliente') {
-      await session.abortTransaction();
       logger.warn('Tentativa de compra com role inválido', { activeRole, userId: customerId });
       return res.status(403).json({
         error: `Compras não são permitidas para usuários no modo ${activeRole}. Alterne para 'cliente'.`,
@@ -93,7 +87,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Bloqueia novos pedidos "dinheiro na entrega" — evita o bug #2 (livro-caixa inflado
     // por dinheiro vivo na mão do motoboy sem lastro digital).
     if (paymentMethod === 'cash_on_delivery') {
-      await session.abortTransaction();
       return res.status(400).json({
         error: 'Pagamento na entrega foi descontinuado. Use PIX ou cartão.',
         code: 'COD_DISABLED',
@@ -109,7 +102,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       const buyer = await userRepository.findById(String(customerId));
       const missingKyc = missingClientVerifications(buyer);
       if (missingKyc.length > 0) {
-        await session.abortTransaction();
         return res.status(403).json({
           error: 'Conta não verificada. Conclua a verificação para comprar.',
           code: 'ACCOUNT_NOT_VERIFIED',
@@ -127,17 +119,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         include: orderInclude,
       });
       if (existingOrder) {
-        await session.abortTransaction();
         return res.status(200).json(toApiOrder(existingOrder));
       }
     }
 
     if (!Array.isArray(products) || products.length === 0) {
-      await session.abortTransaction();
       return res.status(400).json({ error: 'Nenhum produto no pedido' });
     }
     if (!storeId) {
-      await session.abortTransaction();
       return res.status(400).json({ error: 'Loja não informada' });
     }
 
@@ -146,16 +135,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Verificar se loja existe e está aberta
     const storeForCheck: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!storeForCheck) {
-      await session.abortTransaction();
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
     if (!isStoreCurrentlyOpen(storeForCheck)) {
-      await session.abortTransaction();
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });
     }
 
     // [Plan1] Verificar plano da loja antes de calcular taxa de entrega
-    const storeSub = await StoreSubscription.findOne({ storeId: storeIdStr }).lean();
+    const storeSub = await findSubByStoreId(storeIdStr);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlanForOrder = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1; // default Plan 1
 
@@ -165,14 +152,12 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     for (const p of products) {
       if (!p.productId || !p.quantity) {
-        await session.abortTransaction();
         return res.status(400).json({ error: `Produto inválido: ${JSON.stringify(p)}` });
       }
 
       // Sem `.session(session)`: Product vive no Postgres e não entra na transação Mongo.
       const prod = await prisma.product.findUnique({ where: { id: String(p.productId) } });
       if (!prod) {
-        await session.abortTransaction();
         return res.status(404).json({ error: `Produto ${p.productId} não encontrado` });
       }
 
@@ -183,7 +168,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // fica Decimal ponta a ponta e esta conversão sai.
       const productPrice = prod.price.toNumber();
       if (productPrice <= 0) {
-        await session.abortTransaction();
         return res.status(400).json({ error: `Produto ${prod.name} com preço inválido` });
       }
 
@@ -203,7 +187,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         for (const item of items) {
           await prisma.product.updateMany({ where: { id: String(item.productId) }, data: { quantity: { increment: item.quantity } } });
         }
-        await session.abortTransaction();
         const current = await prisma.product.findUnique({ where: { id: String(p.productId) }, select: { quantity: true } });
         const available = current?.quantity ?? 0;
         return res.status(409).json({
@@ -216,7 +199,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     if (subtotal <= 0) {
-      await session.abortTransaction();
       return res.status(400).json({ error: 'Subtotal inválido' });
     }
 
@@ -227,7 +209,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     if (cupomCode) {
       const couponResult = await computeCouponDiscount(cupomCode, storeIdStr, subtotal);
       if (!couponResult.valid) {
-        await session.abortTransaction();
         return res.status(400).json({ error: couponResult.reason || 'Cupom inválido' });
       }
       couponDiscount = couponResult.discount;
@@ -266,7 +247,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Por enquanto o Asaas só processa PIX aqui (cartão entra na Fase 6).
     if (useAsaas && paymentMethod !== 'pix') {
-      await session.abortTransaction();
       return res.status(400).json({ error: 'No momento apenas PIX está disponível. Cartão em breve.' });
     }
 
@@ -274,7 +254,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     let pendingDebt: any = null;
     let debtAmount = 0;
     if (!isCashOnDelivery) {
-      pendingDebt = await CustomerDebt.findOne({ customerId, status: 'pending' }).session(session);
+      pendingDebt = await findPendingDebt(customerId);
       if (pendingDebt) {
         debtAmount = pendingDebt.amount;
       }
@@ -284,7 +264,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // Fluxo pré-pago legado (carteira virtual). Débito atômico via walletService.
       const balance = Number(clientWallet.balance);
       if (balance < totalValue + debtAmount) {
-        await session.abortTransaction();
         return res.status(400).json({
           error: 'Saldo insuficiente na carteira',
           available: balance,
@@ -325,9 +304,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
             category: 'transfer', relatedId: String(pendingDebt._id),
           });
         }
-        pendingDebt.status = 'collected';
-        pendingDebt.collectedAt = new Date();
-        await pendingDebt.save({ session });
+        pendingDebt = await updateDebt(pendingDebt._id, { status: 'collected', collectedAt: new Date() });
       }
     }
 
@@ -347,7 +324,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Buscar dados da loja para snapshot no pedido
     const store: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!store) {
-      await session.abortTransaction();
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
 
@@ -403,14 +379,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
 
       if (pendingDebt && debtAmount > 0) {
-        pendingDebt.collectedOrderId = createdOrder.id;
-        await pendingDebt.save({ session });
+        await updateDebt(pendingDebt._id, { collectedOrderId: createdOrder.id });
       }
 
-      await session.commitTransaction();
     } catch (commitErr) {
-      // O Order já está no Postgres, mas o lado Mongo não fechou: desfaz os dois.
-      try { await session.abortTransaction(); } catch { /* já abortada */ }
+      // Falha após criar o Order no Postgres: desfaz como compensação.
       await prisma.order.delete({ where: { id: createdOrder.id } }).catch(() => { /* nada a fazer */ });
       throw commitErr;
     }
@@ -424,13 +397,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // apenas o primeiro incrementará (o segundo verá null e não ultrapassará maxUses).
     if (appliedCouponId) {
       try {
-        const couponDoc = await Coupon.findById(appliedCouponId).select('maxUses').lean();
-        const filter: any = { _id: appliedCouponId };
-        if (couponDoc?.maxUses != null) {
-          filter.usedCount = { $lt: couponDoc.maxUses };
-        }
-        const updated = await Coupon.findOneAndUpdate(filter, { $inc: { usedCount: 1 } });
-        if (!updated && couponDoc?.maxUses != null) {
+        const couponDoc = await findCouponById(appliedCouponId);
+        const counted = await incrementCouponUse(appliedCouponId, couponDoc?.maxUses ?? null);
+        if (!counted && couponDoc?.maxUses != null) {
           logger.warn('Cupom esgotado em race condition pós-commit', { couponId: appliedCouponId, orderId: order._id });
         }
         // Se cupom global: registrar desconto dado como saída do caixa do app
@@ -490,14 +459,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Registrar transação (pagamento via carteira já debitado acima)
     // Status permanece 'criado' até a loja aceitar o pedido
     if (paymentMethod) {
-      const transaction = new Transaction({
-        orderId: order.id,
-        paymentMethod,
-        amount: totalValue,
-        commissionProduct: distribution.product.appCommission,
-        commissionDelivery: distribution.delivery?.appCommission ?? 0, // [Plan1] delivery é undefined no Plano 1
+      await prisma.transaction.create({
+        data: {
+          orderId: String(order.id),
+          paymentMethod,
+          amount: totalValue,
+          commissionProduct: distribution.product.appCommission,
+          commissionDelivery: distribution.delivery?.appCommission ?? 0, // [Plan1] delivery é undefined no Plano 1
+        },
       });
-      await transaction.save();
     }
 
     // Fase 2: cobrança PIX no Asaas (chamada externa — fora da transação).
@@ -564,14 +534,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(201).json(useAsaas ? { order, pix: pixCharge } : order);
 
   } catch (err: any) {
-    // Se a transação ainda está ativa, abortar
-    if (session.inTransaction()) {
-      try { await session.abortTransaction(); } catch { /* ignorar erro de abort */ }
-    }
     logger.error('Erro ao criar pedido', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
-  } finally {
-    session.endSession();
   }
 };
 
@@ -767,7 +731,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Resolver plano real da loja via StoreSubscription (source of truth)
-    const storeSub = await StoreSubscription.findOne({ storeId: store.id }).lean();
+    const storeSub = await findSubByStoreId(store.id);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planNumberMap[storeSub.currentPlan] ?? 1) : (store.plan ?? 1); // default Plan 1
 
@@ -890,7 +854,7 @@ export const deliverPlan1Order = async (req: AuthenticatedRequest, res: Response
     }
 
     const store: any = await prisma.store.findUnique({ where: { id: String(order.storeId) } });
-    const storeSub = store ? await StoreSubscription.findOne({ storeId: store.id }).lean() : null;
+    const storeSub = store ? await findSubByStoreId(store.id) : null;
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store?.plan ?? 1);
     if (storePlan !== 1) {

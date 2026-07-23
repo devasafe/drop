@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -21,25 +19,17 @@ import { refundOrderCharge } from '../services/asaas/refund';
 
 const refundMock = refundOrderCharge as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
-let mongod: MongoMemoryReplSet;
 
 beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  const s = await mongoose.startSession();
-  try { await s.withTransaction(async () => { await mongoose.connection.db.collection('_w').insertOne({ ok: 1 }, { session: s }); }); } finally { await s.endSession(); }
   env.PAYMENT_GATEWAY = 'asaas';
 }, 60000);
 
 afterAll(async () => {
   env.PAYMENT_GATEWAY = 'none';
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@aref.test');
-  for (const key in mongoose.connection.collections) await mongoose.connection.collections[key].deleteMany({});
   refundMock.mockClear();
 });
 

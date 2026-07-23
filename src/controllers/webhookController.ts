@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import env from '../config/env';
 import logger from '../config/logger';
-import WebhookEvent from '../models/WebhookEvent';
+import { prisma } from '../lib/prisma';
 import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/orderPayment';
 
 /**
@@ -46,16 +46,18 @@ export const handleAsaasWebhook = async (req: Request, res: Response) => {
 
     // 2. Idempotência via insert com índice unique.
     try {
-      await WebhookEvent.create({
-        provider: 'asaas',
-        eventId,
-        event: body.event,
-        payload: body,
-        processed: false,
+      await prisma.webhookEvent.create({
+        data: {
+          provider: 'asaas',
+          eventId,
+          event: body.event,
+          payload: body,
+          processed: false,
+        },
       });
     } catch (err: any) {
-      // E11000 = duplicate key → já recebido. ACK sem reprocessar.
-      if (err?.code === 11000) {
+      // P2002 = violação de unique (eventId) → já recebido. ACK sem reprocessar.
+      if (err?.code === 'P2002') {
         return res.status(200).json({ received: true, duplicate: true });
       }
       throw err;
@@ -103,10 +105,10 @@ async function dispatchAsaasEvent(eventId: string, body: any): Promise<void> {
     logger.error('Erro ao processar evento Asaas', err as Error, { eventId, event });
     throw err; // deixa o handler responder 500 → Asaas re-tenta
   } finally {
-    await WebhookEvent.updateOne(
-      { eventId },
-      { processed: !processError, processedAt: new Date(), processError }
-    );
+    await prisma.webhookEvent.updateMany({
+      where: { eventId },
+      data: { processed: !processError, processedAt: new Date(), processError },
+    });
   }
 }
 

@@ -1,24 +1,4 @@
 services:
-  mongo:
-    image: mongo:6.0
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_DATABASE: drop_marketplace
-    volumes:
-      - mongo-data:/data/db
-    ports:
-      - "27017:27017"
-
-  mongo-express:
-    image: mongo-express:1.0.0
-    restart: unless-stopped
-    environment:
-      ME_CONFIG_MONGODB_SERVER: mongo
-    ports:
-      - "8081:8081"
-    depends_on:
-      - mongo
-
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -32,5 +12,4 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
 volumes:
-  mongo-data:
   postgres-data:

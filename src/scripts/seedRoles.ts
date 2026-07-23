@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { prisma } from '../lib/prisma';
 import crypto from 'crypto';
 
@@ -47,9 +46,6 @@ const ROLES = {
 
 const seedRoles = async () => {
   try {
-    // Conectar ao MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ifood-admin');
-    
     console.log('🌱 Iniciando seed de roles...\n');
 
     for (const [key, roleData] of Object.entries(ROLES)) {

@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import RolePermissions, { AppRole } from '../models/RolePermissions';
+import { prisma } from '../lib/prisma';
+
+// Papéis da aplicação (antes vinha do model Mongoose RolePermissions).
+export type AppRole = 'ceo' | 'marketing' | 'gerente_geral' | 'gerente_clientes' | 'gerente_lojistas' | 'gerente_motoboys' | 'lojista' | 'cliente' | 'motoboy';
 import { rolePermissions } from '../utils/walletCalculations';
 import logger from '../config/logger';
 
@@ -109,7 +112,7 @@ export async function getEffectivePermissions(role: string): Promise<{ permissio
   if (role === 'ceo') {
     return { permissions: ['*'], notificationTargets: ALL_ROLES };
   }
-  const custom = await RolePermissions.findOne({ role }).lean();
+  const custom = await prisma.rolePermissions.findUnique({ where: { role: role as any } });
   if (custom) {
     return { permissions: custom.permissions, notificationTargets: custom.notificationTargets };
   }
@@ -132,7 +135,7 @@ export const getMyPermissions = async (req: AuthenticatedRequest, res: Response)
 // GET /role-permissions — lista todos os roles com suas permissões atuais
 export const listAllRoles = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const customs = await RolePermissions.find().lean();
+    const customs = await prisma.rolePermissions.findMany();
     const customMap: Record<string, any> = {};
     for (const c of customs) customMap[c.role] = c;
 
@@ -189,11 +192,11 @@ export const updateRolePermissions = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ error: 'permissions deve ser um array' });
     }
 
-    await RolePermissions.findOneAndUpdate(
-      { role },
-      { role, permissions, notificationTargets: notificationTargets || [], updatedBy: userId },
-      { upsert: true, new: true }
-    );
+    await prisma.rolePermissions.upsert({
+      where: { role: role as any },
+      create: { role: role as any, permissions, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
+      update: { permissions, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
+    });
 
     return res.json({ success: true, role, permissions, notificationTargets: notificationTargets || [] });
   } catch (err) {
@@ -207,7 +210,7 @@ export const resetRolePermissions = async (req: AuthenticatedRequest, res: Respo
   try {
     const { role } = req.params;
     if (role === 'ceo') return res.status(400).json({ error: 'Não é possível modificar o CEO' });
-    await RolePermissions.deleteOne({ role });
+    await prisma.rolePermissions.deleteMany({ where: { role: role as any } });
     return res.json({ success: true, message: 'Permissões restauradas ao padrão' });
   } catch (err) {
     logger.error('Erro ao resetar permissões', err as Error);

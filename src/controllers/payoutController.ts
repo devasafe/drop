@@ -190,17 +190,10 @@ export const unblockPayout = async (req: Request & { user?: any }, res: Response
 // Admin/CEO - Toggle auto-aprovação
 export const toggleAutoApprove = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
+    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const { enabled } = req.body;
 
-    let config = await PlatformConfig.findOne();
-    if (!config) {
-      config = new PlatformConfig({ updatedBy: req.user?.id });
-    }
-    config.autoApprovePayouts = !!enabled;
-    config.updatedAt = new Date();
-    config.updatedBy = req.user?.id;
-    await config.save();
+    const config = await updatePlatformConfig({ autoApprovePayouts: !!enabled }, req.user?.id);
 
     return res.json({ autoApprovePayouts: config.autoApprovePayouts });
   } catch (err: any) {
@@ -212,8 +205,8 @@ export const toggleAutoApprove = async (req: Request & { user?: any }, res: Resp
 // Admin/CEO - Ler configuração atual (auto-approve)
 export const getPayoutConfig = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
-    const config = await PlatformConfig.findOne();
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const config = await getPlatformConfig();
     return res.json({ autoApprovePayouts: config?.autoApprovePayouts ?? false });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Erro' });

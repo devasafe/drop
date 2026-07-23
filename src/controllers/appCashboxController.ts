@@ -1,7 +1,13 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { ensureAppCashbox, recordCashboxEntry } from '../repositories/appCashbox.repository';
-import Withdrawal from '../models/Withdrawal';
+import {
+  createWithdrawal,
+  findWithdrawalById,
+  findWithdrawals,
+  countWithdrawals,
+  updateWithdrawal,
+} from '../repositories/withdrawal.repository';
 import payoutService from '../services/payout.service';
 
 /**
@@ -200,15 +206,13 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
 
     // ✅ Criar solicitação de saque
-    const withdrawal = new Withdrawal({
+    const withdrawal = await createWithdrawal({
       appCashboxId: cashbox.id,
       amount,
       status: 'pending',
       bankInfo,
       reason,
     });
-
-    await withdrawal.save();
 
     // ✅ Registrar no histórico (apenas o débito vai quando aprovado)
     console.log('✅ Solicitação de saque criada:', withdrawal._id);
@@ -238,11 +242,8 @@ export const getWithdrawals = async (req: Request & { user?: any }, res: Respons
     const pageNum = parseInt(page as string) || 1;
     const limitNum = parseInt(limit as string) || 20;
 
-    const total = await Withdrawal.countDocuments(query);
-    const withdrawals = await Withdrawal.find(query)
-      .sort({ requestedAt: -1 })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum);
+    const total = await countWithdrawals(query);
+    const withdrawals = await findWithdrawals(query, (pageNum - 1) * limitNum, limitNum);
 
     return res.json({
       withdrawals,
@@ -265,7 +266,7 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     const userId = req.user?.id;
     const { id } = req.params;
 
-    const withdrawal = await Withdrawal.findById(id);
+    const withdrawal = await findWithdrawalById(id);
     if (!withdrawal) {
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
@@ -281,25 +282,26 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
 
     // ✅ Atualizar status
-    withdrawal.status = 'approved';
-    withdrawal.approvedAt = new Date();
-    withdrawal.processedBy = userId;
-    await withdrawal.save();
+    const updated = await updateWithdrawal(withdrawal._id, {
+      status: 'approved',
+      approvedAt: new Date(),
+      processedBy: userId,
+    });
 
     // ✅ Registrar no caixa (débito manual)
     await recordCashboxEntry(prisma, {
       type: 'withdrawal',
       source: 'manual_withdrawal',
-      amount: withdrawal.amount,
-      withdrawalId: withdrawal._id.toString(),
-      reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
+      amount: updated.amount,
+      withdrawalId: String(updated._id),
+      reason: `Saque aprovado - ${updated.reason || 'Sem motivo'}`,
     });
 
-    console.log('✅ Saque aprovado:', withdrawal._id);
+    console.log('✅ Saque aprovado:', updated._id);
 
     return res.json({
       success: true,
-      withdrawal,
+      withdrawal: updated,
       message: 'Saque aprovado com sucesso!',
     });
   } catch (err) {
@@ -318,7 +320,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
     const { id } = req.params;
     const { rejectionReason } = req.body;
 
-    const withdrawal = await Withdrawal.findById(id);
+    const withdrawal = await findWithdrawalById(id);
     if (!withdrawal) {
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
@@ -328,17 +330,18 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
     }
 
     // ✅ Atualizar status
-    withdrawal.status = 'rejected';
-    withdrawal.rejectedAt = new Date();
-    withdrawal.rejectionReason = rejectionReason;
-    withdrawal.processedBy = userId;
-    await withdrawal.save();
+    const updated = await updateWithdrawal(withdrawal._id, {
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectionReason,
+      processedBy: userId,
+    });
 
-    console.log('✅ Saque rejeitado:', withdrawal._id);
+    console.log('✅ Saque rejeitado:', updated._id);
 
     return res.json({
       success: true,
-      withdrawal,
+      withdrawal: updated,
       message: 'Saque rejeitado.',
     });
   } catch (err) {

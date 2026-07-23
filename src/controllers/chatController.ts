@@ -1,7 +1,23 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import Conversation from '../models/Conversation';
-import Message from '../models/Message';
+import {
+  findConversationById,
+  createConversation,
+  updateConversation,
+  deleteConversationById,
+  findConversationBetween,
+  listConversationsForUser,
+  countConversationsForUser,
+  listPrePurchaseForUser,
+  countPrePurchaseForUser,
+  listAllConversationsAdmin,
+  createMessage,
+  findMessages,
+  lastMessage,
+  countMessages,
+  markIncomingMessagesRead,
+  markMessagesReadByIds,
+  deleteMessagesByConversation,
+} from '../repositories/chat.repository';
 import userRepository from '../repositories/user.repository';
 
 
@@ -65,33 +81,20 @@ export const createOrGetConversation = async (
     }
 
     // Buscar conversa existente (em ambas as direções)
-    let conversation = await Conversation.findOne({
-      type, // 👈 IMPORTANTE: Filtrar por tipo também!
-      $or: [
-        {
-          'participant1.userId': userId,
-          'participant2.userId': otherUserId
-        },
-        {
-          'participant1.userId': otherUserId,
-          'participant2.userId': userId
-        }
-      ]
-    }); // ⚠️ NÃO usar .lean() aqui pois vamos precisar reativar
+    let conversation = await findConversationBetween({ type, a: String(userId), b: String(otherUserId) });
 
     if (conversation) {
-      // 🆕 Remover userId do deletedBy se estava lá (reativar)
-      if (conversation.deletedBy && conversation.deletedBy.includes(new mongoose.Types.ObjectId(userId))) {
+      // 🆕 Remover userId do deletedBy se estava lá (reativar) + reativar se inativa
+      const patch: any = {};
+      if (Array.isArray(conversation.deletedBy) && conversation.deletedBy.includes(String(userId))) {
         console.log(`🔄 [CHAT] Reativando conversa deletada: ${conversation._id}`);
-        conversation.deletedBy = conversation.deletedBy.filter(id => id.toString() !== userId);
+        patch.deletedBy = conversation.deletedBy.filter((id: string) => String(id) !== String(userId));
       }
-      
-      // Reativar se estava desativada
-      if (!conversation.isActive) {
-        conversation.isActive = true;
+      if (!conversation.isActive) patch.isActive = true;
+
+      if (Object.keys(patch).length > 0) {
+        conversation = await updateConversation(conversation._id, patch);
       }
-      
-      await conversation.save();
       console.log(`✅ [CHAT] Conversa existente encontrada/reativada: ${conversation._id}`);
       return res.json(conversation);
     }
@@ -119,7 +122,7 @@ export const createOrGetConversation = async (
     }
 
     // Criar nova conversa
-    const newConversation = new Conversation({
+    const newConversation = await createConversation({
       type,
       participant1: {
         userId: user.id,
@@ -137,8 +140,6 @@ export const createOrGetConversation = async (
       isBlocked: [false, false],
       isMuted: [false, false]
     });
-
-    await newConversation.save();
 
     console.log(`✅ [CHAT] Nova conversa criada: ${newConversation._id}`);
     console.log(`📢 [CHAT] Emitindo para userId1=${userId}, userId2=${otherUserId}`);
@@ -168,65 +169,24 @@ export const listConversations = async (
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    
     // Buscar apenas conversas que não foram deletadas por este usuário
-    const conversations = await Conversation.find({
-      $and: [
-        {
-          $or: [
-            { 'participant1.userId': userObjectId },
-            { 'participant2.userId': userObjectId }
-          ]
-        },
-        {
-          $or: [
-            { deletedBy: { $exists: false } },
-            { deletedBy: { $nin: [userObjectId] } }
-          ]
-        },
-        { type: { $ne: 'suporte' } }
-      ]
-    })
-      .select(
-        'type participant1 participant2 lastMessageAt messageCount unreadCount orderId'
-      )
-      .sort({ lastMessageAt: -1 })
-      .limit(parseInt(limit as string))
-      .skip(parseInt(skip as string))
-      .lean();
+    const conversations = await listConversationsForUser(String(userId), {
+      skip: parseInt(skip as string),
+      limit: parseInt(limit as string),
+    });
 
     // 🟢 Buscar última mensagem de cada conversa para exibir na lista
     const conversationsWithLastMessage = await Promise.all(
       conversations.map(async (conv: any) => {
-        const lastMessage = await Message.findOne({ conversationId: conv._id })
-          .sort({ createdAt: -1 })
-          .select('text senderName createdAt')
-          .lean();
-        
+        const last = await lastMessage(conv._id);
         return {
           ...conv,
-          lastMessage: lastMessage || null
+          lastMessage: last || null
         };
       })
     );
 
-    const total = await Conversation.countDocuments({
-      $and: [
-        {
-          $or: [
-            { 'participant1.userId': userObjectId },
-            { 'participant2.userId': userObjectId }
-          ]
-        },
-        {
-          $or: [
-            { deletedBy: { $exists: false } },
-            { deletedBy: { $nin: [userObjectId] } }
-          ]
-        }
-      ]
-    });
+    const total = await countConversationsForUser(String(userId));
 
     return res.json({
       conversations: conversationsWithLastMessage,
@@ -261,15 +221,15 @@ export const getMessages = async (
     }
 
     // Buscar conversa
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
     // Verificar autorização
     const isParticipant =
-      conversation.participant1.userId.toString() === userId ||
-      conversation.participant2.userId.toString() === userId;
+      String(conversation.participant1.userId) === userId ||
+      String(conversation.participant2.userId) === userId;
 
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
     const isAdminRole = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(activeRole);
@@ -280,49 +240,25 @@ export const getMessages = async (
     }
 
     // 🆕 AUTO-MARCAR COMO LIDO: Mensagens do outro usuário que ainda não foram lidas
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    const updateResult = await Message.updateMany(
-      {
-        conversationId: new mongoose.Types.ObjectId(conversationId),
-        senderId: { $ne: userObjectId }, // Mensagens do OUTRO usuário
-        status: { $in: ['sent', 'delivered'] } // Que ainda não foram lidas
-      },
-      {
-        status: 'read',
-        readAt: new Date()
-      }
-    );
-
-    if (updateResult.modifiedCount > 0) {
-      console.log(`✅ [GET MESSAGES] ${updateResult.modifiedCount} mensagens marcadas como lidas automaticamente`);
+    const modified = await markIncomingMessagesRead(String(conversationId), String(userId));
+    if (modified > 0) {
+      console.log(`✅ [GET MESSAGES] ${modified} mensagens marcadas como lidas automaticamente`);
     }
 
     // Buscar mensagens
-    const messages = await Message.find({ conversationId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .skip(skip)
-      .lean();
+    const messages = await findMessages(String(conversationId), { skip, limit, order: 'desc' });
 
-    // 🔵 Log de debug: mostrar status de cada mensagem
-    console.log(`📊 [GET MESSAGES] Mensagens com status:`, messages.map(msg => ({
-      _id: msg._id,
-      senderId: msg.senderId.toString(),
-      text: msg.text.substring(0, 20),
-      status: msg.status
-    })));
-
-    const totalMessages = await Message.countDocuments({ conversationId });
+    const totalMessages = await countMessages(String(conversationId));
 
     // Obter unread count do usuário (apenas se for participante)
     const participantIndex =
-      conversation.participant1.userId.toString() === userId ? 0 :
-      conversation.participant2.userId.toString() === userId ? 1 : -1;
+      String(conversation.participant1.userId) === userId ? 0 :
+      String(conversation.participant2.userId) === userId ? 1 : -1;
 
     // 🆕 Após marcar como lido, zerar o unreadCount para este usuário
     if (participantIndex !== -1 && conversation.unreadCount[participantIndex] > 0) {
       conversation.unreadCount[participantIndex] = 0;
-      await conversation.save();
+      await updateConversation(conversation._id, { unreadCount: conversation.unreadCount });
       console.log(`✅ [GET MESSAGES] Zerado unreadCount para participante ${participantIndex}`);
     }
 
@@ -396,28 +332,29 @@ export const sendMessage = async (
     }
 
     // Buscar conversa
-    let conversation = await Conversation.findById(conversationId);
+    let conversation = await findConversationById(conversationId);
     console.log('🔍 [SEND MESSAGE] Conversa encontrada:', {
       found: !!conversation,
       conversationId,
-      participant1Id: conversation?.participant1.userId.toString(),
-      participant2Id: conversation?.participant2.userId.toString(),
+      participant1Id: conversation?.participant1.userId?.toString(),
+      participant2Id: conversation?.participant2.userId?.toString(),
       userId
     });
 
     // 🆕 Se conversa foi deletada pelo usuário, reativar
     let wasReactivated = false;
-    if (conversation && conversation.deletedBy && conversation.deletedBy.includes(new mongoose.Types.ObjectId(userId))) {
+    if (conversation && Array.isArray(conversation.deletedBy) && conversation.deletedBy.includes(String(userId))) {
       console.log(`🔄 [SEND MESSAGE] Reativando conversa deletada para usuário: ${userId}`);
-      conversation.deletedBy = conversation.deletedBy.filter(id => id.toString() !== userId);
-      await conversation.save();
+      conversation = await updateConversation(conversation._id, {
+        deletedBy: conversation.deletedBy.filter((id: string) => String(id) !== String(userId)),
+      });
       wasReactivated = true;
-      
+
       // 📢 Notificar o outro participante que a conversa foi reativada
-      const otherParticipantId = conversation.participant1.userId.toString() === userId 
-        ? conversation.participant2.userId.toString()
-        : conversation.participant1.userId.toString();
-      
+      const otherParticipantId = String(conversation.participant1.userId) === userId
+        ? String(conversation.participant2.userId)
+        : String(conversation.participant1.userId);
+
       notifier.emitConversationReactivated(otherParticipantId, {
         _id: conversation._id,
         type: conversation.type,
@@ -483,7 +420,7 @@ export const sendMessage = async (
       }
 
       // Criar conversa
-      conversation = new Conversation({
+      conversation = await createConversation({
         type: determinedType,
         participant1: {
           userId: user.id,
@@ -502,7 +439,6 @@ export const sendMessage = async (
         lastMessageAt: new Date()
       });
 
-      await conversation.save();
       console.log(`✅ [SEND MESSAGE] Nova conversa criada automaticamente: ${conversation._id}`);
       
       // Emitir evento de nova conversa (usando otherUserIdForNotif)
@@ -511,8 +447,8 @@ export const sendMessage = async (
 
     // Verificar se usuário é participante
     const isParticipant =
-      conversation.participant1.userId.toString() === userId ||
-      conversation.participant2.userId.toString() === userId;
+      String(conversation.participant1.userId) === userId ||
+      String(conversation.participant2.userId) === userId;
 
     const senderActiveRole = (req.user as any)?.activeRole || req.user?.role;
     const isSenderAdmin = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(senderActiveRole);
@@ -521,15 +457,14 @@ export const sendMessage = async (
     console.log('👤 [SEND MESSAGE] Verificação de participante:', {
       isParticipant,
       userId,
-      participant1: conversation.participant1.userId.toString(),
-      participant2: conversation.participant2.userId.toString()
+      participant1: String(conversation.participant1.userId),
+      participant2: String(conversation.participant2.userId)
     });
 
     // Para conversas de suporte: verificar status do ticket
     let supportTicket: any = null;
     if (isSupportConv) {
-      const SupportTicket = (await import('../models/SupportTicket')).default;
-      supportTicket = await SupportTicket.findOne({ conversationId }).lean();
+      supportTicket = await prisma.supportTicket.findFirst({ where: { conversationId: String(conversationId) } });
       if (supportTicket?.status === 'resolvido') {
         return res.status(403).json({ error: 'Este atendimento foi encerrado' });
       }
@@ -538,8 +473,8 @@ export const sendMessage = async (
     // Para admins em conversas de suporte: checar se assumiu o ticket
     if (!isParticipant && isSenderAdmin && isSupportConv) {
       if (!supportTicket) return res.status(404).json({ error: 'Ticket não encontrado' });
-      const hasAssumed = (supportTicket.assignedTo as any[]).some(
-        (a: any) => a.userId.toString() === userId
+      const hasAssumed = ((supportTicket.assignedTo as any[]) || []).some(
+        (a: any) => String(a.userId) === userId
       );
       if (!hasAssumed) {
         return res.status(403).json({ error: 'Assuma o ticket antes de responder' });
@@ -550,16 +485,16 @@ export const sendMessage = async (
 
     // Verificar se está bloqueado (apenas para participantes diretos)
     const participantIndex =
-      conversation.participant1.userId.toString() === userId ? 0 :
-      conversation.participant2.userId.toString() === userId ? 1 : -1;
+      String(conversation.participant1.userId) === userId ? 0 :
+      String(conversation.participant2.userId) === userId ? 1 : -1;
     if (participantIndex !== -1 && conversation.isBlocked[participantIndex]) {
       return res.status(403).json({ error: 'Esta conversa foi bloqueada' });
     }
 
     // Criar mensagem
-    const message = new Message({
-      conversationId: new mongoose.Types.ObjectId(conversationId),
-      senderId: new mongoose.Types.ObjectId(userId),
+    const message = await createMessage({
+      conversationId: String(conversationId),
+      senderId: String(userId),
       senderRole: normalizeRole(userRole),
       senderName: userName || 'Usuário',
       text: text.trim(),
@@ -567,26 +502,24 @@ export const sendMessage = async (
       status: 'sent'
     });
 
-    await message.save();
-
     // Atualizar conversa
-    conversation.messageCount += 1;
-    conversation.lastMessageAt = new Date();
-
-    // Atualizar unread count (apenas para participantes diretos)
+    const newUnread = [...conversation.unreadCount];
     if (participantIndex === 0) {
-      conversation.unreadCount[0] = 0;
-      conversation.unreadCount[1] = (conversation.unreadCount[1] || 0) + 1;
+      newUnread[0] = 0;
+      newUnread[1] = (newUnread[1] || 0) + 1;
     } else if (participantIndex === 1) {
-      conversation.unreadCount[1] = 0;
-      conversation.unreadCount[0] = (conversation.unreadCount[0] || 0) + 1;
+      newUnread[1] = 0;
+      newUnread[0] = (newUnread[0] || 0) + 1;
     } else {
       // Admin enviando: incrementa unread de ambos os participantes
-      conversation.unreadCount[0] = (conversation.unreadCount[0] || 0) + 1;
-      conversation.unreadCount[1] = (conversation.unreadCount[1] || 0) + 1;
+      newUnread[0] = (newUnread[0] || 0) + 1;
+      newUnread[1] = (newUnread[1] || 0) + 1;
     }
-
-    await conversation.save();
+    conversation = await updateConversation(conversation._id, {
+      messageCount: (conversation.messageCount || 0) + 1,
+      lastMessageAt: new Date(),
+      unreadCount: newUnread,
+    });
 
     console.log(`✅ [CHAT] Mensagem enviada: ${message._id}`);
 
@@ -674,36 +607,22 @@ export const markAsRead = async (
     }
 
     // Marcar mensagens como lidas
-    const result = await Message.updateMany(
-      { 
-        _id: { $in: messageIds || [] },
-        conversationId
-      },
-      {
-        status: 'read',
-        readAt: new Date()
-      }
-    );
+    const modifiedCount = await markMessagesReadByIds(messageIds || [], String(conversationId));
 
-    console.log(`✅ [CHAT] ${result.modifiedCount} mensagens marcadas como lidas`);
+    console.log(`✅ [CHAT] ${modifiedCount} mensagens marcadas como lidas`);
 
     // Obter conversa
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
     // Atualizar contador de não-lidas
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    const isParticipant1 = conversation.participant1.userId.toString() === userId;
-    
-    if (isParticipant1) {
-      conversation.unreadCount[0] = 0;
-    } else {
-      conversation.unreadCount[1] = 0;
-    }
-    
-    await conversation.save();
+    const isParticipant1 = String(conversation.participant1.userId) === userId;
+    const newUnread = [...conversation.unreadCount];
+    if (isParticipant1) newUnread[0] = 0;
+    else newUnread[1] = 0;
+    await updateConversation(conversation._id, { unreadCount: newUnread });
 
     // Emitir evento em tempo real
     const notifier = require('../services/notifier');
@@ -711,7 +630,7 @@ export const markAsRead = async (
 
     return res.json({
       success: true,
-      modifiedCount: result.modifiedCount
+      modifiedCount
     });
   } catch (error) {
     console.error('❌ Erro ao marcar como lido:', error);
@@ -735,26 +654,27 @@ export const muteConversation = async (
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
     // Determinar índice do participante
     const participantIndex =
-      conversation.participant1.userId.toString() === userId ? 0 : 1;
+      String(conversation.participant1.userId) === userId ? 0 : 1;
 
     // Verificar se é participante
     if (
-      conversation.participant1.userId.toString() !== userId &&
-      conversation.participant2.userId.toString() !== userId
+      String(conversation.participant1.userId) !== userId &&
+      String(conversation.participant2.userId) !== userId
     ) {
       return res.status(403).json({ error: 'Não autorizado' });
     }
 
     // Atualizar
-    conversation.isMuted[participantIndex] = isMuted;
-    await conversation.save();
+    const newMuted = [...conversation.isMuted];
+    newMuted[participantIndex] = isMuted;
+    await updateConversation(conversation._id, { isMuted: newMuted });
 
     console.log(`✅ [CHAT] Conversa ${isMuted ? 'silenciada' : 'desilenciada'}: ${conversationId}`);
 
@@ -781,26 +701,27 @@ export const blockParticipant = async (
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
     // Determinar índice do participante
     const participantIndex =
-      conversation.participant1.userId.toString() === userId ? 0 : 1;
+      String(conversation.participant1.userId) === userId ? 0 : 1;
 
     // Verificar se é participante
     if (
-      conversation.participant1.userId.toString() !== userId &&
-      conversation.participant2.userId.toString() !== userId
+      String(conversation.participant1.userId) !== userId &&
+      String(conversation.participant2.userId) !== userId
     ) {
       return res.status(403).json({ error: 'Não autorizado' });
     }
 
     // Atualizar
-    conversation.isBlocked[participantIndex] = isBlocked;
-    await conversation.save();
+    const newBlocked = [...conversation.isBlocked];
+    newBlocked[participantIndex] = isBlocked;
+    await updateConversation(conversation._id, { isBlocked: newBlocked });
 
     console.log(
       `✅ [CHAT] Conversa ${isBlocked ? 'bloqueada' : 'desbloqueada'}: ${conversationId}`
@@ -828,15 +749,15 @@ export const deleteConversation = async (
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const conversation = await Conversation.findById(conversationId);
+    const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
     // Verificar autorização
     const isParticipant =
-      conversation.participant1.userId.toString() === userId ||
-      conversation.participant2.userId.toString() === userId;
+      String(conversation.participant1.userId) === userId ||
+      String(conversation.participant2.userId) === userId;
 
     if (!isParticipant) {
       return res.status(403).json({ error: 'Não autorizado' });
@@ -844,37 +765,31 @@ export const deleteConversation = async (
 
     // Marcar como deletado apenas para este usuário (soft delete)
     console.log(`🗑️ [CHAT] Marcando conversa como deletada para usuário: ${userId}`);
-    
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    
+
     // Se ambos usuários deletaram, excluir de verdade
-    let deletedByArray = conversation.deletedBy || [];
-    
+    let deletedByArray: string[] = [...(conversation.deletedBy || [])];
+
     // Verificar se o usuário já está no array (comparando strings)
-    const userAlreadyDeleted = deletedByArray.some(id => id.toString() === userId);
+    const userAlreadyDeleted = deletedByArray.some((id) => String(id) === String(userId));
     if (!userAlreadyDeleted) {
-      deletedByArray.push(userObjectId);
+      deletedByArray.push(String(userId));
     }
 
     // Se ambos deletaram, excluir permanentemente
     if (deletedByArray.length === 2) {
       console.log(`🗑️ [CHAT] Ambos usuários deletaram. Removendo conversa permanentemente: ${conversationId}`);
-      await Message.deleteMany({ conversationId });
-      await Conversation.deleteOne({ _id: conversationId });
-      
+      await deleteMessagesByConversation(String(conversationId));
+      await deleteConversationById(String(conversationId));
+
       // Notificar ambos sobre a deleção permanente
-      const participant1Id = conversation.participant1.userId.toString();
-      const participant2Id = conversation.participant2.userId.toString();
+      const participant1Id = String(conversation.participant1.userId);
+      const participant2Id = String(conversation.participant2.userId);
       const notifier = require('../services/notifier');
       notifier.default.emitConversationDeleted(participant1Id, participant2Id, conversationId);
     } else {
       // Apenas marcar para este usuário
-      const updateResult = await Conversation.findByIdAndUpdate(
-        conversationId,
-        { deletedBy: deletedByArray },
-        { new: true }
-      );
-      
+      await updateConversation(String(conversationId), { deletedBy: deletedByArray });
+
       // Notificar apenas este usuário
       const notifier = require('../services/notifier');
       notifier.default.emitConversationDeletedForUser(userId, conversationId);
@@ -905,70 +820,43 @@ export const getPrePurchaseConversations = async (
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    // Build filter
-    const storeIdObjectId = new mongoose.Types.ObjectId(storeId);
-    const filter: any = {
-      type: 'loja_cliente_pre_compra',
-      $and: [
-        {
-          $or: [
-            { 'participant1.userId': storeIdObjectId },
-            { 'participant2.userId': storeIdObjectId }
-          ]
-        },
-        {
-          $or: [
-            { deletedBy: { $exists: false } },
-            { deletedBy: { $nin: [storeIdObjectId] } }
-          ]
-        }
-      ]
-    };
-
-    // Filtrar por tipo de conversa (produto ou usuário)
-    if (conversationType === 'product' || conversationType === 'user') {
-      filter.conversationType = conversationType;
-    }
+    const ctype = conversationType === 'product' || conversationType === 'user' ? String(conversationType) : undefined;
 
     // Buscar conversas ordenadas por última mensagem
-    const conversations = await Conversation.find(filter)
-      .sort({ lastMessageAt: -1 })
-      .limit(Number(limit))
-      .skip(Number(skip))
-      .lean();
+    const conversations = await listPrePurchaseForUser(String(storeId), {
+      conversationType: ctype,
+      skip: Number(skip),
+      limit: Number(limit),
+    });
 
     // Para cada conversa, obter última mensagem
     const conversationsWithLastMessage = await Promise.all(
       conversations.map(async (conv) => {
-        const lastMessage = await Message.findOne({
-          conversationId: conv._id
-        })
-          .sort({ createdAt: -1 })
-          .lean();
+        const last = await lastMessage(conv._id);
 
         const otherParticipant =
-          conv.participant1.userId.toString() === storeId
+          String(conv.participant1.userId) === storeId
             ? conv.participant2
             : conv.participant1;
 
         return {
           ...conv,
           otherParticipant,
-          lastMessage: lastMessage
+          lastMessage: last
             ? {
-                text: lastMessage.text,
-                senderName: lastMessage.senderName,
-                createdAt: lastMessage.createdAt
+                text: last.text,
+                senderName: last.senderName,
+                createdAt: last.createdAt
               }
             : null,
-          unreadCount: conv.participant1.userId.toString() === storeId
+          unreadCount: String(conv.participant1.userId) === storeId
             ? conv.unreadCount[1]
             : conv.unreadCount[0]
         };
       })
     );
 
-    const total = await Conversation.countDocuments(filter);
+    const total = await countPrePurchaseForUser(String(storeId), ctype);
 
     return res.json({
       conversations: conversationsWithLastMessage,
@@ -1027,36 +915,20 @@ export const createOrGetPrePurchaseConversation = async (
     if (validConversationType === 'product' && productId) {
       console.log(`📨 [CONTROLLER] Buscando por PRODUTO`);
       // Buscar por produto
-      conversation = await Conversation.findOne({
+      conversation = await findConversationBetween({
         type: 'loja_cliente_pre_compra',
-        productId,
-        $or: [
-          {
-            'participant1.userId': userId,
-            'participant2.userId': storeOwnerId
-          },
-          {
-            'participant1.userId': storeOwnerId,
-            'participant2.userId': userId
-          }
-        ]
+        a: String(userId),
+        b: String(storeOwnerId),
+        productId: String(productId),
       });
     } else {
       console.log(`📨 [CONTROLLER] Buscando por USUÁRIO`);
       // Buscar por usuário (sem produto específico)
-      conversation = await Conversation.findOne({
+      conversation = await findConversationBetween({
         type: 'loja_cliente_pre_compra',
+        a: String(userId),
+        b: String(storeOwnerId),
         conversationType: 'user',
-        $or: [
-          {
-            'participant1.userId': userId,
-            'participant2.userId': storeOwnerId
-          },
-          {
-            'participant1.userId': storeOwnerId,
-            'participant2.userId': userId
-          }
-        ]
       });
     }
 
@@ -1064,9 +936,7 @@ export const createOrGetPrePurchaseConversation = async (
       console.log(`✅ [CONTROLLER] Conversa encontrada: ${conversation._id}`);
       // Reativar se estava desativada
       if (!conversation.isActive) {
-        await Conversation.findByIdAndUpdate(conversation._id, {
-          isActive: true
-        });
+        conversation = await updateConversation(conversation._id, { isActive: true });
       }
       return res.json(conversation);
     }
@@ -1088,16 +958,16 @@ export const createOrGetPrePurchaseConversation = async (
     console.log(`📨 [CONTROLLER] Criando nova conversa`);
 
     // Criar nova conversa
-    const newConversation = new Conversation({
+    const newConversation = await createConversation({
       type: 'loja_cliente_pre_compra',
       conversationType: validConversationType,
       participant1: {
-        userId: customer._id,
+        userId: customer.id,
         role: 'cliente',
         name: customer.name
       },
       participant2: {
-        userId: storeOwner._id,
+        userId: storeOwner.id,
         role: 'loja',
         name: storeOwner.name
       },
@@ -1106,8 +976,6 @@ export const createOrGetPrePurchaseConversation = async (
       isBlocked: [false, false],
       isMuted: [false, false]
     });
-
-    await newConversation.save();
 
     console.log(
       `✅ [CHAT PRÉ-COMPRA] Nova conversa criada: ${newConversation._id}`
@@ -1127,32 +995,17 @@ export const listAllConversations = async (req: Request, res: Response): Promise
   try {
     const { type, status, search, page = '1', limit = '30' } = req.query as Record<string, string>;
 
-    const query: any = {};
-
-    if (type) query.type = type;
-    if (status) query.supportStatus = status;
-    if (search) {
-      // Escapar caracteres especiais para evitar ReDoS
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      query.$or = [
-        { 'participant1.name': regex },
-        { 'participant2.name': regex },
-      ];
-    }
-
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNum - 1) * limitNum;
 
-    const [conversations, total] = await Promise.all([
-      Conversation.find(query)
-        .sort({ lastMessageAt: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Conversation.countDocuments(query),
-    ]);
+    const { conversations, total } = await listAllConversationsAdmin({
+      type: type || undefined,
+      status: status || undefined,
+      search: search || undefined,
+      skip,
+      limit: limitNum,
+    });
 
     return res.json({
       conversations,
@@ -1173,12 +1026,10 @@ export const getConversationMessagesAdmin = async (req: Request, res: Response):
   try {
     const { conversationId } = req.params;
 
-    const conversation = await Conversation.findById(conversationId).lean();
+    const conversation = await findConversationById(conversationId);
     if (!conversation) return res.status(404).json({ error: 'Conversa não encontrada' });
 
-    const messages = await Message.find({ conversationId })
-      .sort({ createdAt: 1 })
-      .lean();
+    const messages = await findMessages(String(conversationId), { order: 'asc' });
 
     return res.json({ conversation, messages });
   } catch (error) {

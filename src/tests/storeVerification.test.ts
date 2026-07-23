@@ -4,8 +4,6 @@
  * - Integração: aprovação (facial/cnpj/endereço) marca isVerified; gate de listagem.
  */
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -54,7 +52,6 @@ describe('Unit: computeStoreVerified', () => {
 });
 
 // ===================== INTEGRAÇÃO =====================
-let mongod: MongoMemoryReplSet;
 
 async function mkUser(role = 'cliente', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
@@ -67,19 +64,8 @@ async function mkUser(role = 'cliente', verification?: any): Promise<{ token: st
   return { token, userId: user.id.toString() };
 }
 
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  const s = await mongoose.startSession();
-  try { await s.withTransaction(async () => { await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s }); }); }
-  finally { await s.endSession(); }
-}, 60000);
-
-afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@sver.test');
-  const c = mongoose.connection.collections;
-  for (const k in c) await c[k].deleteMany({});
 });
 
 describe('Gate de listagem de lojas (KYC Fase 2)', () => {

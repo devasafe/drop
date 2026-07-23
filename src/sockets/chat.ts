@@ -1,6 +1,6 @@
 import { Socket, Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import Conversation from '../models/Conversation';
+import { findConversationById } from '../repositories/chat.repository';
 import logger from '../config/logger';
 import env from '../config/env';
 
@@ -51,9 +51,7 @@ async function isConversationParticipant(
   conversationId: string,
   userId: string
 ): Promise<boolean> {
-  const conversation = await Conversation.findById(conversationId)
-    .select('participant1 participant2 deletedBy isActive')
-    .lean();
+  const conversation = await findConversationById(conversationId);
 
   if (!conversation) return false;
 

@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 jest.mock('../services/asaas/payment', () => ({
   __esModule: true,
@@ -15,16 +13,9 @@ import { storeIdForProduct, customerIdForOrder } from './helpers/storeOwner';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 const cancelMock = cancelCharge as jest.Mock;
-let mongod: MongoMemoryServer;
 
-beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri());
-});
-afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@aexp.test');
-  for (const key in mongoose.connection.collections) await mongoose.connection.collections[key].deleteMany({});
   cancelMock.mockReset();
   cancelMock.mockResolvedValue(true);
 });

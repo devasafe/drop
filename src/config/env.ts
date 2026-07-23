@@ -9,10 +9,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().transform(Number).default('4000'),
   
-  // Database
-  MONGO_URI: z.string().min(10, 'MONGO_URI deve ser uma string válida').optional(),
-  MONGODB_URI: z.string().min(10, 'MONGODB_URI deve ser uma string válida').optional(),
-  
+  // Database (PostgreSQL via Prisma)
+  DATABASE_URL: z.string().min(10, 'DATABASE_URL deve ser uma string válida').optional(),
+
   // Security
   JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter no mínimo 32 caracteres').optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
@@ -69,14 +68,13 @@ export const env = (() => {
 
   try {
     const parsed = envSchema.parse(process.env);
-    const mongoUri = parsed.MONGO_URI || parsed.MONGODB_URI;
 
     // ✅ SEGURANÇA: em produção, segredos são OBRIGATÓRIOS. Sem fallback inseguro.
     // Falha rápido (fail-fast) em vez de subir com um JWT_SECRET público conhecido.
     if (isProd) {
       const missing: string[] = [];
       if (!parsed.JWT_SECRET) missing.push('JWT_SECRET (mínimo 32 caracteres)');
-      if (!mongoUri) missing.push('MONGO_URI ou MONGODB_URI');
+      if (!parsed.DATABASE_URL) missing.push('DATABASE_URL (PostgreSQL)');
       if (missing.length > 0) {
         console.error(
           '❌ FATAL: variáveis de ambiente obrigatórias ausentes em produção:\n  • ' +
@@ -86,7 +84,7 @@ export const env = (() => {
         process.exit(1);
       }
     } else if (!isTest) {
-      if (!mongoUri) console.warn('⚠️ MONGO_URI não configurada - usando fallback local');
+      if (!parsed.DATABASE_URL) console.warn('⚠️ DATABASE_URL não configurada - usando fallback local do Prisma');
       if (!parsed.JWT_SECRET) {
         console.warn('⚠️ JWT_SECRET não configurada - usando fallback INSEGURO (apenas dev)');
       }
@@ -95,7 +93,6 @@ export const env = (() => {
 
     return {
       ...parsed,
-      MONGO_URI: mongoUri || 'mongodb://localhost:27017/drop-test',
       // Em produção parsed.JWT_SECRET está garantido (senão já abortamos acima).
       JWT_SECRET: parsed.JWT_SECRET || DEV_ONLY_JWT_FALLBACK,
     };
@@ -114,7 +111,7 @@ export const env = (() => {
       return {
         NODE_ENV: 'test',
         PORT: 4000,
-        MONGO_URI: 'mongodb://localhost:27017/drop-test',
+        DATABASE_URL: process.env.DATABASE_URL,
         JWT_SECRET: 'test_secret_key_with_minimum_32_characters_length_ok',
         JWT_EXPIRES_IN: '7d',
         CORS_ORIGIN: 'http://localhost:3000,http://localhost:3001',

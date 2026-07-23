@@ -10,7 +10,7 @@ import userRepository from '../repositories/user.repository';
 import { slugify } from '../utils/slugify';
 import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
-import StoreSubscription from '../models/StoreSubscription';
+import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
 
 // Painel do lojista: métricas e pedidos
@@ -125,7 +125,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     )].sort();
     
     // Sincronizar plan com StoreSubscription (source of truth)
-    const subscription = await StoreSubscription.findOne({ storeId: store.id }).lean();
+    const subscription = await findSubByStoreId(store.id);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const planFromSub = subscription ? planNumberMap[subscription.currentPlan] ?? 1 : (store.plan ?? 1);
     if (store.plan !== planFromSub) {
@@ -412,7 +412,7 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 
     const store = await prisma.store.findFirst({ where: { ownerId } });
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-    const sub = await StoreSubscription.findOne({ storeId: store.id }).lean();
+    const sub = await findSubByStoreId(store.id);
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = sub ? (planMap[sub.currentPlan] ?? 1) : (store.plan ?? 1);
     if (storePlan !== 3) return res.status(403).json({ error: 'Recurso exclusivo do Plano 3 (Premium)' });

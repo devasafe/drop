@@ -6,8 +6,8 @@ import { toApiWallet, loadWalletHistory, entryToHistory } from '../repositories/
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import payoutService from '../services/payout.service';
 import { calculateOrderDistribution, getStorePlanFee } from '../utils/walletCalculations';
-import WithdrawalRequest from '../models/WithdrawalRequest';
-import PlatformConfig from '../models/PlatformConfig';
+import { findWRByMotoboy } from '../repositories/withdrawalRequest.repository';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
 
 /**
@@ -557,7 +557,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       // Tentar buscar withdrawal requests
       try {
         console.log('🔄 Buscando WithdrawalRequests...');
-        const withdrawals = await WithdrawalRequest.find({ motoboyId: userId }).lean();
+        const withdrawals = await findWRByMotoboy(String(userId));
         const pending = withdrawals.filter((w: any) => w.status === 'pending');
         const approved = withdrawals.filter((w: any) => w.status === 'approved');
         
@@ -573,7 +573,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       // Buscar config do sistema
       try {
         console.log('🔄 Buscando PlatformConfig...');
-        const config = await PlatformConfig.findOne().lean();
+        const config = await getPlatformConfig();
         responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw || 50;
         responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery || 5;
         responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm || 1;

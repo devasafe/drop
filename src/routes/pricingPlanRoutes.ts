@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import PricingPlan from '../models/PricingPlan';
+import { listPlans, findPlanById, updatePlan } from '../repositories/pricingPlan.repository';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 
@@ -11,7 +11,7 @@ const router = Router();
  */
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
-    const plans = await PricingPlan.find().sort({ name: 1 });
+    const plans = await listPlans();
     res.json(plans);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -32,18 +32,14 @@ router.put('/:planId', authenticate, authorizePermission('plan:manage'), async (
       return res.status(400).json({ error: 'Comissão deve estar entre 0 e 100' });
     }
 
-    const plan = await PricingPlan.findByIdAndUpdate(
-      planId,
-      {
-        commission,
-        motorcycleTaxes: {
-          basePerDelivery: motorcycleTaxes?.basePerDelivery || 0,
-          perKm: motorcycleTaxes?.perKm || 0
-        },
-        minWithdraw
+    const plan = await updatePlan(planId, {
+      commission,
+      motorcycleTaxes: {
+        basePerDelivery: motorcycleTaxes?.basePerDelivery || 0,
+        perKm: motorcycleTaxes?.perKm || 0,
       },
-      { new: true }
-    );
+      minWithdraw,
+    });
 
     if (!plan) {
       return res.status(404).json({ error: 'Plano não encontrado' });
@@ -61,8 +57,8 @@ router.put('/:planId', authenticate, authorizePermission('plan:manage'), async (
  */
 router.get('/:planId', authenticate, async (req: Request, res: Response) => {
   try {
-    const plan = await PricingPlan.findById(req.params.planId);
-    
+    const plan = await findPlanById(req.params.planId);
+
     if (!plan) {
       return res.status(404).json({ error: 'Plano não encontrado' });
     }
@@ -73,7 +69,7 @@ router.get('/:planId', authenticate, async (req: Request, res: Response) => {
     const storeAmount = exampleAmount - adminCommission;
 
     res.json({
-      ...plan.toObject(),
+      ...plan,
       example: {
         orderAmount: exampleAmount,
         adminCommission,

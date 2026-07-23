@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 jest.mock('../services/asaas/client', () => ({
   __esModule: true,
@@ -14,13 +12,9 @@ import { decryptSensitiveData } from '../utils/encryption';
 
 const post = (asaasClient as any).post as jest.Mock;
 const get = (asaasClient as any).get as jest.Mock;
-let mongod: MongoMemoryServer;
 
-beforeAll(async () => { mongod = await MongoMemoryServer.create(); await mongoose.connect(mongod.getUri()); });
-afterAll(async () => { await mongoose.disconnect(); await mongod.stop(); });
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@arec.test');
-  for (const key in mongoose.connection.collections) await mongoose.connection.collections[key].deleteMany({});
   post.mockReset(); get.mockReset();
 });
 

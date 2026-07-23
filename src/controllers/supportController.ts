@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Conversation from '../models/Conversation';
-import SupportTicket from '../models/SupportTicket';
+import { createConversation, updateConversation, deleteConversationById } from '../repositories/chat.repository';
 import { prisma } from '../lib/prisma';
 import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import logger from '../config/logger';
@@ -51,10 +50,10 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Cria a conversa de suporte
-    const conversation = await Conversation.create({
+    const conversation = await createConversation({
       type: 'suporte',
       supportCategory: category,
-      supportStatus: manager ? 'aberto' : 'aberto',
+      supportStatus: 'aberto',
       participant1: {
         userId,
         role: activeRole === 'lojista' ? 'loja' : activeRole === 'motoboy' ? 'motoboy' : 'cliente',
@@ -73,19 +72,21 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     // Cria o ticket
-    const ticket = await SupportTicket.create({
-      conversationId: conversation._id,
-      openedBy: { userId, role: activeRole, name: user.name },
-      assignedTo: manager ? [{ userId: manager.id, name: manager.name }] : [],
-      category,
-      subject: subject.trim(),
-      status: 'aberto',
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        conversationId: conversation._id,
+        openedBy: { userId, role: activeRole, name: user.name },
+        assignedTo: manager ? [{ userId: manager.id, name: manager.name }] : [],
+        category: category as any,
+        subject: subject.trim(),
+        status: 'aberto',
+      },
     });
 
     // Notifica a sala de gerentes via socket
     try {
       emitToRoom(`admin:${managerRole}`, 'support:new_ticket', {
-        ticketId: ticket._id,
+        ticketId: ticket.id,
         conversationId: conversation._id,
         subject: ticket.subject,
         category,
@@ -98,7 +99,7 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
         tag: 'support',
       });
     } catch (err) {
-      logger.warn('Falha ao emitir evento de novo ticket', { ticketId: ticket._id });
+      logger.warn('Falha ao emitir evento de novo ticket', { ticketId: ticket.id });
     }
 
     return res.status(201).json({ ticket, conversationId: conversation._id });
@@ -115,24 +116,22 @@ export const listTickets = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
 
-    let query: any = {};
+    let where: any = {};
 
     if (activeRole === 'ceo' || activeRole === 'gerente_geral') {
       // vê tudo, com filtros opcionais
-      if (req.query.category) query.category = req.query.category;
-      if (req.query.status) query.status = req.query.status;
+      if (req.query.category) where.category = req.query.category as any;
+      if (req.query.status) where.status = req.query.status as any;
     } else if (activeRole?.startsWith('gerente_')) {
       const suffix = activeRole.replace('gerente_', '');
-      query.category = suffix;
+      where.category = suffix as any;
     } else {
-      // usuário comum vê apenas os próprios tickets
-      query['openedBy.userId'] = userId;
+      // usuário comum vê apenas os próprios tickets (filtro JSON-path em openedBy.userId)
+      where.openedBy = { path: ['userId'], equals: String(userId) };
     }
 
-    const tickets = await SupportTicket.find(query)
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
+    const rows = await prisma.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
+    const tickets = rows.map((t) => ({ ...t, _id: t.id }));
 
     return res.json(tickets);
   } catch (err) {
@@ -148,7 +147,7 @@ export const assignTicket = async (req: AuthenticatedRequest, res: Response) => 
     const userId = req.user?.id;
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
 
-    const ticket = await SupportTicket.findById(id);
+    const ticket = await prisma.supportTicket.findUnique({ where: { id: String(id) } });
     if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
 
     // Verificar se o gerente tem permissão para esta categoria de ticket
@@ -166,17 +165,20 @@ export const assignTicket = async (req: AuthenticatedRequest, res: Response) => 
     const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { id: true, name: true } });
     const adminName = (user as any)?.name || 'Admin';
 
-    const alreadyAssigned = ticket.assignedTo.some(a => a.userId.toString() === userId);
+    const assignedTo = ((ticket.assignedTo as any[]) || []).slice();
+    const alreadyAssigned = assignedTo.some((a: any) => String(a.userId) === String(userId));
     if (!alreadyAssigned) {
-      ticket.assignedTo.push({ userId: userId as any, name: adminName });
+      assignedTo.push({ userId: String(userId), name: adminName });
     }
-    ticket.status = 'em_atendimento';
-    await ticket.save();
+    const updated = await prisma.supportTicket.update({
+      where: { id: ticket.id },
+      data: { assignedTo, status: 'em_atendimento' },
+    });
 
     // Atualiza status na conversa também
-    await Conversation.findByIdAndUpdate(ticket.conversationId, { supportStatus: 'em_atendimento' });
+    await updateConversation(ticket.conversationId, { supportStatus: 'em_atendimento' });
 
-    return res.json({ success: true, ticket });
+    return res.json({ success: true, ticket: { ...updated, _id: updated.id } });
   } catch (err) {
     logger.error('Erro ao assumir ticket', err as Error);
     return res.status(500).json({ error: 'Erro interno' });
@@ -193,11 +195,11 @@ export const deleteTicket = async (req: AuthenticatedRequest, res: Response) => 
       return res.status(403).json({ error: 'Apenas o CEO pode apagar tickets' });
     }
 
-    const ticket = await SupportTicket.findById(id);
+    const ticket = await prisma.supportTicket.findUnique({ where: { id: String(id) } });
     if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
 
-    await Conversation.findByIdAndDelete(ticket.conversationId);
-    await ticket.deleteOne();
+    await deleteConversationById(ticket.conversationId);
+    await prisma.supportTicket.delete({ where: { id: ticket.id } });
 
     return res.json({ success: true });
   } catch (err) {
@@ -213,7 +215,7 @@ export const resolveTicket = async (req: AuthenticatedRequest, res: Response) =>
     const userId = req.user?.id;
     const activeRole = (req.user as any)?.activeRole || req.user?.role;
 
-    const ticket = await SupportTicket.findById(id);
+    const ticket = await prisma.supportTicket.findUnique({ where: { id: String(id) } });
     if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
 
     const adminRoles = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
@@ -233,21 +235,18 @@ export const resolveTicket = async (req: AuthenticatedRequest, res: Response) =>
       }
     }
 
-    ticket.status = 'resolvido';
-    ticket.resolvedAt = new Date();
-    await ticket.save();
+    await prisma.supportTicket.update({
+      where: { id: ticket.id },
+      data: { status: 'resolvido', resolvedAt: new Date() },
+    });
 
-    const conv = await Conversation.findByIdAndUpdate(
-      ticket.conversationId,
-      { supportStatus: 'resolvido', isActive: false },
-      { new: true }
-    ).lean();
+    const conv = await updateConversation(ticket.conversationId, { supportStatus: 'resolvido', isActive: false });
 
     // Notificar ambos os participantes em tempo real
     if (conv) {
       const p1Id = (conv as any).participant1?.userId?.toString();
       const p2Id = (conv as any).participant2?.userId?.toString();
-      const payload = { ticketId: ticket._id, conversationId: ticket.conversationId };
+      const payload = { ticketId: ticket.id, conversationId: ticket.conversationId };
       if (p1Id) emitToRoom(`user:${p1Id}`, 'support:ticket_resolved', payload);
       if (p2Id) emitToRoom(`user:${p2Id}`, 'support:ticket_resolved', payload);
     }

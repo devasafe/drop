@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 jest.mock('../services/asaas/client', () => ({
   __esModule: true,
@@ -7,6 +5,7 @@ jest.mock('../services/asaas/client', () => ({
 }));
 
 import asaasClient from '../services/asaas/client';
+import { fakeObjectId } from './helpers/ids';
 import { releaseSinglePayoutViaAsaas } from '../services/asaas/release';
 
 import { prisma } from '../lib/prisma';
@@ -15,21 +14,11 @@ import { createPayout, findPayoutById } from './helpers/financePg';
 import { ownerIdForStore } from './helpers/storeOwner';
 
 const post = (asaasClient as any).post as jest.Mock;
-let mongod: MongoMemoryServer;
 
-beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri());
-});
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@arels.test');
-  for (const key in mongoose.connection.collections) {
-    await mongoose.connection.collections[key].deleteMany({});
-  }
   post.mockReset();
 });
 
@@ -37,7 +26,7 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
   it('libera SÓ o payout da loja, mantendo o do motoboy pendente', async () => {
     post.mockResolvedValue({ id: 'tr_loja', status: 'DONE' });
 
-    const orderId = String(new mongoose.Types.ObjectId());
+    const orderId = fakeObjectId();
     const store = await prisma.store.create({ data: {
       ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja',
@@ -68,7 +57,7 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
   });
 
   it('relança erro quando o recebedor não tem subconta (admin vê a falha)', async () => {
-    const orderId = String(new mongoose.Types.ObjectId());
+    const orderId = fakeObjectId();
     const store = await prisma.store.create({ data: {
       ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja sem subconta',

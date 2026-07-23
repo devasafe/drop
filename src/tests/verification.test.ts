@@ -4,9 +4,7 @@
  * - Integração: gate de compra, verificação de email por token, aprovação pelo admin.
  */
 import request from 'supertest';
-import mongoose from 'mongoose';
 import crypto from 'crypto';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -16,7 +14,6 @@ import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createWallet } from './helpers/financePg';
 
 
-import EmailVerificationToken from '../models/EmailVerificationToken';
 import { isValidCPF, isValidRG } from '../utils/documentValidation';
 import { isClientVerified, missingClientVerifications } from '../utils/clientVerification';
 
@@ -68,7 +65,6 @@ describe('Unit: isClientVerified / missing', () => {
 });
 
 // ===================== INTEGRAÇÃO =====================
-let mongod: MongoMemoryReplSet;
 
 async function createUser(role = 'cliente', verification?: any): Promise<{ token: string; userId: string }> {
   const passwordHash = await bcrypt.hash('Senha123!', 10);
@@ -85,29 +81,11 @@ async function createUser(role = 'cliente', verification?: any): Promise<{ token
   return { token, userId: user.id };
 }
 
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  // warm-up: garante o primary pronto para transações (evita flaky na 1ª transação)
-  const s = await mongoose.startSession();
-  try {
-    await s.withTransaction(async () => {
-      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
-    });
-  } finally {
-    await s.endSession();
-  }
-}, 60000);
-
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@verif.test');
-  const collections = mongoose.connection.collections;
-  for (const key in collections) await collections[key].deleteMany({});
 });
 
 describe('Gate de compra (KYC)', () => {
@@ -164,7 +142,7 @@ describe('Verificação de email por código', () => {
   it('verifica o email com código válido', async () => {
     const { token, userId } = await createUser('cliente');
     const code = '123456';
-    await EmailVerificationToken.create({ userId, tokenHash: hash(code), expiresAt: new Date(Date.now() + 60000) });
+    await prisma.emailVerificationToken.create({ data: { userId, tokenHash: hash(code), expiresAt: new Date(Date.now() + 60000) } });
 
     const res = await request(app).post('/api/verification/email/verify')
       .set('Authorization', `Bearer ${token}`).send({ code });
@@ -176,7 +154,7 @@ describe('Verificação de email por código', () => {
 
   it('rejeita código incorreto', async () => {
     const { token, userId } = await createUser('cliente');
-    await EmailVerificationToken.create({ userId, tokenHash: hash('123456'), expiresAt: new Date(Date.now() + 60000) });
+    await prisma.emailVerificationToken.create({ data: { userId, tokenHash: hash('123456'), expiresAt: new Date(Date.now() + 60000) } });
 
     const res = await request(app).post('/api/verification/email/verify')
       .set('Authorization', `Bearer ${token}`).send({ code: '000000' });

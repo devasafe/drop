@@ -1,6 +1,5 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { fakeObjectId } from './helpers/ids';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -10,7 +9,6 @@ import { createWallet, findWallet, deleteWallets } from './helpers/financePg';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-let mongod: MongoMemoryReplSet;
 
 // Helper: criar usuario diretamente no banco (bypassa upload de foto para lojista/motoboy)
 async function createUserDirect(
@@ -87,32 +85,11 @@ async function setWalletBalance(userId: string, amount: number, ownerType = 'use
   return { ...w, _id: w.id, balance: Number(w.balance) };
 }
 
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  const uri = mongod.getUri();
-  await mongoose.connect(uri);
-  // warm-up: garante o primary pronto para transações (evita flaky na 1ª transação)
-  const s = await mongoose.startSession();
-  try {
-    await s.withTransaction(async () => {
-      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
-    });
-  } finally {
-    await s.endSession();
-  }
-}, 60000);
-
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
   await prisma.$disconnect();
 });
 
 afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
 
   // O helper apaga Store antes de User (a FK Store.owner não é cascade).
   await cleanupUsersByEmailDomain('@wal.test');
@@ -211,7 +188,7 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     const res = await request(app)
       .post('/api/wallets/transfer')
       .set('Authorization', `Bearer ${client.token}`)
-      .send({ toUserId: new mongoose.Types.ObjectId().toString(), amount: 0 });
+      .send({ toUserId: fakeObjectId(), amount: 0 });
 
     expect(res.status).toBe(400);
   });

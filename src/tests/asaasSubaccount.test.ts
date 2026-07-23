@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -21,23 +19,12 @@ import { decryptSensitiveData } from '../utils/encryption';
 const post = (asaasClient as any).post as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-let mongod: MongoMemoryServer;
-
-beforeAll(async () => {
-  mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri());
-});
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@asub.test');
-  for (const key in mongoose.connection.collections) {
-    await mongoose.connection.collections[key].deleteMany({});
-  }
   post.mockReset();
 });
 

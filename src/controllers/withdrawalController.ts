@@ -1,11 +1,17 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import WithdrawalRequest from '../models/WithdrawalRequest';
+import {
+  createWR,
+  findWRById,
+  findWRByStatus,
+  findAllWR,
+  countWR,
+  findWRByMotoboy,
+  updateWR,
+} from '../repositories/withdrawalRequest.repository';
 import walletService from '../services/wallet.prisma.service';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
-import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
@@ -120,7 +126,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 
     // WithdrawalRequest segue no Mongo; os Payouts (Postgres) mudam de estado numa
     // transação Prisma. Cria a solicitação primeiro para ter o id de referência.
-    const withdrawal: any = await WithdrawalRequest.create({
+    const withdrawal: any = await createWR({
       motoboyId: recipientId,
       motoboyName: user.name,
       motoboyEmail: user.email,
@@ -136,7 +142,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     });
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));
-    const refreshed = await WithdrawalRequest.findById(withdrawal._id);
+    const refreshed = await findWRById(withdrawal._id);
     return res.json({
       message: 'Saque solicitado com sucesso',
       withdrawal: refreshed || withdrawal,
@@ -150,7 +156,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 // ✅ CEO - Ver saques pendentes
 export const getPendingWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const pending = await WithdrawalRequest.find({ status: 'pending' }).sort({ requestedAt: -1 });
+    const pending = await findWRByStatus('pending');
     return res.json(pending);
   } catch (err) {
     console.error('❌ Erro ao buscar saques:', err);
@@ -164,12 +170,9 @@ export const getAllWithdrawals = async (req: Request & { user?: any }, res: Resp
     const limit = parseInt(req.query.limit as string) || 50;
     const skip = parseInt(req.query.skip as string) || 0;
 
-    const withdrawals = await WithdrawalRequest.find()
-      .sort({ requestedAt: -1 })
-      .limit(limit)
-      .skip(skip);
+    const withdrawals = await findAllWR(limit, skip);
 
-    const total = await WithdrawalRequest.countDocuments();
+    const total = await countWR();
 
     return res.json({
       withdrawals,
@@ -206,15 +209,10 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
         await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
       }
     });
-    withdrawal.status = 'rejected';
-    withdrawal.rejectionReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
-    await withdrawal.save();
-    throw Object.assign(new Error(withdrawal.rejectionReason), { transferFailed: true });
+    const rejectionReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
+    await updateWR(withdrawal._id, { status: 'rejected', rejectionReason });
+    throw Object.assign(new Error(rejectionReason), { transferFailed: true });
   }
-
-  withdrawal.approvedAt = new Date();
-  withdrawal.approvedBy = approverId;
-  withdrawal.transactionId = transferResult.gatewayTransferId;
 
   await prisma.$transaction(async (tx) => {
     if (withdrawal.payoutIds?.length) {
@@ -236,20 +234,24 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
     }
   });
 
-  withdrawal.status = 'processed';
-  withdrawal.processedAt = new Date();
-  await withdrawal.save();
+  await updateWR(withdrawal._id, {
+    approvedAt: new Date(),
+    approvedBy: approverId,
+    transactionId: transferResult.gatewayTransferId,
+    status: 'processed',
+    processedAt: new Date(),
+  });
   return transferResult;
 }
 
 // Best-effort auto-approve após criação: se falhar, saque segue pending para aprovação manual.
 export async function maybeAutoApproveWithdrawal(withdrawalId: string) {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
-    const config = await PlatformConfig.findOne();
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const config = await getPlatformConfig();
     if (!config?.autoApproveWithdrawals) return;
 
-    const w = await WithdrawalRequest.findById(withdrawalId);
+    const w = await findWRById(withdrawalId);
     if (!w || w.status !== 'pending') return;
 
     await executeWithdrawalApproval(w, 'auto');
@@ -264,7 +266,7 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     const ceoId = req.user?.id || (req as any).userId;
     const { withdrawalId } = req.body;
 
-    const withdrawal = await WithdrawalRequest.findById(withdrawalId);
+    const withdrawal = await findWRById(withdrawalId);
     if (!withdrawal) {
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
@@ -273,10 +275,11 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
 
     const transferResult = await executeWithdrawalApproval(withdrawal, ceoId);
+    const updated = await findWRById(withdrawalId);
 
     return res.json({
       message: 'Saque aprovado e processado',
-      withdrawal,
+      withdrawal: updated || withdrawal,
       gatewayStatus: transferResult.status,
     });
   } catch (err: any) {
@@ -292,17 +295,10 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
 // Admin/CEO - Toggle auto-aprovação de saques
 export const toggleAutoApproveWithdrawals = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
+    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const { enabled } = req.body;
 
-    let config = await PlatformConfig.findOne();
-    if (!config) {
-      config = new PlatformConfig({ updatedBy: req.user?.id });
-    }
-    config.autoApproveWithdrawals = !!enabled;
-    config.updatedAt = new Date();
-    config.updatedBy = req.user?.id;
-    await config.save();
+    const config = await updatePlatformConfig({ autoApproveWithdrawals: !!enabled }, req.user?.id);
 
     return res.json({ autoApproveWithdrawals: config.autoApproveWithdrawals });
   } catch (err: any) {
@@ -314,8 +310,8 @@ export const toggleAutoApproveWithdrawals = async (req: Request & { user?: any }
 // Admin/CEO - Ler configuração atual
 export const getWithdrawalConfig = async (_req: Request & { user?: any }, res: Response) => {
   try {
-    const PlatformConfig = (await import('../models/PlatformConfig')).default;
-    const config = await PlatformConfig.findOne();
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const config = await getPlatformConfig();
     return res.json({ autoApproveWithdrawals: config?.autoApproveWithdrawals ?? false });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Erro' });
@@ -328,7 +324,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
     const ceoId = req.user?.id || (req as any).userId;
     const { withdrawalId, reason } = req.body;
 
-    const withdrawal = await WithdrawalRequest.findById(withdrawalId);
+    const withdrawal = await findWRById(withdrawalId);
     if (!withdrawal) {
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
@@ -337,9 +333,8 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       return res.status(400).json({ error: 'Saque não está pendente' });
     }
 
-    withdrawal.status = 'rejected';
-    withdrawal.rejectionReason = reason || 'Rejeitado pelo CEO';
-    await withdrawal.save();
+    const rejectionReason = reason || 'Rejeitado pelo CEO';
+    const updatedWithdrawal = await updateWR(withdrawal._id, { status: 'rejected', rejectionReason });
 
     // Saque do user balance: devolve o saldo bloqueado pra disponível
     if (!withdrawal.payoutIds?.length) {
@@ -347,7 +342,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
       await prisma.$transaction(async (tx) => {
         await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
-        await tx.walletEntry.create({ data: { walletId: w.id, type: 'refund', category: 'refund', amount: withdrawal.amount, reason: `Saque rejeitado: ${withdrawal.rejectionReason}` } });
+        await tx.walletEntry.create({ data: { walletId: w.id, type: 'refund', category: 'refund', amount: withdrawal.amount, reason: `Saque rejeitado: ${rejectionReason}` } });
       });
     }
 
@@ -359,7 +354,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
 
     return res.json({
       message: 'Saque rejeitado',
-      withdrawal,
+      withdrawal: updatedWithdrawal,
     });
   } catch (err) {
     console.error('❌ Erro ao rejeitar saque:', err);
@@ -400,7 +395,7 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
       data: { walletId: wallet.id, type: 'debit', category: 'withdrawal', amount, reason: 'Saque solicitado para conta bancária', paymentMethod: 'bank_transfer' },
     });
 
-    const withdrawal: any = await WithdrawalRequest.create({
+    const withdrawal: any = await createWR({
       motoboyId: String(userId),
       motoboyName: user.name,
       motoboyEmail: user.email,
@@ -412,7 +407,7 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
     });
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));
-    const refreshed = await WithdrawalRequest.findById(withdrawal._id);
+    const refreshed = await findWRById(withdrawal._id);
     return res.json({
       message: 'Saque solicitado com sucesso',
       withdrawal: refreshed || withdrawal,
@@ -440,8 +435,7 @@ export const getMyWithdrawals = async (req: Request & { user?: any }, res: Respo
       return res.status(403).json({ error: 'Apenas motoboys ou lojistas podem ver saques' });
     }
 
-    const withdrawals = await WithdrawalRequest.find({ motoboyId: recipientId })
-      .sort({ requestedAt: -1 });
+    const withdrawals = await findWRByMotoboy(String(recipientId));
 
     return res.json(withdrawals);
   } catch (err) {

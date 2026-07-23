@@ -1,6 +1,4 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -15,34 +13,13 @@ import { createWallet, createAppCashbox, findAppCashbox, findPayout } from './he
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-let mongod: MongoMemoryReplSet;
-
-beforeAll(async () => {
-  mongod = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(mongod.getUri());
-  // warm-up do primary p/ transações (evita flaky na 1ª transação)
-  const s = await mongoose.startSession();
-  try {
-    await s.withTransaction(async () => {
-      await mongoose.connection.db.collection('_warmup').insertOne({ ok: 1 }, { session: s });
-    });
-  } finally {
-    await s.endSession();
-  }
-}, 60000);
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongod.stop();
 });
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@late.test');
   await wipeAppCashbox();
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
 });
 
 async function createUser(role: string) {
