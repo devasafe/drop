@@ -8,7 +8,7 @@ import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
 import Transaction from '../models/Transaction';
-import Delivery from '../models/Delivery';
+
 import Wallet from '../models/Wallet';
 import notifier from '../services/notifier';
 import logger from '../config/logger';
@@ -764,7 +764,7 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
     const [delivery, customerObj, storeObj, productsData] = await Promise.all([
       // Sem `.populate('motoboyId')`: o motoboy é um User, que agora vive no Postgres.
       // O nome é resolvido logo abaixo, num lookup explícito.
-      order.deliveryId ? Delivery.findById(order.deliveryId).lean() : null,
+      order.deliveryId ? prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }) : null,
       order.customerId ? userRepository.findById(String(order.customerId)) : null,
       order.storeId ? prisma.store.findUnique({ where: { id: String(order.storeId) } }) : null,
       order.products?.length
@@ -863,26 +863,28 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Evitar criação duplicada de delivery
-    const existingDelivery = await Delivery.findOne({ orderId: order.id });
+    const existingDelivery = await prisma.delivery.findFirst({ where: { orderId: order.id } });
     if (existingDelivery) return res.json(existingDelivery);
 
     const distanceNum = Math.max(0, Number(distance || 0));
     const fee = await calculateDeliveryFeeWithConfig(distanceNum);
 
-    const delivery = await new Delivery({
-      orderId: order.id,
-      distance: distanceNum,
-      fee,
-      status: 'pending',
-      customerAddress: order.customerAddress,
-      customerLatitude: order.customerLatitude,
-      customerLongitude: order.customerLongitude,
-      storeAddress: order.storeAddress,
-      storeLatitude: order.storeLatitude,
-      storeLongitude: order.storeLongitude,
-    }).save();
+    const delivery = await prisma.delivery.create({
+      data: {
+        orderId: order.id,
+        distance: distanceNum,
+        fee,
+        status: 'pending',
+        customerAddress: order.customerAddress,
+        customerLatitude: order.customerLatitude,
+        customerLongitude: order.customerLongitude,
+        storeAddress: order.storeAddress,
+        storeLatitude: order.storeLatitude,
+        storeLongitude: order.storeLongitude,
+      },
+    });
 
-    logger.info('Delivery criado ao aceitar pedido', { deliveryId: delivery._id, orderId: order._id });
+    logger.info('Delivery criado ao aceitar pedido', { deliveryId: delivery.id, orderId: order._id });
 
     // Registrar comissão de entrega no AppCashbox
     try {
@@ -897,7 +899,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
           'delivery_commission',
           distribution.delivery.appCommission,
           order.id,
-          delivery._id.toString(),
+          delivery.id,
           'Comissão de entrega'
         );
       }
@@ -906,22 +908,22 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     order.status = 'aguardando_motoboy';
-    order.deliveryId = String(delivery._id);
+    order.deliveryId = String(delivery.id);
     await prisma.order.update({
       where: { id: order.id },
-      data: { status: 'aguardando_motoboy', deliveryId: String(delivery._id) },
+      data: { status: 'aguardando_motoboy', deliveryId: String(delivery.id) },
     });
 
     // Notificar partes envolvidas
     emitToRoom(`user:${order.customerId}`, 'order:accepted_by_store', {
       orderId: order._id.toString(),
-      deliveryId: delivery._id.toString(),
+      deliveryId: delivery.id,
       status: 'pago',
       message: 'Loja aceitou seu pedido! Aguardando motoboy...',
     });
     emitToRoom(`store:${order.storeId}`, 'order:accepted_confirmation', {
       orderId: order._id.toString(),
-      deliveryId: delivery._id.toString(),
+      deliveryId: delivery.id,
       status: 'aguardando_motoboy',
     });
     emitDeliveryCreated(delivery);
@@ -929,7 +931,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     try {
       notifier.notifyMotoboys({
         type: 'new_delivery',
-        delivery: { id: delivery._id.toString(), orderId: delivery.orderId.toString(), fee: delivery.fee, distance: delivery.distance },
+        delivery: { id: delivery.id, orderId: delivery.orderId.toString(), fee: delivery.fee, distance: delivery.distance },
       });
     } catch (err) {
       logger.warn('Falha ao enviar push notification para motoboys', { orderId: order._id });

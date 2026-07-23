@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
 
-import Delivery from '../models/Delivery';
+
 import { slugify } from '../utils/slugify';
 import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
@@ -53,7 +53,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       if (o.deliveryId) {
         // Sem `.populate('motoboyId')`: o motoboy é um User, que vive no Postgres.
         // O populate ficaria silenciosamente vazio, e o nome sumiria da tela.
-        const d = await Delivery.findById(o.deliveryId).lean();
+        const d = await prisma.delivery.findUnique({ where: { id: String(o.deliveryId) } });
         if (d) {
           const motoboy = d.motoboyId
             ? await prisma.user.findUnique({ where: { id: String(d.motoboyId) }, select: { name: true } })

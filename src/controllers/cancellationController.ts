@@ -2,7 +2,7 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
-import Cancellation, { ICancellation } from '../models/Cancellation';
+
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
 
@@ -315,7 +315,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     }
 
     // Cria documento de cancelamento
-    const cancellation = await Cancellation.create({
+    const cancellation = await prisma.cancellation.create({ data: {
       orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'customer',
@@ -325,12 +325,12 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       refundStatus,
       isLateCancellation: isLate,
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
-    });
+    } });
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
-    order.cancellationId = String(cancellation._id);
-    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation._id) } });
+    order.cancellationId = String(cancellation.id);
+    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
     // Para COD antes do pickup: liberar reserva da loja se existir
     if (isCashOnDelivery && !isLate) {
@@ -361,12 +361,12 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         delivery.status = 'cancelled';
         delivery.cancelledAt = new Date();
         await persistDelivery(delivery);
-        emitDeliveryCancelled(delivery, cancellation.toObject());
+        emitDeliveryCancelled(delivery, cancellation);
       }
     }
 
     // Emite evento de cancelamento
-    emitOrderCancelled(order, cancellation.toObject());
+    emitOrderCancelled(order, cancellation);
 
     return res.json({
       success: true,
@@ -374,7 +374,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       status: 'cancelado',
       refundAmount,
       refundStatus,
-      cancellationId: cancellation._id,
+      cancellationId: cancellation.id,
       isLateCancellation: isLate,
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
     });
@@ -412,13 +412,13 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
     }
 
     // Cria documento de cancelamento
-    const cancellation = await Cancellation.create({
-      deliveryId: delivery._id,
+    const cancellation = await prisma.cancellation.create({ data: {
+      deliveryId: delivery.id,
       orderId: delivery.orderId,
       cancelledBy: 'motoboy',
       reason: reason || 'Rejeitado por motoboy',
       reasonCode: reasonCode || 'motoboy_rejected',
-    });
+    } });
 
     // Se produto já foi retirado (picked), precisa devolver à loja com PIN antes de reassignar
     if (delivery.status === 'picked') {
@@ -910,7 +910,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     }
 
     // Cria documento de cancelamento
-    const cancellation = await Cancellation.create({
+    const cancellation = await prisma.cancellation.create({ data: {
       orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'store',
@@ -920,12 +920,12 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       refundStatus,
       isLateCancellation: isLate,
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
-    });
+    } });
 
     // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'rejeitado';
-    order.cancellationId = String(cancellation._id);
-    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation._id) } });
+    order.cancellationId = String(cancellation.id);
+    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
     // Para COD antes do pickup: liberar reserva da loja
     if (isCashOnDelivery && !isLate) {
@@ -956,13 +956,13 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         delivery.status = 'cancelled';
         delivery.cancelledAt = new Date();
         await persistDelivery(delivery);
-        emitDeliveryCancelled(delivery, cancellation.toObject());
+        emitDeliveryCancelled(delivery, cancellation);
       }
     }
 
     // Emite eventos
     emitOrderRejectedByStore(order, reason);
-    emitOrderCancelled(order, cancellation.toObject());
+    emitOrderCancelled(order, cancellation);
 
     return res.json({
       success: true,
@@ -971,7 +971,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       reason,
       refundAmount,
       refundStatus,
-      cancellationId: cancellation._id,
+      cancellationId: cancellation.id,
       isLateCancellation: isLate,
       lateCancellationFee: isLate ? lateCancellationFee : undefined,
     });
@@ -1006,9 +1006,10 @@ export const getCancellationHistory = async (req: AuthenticatedRequest, res: Res
       return res.status(403).json({ error: 'Sem permissão para ver este histórico' });
     }
 
-    const cancellations = await Cancellation.find({ orderId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const cancellations = await prisma.cancellation.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+    });
 
     return res.json({
       success: true,
@@ -1042,28 +1043,26 @@ export const getCancellationStats = async (req: AuthenticatedRequest, res: Respo
     const orders = await prisma.order.findMany({ where: { storeId: store.id }, select: { id: true, status: true } });
     const orderIds = orders.map(o => o.id);
 
-    const stats = await Cancellation.aggregate([
-      { $match: { orderId: { $in: orderIds } } },
-      {
-        $group: {
-          _id: '$reasonCode',
-          count: { $sum: 1 },
-          totalRefund: { $sum: '$refundAmount' },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
+    const cancellations = await prisma.cancellation.findMany({
+      where: { orderId: { in: orderIds } },
+      select: { reasonCode: true, refundStatus: true, refundAmount: true },
+    });
 
-    const refundStats = await Cancellation.aggregate([
-      { $match: { orderId: { $in: orderIds } } },
-      {
-        $group: {
-          _id: '$refundStatus',
-          count: { $sum: 1 },
-          total: { $sum: '$refundAmount' },
-        },
-      },
-    ]);
+    const byReasonMap = new Map<string, { count: number; totalRefund: number }>();
+    const byRefundMap = new Map<string, { count: number; total: number }>();
+    for (const c of cancellations) {
+      const refund = c.refundAmount ? Number(c.refundAmount) : 0;
+      const r = byReasonMap.get(c.reasonCode) || { count: 0, totalRefund: 0 };
+      r.count += 1; r.totalRefund += refund;
+      byReasonMap.set(c.reasonCode, r);
+
+      const rs = String(c.refundStatus ?? 'null');
+      const f = byRefundMap.get(rs) || { count: 0, total: 0 };
+      f.count += 1; f.total += refund;
+      byRefundMap.set(rs, f);
+    }
+    const stats = [...byReasonMap.entries()].map(([_id, v]) => ({ _id, count: v.count, totalRefund: v.totalRefund })).sort((a, b) => b.count - a.count);
+    const refundStats = [...byRefundMap.entries()].map(([_id, v]) => ({ _id: _id === 'null' ? null : _id, count: v.count, total: v.total }));
 
     return res.json({
       success: true,

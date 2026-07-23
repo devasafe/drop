@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
 import userRepository from '../repositories/user.repository';
-import Delivery from '../models/Delivery';
+
 
 import notifier from '../services/notifier';
 import logger from '../config/logger';
