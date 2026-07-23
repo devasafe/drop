@@ -9,7 +9,7 @@ jest.mock('../services/asaas/client', () => ({
 import asaasClient from '../services/asaas/client';
 import { AsaasGateway } from '../services/payoutGateway/asaasGateway';
 
-import Payout from '../models/Payout';
+import { createPayout } from './helpers/financePg';
 import { encryptSensitiveData } from '../utils/encryption';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
@@ -51,8 +51,8 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
         pixKeyType: 'EMAIL',
       },
     } });
-    const payout = await Payout.create({
-      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 90, status: 'released',
+    const payout = await createPayout({
+      recipientType: 'store', recipientId: store.id, orderId: String(new mongoose.Types.ObjectId()), amount: 90, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -74,8 +74,8 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
       name: 'Loja sem pix',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$aact_x') },
     } });
-    const payout = await Payout.create({
-      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 50, status: 'released',
+    const payout = await createPayout({
+      recipientType: 'store', recipientId: store.id, orderId: String(new mongoose.Types.ObjectId()), amount: 50, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -95,8 +95,8 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
       name: 'Loja',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
     } });
-    const payout = await Payout.create({
-      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 15.01, status: 'released',
+    const payout = await createPayout({
+      recipientType: 'store', recipientId: store.id, orderId: String(new mongoose.Types.ObjectId()), amount: 15.01, status: 'released',
     });
 
     const gw = new AsaasGateway();
@@ -114,8 +114,8 @@ describe('AsaasGateway.transfer (Fase 4 — saque)', () => {
       name: 'Loja',
       asaas: { status: 'active', walletId: 'w', apiKeyEncrypted: encryptSensitiveData('$k'), pixKey: 'l@x.com', pixKeyType: 'EMAIL' },
     } });
-    const payout = await Payout.create({
-      recipientType: 'store', recipientId: store.id, orderId: new mongoose.Types.ObjectId(), amount: 10, status: 'released',
+    const payout = await createPayout({
+      recipientType: 'store', recipientId: store.id, orderId: String(new mongoose.Types.ObjectId()), amount: 10, status: 'released',
     });
 
     const gw = new AsaasGateway();

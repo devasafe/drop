@@ -1,3 +1,4 @@
+import walletService from '../services/wallet.prisma.service';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
@@ -236,10 +237,12 @@ router.get('/dashboard', authenticate, authorizePermission('dashboard:view_all')
 // Carteiras de loja/motoboy são contas operacionais de recebimento → o admin vê o saldo direto.
 router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
   try {
-    const Wallet = require('../models/Wallet').default || require('../models/Wallet');
     const { hasValidWalletAccess } = require('../controllers/walletAccessController');
 
-    const wallets = await Wallet.find({ ownerType: { $in: ['user', 'store', 'motoboy'] } }).sort({ updatedAt: -1 });
+    const wallets = await prisma.wallet.findMany({
+      where: { ownerType: { in: ['user', 'store', 'motoboy'] } },
+      orderBy: { updatedAt: 'desc' },
+    });
     const requesterId = String(req.user?.id);
 
     const formattedWallets = await Promise.all(wallets.map(async (w: any) => {
@@ -273,18 +276,18 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
         : true;
 
       return {
-        _id: w._id,
+        _id: w.id,
         userId: accessTargetId,
         owner: w.owner,
         ownerType: w.ownerType,
         userName: ownerName,
         userEmail: ownerEmail,
         userRole,
-        balance: hasAccess ? (w.balance || 0) : null,
-        totalEarnings: hasAccess ? (w.totalIncome || 0) : null,
-        totalSpent: hasAccess ? (w.totalSpent || 0) : null,
-        availableBalance: hasAccess ? (w.availableBalance || 0) : null,
-        pendingBalance: hasAccess ? (w.pendingBalance || 0) : null,
+        balance: hasAccess ? Number(w.balance) : null,
+        totalEarnings: hasAccess ? Number(w.totalIncome) : null,
+        totalSpent: hasAccess ? Number(w.totalSpent) : null,
+        availableBalance: hasAccess ? Number(w.availableBalance) : null,
+        pendingBalance: hasAccess ? Number(w.pendingBalance) : null,
         totalWithdrawn: 0,
         hasAccess,
         createdAt: w.createdAt,
@@ -303,9 +306,8 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
 router.get('/wallets/:id/transactions', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const Wallet = require('../models/Wallet').default || require('../models/Wallet');
-    
-    const wallet = await Wallet.findById(id);
+
+    const wallet = await prisma.wallet.findUnique({ where: { id: String(id) } });
     if (!wallet) {
       return res.status(404).json({ error: 'Wallet not found' });
     }
@@ -321,21 +323,26 @@ router.get('/wallets/:id/transactions', authenticate, authorizePermission('walle
       }
     }
 
-    // Retornar histórico de transações
-    const transactions = (wallet.history || []).map((h: any, index: number) => ({
-      _id: `${wallet._id}-${index}`,
-      walletId: wallet._id,
+    // Retornar histórico de transações (ledger WalletEntry).
+    const entries = await prisma.walletEntry.findMany({
+      where: { walletId: wallet.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    const transactions = entries.map((h) => ({
+      _id: h.id,
+      walletId: wallet.id,
       type: h.type === 'credit' ? 'credit' : h.type === 'refund' ? 'refund' : 'debit',
       category: h.category || null,
-      amount: h.amount,
+      amount: Number(h.amount),
       reason: h.reason,
       description: h.reason,
       paymentMethod: h.paymentMethod || null,
       status: 'completed',
-      createdAt: h.date
+      createdAt: h.createdAt,
     }));
 
-    res.json(transactions.slice(0, 50)); // Últimas 50
+    res.json(transactions);
   } catch (err) {
     console.error('Erro ao listar transações:', err);
     res.status(500).json({ error: 'Failed to fetch transactions' });
@@ -352,30 +359,21 @@ router.post('/wallets/:id/add-balance', authenticate, authorizePermission('walle
       return res.status(400).json({ error: 'Valid amount is required' });
     }
 
-    const Wallet = require('../models/Wallet').default || require('../models/Wallet');
-
-    let wallet = await Wallet.findById(id);
-    if (!wallet) {
+    const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
+    if (!existing) {
       return res.status(404).json({ error: 'Wallet not found' });
     }
 
-    // Adicionar saldo
-    wallet.balance += amount;
-    wallet.totalIncome += amount;
-    wallet.history.push({
-      date: new Date(),
-      type: 'credit',
-      amount,
-      reason: reason || 'Adição manual de saldo (admin)',
-      reference: `ADMIN_${Date.now()}`
+    // Adição manual de saldo (crédito administrativo, categoria 'deposit').
+    const wallet = await walletService.credit({
+      owner: existing.owner, ownerType: existing.ownerType as any, amount,
+      reason: reason || 'Adição manual de saldo (admin)', category: 'deposit', reference: `ADMIN_${Date.now()}`,
     });
-
-    await wallet.save();
 
     res.json({
       success: true,
       message: 'Saldo adicionado com sucesso',
-      newBalance: wallet.balance,
+      newBalance: Number(wallet.balance),
       transactionId: `ADMIN_${Date.now()}`
     });
   } catch (err) {
@@ -394,35 +392,20 @@ router.put('/wallets/:id/balance', authenticate, authorizePermission('wallet:cre
       return res.status(400).json({ error: 'Valid amount is required' });
     }
 
-    const Wallet = require('../models/Wallet').default || require('../models/Wallet');
-
-    const wallet = await Wallet.findById(id);
-    if (!wallet) {
+    const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
+    if (!existing) {
       return res.status(404).json({ error: 'Wallet not found' });
     }
 
-    // Atualizar saldo
-    wallet.balance = (wallet.balance || 0) + amount;
-    if (amount > 0) {
-      wallet.totalIncome = (wallet.totalIncome || 0) + amount;
-    } else {
-      wallet.totalSpent = (wallet.totalSpent || 0) + Math.abs(amount);
-    }
+    // Ajuste administrativo (crédito se amount > 0, débito se < 0).
+    const ref = { owner: existing.owner, ownerType: existing.ownerType as any };
+    const wallet = amount > 0
+      ? await walletService.credit({ ...ref, amount, reason: reason || 'Admin adjustment: credit', category: 'deposit' })
+      : await walletService.debit({ ...ref, amount: Math.abs(amount), reason: reason || 'Admin adjustment: debit', category: 'transfer' });
 
-    // Registrar no histórico
-    wallet.history = wallet.history || [];
-    wallet.history.push({
-      date: new Date(),
-      type: amount > 0 ? 'credit' : 'debit',
-      amount: Math.abs(amount),
-      reason: reason || `Admin adjustment: ${amount > 0 ? 'credit' : 'debit'}`
-    });
-
-    await wallet.save();
-
-    res.json({ 
+    res.json({
       message: 'Wallet balance updated',
-      wallet 
+      wallet: { ...wallet, balance: Number(wallet.balance) },
     });
   } catch (err) {
     console.error('Erro ao atualizar saldo:', err);
@@ -627,11 +610,11 @@ router.post('/asaas/release-order/:orderId', authenticate, authorizePermission('
   try {
     const { releaseOrderViaAsaas } = await import('../services/asaas/release');
     await releaseOrderViaAsaas(req.params.orderId);
-    const Payout = (await import('../models/Payout')).default;
-    const mongoose2 = (await import('mongoose')).default;
-    const payouts = await Payout.find({ orderId: new mongoose2.Types.ObjectId(req.params.orderId) })
-      .select('recipientType amount status gatewayTransferId').lean();
-    return res.json({ orderId: req.params.orderId, payouts });
+    const payouts = await prisma.payout.findMany({
+      where: { orderId: String(req.params.orderId) },
+      select: { recipientType: true, amount: true, status: true, gatewayTransferId: true },
+    });
+    return res.json({ orderId: req.params.orderId, payouts: payouts.map((p) => ({ ...p, amount: Number(p.amount) })) });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Erro ao re-liberar pedido' });
   }

@@ -17,10 +17,8 @@ import app from '../app';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Wallet from '../models/Wallet';
-
-
-import walletService from '../services/wallet.service';
+import { findWallet } from './helpers/financePg';
+import walletService from '../services/wallet.prisma.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
@@ -54,11 +52,11 @@ async function createUser(role = 'cliente'): Promise<{ token: string; userId: st
 }
 
 async function setBalance(owner: string, ownerType: 'user' | 'store' | 'motoboy', amount: number) {
-  await Wallet.findOneAndUpdate(
-    { owner, ownerType },
-    { $set: { balance: amount, totalIncome: amount, totalSpent: 0 } },
-    { upsert: true }
-  );
+  await prisma.wallet.upsert({
+    where: { owner_ownerType: { owner, ownerType } },
+    create: { owner, ownerType, balance: amount, totalIncome: amount, totalSpent: 0 },
+    update: { balance: amount, totalIncome: amount, totalSpent: 0 },
+  });
 }
 
 beforeAll(async () => {
@@ -115,7 +113,7 @@ describe('Segurança: preço do pedido vem sempre do banco', () => {
     // Cobrança correta: 100 (do banco), não 1 (do frontend)
     expect(res.body.totalValue).toBe(100);
 
-    const wallet = await Wallet.findOne({ owner: customer.userId, ownerType: 'user' });
+    const wallet = await findWallet({ owner: customer.userId, ownerType: 'user' });
     expect(wallet!.balance).toBe(900); // 1000 - 100
   });
 });
@@ -146,7 +144,7 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
 
     // Estoque decrementado e saldo debitado
     expect((await prisma.product.findUnique({ where: { id: product.id } }))!.quantity).toBe(7);
-    expect((await Wallet.findOne({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(700);
+    expect((await findWallet({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(700);
 
     // 1º cancelamento: sucesso
     const cancel1 = await request(app)
@@ -157,7 +155,7 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
 
     // Estoque restaurado e reembolso creditado
     expect((await prisma.product.findUnique({ where: { id: product.id } }))!.quantity).toBe(10);
-    expect((await Wallet.findOne({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(1000);
+    expect((await findWallet({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(1000);
 
     // 2º cancelamento (duplicado): bloqueado por uma das duas camadas de defesa —
     // validação de status (400) ou trava atômica anti-corrida (409). O essencial:
@@ -167,7 +165,7 @@ describe('Financeiro: cancelamento devolve estoque e não reembolsa duas vezes',
       .set('Authorization', `Bearer ${customer.token}`)
       .send({ reason: 'duplicado' });
     expect([400, 409]).toContain(cancel2.status);
-    expect((await Wallet.findOne({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(1000); // não dobrou
+    expect((await findWallet({ owner: customer.userId, ownerType: 'user' }))!.balance).toBe(1000); // não dobrou
   });
 });
 
@@ -219,7 +217,7 @@ describe('Financeiro: walletService.debit é atômico', () => {
       walletService.debit({ owner: userId, ownerType: 'user', amount: 150, reason: 'teste' })
     ).rejects.toThrow('Saldo insuficiente');
 
-    expect((await Wallet.findOne({ owner: userId, ownerType: 'user' }))!.balance).toBe(100);
+    expect((await findWallet({ owner: userId, ownerType: 'user' }))!.balance).toBe(100);
   });
 
   it('não fura o saldo em débitos concorrentes (race condition)', async () => {
@@ -237,6 +235,6 @@ describe('Financeiro: walletService.debit é atômico', () => {
     expect(ok).toBe(1);
     expect(fail).toBe(1);
 
-    expect((await Wallet.findOne({ owner: userId, ownerType: 'user' }))!.balance).toBe(40); // 100 - 60
+    expect((await findWallet({ owner: userId, ownerType: 'user' }))!.balance).toBe(40); // 100 - 60
   });
 });

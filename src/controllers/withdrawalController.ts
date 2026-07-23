@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import WithdrawalRequest from '../models/WithdrawalRequest';
-import Wallet from '../models/Wallet';
+import walletService from '../services/wallet.prisma.service';
+import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
 import Transaction from '../models/Transaction';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
-import { prisma } from '../lib/prisma';
 
 /**
  * Verifica se o recebedor (motoboy/loja) está pronto para sacar via Asaas:
@@ -91,7 +91,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 
     // Buscar payouts released (fonte da verdade)
     const availablePayouts = await payoutService.listAvailablePayouts(recipientType as any, recipientId);
-    const totalAvailable = availablePayouts.reduce((s, p) => s + p.amount, 0);
+    const totalAvailable = availablePayouts.reduce((s, p) => s + Number(p.amount), 0);
 
     if (totalAvailable <= 0) {
       return res.status(400).json({ error: 'Nenhum saldo disponível para saque' });
@@ -118,37 +118,29 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     const user = await userRepository.findById(String(userId)) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    const session = await mongoose.startSession();
-    try {
-      let withdrawal: any;
-      await session.withTransaction(async () => {
-        withdrawal = await WithdrawalRequest.create([{
-          motoboyId: recipientId,
-          motoboyName: user.name,
-          motoboyEmail: user.email,
-          amount: actualAmount,
-          bankAccount: bankAccount || undefined,
-          status: 'pending',
-          requestedAt: new Date(),
-          payoutIds: selectedPayouts.map(p => String(p._id)),
-        }], { session }).then(docs => docs[0]);
+    // WithdrawalRequest segue no Mongo; os Payouts (Postgres) mudam de estado numa
+    // transação Prisma. Cria a solicitação primeiro para ter o id de referência.
+    const withdrawal: any = await WithdrawalRequest.create({
+      motoboyId: recipientId,
+      motoboyName: user.name,
+      motoboyEmail: user.email,
+      amount: actualAmount,
+      bankAccount: bankAccount || undefined,
+      status: 'pending',
+      requestedAt: new Date(),
+      payoutIds: selectedPayouts.map(p => p.id),
+    });
 
-        await payoutService.markPayoutsRequested(
-          selectedPayouts.map(p => String(p._id)),
-          String(withdrawal._id),
-          session,
-        );
-      });
+    await prisma.$transaction(async (tx) => {
+      await payoutService.markPayoutsRequested(selectedPayouts.map(p => p.id), String(withdrawal._id), tx);
+    });
 
-      await maybeAutoApproveWithdrawal(String(withdrawal._id));
-      const refreshed = await WithdrawalRequest.findById(withdrawal._id);
-      return res.json({
-        message: 'Saque solicitado com sucesso',
-        withdrawal: refreshed || withdrawal,
-      });
-    } finally {
-      session.endSession();
-    }
+    await maybeAutoApproveWithdrawal(String(withdrawal._id));
+    const refreshed = await WithdrawalRequest.findById(withdrawal._id);
+    return res.json({
+      message: 'Saque solicitado com sucesso',
+      withdrawal: refreshed || withdrawal,
+    });
   } catch (err) {
     console.error('❌ Erro ao solicitar saque:', err);
     return res.status(500).json({ error: 'Erro ao solicitar saque' });
@@ -204,24 +196,16 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
   // ✅ Se a transferência FALHOU, NÃO marca como pago: reverte o saldo e marca o saque
   // como rejeitado. (Antes, qualquer resultado marcava pago — dinheiro "sumia" sem PIX.)
   if (transferResult.status === 'failed') {
-    const failSession = await mongoose.startSession();
-    try {
-      await failSession.withTransaction(async () => {
-        if (withdrawal.payoutIds?.length) {
-          await payoutService.revertPayoutsToReleased(withdrawal.payoutIds, failSession);
-        } else {
-          // saque de user wallet: devolve blockedBalance → balance
-          const wallet = await Wallet.findOne({ owner: withdrawal.motoboyId, ownerType: 'user' }).session(failSession);
-          if (wallet) {
-            wallet.blockedBalance = Math.max(0, (wallet.blockedBalance || 0) - withdrawal.amount);
-            wallet.balance += withdrawal.amount;
-            await wallet.save({ session: failSession });
-          }
-        }
-      });
-    } finally {
-      failSession.endSession();
-    }
+    await prisma.$transaction(async (tx) => {
+      if (withdrawal.payoutIds?.length) {
+        await payoutService.revertPayoutsToReleased(withdrawal.payoutIds, tx);
+      } else {
+        // saque de user wallet: devolve blockedBalance → balance
+        const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user', tx);
+        const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
+        await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
+      }
+    });
     withdrawal.status = 'rejected';
     withdrawal.rejectionReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
     await withdrawal.save();
@@ -232,33 +216,25 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
   withdrawal.approvedBy = approverId;
   withdrawal.transactionId = transferResult.gatewayTransferId;
 
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      if (withdrawal.payoutIds?.length) {
-        await payoutService.markPayoutsPaid(
-          withdrawal.payoutIds!,
-          transferResult.gatewayTransferId || `manual_${Date.now()}`,
-          session,
-          // Em modo Asaas o dinheiro está na subconta (não no AppCashbox virtual);
-          // o saque sai da subconta direto pro banco, então NÃO debita o caixa.
-          { skipCashboxDebit: env.PAYOUT_GATEWAY === 'asaas' },
-        );
-      } else {
-        // Saque de user wallet: liberar blockedBalance. NÃO debitar AppCashbox —
-        // o dinheiro já saiu do cofre quando foi transferido para a carteira (payout_paid)
-        // ou quando foi reembolsado (order_refund).
-        const wallet = await Wallet.findOne({ owner: withdrawal.motoboyId, ownerType: 'user' }).session(session);
-        if (wallet) {
-          wallet.blockedBalance = Math.max(0, (wallet.blockedBalance || 0) - withdrawal.amount);
-          wallet.totalSpent = (wallet.totalSpent || 0) + withdrawal.amount;
-          await wallet.save({ session });
-        }
-      }
-    });
-  } finally {
-    session.endSession();
-  }
+  await prisma.$transaction(async (tx) => {
+    if (withdrawal.payoutIds?.length) {
+      await payoutService.markPayoutsPaid(
+        withdrawal.payoutIds!,
+        transferResult.gatewayTransferId || `manual_${Date.now()}`,
+        tx,
+        // Em modo Asaas o dinheiro está na subconta (não no AppCashbox virtual);
+        // o saque sai da subconta direto pro banco, então NÃO debita o caixa.
+        { skipCashboxDebit: env.PAYOUT_GATEWAY === 'asaas' },
+      );
+    } else {
+      // Saque de user wallet: liberar blockedBalance. NÃO debitar AppCashbox —
+      // o dinheiro já saiu do cofre quando foi transferido para a carteira (payout_paid)
+      // ou quando foi reembolsado (order_refund).
+      const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user', tx);
+      const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
+      await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: withdrawal.amount } } });
+    }
+  });
 
   withdrawal.status = 'processed';
   withdrawal.processedAt = new Date();
@@ -367,19 +343,12 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
 
     // Saque do user balance: devolve o saldo bloqueado pra disponível
     if (!withdrawal.payoutIds?.length) {
-      const wallet = await Wallet.findOne({ owner: withdrawal.motoboyId, ownerType: 'user' });
-      if (wallet) {
-        wallet.blockedBalance = Math.max(0, (wallet.blockedBalance || 0) - withdrawal.amount);
-        wallet.balance += withdrawal.amount;
-        wallet.history.push({
-          type: 'refund',
-          category: 'refund',
-          amount: withdrawal.amount,
-          reason: `Saque rejeitado: ${withdrawal.rejectionReason}`,
-          date: new Date(),
-        });
-        await wallet.save();
-      }
+      const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user');
+      const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
+      await prisma.$transaction(async (tx) => {
+        await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
+        await tx.walletEntry.create({ data: { walletId: w.id, type: 'refund', category: 'refund', amount: withdrawal.amount, reason: `Saque rejeitado: ${withdrawal.rejectionReason}` } });
+      });
     }
 
     console.log('✅ Saque rejeitado:', {
@@ -400,55 +369,38 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
 
 // ✅ User (cliente/lojista) - Solicitar saque a partir do user wallet (sem payouts)
 export const requestUserWithdrawal = async (req: Request & { user?: any }, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
   try {
     const userId = req.user?.id || (req as any).userId;
     const { amount, bankAccount } = req.body;
 
-    if (!userId) {
-      await session.abortTransaction(); session.endSession();
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
-    if (!amount || amount <= 0) {
-      await session.abortTransaction(); session.endSession();
-      return res.status(400).json({ error: 'Valor inválido' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'Valor inválido' });
     if (!bankAccount?.bankName || !bankAccount?.accountNumber || !bankAccount?.ownerName) {
-      await session.abortTransaction(); session.endSession();
       return res.status(400).json({ error: 'Dados bancários incompletos' });
     }
 
-    const wallet = await Wallet.findOne({ owner: String(userId), ownerType: 'user' }).session(session);
-    if (!wallet || wallet.balance < amount) {
-      await session.abortTransaction(); session.endSession();
-      return res.status(400).json({
-        error: 'Saldo insuficiente',
-        available: wallet?.balance || 0,
-        requested: amount,
-      });
+    const wallet = await walletService.getOrCreate(String(userId), 'user');
+    if (Number(wallet.balance) < amount) {
+      return res.status(400).json({ error: 'Saldo insuficiente', available: Number(wallet.balance), requested: amount });
     }
 
     const user = await userRepository.findById(String(userId)) as any;
-    if (!user) {
-      await session.abortTransaction(); session.endSession();
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    // Bloqueia o saldo movendo de balance pra blockedBalance até admin processar
-    wallet.balance -= amount;
-    wallet.blockedBalance = (wallet.blockedBalance || 0) + amount;
-    wallet.history.push({
-      type: 'debit',
-      category: 'withdrawal',
-      amount,
-      reason: 'Saque solicitado para conta bancária',
-      paymentMethod: 'bank_transfer',
-      date: new Date(),
+    // Bloqueia o saldo movendo de balance → blockedBalance, atomicamente, até o
+    // admin processar. `WHERE balance >= amount` evita saldo negativo sob corrida.
+    const blocked = await prisma.wallet.updateMany({
+      where: { id: wallet.id, balance: { gte: amount } },
+      data: { balance: { decrement: amount }, blockedBalance: { increment: amount } },
     });
-    await wallet.save({ session });
+    if (blocked.count === 0) {
+      return res.status(400).json({ error: 'Saldo insuficiente', available: Number(wallet.balance), requested: amount });
+    }
+    await prisma.walletEntry.create({
+      data: { walletId: wallet.id, type: 'debit', category: 'withdrawal', amount, reason: 'Saque solicitado para conta bancária', paymentMethod: 'bank_transfer' },
+    });
 
-    const [withdrawal] = await WithdrawalRequest.create([{
+    const withdrawal: any = await WithdrawalRequest.create({
       motoboyId: String(userId),
       motoboyName: user.name,
       motoboyEmail: user.email,
@@ -457,10 +409,7 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
       status: 'pending',
       requestedAt: new Date(),
       payoutIds: [], // saque do user balance não tem payouts vinculados
-    }], { session });
-
-    await session.commitTransaction();
-    session.endSession();
+    });
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));
     const refreshed = await WithdrawalRequest.findById(withdrawal._id);
@@ -469,7 +418,6 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
       withdrawal: refreshed || withdrawal,
     });
   } catch (err: any) {
-    await session.abortTransaction(); session.endSession();
     console.error('[requestUserWithdrawal ERROR]', err);
     return res.status(500).json({ error: 'Erro ao solicitar saque' });
   }
@@ -507,10 +455,7 @@ export const getCEOWallet = async (req: Request & { user?: any }, res: Response)
   try {
     const ceoId = req.user?.id || (req as any).userId;
 
-    const wallet = await Wallet.findOne({
-      owner: ceoId,
-      ownerType: 'user',
-    });
+    const wallet = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: ceoId, ownerType: 'user' } } });
 
     if (!wallet) {
       return res.json({
@@ -521,7 +466,7 @@ export const getCEOWallet = async (req: Request & { user?: any }, res: Response)
       });
     }
 
-    return res.json(wallet);
+    return res.json({ ...wallet, balance: Number(wallet.balance) });
   } catch (err) {
     console.error('❌ Erro ao buscar carteira CEO:', err);
     return res.status(500).json({ error: 'Erro ao buscar carteira' });

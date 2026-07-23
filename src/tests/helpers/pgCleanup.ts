@@ -28,10 +28,26 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   const stores = await prisma.store.findMany({ where: { ownerId: { in: ids } }, select: { id: true } });
   const storeIds = stores.map((s) => s.id);
 
+  // Wallets/Payouts referenciam owner/recipientId por String (não FK) — não saem por
+  // cascata ao remover o User. Limpamos explicitamente pelos ids da suíte.
+  await prisma.walletEntry.deleteMany({ where: { wallet: { owner: { in: [...ids, ...storeIds] } } } });
+  await prisma.wallet.deleteMany({ where: { owner: { in: [...ids, ...storeIds] } } });
+  await prisma.payout.deleteMany({ where: { recipientId: { in: [...ids, ...storeIds] } } });
+
   await prisma.order.deleteMany({
     where: { OR: [{ customerId: { in: ids } }, { storeId: { in: storeIds } }] },
   });
   await prisma.store.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
+}
+
+/**
+ * Zera o AppCashbox (singleton global) — usar SÓ em suítes que criam e leem o caixa
+ * do app diretamente. Como o caixa não tem escopo por usuário, esta limpeza é global;
+ * não use em suítes que rodam em paralelo com outras que dependam do mesmo caixa.
+ */
+export async function wipeAppCashbox(): Promise<void> {
+  await prisma.appCashboxEntry.deleteMany({});
+  await prisma.appCashbox.deleteMany({});
 }

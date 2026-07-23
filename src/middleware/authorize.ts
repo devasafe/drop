@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { hasPermission } from '../utils/walletCalculations';
-import Wallet from '../models/Wallet';
+
 
 import { getEffectivePermissions } from '../controllers/rolePermissionsController';
 import { hasValidWalletAccess } from '../controllers/walletAccessController';
@@ -167,7 +167,7 @@ export async function authorizeWalletOwnerById(req: Request, res: Response, next
 
   try {
     const { walletId } = req.params;
-    const wallet = await Wallet.findById(walletId).select('owner');
+    const wallet = await prisma.wallet.findUnique({ where: { id: String(walletId) }, select: { owner: true } });
 
     if (!wallet) {
       return res.status(404).json({ error: 'Carteira não encontrada' });

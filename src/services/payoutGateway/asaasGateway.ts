@@ -2,7 +2,6 @@ import { IPayoutGateway, TransferInput, TransferResult } from './types';
 import asaasClient from '../asaas/client';
 import { decryptSensitiveData } from '../../utils/encryption';
 import logger from '../../config/logger';
-import Payout from '../../models/Payout';
 
 import userRepository from '../../repositories/user.repository';
 import { prisma } from '../../lib/prisma';
@@ -54,7 +53,7 @@ export class AsaasGateway implements IPayoutGateway {
       return { status: 'failed', gatewayTransferId: '', errorMessage: 'Saque sem payouts vinculados' };
     }
 
-    const payout = await Payout.findById(payoutId);
+    const payout = await prisma.payout.findUnique({ where: { id: payoutId } });
     if (!payout) {
       return { status: 'failed', gatewayTransferId: '', errorMessage: 'Payout não encontrado' };
     }

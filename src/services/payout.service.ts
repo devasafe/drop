@@ -1,8 +1,46 @@
-import { ClientSession, Types } from 'mongoose';
-import Payout, { IPayout, PayoutRecipientType } from '../models/Payout';
-import Wallet from '../models/Wallet';
-import AppCashbox from '../models/AppCashbox';
-import PlatformConfig from '../models/PlatformConfig';
+import { Payout, Prisma, PayoutRecipientType, OwnerType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+
+export type { PayoutRecipientType };
+
+/**
+ * PayoutService sobre PostgreSQL/Prisma — Fase 4, Fatia 5 (financeiro).
+ *
+ * Payout, Wallet e AppCashbox agora vivem no Postgres; as operações que os mexem
+ * juntos rodam numa mesma `prisma.$transaction`. Cada método aceita um
+ * `tx?: Prisma.TransactionClient` opcional: quando o chamador já abriu uma
+ * transação, tudo participa dela; senão o próprio método abre uma.
+ *
+ * Buckets de saldo (`pendingBalance`/`availableBalance`) acompanham a máquina de
+ * estados do Payout e NÃO entram no ledger `WalletEntry` — o ledger espelha só
+ * `balance` (dinheiro creditado de fato).
+ */
+
+type Tx = Prisma.TransactionClient;
+
+function num(v: Prisma.Decimal | number): number {
+  return typeof v === 'number' ? v : v.toNumber();
+}
+
+/** Executa `fn` na transação recebida, ou abre uma nova se não houver. */
+function withTx<T>(tx: Tx | undefined, fn: (db: Tx) => Promise<T>): Promise<T> {
+  return tx ? fn(tx) : prisma.$transaction(fn);
+}
+
+/** Garante a carteira do recebedor e aplica um delta nos buckets de saldo. */
+async function bumpWalletBuckets(
+  db: Tx,
+  owner: string,
+  ownerType: OwnerType,
+  data: Prisma.WalletUpdateInput,
+): Promise<void> {
+  await db.wallet.upsert({
+    where: { owner_ownerType: { owner, ownerType } },
+    create: { owner, ownerType },
+    update: {},
+  });
+  await db.wallet.update({ where: { owner_ownerType: { owner, ownerType } }, data });
+}
 
 class PayoutService {
   async createPendingPayout(params: {
@@ -11,256 +49,208 @@ class PayoutService {
     orderId: string;
     deliveryId?: string;
     amount: number;
-    session?: ClientSession;
-  }): Promise<IPayout> {
-    const { recipientType, recipientId, orderId, deliveryId, amount, session } = params;
+    tx?: Tx;
+  }): Promise<Payout> {
+    const { recipientType, recipientId, orderId, deliveryId, amount, tx } = params;
+    const ownerType: OwnerType = recipientType === 'store' ? 'store' : 'motoboy';
 
-    const [payout] = await Payout.create(
-      [
-        {
-          recipientType,
-          recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
-          orderId,  // String (Order no Postgres)
-          deliveryId,  // String (Delivery no Postgres)
-          amount,
-          status: 'pending',
-        },
-      ],
-      { session }
-    );
-
-    // Incrementar pendingBalance na wallet do recipient
-    const ownerType = recipientType === 'store' ? 'store' : 'motoboy';
-    await Wallet.updateOne(
-      { owner: recipientId, ownerType },
-      { $inc: { pendingBalance: amount } },
-      { session }
-    );
-
-    return payout;
+    return withTx(tx, async (db) => {
+      const payout = await db.payout.create({
+        data: { recipientType, recipientId, orderId, deliveryId, amount, status: 'pending' },
+      });
+      await bumpWalletBuckets(db, recipientId, ownerType, { pendingBalance: { increment: amount } });
+      return payout;
+    });
   }
 
-  async releasePayout(payoutId: string, session?: ClientSession): Promise<void> {
-    const payout = await Payout.findById(payoutId).session(session || null);
-    if (!payout || payout.status !== 'pending') {
-      throw new Error(`Payout ${payoutId} não encontrado ou não está pending`);
-    }
-    if (payout.blocked) {
-      throw new Error(`Payout ${payoutId} está bloqueado: ${payout.blockReason || 'sem motivo'}`);
-    }
+  async releasePayout(payoutId: string, tx?: Tx): Promise<void> {
+    await withTx(tx, async (db) => {
+      const payout = await db.payout.findUnique({ where: { id: payoutId } });
+      if (!payout || payout.status !== 'pending') {
+        throw new Error(`Payout ${payoutId} não encontrado ou não está pending`);
+      }
+      if (payout.blocked) {
+        throw new Error(`Payout ${payoutId} está bloqueado: ${payout.blockReason || 'sem motivo'}`);
+      }
 
-    payout.status = 'released';
-    payout.releasedAt = new Date();
-    await payout.save({ session });
+      await db.payout.update({ where: { id: payoutId }, data: { status: 'released', releasedAt: new Date() } });
 
-    const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-    await Wallet.updateOne(
-      { owner: String(payout.recipientId), ownerType },
-      { $inc: { pendingBalance: -payout.amount, availableBalance: payout.amount } },
-      { session }
-    );
+      const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+      const amount = num(payout.amount);
+      await bumpWalletBuckets(db, String(payout.recipientId), ownerType, {
+        pendingBalance: { decrement: amount },
+        availableBalance: { increment: amount },
+      });
+    });
   }
 
-  async releasePayoutsForOrder(orderId: string, session?: ClientSession): Promise<void> {
+  async releasePayoutsForOrder(orderId: string, tx?: Tx): Promise<void> {
     // Só libera automaticamente se a plataforma estiver configurada pra isso.
-    // Caso contrário, payouts ficam pending até o admin aprovar manualmente.
-    const config = await PlatformConfig.findOne().session(session || null);
+    const config = await (tx ?? prisma).platformConfig.findFirst();
     const autoApprove = config?.autoApprovePayouts === true;
-    if (!autoApprove) {
-      return; // payouts permanecem pending — admin vai liberar via painel
-    }
+    if (!autoApprove) return; // payouts permanecem pending — admin libera via painel
 
-    const payouts = await Payout.find({
-      orderId,  // String (Order no Postgres)
-      status: 'pending',
-      blocked: { $ne: true }, // pula os bloqueados
-    }).session(session || null);
-
-    for (const payout of payouts) {
-      payout.status = 'released';
-      payout.releasedAt = new Date();
-      await payout.save({ session });
-
-      const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-      await Wallet.updateOne(
-        { owner: String(payout.recipientId), ownerType },
-        { $inc: { pendingBalance: -payout.amount, availableBalance: payout.amount } },
-        { session }
-      );
-    }
+    await withTx(tx, async (db) => {
+      const payouts = await db.payout.findMany({
+        where: { orderId, status: 'pending', blocked: { not: true } },
+      });
+      for (const payout of payouts) {
+        await db.payout.update({ where: { id: payout.id }, data: { status: 'released', releasedAt: new Date() } });
+        const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+        const amount = num(payout.amount);
+        await bumpWalletBuckets(db, String(payout.recipientId), ownerType, {
+          pendingBalance: { decrement: amount },
+          availableBalance: { increment: amount },
+        });
+      }
+    });
   }
 
   async cancelPayoutsForOrder(
     orderId: string,
     reason: string,
-    session?: ClientSession
+    tx?: Tx,
   ): Promise<{ cancelled: number; errors: Array<{ payoutId: string; status: string }> }> {
-    const payouts = await Payout.find({
-      orderId,  // String (Order no Postgres)
-      status: { $in: ['pending', 'released', 'requested', 'paid'] },
-    }).session(session || null);
+    return withTx(tx, async (db) => {
+      const payouts = await db.payout.findMany({
+        where: { orderId, status: { in: ['pending', 'released', 'requested', 'paid'] } },
+      });
 
-    const errors: Array<{ payoutId: string; status: string }> = [];
-    let cancelled = 0;
+      const errors: Array<{ payoutId: string; status: string }> = [];
+      let cancelled = 0;
 
-    for (const payout of payouts) {
-      if (payout.status === 'requested' || payout.status === 'paid') {
-        errors.push({ payoutId: String(payout._id), status: payout.status });
-        continue;
+      for (const payout of payouts) {
+        if (payout.status === 'requested' || payout.status === 'paid') {
+          errors.push({ payoutId: String(payout.id), status: payout.status });
+          continue;
+        }
+
+        const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+        const amount = num(payout.amount);
+
+        if (payout.status === 'pending') {
+          await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { pendingBalance: { decrement: amount } });
+        } else if (payout.status === 'released') {
+          await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { decrement: amount } });
+        }
+
+        await db.payout.update({
+          where: { id: payout.id },
+          data: { status: 'cancelled', cancelledAt: new Date(), cancelReason: reason },
+        });
+        cancelled++;
       }
 
-      const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-
-      if (payout.status === 'pending') {
-        await Wallet.updateOne(
-          { owner: String(payout.recipientId), ownerType },
-          { $inc: { pendingBalance: -payout.amount } },
-          { session }
-        );
-      } else if (payout.status === 'released') {
-        await Wallet.updateOne(
-          { owner: String(payout.recipientId), ownerType },
-          { $inc: { availableBalance: -payout.amount } },
-          { session }
-        );
-      }
-
-      payout.status = 'cancelled';
-      payout.cancelledAt = new Date();
-      payout.cancelReason = reason;
-      await payout.save({ session });
-      cancelled++;
-    }
-
-    return { cancelled, errors };
+      return { cancelled, errors };
+    });
   }
 
-  async markPayoutsRequested(
-    payoutIds: string[],
-    withdrawalRequestId: string,
-    session?: ClientSession
-  ): Promise<void> {
-    for (const id of payoutIds) {
-      const payout = await Payout.findById(id).session(session || null);
-      if (!payout || payout.status !== 'released') {
-        throw new Error(`Payout ${id} não está released`);
+  async markPayoutsRequested(payoutIds: string[], withdrawalRequestId: string, tx?: Tx): Promise<void> {
+    await withTx(tx, async (db) => {
+      for (const id of payoutIds) {
+        const payout = await db.payout.findUnique({ where: { id } });
+        if (!payout || payout.status !== 'released') {
+          throw new Error(`Payout ${id} não está released`);
+        }
+        await db.payout.update({
+          where: { id },
+          data: { status: 'requested', requestedAt: new Date(), withdrawalRequestId },
+        });
+        const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+        await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { decrement: num(payout.amount) } });
       }
-
-      payout.status = 'requested';
-      payout.requestedAt = new Date();
-      payout.withdrawalRequestId = new Types.ObjectId(withdrawalRequestId);
-      await payout.save({ session });
-
-      const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-      await Wallet.updateOne(
-        { owner: String(payout.recipientId), ownerType },
-        { $inc: { availableBalance: -payout.amount } },
-        { session }
-      );
-    }
+    });
   }
 
   /**
    * Reverte payouts de 'requested' de volta pra 'released' (ex: a transferência do
    * saque falhou). Devolve o valor pro availableBalance, deixando-o sacável de novo.
    */
-  async revertPayoutsToReleased(payoutIds: string[], session?: ClientSession): Promise<void> {
-    for (const id of payoutIds) {
-      const payout = await Payout.findById(id).session(session || null);
-      if (!payout || payout.status !== 'requested') continue;
-      payout.status = 'released';
-      payout.requestedAt = null;
-      payout.withdrawalRequestId = null;
-      await payout.save({ session });
-
-      const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-      await Wallet.updateOne(
-        { owner: String(payout.recipientId), ownerType },
-        { $inc: { availableBalance: payout.amount } },
-        { session }
-      );
-    }
+  async revertPayoutsToReleased(payoutIds: string[], tx?: Tx): Promise<void> {
+    await withTx(tx, async (db) => {
+      for (const id of payoutIds) {
+        const payout = await db.payout.findUnique({ where: { id } });
+        if (!payout || payout.status !== 'requested') continue;
+        await db.payout.update({
+          where: { id },
+          data: { status: 'released', requestedAt: null, withdrawalRequestId: null },
+        });
+        const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+        await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { increment: num(payout.amount) } });
+      }
+    });
   }
 
   async markPayoutsPaid(
     payoutIds: string[],
     gatewayTransferId: string,
-    session?: ClientSession,
-    options?: { skipCashboxDebit?: boolean }
+    tx?: Tx,
+    options?: { skipCashboxDebit?: boolean },
   ): Promise<number> {
-    let totalPaid = 0;
+    return withTx(tx, async (db) => {
+      let totalPaid = 0;
 
-    for (const id of payoutIds) {
-      const payout = await Payout.findById(id).session(session || null);
-      if (!payout || (payout.status !== 'requested' && payout.status !== 'released')) {
-        throw new Error(`Payout ${id} não está em status pagável (released ou requested)`);
+      for (const id of payoutIds) {
+        const payout = await db.payout.findUnique({ where: { id } });
+        if (!payout || (payout.status !== 'requested' && payout.status !== 'released')) {
+          throw new Error(`Payout ${id} não está em status pagável (released ou requested)`);
+        }
+
+        // Se ainda estava released (admin paga sem saque formal), debita availableBalance
+        if (payout.status === 'released') {
+          const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+          await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { decrement: num(payout.amount) } });
+        }
+
+        await db.payout.update({ where: { id }, data: { status: 'paid', paidAt: new Date(), gatewayTransferId } });
+        totalPaid += num(payout.amount);
       }
 
-      // Se ainda estava released (admin paga sem saque formal), debita availableBalance
-      if (payout.status === 'released') {
-        const ownerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
-        await Wallet.updateOne(
-          { owner: String(payout.recipientId), ownerType },
-          { $inc: { availableBalance: -payout.amount } },
-          { session }
-        );
+      // Transferência interna (loja → user wallet do dono) não debita AppCashbox.
+      if (options?.skipCashboxDebit) return totalPaid;
+
+      // Debitar do AppCashbox — dinheiro saiu da plataforma.
+      const appCashbox = await db.appCashbox.findFirst();
+      if (appCashbox) {
+        await db.appCashbox.update({
+          where: { id: appCashbox.id },
+          data: { balance: { decrement: totalPaid }, totalExpenses: { increment: totalPaid } },
+        });
+        await db.appCashboxEntry.create({
+          data: {
+            appCashboxId: appCashbox.id,
+            type: 'expense',
+            source: 'payout_paid',
+            amount: totalPaid,
+            reason: `Payout de ${payoutIds.length} obrigacao(oes) — gateway transfer: ${gatewayTransferId}`,
+          },
+        });
       }
 
-      payout.status = 'paid';
-      payout.paidAt = new Date();
-      payout.gatewayTransferId = gatewayTransferId;
-      await payout.save({ session });
-      totalPaid += payout.amount;
-    }
-
-    // Transferência interna (loja → user wallet do dono) não debita AppCashbox:
-    // o dinheiro continua na plataforma, só mudou de bucket
-    if (options?.skipCashboxDebit) {
       return totalPaid;
-    }
-
-    // Debitar do AppCashbox — dinheiro saiu da plataforma
-    const appCashbox = await AppCashbox.findOne().session(session || null);
-    if (appCashbox) {
-      appCashbox.balance -= totalPaid;
-      appCashbox.totalExpenses += totalPaid;
-      appCashbox.history.push({
-        type: 'expense',
-        source: 'payout_paid',
-        amount: totalPaid,
-        reason: `Payout de ${payoutIds.length} obrigacao(oes) — gateway transfer: ${gatewayTransferId}`,
-        date: new Date(),
-      });
-      await appCashbox.save({ session });
-    }
-
-    return totalPaid;
+    });
   }
 
-  async listAvailablePayouts(
-    recipientType: PayoutRecipientType,
-    recipientId: string
-  ): Promise<IPayout[]> {
-    return Payout.find({
-      recipientType,
-      recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
-      status: 'released',
-    }).sort({ createdAt: 1 });
+  async listAvailablePayouts(recipientType: PayoutRecipientType, recipientId: string): Promise<Payout[]> {
+    return prisma.payout.findMany({
+      where: { recipientType, recipientId, status: 'released' },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async selectPayoutsForAmount(
     recipientType: PayoutRecipientType,
     recipientId: string,
-    amount: number
-  ): Promise<{ payouts: IPayout[]; total: number } | { error: 'AMOUNT_NOT_EXACT'; available: number }> {
+    amount: number,
+  ): Promise<{ payouts: Payout[]; total: number } | { error: 'AMOUNT_NOT_EXACT'; available: number }> {
     const available = await this.listAvailablePayouts(recipientType, recipientId);
-    const selected: IPayout[] = [];
+    const selected: Payout[] = [];
     let sum = 0;
 
     for (const p of available) {
       if (sum >= amount) break;
       selected.push(p);
-      sum += p.amount;
+      sum += num(p.amount);
     }
 
     // Soma dos payouts inteiros precisa bater exato com o amount
@@ -272,11 +262,11 @@ class PayoutService {
   }
 
   async getPendingObligations(): Promise<number> {
-    const result = await Payout.aggregate([
-      { $match: { status: { $in: ['pending', 'released', 'requested'] } } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]);
-    return result[0]?.total || 0;
+    const result = await prisma.payout.aggregate({
+      where: { status: { in: ['pending', 'released', 'requested'] } },
+      _sum: { amount: true },
+    });
+    return result._sum.amount ? num(result._sum.amount) : 0;
   }
 
   async listPayouts(filters: {
@@ -286,23 +276,25 @@ class PayoutService {
     orderId?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ payouts: IPayout[]; total: number }> {
-    const query: any = {};
-    if (filters.status) query.status = filters.status;
-    if (filters.recipientType) query.recipientType = filters.recipientType;
-    if (filters.recipientId) query.recipientId = filters.recipientId; // String (ver createPendingPayout)
-    if (filters.orderId) query.orderId = filters.orderId;  // String (Order no Postgres)
+  }): Promise<{ payouts: Payout[]; total: number }> {
+    const where: any = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.recipientType) where.recipientType = filters.recipientType;
+    if (filters.recipientId) where.recipientId = filters.recipientId;
+    if (filters.orderId) where.orderId = filters.orderId;
 
     const page = filters.page || 1;
     const limit = filters.limit || 50;
     const skip = (page - 1) * limit;
 
     const [payouts, total] = await Promise.all([
-      Payout.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Payout.countDocuments(query),
+      prisma.payout.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      prisma.payout.count({ where }),
     ]);
 
-    return { payouts, total };
+    // `_id` e amount numérico: o painel/app ainda leem `_id` e esperam number.
+    const mapped = payouts.map((p) => ({ ...p, _id: p.id, amount: Number(p.amount) })) as any[];
+    return { payouts: mapped, total };
   }
 }
 
