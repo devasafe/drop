@@ -16,7 +16,6 @@ import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createWallet } from './helpers/financePg';
 
 
-import EmailVerificationToken from '../models/EmailVerificationToken';
 import { isValidCPF, isValidRG } from '../utils/documentValidation';
 import { isClientVerified, missingClientVerifications } from '../utils/clientVerification';
 
@@ -164,7 +163,7 @@ describe('Verificação de email por código', () => {
   it('verifica o email com código válido', async () => {
     const { token, userId } = await createUser('cliente');
     const code = '123456';
-    await EmailVerificationToken.create({ userId, tokenHash: hash(code), expiresAt: new Date(Date.now() + 60000) });
+    await prisma.emailVerificationToken.create({ data: { userId, tokenHash: hash(code), expiresAt: new Date(Date.now() + 60000) } });
 
     const res = await request(app).post('/api/verification/email/verify')
       .set('Authorization', `Bearer ${token}`).send({ code });
@@ -176,7 +175,7 @@ describe('Verificação de email por código', () => {
 
   it('rejeita código incorreto', async () => {
     const { token, userId } = await createUser('cliente');
-    await EmailVerificationToken.create({ userId, tokenHash: hash('123456'), expiresAt: new Date(Date.now() + 60000) });
+    await prisma.emailVerificationToken.create({ data: { userId, tokenHash: hash('123456'), expiresAt: new Date(Date.now() + 60000) } });
 
     const res = await request(app).post('/api/verification/email/verify')
       .set('Authorization', `Bearer ${token}`).send({ code: '000000' });

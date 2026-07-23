@@ -3,8 +3,6 @@ import crypto from 'crypto';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-import OtpCode from '../models/OtpCode';
-import EmailVerificationToken from '../models/EmailVerificationToken';
 import otpProvider from '../services/otpProvider';
 import { sendEmail } from '../services/emailProvider';
 import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinary';
@@ -48,17 +46,19 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
     }
 
     // Rate-limit simples: no máximo 1 token a cada 60s
-    const recent = await EmailVerificationToken.findOne({ userId: user.id }).sort({ createdAt: -1 });
+    const recent = await prisma.emailVerificationToken.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } });
     if (recent && Date.now() - recent.createdAt.getTime() < 60_000) {
       return res.status(429).json({ error: 'Aguarde um momento antes de reenviar' });
     }
 
-    await EmailVerificationToken.deleteMany({ userId: user.id });
+    await prisma.emailVerificationToken.deleteMany({ where: { userId: user.id } });
     const code = String(crypto.randomInt(100000, 1000000)); // 6 dígitos
-    await EmailVerificationToken.create({
-      userId: user.id,
-      tokenHash: sha256(code),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+    await prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: sha256(code),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+      },
     });
 
     try {
@@ -69,7 +69,7 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
       );
     } catch (mailErr: any) {
       // Libera o rate-limit (o código não foi entregue) e mostra o erro real
-      await EmailVerificationToken.deleteMany({ userId: user.id });
+      await prisma.emailVerificationToken.deleteMany({ where: { userId: user.id } });
       const detail = mailErr?.response?.data?.message || mailErr?.response?.data?.error || mailErr?.message || 'erro desconhecido';
       logger.error('Falha ao enviar email de verificação', { detail });
       return res.status(502).json({ error: `Falha ao enviar o email: ${detail}` });
@@ -88,7 +88,7 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Não autenticado' });
 
-    const record = await EmailVerificationToken.findOne({ userId }).sort({ createdAt: -1 });
+    const record = await prisma.emailVerificationToken.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
     if (!record || record.expiresAt.getTime() < Date.now()) {
       return res.status(400).json({ error: 'Código inválido ou expirado' });
     }
@@ -101,7 +101,7 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
     ensureVerification(user);
     user.verification!.email = { status: 'verified', verifiedAt: new Date() };
     await userRepository.update(user.id, { verification: user.verification });
-    await EmailVerificationToken.deleteMany({ userId });
+    await prisma.emailVerificationToken.deleteMany({ where: { userId } });
 
     return res.json({ message: 'Email verificado com sucesso' });
   } catch (err) {
@@ -121,19 +121,21 @@ export const sendPhoneOtp = async (req: AuthenticatedRequest, res: Response) => 
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     // Anti-spam: 1 envio a cada 60s
-    const recent = await OtpCode.findOne({ userId: user.id }).sort({ createdAt: -1 });
+    const recent = await prisma.otpCode.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } });
     if (recent && Date.now() - recent.createdAt.getTime() < 60_000) {
       return res.status(429).json({ error: 'Aguarde um momento antes de pedir outro código' });
     }
 
-    await OtpCode.deleteMany({ userId: user.id });
+    await prisma.otpCode.deleteMany({ where: { userId: user.id } });
     const code = String(crypto.randomInt(100000, 1000000));
-    await OtpCode.create({
-      userId: user.id,
-      channel: 'whatsapp',
-      e164,
-      codeHash: sha256(code),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
+    await prisma.otpCode.create({
+      data: {
+        userId: user.id,
+        channel: 'whatsapp',
+        e164,
+        codeHash: sha256(code),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
+      },
     });
 
     await otpProvider.sendOtp(e164, code);
@@ -152,18 +154,17 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
     const user = await userRepository.findById(req.user?.id as string) as any;
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    const otp = await OtpCode.findOne({ userId: user.id }).sort({ createdAt: -1 });
+    const otp = await prisma.otpCode.findFirst({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } });
     if (!otp || otp.expiresAt.getTime() < Date.now()) {
       return res.status(400).json({ error: 'Código inválido ou expirado' });
     }
     if (otp.attempts >= 5) {
-      await OtpCode.deleteMany({ userId: user.id });
+      await prisma.otpCode.deleteMany({ where: { userId: user.id } });
       return res.status(429).json({ error: 'Muitas tentativas. Solicite um novo código.' });
     }
 
     if (otp.codeHash !== sha256(String(code))) {
-      otp.attempts += 1;
-      await otp.save();
+      await prisma.otpCode.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
       return res.status(400).json({ error: 'Código incorreto' });
     }
 
@@ -174,7 +175,7 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
       verification: user.verification,
       telefone: user.telefone,
     });
-    await OtpCode.deleteMany({ userId: user.id });
+    await prisma.otpCode.deleteMany({ where: { userId: user.id } });
 
     return res.json({ message: 'Telefone verificado com sucesso' });
   } catch (err) {
