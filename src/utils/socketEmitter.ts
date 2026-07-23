@@ -457,8 +457,7 @@ export const emitOrderRejectedByStore = (order: any, reason: string) => {
 
   // 🔴 Notificar MOTOBOY (se já foi atribuído)
   if (order.deliveryId) {
-    const Delivery = require('../models/Delivery').default;
-    Delivery.findById(order.deliveryId).then((delivery: any) => {
+    prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }).then((delivery: any) => {
       if (delivery && delivery.motoboyId) {
         emitToRoom(`user:${delivery.motoboyId}`, 'order:rejected_by_store', {
           orderId: order._id.toString(),

@@ -8,7 +8,7 @@ export interface IPayout extends Document {
   recipientType: PayoutRecipientType;
   recipientId: string;
   orderId: string;
-  deliveryId?: Types.ObjectId;
+  deliveryId?: string;
   amount: number;
   currency: string;
   status: PayoutStatus;
@@ -46,9 +46,7 @@ const PayoutSchema = new Schema<IPayout>(
       type: String,
       required: true,
     },
-    deliveryId: {
-      type: Schema.Types.ObjectId,
-    },
+    deliveryId: { type: String },
     amount: {
       type: Number,
       required: true,

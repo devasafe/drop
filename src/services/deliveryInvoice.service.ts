@@ -1,7 +1,5 @@
+import { DeliveryInvoice } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { ClientSession, Types } from 'mongoose';
-import DeliveryInvoice, { IDeliveryInvoice } from '../models/DeliveryInvoice';
-import Delivery from '../models/Delivery';
 
 import userRepository from '../repositories/user.repository';
 
@@ -11,7 +9,7 @@ import userRepository from '../repositories/user.repository';
  * o indice unique em invoiceNumber rejeita duplicatas e o caller pode retry.
  */
 async function generateInvoiceNumber(): Promise<string> {
-  const count = await DeliveryInvoice.countDocuments();
+  const count = await prisma.deliveryInvoice.count();
   const next = count + 1;
   return `NS-${String(next).padStart(6, '0')}`;
 }
@@ -41,23 +39,18 @@ class DeliveryInvoiceService {
     motoboyAmount: number;
     appCommission: number;
     commissionPercent: number;
-    session?: ClientSession;
-  }): Promise<IDeliveryInvoice> {
-    const { orderId, deliveryId, payoutId, motoboyAmount, appCommission, commissionPercent, session } = params;
+  }): Promise<DeliveryInvoice> {
+    const { orderId, deliveryId, payoutId, motoboyAmount, appCommission, commissionPercent } = params;
 
-    // Idempotencia: checar se ja existe. orderId virou String (Order no Postgres).
-    const existing = await DeliveryInvoice.findOne({
-      orderId,
-      deliveryId: new Types.ObjectId(deliveryId),
-    }).session(session || null);
-
+    // Idempotencia: checar se ja existe.
+    const existing = await prisma.deliveryInvoice.findFirst({ where: { orderId, deliveryId } });
     if (existing) return existing;
 
     // Buscar dados do pedido/entrega/loja/cliente/motoboy.
-    // Order vive no Postgres — sem `.session(session)` da transação Mongo.
+    // Order e Delivery vivem no Postgres; Delivery ainda pelo Mongoose model (Fatia 4).
     const [order, delivery] = await Promise.all([
       prisma.order.findUnique({ where: { id: String(orderId) } }),
-      Delivery.findById(deliveryId).session(session || null),
+      prisma.delivery.findUnique({ where: { id: String(deliveryId) } }),
     ]);
 
     if (!order) throw new Error(`Order ${orderId} nao encontrado`);
@@ -79,59 +72,56 @@ class DeliveryInvoiceService {
       || (customer as any)?.addresses?.find((a: any) => a.isDefault)
       || (customer as any)?.addresses?.[0];
 
-    const [invoice] = await DeliveryInvoice.create(
-      [
-        {
-          invoiceNumber,
-          orderId,
-          deliveryId: new Types.ObjectId(deliveryId),
-          payoutId: payoutId ? new Types.ObjectId(payoutId) : undefined,
+    return prisma.deliveryInvoice.create({
+      data: {
+        invoiceNumber,
+        orderId,
+        deliveryId,
+        payoutId: payoutId || undefined,
 
-          motoboyId: motoboy.id,
-          motoboyName: (motoboy as any).name || 'Motoboy',
-          motoboyEmail: (motoboy as any).email,
-          motoboyCpf: (motoboy as any).cpf,
+        motoboyId: motoboy.id,
+        motoboyName: (motoboy as any).name || 'Motoboy',
+        motoboyEmail: (motoboy as any).email,
+        motoboyCpf: (motoboy as any).cpf,
 
-          storeId: order.storeId,
-          storeName: (store as any)?.name || 'Loja',
-          storeAddress: formatAddress((store as any)?.address) || (store as any)?.address,
-          storeCnpj: (store as any)?.cnpj,
+        storeId: String(order.storeId),
+        storeName: (store as any)?.name || 'Loja',
+        storeAddress: formatAddress((store as any)?.address) || (store as any)?.address,
+        storeCnpj: (store as any)?.cnpj,
 
-          customerId: order.customerId,
-          customerName: (customer as any)?.name || 'Cliente',
-          customerAddress: formatAddress(customerAddress),
+        customerId: String(order.customerId),
+        customerName: (customer as any)?.name || 'Cliente',
+        customerAddress: formatAddress(customerAddress),
 
-          serviceDescription: 'Servico de entrega rapida por motoboy',
-          distance: delivery.distance,
-          deliveryFee,
-          motoboyAmount,
-          appCommission,
-          commissionPercent,
+        serviceDescription: 'Servico de entrega rapida por motoboy',
+        distance: delivery.distance,
+        deliveryFee,
+        motoboyAmount,
+        appCommission,
+        commissionPercent,
 
-          pickedAt: (delivery as any).pickedAt,
-          deliveredAt: (delivery as any).deliveredAt || new Date(),
-          issuedAt: new Date(),
-          status: 'issued',
-        },
-      ],
-      { session }
-    );
-
-    return invoice;
+        pickedAt: (delivery as any).pickedAt,
+        deliveredAt: (delivery as any).deliveredAt || new Date(),
+        issuedAt: new Date(),
+        status: 'issued',
+      },
+    });
   }
 
-  async findByOrderId(orderId: string): Promise<IDeliveryInvoice | null> {
-    return DeliveryInvoice.findOne({ orderId });
+  async findByOrderId(orderId: string): Promise<DeliveryInvoice | null> {
+    return prisma.deliveryInvoice.findFirst({ where: { orderId } });
   }
 
-  async findById(id: string): Promise<IDeliveryInvoice | null> {
-    return DeliveryInvoice.findById(id);
+  async findById(id: string): Promise<DeliveryInvoice | null> {
+    return prisma.deliveryInvoice.findUnique({ where: { id } });
   }
 
-  async listByMotoboy(motoboyId: string, limit = 50): Promise<IDeliveryInvoice[]> {
-    return DeliveryInvoice.find({ motoboyId: new Types.ObjectId(motoboyId) })
-      .sort({ issuedAt: -1 })
-      .limit(limit);
+  async listByMotoboy(motoboyId: string, limit = 50): Promise<DeliveryInvoice[]> {
+    return prisma.deliveryInvoice.findMany({
+      where: { motoboyId },
+      orderBy: { issuedAt: 'desc' },
+      take: limit,
+    });
   }
 }
 

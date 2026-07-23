@@ -1,5 +1,5 @@
 import { CronJob } from 'cron';
-import Delivery from '../models/Delivery';
+import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
 import { emitDeliveryRejected, emitToRoom } from '../utils/socketEmitter';
 
@@ -30,12 +30,15 @@ export function startDeliveryTimeoutJob() {
       const now = new Date();
       const timeoutThreshold = new Date(now.getTime() - DELIVERY_TIMEOUT_MINUTES * 60000);
 
-      // Buscar entregas atribuídas há mais de 30 minutos
-      const timedOutDeliveries = await Delivery.find({
-        status: 'assigned',
-        motoboyId: { $exists: true },
-        updatedAt: { $lt: timeoutThreshold }
-      }).populate('orderId');
+      // Buscar entregas atribuídas há mais de 30 minutos. `orderId` é um id do
+      // Postgres — sem `.populate`; o pedido é carregado logo abaixo no loop.
+      const timedOutDeliveries = await prisma.delivery.findMany({
+        where: {
+          status: 'assigned',
+          motoboyId: { not: null },
+          updatedAt: { lt: timeoutThreshold },
+        },
+      });
 
       if (timedOutDeliveries.length === 0) {
         return;
@@ -45,30 +48,27 @@ export function startDeliveryTimeoutJob() {
 
       for (const delivery of timedOutDeliveries) {
         try {
-          const order = delivery.orderId as any;
+          const order: any = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
           const motoboyId = delivery.motoboyId;
 
-          console.log(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery._id} (motoboy: ${motoboyId})`);
+          console.log(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
 
-          // Volta delivery para 'pending'
-          delivery.status = 'pending';
-          delivery.motoboyId = undefined;
-          delivery.pin = undefined; // Gerar novo PIN na próxima atribuição
-          delivery.pinRetirada = undefined;
-          delivery.updatedAt = new Date();
-          await delivery.save();
+          // Volta delivery para 'pending' (novo PIN é gerado na próxima atribuição)
+          await prisma.delivery.update({
+            where: { id: delivery.id },
+            data: { status: 'pending', motoboyId: null, pin: null, pinRetirada: null },
+          });
 
           // Atualiza status do pedido para "aguardando_motoboy"
           if (order) {
-            order.status = 'aguardando_motoboy';
-            await order.save();
+            await prisma.order.update({ where: { id: order.id }, data: { status: 'aguardando_motoboy' } });
           }
 
           // 📬 Notificar CLIENTE que motoboy não compareceu
           if (order && order.customerId) {
             emitToRoom(`user:${order.customerId}`, 'delivery:reassigned_timeout', {
-              orderId: order._id.toString(),
-              deliveryId: delivery._id.toString(),
+              orderId: order.id,
+              deliveryId: delivery.id,
               reason: 'Motoboy não compareceu no tempo estimado',
               message: '⏰ Seu motoboy não compareceu. Procurando outro entregador...',
               timestamp: new Date().toISOString()
@@ -79,8 +79,8 @@ export function startDeliveryTimeoutJob() {
           // 📬 Notificar LOJA sobre reatribuição
           if (order && order.storeId) {
             emitToRoom(`store:${order.storeId}`, 'delivery:reassigned_timeout', {
-              orderId: order._id.toString(),
-              deliveryId: delivery._id.toString(),
+              orderId: order.id,
+              deliveryId: delivery.id,
               reason: 'Motoboy não compareceu',
               message: '⏰ Motoboy não compareceu. Aguardando novo entregador.',
               timestamp: new Date().toISOString()
@@ -91,7 +91,7 @@ export function startDeliveryTimeoutJob() {
           // 🔔 Notificar MOTOBOY que foi desatribuído (para logs)
           if (motoboyId) {
             emitToRoom(`user:${motoboyId}`, 'delivery:you_were_reassigned', {
-              deliveryId: delivery._id.toString(),
+              deliveryId: delivery.id,
               reason: 'Não comparecimento dentro do prazo',
               message: 'Você foi desatribuído desta entrega por não comparecer no prazo'
             });
@@ -103,8 +103,8 @@ export function startDeliveryTimeoutJob() {
             notifier.notifyMotoboys({
               type: 'new_delivery',
               delivery: {
-                id: delivery._id.toString(),
-                orderId: order._id.toString(),
+                id: delivery.id,
+                orderId: order.id,
                 fee: delivery.fee,
                 distance: delivery.distance
               }
@@ -115,7 +115,7 @@ export function startDeliveryTimeoutJob() {
           }
 
         } catch (error) {
-          console.error(`❌ [DELIVERY TIMEOUT] Erro ao processar delivery ${delivery._id}:`, error);
+          console.error(`❌ [DELIVERY TIMEOUT] Erro ao processar delivery ${delivery.id}:`, error);
         }
       }
 

@@ -21,7 +21,7 @@ class PayoutService {
           recipientType,
           recipientId,  // String: pode ser User (cuid do Postgres) ou Store (ObjectId)
           orderId,  // String (Order no Postgres)
-          deliveryId: deliveryId ? new Types.ObjectId(deliveryId) : undefined,
+          deliveryId,  // String (Delivery no Postgres)
           amount,
           status: 'pending',
         },

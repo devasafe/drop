@@ -11,7 +11,7 @@ import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import Wallet from '../models/Wallet';
 
 
-import Delivery from '../models/Delivery';
+
 import Payout from '../models/Payout';
 import AppCashbox from '../models/AppCashbox';
 
@@ -100,13 +100,10 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
       paymentStatus: 'paid',
     }, include: { items: true } });
 
-    const delivery = await Delivery.create({
-      orderId: order.id,
-      motoboyId: motoboy.id,
-      fee: 0,
-      status: 'picked',
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 0, status: 'picked' },
     });
-    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: String(delivery._id) } });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
     const res = await request(app)
       .post(`/api/orders/${order.id}/cancel`)

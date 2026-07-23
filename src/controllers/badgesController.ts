@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 
 
-import Delivery from '../models/Delivery';
+
 
 /**
  * GET /api/badges
@@ -61,9 +61,8 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
 
     // Entregas disponíveis no pool (mesma query do listAvailableDeliveries).
     if (role === 'motoboy') {
-      out.deliveries = await Delivery.countDocuments({
-        status: 'pending',
-        motoboyId: { $exists: false },
+      out.deliveries = await prisma.delivery.count({
+        where: { status: 'pending', motoboyId: null },
       });
     }
 

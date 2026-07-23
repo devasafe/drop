@@ -2,10 +2,11 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import mongoose, { Types } from 'mongoose';
 import AppCashbox from '../models/AppCashbox';
-import Delivery from '../models/Delivery';
+
 
 import { prisma } from '../lib/prisma';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
+import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
 import userRepository from '../repositories/user.repository';
 
 import Wallet from '../models/Wallet';
@@ -33,7 +34,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     const userId = req.user?.id;
     // Apenas a loja pode validar
     // Sem `.populate('motoboyId')`: User vive no Postgres (o nome é resolvido abaixo).
-    const delivery = await Delivery.findById(id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -45,7 +46,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     if (!pinRetirada || pinRetirada !== delivery.pinRetirada) return res.status(400).json({ error: 'PIN de retirada inválido' });
     if (delivery.status !== 'assigned') return res.status(400).json({ error: 'Entrega não está aguardando retirada' });
     delivery.status = 'picked';
-    await delivery.save();
+    await persistDelivery(delivery);
 
     // Get motoboy name
     const motoboy = delivery.motoboyId
@@ -93,7 +94,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     );
 
     // Broadcast delivery status change via socket
-    emitDeliveryStatusChanged(delivery.toObject());
+    emitDeliveryStatusChanged(delivery);
 
     return res.json({ success: true });
   } catch (err) {
@@ -106,8 +107,11 @@ export const listHistoryDeliveries = async (req: AuthenticatedRequest, res: Resp
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
-    const deliveries = await Delivery.find({ motoboyId: req.user.id, status: { $in: ['delivered', 'cancelled'] } }).sort({ updatedAt: -1 }).lean();
-    return res.json(deliveries);
+    const rows = await prisma.delivery.findMany({
+      where: { motoboyId: req.user.id, status: { in: ['delivered', 'cancelled'] } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return res.json(rows.map(toApiDelivery));
   } catch (err) {
     console.error('[listHistoryDeliveries] error:', err);
     return res.status(500).json({ error: 'Failed to list history deliveries' });
@@ -121,7 +125,11 @@ export const listarAvaliacoesMotoboy = async (req: AuthenticatedRequest, res: Re
     if (!req.user || (req.user.role !== 'motoboy' && req.user.role !== 'admin' && req.user.id !== id)) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
-    const avaliacoes = await Delivery.find({ motoboyId: id, rating: { $exists: true, $ne: null } }, { rating: 1, comment: 1, createdAt: 1 }).sort({ createdAt: -1 }).lean();
+    const avaliacoes = await prisma.delivery.findMany({
+      where: { motoboyId: id, rating: { not: null } },
+      select: { rating: true, comment: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
     return res.json(avaliacoes);
   } catch (err) {
     console.error(err);
@@ -137,7 +145,7 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: 'Nota inválida' });
-    const delivery = await Delivery.findById(id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     // Só o cliente do pedido pode avaliar
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
@@ -146,7 +154,7 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
     if (delivery.rating) return res.status(409).json({ error: 'Entrega já avaliada' });
     delivery.rating = rating;
     delivery.comment = comment;
-    await delivery.save();
+    await persistDelivery(delivery);
 
     // --- Gamificação ---
     if (delivery.motoboyId) {
@@ -200,19 +208,16 @@ export const listOngoingDeliveries = async (req: AuthenticatedRequest, res: Resp
     const limit = Math.min(100, Number((req.query as any).limit) || 20);
     const skip = (page - 1) * limit;
 
-    const deliveries = await Delivery.find({
-      motoboyId: req.user.id,
-      status: { $in: ['assigned', 'picked'] }
-    })
-      .sort({ createdAt: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Delivery.countDocuments({
-      motoboyId: req.user.id,
-      status: { $in: ['assigned', 'picked'] }
+    const where = { motoboyId: req.user.id, status: { in: ['assigned', 'picked'] as any } };
+    const rows = await prisma.delivery.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      skip,
+      take: limit,
     });
+    const deliveries = rows.map(toApiDelivery);
+
+    const total = await prisma.delivery.count({ where });
 
     console.log('[listOngoingDeliveries] found:', deliveries.length, 'deliveries');
     
@@ -237,13 +242,13 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     const { pin } = req.body;
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    const delivery = await Delivery.findById(id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     if (String(delivery.motoboyId) !== String(userId)) return res.status(403).json({ error: 'Not your delivery' });
     if (delivery.status === 'delivered') return res.status(409).json({ error: 'Already delivered' });
     if (!pin || pin !== delivery.pin) return res.status(400).json({ error: 'PIN inválido' });
     delivery.status = 'delivered';
-    await delivery.save();
+    await persistDelivery(delivery);
 
     // Atualiza o status do pedido para 'delivered'
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
@@ -411,10 +416,10 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     }
 
     // 🎉 BROADCAST 1: Notificar TODAS as partes que entrega foi completada
-    emitDeliveryCompleted(delivery.toObject(), order.toObject());
+    emitDeliveryCompleted(delivery, order.toObject());
     
     // 🎉 BROADCAST 2: Status geral da delivery
-    emitDeliveryStatusChanged(delivery.toObject());
+    emitDeliveryStatusChanged(delivery);
 
     // 🎉 BROADCAST 3: ATUALIZAR O PEDIDO TAMBÉM - remove de 'andamento', entra em 'histórico'
     emitOrderStatusChanged(order.toObject());
@@ -468,23 +473,24 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
   // Gera PIN de retirada (motoboy) e PIN de entrega (cliente)
   const pinRetirada = Math.floor(100000 + Math.random() * 900000).toString();
   const pin = Math.floor(100000 + Math.random() * 900000).toString();
-  const delivery = new Delivery({
-    orderId,
-    distance: Number(distance || 0),
-    fee,
-    status: 'pending',
-    pinRetirada,
-    pin,
-    // ✅ NOVO: Copiar endereços e coordenadas do Order para garantir dados originais
-    storeAddress: order.storeAddress,
-    storeLatitude: order.storeLatitude,
-    storeLongitude: order.storeLongitude,
-    customerAddress: order.customerAddress,
-    customerLatitude: order.customerLatitude,
-    customerLongitude: order.customerLongitude,
-    routePolyline: order.routePolyline
-  });
-  await delivery.save();
+  const delivery: any = toApiDelivery(await prisma.delivery.create({
+    data: {
+      orderId,
+      distance: Number(distance || 0),
+      fee,
+      status: 'pending',
+      pinRetirada,
+      pin,
+      // ✅ NOVO: Copiar endereços e coordenadas do Order para garantir dados originais
+      storeAddress: order.storeAddress,
+      storeLatitude: order.storeLatitude,
+      storeLongitude: order.storeLongitude,
+      customerAddress: order.customerAddress,
+      customerLatitude: order.customerLatitude,
+      customerLongitude: order.customerLongitude,
+      routePolyline: order.routePolyline,
+    },
+  }));
 
   // Registrar comissão de entrega no caixa do app (usar distribuição calculada)
   let motoboyAmount: number | undefined = undefined;
@@ -536,7 +542,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
   try {
     const { id } = req.params; // delivery id
     const { motoboyId } = req.body;
-    const delivery = await Delivery.findById(id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     const motoboy = await userRepository.findById(String(motoboyId)) as any;
@@ -544,10 +550,10 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     if (motoboy.role !== 'motoboy') return res.status(400).json({ error: 'User is not a motoboy' });
 
     // Bloquear atribuição se motoboy tem devolução pendente
-    const pendingReturn = await Delivery.findOne({
+    const pendingReturn = toApiDelivery(await prisma.delivery.findFirst({ where: {
       motoboyId: motoboyId,
       statusDevolucao: 'aguardando_confirmacao',
-    });
+    } }));
     if (pendingReturn) {
       return res.status(400).json({
         error: 'Este motoboy possui uma devolução pendente e não pode aceitar novas entregas até confirmar o retorno na loja.',
@@ -567,10 +573,10 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
 
     delivery.motoboyId = motoboyId;
     delivery.status = 'assigned';
-    await delivery.save();
+    await persistDelivery(delivery);
     
     // ✅ Broadcast delivery assignment to relevant parties
-    emitDeliveryStatusChanged(delivery.toObject());
+    emitDeliveryStatusChanged(delivery);
     
     // 👤 Notificar cliente que motoboy foi atribuído
     emitToRoom(`user:${order.customerId}`, 'motoboy:assigned', {
@@ -618,7 +624,7 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
     const allowed = ['picked', 'delivered', 'cancelled'];
     if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
-    const delivery = await Delivery.findById(id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // only assigned motoboy can update
@@ -628,10 +634,10 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
     }
 
     delivery.status = status;
-    await delivery.save();
+    await persistDelivery(delivery);
     
     // Broadcast delivery status change
-    emitDeliveryStatusChanged(delivery.toObject());
+    emitDeliveryStatusChanged(delivery);
     
     // if delivered, optionally update order status
     if (status === 'delivered') {
@@ -655,14 +661,14 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
 export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    let delivery = await Delivery.findById(id);
+    let delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     // Fallback: se pinRetirada ausente, gera e salva
     if (!delivery.pinRetirada) {
       delivery.pinRetirada = Math.floor(100000 + Math.random() * 900000).toString();
-      await delivery.save();
+      await persistDelivery(delivery);
     }
-    delivery = delivery.toObject();
+    delivery = delivery;
 
     // Busca pedido completo
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
@@ -767,13 +773,11 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
       ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
       : null;
 
-    const pendingAll = await Delivery.find({
-      status: 'pending',
-      motoboyId: { $exists: false },
-    })
-      .sort({ createdAt: 1 })
-      .limit(200)
-      .lean();
+    const pendingAll = (await prisma.delivery.findMany({
+      where: { status: 'pending', motoboyId: null },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    })).map(toApiDelivery);
 
     const now = Date.now();
     const visible = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now));
@@ -850,14 +854,15 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     const pinEntrega = Math.floor(10000 + Math.random() * 90000).toString();
     const pinRetirada = Math.floor(10000 + Math.random() * 90000).toString();
     
-    // atomic findOneAndUpdate: só seta motoboyId, pins se status for pending
-    const delivery = await Delivery.findOneAndUpdate(
-      { _id: id, status: 'pending', $or: [{ motoboyId: { $exists: false } }, { motoboyId: null }] },
-      { $set: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada } },
-      { new: true }
-    );
-
-    if (!delivery) return res.status(409).json({ error: 'Already claimed or not available' });
+    // Trava atômica de aceite (first-accept-wins): UPDATE condicional `WHERE status
+    // = pending AND motoboyId IS NULL`. Sob concorrência o Postgres serializa a
+    // linha e só o primeiro motoboy reivindica (count === 1); os demais veem 409.
+    const claim = await prisma.delivery.updateMany({
+      where: { id, status: 'pending', motoboyId: null },
+      data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada },
+    });
+    if (claim.count === 0) return res.status(409).json({ error: 'Already claimed or not available' });
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id } }));
 
     // Buscar order para notificações
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
@@ -910,7 +915,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     console.log(`📡 [claimDelivery] Event 'delivery:assigned_to_you' sent to motoboy ${userId}`);
 
     // 🔴 BROADCAST 4: Status geral da delivery
-    emitDeliveryStatusChanged(delivery.toObject());
+    emitDeliveryStatusChanged(delivery);
     console.log(`📡 [claimDelivery] Event 'delivery:status_changed' broadcast`);
 
     // Notifica a loja em tempo real para atualizar a lista de pedidos
@@ -929,7 +934,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Retornar delivery com pinRetirada para a loja confirmar
-    const deliveryObj = delivery.toObject();
+    const deliveryObj = delivery;
     return res.json({
       ...deliveryObj,
       pin: deliveryObj.pin,  // PIN para entrega final (cliente)
@@ -959,7 +964,7 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Validar que é o motoboy da entrega
-    const delivery = await Delivery.findById(deliveryId);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(deliveryId) } }));
     if (!delivery) {
       return res.status(404).json({ error: 'Entrega não encontrada' });
     }
@@ -982,7 +987,7 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
     // Atualizar delivery com PIN e status
     delivery.pinDevolucao = pinDevolucao;
     delivery.statusDevolucao = 'aguardando_confirmacao';
-    await delivery.save();
+    await persistDelivery(delivery);
 
     // Notificar loja que motoboy quer devolver
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
@@ -1039,7 +1044,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Validar que é a loja
-    const delivery = await Delivery.findById(deliveryId);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(deliveryId) } }));
     if (!delivery) {
       return res.status(404).json({ error: 'Entrega não encontrada' });
     }
@@ -1081,7 +1086,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       const motoboyIdNotify = delivery.motoboyId;
       delivery.status = 'pending';
       delivery.motoboyId = undefined;
-      await delivery.save();
+      await persistDelivery(delivery);
       console.log(`✅ [confirmReturn] Delivery ${delivery._id} voltou ao pool para reatribuição`);
 
       // Notificar motoboy: pode fechar a modal
@@ -1100,7 +1105,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       });
 
       // Broadcast: delivery disponível no pool para outros motobikes
-      emitDeliveryStatusChanged(delivery.toObject());
+      emitDeliveryStatusChanged(delivery);
 
       return res.json({
         message: 'Devolução confirmada. Entrega voltou ao pool.',
@@ -1115,7 +1120,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       // ── CANCEL (padrão): produto voltou à loja, pedido cancelado + reembolso ──
       delivery.status = 'cancelled';
       delivery.cancelledAt = new Date();
-      await delivery.save();
+      await persistDelivery(delivery);
       console.log(`📋 [confirmReturn] Cancelando Order para o cliente...`);
       order.status = 'cancelado';
       order.cancelledAt = new Date();

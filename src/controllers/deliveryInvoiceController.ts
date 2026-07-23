@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import DeliveryInvoice from '../models/DeliveryInvoice';
+
 
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { prisma } from '../lib/prisma';
@@ -18,7 +18,7 @@ async function userOwnsStore(userId: string, storeId: string): Promise<boolean> 
 export const getInvoice = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const invoice = await DeliveryInvoice.findById(id).lean();
+    const invoice = await prisma.deliveryInvoice.findUnique({ where: { id } });
     if (!invoice) return res.status(404).json({ error: 'Nota nao encontrada' });
 
     const userId = req.user?.id;

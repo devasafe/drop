@@ -1,8 +1,9 @@
+import { prisma } from '../lib/prisma';
 import dayjs from 'dayjs';
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import Gamification, { IGamification, GamificationLevel } from '../models/Gamification';
-import Delivery from '../models/Delivery';
+
 import userRepository from '../repositories/user.repository';
 import Wallet from '../models/Wallet';
 import { BENEFITS } from '../config/benefits';
@@ -86,8 +87,17 @@ export const checkAndAwardBadges = async (
     }
   };
 
+  // Buscamos TODAS as entregas concluídas do motoboy uma vez e computamos os
+  // badges em JS. Os critérios de horário/dia/duração usavam `$expr` do Mongo
+  // (`$hour`, `$dayOfWeek`, `$subtract`), que não têm equivalente no Prisma —
+  // em memória o cálculo é direto e o volume por motoboy é pequeno.
+  const delivered = await prisma.delivery.findMany({
+    where: { motoboyId: mid, status: 'delivered' },
+    select: { rating: true, distance: true, createdAt: true, updatedAt: true },
+  });
+
   // --- Volume de entregas ---
-  const totalDeliveries = await Delivery.countDocuments({ motoboyId, status: 'delivered' });
+  const totalDeliveries = delivered.length;
   if (totalDeliveries >= 1) award('Primeira entrega');
   if (totalDeliveries >= 10) award('10 Missões');
   if (totalDeliveries >= 50) award('50 Missões');
@@ -96,84 +106,63 @@ export const checkAndAwardBadges = async (
   if (totalDeliveries >= 500) award('Lenda Viva');
   if (totalDeliveries >= 1000) award('Imortal');
 
-  // --- Qualidade ---
-  const totalAvaliacoes = await Delivery.countDocuments({ motoboyId, rating: { $exists: true, $ne: null } });
-  const maxRatings = await Delivery.countDocuments({ motoboyId, rating: 5 });
+  // --- Qualidade --- (avaliações contam em qualquer status)
+  const rated = await prisma.delivery.findMany({
+    where: { motoboyId: mid, rating: { not: null } },
+    select: { rating: true },
+  });
+  const totalAvaliacoes = rated.length;
+  const maxRatings = rated.filter((d) => d.rating === 5).length;
   if (maxRatings >= 5) award('Motoboy 5 estrelas');
   if (maxRatings >= 20) award('Impecável');
 
   if (totalAvaliacoes >= 10) {
-    const goodDeliveries = await Delivery.countDocuments({ motoboyId, rating: { $gte: 3 } });
+    const goodDeliveries = rated.filter((d) => (d.rating ?? 0) >= 3).length;
     if (goodDeliveries === totalAvaliacoes) award('Sem reclamações');
   }
 
   if (totalAvaliacoes >= 30) {
-    const avgResult = await Delivery.aggregate([
-      { $match: { motoboyId: new Types.ObjectId(mid), rating: { $exists: true, $ne: null } } },
-      { $group: { _id: null, avg: { $avg: '$rating' } } },
-    ]);
-    if (avgResult[0]?.avg >= 4.9) award('Nota Máxima');
+    const avg = rated.reduce((s, d) => s + (d.rating ?? 0), 0) / totalAvaliacoes;
+    if (avg >= 4.9) award('Nota Máxima');
   }
 
   // --- Distância acumulada ---
-  const distResult = await Delivery.aggregate([
-    { $match: { motoboyId: new Types.ObjectId(mid), status: 'delivered' } },
-    { $group: { _id: null, total: { $sum: '$distance' } } },
-  ]);
-  const totalKm = distResult[0]?.total || 0;
+  const totalKm = delivered.reduce((s, d) => s + (d.distance || 0), 0);
   if (totalKm >= 100) award('Corredor');
   if (totalKm >= 500) award('Maratonista');
   if (totalKm >= 1000) award('Explorador Urbano');
 
-  // --- Horário ---
-  const earlyDeliveries = await Delivery.countDocuments({
-    motoboyId,
-    status: 'delivered',
-    $expr: { $lt: [{ $hour: '$updatedAt' }, 8] },
-  });
+  // --- Horário (UTC, como o $hour/$dayOfWeek do Mongo em datas UTC) ---
+  const earlyDeliveries = delivered.filter((d) => d.updatedAt.getUTCHours() < 8).length;
   if (earlyDeliveries >= 5) award('Madrugador');
 
-  const nightDeliveries = await Delivery.countDocuments({
-    motoboyId,
-    status: 'delivered',
-    $expr: { $gte: [{ $hour: '$updatedAt' }, 22] },
-  });
+  const nightDeliveries = delivered.filter((d) => d.updatedAt.getUTCHours() >= 22).length;
   if (nightDeliveries >= 5) award('Noturno');
 
-  const weekendDeliveries = await Delivery.countDocuments({
-    motoboyId,
-    status: 'delivered',
-    $expr: { $in: [{ $dayOfWeek: '$updatedAt' }, [1, 7]] }, // 1=Dom, 7=Sáb
-  });
+  // $dayOfWeek: 1=Dom, 7=Sáb; getUTCDay: 0=Dom, 6=Sáb → fim de semana = 0 ou 6.
+  const weekendDeliveries = delivered.filter((d) => [0, 6].includes(d.updatedAt.getUTCDay())).length;
   if (weekendDeliveries >= 10) award('Guerreiro do FDS');
 
   // --- Consistência ---
+  const dayStr = (d: Date) => dayjs(d).format('YYYY-MM-DD');
   const weekStart = dayjs().startOf('week').toDate();
-  const weekDeliveries = await Delivery.find({
-    motoboyId,
-    status: 'delivered',
-    updatedAt: { $gte: weekStart },
-  }).select('updatedAt').lean();
-  const distinctDaysThisWeek = new Set(weekDeliveries.map(d => dayjs(d.updatedAt as Date).format('YYYY-MM-DD'))).size;
+  const distinctDaysThisWeek = new Set(
+    delivered.filter((d) => d.updatedAt >= weekStart).map((d) => dayStr(d.updatedAt)),
+  ).size;
   if (distinctDaysThisWeek >= 3) award('Dedicado');
 
   const monthStart = dayjs().startOf('month').toDate();
-  const monthDeliveries = await Delivery.find({
-    motoboyId,
-    status: 'delivered',
-    updatedAt: { $gte: monthStart },
-  }).select('updatedAt').lean();
-  const distinctDaysThisMonth = new Set(monthDeliveries.map(d => dayjs(d.updatedAt as Date).format('YYYY-MM-DD'))).size;
+  const distinctDaysThisMonth = new Set(
+    delivered.filter((d) => d.updatedAt >= monthStart).map((d) => dayStr(d.updatedAt)),
+  ).size;
   if (distinctDaysThisMonth >= 20) award('Máquina');
 
-  // Incansável: 7 dias seguidos (verifica se há entrega nos últimos 7 dias distintos consecutivos)
+  // Incansável: 7 dias seguidos com entrega nos últimos 30.
   if (!already('Incansável') && totalDeliveries >= 7) {
-    const last30Days = await Delivery.find({
-      motoboyId,
-      status: 'delivered',
-      updatedAt: { $gte: dayjs().subtract(30, 'day').toDate() },
-    }).select('updatedAt').lean();
-    const daySet = new Set(last30Days.map(d => dayjs(d.updatedAt as Date).format('YYYY-MM-DD')));
+    const cutoff = dayjs().subtract(30, 'day').toDate();
+    const daySet = new Set(
+      delivered.filter((d) => d.updatedAt >= cutoff).map((d) => dayStr(d.updatedAt)),
+    );
     let maxStreak = 0;
     let streak = 0;
     for (let i = 0; i < 30; i++) {
@@ -188,15 +177,11 @@ export const checkAndAwardBadges = async (
     if (maxStreak >= 7) award('Incansável');
   }
 
-  // --- Velocista: 5 entregas em menos de 20 min ---
+  // --- Velocista: 5 entregas em menos de 20 min (updatedAt - createdAt) ---
   if (!already('Velocista')) {
-    const fastDeliveries = await Delivery.countDocuments({
-      motoboyId,
-      status: 'delivered',
-      $expr: {
-        $lte: [{ $subtract: ['$updatedAt', '$createdAt'] }, 20 * 60 * 1000],
-      },
-    });
+    const fastDeliveries = delivered.filter(
+      (d) => d.updatedAt.getTime() - d.createdAt.getTime() <= 20 * 60 * 1000,
+    ).length;
     if (fastDeliveries >= 5) award('Velocista');
   }
 
