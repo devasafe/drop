@@ -302,11 +302,10 @@ export const initSocket = (server: any) => {
       if (!deliveryId || latitude == null || longitude == null) return;
 
       try {
-        const Delivery = require('../models/Delivery').default;
-
-        const delivery = await Delivery.findById(deliveryId)
-          .select('orderId motoboyId')
-          .lean();
+        const delivery = await prisma.delivery.findUnique({
+          where: { id: String(deliveryId) },
+          select: { orderId: true, motoboyId: true },
+        });
 
         // Segurança: só o motoboy atribuído pode enviar localização
         if (!delivery || delivery.motoboyId?.toString() !== userId) return;

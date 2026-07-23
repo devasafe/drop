@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import Cancellation, { ICancellation } from '../models/Cancellation';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import Delivery from '../models/Delivery';
+import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
 
 
 import Wallet from '../models/Wallet';
@@ -50,7 +50,7 @@ const validateStoreOwnership = async (storeId: string, userId: string) => {
 };
 
 const validateMotoboyDelivery = async (deliveryId: string, motoboyId: string) => {
-  const delivery = await Delivery.findById(deliveryId);
+  const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(deliveryId) } }));
   if (!delivery) throw new Error('Entrega não encontrada');
   if (delivery.motoboyId?.toString() !== motoboyId) throw new Error('Permissão negada');
   return delivery;
@@ -271,7 +271,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         // motoboyWallet.balance é sobrescrito pela reconciliação em getMotoboyWallet
         // e não é sacável (o saque consome só Payouts). Um Payout released é reconciliável.
         if (motoboyShare > 0 && order.deliveryId) {
-          const delivery = await Delivery.findById(order.deliveryId).session(session);
+          const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
           if (delivery?.motoboyId) {
             const compPayout = await payoutService.createPendingPayout({
               recipientType: 'motoboy',
@@ -356,12 +356,12 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // Se há entrega associada, cancela também
     if (order.deliveryId) {
-      const delivery = await Delivery.findById(order.deliveryId);
+      const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
       if (delivery && delivery.status !== 'delivered') {
         delivery.status = 'cancelled';
         delivery.cancelledAt = new Date();
-        await delivery.save();
-        emitDeliveryCancelled(delivery.toObject(), cancellation.toObject());
+        await persistDelivery(delivery);
+        emitDeliveryCancelled(delivery, cancellation.toObject());
       }
     }
 
@@ -427,7 +427,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
         delivery.pinDevolucao = pinDevolucao;
         delivery.statusDevolucao = 'aguardando_confirmacao';
         delivery.pendingReturnAction = 'reassign';
-        await delivery.save();
+        await persistDelivery(delivery);
 
         const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
         if (orderForReturn) {
@@ -483,9 +483,9 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
     delivery.motoboyId = undefined;
     delivery.pendingReturnAction = undefined;
     delivery.updatedAt = new Date();
-    await delivery.save();
+    await persistDelivery(delivery);
 
-    emitDeliveryRejected(delivery.toObject(), 'motoboy', reason);
+    emitDeliveryRejected(delivery, 'motoboy', reason);
     return res.json({
       success: true,
       deliveryId: delivery._id,
@@ -617,26 +617,27 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     }
 
     // Plano 2/3: cria delivery se não existir
-    let delivery = await Delivery.findOne({ orderId: order._id });
+    let delivery: any = toApiDelivery(await prisma.delivery.findFirst({ where: { orderId: order.id } }));
     if (!delivery) {
       // ✅ CORRIGIDO: Usar deliveryDistance armazenada no Order + fallback para req.body.distance
       const distance = req.body?.distance || order.deliveryDistance || 0;
       const fee = await calculateDeliveryFeeWithConfig(Number(distance || 0));
       
-      delivery = new Delivery({ 
-        orderId: order._id, 
-        distance: Number(distance || 0), 
-        fee, 
-        status: 'pending',
-        // ✅ NOVO: COPIAR dados de endereço do ORDER (é a fonte de verdade!)
-        customerAddress: order.customerAddress,
-        customerLatitude: order.customerLatitude,
-        customerLongitude: order.customerLongitude,
-        storeAddress: order.storeAddress,
-        storeLatitude: order.storeLatitude,
-        storeLongitude: order.storeLongitude
-      });
-      await delivery.save();
+      delivery = toApiDelivery(await prisma.delivery.create({
+        data: {
+          orderId: order.id,
+          distance: Number(distance || 0),
+          fee,
+          status: 'pending',
+          // ✅ NOVO: COPIAR dados de endereço do ORDER (é a fonte de verdade!)
+          customerAddress: order.customerAddress,
+          customerLatitude: order.customerLatitude,
+          customerLongitude: order.customerLongitude,
+          storeAddress: order.storeAddress,
+          storeLatitude: order.storeLatitude,
+          storeLongitude: order.storeLongitude,
+        },
+      }));
 
       // 🔴 REGISTRAR COMISSÃO DE ENTREGA NO APPCASHBOX
       try {
@@ -867,7 +868,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
         // Creditar motoboy share como Payout released (#1) — ver explicação no fluxo do cliente.
         if (motoboyShare > 0 && order.deliveryId) {
-          const delivery = await Delivery.findById(order.deliveryId).session(session);
+          const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
           if (delivery?.motoboyId) {
             const compPayout = await payoutService.createPendingPayout({
               recipientType: 'motoboy',
@@ -950,12 +951,12 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // Cancela entrega associada
     if (order.deliveryId) {
-      const delivery = await Delivery.findById(order.deliveryId);
+      const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
       if (delivery && delivery.status !== 'delivered') {
         delivery.status = 'cancelled';
         delivery.cancelledAt = new Date();
-        await delivery.save();
-        emitDeliveryCancelled(delivery.toObject(), cancellation.toObject());
+        await persistDelivery(delivery);
+        emitDeliveryCancelled(delivery, cancellation.toObject());
       }
     }
 

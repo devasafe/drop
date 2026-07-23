@@ -2,7 +2,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ICancellation extends Document {
   orderId: string;
-  deliveryId?: Types.ObjectId;
+  deliveryId?: string;
   cancelledBy: 'customer' | 'motoboy' | 'store' | 'admin'; // quem cancelou
   reason: string; // motivo do cancelamento
   reasonCode: string; // código para categorização (ex: 'customer_request', 'not_available', 'store_busy')
@@ -17,7 +17,7 @@ export interface ICancellation extends Document {
 
 const CancellationSchema = new Schema<ICancellation>({
   orderId: { type: String, required: true, index: true },
-  deliveryId: { type: Schema.Types.ObjectId, ref: 'Delivery' },
+  deliveryId: { type: String, index: true },
   cancelledBy: { 
     type: String, 
     enum: ['customer', 'motoboy', 'store', 'admin'], 
