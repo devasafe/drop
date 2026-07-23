@@ -27,7 +27,7 @@ import payoutService from '../services/payout.service';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
-import CustomerDebt from '../models/CustomerDebt';
+import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 
@@ -203,7 +203,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           const delivery = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
           compMotoboyId = delivery?.motoboyId ?? null;
         }
-        // CustomerDebt (Mongo) fica fora da transação Postgres.
+        // CustomerDebt é criado após a transação (best-effort, mesmo padrão de antes).
         const debtToCreate = isCashOnDelivery
           ? { customerId, amount: totalFee, sourceOrderId: order.id, status: 'pending', reason: 'Multa de cancelamento tardio em pedido pagar na entrega' }
           : null;
@@ -244,7 +244,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         });
 
         if (debtToCreate) {
-          await new CustomerDebt(debtToCreate).save();
+          await createDebt(debtToCreate);
         }
       } catch (feeErr) {
         logger.error('Erro ao cobrar taxa de cancelamento tardio', feeErr as Error, { orderId });
