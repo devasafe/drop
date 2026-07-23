@@ -15,9 +15,8 @@ import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
-import Wallet from '../models/Wallet';
+import { createWallet, findWallet, createPayout, findPayout } from './helpers/financePg';
 
-import Payout from '../models/Payout';
 import { refundOrderCharge } from '../services/asaas/refund';
 
 const refundMock = refundOrderCharge as jest.Mock;
@@ -52,7 +51,7 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
         role: 'cliente', roles: ['cliente'], activeRole: 'cliente',
       },
     });
-    await Wallet.create({ owner: customer.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0 });
     const token = jwt.sign({ id: customer.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aref.test'), name: 'Loja' } });
 
@@ -63,7 +62,7 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_1', asaasChargeStatus: 'received',
       walletDistribution: { storeAmount: 90, appCommission: 10, commissionPercent: 10 },
     }, include: { items: true } });
-    await Payout.create({ recipientType: 'store', recipientId: store.id, orderId: order.id, amount: 90, status: 'pending' });
+    await createPayout({ recipientType: 'store', recipientId: store.id, orderId: order.id, amount: 90, status: 'pending' });
 
     const res = await request(app)
       .post(`/api/orders/${order.id}/cancel`)
@@ -78,11 +77,11 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
     expect(updated!.asaasChargeStatus).toBe('refunded');
 
     // carteira virtual NÃO foi creditada (estorno é real, volta pro PIX)
-    const wallet = await Wallet.findOne({ owner: String(customer.id), ownerType: 'user' });
+    const wallet = await findWallet({ owner: String(customer.id), ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
 
     // payout da loja foi cancelado (espelho)
-    const payout = await Payout.findOne({ orderId: order.id, recipientType: 'store' });
+    const payout = await findPayout({ orderId: order.id, recipientType: 'store' });
     expect(payout!.status).toBe('cancelled');
   });
 });

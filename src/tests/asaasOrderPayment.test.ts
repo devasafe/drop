@@ -23,9 +23,8 @@ import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 
-import Wallet from '../models/Wallet';
+import { createWallet, findWallet, setWalletBalance, findPayout, countPayouts } from './helpers/financePg';
 
-import Payout from '../models/Payout';
 import { ensureAsaasCustomer, createPixCharge } from '../services/asaas/payment';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -77,7 +76,7 @@ async function verifiedBuyer() {
       },
     },
   });
-  await Wallet.create({ owner: user.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0, history: [] });
+  await createWallet({ owner: user.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0 });
   const token = jwt.sign({ id: user.id, role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, JWT_SECRET);
   return { user, token };
 }
@@ -108,11 +107,11 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(createPixCharge).toHaveBeenCalledTimes(1);
 
     // NÃO debitou a carteira do cliente (saldo segue 0)
-    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
+    const wallet = await findWallet({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
 
     // Ainda NÃO criou Payout (só nasce na confirmação do webhook)
-    const payouts = await Payout.countDocuments({ orderId: res.body.order.id });
+    const payouts = await countPayouts({ orderId: res.body.order.id });
     expect(payouts).toBe(0);
   });
 
@@ -132,7 +131,7 @@ describe('createOrder com Asaas (Fase 2)', () => {
 
   it('usa saldo parcial → cobra só o restante no PIX', async () => {
     const { user, token } = await verifiedBuyer();
-    await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 30 } });
+    await setWalletBalance({ owner: user.id, ownerType: 'user' }, { balance: 30 });
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 100, quantity: 10 } } as any);
 
@@ -146,13 +145,13 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect((createPixCharge as jest.Mock).mock.calls[0][0].value).toBe(70);
     expect(res.body.order?.walletApplied).toBe(30);
     // saldo debitado
-    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
+    const wallet = await findWallet({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(0);
   });
 
   it('saldo cobre tudo → sem PIX, pedido já pago + payout da loja', async () => {
     const { user, token } = await verifiedBuyer();
-    await Wallet.updateOne({ owner: user.id, ownerType: 'user' }, { $set: { balance: 200 } });
+    await setWalletBalance({ owner: user.id, ownerType: 'user' }, { balance: 200 });
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 100, quantity: 10 } } as any);
 
@@ -166,10 +165,10 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(createPixCharge).not.toHaveBeenCalled();
     expect(res.body.order?.paymentStatus).toBe('paid');
     // saldo debitado (200 - 100)
-    const wallet = await Wallet.findOne({ owner: user.id, ownerType: 'user' });
+    const wallet = await findWallet({ owner: user.id, ownerType: 'user' });
     expect(wallet!.balance).toBe(100);
     // payout da loja criado (pago)
-    const payout = await Payout.findOne({ orderId: res.body.order.id, recipientType: 'store' });
+    const payout = await findPayout({ orderId: res.body.order.id, recipientType: 'store' });
     expect(payout).not.toBeNull();
   });
 });
@@ -207,7 +206,7 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     expect(updated!.paymentStatus).toBe('paid');
     expect(updated!.asaasChargeStatus).toBe('received');
 
-    const payout = await Payout.findOne({ orderId: order.id, recipientType: 'store' });
+    const payout = await findPayout({ orderId: order.id, recipientType: 'store' });
     expect(payout).not.toBeNull();
     expect(payout!.amount).toBe(90);
     expect(payout!.status).toBe('pending');
@@ -228,7 +227,7 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     await request(app).post('/webhooks/asaas').send(body);
     await request(app).post('/webhooks/asaas').send(body); // duplicado
 
-    const payouts = await Payout.countDocuments({ orderId: order.id, recipientType: 'store' });
+    const payouts = await countPayouts({ orderId: order.id, recipientType: 'store' });
     expect(payouts).toBe(1);
   });
 });

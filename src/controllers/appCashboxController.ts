@@ -1,7 +1,27 @@
 import { Request, Response } from 'express';
-import AppCashbox from '../models/AppCashbox';
+import { prisma } from '../lib/prisma';
+import { ensureAppCashbox, recordCashboxEntry } from '../repositories/appCashbox.repository';
 import Withdrawal from '../models/Withdrawal';
 import payoutService from '../services/payout.service';
+
+/**
+ * Carrega o extrato (ledger) do caixa na forma { type, source, amount, date, ... }
+ * que o restante deste controller espera — o `history` embutido do Mongo virou a
+ * tabela `AppCashboxEntry`.
+ */
+async function loadCashboxHistory(appCashboxId: string): Promise<any[]> {
+  const entries = await prisma.appCashboxEntry.findMany({ where: { appCashboxId } });
+  return entries.map((e) => ({
+    type: e.type,
+    source: e.source,
+    amount: Number(e.amount),
+    orderId: e.orderId,
+    deliveryId: e.deliveryId,
+    withdrawalId: e.withdrawalId,
+    reason: e.reason,
+    date: e.createdAt,
+  }));
+}
 
 /**
  * GET /admin/app-cashbox
@@ -26,28 +46,25 @@ export function computeCommissionProfit(history: { type: string; source: string;
 
 export const getAppCashbox = async (req: Request & { user?: any }, res: Response) => {
   try {
-    let cashbox = await AppCashbox.findOne();
-
-    if (!cashbox) {
-      cashbox = await AppCashbox.create({
-        balance: 0,
-        totalIncome: 0,
-        totalExpenses: 0,
-        history: [],
-      });
-    }
+    const cashbox = await ensureAppCashbox();
+    const history = await loadCashboxHistory(cashbox.id);
 
     // Calcular obrigações pendentes (custódia a repassar) e o lucro líquido REAL.
     // Lucro = só as comissões que a plataforma embolsa (não o dinheiro que entrou
     // e depois foi repassado às subcontas). `balance`/`pendingObligations` seguem
     // expostos como números contábeis de custódia.
     const pendingObligations = await payoutService.getPendingObligations();
-    const platformNet = computeCommissionProfit(cashbox.history as any);
-    const custodyBalance = cashbox.balance - pendingObligations;
+    const platformNet = computeCommissionProfit(history as any);
+    const custodyBalance = Number(cashbox.balance) - pendingObligations;
 
     // Filtrar fluxos operacionais de saque do extrato (aba Saques já lista) e ordenar por data desc
-    const cashboxObj = cashbox.toObject();
-    cashboxObj.history = [...cashboxObj.history]
+    const cashboxObj: any = {
+      _id: cashbox.id,
+      balance: Number(cashbox.balance),
+      totalIncome: Number(cashbox.totalIncome),
+      totalExpenses: Number(cashbox.totalExpenses),
+    };
+    cashboxObj.history = history
       .filter((h: any) => !OPERATIONAL_SOURCES.has(h.source))
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -90,7 +107,7 @@ export const getAppCashboxStatement = async (req: Request & { user?: any }, res:
   try {
     const { startDate, endDate, source, type, page = 1, limit = 50 } = req.query;
     
-    let cashbox = await AppCashbox.findOne();
+    const cashbox = await prisma.appCashbox.findFirst();
     if (!cashbox) {
       return res.json({
         statement: [],
@@ -101,7 +118,7 @@ export const getAppCashboxStatement = async (req: Request & { user?: any }, res:
       });
     }
 
-    let history = [...cashbox.history].filter(h => !OPERATIONAL_SOURCES.has(h.source));
+    let history = (await loadCashboxHistory(cashbox.id)).filter(h => !OPERATIONAL_SOURCES.has(h.source));
 
     // Filtrar por data
     if (startDate) {
@@ -146,9 +163,9 @@ export const getAppCashboxStatement = async (req: Request & { user?: any }, res:
       page: pageNum,
       pages: totalPages,
       cashbox: {
-        balance: cashbox.balance,
-        totalIncome: cashbox.totalIncome,
-        totalExpenses: cashbox.totalExpenses,
+        balance: Number(cashbox.balance),
+        totalIncome: Number(cashbox.totalIncome),
+        totalExpenses: Number(cashbox.totalExpenses),
       },
     });
   } catch (err) {
@@ -169,22 +186,22 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    let cashbox = await AppCashbox.findOne();
+    const cashbox = await prisma.appCashbox.findFirst();
     if (!cashbox) {
       return res.status(400).json({ error: 'Caixa do app não encontrado' });
     }
 
-    if (cashbox.balance < amount) {
-      return res.status(400).json({ 
+    if (Number(cashbox.balance) < amount) {
+      return res.status(400).json({
         error: 'Saldo insuficiente',
-        available: cashbox.balance,
+        available: Number(cashbox.balance),
         requested: amount,
       });
     }
 
     // ✅ Criar solicitação de saque
     const withdrawal = new Withdrawal({
-      appCashboxId: cashbox._id.toString(),
+      appCashboxId: cashbox.id,
       amount,
       status: 'pending',
       bankInfo,
@@ -258,8 +275,8 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
 
     // ✅ Validar se ainda tem saldo
-    const cashbox = await AppCashbox.findById(withdrawal.appCashboxId);
-    if (!cashbox || cashbox.balance < withdrawal.amount) {
+    const cashbox = await prisma.appCashbox.findFirst();
+    if (!cashbox || Number(cashbox.balance) < withdrawal.amount) {
       return res.status(400).json({ error: 'Saldo insuficiente para aprovar saque' });
     }
 
@@ -269,18 +286,14 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     withdrawal.processedBy = userId;
     await withdrawal.save();
 
-    // ✅ Registrar no caixa
-    cashbox.balance -= withdrawal.amount;
-    cashbox.totalExpenses += withdrawal.amount;
-    cashbox.history.push({
+    // ✅ Registrar no caixa (débito manual)
+    await recordCashboxEntry(prisma, {
       type: 'withdrawal',
       source: 'manual_withdrawal',
       amount: withdrawal.amount,
       withdrawalId: withdrawal._id.toString(),
       reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
-      date: new Date(),
     });
-    await cashbox.save();
 
     console.log('✅ Saque aprovado:', withdrawal._id);
 
@@ -346,34 +359,19 @@ export const registerDeposit = async (req: Request & { user?: any }, res: Respon
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    let cashbox = await AppCashbox.findOne();
-    if (!cashbox) {
-      cashbox = await AppCashbox.create({
-        balance: 0,
-        totalIncome: 0,
-        totalExpenses: 0,
-        history: [],
-      });
-    }
-
-    // ✅ Adicionar ao caixa
-    cashbox.balance += amount;
-    cashbox.totalIncome += amount;
-    cashbox.history.push({
+    await recordCashboxEntry(prisma, {
       type: 'deposit',
       source: 'manual_deposit',
       amount,
       reason: reason || 'Depósito manual',
-      date: new Date(),
     });
-
-    await cashbox.save();
+    const cashbox = await ensureAppCashbox();
 
     console.log('✅ Depósito registrado:', amount);
 
     return res.json({
       success: true,
-      cashbox,
+      cashbox: { ...cashbox, balance: Number(cashbox.balance), totalIncome: Number(cashbox.totalIncome), totalExpenses: Number(cashbox.totalExpenses) },
       message: 'Depósito registrado com sucesso!',
     });
   } catch (err) {
@@ -401,20 +399,16 @@ export async function recordReservedPayout(
 ) {
   try {
     if (!(amount > 0)) return;
-    let cashbox = await AppCashbox.findOne();
-    if (!cashbox) {
-      cashbox = await AppCashbox.create({ balance: 0, totalIncome: 0, totalExpenses: 0, history: [] });
-    }
-    cashbox.history.push({
+    // Só documenta no extrato (não afeta balance — a saída real é o payout_paid).
+    await recordCashboxEntry(prisma, {
       type: 'expense',
       source: target === 'store' ? 'store_payout_reserved' : 'motoboy_payout_reserved',
       amount,
       orderId,
       deliveryId,
       reason,
-      date: new Date(),
+      affectsBalance: false,
     });
-    await cashbox.save();
   } catch (err) {
     console.error(`❌ Erro ao registrar repasse reservado:`, err);
   }
@@ -429,34 +423,18 @@ export async function addCommissionToAppCashbox(
   opts?: { affectsBalance?: boolean }
 ) {
   try {
-    let cashbox = await AppCashbox.findOne();
-    if (!cashbox) {
-      cashbox = await AppCashbox.create({
-        balance: 0,
-        totalIncome: 0,
-        totalExpenses: 0,
-        history: [],
-      });
-    }
-
     // Em pedidos pagos antecipadamente (não-COD), o dinheiro total já entrou via order_payment.
     // A comissão é só uma anotação no extrato do que já está contido na entrada total.
     const affectsBalance = opts?.affectsBalance ?? true;
-    if (affectsBalance) {
-      cashbox.balance += amount;
-      cashbox.totalIncome += amount;
-    }
-    cashbox.history.push({
+    await recordCashboxEntry(prisma, {
       type: 'income',
       source: type,
       amount,
       orderId,
       deliveryId,
       reason,
-      date: new Date(),
+      affectsBalance,
     });
-
-    await cashbox.save();
     console.log(`✅ Comissão adicionada ao caixa: ${type} = R$ ${amount} (affectsBalance=${affectsBalance})`);
   } catch (err) {
     console.error(`❌ Erro ao adicionar comissão ao caixa:`, err);

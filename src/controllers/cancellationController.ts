@@ -7,8 +7,7 @@ import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
 
 
-import Wallet from '../models/Wallet';
-import AppCashbox from '../models/AppCashbox';
+import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import PlatformConfig from '../models/PlatformConfig';
 import notifier from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateOrderDistribution, calculateLateCancellationFee } from '../utils/walletCalculations';
@@ -23,7 +22,7 @@ import {
   emitWalletRefund,
 } from '../utils/socketEmitter';
 import { addCommissionToAppCashbox } from './appCashboxController';
-import walletService from '../services/wallet.service';
+import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import logger from '../config/logger';
 import StoreSubscription from '../models/StoreSubscription';
@@ -119,11 +118,11 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {
-      const refundSession = await mongoose.startSession();
       try {
-        await refundSession.withTransaction(async () => {
+        // Tudo no Postgres numa única transação (Payout+Wallet+AppCashbox).
+        await prisma.$transaction(async (tx) => {
           // Cancelar todos os payouts do pedido
-          const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_cancelled', refundSession);
+          const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_cancelled', tx);
           if (result.errors.length > 0) {
             // #3: há payout já requested/paid — o dinheiro pode já ter saído pra loja/motoboy.
             // NÃO reembolsar o cliente automaticamente (risco de gasto duplo). Aborta a
@@ -137,42 +136,21 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           // Fluxo legado (carteira virtual): credita cliente + debita AppCashbox.
           // Em modo Asaas, o estorno é REAL (fora da transação, abaixo) — não mexe aqui.
           if (!useAsaas) {
-            const clientWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(refundSession);
-            if (clientWallet) {
-              clientWallet.balance += refundAmount;
-              clientWallet.totalIncome += refundAmount;
-              clientWallet.history.push({
-                date: new Date(),
-                type: 'credit',
-                category: 'refund',
-                amount: refundAmount,
-                reason: 'Reembolso - Pedido cancelado pelo cliente',
-                relatedId: orderId,
-              });
-              await clientWallet.save({ session: refundSession });
-            }
-
-            const appCashbox = await AppCashbox.findOne().session(refundSession);
-            if (appCashbox) {
-              appCashbox.balance -= refundAmount;
-              appCashbox.totalExpenses += refundAmount;
-              appCashbox.history.push({
-                type: 'expense',
-                source: 'order_refund',
-                amount: refundAmount,
-                orderId,
-                reason: 'Reembolso - Pedido cancelado pelo cliente',
-                date: new Date(),
-              });
-              await appCashbox.save({ session: refundSession });
-            }
+            await walletService.credit(
+              { owner: customerId, ownerType: 'user', amount: refundAmount, reason: 'Reembolso - Pedido cancelado pelo cliente', category: 'refund', relatedId: orderId },
+              tx,
+            );
+            await recordCashboxEntry(tx, {
+              type: 'expense', source: 'order_refund', amount: refundAmount, orderId,
+              reason: 'Reembolso - Pedido cancelado pelo cliente',
+            });
           }
         });
 
         if (useAsaas) {
           // Devolve o saldo da carteira que foi usado no pedido (se houve).
           if (order.walletApplied && order.walletApplied > 0) {
-            await Wallet.updateOne({ owner: customerId, ownerType: 'user' }, { $inc: { balance: order.walletApplied, totalIncome: order.walletApplied } });
+            await walletService.credit({ owner: customerId, ownerType: 'user', amount: order.walletApplied, reason: 'Devolução de saldo — pedido cancelado', category: 'refund', relatedId: orderId });
           }
           // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se a parte PIX foi paga.
           if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
@@ -202,19 +180,14 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           logger.error('Erro ao reverter pagamento no cancelamento pelo cliente', walletError as Error, { orderId });
           refundStatus = 'failed';
         }
-      } finally {
-        refundSession.endSession();
       }
     }
 
     // Taxa de cancelamento tardio (quando pedido já foi enviado)
     let lateCancellationFee = 0;
     if (isLate) {
-      const session = await mongoose.startSession();
-      session.startTransaction();
-
       try {
-        const config = await PlatformConfig.findOne().session(session);
+        const config = await PlatformConfig.findOne();
         const feeConfig = {
           lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
@@ -224,92 +197,56 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         );
         lateCancellationFee = totalFee;
 
-        if (isCashOnDelivery) {
-          // Fee sai do blockedBalance da loja (cliente não pagou nada)
-          const storeWallet = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' }).session(session);
-          if (storeWallet) {
-            storeWallet.blockedBalance = Math.max(0, (storeWallet.blockedBalance || 0) - totalFee);
-            storeWallet.totalSpent += totalFee;
-            storeWallet.history.push({
-              date: new Date(),
-              type: 'debit',
-              category: 'penalty',
-              amount: totalFee,
-              reason: 'Garantia executada - cancelamento tardio pelo cliente (COD)',
-              reference: `LATE_CANCEL_COD_${orderId}`,
-            });
-            await storeWallet.save({ session });
-          }
-
-          // Criar dívida no cliente
-          await new CustomerDebt({
-            customerId,
-            amount: totalFee,
-            sourceOrderId: order.id,
-            status: 'pending',
-            reason: 'Multa de cancelamento tardio em pedido pagar na entrega',
-          }).save({ session });
-        } else {
-          // Fluxo normal: debitar da wallet do cliente
-          const customerWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(session);
-          if (customerWallet) {
-            customerWallet.balance -= totalFee;
-            customerWallet.totalSpent += totalFee;
-            customerWallet.history.push({
-              type: 'debit',
-              category: 'penalty',
-              amount: totalFee,
-              reason: 'Taxa de cancelamento tardio',
-              date: new Date(),
-              reference: `LATE_CANCEL_${orderId}`,
-            });
-            await customerWallet.save({ session });
-          }
-        }
-
-        // Creditar motoboy share como Payout released (#1). Crédito cru em
-        // motoboyWallet.balance é sobrescrito pela reconciliação em getMotoboyWallet
-        // e não é sacável (o saque consome só Payouts). Um Payout released é reconciliável.
+        // Resolve o motoboy antes da transação (Delivery é leitura).
+        let compMotoboyId: string | null = null;
         if (motoboyShare > 0 && order.deliveryId) {
-          const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
-          if (delivery?.motoboyId) {
+          const delivery = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+          compMotoboyId = delivery?.motoboyId ?? null;
+        }
+        // CustomerDebt (Mongo) fica fora da transação Postgres.
+        const debtToCreate = isCashOnDelivery
+          ? { customerId, amount: totalFee, sourceOrderId: order.id, status: 'pending', reason: 'Multa de cancelamento tardio em pedido pagar na entrega' }
+          : null;
+
+        await prisma.$transaction(async (tx) => {
+          if (isCashOnDelivery) {
+            // Fee sai do blockedBalance da loja (cliente não pagou nada).
+            const w = await walletService.getOrCreate(String(order.storeId), 'store', tx);
+            const newBlocked = Math.max(0, Number(w.blockedBalance) - totalFee);
+            await tx.wallet.update({
+              where: { id: w.id },
+              data: { blockedBalance: newBlocked, totalSpent: { increment: totalFee } },
+            });
+          } else {
+            // Fluxo normal: debita a multa da carteira do cliente.
+            await walletService.debit(
+              { owner: customerId, ownerType: 'user', amount: totalFee, reason: 'Taxa de cancelamento tardio', category: 'penalty', reference: `LATE_CANCEL_${orderId}` },
+              tx,
+            );
+          }
+
+          // Compensação do motoboy: Payout released (reconciliável e sacável).
+          if (compMotoboyId) {
             const compPayout = await payoutService.createPendingPayout({
-              recipientType: 'motoboy',
-              recipientId: String(delivery.motoboyId),
-              orderId: String(order._id),
-              deliveryId: String(delivery._id),
-              amount: motoboyShare,
-              session,
+              recipientType: 'motoboy', recipientId: compMotoboyId,
+              orderId: order.id, deliveryId: String(order.deliveryId), amount: motoboyShare, tx,
             });
-            await payoutService.releasePayout(String(compPayout._id), session);
+            await payoutService.releasePayout(compPayout.id, tx);
           }
-        }
 
-        // Creditar a multa INTEIRA no AppCashbox (#1). O motoboyShare é pago depois como
-        // Payout (debita o cashbox no saque), restando appShare de lucro líquido. Creditar
-        // só appShare deixaria o Payout do motoboy sem lastro no cofre.
-        if (totalFee > 0) {
-          const appCashbox = await AppCashbox.findOne().session(session);
-          if (appCashbox) {
-            appCashbox.balance += totalFee;
-            appCashbox.totalIncome += totalFee;
-            appCashbox.history.push({
-              type: 'income',
-              source: 'cancelled_order',
-              amount: totalFee,
+          // Multa INTEIRA no AppCashbox (dá lastro ao Payout do motoboy).
+          if (totalFee > 0) {
+            await recordCashboxEntry(tx, {
+              type: 'income', source: 'cancelled_order', amount: totalFee, orderId,
               reason: `Taxa cancelamento tardio (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
-              date: new Date(),
-              orderId: orderId,
             });
-            await appCashbox.save({ session });
           }
-        }
+        });
 
-        await session.commitTransaction();
-        session.endSession();
+        if (debtToCreate) {
+          await new CustomerDebt(debtToCreate).save();
+        }
       } catch (feeErr) {
-        await session.abortTransaction();
-        session.endSession();
         logger.error('Erro ao cobrar taxa de cancelamento tardio', feeErr as Error, { orderId });
       }
     }
@@ -337,20 +274,22 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       const config = await PlatformConfig.findOne();
       const feePercent = config?.lateCancellationFeePercent ?? 10;
       const blockAmount = (order.totalValue || 0) * feePercent / 100;
-      const storeWalletCOD = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' });
-      if (storeWalletCOD && storeWalletCOD.blockedBalance > 0) {
-        const release = Math.min(blockAmount, storeWalletCOD.blockedBalance);
-        storeWalletCOD.blockedBalance -= release;
-        storeWalletCOD.balance += release;
-        storeWalletCOD.history.push({
-          date: new Date(),
-          type: 'credit',
-          category: 'transfer',
-          amount: release,
-          reason: `Liberação de reserva COD - pedido cancelado antes do pickup ${orderId}`,
-          reference: `COD_UNBLOCK_${orderId}`,
+      const storeWalletCOD = await walletService.getOrCreate(String(order.storeId), 'store');
+      if (Number(storeWalletCOD.blockedBalance) > 0) {
+        const release = Math.min(blockAmount, Number(storeWalletCOD.blockedBalance));
+        await prisma.$transaction(async (tx) => {
+          await tx.wallet.update({
+            where: { id: storeWalletCOD.id },
+            data: { blockedBalance: { decrement: release }, balance: { increment: release } },
+          });
+          await tx.walletEntry.create({
+            data: {
+              walletId: storeWalletCOD.id, type: 'credit', category: 'transfer', amount: release,
+              reason: `Liberação de reserva COD - pedido cancelado antes do pickup ${orderId}`,
+              reference: `COD_UNBLOCK_${orderId}`,
+            },
+          });
         });
-        await storeWalletCOD.save();
       }
     }
 
@@ -541,43 +480,33 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       data: { status: order.status, acceptedAt: order.acceptedAt },
     });
 
-    // Se pedido COD: bloquear fee potencial na wallet da loja (atomicamente com order.save)
+    // Se pedido COD: bloquear fee potencial na wallet da loja (atomicamente com o status).
     if (order.paymentMethod === 'cash_on_delivery') {
-      const codSession = await mongoose.startSession();
-      codSession.startTransaction();
       try {
-        const config = await PlatformConfig.findOne().session(codSession);
+        const config = await PlatformConfig.findOne();
         const feePercent = config?.lateCancellationFeePercent ?? 10;
         const requiredBlock = (order.totalValue || 0) * feePercent / 100;
 
-        const storeWalletCOD = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' }).session(codSession);
-        if (!storeWalletCOD || storeWalletCOD.balance < requiredBlock) {
-          await codSession.abortTransaction();
-          codSession.endSession();
+        const storeWalletCOD = await walletService.getOrCreate(String(order.storeId), 'store');
+        if (Number(storeWalletCOD.balance) < requiredBlock) {
           return res.status(400).json({
             error: 'Saldo insuficiente para garantir pedido de pagamento na entrega',
             required: requiredBlock,
-            available: storeWalletCOD?.balance ?? 0,
+            available: Number(storeWalletCOD.balance),
           });
         }
 
-        storeWalletCOD.balance -= requiredBlock;
-        storeWalletCOD.blockedBalance = (storeWalletCOD.blockedBalance || 0) + requiredBlock;
-        storeWalletCOD.history.push({
-          date: new Date(),
-          type: 'debit',
-          category: 'transfer',
-          amount: requiredBlock,
-          reason: `Reserva de garantia - pedido COD ${order._id}`,
-          reference: `COD_BLOCK_${order._id}`,
+        await prisma.$transaction(async (tx) => {
+          await tx.wallet.update({
+            where: { id: storeWalletCOD.id },
+            data: { balance: { decrement: requiredBlock }, blockedBalance: { increment: requiredBlock } },
+          });
+          await tx.walletEntry.create({
+            data: { walletId: storeWalletCOD.id, type: 'debit', category: 'transfer', amount: requiredBlock, reason: `Reserva de garantia - pedido COD ${order.id}`, reference: `COD_BLOCK_${order.id}` },
+          });
         });
-        await storeWalletCOD.save({ session: codSession });
-        await codSession.commitTransaction();
-        codSession.endSession();
         await persistOrder();
       } catch (codErr) {
-        await codSession.abortTransaction();
-        codSession.endSession();
         logger.error('Erro ao bloquear saldo para pedido COD', codErr as Error, { orderId: order.id });
         return res.status(500).json({ error: 'Erro ao processar garantia do pedido COD' });
       }
@@ -750,10 +679,9 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {
-      const rejectSession = await mongoose.startSession();
       try {
-        await rejectSession.withTransaction(async () => {
-          const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_rejected_by_store', rejectSession);
+        await prisma.$transaction(async (tx) => {
+          const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_rejected_by_store', tx);
           if (result.errors.length > 0) {
             // #3: payout já liquidado — não reembolsar cego; escala pro admin.
             throw Object.assign(new Error('PAYOUT_ALREADY_SETTLED'), {
@@ -764,42 +692,21 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
           // Fluxo legado (carteira virtual). Em modo Asaas o estorno é REAL (abaixo).
           if (!useAsaas) {
-            const clientWallet = await Wallet.findOne({ owner: order.customerId.toString(), ownerType: 'user' }).session(rejectSession);
-            if (clientWallet) {
-              clientWallet.balance += refundAmount;
-              clientWallet.totalIncome += refundAmount;
-              clientWallet.history.push({
-                date: new Date(),
-                type: 'credit',
-                category: 'refund',
-                amount: refundAmount,
-                reason: 'Reembolso - Pedido rejeitado pela loja',
-                relatedId: orderId,
-              });
-              await clientWallet.save({ session: rejectSession });
-            }
-
-            const appCashbox = await AppCashbox.findOne().session(rejectSession);
-            if (appCashbox) {
-              appCashbox.balance -= refundAmount;
-              appCashbox.totalExpenses += refundAmount;
-              appCashbox.history.push({
-                type: 'expense',
-                source: 'order_refund',
-                amount: refundAmount,
-                orderId,
-                reason: 'Reembolso - Pedido rejeitado pela loja',
-                date: new Date(),
-              });
-              await appCashbox.save({ session: rejectSession });
-            }
+            await walletService.credit(
+              { owner: String(order.customerId), ownerType: 'user', amount: refundAmount, reason: 'Reembolso - Pedido rejeitado pela loja', category: 'refund', relatedId: orderId },
+              tx,
+            );
+            await recordCashboxEntry(tx, {
+              type: 'expense', source: 'order_refund', amount: refundAmount, orderId,
+              reason: 'Reembolso - Pedido rejeitado pela loja',
+            });
           }
         });
 
         if (useAsaas) {
           // Devolve o saldo da carteira usado no pedido (se houve).
           if (order.walletApplied && order.walletApplied > 0) {
-            await Wallet.updateOne({ owner: order.customerId.toString(), ownerType: 'user' }, { $inc: { balance: order.walletApplied, totalIncome: order.walletApplied } });
+            await walletService.credit({ owner: String(order.customerId), ownerType: 'user', amount: order.walletApplied, reason: 'Devolução de saldo — pedido rejeitado', category: 'refund', relatedId: orderId });
           }
           if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
             try {
@@ -823,19 +730,14 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
           logger.error('Erro ao reverter pagamento na rejeição pela loja', walletError as Error, { orderId });
           refundStatus = 'failed';
         }
-      } finally {
-        rejectSession.endSession();
       }
     }
 
     // Taxa de cancelamento tardio cobrada da loja (quando pedido já foi enviado)
     let lateCancellationFee = 0;
     if (isLate) {
-      const session = await mongoose.startSession();
-      session.startTransaction();
-
       try {
-        const config = await PlatformConfig.findOne().session(session);
+        const config = await PlatformConfig.findOne();
         const feeConfig = {
           lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
@@ -845,66 +747,44 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         );
         lateCancellationFee = totalFee;
 
-        // Debitar taxa da wallet da loja
-        const storeWallet = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' }).session(session);
-        if (storeWallet) {
-          if (isCashOnDelivery) {
-            storeWallet.blockedBalance = Math.max(0, (storeWallet.blockedBalance || 0) - totalFee);
-            storeWallet.totalSpent += totalFee;
-          } else {
-            storeWallet.balance -= totalFee;
-            storeWallet.totalSpent += totalFee;
-          }
-          storeWallet.history.push({
-            type: 'debit',
-            category: 'penalty',
-            amount: totalFee,
-            reason: 'Taxa de cancelamento tardio - rejeição pela loja',
-            date: new Date(),
-            reference: `LATE_CANCEL_STORE_${orderId}`,
-          });
-          await storeWallet.save({ session });
-        }
-
-        // Creditar motoboy share como Payout released (#1) — ver explicação no fluxo do cliente.
+        let compMotoboyId: string | null = null;
         if (motoboyShare > 0 && order.deliveryId) {
-          const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
-          if (delivery?.motoboyId) {
+          const delivery = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+          compMotoboyId = delivery?.motoboyId ?? null;
+        }
+
+        await prisma.$transaction(async (tx) => {
+          // Debita a taxa da carteira da loja (do bucket bloqueado no COD, do saldo senão).
+          const w = await walletService.getOrCreate(String(order.storeId), 'store', tx);
+          if (isCashOnDelivery) {
+            const newBlocked = Math.max(0, Number(w.blockedBalance) - totalFee);
+            await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: totalFee } } });
+            await tx.walletEntry.create({ data: { walletId: w.id, type: 'debit', category: 'penalty', amount: totalFee, reason: 'Taxa de cancelamento tardio - rejeição pela loja', reference: `LATE_CANCEL_STORE_${orderId}` } });
+          } else {
+            await walletService.debit(
+              { owner: String(order.storeId), ownerType: 'store', amount: totalFee, reason: 'Taxa de cancelamento tardio - rejeição pela loja', category: 'penalty', reference: `LATE_CANCEL_STORE_${orderId}` },
+              tx,
+            );
+          }
+
+          // Compensação do motoboy: Payout released.
+          if (compMotoboyId) {
             const compPayout = await payoutService.createPendingPayout({
-              recipientType: 'motoboy',
-              recipientId: String(delivery.motoboyId),
-              orderId: String(order._id),
-              deliveryId: String(delivery._id),
-              amount: motoboyShare,
-              session,
+              recipientType: 'motoboy', recipientId: compMotoboyId,
+              orderId: order.id, deliveryId: String(order.deliveryId), amount: motoboyShare, tx,
             });
-            await payoutService.releasePayout(String(compPayout._id), session);
+            await payoutService.releasePayout(compPayout.id, tx);
           }
-        }
 
-        // Creditar a multa INTEIRA no AppCashbox (#1) — dá lastro ao Payout do motoboy.
-        if (totalFee > 0) {
-          const appCashbox = await AppCashbox.findOne().session(session);
-          if (appCashbox) {
-            appCashbox.balance += totalFee;
-            appCashbox.totalIncome += totalFee;
-            appCashbox.history.push({
-              type: 'income',
-              source: 'cancelled_order',
-              amount: totalFee,
+          // Multa INTEIRA no AppCashbox (lastro do Payout do motoboy).
+          if (totalFee > 0) {
+            await recordCashboxEntry(tx, {
+              type: 'income', source: 'cancelled_order', amount: totalFee, orderId,
               reason: `Taxa cancelamento tardio loja (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
-              date: new Date(),
-              orderId: orderId,
             });
-            await appCashbox.save({ session });
           }
-        }
-
-        await session.commitTransaction();
-        session.endSession();
+        });
       } catch (feeErr) {
-        await session.abortTransaction();
-        session.endSession();
         logger.error('Erro ao cobrar taxa de cancelamento tardio da loja', feeErr as Error, { orderId });
       }
     }
@@ -932,20 +812,13 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       const config = await PlatformConfig.findOne();
       const feePercent = config?.lateCancellationFeePercent ?? 10;
       const blockAmount = (order.totalValue || 0) * feePercent / 100;
-      const storeWalletCOD = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' });
-      if (storeWalletCOD && storeWalletCOD.blockedBalance > 0) {
-        const release = Math.min(blockAmount, storeWalletCOD.blockedBalance);
-        storeWalletCOD.blockedBalance -= release;
-        storeWalletCOD.balance += release;
-        storeWalletCOD.history.push({
-          date: new Date(),
-          type: 'credit',
-          category: 'transfer',
-          amount: release,
-          reason: `Liberação de reserva COD - rejeição antes do pickup ${orderId}`,
-          reference: `COD_UNBLOCK_${orderId}`,
+      const storeWalletCOD = await walletService.getOrCreate(String(order.storeId), 'store');
+      if (Number(storeWalletCOD.blockedBalance) > 0) {
+        const release = Math.min(blockAmount, Number(storeWalletCOD.blockedBalance));
+        await prisma.$transaction(async (tx) => {
+          await tx.wallet.update({ where: { id: storeWalletCOD.id }, data: { blockedBalance: { decrement: release }, balance: { increment: release } } });
+          await tx.walletEntry.create({ data: { walletId: storeWalletCOD.id, type: 'credit', category: 'transfer', amount: release, reason: `Liberação de reserva COD - rejeição antes do pickup ${orderId}`, reference: `COD_UNBLOCK_${orderId}` } });
         });
-        await storeWalletCOD.save();
       }
     }
 

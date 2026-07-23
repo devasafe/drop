@@ -11,7 +11,7 @@ import { releaseSinglePayoutViaAsaas } from '../services/asaas/release';
 
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Payout from '../models/Payout';
+import { createPayout, findPayoutById } from './helpers/financePg';
 import { ownerIdForStore } from './helpers/storeOwner';
 
 const post = (asaasClient as any).post as jest.Mock;
@@ -37,7 +37,7 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
   it('libera SÓ o payout da loja, mantendo o do motoboy pendente', async () => {
     post.mockResolvedValue({ id: 'tr_loja', status: 'DONE' });
 
-    const orderId = new mongoose.Types.ObjectId();
+    const orderId = String(new mongoose.Types.ObjectId());
     const store = await prisma.store.create({ data: {
       ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja',
@@ -48,17 +48,17 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
       asaas: { status: 'active', walletId: 'wlt_moto' },
     } } as any);
 
-    const storePayout = await Payout.create({
+    const storePayout = await createPayout({
       recipientType: 'store', recipientId: store.id, orderId, amount: 70, status: 'pending',
     });
-    const motoboyPayout = await Payout.create({
+    const motoboyPayout = await createPayout({
       recipientType: 'motoboy', recipientId: motoboy.id, orderId, amount: 20, status: 'pending',
     });
 
     await releaseSinglePayoutViaAsaas(String(storePayout._id));
 
-    const storeAfter = await Payout.findById(storePayout._id);
-    const motoboyAfter = await Payout.findById(motoboyPayout._id);
+    const storeAfter = await findPayoutById(storePayout._id);
+    const motoboyAfter = await findPayoutById(motoboyPayout._id);
 
     expect(storeAfter?.status).toBe('released');
     expect(motoboyAfter?.status).toBe('pending'); // NÃO foi liberado junto
@@ -68,18 +68,18 @@ describe('releaseSinglePayoutViaAsaas (liberação granular)', () => {
   });
 
   it('relança erro quando o recebedor não tem subconta (admin vê a falha)', async () => {
-    const orderId = new mongoose.Types.ObjectId();
+    const orderId = String(new mongoose.Types.ObjectId());
     const store = await prisma.store.create({ data: {
       ownerId: await ownerIdForStore('@arels.test'),
       name: 'Loja sem subconta',
       asaas: { status: 'none' }, // sem walletId
     } });
-    const payout = await Payout.create({
+    const payout = await createPayout({
       recipientType: 'store', recipientId: store.id, orderId, amount: 50, status: 'pending',
     });
 
     await expect(releaseSinglePayoutViaAsaas(String(payout._id))).rejects.toThrow();
-    const after = await Payout.findById(payout._id);
+    const after = await findPayoutById(payout._id);
     expect(after?.status).toBe('pending');
     expect(post).not.toHaveBeenCalled();
   });

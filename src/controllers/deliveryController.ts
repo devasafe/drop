@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import mongoose, { Types } from 'mongoose';
-import AppCashbox from '../models/AppCashbox';
+import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 
 
 import { prisma } from '../lib/prisma';
@@ -9,7 +9,7 @@ import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
 import userRepository from '../repositories/user.repository';
 
-import Wallet from '../models/Wallet';
+
 import PlatformConfig from '../models/PlatformConfig';
 import Gamification from '../models/Gamification';
 import { getLevel, checkAndAwardBadges } from './gamificationController';
@@ -20,7 +20,7 @@ import { emitDeliveryStatusChanged, emitDeliveryUpdated, emitGamificationPointsE
 import { getDefaultAddress } from '../utils/userHelpers';
 import { isDeliveryWithinRadius } from '../services/dispatch';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
-import walletService from '../services/wallet.service';
+import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import env from '../config/env';
 import { releaseOrderViaAsaas } from '../services/asaas/release';
@@ -272,55 +272,29 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
           order.deliveryDistance || 0
         );
 
-        const codSession = await mongoose.startSession();
-        codSession.startTransaction();
         try {
-          // Creditar loja e liberar bloqueio
-          const storeWallet = await Wallet.findOne({ owner: order.storeId.toString(), ownerType: 'store' }).session(codSession);
-          if (storeWallet) {
-            storeWallet.balance += distribution.storeAmount + requiredBlock;
-            storeWallet.totalIncome += distribution.storeAmount;
-            storeWallet.blockedBalance = Math.max(0, (storeWallet.blockedBalance || 0) - requiredBlock);
-            storeWallet.history.push({
-              date: new Date(),
-              type: 'credit',
-              category: 'payment',
-              amount: distribution.storeAmount,
-              reason: `Venda COD - pedido ${order._id}`,
-              relatedId: order._id.toString(),
+          const storeWallet = await walletService.getOrCreate(String(order.storeId), 'store');
+          await prisma.$transaction(async (tx) => {
+            // Credita a loja (venda) e libera o bloqueio de garantia.
+            const newBlocked = Math.max(0, Number(storeWallet.blockedBalance) - requiredBlock);
+            await tx.wallet.update({
+              where: { id: storeWallet.id },
+              data: {
+                balance: { increment: distribution.storeAmount + requiredBlock },
+                totalIncome: { increment: distribution.storeAmount },
+                blockedBalance: newBlocked,
+              },
             });
-            storeWallet.history.push({
-              date: new Date(),
-              type: 'credit',
-              category: 'transfer',
-              amount: requiredBlock,
-              reason: `Liberação de reserva COD - pedido ${order._id}`,
-              reference: `COD_UNBLOCK_${order._id}`,
-            });
-            await storeWallet.save({ session: codSession });
-          }
+            await tx.walletEntry.create({ data: { walletId: storeWallet.id, type: 'credit', category: 'payment', amount: distribution.storeAmount, reason: `Venda COD - pedido ${order.id}`, relatedId: order.id } });
+            await tx.walletEntry.create({ data: { walletId: storeWallet.id, type: 'credit', category: 'transfer', amount: requiredBlock, reason: `Liberação de reserva COD - pedido ${order.id}`, reference: `COD_UNBLOCK_${order.id}` } });
 
-          // Registrar comissão no AppCashbox
-          const appCashbox = await AppCashbox.findOne().session(codSession);
-          if (appCashbox) {
-            appCashbox.balance += distribution.product.appCommission;
-            appCashbox.totalIncome += distribution.product.appCommission;
-            appCashbox.history.push({
-              type: 'income',
-              source: 'product_commission',
-              amount: distribution.product.appCommission,
-              reason: `Comissão COD - pedido ${order._id}`,
-              date: new Date(),
-              orderId: order._id.toString(),
+            // Comissão de produto no AppCashbox.
+            await recordCashboxEntry(tx, {
+              type: 'income', source: 'product_commission', amount: distribution.product.appCommission,
+              orderId: order.id, reason: `Comissão COD - pedido ${order.id}`,
             });
-            await appCashbox.save({ session: codSession });
-          }
-
-          await codSession.commitTransaction();
-          codSession.endSession();
+          });
         } catch (txErr) {
-          await codSession.abortTransaction();
-          codSession.endSession();
           console.error('Erro na distribuição financeira COD:', txErr);
         }
       } catch (err) {
@@ -335,20 +309,8 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
       const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
       const motoboyAmount = delivery.fee * (1 - motoboyCommissionDecimal);
 
-      // Garantir que a wallet do motoboy exista
-      let motoboyWallet = await Wallet.findOne({ owner: userId, ownerType: 'motoboy' });
-      if (!motoboyWallet) {
-        motoboyWallet = await Wallet.create({
-          owner: userId,
-          ownerType: 'motoboy',
-          balance: 0,
-          totalIncome: 0,
-          totalSpent: 0,
-          availableBalance: 0,
-          pendingBalance: 0,
-          history: [],
-        });
-      }
+      // Garantir que a wallet do motoboy exista (pra receber o payout).
+      await walletService.getOrCreate(userId, 'motoboy');
 
       const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
       if (useAsaas) {
@@ -372,27 +334,22 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
           console.log(`⏸️ [finalizarEntrega] autoApprovePayouts OFF — payouts do pedido ${order._id} ficam PENDING para liberação manual do admin`);
         }
       } else {
-        const payoutSession = await mongoose.startSession();
-        try {
-          await payoutSession.withTransaction(async () => {
-            // Criar payout do motoboy (já released — entrega concluída)
-            if (motoboyAmount > 0) {
-              await payoutService.createPendingPayout({
-                recipientType: 'motoboy',
-                recipientId: userId,
-                orderId: order._id.toString(),
-                deliveryId: delivery._id.toString(),
-                amount: motoboyAmount,
-                session: payoutSession,
-              });
-            }
+        await prisma.$transaction(async (tx) => {
+          // Criar payout do motoboy (já released — entrega concluída)
+          if (motoboyAmount > 0) {
+            await payoutService.createPendingPayout({
+              recipientType: 'motoboy',
+              recipientId: userId,
+              orderId: order.id,
+              deliveryId: delivery.id,
+              amount: motoboyAmount,
+              tx,
+            });
+          }
 
-            // Liberar TODOS os payouts do pedido (loja pending→released + motoboy pending→released)
-            await payoutService.releasePayoutsForOrder(order._id.toString(), payoutSession);
-          });
-        } finally {
-          payoutSession.endSession();
-        }
+          // Liberar TODOS os payouts do pedido (loja pending→released + motoboy pending→released)
+          await payoutService.releasePayoutsForOrder(order.id, tx);
+        });
       }
 
       console.log(`✅ [finalizarEntrega] Payouts released for order ${order._id}. Motoboy: R$ ${motoboyAmount.toFixed(2)}`);
@@ -1129,47 +1086,21 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
 
       // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox
       try {
-        const refundSession = await mongoose.startSession();
-        try {
-          await refundSession.withTransaction(async () => {
-            await payoutService.cancelPayoutsForOrder(order._id.toString(), 'product_returned', refundSession);
+        await prisma.$transaction(async (tx) => {
+          await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
 
-            const refundAmount = order.totalValue || 0;
-            if (refundAmount > 0) {
-              const clientWallet = await Wallet.findOne({ owner: order.customerId.toString(), ownerType: 'user' }).session(refundSession);
-              if (clientWallet) {
-                clientWallet.balance += refundAmount;
-                clientWallet.totalIncome += refundAmount;
-                clientWallet.history.push({
-                  date: new Date(),
-                  type: 'credit',
-                  category: 'refund',
-                  amount: refundAmount,
-                  reason: 'Reembolso - Produto devolvido a loja pelo motoboy',
-                  relatedId: order._id.toString(),
-                });
-                await clientWallet.save({ session: refundSession });
-              }
-
-              const appCashbox = await AppCashbox.findOne().session(refundSession);
-              if (appCashbox) {
-                appCashbox.balance -= refundAmount;
-                appCashbox.totalExpenses += refundAmount;
-                appCashbox.history.push({
-                  type: 'expense',
-                  source: 'order_refund',
-                  amount: refundAmount,
-                  orderId: order._id.toString(),
-                  reason: 'Reembolso - Produto devolvido a loja',
-                  date: new Date(),
-                });
-                await appCashbox.save({ session: refundSession });
-              }
-            }
-          });
-        } finally {
-          refundSession.endSession();
-        }
+          const refundAmount = order.totalValue || 0;
+          if (refundAmount > 0) {
+            await walletService.credit(
+              { owner: String(order.customerId), ownerType: 'user', amount: refundAmount, reason: 'Reembolso - Produto devolvido a loja pelo motoboy', category: 'refund', relatedId: order.id },
+              tx,
+            );
+            await recordCashboxEntry(tx, {
+              type: 'expense', source: 'order_refund', amount: refundAmount, orderId: order.id,
+              reason: 'Reembolso - Produto devolvido a loja',
+            });
+          }
+        });
         console.log(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
       } catch (refundErr) {
         console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);

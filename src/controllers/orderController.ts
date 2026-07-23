@@ -9,7 +9,6 @@ import userRepository from '../repositories/user.repository';
 
 import Transaction from '../models/Transaction';
 
-import Wallet from '../models/Wallet';
 import notifier from '../services/notifier';
 import logger from '../config/logger';
 import {
@@ -25,7 +24,8 @@ import {
 } from '../utils/walletCalculations';
 import StoreSubscription from '../models/StoreSubscription';
 import { addCommissionToAppCashbox } from './appCashboxController';
-import AppCashbox from '../models/AppCashbox';
+import { recordCashboxEntry } from '../repositories/appCashbox.repository';
+import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { missingClientVerifications } from '../utils/clientVerification';
@@ -255,18 +255,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     const totalValue = round2(subtotal + deliveryFee - couponDiscount);
     const distribution = await calculateOrderDistribution(subtotal, deliveryFee, storeIdStr, storePlanForOrder === 1 ? 0 : serverDistanceKm);
 
-    // Verificar e debitar carteira do cliente
-    let clientWallet = await Wallet.findOne({ owner: customerId, ownerType: 'user' }).session(session);
-    if (!clientWallet) {
-      clientWallet = await new Wallet({
-        owner: customerId,
-        ownerType: 'user',
-        balance: 0,
-        totalIncome: 0,
-        totalSpent: 0,
-        history: [],
-      }).save({ session });
-    }
+    // Carteira do cliente (Postgres). NÃO participa da transação Mongo desta função
+    // — as escritas de saldo passam pelo walletService (Prisma), que é atômico por si.
+    let clientWallet = await walletService.getOrCreate(customerId, 'user');
 
     const isCashOnDelivery = paymentMethod === 'cash_on_delivery';
     // Fase 2: gateway de entrada. Quando ativo, o fluxo pré-pago (débito de carteira)
@@ -290,110 +281,49 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     if (!isCashOnDelivery && !useAsaas) {
-      if (clientWallet.balance < totalValue + debtAmount) {
+      // Fluxo pré-pago legado (carteira virtual). Débito atômico via walletService.
+      const balance = Number(clientWallet.balance);
+      if (balance < totalValue + debtAmount) {
         await session.abortTransaction();
         return res.status(400).json({
           error: 'Saldo insuficiente na carteira',
-          available: clientWallet.balance,
+          available: balance,
           required: totalValue + debtAmount,
           debtIncluded: debtAmount > 0 ? debtAmount : undefined,
         });
       }
 
-      clientWallet.balance -= (totalValue + debtAmount);
-      clientWallet.totalSpent += (totalValue + debtAmount);
-      clientWallet.history.push({
-        date: new Date(),
-        type: 'debit',
-        category: 'payment',
-        amount: totalValue,
-        reason: 'Pedido criado',
-        paymentMethod: paymentMethod || 'wallet',
-        relatedId: storeIdStr,
+      await walletService.debit({
+        owner: customerId, ownerType: 'user', amount: totalValue,
+        reason: 'Pedido criado', category: 'payment',
+        paymentMethod: paymentMethod || 'wallet', relatedId: storeIdStr,
+      });
+      if (debtAmount > 0) {
+        await walletService.debit({
+          owner: customerId, ownerType: 'user', amount: debtAmount,
+          reason: 'Cobrança de multa de cancelamento tardio pendente',
+          category: 'penalty', relatedId: String(pendingDebt._id),
+        });
+      }
+
+      // --- Custódia: todo o dinheiro entra no AppCashbox ---
+      await recordCashboxEntry(prisma, {
+        type: 'income', source: 'order_payment', amount: totalValue,
+        reason: 'Pagamento de pedido (custódia)',
       });
 
-      if (debtAmount > 0) {
-        clientWallet.history.push({
-          date: new Date(),
-          type: 'debit',
-          category: 'penalty',
-          amount: debtAmount,
-          reason: 'Cobrança de multa de cancelamento tardio pendente',
-          relatedId: pendingDebt._id.toString(),
-        });
-      }
+      // Garantir a carteira da loja (pra receber o payout).
+      await walletService.getOrCreate(storeIdStr, 'store');
 
-      await clientWallet.save({ session });
-    }
-
-    if (!isCashOnDelivery && !useAsaas) {
-      // --- NOVO FLUXO: Todo dinheiro entra no AppCashbox (custódia) ---
-      // Creditar AppCashbox com valor total do pedido
-      let appCashbox = await AppCashbox.findOne().session(session);
-      if (!appCashbox) {
-        appCashbox = await AppCashbox.create([{
-          balance: totalValue,
-          totalIncome: totalValue,
-          totalExpenses: 0,
-          history: [{
-            type: 'income',
-            source: 'order_payment',
-            amount: totalValue,
-            orderId: 'pending', // será atualizado após order.save
-            reason: 'Pagamento de pedido (custódia)',
-            date: new Date(),
-          }],
-        }], { session }).then(docs => docs[0]);
-      } else {
-        appCashbox.balance += totalValue;
-        appCashbox.totalIncome += totalValue;
-        appCashbox.history.push({
-          type: 'income',
-          source: 'order_payment',
-          amount: totalValue,
-          orderId: 'pending',
-          reason: 'Pagamento de pedido (custódia)',
-          date: new Date(),
-        });
-        await appCashbox.save({ session });
-      }
-
-      // Garantir que a wallet da loja exista (pra receber o payout)
-      let storeWallet = await Wallet.findOne({ owner: storeIdStr, ownerType: 'store' }).session(session);
-      if (!storeWallet) {
-        storeWallet = await new Wallet({
-          owner: storeIdStr,
-          ownerType: 'store',
-          balance: 0,
-          totalIncome: 0,
-          totalSpent: 0,
-          availableBalance: 0,
-          pendingBalance: 0,
-          history: [],
-        }).save({ session });
-      }
-
-      // Se havia dívida pendente, creditar a loja de origem e marcar como collected
+      // Dívida pendente: credita a loja de origem e marca como collected.
       if (pendingDebt && debtAmount > 0) {
         const debtSourceOrder = await prisma.order.findUnique({ where: { id: String(pendingDebt.sourceOrderId) } });
         if (debtSourceOrder) {
-          const debtStoreWallet = await Wallet.findOne({
-            owner: String(debtSourceOrder.storeId),
-            ownerType: 'store',
-          }).session(session);
-          if (debtStoreWallet) {
-            debtStoreWallet.balance += debtAmount;
-            debtStoreWallet.totalIncome += debtAmount;
-            debtStoreWallet.history.push({
-              date: new Date(),
-              type: 'credit',
-              category: 'transfer',
-              amount: debtAmount,
-              reason: 'Reembolso de multa de cancelamento tardio pago pelo cliente',
-              relatedId: pendingDebt._id.toString(),
-            });
-            await debtStoreWallet.save({ session });
-          }
+          await walletService.credit({
+            owner: String(debtSourceOrder.storeId), ownerType: 'store', amount: debtAmount,
+            reason: 'Reembolso de multa de cancelamento tardio pago pelo cliente',
+            category: 'transfer', relatedId: String(pendingDebt._id),
+          });
         }
         pendingDebt.status = 'collected';
         pendingDebt.collectedAt = new Date();
@@ -401,23 +331,17 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    // ✅ Saldo da carteira abatendo o total (só no fluxo Asaas). Debita o saldo aqui
-    // (dentro da transação) e o restante vai pra cobrança PIX. O dinheiro do saldo
-    // (cashback/recarga) já está na conta-mãe, então cobre o repasse na entrega.
+    // ✅ Saldo da carteira abatendo o total (só no fluxo Asaas). Debita o saldo e o
+    // restante vai pra cobrança PIX. O dinheiro do saldo (cashback/recarga) já está
+    // na conta-mãe, então cobre o repasse na entrega.
     let walletApplied = 0;
-    if (useAsaas && useWalletBalance && clientWallet.balance > 0) {
-      walletApplied = round2(Math.min(clientWallet.balance, totalValue));
-      clientWallet.balance -= walletApplied;
-      clientWallet.totalSpent += walletApplied;
-      clientWallet.history.push({
-        date: new Date(),
-        type: 'debit',
-        category: 'payment',
-        amount: walletApplied,
-        reason: 'Saldo usado no pedido',
-        relatedId: storeIdStr,
+    const clientBalance = Number(clientWallet.balance);
+    if (useAsaas && useWalletBalance && clientBalance > 0) {
+      walletApplied = round2(Math.min(clientBalance, totalValue));
+      await walletService.debit({
+        owner: customerId, ownerType: 'user', amount: walletApplied,
+        reason: 'Saldo usado no pedido', category: 'payment', relatedId: storeIdStr,
       });
-      await clientWallet.save({ session });
     }
 
     // Buscar dados da loja para snapshot no pedido
@@ -475,7 +399,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           recipientId: storeIdStr,
           orderId: createdOrder.id,
           amount: distribution.storeAmount,
-          session,
         });
       }
 
@@ -622,7 +545,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
               }
             }
             if (walletApplied > 0) {
-              await Wallet.updateOne({ owner: customerId, ownerType: 'user' }, { $inc: { balance: walletApplied, totalSpent: -walletApplied } });
+              // Devolve o saldo usado (compensação da cobrança que falhou).
+              await walletService.credit({
+                owner: customerId, ownerType: 'user', amount: walletApplied,
+                reason: 'Estorno de saldo — cobrança PIX falhou', category: 'refund', relatedId: order.id,
+              });
             }
             await prisma.order.delete({ where: { id: order.id } });
           } catch (compErr) {

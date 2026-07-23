@@ -1,11 +1,9 @@
 import asaasClient from './client';
 import logger from '../../config/logger';
-import Payout from '../../models/Payout';
 
 import userRepository from '../../repositories/user.repository';
 import payoutService from '../payout.service';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from './subaccount';
-import { Types } from 'mongoose';
 import { prisma } from '../../lib/prisma';
 
 /**
@@ -74,19 +72,17 @@ async function transferPayout(payout: any, throwOnError = false): Promise<boolea
   try {
     // Transferência interna conta-mãe → subconta do recebedor.
     const transfer = await asaasClient.post<AsaasTransfer>('/transfers', {
-      value: Number(payout.amount.toFixed(2)),
+      value: Number(Number(payout.amount).toFixed(2)),
       walletId,
     });
 
     // Espelho: pending → released, registrando o gateway/id da transferência.
-    await payoutService.releasePayout(String(payout._id));
-    payout.gatewayProvider = 'asaas';
-    payout.gatewayTransferId = transfer.id;
-    await payout.save();
+    await payoutService.releasePayout(String(payout.id));
+    await prisma.payout.update({ where: { id: payout.id }, data: { gatewayProvider: 'asaas', gatewayTransferId: transfer.id } });
 
     logger.info('Payout liberado via Asaas', {
       orderId: String(payout.orderId),
-      payoutId: String(payout._id),
+      payoutId: String(payout.id),
       recipientType: payout.recipientType,
       transferId: transfer.id,
     });
@@ -94,7 +90,7 @@ async function transferPayout(payout: any, throwOnError = false): Promise<boolea
   } catch (err) {
     logger.error('Falha ao transferir/liberar Payout no Asaas — segue pending', err as Error, {
       orderId: String(payout.orderId),
-      payoutId: String(payout._id),
+      payoutId: String(payout.id),
     });
     if (throwOnError) throw err;
     // não relança: a entrega não pode quebrar; admin resolve o Payout pendente
@@ -107,10 +103,8 @@ async function transferPayout(payout: any, throwOnError = false): Promise<boolea
  * automático ao finalizar a entrega. Comportamento em lote é correto aqui.
  */
 export async function releaseOrderViaAsaas(orderId: string): Promise<void> {
-  const payouts = await Payout.find({
-    orderId, // String (Order no Postgres)
-    status: 'pending',
-    blocked: { $ne: true },
+  const payouts = await prisma.payout.findMany({
+    where: { orderId, status: 'pending', blocked: { not: true } },
   });
 
   for (const payout of payouts) {
@@ -124,7 +118,7 @@ export async function releaseOrderViaAsaas(orderId: string): Promise<void> {
  * Relança falhas para o controller devolver erro real ao admin.
  */
 export async function releaseSinglePayoutViaAsaas(payoutId: string): Promise<void> {
-  const payout = await Payout.findById(payoutId);
+  const payout = await prisma.payout.findUnique({ where: { id: payoutId } });
   if (!payout) throw new Error('Payout não encontrado');
   if (payout.status !== 'pending') {
     throw new Error(`Payout não está pendente (status atual: ${payout.status})`);

@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import payoutService from '../services/payout.service';
-import Payout from '../models/Payout';
 import { prisma } from '../lib/prisma';
-import mongoose from 'mongoose';
 
 // Lojista/Motoboy - Ver meus payouts
 export const getMyPayouts = async (req: Request & { user?: any }, res: Response) => {
@@ -69,16 +67,16 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
       orderIds.length ? prisma.order.findMany({ where: { id: { in: orderIds.map(String) } }, select: { id: true, customerId: true, totalValue: true } }) : [],
     ]);
 
-    const storeMap = new Map<string, any>((stores as any[]).map((s) => [String(s._id), s] as [string, any]));
-    const userMap = new Map<string, any>((users as any[]).map((u) => [String(u._id), u] as [string, any]));
-    const orderMap = new Map<string, any>((orders as any[]).map((o) => [String(o._id), o] as [string, any]));
+    const storeMap = new Map<string, any>((stores as any[]).map((s) => [String(s.id), s] as [string, any]));
+    const userMap = new Map<string, any>((users as any[]).map((u) => [String(u.id), u] as [string, any]));
+    const orderMap = new Map<string, any>((orders as any[]).map((o) => [String(o.id), o] as [string, any]));
 
     // Para lojas, buscar tambem o dono (user por tras da store)
     const ownerIds = stores.map((s: any) => s.ownerId).filter(Boolean);
     const owners = ownerIds.length
       ? await prisma.user.findMany({ where: { id: { in: ownerIds.map(String) } }, select: { id: true, name: true, email: true } })
       : [];
-    const ownerMap = new Map<string, any>((owners as any[]).map((u) => [String(u._id), u] as [string, any]));
+    const ownerMap = new Map<string, any>((owners as any[]).map((u) => [String(u.id), u] as [string, any]));
 
     // Buscar quem comprou (customer) dos pedidos
     const buyerIds = orders
@@ -87,10 +85,10 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
     const buyers = buyerIds.length
       ? await prisma.user.findMany({ where: { id: { in: buyerIds.map(String) } }, select: { id: true, name: true, email: true } })
       : [];
-    const buyerMap = new Map<string, any>((buyers as any[]).map((u) => [String(u._id), u] as [string, any]));
+    const buyerMap = new Map<string, any>((buyers as any[]).map((u) => [String(u.id), u] as [string, any]));
 
     const enriched = result.payouts.map((p: any) => {
-      const obj: any = p.toObject ? p.toObject() : p;
+      const obj: any = p.toObject ? p.toObject() : { ...p };
       const recipientId = String(obj.recipientId);
       const orderId = String(obj.orderId);
 
@@ -100,7 +98,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
         if (store) {
           const owner = store.ownerId ? ownerMap.get(String(store.ownerId)) : null;
           recipient = {
-            id: String(store._id),
+            id: String(store.id),
             name: store.name,
             type: 'store',
             ownerId: store.ownerId ? String(store.ownerId) : undefined,
@@ -111,7 +109,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
       } else if (obj.recipientType === 'motoboy') {
         const user = userMap.get(recipientId);
         if (user) {
-          recipient = { id: String(user._id), name: user.name, email: user.email, type: 'motoboy' };
+          recipient = { id: String(user.id), name: user.name, email: user.email, type: 'motoboy' };
         }
       }
 
@@ -122,8 +120,8 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
       obj.recipient = recipient;
       obj.order = order
         ? {
-            id: String(order._id),
-            total: order.totalValue,
+            id: String(order.id),
+            total: order.totalValue != null ? Number(order.totalValue) : order.totalValue,
             buyerId: buyerId ? String(buyerId) : undefined,
             buyerName: buyer?.name,
             buyerEmail: buyer?.email,
@@ -143,23 +141,26 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
 // Admin/CEO - Bloquear payout (fraude, inconsistência)
 export const blockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const Payout = (await import('../models/Payout')).default;
     const { id } = req.params;
     const { reason } = req.body;
 
-    const payout = await Payout.findById(id);
+    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
     if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
     if (payout.status !== 'pending') {
       return res.status(400).json({ error: 'Apenas payouts pendentes podem ser bloqueados' });
     }
 
-    payout.blocked = true;
-    payout.blockReason = reason || 'Sem motivo informado';
-    payout.blockedAt = new Date();
-    payout.blockedBy = req.user?.id;
-    await payout.save();
+    const updated = await prisma.payout.update({
+      where: { id: String(id) },
+      data: {
+        blocked: true,
+        blockReason: reason || 'Sem motivo informado',
+        blockedAt: new Date(),
+        blockedBy: req.user?.id ? String(req.user.id) : null,
+      },
+    });
 
-    return res.json({ message: 'Payout bloqueado', payout });
+    return res.json({ message: 'Payout bloqueado', payout: { ...updated, _id: updated.id, amount: Number(updated.amount) } });
   } catch (err: any) {
     console.error('Erro ao bloquear payout:', err);
     return res.status(500).json({ error: err.message || 'Erro ao bloquear' });
@@ -169,19 +170,17 @@ export const blockPayout = async (req: Request & { user?: any }, res: Response) 
 // Admin/CEO - Desbloquear payout
 export const unblockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const Payout = (await import('../models/Payout')).default;
     const { id } = req.params;
 
-    const payout = await Payout.findById(id);
+    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
     if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
 
-    payout.blocked = false;
-    payout.blockReason = undefined;
-    payout.blockedAt = null;
-    payout.blockedBy = undefined;
-    await payout.save();
+    const updated = await prisma.payout.update({
+      where: { id: String(id) },
+      data: { blocked: false, blockReason: null, blockedAt: null, blockedBy: null },
+    });
 
-    return res.json({ message: 'Payout desbloqueado', payout });
+    return res.json({ message: 'Payout desbloqueado', payout: { ...updated, _id: updated.id, amount: Number(updated.amount) } });
   } catch (err: any) {
     console.error('Erro ao desbloquear payout:', err);
     return res.status(500).json({ error: err.message || 'Erro ao desbloquear' });
@@ -225,7 +224,7 @@ export const getPayoutConfig = async (req: Request & { user?: any }, res: Respon
 export const releasePayoutManually = async (req: Request & { user?: any }, res: Response) => {
   try {
     const { id } = req.params;
-    const payout = await Payout.findById(id);
+    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
     if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
     if (payout.blocked) {
       return res.status(400).json({ error: `Payout bloqueado: ${payout.blockReason || 'sem motivo'}` });
@@ -246,14 +245,7 @@ export const releasePayoutManually = async (req: Request & { user?: any }, res: 
         });
       }
     } else {
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          await payoutService.releasePayout(id, session);
-        });
-      } finally {
-        session.endSession();
-      }
+      await payoutService.releasePayout(id);
     }
 
     return res.json({ message: 'Payout liberado com sucesso' });
@@ -271,21 +263,12 @@ export const markPayoutsPaid = async (req: Request & { user?: any }, res: Respon
       return res.status(400).json({ error: 'payoutIds obrigatório' });
     }
 
-    const session = await mongoose.startSession();
-    try {
-      let totalPaid = 0;
-      await session.withTransaction(async () => {
-        totalPaid = await payoutService.markPayoutsPaid(
-          payoutIds,
-          gatewayTransferId || `manual_paid_${Date.now()}`,
-          session,
-        );
-      });
+    const totalPaid = await payoutService.markPayoutsPaid(
+      payoutIds,
+      gatewayTransferId || `manual_paid_${Date.now()}`,
+    );
 
-      return res.json({ message: 'Payouts marcados como pagos', totalPaid });
-    } finally {
-      session.endSession();
-    }
+    return res.json({ message: 'Payouts marcados como pagos', totalPaid });
   } catch (err: any) {
     console.error('Erro ao marcar payouts como pagos:', err);
     return res.status(400).json({ error: err.message || 'Erro ao marcar payouts como pagos' });

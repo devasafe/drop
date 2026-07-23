@@ -7,13 +7,11 @@ import app from '../app';
 import { ownerIdForStore, productIdForItem } from './helpers/storeOwner';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Wallet from '../models/Wallet';
+import { cleanupUsersByEmailDomain, wipeAppCashbox } from './helpers/pgCleanup';
+import { createWallet, createAppCashbox, findAppCashbox, findPayout } from './helpers/financePg';
 
 
 
-import Payout from '../models/Payout';
-import AppCashbox from '../models/AppCashbox';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
@@ -40,6 +38,7 @@ afterAll(async () => {
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@late.test');
+  await wipeAppCashbox();
   const collections = mongoose.connection.collections;
   for (const key in collections) {
     await collections[key].deleteMany({});
@@ -80,11 +79,11 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     const customer = await createUser('cliente');
 
     // Carteira do cliente com saldo (a multa sai daqui)
-    await Wallet.create({ owner: customer.id, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0, history: [] });
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0, });
     // Carteira do motoboy (mirror; a fonte da verdade é o Payout)
-    await Wallet.create({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0, history: [] });
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0, });
     // Caixa do app com saldo inicial
-    await AppCashbox.create({ balance: 500, totalIncome: 500, totalExpenses: 0, history: [] });
+    await createAppCashbox({ balance: 500, totalIncome: 500, totalExpenses: 0, });
 
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@late.test'), name: 'Loja Teste' } });
 
@@ -116,7 +115,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
 
     // Config padrão: 10% do total = R$20 de multa; 50% (R$10) p/ o motoboy, 50% (R$10) app.
     // PROVA #1: existe um Payout 'released' do motoboy com a compensação.
-    const compPayout = await Payout.findOne({
+    const compPayout = await findPayout({
       recipientType: 'motoboy',
       recipientId: motoboy.id,
       status: 'released',
@@ -125,7 +124,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     expect(compPayout!.amount).toBeCloseTo(10, 2);
 
     // PROVA #1 (lastro): o AppCashbox recebeu a multa INTEIRA (R$20), não só o appShare (R$10).
-    const cashbox = await AppCashbox.findOne();
+    const cashbox = await findAppCashbox();
     const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
     expect(feeEntry).toBeTruthy();
     expect(feeEntry!.amount).toBeCloseTo(20, 2);

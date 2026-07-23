@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Wallet from '../models/Wallet';
+import { findWallet } from './helpers/financePg';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
@@ -109,7 +109,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(201);
 
-    const wallet = await Wallet.findOne({ owner: res.body.id, ownerType: 'user' });
+    const wallet = await findWallet({ owner: res.body.id, ownerType: 'user' });
     expect(wallet).not.toBeNull();
     expect(wallet!.balance).toBe(0);
   });

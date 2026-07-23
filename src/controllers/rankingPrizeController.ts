@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { AuthenticatedRequest } from '../types';
 import RankingPrize from '../models/RankingPrize';
 import Gamification from '../models/Gamification';
-import Wallet from '../models/Wallet';
+import walletService from '../services/wallet.prisma.service';
 import userRepository from '../repositories/user.repository';
 import { emitGamificationBadgeUnlocked } from '../utils/socketEmitter';
 
@@ -119,22 +119,12 @@ export const distributePrizes = async (req: AuthenticatedRequest, res: Response)
 
       if (prize.type === 'wallet') {
         try {
-          let wallet = await Wallet.findOne({ owner: winner.user_id, ownerType: 'motoboy' });
-          if (wallet) {
-            wallet.balance += prize.amount;
-            wallet.totalIncome += prize.amount;
-            (wallet.history as any[]).push({
-              date: new Date(),
-              type: 'credit',
-              category: 'bonus',
-              amount: prize.amount,
-              reason: `Prêmio ranking ${targetMonth}/${targetYear} — ${prize.position}º lugar`,
-            });
-            await wallet.save();
-            results.push({ position: prize.position, userId: winner.user_id, amount: prize.amount, type: 'wallet', credited: true });
-          } else {
-            results.push({ position: prize.position, userId: winner.user_id, amount: prize.amount, type: 'wallet', credited: false });
-          }
+          // Prêmio entra como crédito (categoria 'deposit' — sem 'bonus' no enum).
+          await walletService.credit({
+            owner: String(winner.user_id), ownerType: 'motoboy', amount: prize.amount,
+            reason: `Prêmio ranking ${targetMonth}/${targetYear} — ${prize.position}º lugar`, category: 'deposit',
+          });
+          results.push({ position: prize.position, userId: winner.user_id, amount: prize.amount, type: 'wallet', credited: true });
         } catch {
           results.push({ position: prize.position, userId: winner.user_id, amount: prize.amount, type: 'wallet', credited: false });
         }

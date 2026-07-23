@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Wallet from '../models/Wallet';
+import { createWallet, findWallet, deleteWallets } from './helpers/financePg';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
@@ -34,13 +34,12 @@ async function createUserDirect(
   });
 
   // Criar carteira automaticamente
-  await Wallet.create({
+  await createWallet({
     owner: user.id,
     ownerType: 'user',
     balance: 0,
     totalIncome: 0,
     totalSpent: 0,
-    history: [],
   });
 
   const token = jwt.sign(
@@ -78,25 +77,14 @@ async function createUserAndLogin(
   return { token: loginRes.body.token, userId: regRes.body.id };
 }
 
-// Helper: setar saldo direto na carteira
+// Helper: setar saldo direto na carteira (Prisma/Postgres)
 async function setWalletBalance(userId: string, amount: number, ownerType = 'user') {
-  let wallet = await Wallet.findOne({ owner: userId, ownerType });
-  if (!wallet) {
-    wallet = await Wallet.create({
-      owner: userId,
-      ownerType,
-      balance: amount,
-      totalIncome: amount,
-      totalSpent: 0,
-      history: [{ date: new Date(), type: 'credit', amount, reason: 'Test seed' }],
-    });
-  } else {
-    wallet.balance = amount;
-    wallet.totalIncome = amount;
-    wallet.totalSpent = 0;
-    await wallet.save();
-  }
-  return wallet;
+  const w = await prisma.wallet.upsert({
+    where: { owner_ownerType: { owner: userId, ownerType: ownerType as any } },
+    create: { owner: userId, ownerType: ownerType as any, balance: amount, totalIncome: amount, totalSpent: 0 },
+    update: { balance: amount, totalIncome: amount, totalSpent: 0 },
+  });
+  return { ...w, _id: w.id, balance: Number(w.balance) };
 }
 
 beforeAll(async () => {
@@ -146,13 +134,12 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
 
     // Criar carteira da loja
-    await Wallet.create({
+    await createWallet({
       owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
       totalSpent: 0,
-      history: [],
     });
 
     // Criar cliente com saldo
@@ -173,10 +160,10 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     expect(res.body.newBalance).toBe(150);
 
     // Verificar saldos finais
-    const clientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
+    const clientWallet = await findWallet({ owner: client.userId, ownerType: 'user' });
     expect(clientWallet!.balance).toBe(150);
 
-    const storeWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
+    const storeWallet = await findWallet({ owner: store.id, ownerType: 'store' });
     expect(storeWallet!.balance).toBe(50);
   });
 
@@ -189,13 +176,12 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
       name: 'Loja Insuf',
     } });
     await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
-    await Wallet.create({
+    await createWallet({
       owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
       totalSpent: 0,
-      history: [],
     });
 
     const client = await createUserAndLogin({ name: 'Cliente Pobre' });
@@ -256,13 +242,12 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
       name: 'Loja Race',
     } });
     await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
-    await Wallet.create({
+    await createWallet({
       owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
       totalSpent: 0,
-      history: [],
     });
 
     // Setup: cliente com saldo de exatamente R$100
@@ -282,8 +267,8 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
     const statuses = [res1.status, res2.status].sort();
 
     // Verificar saldo final da carteira do cliente
-    const finalClientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
-    const finalStoreWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
+    const finalClientWallet = await findWallet({ owner: client.userId, ownerType: 'user' });
+    const finalStoreWallet = await findWallet({ owner: store.id, ownerType: 'store' });
 
     // INVARIANTE: saldo do cliente NUNCA pode ficar negativo
     expect(finalClientWallet!.balance).toBeGreaterThanOrEqual(0);
@@ -326,13 +311,12 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
       name: 'Loja Seq',
     } });
     await prisma.user.update({ where: { id: seller.userId }, data: { storeId: store.id } });
-    await Wallet.create({
+    await createWallet({
       owner: store.id,
       ownerType: 'store',
       balance: 0,
       totalIncome: 0,
       totalSpent: 0,
-      history: [],
     });
 
     const client = await createUserAndLogin({ name: 'Cliente Seq' });
@@ -346,8 +330,8 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
         .send({ toUserId: seller.userId, amount: 10, reason: `Seq ${i}` });
     }
 
-    const clientWallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
-    const storeWallet = await Wallet.findOne({ owner: store.id, ownerType: 'store' });
+    const clientWallet = await findWallet({ owner: client.userId, ownerType: 'user' });
+    const storeWallet = await findWallet({ owner: store.id, ownerType: 'store' });
 
     expect(clientWallet!.balance).toBe(50);
     expect(storeWallet!.balance).toBe(50);
@@ -393,7 +377,7 @@ describe('POST /api/wallets/:userId/credit (creditWallet)', () => {
     const client = await createUserAndLogin({ name: 'Cliente Novo' });
 
     // Deletar carteira criada no registro
-    await Wallet.deleteMany({ owner: client.userId });
+    await deleteWallets({ owner: client.userId });
 
     const res = await request(app)
       .post(`/api/wallets/${client.userId}/credit`)
@@ -403,7 +387,7 @@ describe('POST /api/wallets/:userId/credit (creditWallet)', () => {
     expect(res.status).toBe(200);
     expect(res.body.newBalance).toBe(50);
 
-    const wallet = await Wallet.findOne({ owner: client.userId, ownerType: 'user' });
+    const wallet = await findWallet({ owner: client.userId, ownerType: 'user' });
     expect(wallet).not.toBeNull();
   });
 });
@@ -432,7 +416,7 @@ describe('GET /api/wallets/my-wallet', () => {
 
   it('deve criar carteira automaticamente se nao existir', async () => {
     const client = await createUserAndLogin({ name: 'Cliente SemWallet' });
-    await Wallet.deleteMany({ owner: client.userId });
+    await deleteWallets({ owner: client.userId });
 
     const res = await request(app)
       .get('/api/wallets/my-wallet')
@@ -525,7 +509,7 @@ describe('POST /api/wallets/transfer-to-motoboy', () => {
     expect(res.body.motoboyWalletBalance).toBe(40);
 
     // Verificar que carteira motoboy foi criada
-    const motoboyWallet = await Wallet.findOne({ owner: motoboy.userId, ownerType: 'motoboy' });
+    const motoboyWallet = await findWallet({ owner: motoboy.userId, ownerType: 'motoboy' });
     expect(motoboyWallet).not.toBeNull();
     expect(motoboyWallet!.balance).toBe(40);
   });

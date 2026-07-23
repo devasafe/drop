@@ -5,7 +5,7 @@ import { Types } from 'mongoose';
 import Gamification, { IGamification, GamificationLevel } from '../models/Gamification';
 
 import userRepository from '../repositories/user.repository';
-import Wallet from '../models/Wallet';
+import walletService from '../services/wallet.prisma.service';
 import { BENEFITS } from '../config/benefits';
 import { emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitRankingUpdated } from '../utils/socketEmitter';
 import { AuthenticatedRequest } from '../types';
@@ -291,19 +291,11 @@ export const redeem = async (req: AuthenticatedRequest, res: Response) => {
   if (benefitDef.type === 'wallet') {
     const creditAmount = benefitId === 'wallet_bonus_20' ? 20 : 50;
     try {
-      let wallet = await Wallet.findOne({ owner: user_id, ownerType: 'motoboy' });
-      if (wallet) {
-        wallet.balance += creditAmount;
-        wallet.totalIncome += creditAmount;
-        (wallet.history as any[]).push({
-          date: new Date(),
-          type: 'credit',
-          category: 'bonus',
-          amount: creditAmount,
-          reason: `Resgate de benefício: ${benefitDef.name}`,
-        });
-        await wallet.save();
-      }
+      // Bônus entra como crédito (categoria 'deposit' — o enum do ledger não tem 'bonus').
+      await walletService.credit({
+        owner: String(user_id), ownerType: 'motoboy', amount: creditAmount,
+        reason: `Resgate de benefício: ${benefitDef.name}`, category: 'deposit',
+      });
     } catch (err) {
       console.error('[redeem] Erro ao creditar carteira:', err);
     }

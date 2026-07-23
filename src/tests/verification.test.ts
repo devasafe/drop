@@ -13,7 +13,7 @@ import app from '../app';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import Wallet from '../models/Wallet';
+import { createWallet } from './helpers/financePg';
 
 
 import EmailVerificationToken from '../models/EmailVerificationToken';
@@ -114,7 +114,7 @@ describe('Gate de compra (KYC)', () => {
   it('bloqueia compra de cliente não verificado com 403 e lista o que falta', async () => {
     const customer = await createUser('cliente'); // sem verification
     const lojista = await createUser('lojista');
-    await Wallet.create({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
+    await createWallet({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
     const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja KYC', isOpen: true } });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'P', price: 50, quantity: 10 } });
 
@@ -140,7 +140,7 @@ describe('Gate de compra (KYC)', () => {
       document: { type: 'cpf', status: 'approved' },
     });
     const lojista = await createUser('lojista');
-    await Wallet.create({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
+    await createWallet({ owner: customer.userId, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
     const store = await prisma.store.create({ data: { ownerId: lojista.userId, name: 'Loja KYC2', isOpen: true } });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'P', price: 50, quantity: 10 } });
 

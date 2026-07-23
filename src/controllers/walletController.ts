@@ -1,19 +1,47 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import Wallet from '../models/Wallet';
-// 🔀 Migração: User e Store já vivem no Postgres; Wallet segue no Mongoose (Fatia 5).
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
-
-import Payout from '../models/Payout';
+import walletService from '../services/wallet.prisma.service';
+import { toApiWallet, loadWalletHistory, entryToHistory } from '../repositories/wallet.repository';
+import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import payoutService from '../services/payout.service';
-import {
-  calculateOrderDistribution,
-  getStorePlanFee
-} from '../utils/walletCalculations';
+import { calculateOrderDistribution, getStorePlanFee } from '../utils/walletCalculations';
 import WithdrawalRequest from '../models/WithdrawalRequest';
 import PlatformConfig from '../models/PlatformConfig';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
+
+/**
+ * Reconcilia os buckets de saldo de um recebedor (store/motoboy) a partir dos
+ * Payouts (fonte da verdade) e persiste no cache da Wallet. Substitui o
+ * `Payout.aggregate` do Mongo.
+ */
+async function reconcileFromPayouts(
+  recipientType: 'store' | 'motoboy',
+  recipientId: string,
+  walletId: string,
+): Promise<{ balance: number; totalIncome: number; availableBalance: number; pendingBalance: number }> {
+  const grouped = await prisma.payout.groupBy({
+    by: ['status'],
+    where: { recipientType, recipientId },
+    _sum: { amount: true },
+  });
+  const sums: Record<string, number> = {};
+  for (const g of grouped) sums[g.status] = g._sum.amount ? Number(g._sum.amount) : 0;
+
+  const pendingBalance = sums['pending'] || 0;
+  const availableBalance = sums['released'] || 0;
+  const paidTotal = sums['paid'] || 0;
+  const requestedTotal = sums['requested'] || 0;
+  const totalIncome = availableBalance + requestedTotal + paidTotal;
+  const balance = availableBalance + requestedTotal;
+
+  await prisma.wallet.update({
+    where: { id: walletId },
+    data: { availableBalance, pendingBalance, totalIncome, balance },
+  });
+
+  return { balance, totalIncome, availableBalance, pendingBalance };
+}
 
 /**
  * GET /wallets/:userId
@@ -24,25 +52,26 @@ export const getWallet = async (req: Request, res: Response) => {
     const { userId } = req.params;
     // Carteira pessoal do usuário (para saques ao banco). Motoboys e lojistas
     // têm buckets separados (ownerType 'motoboy' e 'store') — usar endpoints dedicados.
-    let wallet = await Wallet.findOne({ owner: userId, ownerType: 'user' });
-
-    if (!wallet) {
-      // Autoheal: cria carteira pessoal sob demanda se o user existe
+    // Autoheal: só cria a carteira se o usuário existe.
+    const existing = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: userId, ownerType: 'user' } } });
+    if (!existing) {
       const userDoc = await userRepository.findById(userId);
       if (!userDoc) return res.status(404).json({ error: 'Carteira não encontrada' });
-      wallet = await Wallet.create({ owner: userId, ownerType: 'user' });
     }
+    const wallet = await walletService.getOrCreate(userId, 'user');
+    const history = await loadWalletHistory(wallet.id);
+    const api = toApiWallet(wallet, history);
 
     return res.json({
       owner: userId,
-      ownerType: wallet.ownerType,
-      balance: wallet.balance,
-      totalIncome: wallet.totalIncome,
-      totalSpent: wallet.totalSpent,
-      availableBalance: wallet.availableBalance ?? wallet.balance,
-      pendingBalance: wallet.pendingBalance ?? 0,
-      gamificationBenefits: wallet.gamificationBenefits || {},
-      history: wallet.history.slice(-10)
+      ownerType: api.ownerType,
+      balance: api.balance,
+      totalIncome: api.totalIncome,
+      totalSpent: api.totalSpent,
+      availableBalance: api.availableBalance ?? api.balance,
+      pendingBalance: api.pendingBalance ?? 0,
+      gamificationBenefits: api.gamificationBenefits,
+      history: api.history,
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
@@ -68,47 +97,16 @@ export const getStoreWallet = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Acesso negado à carteira da loja' });
     }
 
-    let wallet = await Wallet.findOne({ owner: storeId, ownerType: 'store' });
-
-    if (!wallet) {
-      // Cria carteira sob demanda (autoheal) — a loja já foi validada acima
-      wallet = await Wallet.create({ owner: storeId, ownerType: 'store' });
-    }
+    const wallet = await walletService.getOrCreate(storeId, 'store');
 
     // Reconcilia saldos a partir dos Payouts (self-healing): a fonte da verdade
     // são os registros de Payout, não os contadores denormalizados na wallet.
-    const agg = await Payout.aggregate([
-      { $match: { recipientType: 'store', recipientId: String(storeId) } },
-      { $group: { _id: '$status', total: { $sum: '$amount' } } },
-    ]);
-    const sums: Record<string, number> = {};
-    for (const row of agg) sums[row._id] = row.total;
-    const pendingBalance = sums['pending'] || 0;
-    const availableBalance = sums['released'] || 0;
-    const paidTotal = sums['paid'] || 0;
-    const requestedTotal = sums['requested'] || 0;
-    // totalIncome = tudo que já foi reconhecido como receita (released + requested + paid)
-    const totalIncome = availableBalance + requestedTotal + paidTotal;
-    // balance = saldo disponível na carteira interna (released + requested, ainda não pago externamente)
-    const balance = availableBalance + requestedTotal;
-
-    // Atualiza o cache na wallet se divergiu (não-bloqueante, mas await pra consistência)
-    if (
-      wallet.availableBalance !== availableBalance ||
-      wallet.pendingBalance !== pendingBalance ||
-      wallet.totalIncome !== totalIncome ||
-      wallet.balance !== balance
-    ) {
-      wallet.availableBalance = availableBalance;
-      wallet.pendingBalance = pendingBalance;
-      wallet.totalIncome = totalIncome;
-      wallet.balance = balance;
-      await wallet.save();
-    }
+    const { balance, totalIncome, availableBalance, pendingBalance } = await reconcileFromPayouts('store', storeId, wallet.id);
 
     const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     const plan = store?.plan || 1;
     const feePercent = await getStorePlanFee(storeId);
+    const history = (await loadWalletHistory(wallet.id)).map(entryToHistory);
 
     return res.json({
       owner: storeId,
@@ -117,10 +115,10 @@ export const getStoreWallet = async (req: Request, res: Response) => {
       feePercent,
       balance,
       totalIncome,
-      totalSpent: wallet.totalSpent,
+      totalSpent: Number(wallet.totalSpent),
       availableBalance,
       pendingBalance,
-      history: wallet.history.slice(-10)
+      history,
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
@@ -135,111 +133,54 @@ export const getStoreWallet = async (req: Request, res: Response) => {
  * Para sacar pro banco, o user usa a flow de saque a partir do user wallet.
  */
 export const transferStoreToOwner = async (req: Request, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { storeId } = req.params;
     const userId = (req as any).user?.id;
 
-    if (!userId) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
 
     const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
-    if (!store) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ error: 'Loja não encontrada' });
-    }
-
+    if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
     if (String(store.ownerId) !== String(userId)) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(403).json({ error: 'Apenas o dono da loja pode transferir' });
     }
 
     // Payouts released (disponíveis para transferência)
-    const releasedPayouts = await Payout.find({
-      recipientType: 'store',
-      recipientId: String(storeId),
-      status: 'released',
-    }).session(session);
-
-    const total = releasedPayouts.reduce((s, p) => s + p.amount, 0);
-    if (total <= 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ error: 'Nenhum saldo disponível para transferir' });
-    }
+    const releasedPayouts = await prisma.payout.findMany({
+      where: { recipientType: 'store', recipientId: String(storeId), status: 'released' },
+    });
+    const total = releasedPayouts.reduce((s, p) => s + Number(p.amount), 0);
+    if (total <= 0) return res.status(400).json({ error: 'Nenhum saldo disponível para transferir' });
 
     const transferId = `internal_store_to_owner_${storeId}_${Date.now()}`;
 
-    // Marca payouts como pagos e debita AppCashbox (dinheiro sai do cofre para a carteira do dono)
-    await payoutService.markPayoutsPaid(
-      releasedPayouts.map((p) => String(p._id)),
-      transferId,
-      session,
-    );
+    const result = await prisma.$transaction(async (tx) => {
+      // Marca payouts como pagos (transferência interna — não debita AppCashbox).
+      await payoutService.markPayoutsPaid(
+        releasedPayouts.map((p) => p.id), transferId, tx, { skipCashboxDebit: true },
+      );
 
-    // Credita user wallet do dono
-    let userWallet = await Wallet.findOne({ owner: String(userId), ownerType: 'user' }).session(session);
-    const historyEntry = {
-      type: 'credit' as const,
-      category: 'transfer' as const,
-      amount: total,
-      reason: `Transferência da carteira da loja "${store.name || storeId}"`,
-      relatedId: storeId,
-      reference: transferId,
-      date: new Date(),
-    };
+      // Credita a carteira de usuário do dono.
+      const credited = await walletService.credit(
+        { owner: String(userId), ownerType: 'user', amount: total, reason: `Transferência da carteira da loja "${store.name || storeId}"`, category: 'transfer', relatedId: storeId, reference: transferId },
+        tx,
+      );
 
-    if (!userWallet) {
-      const [created] = await Wallet.create([{
-        owner: String(userId),
-        ownerType: 'user',
-        balance: total,
-        totalIncome: total,
-        history: [historyEntry],
-      }], { session });
-      userWallet = created;
-    } else {
-      userWallet.balance += total;
-      userWallet.totalIncome += total;
-      userWallet.history.push(historyEntry);
-      await userWallet.save({ session });
-    }
+      // Anota o débito no ledger da carteira da loja (reconciliada por Payout).
+      const storeWallet = await walletService.getOrCreate(storeId, 'store', tx);
+      await tx.wallet.update({ where: { id: storeWallet.id }, data: { totalSpent: { increment: total } } });
+      await tx.walletEntry.create({ data: { walletId: storeWallet.id, type: 'debit', category: 'transfer', amount: total, reason: 'Transferência para carteira do dono', relatedId: String(userId), reference: transferId } });
 
-    // Adiciona history entry no store wallet (debit)
-    const storeWallet = await Wallet.findOne({ owner: storeId, ownerType: 'store' }).session(session);
-    if (storeWallet) {
-      storeWallet.history.push({
-        type: 'debit',
-        category: 'transfer',
-        amount: total,
-        reason: 'Transferência para carteira do dono',
-        relatedId: String(userId),
-        reference: transferId,
-        date: new Date(),
-      });
-      storeWallet.totalSpent = (storeWallet.totalSpent || 0) + total;
-      await storeWallet.save({ session });
-    }
-
-    await session.commitTransaction();
-    session.endSession();
+      return credited;
+    });
 
     return res.json({
       success: true,
       transferred: total,
-      newUserBalance: userWallet.balance,
+      newUserBalance: Number(result.balance),
       payoutsTransferred: releasedPayouts.length,
     });
   } catch (err: any) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('[transferStoreToOwner ERROR]', err);
     return res.status(500).json({ error: 'Erro ao transferir saldo' });
   }
@@ -262,51 +203,27 @@ export const getMotoboyWallet = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Acesso negado à carteira do motoboy' });
     }
 
-    let wallet = await Wallet.findOne({ owner: motoboyId, ownerType: 'motoboy' });
-
-    if (!wallet) {
+    const existing = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: motoboyId, ownerType: 'motoboy' } } });
+    if (!existing) {
       const exists = await userRepository.findById(motoboyId);
       if (!exists) return res.status(404).json({ error: 'Carteira do motoboy não encontrada' });
-      wallet = await Wallet.create({ owner: motoboyId, ownerType: 'motoboy' });
     }
+    const wallet = await walletService.getOrCreate(motoboyId, 'motoboy');
 
     // Reconcilia saldos a partir dos Payouts (fonte da verdade)
-    const agg = await Payout.aggregate([
-      { $match: { recipientType: 'motoboy', recipientId: String(motoboyId) } },
-      { $group: { _id: '$status', total: { $sum: '$amount' } } },
-    ]);
-    const sums: Record<string, number> = {};
-    for (const row of agg) sums[row._id] = row.total;
-    const pendingBalance = sums['pending'] || 0;
-    const availableBalance = sums['released'] || 0;
-    const paidTotal = sums['paid'] || 0;
-    const requestedTotal = sums['requested'] || 0;
-    const totalIncome = availableBalance + requestedTotal + paidTotal;
-    const balance = availableBalance + requestedTotal;
-
-    if (
-      wallet.availableBalance !== availableBalance ||
-      wallet.pendingBalance !== pendingBalance ||
-      wallet.totalIncome !== totalIncome ||
-      wallet.balance !== balance
-    ) {
-      wallet.availableBalance = availableBalance;
-      wallet.pendingBalance = pendingBalance;
-      wallet.totalIncome = totalIncome;
-      wallet.balance = balance;
-      await wallet.save();
-    }
+    const { balance, totalIncome, availableBalance, pendingBalance } = await reconcileFromPayouts('motoboy', motoboyId, wallet.id);
+    const history = (await loadWalletHistory(wallet.id)).map(entryToHistory);
 
     return res.json({
       owner: motoboyId,
       ownerType: 'motoboy',
       balance,
       totalIncome,
-      totalSpent: wallet.totalSpent,
+      totalSpent: Number(wallet.totalSpent),
       availableBalance,
       pendingBalance,
       gamificationBenefits: wallet.gamificationBenefits || {},
-      history: wallet.history.slice(-10)
+      history,
     });
   } catch (err: any) {
     console.error('[getMotoboyWallet ERROR]', err);
@@ -321,100 +238,45 @@ export const getMotoboyWallet = async (req: Request, res: Response) => {
  * saque a partir do user wallet.
  */
 export const transferMotoboyToOwner = async (req: Request, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { motoboyId } = req.params;
     const userId = (req as any).user?.id;
 
-    if (!userId) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(401).json({ error: 'Não autenticado' });
-    }
-
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
     if (String(motoboyId) !== String(userId)) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(403).json({ error: 'Apenas o próprio motoboy pode transferir' });
     }
 
-    const releasedPayouts = await Payout.find({
-      recipientType: 'motoboy',
-      recipientId: String(motoboyId),
-      status: 'released',
-    }).session(session);
-
-    const total = releasedPayouts.reduce((s, p) => s + p.amount, 0);
-    if (total <= 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ error: 'Nenhum saldo disponível para transferir' });
-    }
+    const releasedPayouts = await prisma.payout.findMany({
+      where: { recipientType: 'motoboy', recipientId: String(motoboyId), status: 'released' },
+    });
+    const total = releasedPayouts.reduce((s, p) => s + Number(p.amount), 0);
+    if (total <= 0) return res.status(400).json({ error: 'Nenhum saldo disponível para transferir' });
 
     const transferId = `internal_motoboy_to_owner_${motoboyId}_${Date.now()}`;
 
-    await payoutService.markPayoutsPaid(
-      releasedPayouts.map((p) => String(p._id)),
-      transferId,
-      session,
-    );
+    const result = await prisma.$transaction(async (tx) => {
+      await payoutService.markPayoutsPaid(releasedPayouts.map((p) => p.id), transferId, tx, { skipCashboxDebit: true });
 
-    let userWallet = await Wallet.findOne({ owner: String(userId), ownerType: 'user' }).session(session);
-    const historyEntry = {
-      type: 'credit' as const,
-      category: 'transfer' as const,
-      amount: total,
-      reason: 'Transferência da carteira de motoboy',
-      relatedId: String(motoboyId),
-      reference: transferId,
-      date: new Date(),
-    };
+      const credited = await walletService.credit(
+        { owner: String(userId), ownerType: 'user', amount: total, reason: 'Transferência da carteira de motoboy', category: 'transfer', relatedId: String(motoboyId), reference: transferId },
+        tx,
+      );
 
-    if (!userWallet) {
-      const [created] = await Wallet.create([{
-        owner: String(userId),
-        ownerType: 'user',
-        balance: total,
-        totalIncome: total,
-        history: [historyEntry],
-      }], { session });
-      userWallet = created;
-    } else {
-      userWallet.balance += total;
-      userWallet.totalIncome += total;
-      userWallet.history.push(historyEntry);
-      await userWallet.save({ session });
-    }
+      const motoboyWallet = await walletService.getOrCreate(motoboyId, 'motoboy', tx);
+      await tx.wallet.update({ where: { id: motoboyWallet.id }, data: { totalSpent: { increment: total } } });
+      await tx.walletEntry.create({ data: { walletId: motoboyWallet.id, type: 'debit', category: 'transfer', amount: total, reason: 'Transferência para carteira pessoal', relatedId: String(userId), reference: transferId } });
 
-    const motoboyWallet = await Wallet.findOne({ owner: motoboyId, ownerType: 'motoboy' }).session(session);
-    if (motoboyWallet) {
-      motoboyWallet.history.push({
-        type: 'debit',
-        category: 'transfer',
-        amount: total,
-        reason: 'Transferência para carteira pessoal',
-        relatedId: String(userId),
-        reference: transferId,
-        date: new Date(),
-      });
-      motoboyWallet.totalSpent = (motoboyWallet.totalSpent || 0) + total;
-      await motoboyWallet.save({ session });
-    }
-
-    await session.commitTransaction();
-    session.endSession();
+      return credited;
+    });
 
     return res.json({
       success: true,
       transferred: total,
-      newUserBalance: userWallet.balance,
+      newUserBalance: Number(result.balance),
       payoutsTransferred: releasedPayouts.length,
     });
   } catch (err: any) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('[transferMotoboyToOwner ERROR]', err);
     return res.status(500).json({ error: 'Erro ao transferir saldo' });
   }
@@ -425,66 +287,34 @@ export const transferMotoboyToOwner = async (req: Request, res: Response) => {
  * Cliente adiciona saldo (carrega crédito)
  */
 export const creditWallet = async (req: Request, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { userId } = req.params;
     const { amount, paymentMethod, reference } = req.body;
 
     if (!amount || amount <= 0) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    const historyEntry = {
-      type: 'credit' as const,
-      category: 'deposit' as const,
-      amount,
+    const wallet = await walletService.credit({
+      owner: userId, ownerType: 'user', amount,
       reason: `Carregamento de saldo via ${paymentMethod}`,
-      paymentMethod,
-      date: new Date(),
-      reference
-    };
-
-    let wallet = await Wallet.findOne({ owner: userId, ownerType: 'user' }).session(session);
-
-    if (!wallet) {
-      const [created] = await Wallet.create([{
-        owner: userId,
-        ownerType: 'user',
-        balance: amount,
-        totalIncome: amount,
-        history: [historyEntry]
-      }], { session });
-      wallet = created;
-    } else {
-      wallet.balance += amount;
-      wallet.totalIncome += amount;
-      wallet.history.push(historyEntry);
-      await wallet.save({ session });
-    }
-
-    await session.commitTransaction();
-    session.endSession();
+      category: 'deposit', paymentMethod, reference,
+    });
 
     // 💰 Notificar usuário em tempo real
     emitWalletUpdated(userId, 'cliente', {
-      balance: wallet.balance,
-      totalIncome: wallet.totalIncome,
-      totalSpent: wallet.totalSpent,
+      balance: Number(wallet.balance),
+      totalIncome: Number(wallet.totalIncome),
+      totalSpent: Number(wallet.totalSpent),
       updatedAt: new Date(),
     });
 
     return res.json({
       success: true,
-      newBalance: wallet.balance,
-      transactionId: wallet._id
+      newBalance: Number(wallet.balance),
+      transactionId: wallet.id,
     });
   } catch (err: any) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('[WALLET ERROR]', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
@@ -499,40 +329,24 @@ export const transferWallet = async (req: Request, res: Response) => {
     const { userId } = req.params;
     const { amount, bankAccount, reason } = req.body;
 
-    const wallet = await Wallet.findOne({ owner: userId, ownerType: 'user' });
-
-    if (!wallet) {
-      return res.status(404).json({ error: 'Carteira não encontrada' });
+    const existing = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: userId, ownerType: 'user' } } });
+    if (!existing) return res.status(404).json({ error: 'Carteira não encontrada' });
+    if (Number(existing.balance) < amount) {
+      return res.status(400).json({ error: 'Saldo insuficiente', available: Number(existing.balance), requested: amount });
     }
 
-    if (wallet.balance < amount) {
-      return res.status(400).json({
-        error: 'Saldo insuficiente',
-        available: wallet.balance,
-        requested: amount
-      });
-    }
-
-    // Debita carteira
-    wallet.balance -= amount;
-    wallet.totalSpent += amount;
-    wallet.history.push({
-      type: 'debit',
-      category: 'withdrawal',
-      amount,
+    // Débito atômico (WHERE balance >= amount por dentro do serviço).
+    const wallet = await walletService.debit({
+      owner: userId, ownerType: 'user', amount,
       reason: reason || `Transferência para banco (${bankAccount.banco})`,
-      paymentMethod: 'bank_transfer',
-      date: new Date(),
-      reference: `TRF_${Date.now()}`
+      category: 'withdrawal', paymentMethod: 'bank_transfer', reference: `TRF_${Date.now()}`,
     });
-
-    await wallet.save();
 
     // 💸 Notificar usuário do saldo atualizado
     emitWalletUpdated(userId, 'motoboy', {
-      balance: wallet.balance,
-      totalIncome: wallet.totalIncome,
-      totalSpent: wallet.totalSpent,
+      balance: Number(wallet.balance),
+      totalIncome: Number(wallet.totalIncome),
+      totalSpent: Number(wallet.totalSpent),
       updatedAt: new Date(),
     });
 
@@ -540,7 +354,7 @@ export const transferWallet = async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      newBalance: wallet.balance,
+      newBalance: Number(wallet.balance),
       transferId: `TRF_${Date.now()}`,
       status: 'pending'
     });
@@ -559,7 +373,8 @@ export const getWalletHistory = async (req: Request, res: Response) => {
     const { userId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
 
-    let wallet = await Wallet.findOne({ owner: userId });
+    // `owner` sem ownerType: acha a carteira de qualquer papel do id.
+    let wallet = await prisma.wallet.findFirst({ where: { owner: userId } });
 
     if (!wallet) {
       // Autoheal: cria wallet sob demanda (user, motoboy ou store)
@@ -573,18 +388,22 @@ export const getWalletHistory = async (req: Request, res: Response) => {
       let ownerType: 'user' | 'motoboy' | 'store' = 'user';
       if (storeDoc) ownerType = 'store';
       else if ((userDoc as any)?.role === 'motoboy') ownerType = 'motoboy';
-      wallet = await Wallet.create({ owner: userId, ownerType });
+      wallet = await walletService.getOrCreate(userId, ownerType);
     }
 
-    const history = wallet.history
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(Number(offset), Number(offset) + Number(limit));
+    const total = await prisma.walletEntry.count({ where: { walletId: wallet.id } });
+    const entries = await prisma.walletEntry.findMany({
+      where: { walletId: wallet.id },
+      orderBy: { createdAt: 'desc' },
+      skip: Number(offset),
+      take: Number(limit),
+    });
 
     return res.json({
-      total: wallet.history.length,
+      total,
       limit: Number(limit),
       offset: Number(offset),
-      history
+      history: entries.map(entryToHistory),
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
@@ -598,20 +417,17 @@ export const getWalletHistory = async (req: Request, res: Response) => {
  */
 export const getPlatformMetrics = async (req: Request, res: Response) => {
   try {
-    const platformWallet = await Wallet.findOne({
-      owner: 'platform',
-      ownerType: 'platform'
-    });
-
+    const platformWallet = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: 'platform', ownerType: 'platform' } } });
     if (!platformWallet) {
       return res.status(404).json({ error: 'Carteira da plataforma não encontrada' });
     }
+    const history = (await loadWalletHistory(platformWallet.id, 20)).map(entryToHistory);
 
     return res.json({
-      totalBalance: platformWallet.balance,
-      totalIncome: platformWallet.totalIncome,
-      totalSpent: platformWallet.totalSpent,
-      history: platformWallet.history.slice(-20)
+      totalBalance: Number(platformWallet.balance),
+      totalIncome: Number(platformWallet.totalIncome),
+      totalSpent: Number(platformWallet.totalSpent),
+      history,
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
@@ -662,39 +478,10 @@ export const getMyWallet = async (req: Request, res: Response) => {
       console.log('👤 Buscando carteira de CLIENTE:', { owner, ownerType });
     }
 
-    // Buscar wallet
-    let wallet: any = null;
-    try {
-      wallet = await Wallet.findOne({ owner, ownerType });
-      console.log('💰 Wallet query resultado:', { found: !!wallet, owner, ownerType });
-    } catch (walletErr: any) {
-      console.error('❌ Erro em Wallet.findOne:', { message: walletErr.message, owner, ownerType });
-      throw walletErr;
-    }
-
-    // Se não existir, criar automaticamente
-    if (!wallet) {
-      try {
-        console.log('📝 Criando wallet automaticamente:', { owner, ownerType });
-        wallet = await Wallet.create({
-          owner,
-          ownerType,
-          balance: 0,
-          totalIncome: 0,
-          totalSpent: 0,
-          history: [{
-            date: new Date(),
-            type: 'credit',
-            amount: 0,
-            reason: ownerType === 'user' ? 'Carteira de usuário criada automaticamente' : (ownerType === 'store' ? 'Carteira de loja criada automaticamente' : 'Carteira de motoboy criada automaticamente')
-          }]
-        });
-        console.log('✅ Wallet criada com sucesso:', { walletId: wallet._id, owner, ownerType });
-      } catch (createErr: any) {
-        console.error('❌ Erro ao criar wallet:', { message: createErr.message, owner, ownerType });
-        throw createErr;
-      }
-    }
+    // Busca/cria a wallet do papel.
+    const walletRow = await walletService.getOrCreate(owner, ownerType as any);
+    const walletEntries = await loadWalletHistory(walletRow.id, 50);
+    const wallet: any = toApiWallet(walletRow, walletEntries);
 
     // Preparar response data PADRONIZADO
     let userInfo: any = {
@@ -839,151 +626,66 @@ export const transferBetweenWallets = async (req: Request, res: Response) => {
     // ✅ Determinar carteira de ORIGEM
     // - Se fromStoreId foi fornecido: é da loja para usuário
     // - Senão: é do usuário para loja
-    let fromWallet;
+    // ORIGEM
+    let fromRef: { owner: string; ownerType: 'user' | 'store' };
     if (fromStoreId) {
-      // Transferência de LOJA para USUÁRIO
-      console.log('↙️ Transferência de loja para usuário:', { fromStoreId, toUserId, amount });
-      fromWallet = await Wallet.findOne({ owner: fromStoreId, ownerType: 'store' });
-      
-      if (!fromWallet) {
-        return res.status(404).json({ error: 'Carteira de loja não encontrada' });
-      }
+      const w = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: fromStoreId, ownerType: 'store' } } });
+      if (!w) return res.status(404).json({ error: 'Carteira de loja não encontrada' });
+      fromRef = { owner: fromStoreId, ownerType: 'store' };
     } else {
-      // Transferência de USUÁRIO para LOJA (padrão)
-      console.log('↗️ Transferência de usuário para loja:', { userId, toUserId, amount });
-      fromWallet = await Wallet.findOne({ owner: userId, ownerType: 'user' });
-      
-      if (!fromWallet) {
-        return res.status(404).json({ error: 'Sua carteira não encontrada' });
-      }
+      const w = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: userId, ownerType: 'user' } } });
+      if (!w) return res.status(404).json({ error: 'Sua carteira não encontrada' });
+      fromRef = { owner: userId, ownerType: 'user' };
     }
 
-    // ✅ Determinar carteira de DESTINO
-    let toWallet;
+    // DESTINO
+    let toRef: { owner: string; ownerType: 'user' | 'store' } | null = null;
     if (toUserId) {
-      // Destino é um USUÁRIO
-      console.log('🔍 Buscando carteira de destino para usuário:', toUserId);
       const targetUser = await userRepository.findById(toUserId);
-      
-      if (!targetUser) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-      }
-
-      // Se a origem foi de loja, o destino é carteira de USUÁRIO
+      if (!targetUser) return res.status(404).json({ error: 'Usuário não encontrado' });
       if (fromStoreId) {
-        toWallet = await Wallet.findOne({ owner: toUserId, ownerType: 'user' });
-        
-        if (!toWallet) {
-          // Auto-criar carteira de usuário se não existir
-          toWallet = new Wallet({
-            owner: toUserId,
-            ownerType: 'user',
-            balance: 0,
-            totalIncome: 0,
-            totalSpent: 0,
-            history: []
-          });
-          await toWallet.save();
-        }
+        toRef = { owner: toUserId, ownerType: 'user' };
       } else {
-        // Se a origem foi de usuário, o destino é carteira de LOJA
-        if (!targetUser.storeId) {
-          return res.status(404).json({ error: 'Usuário não possui loja' });
-        }
-
-        toWallet = await Wallet.findOne({ owner: targetUser.storeId.toString(), ownerType: 'store' });
-        
-        if (!toWallet) {
-          // Auto-criar carteira de loja se não existir
-          toWallet = new Wallet({
-            owner: targetUser.storeId.toString(),
-            ownerType: 'store',
-            balance: 0,
-            totalIncome: 0,
-            totalSpent: 0,
-            history: []
-          });
-          await toWallet.save();
-        }
+        if (!targetUser.storeId) return res.status(404).json({ error: 'Usuário não possui loja' });
+        toRef = { owner: String(targetUser.storeId), ownerType: 'store' };
       }
     } else if (toWalletId) {
-      toWallet = await Wallet.findById(toWalletId);
+      const w = await prisma.wallet.findUnique({ where: { id: String(toWalletId) } });
+      if (!w) return res.status(404).json({ error: 'Carteira destino não encontrada' });
+      toRef = { owner: w.owner, ownerType: w.ownerType as any };
     } else {
       return res.status(400).json({ error: 'Carteira destino não especificada' });
     }
 
-    if (!toWallet) {
-      return res.status(404).json({ error: 'Carteira destino não encontrada' });
-    }
-
-    if (fromWallet.balance < amount) {
+    const fromWalletRow = await walletService.getOrCreate(fromRef.owner, fromRef.ownerType);
+    if (Number(fromWalletRow.balance) < amount) {
       return res.status(400).json({ error: 'Saldo insuficiente' });
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const transferRef = `TRF_${Date.now()}`;
+    // Transferência atômica: débito da origem + crédito do destino, tudo-ou-nada.
+    const { from: updatedFrom } = await walletService.transfer({
+      from: fromRef, to: toRef, amount, reason: reason || 'Transferência', reference: transferRef,
+    });
 
-    try {
-      const transferRef = `TRF_${Date.now()}`;
-      const transferDate = new Date();
-
-      // Debita origem
-      fromWallet.balance -= amount;
-      fromWallet.totalSpent += amount;
-      fromWallet.history.push({
-        type: 'debit',
-        category: 'transfer',
-        amount,
-        reason: reason || 'Transferência enviada',
-        paymentMethod: 'wallet_transfer',
-        date: transferDate,
-        reference: transferRef
-      });
-
-      // Credita destino
-      toWallet.balance += amount;
-      toWallet.totalIncome += amount;
-      toWallet.history.push({
-        type: 'credit',
-        category: 'transfer',
-        amount,
-        reason: reason || 'Transferência recebida',
-        paymentMethod: 'wallet_transfer',
-        date: transferDate,
-        reference: transferRef
-      });
-
-      await fromWallet.save({ session });
-      await toWallet.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      // 💸 Notificar ambas as partes em tempo real
-      const fromOwnerId = fromStoreId || userId;
-      const fromOwnerType = fromStoreId ? 'lojista' : 'cliente';
-      emitWalletUpdated(fromOwnerId as string, fromOwnerType as any, {
-        balance: fromWallet.balance,
-        totalIncome: fromWallet.totalIncome,
-        totalSpent: fromWallet.totalSpent,
-        updatedAt: new Date(),
-      });
-
-      if (toUserId) {
-        emitWalletTransferCompleted(fromOwnerId as string, toUserId, amount, transferRef);
-      }
-
-      return res.json({
-        success: true,
-        message: 'Transferência realizada com sucesso',
-        newBalance: fromWallet.balance,
-        transferId: transferRef
-      });
-    } catch (txErr) {
-      await session.abortTransaction();
-      session.endSession();
-      throw txErr;
+    const fromOwnerId = fromStoreId || userId;
+    const fromOwnerType = fromStoreId ? 'lojista' : 'cliente';
+    emitWalletUpdated(fromOwnerId as string, fromOwnerType as any, {
+      balance: Number(updatedFrom.balance),
+      totalIncome: Number(updatedFrom.totalIncome),
+      totalSpent: Number(updatedFrom.totalSpent),
+      updatedAt: new Date(),
+    });
+    if (toUserId) {
+      emitWalletTransferCompleted(fromOwnerId as string, toUserId, amount, transferRef);
     }
+
+    return res.json({
+      success: true,
+      message: 'Transferência realizada com sucesso',
+      newBalance: Number(updatedFrom.balance),
+      transferId: transferRef,
+    });
   } catch (err: any) {
     console.error('❌ Transfer error:', err.message);
     return res.status(500).json({ error: 'Erro ao processar transferência' });
@@ -996,34 +698,16 @@ export const transferBetweenWallets = async (req: Request, res: Response) => {
  */
 export const initializePlatformWallet = async (req: Request, res: Response) => {
   try {
-    const existing = await Wallet.findOne({
-      owner: 'platform',
-      ownerType: 'platform'
-    });
-
+    const existing = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: 'platform', ownerType: 'platform' } } });
     if (existing) {
       return res.status(400).json({ error: 'Carteira da plataforma já existe' });
     }
 
-    const wallet = await Wallet.create({
-      owner: 'platform',
-      ownerType: 'platform',
-      balance: 0,
-      totalIncome: 0,
-      totalSpent: 0,
-      history: [
-        {
-          date: new Date(),
-          type: 'credit',
-          amount: 0,
-          reason: 'Inicialização da carteira da plataforma'
-        }
-      ]
-    });
+    const wallet = await walletService.getOrCreate('platform', 'platform');
 
     return res.json({
       success: true,
-      wallet
+      wallet: toApiWallet(wallet),
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
@@ -1045,47 +729,27 @@ export const refundWallet = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valor de reembolso inválido' });
     }
 
-    let wallet = await Wallet.findOne({ owner: userId, ownerType: 'user' });
-
-    if (!wallet) {
-      // Cria carteira se não existir
-      wallet = await Wallet.create({
-        owner: userId,
-        ownerType: 'user',
-        balance: amount,
-        totalIncome: 0,  // ✅ NOVO: Reembolso NÃO conta como entrada
-        history: [
-          {
-            type: 'refund',  // ✅ NOVO: Tipo 'refund' em vez de 'credit'
-            category: 'refund',
-            amount,
-            reason: reason || `Reembolso do pedido ${orderId}`,
-            paymentMethod: 'refund',
-            date: new Date(),
-            reference: `REFUND_${orderId}`
-          }
-        ]
+    // Reembolso é `type: 'refund'` e NÃO conta como entrada (totalIncome). Além disso
+    // reduz totalSpent (o gasto foi desfeito). Por isso não usa walletService.credit.
+    const base = await walletService.getOrCreate(userId, 'user');
+    const newTotalSpent = Math.max(0, Number(base.totalSpent) - amount);
+    const wallet = await prisma.$transaction(async (tx) => {
+      await tx.walletEntry.create({
+        data: {
+          walletId: base.id, type: 'refund', category: 'refund', amount,
+          reason: reason || `Reembolso do pedido ${orderId}`, paymentMethod: 'refund',
+          relatedId: orderId, reference: `REFUND_${orderId}`,
+        },
       });
-    } else {
-      // Adiciona crédito na carteira existente
-      wallet.balance += amount;
-      // ✅ NOVO: NÃO adiciona a totalIncome (reembolso não é entrada)
-      wallet.totalSpent = Math.max(0, wallet.totalSpent - amount);
-      wallet.history.push({
-        type: 'refund',  // ✅ NOVO: Tipo 'refund' em vez de 'credit'
-        category: 'refund',
-        amount,
-        reason: reason || `Reembolso do pedido ${orderId}`,
-        paymentMethod: 'refund',
-        date: new Date(),
-        reference: `REFUND_${orderId}`
+      return tx.wallet.update({
+        where: { id: base.id },
+        data: { balance: { increment: amount }, totalSpent: newTotalSpent },
       });
-      await wallet.save();
-    }
+    });
 
     return res.json({
       success: true,
-      newBalance: wallet.balance,
+      newBalance: Number(wallet.balance),
       refundAmount: amount,
       orderId,
       refundedAt: new Date()
@@ -1109,35 +773,22 @@ export const withdrawWallet = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    const wallet = await Wallet.findById(walletId);
-
-    if (!wallet) {
-      return res.status(404).json({ error: 'Carteira não encontrada' });
-    }
-
-    if (wallet.balance < amount) {
+    const walletRow = await prisma.wallet.findUnique({ where: { id: String(walletId) } });
+    if (!walletRow) return res.status(404).json({ error: 'Carteira não encontrada' });
+    if (Number(walletRow.balance) < amount) {
       return res.status(400).json({ error: 'Saldo insuficiente' });
     }
 
-    // Remove o saldo
-    wallet.balance -= amount;
-    wallet.totalSpent += amount;
-    wallet.history.push({
-      type: 'debit',
-      category: 'withdrawal',
-      amount,
-      reason: reason || 'Saque',
-      paymentMethod: 'bank_transfer',
-      date: new Date(),
-      reference: `WITHDRAW_${Date.now()}`
+    // Débito atômico via serviço (WHERE balance >= amount).
+    const wallet = await walletService.debit({
+      owner: walletRow.owner, ownerType: walletRow.ownerType as any, amount,
+      reason: reason || 'Saque', category: 'withdrawal', paymentMethod: 'bank_transfer', reference: `WITHDRAW_${Date.now()}`,
     });
-
-    await wallet.save();
 
     return res.json({
       success: true,
       message: 'Saque realizado com sucesso',
-      newBalance: wallet.balance,
+      newBalance: Number(wallet.balance),
       withdrawAmount: amount,
       withdrawId: `WITHDRAW_${Date.now()}`
     });
@@ -1164,91 +815,29 @@ export const transferToMotoboyWallet = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    // Buscar carteira de USUÁRIO (pré-validação fora da transação)
-    const userWallet = await Wallet.findOne({ owner: userId, ownerType: 'user' });
-    if (!userWallet) {
-      return res.status(404).json({ error: 'Sua carteira de usuário não foi encontrada' });
-    }
-
-    if (userWallet.balance < amount) {
+    const userWallet = await walletService.getOrCreate(userId, 'user');
+    if (Number(userWallet.balance) < amount) {
       return res.status(400).json({ error: 'Saldo insuficiente' });
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const transferAmount = Number(amount);
+    const reference = `MOTOBOY_TRANSFER_${Date.now()}`;
 
-    try {
-      const transferAmount = Number(amount);
-      const reference = `MOTOBOY_TRANSFER_${Date.now()}`;
-      const transferDate = new Date();
+    // Transferência atômica user → motoboy (mesmo dono, buckets diferentes).
+    const { from: updatedUser, to: updatedMotoboy } = await walletService.transfer({
+      from: { owner: userId, ownerType: 'user' },
+      to: { owner: userId, ownerType: 'motoboy' },
+      amount: transferAmount, reason: 'Transferência para carteira de motoboy', reference,
+    });
 
-      // Re-buscar dentro da transação para garantir consistência
-      const userWalletTx = await Wallet.findOne({ owner: userId, ownerType: 'user' }).session(session);
-      if (!userWalletTx || userWalletTx.balance < transferAmount) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ error: 'Saldo insuficiente' });
-      }
-
-      // Buscar ou criar carteira de MOTOBOY
-      let motoboyWallet = await Wallet.findOne({ owner: userId, ownerType: 'motoboy' }).session(session);
-      if (!motoboyWallet) {
-        const [created] = await Wallet.create([{
-          owner: userId,
-          ownerType: 'motoboy',
-          balance: 0,
-          totalIncome: 0,
-          totalSpent: 0,
-          history: []
-        }], { session });
-        motoboyWallet = created;
-      }
-
-      // Debita carteira de usuário
-      userWalletTx.balance -= transferAmount;
-      userWalletTx.totalSpent += transferAmount;
-      userWalletTx.history.push({
-        type: 'debit',
-        category: 'transfer',
-        amount: transferAmount,
-        reason: 'Transferência para carteira de motoboy',
-        paymentMethod: 'wallet_transfer',
-        date: transferDate,
-        reference
-      });
-
-      // Credita carteira de motoboy
-      motoboyWallet.balance += transferAmount;
-      motoboyWallet.totalIncome += transferAmount;
-      motoboyWallet.history.push({
-        type: 'credit',
-        category: 'transfer',
-        amount: transferAmount,
-        reason: 'Recebido de carteira de usuário',
-        paymentMethod: 'wallet_transfer',
-        date: transferDate,
-        reference
-      });
-
-      await userWalletTx.save({ session });
-      await motoboyWallet.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      return res.json({
-        success: true,
-        message: 'Transferência para carteira de motoboy realizada com sucesso',
-        userWalletBalance: userWalletTx.balance,
-        motoboyWalletBalance: motoboyWallet.balance,
-        transferedAmount: transferAmount,
-        transferId: reference
-      });
-    } catch (txErr) {
-      await session.abortTransaction();
-      session.endSession();
-      throw txErr;
-    }
+    return res.json({
+      success: true,
+      message: 'Transferência para carteira de motoboy realizada com sucesso',
+      userWalletBalance: Number(updatedUser.balance),
+      motoboyWalletBalance: Number(updatedMotoboy.balance),
+      transferedAmount: transferAmount,
+      transferId: reference
+    });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });

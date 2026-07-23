@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import walletService from '../services/wallet.prisma.service';
 import userRepository from '../repositories/user.repository';
 import { AuthenticatedRequest } from '../types';
 import { getDefaultAddress } from '../utils/userHelpers';
@@ -31,13 +32,6 @@ const registerSchema = z.object({
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
 
-// Importar Wallet model
-let Wallet: any;
-try {
-  Wallet = require('../models/Wallet').default || require('../models/Wallet');
-} catch (e) {
-  console.warn('⚠️ Wallet model não encontrado');
-}
 
 // Validar magic bytes para detectar fake images (usando buffer em memória)
 const isValidImageBuffer = (buffer: Buffer): boolean => {
@@ -98,27 +92,13 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
       photo: photoPath,
     });
 
-    // ✨ CRIAR CARTEIRA AUTOMATICAMENTE
-    // Segue no Mongoose: a carteira só migra na Fatia 5 (financeiro). Como antes,
-    // uma falha aqui não impede o cadastro — a carteira é criada sob demanda depois.
-    if (Wallet) {
-      try {
-        const wallet = new Wallet({
-          owner: user.id,
-          ownerType: 'user',
-          balance: 0,
-          totalIncome: 0,
-          totalSpent: 0,
-          history: [],
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-        await wallet.save();
-        console.log(`✅ Carteira criada automaticamente para usuário: ${user.id}`);
-      } catch (err) {
-        console.warn(`⚠️ Erro ao criar carteira para ${user.id}:`, err);
-        // Continuar mesmo se falhar na carteira
-      }
+    // ✨ CRIAR CARTEIRA AUTOMATICAMENTE. Falha aqui não impede o cadastro — a
+    // carteira também é criada sob demanda depois (getOrCreate).
+    try {
+      await walletService.getOrCreate(user.id, 'user');
+      console.log(`✅ Carteira criada automaticamente para usuário: ${user.id}`);
+    } catch (err) {
+      console.warn(`⚠️ Erro ao criar carteira para ${user.id}:`, err);
     }
 
     // Não criar loja automaticamente. Loja será criada após cadastro pelo painel.
