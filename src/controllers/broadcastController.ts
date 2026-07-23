@@ -1,7 +1,14 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
-import Broadcast from '../models/Broadcast';
-import Notification from '../models/Notification';
+import {
+  insertBroadcast,
+  updateBroadcastById,
+  findBroadcastById,
+  removeBroadcast,
+  countBroadcasts,
+  listBroadcastsWithCreator,
+} from '../repositories/broadcast.repository';
+import { insertNotifications, deleteNotificationsByBroadcast } from '../repositories/notification.repository';
 import { prisma } from '../lib/prisma';
 import { emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
@@ -45,7 +52,7 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
       }
     }
 
-    const broadcast = await Broadcast.create({
+    const broadcast = await insertBroadcast({
       title: title.trim(),
       body: body.trim(),
       targetRoles,
@@ -66,8 +73,8 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
     });
 
     if (users.length === 0) {
-      await Broadcast.findByIdAndUpdate(broadcast._id, { deliveryCount: 0 });
-      return res.status(201).json({ ...broadcast.toObject(), deliveryCount: 0 });
+      await updateBroadcastById(broadcast._id, { deliveryCount: 0 });
+      return res.status(201).json({ ...broadcast, deliveryCount: 0 });
     }
 
     // Criar notificações em lotes
@@ -83,7 +90,7 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
         broadcastId: broadcast._id,
         read: false,
       }));
-      await Notification.insertMany(notifDocs);
+      await insertNotifications(notifDocs);
       totalCreated += batch.length;
 
       // Emite via socket para cada usuário (notification:received — ouvido por useNotifications)
@@ -103,10 +110,10 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
       }
     }
 
-    await Broadcast.findByIdAndUpdate(broadcast._id, { deliveryCount: totalCreated });
+    await updateBroadcastById(broadcast._id, { deliveryCount: totalCreated });
 
     logger.info('Broadcast enviado', { broadcastId: broadcast._id, totalCreated });
-    return res.status(201).json({ ...broadcast.toObject(), deliveryCount: totalCreated });
+    return res.status(201).json({ ...broadcast, deliveryCount: totalCreated });
   } catch (err) {
     logger.error('Erro ao criar broadcast', err as Error);
     return res.status(500).json({ error: 'Erro ao criar broadcast' });
@@ -117,12 +124,12 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
 export const deleteBroadcast = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const broadcast = await Broadcast.findById(id);
+    const broadcast = await findBroadcastById(id);
     if (!broadcast) return res.status(404).json({ error: 'Broadcast não encontrado' });
 
     // Remove todas as notificações vinculadas
-    const { deletedCount } = await Notification.deleteMany({ broadcastId: id });
-    await broadcast.deleteOne();
+    const deletedCount = await deleteNotificationsByBroadcast(id);
+    await removeBroadcast(id);
 
     logger.info('Broadcast deletado', { broadcastId: id, notificationsRemoved: deletedCount });
     return res.json({ success: true, notificationsRemoved: deletedCount });
@@ -137,13 +144,8 @@ export const listBroadcasts = async (req: AuthenticatedRequest, res: Response) =
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = 20;
-    const broadcasts = await Broadcast.find()
-      .sort({ sentAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .populate('createdBy', 'name')
-      .lean();
-    const total = await Broadcast.countDocuments();
+    const broadcasts = await listBroadcastsWithCreator((page - 1) * limit, limit);
+    const total = await countBroadcasts();
     return res.json({ broadcasts, total, page, pages: Math.ceil(total / limit) });
   } catch (err) {
     logger.error('Erro ao listar broadcasts', err as Error);

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../app';
 import env from '../config/env';
-import WebhookEvent from '../models/WebhookEvent';
+import { prisma } from '../lib/prisma';
 
 let mongod: MongoMemoryServer;
 
@@ -22,6 +22,10 @@ afterEach(async () => {
   for (const key in collections) {
     await collections[key].deleteMany({});
   }
+  // WebhookEvent agora vive no Postgres (persiste entre runs) — limpa os eventos de teste.
+  await prisma.webhookEvent.deleteMany({
+    where: { OR: [{ eventId: { startsWith: 'evt_' } }, { eventId: { startsWith: 'PAYMENT_RECEIVED:pay_999' } }] },
+  });
   env.ASAAS_WEBHOOK_TOKEN = undefined; // garante estado limpo entre testes
 });
 
@@ -38,7 +42,7 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
     expect(res.status).toBe(200);
     expect(res.body.received).toBe(true);
 
-    const count = await WebhookEvent.countDocuments({ eventId: 'evt_test_1' });
+    const count = await prisma.webhookEvent.count({ where: { eventId: 'evt_test_1' } });
     expect(count).toBe(1);
   });
 
@@ -49,7 +53,7 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
     expect(res2.status).toBe(200);
     expect(res2.body.duplicate).toBe(true);
 
-    const count = await WebhookEvent.countDocuments({ eventId: 'evt_test_1' });
+    const count = await prisma.webhookEvent.count({ where: { eventId: 'evt_test_1' } });
     expect(count).toBe(1); // não duplicou
   });
 
@@ -83,7 +87,7 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
       .send({ event: 'PAYMENT_RECEIVED', payment: { id: 'pay_999', status: 'RECEIVED' } });
 
     expect(res.status).toBe(200);
-    const ev = await WebhookEvent.findOne({ eventId: 'PAYMENT_RECEIVED:pay_999:RECEIVED' });
+    const ev = await prisma.webhookEvent.findUnique({ where: { eventId: 'PAYMENT_RECEIVED:pay_999:RECEIVED' } });
     expect(ev).not.toBeNull();
   });
 });
