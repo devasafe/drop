@@ -1,7 +1,7 @@
 .carousel {
   position: relative;
   width: 100%;
-  /* Mesma proporção da imagem (1400x350 = 4:1): no desktop fica ~350px e no
+  /* Mesma proporção   sssssss da imagem (1400x350 = 4:1): no desktop fica ~350px e no
      mobile encolhe proporcionalmente, mostrando a imagem inteira sem cortar. */
   aspect-ratio: 4 / 1;
   border-radius: 16px;
