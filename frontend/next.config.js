@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Gera um build auto-contido (server.js + deps mínimas) para a imagem Docker.
+  output: 'standalone',
   reactStrictMode: true,
   swcMinify: false,
   eslint: {

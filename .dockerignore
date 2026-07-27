@@ -2,6 +2,14 @@ node_modules
 dist
 .env
 .env.local
+.env.production
 npm-debug.log
 coverage
 uploads
+# não faz parte do build do backend — acelera o contexto
+frontend
+docs
+_archive_docs
+logs
+.git
+skills-lock.json
