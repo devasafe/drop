@@ -152,14 +152,15 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
 
-    // Campos básicos
-    if (name !== undefined) productDoc.name = name;
-    if (description !== undefined) productDoc.description = description;
-    if (price !== undefined) productDoc.price = Number(price);
-    if (quantity !== undefined) productDoc.quantity = Number(quantity);
-    if (category !== undefined) productDoc.category = category || undefined;
-    if (subCategory !== undefined) productDoc.subCategory = subCategory;
-    if (tags !== undefined) productDoc.tags = Array.isArray(tags) ? tags : [];
+    // Campos a atualizar (Prisma update; era mutação + productDoc.save() do Mongoose)
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (price !== undefined) data.price = Number(price);
+    if (quantity !== undefined) data.quantity = Number(quantity);
+    if (category !== undefined) data.categoryId = category || null; // campo real é categoryId
+    if (subCategory !== undefined) data.subCategory = subCategory;
+    if (tags !== undefined) data.tags = Array.isArray(tags) ? tags : [];
 
     // Upload de novas imagens
     const filesMap = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
@@ -185,29 +186,29 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
 
     const allImages = [...existingImages, ...uploadedImageUrls];
     if (newImageFiles.length > 0 || keepImages !== undefined) {
-      productDoc.images = allImages;
-      productDoc.image = allImages[0] || productDoc.image;
+      data.images = allImages;
+      data.image = allImages[0] || productDoc.image;
     }
 
     // Vídeo
     if (removeVideo === 'true' || removeVideo === true) {
-      productDoc.video = undefined;
+      data.video = null;
     } else if (newVideoFiles.length > 0) {
       try {
-        productDoc.video = await uploadVideoToCloudinary(newVideoFiles[0].buffer, 'drop/products/videos');
+        data.video = await uploadVideoToCloudinary(newVideoFiles[0].buffer, 'drop/products/videos');
       } catch (uploadErr) {
         console.error('[updateProduct] Cloudinary video upload falhou:', uploadErr);
         return res.status(500).json({ error: 'Falha ao fazer upload do vídeo' });
       }
     }
 
-    await productDoc.save();
+    const updated = await prisma.product.update({ where: { id }, data });
 
     // Emit socket event
-    emitProductUpdated(productDoc.toObject());
+    emitProductUpdated(toApiProduct(updated));
 
-    console.log(`[updateProduct] Produto atualizado: ${productDoc._id}`);
-    return res.json(productDoc.toObject());
+    console.log(`[updateProduct] Produto atualizado: ${updated.id}`);
+    return res.json(toApiProduct(updated));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -228,8 +229,8 @@ export const deleteProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
 
-    await productDoc.deleteOne();
-    
+    await prisma.product.delete({ where: { id } });
+
     // Emit socket event
     emitProductDeleted(id);
     
@@ -256,9 +257,8 @@ export const updateStock = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
 
-    productDoc.quantity = quantity;
-    await productDoc.save();
-    return res.json(productDoc.toObject());
+    const updated = await prisma.product.update({ where: { id }, data: { quantity } });
+    return res.json(toApiProduct(updated));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);

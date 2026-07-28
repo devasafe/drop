@@ -41,9 +41,9 @@ router.put('/active-role', authenticate, async (req: Request, res: Response) => 
       return res.status(403).json({ error: 'Você não tem permissão para esse role' });
     }
 
-    // Atualizar activeRole
-    user.activeRole = activeRole as any;
-    await user.save();
+    // Atualizar activeRole (Prisma; era user.save() do Mongoose)
+    await userRepository.update(String(userId), { activeRole: activeRole as any });
+    user.activeRole = activeRole;
 
     return res.json({
       message: 'Role ativado com sucesso',
