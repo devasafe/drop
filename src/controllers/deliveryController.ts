@@ -370,13 +370,13 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     }
 
     // 🎉 BROADCAST 1: Notificar TODAS as partes que entrega foi completada
-    emitDeliveryCompleted(delivery, order.toObject());
+    emitDeliveryCompleted(delivery, order);
     
     // 🎉 BROADCAST 2: Status geral da delivery
     emitDeliveryStatusChanged(delivery);
 
     // 🎉 BROADCAST 3: ATUALIZAR O PEDIDO TAMBÉM - remove de 'andamento', entra em 'histórico'
-    emitOrderStatusChanged(order.toObject());
+    emitOrderStatusChanged(order);
     console.log(`✅ [finalizarEntrega] Order status changed emitted for client to update history`);
 
     // --- Gamificação: pontos por entrega finalizada ---
@@ -596,7 +596,7 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
       if (order) {
         order.status = 'entregue';
         await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
-        emitOrderStatusChanged(order.toObject());
+        emitOrderStatusChanged(order);
       }
     }
 
