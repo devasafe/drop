@@ -173,7 +173,12 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
         owner: { select: { id: true, name: true, email: true, roles: true, role: true } },
       },
     });
-    const stores = rows.map((st) => ({ ...st, _id: st.id, ownerId: st.owner ?? st.ownerId }));
+    // owner vem do Prisma só com `id`; o front espera `_id`. Expõe ambos (padrão do projeto).
+    const stores = rows.map((st) => ({
+      ...st,
+      _id: st.id,
+      ownerId: st.owner ? { ...st.owner, _id: st.owner.id } : st.ownerId,
+    }));
 
     const facialPendingRaw = await prisma.user.findMany({
       where: { verification: { path: ['facial', 'status'], equals: 'pending' } },
