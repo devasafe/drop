@@ -9,6 +9,10 @@ import {
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
 
+// Prisma serializa Decimal (price) como string; o front espera number.
+// Converte na fronteira de saída da API. Mantém _id para compatibilidade.
+const toApiProduct = (p: any) => ({ ...p, _id: p?.id, price: p?.price != null ? Number(p.price) : p?.price });
+
 export const createProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { storeId, name, price, quantity, category, subCategory, tags, description } = req.body;
@@ -57,7 +61,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
     const product = await prisma.product.create({
       data: {
         storeId: String(storeId), name, description,
-        price, quantity: Number(quantity) || 0,
+        price: Number(price), quantity: Number(quantity) || 0,
         categoryId: category || undefined, subCategory, tags,
         image: imagePath,
         images: imageUrls,
@@ -74,7 +78,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
     }
     
     console.log(`[createProduct] Produto criado: ${product.id} (${name})`);
-    return res.status(201).json(product);
+    return res.status(201).json(toApiProduct(product));
   } catch (err: any) {
     console.error('[createProduct] Erro:', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -99,7 +103,7 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const skip = (page - 1) * limit;
 
     const rows = await prisma.product.findMany({ where: filter, skip, take: limit });
-    const products = rows.map((pr) => ({ ...pr, _id: pr.id }));
+    const products = rows.map(toApiProduct);
 
     const total = await prisma.product.count({ where: filter });
 
@@ -124,7 +128,7 @@ export const getProduct = async (req: Request<{ id: string }>, res: Response) =>
     const { id } = req.params;
     const product = await prisma.product.findUnique({ where: { id } });
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    return res.json({ ...product, _id: product.id });
+    return res.json(toApiProduct(product));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
