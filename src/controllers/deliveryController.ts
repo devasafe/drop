@@ -1074,31 +1074,44 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       delivery.cancelledAt = new Date();
       await persistDelivery(delivery);
       console.log(`📋 [confirmReturn] Cancelando Order para o cliente...`);
+
+      // ✅ TRAVA ATÔMICA ANTI-DUPLO-REEMBOLSO (review #1b): só reembolsa se ESTE request for
+      // o que efetivamente move o pedido de um estado cancelável → 'cancelado'. Se o pedido já
+      // foi cancelado/reembolsado por outro caminho (ex.: `pos-devolucao` reembolso), o
+      // `count === 0` transforma o refund num no-op. Mesmo padrão de `cancelOrderByCustomer`.
+      const cancelClaim = await prisma.order.updateMany({
+        where: { id: order.id, status: { in: ['criado', 'pago', 'enviado'] as any } },
+        data: { status: 'cancelado', cancelledAt: new Date() },
+      });
       order.status = 'cancelado';
-      order.cancelledAt = new Date();
-      await prisma.order.update({ where: { id: order.id }, data: { status: 'cancelado', cancelledAt: order.cancelledAt } });
-      console.log(`✅ [confirmReturn] Order cancelado: ${order._id}`);
+      const newlyCancelled = cancelClaim.count === 1;
+      console.log(`✅ [confirmReturn] Order ${order._id} — newlyCancelled=${newlyCancelled}`);
 
-      // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox
-      try {
-        await prisma.$transaction(async (tx) => {
-          await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
+      // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox.
+      // SÓ quando este request reivindicou o cancelamento (evita reembolso duplicado).
+      if (newlyCancelled) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
 
-          const refundAmount = order.totalValue || 0;
-          if (refundAmount > 0) {
-            await walletService.credit(
-              { owner: String(order.customerId), ownerType: 'user', amount: refundAmount, reason: 'Reembolso - Produto devolvido a loja pelo motoboy', category: 'refund', relatedId: order.id },
-              tx,
-            );
-            await recordCashboxEntry(tx, {
-              type: 'expense', source: 'order_refund', amount: refundAmount, orderId: order.id,
-              reason: 'Reembolso - Produto devolvido a loja',
-            });
-          }
-        });
-        console.log(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
-      } catch (refundErr) {
-        console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);
+            const refundAmount = order.totalValue || 0;
+            if (refundAmount > 0) {
+              await walletService.credit(
+                { owner: String(order.customerId), ownerType: 'user', amount: refundAmount, reason: 'Reembolso - Produto devolvido a loja pelo motoboy', category: 'refund', relatedId: order.id },
+                tx,
+              );
+              await recordCashboxEntry(tx, {
+                type: 'expense', source: 'order_refund', amount: refundAmount, orderId: order.id,
+                reason: 'Reembolso - Produto devolvido a loja',
+              });
+            }
+          });
+          console.log(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
+        } catch (refundErr) {
+          console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);
+        }
+      } else {
+        console.log(`⏭️ [confirmReturn] Pedido ${order._id} já estava cancelado — refund pulado (anti-duplo-reembolso)`);
       }
 
       emitToRoom(`user:${delivery.motoboyId}`, 'delivery:return_confirmed', {

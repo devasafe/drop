@@ -409,51 +409,74 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
       if (!delivery.pinDevolucao) {
         const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
 
-        // ── Taxa do motoboy (idempotente) ──
-        // Reference única por entrega evita cobrança dupla se o handler for reexecutado.
+        // Taxa do motoboy (spec §3.2 "MTB já pegou"): base = entrega, 100% app.
+        const cfg = await getPlatformConfig();
+        const feeConfig = {
+          cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
+          cancelFeeStorePercent: cfg?.cancelFeeStorePercent ?? 10,
+          cancelFeeMotoboyPercent: cfg?.cancelFeeMotoboyPercent ?? 10,
+          lateCancellationMotoboyShare: cfg?.lateCancellationMotoboyShare ?? 50,
+        };
+        const fee = calculateCancellationFee({
+          actor: 'motoboy',
+          motoboyInvolved: true,
+          orderTotal: orderForReturn?.totalValue ? Number(orderForReturn.totalValue) : 0,
+          deliveryFee: orderForReturn?.deliveryFee ? Number(orderForReturn.deliveryFee) : Number(delivery.fee || 0),
+          config: feeConfig,
+        });
+
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
         const feeRef = `CANCEL_MTB_${delivery._id}`;
-        const alreadyCharged = await prisma.walletEntry.findFirst({ where: { reference: feeRef } });
-        if (!alreadyCharged) {
-          try {
-            const cfg = await getPlatformConfig();
-            const feeConfig = {
-              cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
-              cancelFeeStorePercent: cfg?.cancelFeeStorePercent ?? 10,
-              cancelFeeMotoboyPercent: cfg?.cancelFeeMotoboyPercent ?? 10,
-              lateCancellationMotoboyShare: cfg?.lateCancellationMotoboyShare ?? 50,
-            };
-            const fee = calculateCancellationFee({
-              actor: 'motoboy',
-              motoboyInvolved: true,
-              orderTotal: orderForReturn?.totalValue ? Number(orderForReturn.totalValue) : 0,
-              deliveryFee: orderForReturn?.deliveryFee ? Number(orderForReturn.deliveryFee) : Number(delivery.fee || 0),
-              config: feeConfig,
-            });
-            if (fee.totalFee > 0) {
-              await prisma.$transaction(async (tx) => {
-                // Debita a taxa da carteira do MOTOBOY (mesmo padrão de penalty da loja).
-                await walletService.debit(
-                  { owner: String(delivery.motoboyId), ownerType: 'motoboy', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-retirada - motoboy', category: 'penalty', reference: feeRef },
-                  tx,
-                );
-                // Taxa cheia (= appShare, 100% app) como income no AppCashbox.
-                await recordCashboxEntry(tx, {
-                  type: 'income', source: 'cancelled_order', amount: fee.appShare, orderId: String(delivery.orderId),
-                  reason: `Taxa de cancelamento do motoboy pós-retirada - Pedido ${delivery.orderId}`,
-                });
-              });
-            }
-          } catch (feeErr) {
-            logger.error('Erro ao cobrar taxa de cancelamento do motoboy', feeErr as Error, { deliveryId: delivery._id });
-          }
+
+        // ── IDEMPOTÊNCIA CONCURRENCY-SAFE (review #2) ──
+        // Reivindica a devolução de forma atômica na própria Delivery: o UPDATE condicional
+        // `WHERE pinDevolucao IS NULL` (estado pré-taxa) é serializado pelo lock de linha do
+        // Postgres, então dois `reject` simultâneos (double-tap) só têm UM vencedor — e só o
+        // vencedor cobra a taxa. Espelha a trava de status do pedido (updateMany + count).
+        const claim = await prisma.delivery.updateMany({
+          where: { id: String(delivery._id), status: 'picked', pinDevolucao: null },
+          data: { statusDevolucao: 'aguardando_confirmacao', pinDevolucao: pin, pendingReturnAction: null },
+        });
+
+        if (claim.count === 0) {
+          // Outro request concorrente já reivindicou a devolução — NÃO cobra de novo.
+          const fresh: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(delivery._id) } }));
+          return res.status(202).json({
+            success: true,
+            statusDevolucao: fresh?.statusDevolucao ?? 'aguardando_confirmacao',
+            message: 'Devolução já em andamento. Aguardando decisão do cliente / confirmação da loja.',
+            pinDevolucao: fresh?.pinDevolucao,
+            awaitingCustomerDecision: true,
+            isPending: true,
+          });
         }
 
-        const pinDevolucao = Math.floor(100000 + Math.random() * 900000).toString();
-        delivery.pinDevolucao = pinDevolucao;
-        delivery.statusDevolucao = 'aguardando_confirmacao';
-        // NÃO reatribui automaticamente: aguarda o cliente decidir via pos-devolucao.
-        delivery.pendingReturnAction = undefined;
-        await persistDelivery(delivery);
+        // Vencemos a reivindicação → somos o ÚNICO a cobrar a taxa (idempotência garantida).
+        let feeStatus: 'charged' | 'pending' | 'none' = fee.totalFee > 0 ? 'pending' : 'none';
+        if (fee.totalFee > 0) {
+          try {
+            await prisma.$transaction(async (tx) => {
+              // Debita a taxa da carteira do MOTOBOY (mesmo padrão de penalty da loja).
+              await walletService.debit(
+                { owner: String(delivery.motoboyId), ownerType: 'motoboy', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-retirada - motoboy', category: 'penalty', reference: feeRef },
+                tx,
+              );
+              // Taxa cheia (= appShare, 100% app) como income no AppCashbox.
+              await recordCashboxEntry(tx, {
+                type: 'income', source: 'cancelled_order', amount: fee.appShare, orderId: String(delivery.orderId),
+                reason: `Taxa de cancelamento do motoboy pós-retirada - Pedido ${delivery.orderId}`,
+              });
+            });
+            feeStatus = 'charged';
+          } catch (feeErr) {
+            // review #3: saldo insuficiente (ou outra falha do débito) → NÃO fingimos sucesso.
+            // A devolução prossegue (o produto precisa voltar à loja de qualquer forma), mas a
+            // taxa fica PENDENTE e recuperável: como NENHUM walletEntry `feeRef` foi criado, uma
+            // cobrança futura pode reprocessá-la sem risco de duplicidade (idempotência por ref).
+            feeStatus = 'pending';
+            logger.warn('Taxa do motoboy não debitada (saldo insuficiente?) — fica PENDENTE p/ cobrança futura', { deliveryId: delivery._id, motoboyId: delivery.motoboyId, amount: fee.totalFee, error: (feeErr as Error)?.message });
+          }
+        }
 
         if (orderForReturn) {
           emitToRoom(`store:${orderForReturn.storeId}`, 'delivery:return_requested', {
@@ -473,11 +496,17 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
           });
         }
 
+        // review #5: a mensagem reflete o resultado REAL do débito (não um sucesso presumido).
         return res.status(202).json({
           success: true,
           statusDevolucao: 'aguardando_confirmacao',
-          message: 'Taxa cobrada do motoboy. Produto será devolvido à loja; aguardando decisão do cliente.',
-          pinDevolucao,
+          feeStatus,
+          message: feeStatus === 'charged'
+            ? 'Taxa cobrada do motoboy. Produto será devolvido à loja; aguardando decisão do cliente.'
+            : feeStatus === 'pending'
+              ? 'Produto será devolvido à loja; aguardando decisão do cliente. Taxa do motoboy ficou PENDENTE (sem saldo) e será cobrada posteriormente.'
+              : 'Produto será devolvido à loja; aguardando decisão do cliente.',
+          pinDevolucao: pin,
           awaitingCustomerDecision: true,
           isPending: true,
         });
@@ -629,12 +658,18 @@ async function cancelOrderWithFullRefund(
   order.status = 'cancelado';
   await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
-  // Cancela a entrega associada.
+  // Cancela a entrega associada E leva o estado de devolução ao TERMINAL (review #1a):
+  // com `statusDevolucao='confirmado'` + `pinDevolucao=null`, o guard do `confirmReturn`
+  // (`statusDevolucao !== 'aguardando_confirmacao' → 400`) rejeita uma confirmação tardia
+  // da loja com o PIN, fechando o vetor de DUPLO-REEMBOLSO (reembolso + confirmReturn).
   if (order.deliveryId) {
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
     if (delivery && delivery.status !== 'delivered') {
       delivery.status = 'cancelled';
       delivery.cancelledAt = new Date();
+      delivery.statusDevolucao = 'confirmado';
+      delivery.pinDevolucao = null;
+      delivery.pendingReturnAction = null;
       await persistDelivery(delivery);
       emitDeliveryCancelled(delivery, cancellation);
     }

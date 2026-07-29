@@ -659,3 +659,91 @@ describe('Task 7: cliente decide reentrega após motoboy cancelar (picked) — v
     expect(updated!.motoboyId).toBeNull();
   });
 });
+
+// ============================================================
+// Task 7 — Regressão review round 1 (CRITICAL #1): duplo-reembolso via
+// reembolso (pos-devolucao) + confirmReturn da loja. O produto volta à loja mesmo
+// no caminho reembolso; a loja NÃO pode disparar um segundo refund.
+// ============================================================
+describe('Task 7 fix: motoboy — reembolso seguido de confirmReturn NÃO reembolsa 2x', () => {
+  it('reembolso credita totalValue UMA vez; confirmReturn tardio é rejeitado (estado terminal)', async () => {
+    const owner = await createUser('lojista');
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Duplo Refund' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Estado pós-rejeição do motoboy: devolução aguardando confirmação com PIN.
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '777777' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    // 1) Cliente pede reembolso → refund #1 (100%).
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pos-devolucao`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'reembolso' });
+    expect(res.status).toBe(200);
+    expect(res.body.refundAmount).toBeCloseTo(200, 2);
+
+    // 2) O produto volta fisicamente e a loja tenta confirmar com o PIN → deve ser REJEITADO
+    //    (estado de devolução já é terminal), sem disparar refund #2.
+    const confirmRes = await request(app)
+      .post(`/api/deliveries/${delivery.id}/confirm-return`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ pinDevolucao: '777777' });
+    expect(confirmRes.status).toBe(400);
+
+    // PROVA: cliente creditado order.totalValue UMA única vez (500 + 200), nunca 900.
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(700, 2);
+    const refundEntries = custWallet!.history.filter((h: any) => h.category === 'refund');
+    expect(refundEntries.length).toBe(1);
+  });
+
+  it('confirmReturn no ramo CANCEL sobre pedido JÁ cancelado é no-op (trava atômica de status)', async () => {
+    const owner = await createUser('lojista');
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Trava Status' } });
+
+    // Pedido JÁ cancelado, mas a entrega ficou (estado sintético) aguardando confirmação
+    // sem pendingReturnAction → confirmReturn cairia no ramo CANCEL e reembolsaria de novo
+    // se não houvesse a trava atômica de status.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'cancelado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(), cancelledAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '888888' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const confirmRes = await request(app)
+      .post(`/api/deliveries/${delivery.id}/confirm-return`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ pinDevolucao: '888888' });
+    expect(confirmRes.status).toBe(200); // confirma a devolução física...
+
+    // ...mas NÃO reembolsa (pedido já estava cancelado): carteira intacta.
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(500, 2);
+    expect(custWallet!.history.filter((h: any) => h.category === 'refund').length).toBe(0);
+  });
+});
