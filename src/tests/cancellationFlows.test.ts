@@ -17,6 +17,7 @@ import { cleanupUsersByEmailDomain, wipeAppCashbox, snapshotPlatformConfig } fro
 import { createWallet, findWallet, createAppCashbox, findAppCashbox, findPayout } from './helpers/financePg';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { runStoreAcceptTimeout } from '../jobs/storeAcceptTimeout.job';
+import { runPoolTimeout } from '../jobs/poolTimeout.job';
 
 const refundMock = refundOrderCharge as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -838,5 +839,183 @@ describe('Task 8: job de timeout loja (auto-cancela pedido pago sem aceite)', ()
     expect(updatedProduct!.quantity).toBe(5); // inalterado
 
     void result;
+  });
+});
+
+// ============================================================
+// Task 9: job de timeout do POOL — ninguém pega a entrega em `poolTimeoutMin`.
+// O job NÃO cancela sozinho (spec §6.1): apenas marca
+// `Order.awaitingCustomerPoolDecision=true` e emite `order:pool_timeout`. O
+// cliente decide via POST /orders/:id/pool-timeout: 'cancelar' (refund 100%,
+// reaproveita cancelOrderWithFullRefund) ou 'seguir' (limpa a flag, a entrega
+// segue 'pending' no pool para o matching existente).
+// ============================================================
+describe('Task 9: job de timeout pool (marca flag, não auto-cancela) + decisão do cliente', () => {
+  beforeAll(async () => {
+    // Fixa poolTimeoutMin em um valor conhecido (o snapshot/restore do topo do
+    // arquivo já cobre esta linha, criada ou atualizada por essa mesma suíte).
+    const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+    await prisma.platformConfig.update({ where: { id: existing!.id }, data: { poolTimeoutMin: 15 } });
+  });
+
+  it('delivery pending sem motoboy, mais velha que poolTimeoutMin → runPoolTimeout() marca a flag, NÃO cancela o pedido', async () => {
+    const customer = await createUser('cliente');
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Timeout Pool' } });
+
+    // Pedido no pool (status real de produção quando a loja aceita e a entrega
+    // entra no pool — ver orderController.acceptOrder), sem motoboy atribuído.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 80), quantity: 1, price: 80 }] },
+      totalValue: 80, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Entrega no pool (pending, sem motoboy) criada 1h atrás — bem além dos 15min configurados.
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: null, fee: 20, status: 'pending', createdAt: new Date(Date.now() - 60 * 60 * 1000) },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const result = await runPoolTimeout();
+
+    expect(result.flagged).toBeGreaterThanOrEqual(1);
+
+    // PROVA 1: pedido marcado aguardando decisão do cliente — NÃO cancelado.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.awaitingCustomerPoolDecision).toBe(true);
+    expect(updatedOrder!.status).toBe('aguardando_motoboy');
+
+    // PROVA 2: a entrega segue intocada (pending, sem motoboy) — job só marca, não mexe na entrega.
+    const updatedDelivery = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updatedDelivery!.status).toBe('pending');
+    expect(updatedDelivery!.motoboyId).toBeNull();
+  });
+
+  it('controle: delivery pending recém-criada (DENTRO do prazo) NÃO é marcada', async () => {
+    const customer = await createUser('cliente');
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Pool Dentro Prazo' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 80), quantity: 1, price: 80 }] },
+      totalValue: 80, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Entrega no pool criada AGORA (createdAt default) — dentro dos 15min.
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: null, fee: 20, status: 'pending' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    await runPoolTimeout();
+
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.awaitingCustomerPoolDecision).toBe(false);
+  });
+
+  it("POST /orders/:id/pool-timeout {escolha:'cancelar'} → refund 100% e pedido cancelado", async () => {
+    const customer = await createUser('cliente');
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 300, totalIncome: 300, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Pool Cancelar' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 120), quantity: 1, price: 120 }] },
+      totalValue: 120, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+      awaitingCustomerPoolDecision: true,
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: null, fee: 20, status: 'pending' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pool-timeout`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'cancelar' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelado');
+    expect(res.body.refundAmount).toBeCloseTo(120, 2);
+
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(420, 2); // 300 + 120
+
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('cancelado');
+    expect(updatedOrder!.awaitingCustomerPoolDecision).toBe(false);
+  });
+
+  it("POST /orders/:id/pool-timeout {escolha:'seguir'} → limpa a flag, delivery segue 'pending' no pool", async () => {
+    const customer = await createUser('cliente');
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Pool Seguir' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 90), quantity: 1, price: 90 }] },
+      totalValue: 90, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+      awaitingCustomerPoolDecision: true,
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: null, fee: 20, status: 'pending' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pool-timeout`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'seguir' });
+
+    expect(res.status).toBe(200);
+
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.awaitingCustomerPoolDecision).toBe(false);
+    expect(updatedOrder!.status).toBe('aguardando_motoboy');
+
+    const updatedDelivery = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updatedDelivery!.status).toBe('pending');
+    expect(updatedDelivery!.motoboyId).toBeNull();
+  });
+
+  it('IDOR: outro cliente não pode decidir o timeout do pool de pedido alheio (403)', async () => {
+    const customer = await createUser('cliente');
+    const outro = await createUser('cliente');
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Pool IDOR' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 60), quantity: 1, price: 60 }] },
+      totalValue: 60, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+      awaitingCustomerPoolDecision: true,
+    }, include: { items: true } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pool-timeout`)
+      .set('Authorization', `Bearer ${outro.token}`)
+      .send({ escolha: 'seguir' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('sem decisão pendente (awaitingCustomerPoolDecision=false) → 409', async () => {
+    const customer = await createUser('cliente');
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Pool Sem Pendencia' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 60), quantity: 1, price: 60 }] },
+      totalValue: 60, deliveryFee: 20, status: 'aguardando_motoboy', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pool-timeout`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'seguir' });
+
+    expect(res.status).toBe(409);
   });
 });

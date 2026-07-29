@@ -9,6 +9,7 @@ import {
   getCancellationHistory,
   getCancellationStats,
   posDevolucaoDecision,
+  poolTimeoutDecision,
 } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
@@ -56,6 +57,9 @@ router.post('/:id/cancel', authenticate, requireActiveUser, authorizeRoles('clie
 
 // customer decides after motoboy cancels post-pickup -> reembolso (100%) | reentrega (volta ao pool)
 router.post('/:id/pos-devolucao', authenticate, requireActiveUser, authorizeRoles('cliente'), posDevolucaoDecision);
+
+// customer decides after pool timeout (no motoboy accepted) -> seguir (stays in pool) | cancelar (refund 100%)
+router.post('/:id/pool-timeout', authenticate, requireActiveUser, authorizeRoles('cliente'), poolTimeoutDecision);
 
 // Get cancellation history for an order
 router.get('/:id/cancellations', authenticate, getCancellationHistory);

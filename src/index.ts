@@ -16,6 +16,7 @@ import notifier from './services/notifier';
 import { startDeliveryTimeoutJob } from './jobs/deliveryTimeout.job';
 import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
 import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
+import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 
 console.log('📍 [INDEX] Starting application...');
 
@@ -70,6 +71,15 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Store accept timeout job failed to start', e);
+  }
+
+  // ✅ Timeout do pool (spec §6.1): ninguém pega a entrega em poolTimeoutMin →
+  // NÃO auto-cancela — marca a flag e deixa o cliente decidir (seguir/cancelar).
+  try {
+    startPoolTimeoutJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Pool timeout job failed to start', e);
   }
 
   console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);

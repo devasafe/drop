@@ -569,7 +569,11 @@ export async function cancelOrderWithFullRefund(
   order: any,
   opts: { reason: string; reasonCode: string; cancelledBy: 'customer' | 'store' | 'motoboy' },
 ): Promise<{ ok: boolean; status?: number; error?: string; refundAmount?: number; refundStatus?: string; cancellation?: any }> {
-  const cancellableStatuses = ['criado', 'pago', 'enviado'];
+  // Inclui 'aguardando_motoboy' (Task 9): estado real de um pedido cuja entrega
+  // está no pool sem motoboy — é justamente o estado do endpoint de decisão de
+  // timeout do pool (`poolTimeoutDecision`, ramo 'cancelar'). Sem isso, cancelar
+  // um pedido travado no pool falharia com 400 mesmo sendo o caso de uso primário.
+  const cancellableStatuses = ['criado', 'pago', 'aguardando_motoboy', 'enviado'];
   if (!cancellableStatuses.includes(order.status)) {
     return { ok: false, status: 400, error: `Pedido não pode ser cancelado no estado: ${order.status}` };
   }
@@ -753,6 +757,76 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
     });
   } catch (error: any) {
     logger.error('Erro na decisão pós-devolução do cliente', error as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * Cliente decide após o timeout do pool sem motoboy (spec §6.1).
+ * POST /orders/:id/pool-timeout  body: { escolha: 'seguir' | 'cancelar' }
+ * - seguir → limpa `awaitingCustomerPoolDecision`; a entrega segue no pool
+ *   (o matching existente continua tentando atribuir um motoboy).
+ * - cancelar → refund 100% + encerra o pedido (padrão atômico compartilhado).
+ * O job (`runPoolTimeout`) NUNCA cancela sozinho — só marca a flag e emite o
+ * evento; a decisão de cancelar é sempre do cliente, aqui.
+ */
+export const poolTimeoutDecision = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id: orderId } = req.params as any;
+    const { escolha } = req.body;
+    const customerId = req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    if (!['seguir', 'cancelar'].includes(escolha)) {
+      return res.status(400).json({ error: "escolha inválida — use 'seguir' ou 'cancelar'" });
+    }
+
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude }));
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (String(order.customerId) !== customerId) return res.status(403).json({ error: 'Permissão negada' });
+
+    if (!order.awaitingCustomerPoolDecision) {
+      return res.status(409).json({ error: 'Não há decisão de timeout do pool pendente para este pedido' });
+    }
+
+    if (escolha === 'cancelar') {
+      const result = await cancelOrderWithFullRefund(order, {
+        reason: 'Cliente cancelou após timeout do pool',
+        reasonCode: 'motoboy_unavailable',
+        cancelledBy: 'customer',
+      });
+      if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+      await prisma.order.update({ where: { id: order.id }, data: { awaitingCustomerPoolDecision: false } });
+      return res.json({
+        success: true,
+        escolha,
+        orderId: order.id,
+        status: 'cancelado',
+        refundAmount: result.refundAmount,
+        refundStatus: result.refundStatus,
+      });
+    }
+
+    // seguir → limpa a flag; a entrega permanece 'pending' e o matching existente
+    // segue tentando atribuir um motoboy normalmente.
+    await prisma.order.update({ where: { id: order.id }, data: { awaitingCustomerPoolDecision: false } });
+
+    emitToRoom(`user:${order.customerId}`, 'order:pool_timeout_resolved', {
+      orderId: order.id,
+      escolha,
+      message: 'Continuamos tentando encontrar um entregador para o seu pedido.',
+    });
+
+    return res.json({
+      success: true,
+      escolha,
+      orderId: order.id,
+      message: 'Seguimos tentando encontrar um entregador.',
+    });
+  } catch (error: any) {
+    logger.error('Erro na decisão de timeout do pool', error as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

@@ -474,6 +474,7 @@ model Order {
   acceptedAt        DateTime?
   cancelledAt       DateTime?
   updatedAt         DateTime           @updatedAt
+  awaitingCustomerPoolDecision Boolean @default(false)
 
   customer User        @relation("CustomerOrders", fields: [customerId], references: [id])
   store    Store       @relation("StoreOrders", fields: [storeId], references: [id])
