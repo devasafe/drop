@@ -15,6 +15,9 @@ const DECIMAL_FIELDS = [
   'motoboyCommissionPercent',
   'lateCancellationFeePercent',
   'lateCancellationMotoboyShare',
+  'cancelFeeCustomerPercent',
+  'cancelFeeStorePercent',
+  'cancelFeeMotoboyPercent',
 ] as const;
 
 export function toApiConfig(c: any): any {

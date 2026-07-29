@@ -46,10 +46,10 @@ describe('PUT /api/settings/platform-config — taxas de cancelamento e timeouts
 
     const getRes = await request(app).get('/api/settings/platform-config');
     expect(getRes.status).toBe(200);
-    // Number(...) por robustez: cancelFeeStorePercent é Decimal no schema e não está
-    // em DECIMAL_FIELDS (platformConfig.repository.ts), então trafega como string ("7")
-    // no JSON de resposta em vez de number — diferente dos demais campos Decimal da config.
-    expect(Number(getRes.body.cancelFeeStorePercent)).toBe(7);
+    // cancelFeeStorePercent é Decimal no schema; DECIMAL_FIELDS (platformConfig.repository.ts)
+    // converte na fronteira, então deve voltar como number de verdade, não string.
+    expect(typeof getRes.body.cancelFeeStorePercent).toBe('number');
+    expect(getRes.body.cancelFeeStorePercent).toBe(7);
   });
 
   it('salva poolTimeoutMin e devolve 20 no GET seguinte', async () => {
@@ -64,6 +64,8 @@ describe('PUT /api/settings/platform-config — taxas de cancelamento e timeouts
 
     const getRes = await request(app).get('/api/settings/platform-config');
     expect(getRes.status).toBe(200);
-    expect(Number(getRes.body.poolTimeoutMin)).toBe(20);
+    // poolTimeoutMin é Int no schema — Prisma já devolve number nativamente.
+    expect(typeof getRes.body.poolTimeoutMin).toBe('number');
+    expect(getRes.body.poolTimeoutMin).toBe(20);
   });
 });
