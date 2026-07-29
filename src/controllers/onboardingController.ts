@@ -132,13 +132,16 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
       const user = await userRepository.findById(String(userId)) as any;
       if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
+      // addresses virou tabela no Postgres — criar registro (o push do Mongoose não persistia)
       if (address?.street && !(user.addresses && user.addresses.length)) {
-        user.addresses = user.addresses || [];
-        user.addresses.push({
-          street: address.street, number: address.number || 'S/N', neighborhood: address.neighborhood || 'Centro',
-          city: address.city || '', state: address.state || '', cep: (address.zip || address.cep || '').replace(/\D/g, ''),
-          latitude: '0', longitude: '0', isDefault: true,
-        } as any);
+        await prisma.address.create({
+          data: {
+            userId: user.id,
+            street: address.street, number: address.number || 'S/N', neighborhood: address.neighborhood || 'Centro',
+            city: address.city || '', state: address.state || '', cep: (address.zip || address.cep || '').replace(/\D/g, ''),
+            latitude: '0', longitude: '0', isDefault: true,
+          },
+        });
       }
       if (!user.asaas) (user as any).asaas = { status: 'none' };
       user.asaas!.pixKey = pixKey.trim();
@@ -154,18 +157,21 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
       const store = await prisma.store.findFirst({ where: { ownerId: userId } }) as any;
       if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
 
+      // Persistir os campos de endereço junto (o update só gravava asaas)
+      const storeData: any = {};
       if (address) {
-        if (address.street) store.street = address.street;
-        if (address.number) store.number = address.number;
-        if (address.neighborhood) store.neighborhood = address.neighborhood;
-        if (address.city) store.city = address.city;
-        if (address.state) store.state = address.state;
-        if (address.zip || address.cep) store.zip = (address.zip || address.cep).replace(/\D/g, '');
+        if (address.street) storeData.street = address.street;
+        if (address.number) storeData.number = address.number;
+        if (address.neighborhood) storeData.neighborhood = address.neighborhood;
+        if (address.city) storeData.city = address.city;
+        if (address.state) storeData.state = address.state;
+        if (address.zip || address.cep) storeData.zip = (address.zip || address.cep).replace(/\D/g, '');
       }
       if (!store.asaas) (store as any).asaas = { status: 'none' };
       store.asaas!.pixKey = pixKey.trim();
       store.asaas!.pixKeyType = type;
-      await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
+      storeData.asaas = store.asaas;
+      await prisma.store.update({ where: { id: store.id }, data: storeData });
 
       await ensureStoreSubaccount(String(store.id));
       const fresh = await prisma.store.findUnique({ where: { id: String(store.id) } }) as any;
