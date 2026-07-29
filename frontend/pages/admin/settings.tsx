@@ -16,6 +16,12 @@ interface PlatformConfig {
   motoboyCutPerKm: number;
   motoboyMinimumWithdraw: number;
   motoboyCommissionPercent: number; // ✨ NOVO
+  cancelFeeCustomerPercent: number; // ✨ NOVO
+  cancelFeeStorePercent: number; // ✨ NOVO
+  cancelFeeMotoboyPercent: number; // ✨ NOVO
+  storeAcceptTimeoutMin: number; // ✨ NOVO
+  poolTimeoutMin: number; // ✨ NOVO
+  customerAbsentWaitMin: number; // ✨ NOVO
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -270,6 +276,144 @@ export default function AdminSettings() {
                   </p>
                   <p className={styles.fieldHintBlue}>
                     Exemplo: Taxa R$10 com {(editConfig.motoboyCommissionPercent || 0).toFixed(1)}% = Motoboy ganha R${(10 * (1 - (editConfig.motoboyCommissionPercent || 0) / 100)).toFixed(2)}, App recebe R${(10 * ((editConfig.motoboyCommissionPercent || 0) / 100)).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Taxas & Cancelamentos */}
+            <div className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                <Icon name="percent" size={16} /> Taxas & Cancelamentos
+              </h2>
+
+              <div className={styles.fieldsGrid}>
+                {/* Taxa de Cancelamento - Cliente */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="percent" size={14} /> Taxa de Cancelamento do Cliente (%)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={editConfig.cancelFeeCustomerPercent || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, cancelFeeCustomerPercent: parseFloat(e.target.value) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>%</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    % cobrado do cliente em cancelamento tardio
+                  </p>
+                </div>
+
+                {/* Taxa de Cancelamento - Loja */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="percent" size={14} /> Taxa de Cancelamento da Loja (%)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={editConfig.cancelFeeStorePercent || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, cancelFeeStorePercent: parseFloat(e.target.value) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>%</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    % cobrado da loja quando ela é responsável pelo cancelamento
+                  </p>
+                </div>
+
+                {/* Taxa de Cancelamento - Motoboy */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="percent" size={14} /> Taxa de Cancelamento do Motoboy (%)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={editConfig.cancelFeeMotoboyPercent || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, cancelFeeMotoboyPercent: parseFloat(e.target.value) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>%</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    % cobrado do motoboy quando ele é responsável pelo cancelamento
+                  </p>
+                </div>
+
+                {/* Timeout de Aceite da Loja */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="clock" size={14} /> Timeout de Aceite da Loja (min)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editConfig.storeAcceptTimeoutMin || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, storeAcceptTimeoutMin: parseInt(e.target.value, 10) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>min</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    Tempo máximo para a loja aceitar o pedido
+                  </p>
+                </div>
+
+                {/* Timeout do Pool de Motoboys */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="clock" size={14} /> Timeout do Pool de Motoboys (min)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editConfig.poolTimeoutMin || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, poolTimeoutMin: parseInt(e.target.value, 10) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>min</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    Tempo máximo para encontrar um motoboy disponível
+                  </p>
+                </div>
+
+                {/* Tempo de Espera do Cliente Ausente */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="clock" size={14} /> Espera por Cliente Ausente (min)
+                  </label>
+                  <div className={styles.inputRow}>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editConfig.customerAbsentWaitMin || 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, customerAbsentWaitMin: parseInt(e.target.value, 10) })}
+                      className={styles.fieldInputFlex}
+                    />
+                    <span className={styles.inputSuffix}>min</span>
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    Tempo máximo aguardando o cliente no local de entrega
                   </p>
                 </div>
               </div>
