@@ -8,6 +8,7 @@ import {
   rejectOrderByStore,
   getCancellationHistory,
   getCancellationStats,
+  posDevolucaoDecision,
 } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
@@ -52,6 +53,9 @@ router.post('/:id/reject', authenticate, requireActiveUser, authorizeRoles('loji
 // ========== CUSTOMER OPERATIONS ==========
 // customer cancels order -> refunds payment
 router.post('/:id/cancel', authenticate, requireActiveUser, authorizeRoles('cliente'), cancelOrderByCustomer);
+
+// customer decides after motoboy cancels post-pickup -> reembolso (100%) | reentrega (volta ao pool)
+router.post('/:id/pos-devolucao', authenticate, requireActiveUser, authorizeRoles('cliente'), posDevolucaoDecision);
 
 // Get cancellation history for an order
 router.get('/:id/cancellations', authenticate, getCancellationHistory);

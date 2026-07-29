@@ -1036,7 +1036,8 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       // ── REASSIGN: produto voltou à loja, entrega volta ao pool ──
       const motoboyIdNotify = delivery.motoboyId;
       delivery.status = 'pending';
-      delivery.motoboyId = undefined;
+      // motoboyId precisa ser `null` (não `undefined`) — Prisma ignora undefined no update.
+      delivery.motoboyId = null;
       await persistDelivery(delivery);
       console.log(`✅ [confirmReturn] Delivery ${delivery._id} voltou ao pool para reatribuição`);
 

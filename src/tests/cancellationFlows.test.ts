@@ -28,7 +28,7 @@ let restorePlatformConfig: () => Promise<void>;
 beforeAll(async () => {
   restorePlatformConfig = await snapshotPlatformConfig();
   const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
-  const data = { cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, lateCancellationMotoboyShare: 50, updatedBy: 'cancelFlows.test' };
+  const data = { cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10, lateCancellationMotoboyShare: 50, updatedBy: 'cancelFlows.test' };
   if (existing) {
     await prisma.platformConfig.update({ where: { id: existing.id }, data });
   } else {
@@ -472,5 +472,190 @@ describe('loja cancela COD aceito ANTES do envio — só libera a reserva deste 
     // balance 0 → 20. O excedente do pool (20 = reserva do OUTRO pedido) fica intacto.
     expect(storeWallet!.blockedBalance).toBeCloseTo(20, 2);
     expect(storeWallet!.balance).toBeCloseTo(20, 2);
+  });
+});
+
+// ============================================================
+// Task 7: MOTOBOY cancela após pegar → cobra taxa do MTB (100% app) + devolução
+// + o CLIENTE decide reembolso (100%) ou reentrega (volta ao pool).
+// Desenho escolhido: o cliente decide PRIMEIRO. `reentrega` só volta ao pool
+// depois do confirmReturn da loja (produto fisicamente de volta) — reusando a
+// infra existente pinDevolucao/pendingReturnAction='reassign'.
+// ============================================================
+describe('Task 7: motoboy cancela ANTES de pegar (assigned) — volta ao pool, sem taxa', () => {
+  it('devolve a entrega ao pool (pending, motoboyId=null) e NÃO cobra taxa do motoboy', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 50, totalIncome: 50, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja MTB Assigned' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'assigned' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/reject`)
+      .set('Authorization', `Bearer ${motoboy.token}`)
+      .send({ reason: 'Não vou conseguir pegar' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+
+    const updated = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updated!.status).toBe('pending');
+    expect(updated!.motoboyId).toBeNull();
+
+    // Sem taxa: carteira do motoboy intacta, sem penalty, sem entrada no caixa.
+    const mtbWallet = await findWallet({ owner: motoboy.id, ownerType: 'motoboy' });
+    expect(mtbWallet!.balance).toBeCloseTo(50, 2);
+    expect(mtbWallet!.history.find((h: any) => h.category === 'penalty')).toBeFalsy();
+    const cashbox = await findAppCashbox();
+    expect(cashbox!.history.find((h: any) => h.source === 'cancelled_order')).toBeFalsy();
+  });
+});
+
+describe('Task 7: motoboy cancela APÓS pegar (picked) — cobra taxa do MTB + aguarda decisão do cliente', () => {
+  it('debita fee.totalFee do MTB, +appShare no caixa, statusDevolucao aguardando e NÃO reatribui', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    // Carteira do MTB com saldo — a taxa é debitada daqui (penalty).
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 50, totalIncome: 50, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja MTB Picked' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/reject`)
+      .set('Authorization', `Bearer ${motoboy.token}`)
+      .send({ reason: 'Desisti no meio do caminho' });
+
+    // Entra em devolução aguardando confirmação (não reatribui ainda).
+    expect(res.status).toBe(202);
+    expect(res.body.statusDevolucao).toBe('aguardando_confirmacao');
+
+    // Config: cancelFeeMotoboyPercent=10% de deliveryFee(100) = R$10; 100% app.
+    // PROVA 1: taxa debitada do MTB (penalty).
+    const mtbWallet = await findWallet({ owner: motoboy.id, ownerType: 'motoboy' });
+    expect(mtbWallet!.balance).toBeCloseTo(40, 2); // 50 - 10
+    const penalty = mtbWallet!.history.find((h: any) => h.category === 'penalty');
+    expect(penalty).toBeTruthy();
+    expect(penalty!.amount).toBeCloseTo(10, 2);
+
+    // PROVA 2: AppCashbox recebe appShare (= totalFee, 100% app) = R$10.
+    const cashbox = await findAppCashbox();
+    const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
+    expect(feeEntry).toBeTruthy();
+    expect(feeEntry!.amount).toBeCloseTo(10, 2);
+
+    // PROVA 3: pedido aguardando decisão — a entrega NÃO voltou ao pool.
+    const updated = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updated!.status).toBe('picked');
+    expect(updated!.motoboyId).toBe(motoboy.id);
+    expect(updated!.statusDevolucao).toBe('aguardando_confirmacao');
+    expect(updated!.pendingReturnAction).toBeNull();
+  });
+});
+
+describe('Task 7: cliente decide reembolso após motoboy cancelar (picked) — refund 100%', () => {
+  it('POST /orders/:id/pos-devolucao {reembolso} → refund 100% e pedido cancelado', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Reembolso' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Estado pós-rejeição do motoboy: devolução aguardando confirmação.
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '123456' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pos-devolucao`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'reembolso' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelado');
+    // Refund 100% (motoboy é o culpado; a taxa dele já foi cobrada à parte).
+    expect(res.body.refundAmount).toBeCloseTo(200, 2);
+
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(700, 2); // 500 + 200
+
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('cancelado');
+  });
+});
+
+describe('Task 7: cliente decide reentrega após motoboy cancelar (picked) — volta ao pool', () => {
+  it('POST /orders/:id/pos-devolucao {reentrega} + confirmReturn da loja → delivery pending, motoboyId null', async () => {
+    const owner = await createUser('lojista');
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Reentrega' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '654321' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    // Cliente escolhe reentrega.
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/pos-devolucao`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ escolha: 'reentrega' });
+    expect(res.status).toBe(200);
+    expect(res.body.escolha).toBe('reentrega');
+
+    // Loja confirma a devolução física com o PIN → entrega volta ao pool.
+    const confirmRes = await request(app)
+      .post(`/api/deliveries/${delivery.id}/confirm-return`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ pinDevolucao: '654321' });
+    expect(confirmRes.status).toBe(200);
+
+    const updated = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updated!.status).toBe('pending');
+    expect(updated!.motoboyId).toBeNull();
   });
 });

@@ -400,36 +400,85 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
       reasonCode: reasonCode || 'motoboy_rejected',
     } });
 
-    // Se produto já foi retirado (picked), precisa devolver à loja com PIN antes de reassignar
+    // Se produto já foi retirado (picked): motoboy é o culpado (spec §3.2 "MTB já pegou").
+    // Cobra a taxa do MOTOBOY (base=entrega, 100% app), inicia a devolução do produto à loja
+    // (pinDevolucao) e AGUARDA a decisão do cliente (reembolso/reentrega) — NÃO reatribui
+    // automaticamente ao pool. `pendingReturnAction` fica indefinido: só o endpoint
+    // `pos-devolucao` (reentrega) o define como 'reassign' quando o cliente escolhe.
     if (delivery.status === 'picked') {
       if (!delivery.pinDevolucao) {
+        const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
+
+        // ── Taxa do motoboy (idempotente) ──
+        // Reference única por entrega evita cobrança dupla se o handler for reexecutado.
+        const feeRef = `CANCEL_MTB_${delivery._id}`;
+        const alreadyCharged = await prisma.walletEntry.findFirst({ where: { reference: feeRef } });
+        if (!alreadyCharged) {
+          try {
+            const cfg = await getPlatformConfig();
+            const feeConfig = {
+              cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
+              cancelFeeStorePercent: cfg?.cancelFeeStorePercent ?? 10,
+              cancelFeeMotoboyPercent: cfg?.cancelFeeMotoboyPercent ?? 10,
+              lateCancellationMotoboyShare: cfg?.lateCancellationMotoboyShare ?? 50,
+            };
+            const fee = calculateCancellationFee({
+              actor: 'motoboy',
+              motoboyInvolved: true,
+              orderTotal: orderForReturn?.totalValue ? Number(orderForReturn.totalValue) : 0,
+              deliveryFee: orderForReturn?.deliveryFee ? Number(orderForReturn.deliveryFee) : Number(delivery.fee || 0),
+              config: feeConfig,
+            });
+            if (fee.totalFee > 0) {
+              await prisma.$transaction(async (tx) => {
+                // Debita a taxa da carteira do MOTOBOY (mesmo padrão de penalty da loja).
+                await walletService.debit(
+                  { owner: String(delivery.motoboyId), ownerType: 'motoboy', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-retirada - motoboy', category: 'penalty', reference: feeRef },
+                  tx,
+                );
+                // Taxa cheia (= appShare, 100% app) como income no AppCashbox.
+                await recordCashboxEntry(tx, {
+                  type: 'income', source: 'cancelled_order', amount: fee.appShare, orderId: String(delivery.orderId),
+                  reason: `Taxa de cancelamento do motoboy pós-retirada - Pedido ${delivery.orderId}`,
+                });
+              });
+            }
+          } catch (feeErr) {
+            logger.error('Erro ao cobrar taxa de cancelamento do motoboy', feeErr as Error, { deliveryId: delivery._id });
+          }
+        }
+
         const pinDevolucao = Math.floor(100000 + Math.random() * 900000).toString();
         delivery.pinDevolucao = pinDevolucao;
         delivery.statusDevolucao = 'aguardando_confirmacao';
-        delivery.pendingReturnAction = 'reassign';
+        // NÃO reatribui automaticamente: aguarda o cliente decidir via pos-devolucao.
+        delivery.pendingReturnAction = undefined;
         await persistDelivery(delivery);
 
-        const orderForReturn = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
         if (orderForReturn) {
           emitToRoom(`store:${orderForReturn.storeId}`, 'delivery:return_requested', {
             deliveryId: delivery._id,
             orderId: orderForReturn.id,
             motoboyId: delivery.motoboyId,
-            message: 'Motoboy precisa devolver o produto à loja antes da reatribuição',
+            message: 'Motoboy cancelou após retirar; precisa devolver o produto à loja',
             pinRequired: true,
             returnedAt: new Date(),
           });
-          emitToRoom(`user:${orderForReturn.customerId}`, 'order:return_initiated', {
+          // Cliente decide: reembolso (100%) ou reentrega (novo entregador).
+          emitToRoom(`user:${orderForReturn.customerId}`, 'order:aguardando_decisao_devolucao', {
             orderId: orderForReturn.id,
-            message: 'O motoboy está retornando seu produto à loja. Em breve um novo entregador será atribuído.',
+            deliveryId: delivery._id,
+            message: 'O motoboy cancelou após retirar seu produto. Escolha: reembolso ou reentrega.',
+            opcoes: ['reembolso', 'reentrega'],
           });
         }
 
         return res.status(202).json({
           success: true,
           statusDevolucao: 'aguardando_confirmacao',
-          message: 'Produto precisa ser devolvido à loja antes da reatribuição. PIN gerado.',
+          message: 'Taxa cobrada do motoboy. Produto será devolvido à loja; aguardando decisão do cliente.',
           pinDevolucao,
+          awaitingCustomerDecision: true,
           isPending: true,
         });
       }
@@ -458,10 +507,11 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
       }
     }
 
-    // status === 'assigned' OU devolução já confirmada pela loja: reassign imediato
+    // status === 'assigned' OU devolução já confirmada pela loja: reassign imediato.
+    // motoboyId precisa ser `null` (não `undefined`) — Prisma ignora undefined no update.
     delivery.status = 'pending';
-    delivery.motoboyId = undefined;
-    delivery.pendingReturnAction = undefined;
+    delivery.motoboyId = null;
+    delivery.pendingReturnAction = null;
     delivery.updatedAt = new Date();
     await persistDelivery(delivery);
 
@@ -474,6 +524,200 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
     });
   } catch (error: any) {
     logger.error('Erro ao rejeitar entrega', error as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * Cancela um pedido com reembolso INTEGRAL (100%) ao cliente, reusando o padrão
+ * atômico provado de `cancelOrderByCustomer` (trava updateMany+count, guard
+ * PAYOUT_ALREADY_SETTLED, refund Asaas/legado, devolução de estoque, cancelamento
+ * da entrega). Não há taxa aqui — usado quando a culpa é de outra parte (ex.: o
+ * motoboy cancelou após retirar e o cliente pediu reembolso; a taxa do motoboy já
+ * foi cobrada à parte). Recebe o pedido já na forma de API (`toApiOrder`).
+ */
+async function cancelOrderWithFullRefund(
+  order: any,
+  opts: { reason: string; reasonCode: string; cancelledBy: 'customer' | 'store' | 'motoboy' },
+): Promise<{ ok: boolean; status?: number; error?: string; refundAmount?: number; refundStatus?: string; cancellation?: any }> {
+  const cancellableStatuses = ['criado', 'pago', 'enviado'];
+  if (!cancellableStatuses.includes(order.status)) {
+    return { ok: false, status: 400, error: `Pedido não pode ser cancelado no estado: ${order.status}` };
+  }
+
+  const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
+  const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
+  const refundAmount = order.totalValue || 0; // 100%, sem desconto de taxa.
+  let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
+
+  // ✅ Trava atômica: só UM request move de status cancelável → 'cancelado'.
+  const claim = await prisma.order.updateMany({
+    where: { id: order.id, status: { in: cancellableStatuses as any } },
+    data: { status: 'cancelado', cancelledAt: new Date() },
+  });
+  if (claim.count === 0) {
+    return { ok: false, status: 409, error: 'Pedido já foi cancelado ou está em processamento' };
+  }
+
+  // ✅ Devolver estoque (uma única vez, graças à trava).
+  for (const it of (order.products || [])) {
+    if ((it as any).productId && (it as any).quantity) {
+      await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+    }
+  }
+
+  if (!isCashOnDelivery) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const result = await payoutService.cancelPayoutsForOrder(order.id, 'motoboy_returned_customer_refund', tx);
+        if (result.errors.length > 0) {
+          throw Object.assign(new Error('PAYOUT_ALREADY_SETTLED'), { needsManualReview: true, payoutErrors: result.errors });
+        }
+        if (!useAsaas) {
+          await walletService.credit(
+            { owner: String(order.customerId), ownerType: 'user', amount: refundAmount, reason: opts.reason, category: 'refund', relatedId: order.id },
+            tx,
+          );
+          await recordCashboxEntry(tx, { type: 'expense', source: 'order_refund', amount: refundAmount, orderId: order.id, reason: opts.reason });
+        }
+      });
+
+      if (useAsaas) {
+        if (order.walletApplied && order.walletApplied > 0) {
+          await walletService.credit({ owner: String(order.customerId), ownerType: 'user', amount: order.walletApplied, reason: 'Devolução de saldo — pedido cancelado', category: 'refund', relatedId: order.id });
+        }
+        const asaasRefundValue = round2(refundAmount - (order.walletApplied || 0));
+        if (order.paymentStatus === 'paid' && order.asaasPaymentId && asaasRefundValue > 0) {
+          try {
+            await refundOrderCharge(order.asaasPaymentId, asaasRefundValue);
+            await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
+            refundStatus = 'processed';
+          } catch (refundErr) {
+            logger.error('Falha no estorno Asaas (pos-devolucao) — escala pro admin', refundErr as Error, { orderId: order.id });
+            refundStatus = 'pending';
+          }
+        } else {
+          refundStatus = 'processed';
+        }
+      } else {
+        refundStatus = 'processed';
+        emitWalletRefund(String(order.customerId), 'user', refundAmount, `Reembolso do pedido ${order.id}`);
+      }
+    } catch (walletError: any) {
+      if (walletError?.needsManualReview) {
+        logger.warn('Reembolso retido para revisão manual — payout já liquidado', { orderId: order.id, payoutErrors: walletError.payoutErrors });
+        refundStatus = 'pending';
+      } else {
+        logger.error('Erro ao reverter pagamento no reembolso pós-devolução', walletError as Error, { orderId: order.id });
+        refundStatus = 'failed';
+      }
+    }
+  } else {
+    refundStatus = 'processed';
+  }
+
+  const cancellation = await prisma.cancellation.create({ data: {
+    orderId: order.id,
+    deliveryId: order.deliveryId || undefined,
+    cancelledBy: opts.cancelledBy,
+    reason: opts.reason,
+    reasonCode: opts.reasonCode as any,
+    refundAmount,
+    refundStatus,
+  } });
+
+  order.status = 'cancelado';
+  await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+
+  // Cancela a entrega associada.
+  if (order.deliveryId) {
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
+    if (delivery && delivery.status !== 'delivered') {
+      delivery.status = 'cancelled';
+      delivery.cancelledAt = new Date();
+      await persistDelivery(delivery);
+      emitDeliveryCancelled(delivery, cancellation);
+    }
+  }
+
+  emitOrderCancelled(order, cancellation);
+  return { ok: true, refundAmount, refundStatus, cancellation };
+}
+
+/**
+ * Cliente decide após o motoboy cancelar tendo já retirado o produto (spec §3.2).
+ * POST /orders/:id/pos-devolucao  body: { escolha: 'reembolso' | 'reentrega' }
+ * - reembolso → refund 100% + encerra o pedido (padrão atômico compartilhado).
+ * - reentrega → marca pendingReturnAction='reassign'; quando a loja confirmar a
+ *   devolução (confirmReturn com PIN), a entrega volta ao pool.
+ */
+export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id: orderId } = req.params as any;
+    const { escolha } = req.body;
+    const customerId = req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    if (!['reembolso', 'reentrega'].includes(escolha)) {
+      return res.status(400).json({ error: "escolha inválida — use 'reembolso' ou 'reentrega'" });
+    }
+
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude }));
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (String(order.customerId) !== customerId) return res.status(403).json({ error: 'Permissão negada' });
+
+    const delivery: any = order.deliveryId
+      ? toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }))
+      : null;
+    if (!delivery || delivery.statusDevolucao !== 'aguardando_confirmacao') {
+      return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
+    }
+
+    if (escolha === 'reembolso') {
+      const result = await cancelOrderWithFullRefund(order, {
+        reason: 'Motoboy cancelou após retirada; cliente optou por reembolso',
+        reasonCode: 'motoboy_rejected',
+        cancelledBy: 'customer',
+      });
+      if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+      return res.json({
+        success: true,
+        escolha,
+        orderId: order.id,
+        status: 'cancelado',
+        refundAmount: result.refundAmount,
+        refundStatus: result.refundStatus,
+      });
+    }
+
+    // reentrega → produto volta à loja (confirmReturn) e daí ao pool via 'reassign'.
+    delivery.pendingReturnAction = 'reassign';
+    await persistDelivery(delivery);
+
+    emitToRoom(`store:${order.storeId}`, 'delivery:return_requested', {
+      deliveryId: delivery._id,
+      orderId: order.id,
+      motoboyId: delivery.motoboyId,
+      message: 'Cliente optou por reentrega; confirme a devolução com o PIN para reatribuir',
+      pinRequired: true,
+    });
+    emitToRoom(`user:${order.customerId}`, 'order:reentrega_escolhida', {
+      orderId: order.id,
+      deliveryId: delivery._id,
+      message: 'Assim que a loja receber o produto de volta, um novo entregador será atribuído.',
+    });
+
+    return res.json({
+      success: true,
+      escolha,
+      orderId: order.id,
+      deliveryId: delivery._id,
+      message: 'Reentrega escolhida. Aguardando a loja confirmar a devolução para reatribuir.',
+    });
+  } catch (error: any) {
+    logger.error('Erro na decisão pós-devolução do cliente', error as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
