@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
+import { toApiDelivery } from '../repositories/delivery.repository';
 
 import { calculateRoute, calculateDistance } from '../services/routeCalculator';
 import { prisma } from '../lib/prisma';
@@ -692,7 +693,7 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
     return res.json({
       ...order,
       products: productsWithNames,
-      delivery: delivery ? { ...delivery, motoboyName } : null,
+      delivery: delivery ? { ...toApiDelivery(delivery), motoboyName } : null,
       storeName: (storeObj as any)?.name ?? 'Loja removida',
       storeObj: storeObj ? {
         name: (storeObj as any).name,
