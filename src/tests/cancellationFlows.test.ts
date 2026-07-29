@@ -16,6 +16,7 @@ import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain, wipeAppCashbox, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createWallet, findWallet, createAppCashbox, findAppCashbox, findPayout } from './helpers/financePg';
 import { refundOrderCharge } from '../services/asaas/refund';
+import { runStoreAcceptTimeout } from '../jobs/storeAcceptTimeout.job';
 
 const refundMock = refundOrderCharge as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
@@ -745,5 +746,97 @@ describe('Task 7 fix: motoboy — reembolso seguido de confirmReturn NÃO reembo
     const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
     expect(custWallet!.balance).toBeCloseTo(500, 2);
     expect(custWallet!.history.filter((h: any) => h.category === 'refund').length).toBe(0);
+  });
+});
+
+// ============================================================
+// Task 8: job de timeout loja — pedido PAGO que a loja não aceita dentro de
+// storeAcceptTimeoutMin é auto-cancelado (reaproveita cancelOrderWithFullRefund):
+// refund 100% + devolução de estoque, sem taxa (spec §6.1). Mira só `status='pago'`
+// (pedidos `criado` não-pagos são do expirePixOrders.job.ts — sem overlap).
+// ============================================================
+describe('Task 8: job de timeout loja (auto-cancela pedido pago sem aceite)', () => {
+  beforeAll(async () => {
+    // Fixa storeAcceptTimeoutMin em um valor conhecido (o snapshot/restore do topo
+    // do arquivo já cobre esta linha, criada ou atualizada por essa mesma suíte).
+    const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+    await prisma.platformConfig.update({ where: { id: existing!.id }, data: { storeAcceptTimeoutMin: 10 } });
+  });
+
+  it('pedido pago, acceptedAt=null, createdAt > storeAcceptTimeoutMin atrás → cancela + refund 100% + estoque devolvido', async () => {
+    const customer = await createUser('cliente');
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 300, totalIncome: 300, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Timeout' } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Produto Timeout', price: 150, quantity: 5 } });
+
+    // Pago, NÃO aceito (acceptedAt ausente), criado 1h atrás — bem além dos 10min configurados.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      items: { create: [{ productId: product.id, quantity: 1, price: 150 }] },
+      totalValue: 150,
+      deliveryFee: 0,
+      status: 'pago',
+      paymentMethod: 'pix',
+      paymentStatus: 'paid',
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+    }, include: { items: true } });
+
+    const result = await runStoreAcceptTimeout();
+
+    expect(result.cancelled).toBe(1);
+    expect(result.failed).toBe(0);
+
+    // PROVA 1: pedido cancelado.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('cancelado');
+
+    // PROVA 2: refund 100% (não descontado) — cliente recebe o total integral.
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(450, 2); // 300 + 150
+
+    const cancellation = await prisma.cancellation.findFirst({ where: { orderId: order.id } });
+    expect(cancellation).not.toBeNull();
+    expect(cancellation!.refundStatus).toBe('processed');
+    expect(Number(cancellation!.refundAmount)).toBeCloseTo(150, 2);
+
+    // PROVA 3: estoque devolvido.
+    const updatedProduct = await prisma.product.findUnique({ where: { id: product.id } });
+    expect(updatedProduct!.quantity).toBe(6); // 5 + 1
+  });
+
+  it('controle: pedido pago recém-criado (DENTRO do prazo) NÃO é cancelado', async () => {
+    const customer = await createUser('cliente');
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 300, totalIncome: 300, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Dentro Prazo' } });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Produto Dentro Prazo', price: 150, quantity: 5 } });
+
+    // Pago, NÃO aceito, mas criado agora (createdAt default) — dentro dos 10min.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      items: { create: [{ productId: product.id, quantity: 1, price: 150 }] },
+      totalValue: 150,
+      deliveryFee: 0,
+      status: 'pago',
+      paymentMethod: 'pix',
+      paymentStatus: 'paid',
+    }, include: { items: true } });
+
+    const result = await runStoreAcceptTimeout();
+
+    // Não deve ter processado ESTE pedido (pode haver outros pedidos residuais de outras
+    // suítes rodando em paralelo — a prova real é o estado do NOSSO pedido/produto).
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('pago');
+
+    const updatedProduct = await prisma.product.findUnique({ where: { id: product.id } });
+    expect(updatedProduct!.quantity).toBe(5); // inalterado
+
+    void result;
   });
 });

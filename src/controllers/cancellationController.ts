@@ -565,7 +565,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
  * motoboy cancelou após retirar e o cliente pediu reembolso; a taxa do motoboy já
  * foi cobrada à parte). Recebe o pedido já na forma de API (`toApiOrder`).
  */
-async function cancelOrderWithFullRefund(
+export async function cancelOrderWithFullRefund(
   order: any,
   opts: { reason: string; reasonCode: string; cancelledBy: 'customer' | 'store' | 'motoboy' },
 ): Promise<{ ok: boolean; status?: number; error?: string; refundAmount?: number; refundStatus?: string; cancellation?: any }> {

@@ -15,6 +15,7 @@ import { connectDB } from './db';
 import notifier from './services/notifier';
 import { startDeliveryTimeoutJob } from './jobs/deliveryTimeout.job';
 import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
+import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
 
 console.log('📍 [INDEX] Starting application...');
 
@@ -60,6 +61,15 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Expire PIX orders job failed to start', e);
+  }
+
+  // ✅ Timeout de aceite da loja (spec §6.1): pedido pago não aceito em
+  // storeAcceptTimeoutMin → auto-cancela + refund 100% + devolve estoque.
+  try {
+    startStoreAcceptTimeoutJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Store accept timeout job failed to start', e);
   }
 
   console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);
