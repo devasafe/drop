@@ -167,8 +167,8 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
       store.asaas!.pixKeyType = type;
       await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
 
-      await ensureStoreSubaccount(String(store._id));
-      const fresh = await prisma.store.findUnique({ where: { id: String(store._id) } }) as any;
+      await ensureStoreSubaccount(String(store.id));
+      const fresh = await prisma.store.findUnique({ where: { id: String(store.id) } }) as any;
       return res.json({ ok: true, target: 'store', asaas: fmt(fresh?.asaas) });
     }
 

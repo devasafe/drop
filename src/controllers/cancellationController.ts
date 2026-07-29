@@ -517,7 +517,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     emitOrderAcceptedByStore(order);
 
     // [Plan1] Verificar plano da loja antes de criar Delivery
-    const storeSub = await findSubByStoreId(store._id.toString());
+    const storeSub = await findSubByStoreId(String(store.id)); // store vem do Prisma (sem _id)
     const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store.plan ?? 1);
 

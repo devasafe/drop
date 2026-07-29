@@ -533,7 +533,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     emitToRoom(`user:${order.customerId}`, 'motoboy:assigned', {
       orderId: order._id,
       deliveryId: delivery._id,
-      motoboyId: motoboy._id,
+      motoboyId: motoboy.id,
       motoboyName: motoboy.name,
       status: '🏍️ Motoboy a caminho para a loja',
       message: `${motoboy.name} está a caminho para buscar seu pedido!`,
@@ -544,7 +544,7 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     emitToRoom(`store:${order.storeId}`, 'motoboy:assigned_to_order', {
       orderId: order._id,
       deliveryId: delivery._id,
-      motoboyId: motoboy._id,
+      motoboyId: motoboy.id,
       motoboyName: motoboy.name,
       message: `${motoboy.name} foi atribuído para essa entrega`
     });
