@@ -50,6 +50,14 @@ function storeEmail(ownerEmail: string): string {
   return `${local}+loja@${domain}`;
 }
 
+// Mesma lógica p/ o motoboy: evita colisão de e-mail com a conta-mãe (base) e
+// com a subconta de loja (+loja) quando é a mesma pessoa/e-mail.
+function motoboyEmail(userEmail: string): string {
+  const [local, domain] = (userEmail || '').split('@');
+  if (!local || !domain) return userEmail;
+  return `${local}+motoboy@${domain}`;
+}
+
 /** Chamada de baixo nível: cria a subconta no Asaas. */
 async function createSubaccount(input: SubaccountInput): Promise<AsaasAccountResponse> {
   const cpfCnpj = onlyDigits(input.cpfCnpj);
@@ -201,7 +209,7 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
 
     const acc = await createSubaccount({
       name: user.name,
-      email: user.email,
+      email: motoboyEmail(user.email),
       cpfCnpj: cpf,
       mobilePhone: user.telefone || user.verification?.phone?.e164,
       birthDate: user.dataNascimento,
