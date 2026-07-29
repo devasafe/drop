@@ -9,7 +9,7 @@ import { toApiDelivery, persistDelivery } from '../repositories/delivery.reposit
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import notifier from '../services/notifier';
-import { calculateDeliveryFeeWithConfig, calculateOrderDistribution, calculateLateCancellationFee } from '../utils/walletCalculations';
+import { calculateDeliveryFeeWithConfig, calculateOrderDistribution } from '../utils/walletCalculations';
 import { calculateCancellationFee } from '../utils/cancellationFee';
 import {
   emitOrderCancelled,
@@ -695,6 +695,19 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       });
     }
 
+    // ✅ Carrega a entrega CEDO (antes da trava atômica) para poder BLOQUEAR o
+    // cancelamento após o motoboy pegar o pedido (spec §3.2: "MTB já pegou" → 🚫).
+    // Este caminho NÃO reivindica/rejeita o pedido — retorna 400 e o status fica intacto.
+    const delivery = order.deliveryId
+      ? await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { id: true, status: true, motoboyId: true } })
+      : null;
+    if (delivery?.status === 'picked') {
+      return res.status(400).json({ error: 'Motoboy já retirou o pedido; cancelamento bloqueado', code: 'PICKED_UP_CANNOT_CANCEL' });
+    }
+
+    // Aceite da loja: divisor entre REJEITAR (antes do aceite, sem taxa) e CANCELAR
+    // (após o aceite, taxa da entrega — spec §3.2). `isLate` continua só como rótulo.
+    const storeAccepted = !!order.acceptedAt;
     const isLate = order.status === 'enviado';
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
     const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
@@ -774,59 +787,65 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       }
     }
 
-    // Taxa de cancelamento tardio cobrada da loja (quando pedido já foi enviado)
-    let lateCancellationFee = 0;
-    if (isLate) {
+    // Taxa de cancelamento da loja — SÓ após o aceite (spec §3.2). Antes do aceite
+    // (acceptedAt=null) é REJEIÇÃO pura: refund 100%, SEM taxa. A base agora é a
+    // ENTREGA (deliveryFee), via calculateCancellationFee({actor:'store'});
+    // `motoboyInvolved` controla só a divisão (100% app vs 50/50 quando há MTB atribuído).
+    // O refund ao cliente permanece 100% (a loja é a culpada) — não é descontado.
+    let cancellationFeeCharged = 0;
+    if (storeAccepted) {
       try {
         const config = await getPlatformConfig();
         const feeConfig = {
-          lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
+          cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
+          cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
+          cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
         };
-        const { totalFee, motoboyShare, appShare } = calculateLateCancellationFee(
-          order.totalValue || 0, feeConfig, 'store'
-        );
-        lateCancellationFee = totalFee;
-
-        let compMotoboyId: string | null = null;
-        if (motoboyShare > 0 && order.deliveryId) {
-          const delivery = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
-          compMotoboyId = delivery?.motoboyId ?? null;
-        }
-
-        await prisma.$transaction(async (tx) => {
-          // Debita a taxa da carteira da loja (do bucket bloqueado no COD, do saldo senão).
-          const w = await walletService.getOrCreate(String(order.storeId), 'store', tx);
-          if (isCashOnDelivery) {
-            const newBlocked = Math.max(0, Number(w.blockedBalance) - totalFee);
-            await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: totalFee } } });
-            await tx.walletEntry.create({ data: { walletId: w.id, type: 'debit', category: 'penalty', amount: totalFee, reason: 'Taxa de cancelamento tardio - rejeição pela loja', reference: `LATE_CANCEL_STORE_${orderId}` } });
-          } else {
-            await walletService.debit(
-              { owner: String(order.storeId), ownerType: 'store', amount: totalFee, reason: 'Taxa de cancelamento tardio - rejeição pela loja', category: 'penalty', reference: `LATE_CANCEL_STORE_${orderId}` },
-              tx,
-            );
-          }
-
-          // Compensação do motoboy: Payout released.
-          if (compMotoboyId) {
-            const compPayout = await payoutService.createPendingPayout({
-              recipientType: 'motoboy', recipientId: compMotoboyId,
-              orderId: order.id, deliveryId: String(order.deliveryId), amount: motoboyShare, tx,
-            });
-            await payoutService.releasePayout(compPayout.id, tx);
-          }
-
-          // Multa INTEIRA no AppCashbox (lastro do Payout do motoboy).
-          if (totalFee > 0) {
-            await recordCashboxEntry(tx, {
-              type: 'income', source: 'cancelled_order', amount: totalFee, orderId,
-              reason: `Taxa cancelamento tardio loja (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
-            });
-          }
+        const compMotoboyId: string | null = delivery?.motoboyId ?? null;
+        const fee = calculateCancellationFee({
+          actor: 'store',
+          motoboyInvolved: !!compMotoboyId,
+          orderTotal: order.totalValue || 0,
+          deliveryFee: order.deliveryFee || 0,
+          config: feeConfig,
         });
+        cancellationFeeCharged = fee.totalFee;
+
+        if (fee.totalFee > 0) {
+          await prisma.$transaction(async (tx) => {
+            // Debita a taxa da carteira da loja (do bucket bloqueado no COD, do saldo senão).
+            const w = await walletService.getOrCreate(String(order.storeId), 'store', tx);
+            if (isCashOnDelivery) {
+              const newBlocked = Math.max(0, Number(w.blockedBalance) - fee.totalFee);
+              await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: fee.totalFee } } });
+              await tx.walletEntry.create({ data: { walletId: w.id, type: 'debit', category: 'penalty', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-aceite - loja', reference: `CANCEL_STORE_${orderId}` } });
+            } else {
+              await walletService.debit(
+                { owner: String(order.storeId), ownerType: 'store', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-aceite - loja', category: 'penalty', reference: `CANCEL_STORE_${orderId}` },
+                tx,
+              );
+            }
+
+            // Compensação do motoboy: Payout released.
+            if (fee.motoboyShare > 0 && compMotoboyId) {
+              const compPayout = await payoutService.createPendingPayout({
+                recipientType: 'motoboy', recipientId: compMotoboyId,
+                orderId: order.id, deliveryId: String(order.deliveryId), amount: fee.motoboyShare, tx,
+              });
+              await payoutService.releasePayout(compPayout.id, tx);
+            }
+
+            // Multa INTEIRA no AppCashbox (lastro do Payout do motoboy).
+            // Líquido da plataforma = appShare (= totalFee - motoboyShare).
+            await recordCashboxEntry(tx, {
+              type: 'income', source: 'cancelled_order', amount: fee.totalFee, orderId,
+              reason: `Taxa cancelamento loja pós-aceite (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
+            });
+          });
+        }
       } catch (feeErr) {
-        logger.error('Erro ao cobrar taxa de cancelamento tardio da loja', feeErr as Error, { orderId });
+        logger.error('Erro ao cobrar taxa de cancelamento da loja', feeErr as Error, { orderId });
       }
     }
 
@@ -840,7 +859,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       refundAmount,
       refundStatus,
       isLateCancellation: isLate,
-      lateCancellationFee: isLate ? lateCancellationFee : undefined,
+      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
     } });
 
     // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
@@ -865,12 +884,12 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // Cancela entrega associada
     if (order.deliveryId) {
-      const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
-      if (delivery && delivery.status !== 'delivered') {
-        delivery.status = 'cancelled';
-        delivery.cancelledAt = new Date();
-        await persistDelivery(delivery);
-        emitDeliveryCancelled(delivery, cancellation);
+      const deliveryDoc: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }));
+      if (deliveryDoc && deliveryDoc.status !== 'delivered') {
+        deliveryDoc.status = 'cancelled';
+        deliveryDoc.cancelledAt = new Date();
+        await persistDelivery(deliveryDoc);
+        emitDeliveryCancelled(deliveryDoc, cancellation);
       }
     }
 
@@ -887,7 +906,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       refundStatus,
       cancellationId: cancellation.id,
       isLateCancellation: isLate,
-      lateCancellationFee: isLate ? lateCancellationFee : undefined,
+      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
     });
   } catch (error: any) {
     logger.error('Erro ao rejeitar pedido', error as Error);
