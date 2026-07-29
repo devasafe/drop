@@ -31,6 +31,8 @@ import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // Validações de permissão
 const validateOrderOwnership = async (orderId: string, userId: string) => {
   // Devolve a forma de API (products[], _id, dinheiro em number) — os call sites
@@ -95,8 +97,12 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
 
     // --- Novo modelo de taxa de cancelamento (Task 5) via calculateCancellationFee ---
-    // A taxa é DESCONTADA do refund (nunca reembolsa 100% + cobra à parte) e dividida
-    // com o motoboy quando há aceite. Resolvemos o motoboy lendo a Delivery (leitura).
+    // A taxa só vale APÓS o aceite da loja (spec §3.2: as duas linhas de taxa do cliente
+    // — "loja aprovou, MTB não pegou" e "MTB já pegou" — têm a pré-condição "loja aprovou").
+    // Antes do aceite (acceptedAt=null): refund 100%, SEM taxa e SEM compensação de motoboy.
+    // Quando há taxa, ela é DESCONTADA do refund (nunca reembolsa 100% + cobra à parte);
+    // `motoboyInvolved` controla só a divisão (100% app vs 50/50).
+    const storeAccepted = !!order.acceptedAt;
     const cfg = await getPlatformConfig();
     const feeConfig = {
       cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
@@ -110,13 +116,16 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       compMotoboyId = del?.motoboyId ?? null;
     }
     const motoboyInvolved = !!order.deliveryId && !!compMotoboyId;
-    const fee = calculateCancellationFee({
-      actor: 'customer',
-      motoboyInvolved,
-      orderTotal: order.totalValue || 0,
-      deliveryFee: order.deliveryFee || 0,
-      config: feeConfig,
-    });
+    const fee = storeAccepted
+      ? calculateCancellationFee({
+          actor: 'customer',
+          motoboyInvolved,
+          orderTotal: order.totalValue || 0,
+          deliveryFee: order.deliveryFee || 0,
+          config: feeConfig,
+        })
+      // Sem aceite da loja → refund cheio, sem taxa nem compensação.
+      : { base: 0, totalFee: 0, payer: null, appShare: 0, motoboyShare: 0, refundToCustomer: order.totalValue || 0 };
     // Refund DESCONTADO: o cliente recebe o total menos a taxa (o desconto é a "cobrança").
     const refundAmount = fee.refundToCustomer;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
@@ -179,11 +188,15 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           if (order.walletApplied && order.walletApplied > 0) {
             await walletService.credit({ owner: customerId, ownerType: 'user', amount: order.walletApplied, reason: 'Devolução de saldo — pedido cancelado', category: 'refund', relatedId: orderId });
           }
-          // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se a parte PIX foi paga.
-          if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
+          // Estorno REAL no Asaas (devolve pro PIX/cartão). A cobrança Asaas foi criada por
+          // (total - walletApplied); e o walletApplied já voltou pela carteira acima. Então o
+          // estorno PIX deve EXCLUIR o walletApplied para não devolvê-lo em dobro:
+          //   asaasRefundValue = refundToCustomer - walletApplied
+          // Retido do PIX = (total - walletApplied) - asaasRefundValue = fee. ✅
+          const asaasRefundValue = round2(refundAmount - (order.walletApplied || 0));
+          if (order.paymentStatus === 'paid' && order.asaasPaymentId && asaasRefundValue > 0) {
             try {
-              // Estorno PARCIAL: devolve o total menos a taxa (fee.refundToCustomer).
-              await refundOrderCharge(order.asaasPaymentId, refundAmount);
+              await refundOrderCharge(order.asaasPaymentId, asaasRefundValue);
               order.asaasChargeStatus = 'refunded';
               order.paymentStatus = 'refunded';
               await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
@@ -193,7 +206,9 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
               refundStatus = 'pending';
             }
           } else {
-            // Não pago via PIX (não pago ainda, ou 100% saldo já devolvido acima).
+            // Nada a estornar no gateway: pedido não pago via PIX, OU o refund ao cliente já
+            // foi coberto pela devolução de walletApplied (walletApplied >= refundToCustomer →
+            // asaasRefundValue <= 0). Ver edge documentado no report.
             refundStatus = 'processed';
           }
         } else {

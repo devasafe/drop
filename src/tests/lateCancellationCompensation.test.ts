@@ -74,6 +74,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
       status: 'enviado',
       paymentMethod: 'pix',
       paymentStatus: 'paid',
+      acceptedAt: new Date(), // pedido em trânsito ⇒ loja já aceitou (gate da taxa, Task 5)
     }, include: { items: true } });
 
     const delivery = await prisma.delivery.create({

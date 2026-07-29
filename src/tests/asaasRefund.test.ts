@@ -60,7 +60,9 @@ describe('Cancelamento com Asaas (Fase 5 — estorno real)', () => {
       .send({ reason: 'Desisti' });
 
     expect(res.status).toBe(200);
-    expect(refundMock).toHaveBeenCalledWith('pay_refund_1');
+    // Pedido pago mas NÃO aceito pela loja (acceptedAt=null) ⇒ sem taxa ⇒ estorno CHEIO (100).
+    // O estorno agora passa o VALUE explícito (Task 5: refund parcial descontado da taxa).
+    expect(refundMock).toHaveBeenCalledWith('pay_refund_1', 100);
 
     const updated = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updated!.paymentStatus).toBe('refunded');
