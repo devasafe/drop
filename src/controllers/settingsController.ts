@@ -39,6 +39,8 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       motoboyCommissionPercent,
       lateCancellationFeePercent,
       lateCancellationMotoboyShare,
+      cancelFeeCustomerPercent, cancelFeeStorePercent, cancelFeeMotoboyPercent,
+      storeAcceptTimeoutMin, poolTimeoutMin, customerAbsentWaitMin,
       seasonalTheme,
     } = req.body;
 
@@ -53,6 +55,12 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
     if (motoboyCommissionPercent !== undefined) patch.motoboyCommissionPercent = motoboyCommissionPercent;
     if (lateCancellationFeePercent !== undefined) patch.lateCancellationFeePercent = lateCancellationFeePercent;
     if (lateCancellationMotoboyShare !== undefined) patch.lateCancellationMotoboyShare = lateCancellationMotoboyShare;
+    if (cancelFeeCustomerPercent !== undefined) patch.cancelFeeCustomerPercent = cancelFeeCustomerPercent;
+    if (cancelFeeStorePercent !== undefined) patch.cancelFeeStorePercent = cancelFeeStorePercent;
+    if (cancelFeeMotoboyPercent !== undefined) patch.cancelFeeMotoboyPercent = cancelFeeMotoboyPercent;
+    if (storeAcceptTimeoutMin !== undefined) patch.storeAcceptTimeoutMin = storeAcceptTimeoutMin;
+    if (poolTimeoutMin !== undefined) patch.poolTimeoutMin = poolTimeoutMin;
+    if (customerAbsentWaitMin !== undefined) patch.customerAbsentWaitMin = customerAbsentWaitMin;
     if (seasonalTheme !== undefined) patch.seasonalTheme = seasonalTheme;
 
     const config = await savePlatformConfig(patch, userId);
