@@ -51,3 +51,33 @@ export async function wipeAppCashbox(): Promise<void> {
   await prisma.appCashboxEntry.deleteMany({});
   await prisma.appCashbox.deleteMany({});
 }
+
+/**
+ * Tira um snapshot do PlatformConfig singleton e devolve uma função de restauração.
+ *
+ * Por que: o PlatformConfig é uma linha única compartilhada no Postgres de dev (não há
+ * banco de teste isolado). Uma suíte que faz PUT em /api/settings/platform-config muda
+ * esse singleton permanentemente para quem usa o dev e para qualquer outra suíte que
+ * leia via getPlatformConfig()/ensurePlatformConfig() — sem restaurar, os valores
+ * "vazam" de uma rodada de teste para a próxima (e para o ambiente real).
+ *
+ * Uso: no beforeAll, `const restore = await snapshotPlatformConfig();` — no afterAll,
+ * `await restore();` (chamar mesmo se algum teste falhar, por isso vai dentro de afterAll,
+ * que o Jest sempre executa).
+ */
+export async function snapshotPlatformConfig(): Promise<() => Promise<void>> {
+  const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+
+  if (!existing) {
+    // Não havia config antes — "restaurar" significa remover a linha que a suíte criar,
+    // devolvendo o singleton ao estado "inexistente" (próxima leitura recria com defaults).
+    return async () => {
+      await prisma.platformConfig.deleteMany({});
+    };
+  }
+
+  const { id, updatedAt, ...fields } = existing as Record<string, any>;
+  return async () => {
+    await prisma.platformConfig.update({ where: { id }, data: fields });
+  };
+}

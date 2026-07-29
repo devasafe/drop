@@ -4,9 +4,23 @@ import jwt from 'jsonwebtoken';
 import app from '../app';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
+import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
+
+// PlatformConfig é um singleton compartilhado no Postgres de dev (sem banco de teste
+// isolado). Esta suíte faz PUT nele via HTTP — sem restaurar, os valores alterados
+// (cancelFeeStorePercent=7, poolTimeoutMin=20) vazariam permanentemente para o dev e
+// para qualquer outra suíte/Task que leia a config depois (ex.: calculateCancellationFee).
+let restorePlatformConfig: () => Promise<void>;
+
+beforeAll(async () => {
+  restorePlatformConfig = await snapshotPlatformConfig();
+});
+
+afterAll(async () => {
+  await restorePlatformConfig();
+});
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@setcfg.test');
