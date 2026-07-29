@@ -10,6 +10,7 @@ import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import notifier from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateOrderDistribution, calculateLateCancellationFee } from '../utils/walletCalculations';
+import { calculateCancellationFee } from '../utils/cancellationFee';
 import {
   emitOrderCancelled,
   emitDeliveryRejected,
@@ -87,10 +88,37 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ error: 'Pedido já foi entregue. Devolução deve ser solicitada.' });
     }
 
+    // `isLate` continua só para ROTULAGEM (reasonCode/isLateCancellation) — NÃO decide mais
+    // se cobra a taxa. A taxa passa a valer sempre que há motoboy aceito (motoboyInvolved).
     const isLate = order.status === 'enviado';
     const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
     const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
-    const refundAmount = order.totalValue || 0;
+
+    // --- Novo modelo de taxa de cancelamento (Task 5) via calculateCancellationFee ---
+    // A taxa é DESCONTADA do refund (nunca reembolsa 100% + cobra à parte) e dividida
+    // com o motoboy quando há aceite. Resolvemos o motoboy lendo a Delivery (leitura).
+    const cfg = await getPlatformConfig();
+    const feeConfig = {
+      cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
+      cancelFeeStorePercent: cfg?.cancelFeeStorePercent ?? 10,
+      cancelFeeMotoboyPercent: cfg?.cancelFeeMotoboyPercent ?? 10,
+      lateCancellationMotoboyShare: cfg?.lateCancellationMotoboyShare ?? 50,
+    };
+    let compMotoboyId: string | null = null;
+    if (order.deliveryId) {
+      const del = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+      compMotoboyId = del?.motoboyId ?? null;
+    }
+    const motoboyInvolved = !!order.deliveryId && !!compMotoboyId;
+    const fee = calculateCancellationFee({
+      actor: 'customer',
+      motoboyInvolved,
+      orderTotal: order.totalValue || 0,
+      deliveryFee: order.deliveryFee || 0,
+      config: feeConfig,
+    });
+    // Refund DESCONTADO: o cliente recebe o total menos a taxa (o desconto é a "cobrança").
+    const refundAmount = fee.refundToCustomer;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: "reivindica" o cancelamento de forma atômica.
@@ -154,7 +182,8 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           // Estorno REAL no Asaas (devolve pro PIX/cartão do cliente). Só se a parte PIX foi paga.
           if (order.paymentStatus === 'paid' && order.asaasPaymentId) {
             try {
-              await refundOrderCharge(order.asaasPaymentId);
+              // Estorno PARCIAL: devolve o total menos a taxa (fee.refundToCustomer).
+              await refundOrderCharge(order.asaasPaymentId, refundAmount);
               order.asaasChargeStatus = 'refunded';
               order.paymentStatus = 'refunded';
               await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
@@ -182,72 +211,70 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
-    // Taxa de cancelamento tardio (quando pedido já foi enviado)
-    let lateCancellationFee = 0;
-    if (isLate) {
-      try {
-        const config = await getPlatformConfig();
-        const feeConfig = {
-          lateCancellationFeePercent: config?.lateCancellationFeePercent ?? 10,
-          lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
-        };
-        const { totalFee, motoboyShare, appShare } = calculateLateCancellationFee(
-          order.totalValue || 0, feeConfig, 'customer'
-        );
-        lateCancellationFee = totalFee;
-
-        // Resolve o motoboy antes da transação (Delivery é leitura).
-        let compMotoboyId: string | null = null;
-        if (motoboyShare > 0 && order.deliveryId) {
-          const delivery = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
-          compMotoboyId = delivery?.motoboyId ?? null;
-        }
-        // CustomerDebt é criado após a transação (best-effort, mesmo padrão de antes).
-        const debtToCreate = isCashOnDelivery
-          ? { customerId, amount: totalFee, sourceOrderId: order.id, status: 'pending', reason: 'Multa de cancelamento tardio em pedido pagar na entrega' }
-          : null;
-
-        await prisma.$transaction(async (tx) => {
-          if (isCashOnDelivery) {
+    // --- Distribuição da taxa de cancelamento (novo modelo, Task 5) ---
+    // Paid (não-COD): a taxa JÁ foi DESCONTADA do refund acima (fee.refundToCustomer).
+    //   Aqui só repassamos a parte do motoboy (Payout released) e lançamos a taxa cheia
+    //   como income no AppCashbox — o que dá lastro ao payout do motoboy, deixando o
+    //   líquido da plataforma = appShare (= totalFee - motoboyShare).
+    // COD: o cliente não paga online (não há refund a descontar), então preservamos o
+    //   modelo anterior — a multa sai da reserva (blockedBalance) da loja + CustomerDebt,
+    //   e só quando o cancelamento é tardio (antes do pickup COD não cobra taxa).
+    let cancellationFeeCharged = 0;
+    try {
+      if (isCashOnDelivery) {
+        if (isLate && fee.totalFee > 0) {
+          cancellationFeeCharged = fee.totalFee;
+          // CustomerDebt é criado após a transação (best-effort, mesmo padrão de antes).
+          const debtToCreate = { customerId, amount: fee.totalFee, sourceOrderId: order.id, status: 'pending', reason: 'Multa de cancelamento tardio em pedido pagar na entrega' };
+          await prisma.$transaction(async (tx) => {
             // Fee sai do blockedBalance da loja (cliente não pagou nada).
             const w = await walletService.getOrCreate(String(order.storeId), 'store', tx);
-            const newBlocked = Math.max(0, Number(w.blockedBalance) - totalFee);
+            const newBlocked = Math.max(0, Number(w.blockedBalance) - fee.totalFee);
             await tx.wallet.update({
               where: { id: w.id },
-              data: { blockedBalance: newBlocked, totalSpent: { increment: totalFee } },
+              data: { blockedBalance: newBlocked, totalSpent: { increment: fee.totalFee } },
             });
-          } else {
-            // Fluxo normal: debita a multa da carteira do cliente.
-            await walletService.debit(
-              { owner: customerId, ownerType: 'user', amount: totalFee, reason: 'Taxa de cancelamento tardio', category: 'penalty', reference: `LATE_CANCEL_${orderId}` },
-              tx,
-            );
-          }
 
-          // Compensação do motoboy: Payout released (reconciliável e sacável).
-          if (compMotoboyId) {
+            // Compensação do motoboy: Payout released (reconciliável e sacável).
+            if (fee.motoboyShare > 0 && compMotoboyId) {
+              const compPayout = await payoutService.createPendingPayout({
+                recipientType: 'motoboy', recipientId: compMotoboyId,
+                orderId: order.id, deliveryId: String(order.deliveryId), amount: fee.motoboyShare, tx,
+              });
+              await payoutService.releasePayout(compPayout.id, tx);
+            }
+
+            // Taxa INTEIRA no AppCashbox (dá lastro ao Payout do motoboy).
+            await recordCashboxEntry(tx, {
+              type: 'income', source: 'cancelled_order', amount: fee.totalFee, orderId,
+              reason: `Taxa de cancelamento COD (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
+            });
+          });
+          await createDebt(debtToCreate);
+        }
+      } else if (fee.totalFee > 0) {
+        cancellationFeeCharged = fee.totalFee;
+        await prisma.$transaction(async (tx) => {
+          // Parte do motoboy: Payout released (reconciliável e sacável). A taxa já saiu
+          // do refund do cliente — aqui é só o repasse.
+          if (fee.motoboyShare > 0 && compMotoboyId) {
             const compPayout = await payoutService.createPendingPayout({
               recipientType: 'motoboy', recipientId: compMotoboyId,
-              orderId: order.id, deliveryId: String(order.deliveryId), amount: motoboyShare, tx,
+              orderId: order.id, deliveryId: String(order.deliveryId), amount: fee.motoboyShare, tx,
             });
             await payoutService.releasePayout(compPayout.id, tx);
           }
 
-          // Multa INTEIRA no AppCashbox (dá lastro ao Payout do motoboy).
-          if (totalFee > 0) {
-            await recordCashboxEntry(tx, {
-              type: 'income', source: 'cancelled_order', amount: totalFee, orderId,
-              reason: `Taxa cancelamento tardio (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
-            });
-          }
+          // Taxa INTEIRA como income (lastro do Payout do motoboy). Líquido da plataforma
+          // = appShare (a diferença entre a taxa cheia e a compensação repassada ao motoboy).
+          await recordCashboxEntry(tx, {
+            type: 'income', source: 'cancelled_order', amount: fee.totalFee, orderId,
+            reason: `Taxa de cancelamento (inclui compensação do motoboy a repassar) - Pedido ${orderId}`,
+          });
         });
-
-        if (debtToCreate) {
-          await createDebt(debtToCreate);
-        }
-      } catch (feeErr) {
-        logger.error('Erro ao cobrar taxa de cancelamento tardio', feeErr as Error, { orderId });
       }
+    } catch (feeErr) {
+      logger.error('Erro ao aplicar taxa de cancelamento do cliente', feeErr as Error, { orderId });
     }
 
     // Cria documento de cancelamento
@@ -260,7 +287,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       refundAmount,
       refundStatus,
       isLateCancellation: isLate,
-      lateCancellationFee: isLate ? lateCancellationFee : undefined,
+      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
     } });
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
@@ -314,7 +341,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       refundStatus,
       cancellationId: cancellation.id,
       isLateCancellation: isLate,
-      lateCancellationFee: isLate ? lateCancellationFee : undefined,
+      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
     });
   } catch (error: any) {
     logger.error('Erro ao cancelar pedido', error as Error);
