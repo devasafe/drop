@@ -423,3 +423,54 @@ describe('loja tenta cancelar APÓS o MTB pegar (status=picked) — bloqueado', 
     expect(feeEntry).toBeFalsy();
   });
 });
+
+// ============================================================
+// Regressão (fix round 1): COD aceito-não-enviado NÃO pode disparar taxa.
+// O gate configurável novo vale só p/ PIX (chargeStoreFee = storeAccepted && (!COD || isLate)).
+// Se a taxa rodasse em COD-não-late, o ramo COD debitaria o blockedBalance (pool compartilhado)
+// AO MESMO TEMPO que o bloco de liberação `if (isCashOnDelivery && !isLate)` o drenaria de novo
+// → dupla-drenagem que sub-colateraliza reservas de OUTROS pedidos COD.
+// ============================================================
+describe('loja cancela COD aceito ANTES do envio — só libera a reserva deste pedido, sem taxa', () => {
+  it('não cobra taxa; blockedBalance cai só pela reserva deste pedido; excedente do pool intacto', async () => {
+    const owner = await createUser('lojista');
+    const customer = await createUser('cliente');
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja COD' } });
+
+    // Pool de reservas COD = 40 (simula DUAS reservas de 20 no bucket bloqueado). O cancelamento
+    // deste pedido (total=200, lateCancellationFeePercent=10% → reserva 20) deve liberar só 20.
+    await createWallet({ owner: store.id, ownerType: 'store', balance: 0, totalIncome: 0, totalSpent: 0, blockedBalance: 40 });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200,
+      deliveryFee: 100,
+      status: 'pago',              // aceito mas NÃO enviado → !isLate
+      paymentMethod: 'cash_on_delivery',
+      acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/reject`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ reason: 'Cancelou COD antes do envio' });
+
+    expect(res.status).toBe(200);
+    // NENHUMA taxa: sem lateCancellationFee no corpo, sem entrada cancelled_order, sem penalty.
+    expect(res.body.lateCancellationFee).toBeUndefined();
+    const cashbox = await findAppCashbox();
+    expect(cashbox!.history.find((h: any) => h.source === 'cancelled_order')).toBeFalsy();
+
+    const storeWallet = await findWallet({ owner: store.id, ownerType: 'store' });
+    expect(storeWallet!.history.find((h: any) => h.category === 'penalty')).toBeFalsy();
+
+    // Só a LIBERAÇÃO rodou: blocked 40 → 20 (liberou 20 = reserva DESTE pedido),
+    // balance 0 → 20. O excedente do pool (20 = reserva do OUTRO pedido) fica intacto.
+    expect(storeWallet!.blockedBalance).toBeCloseTo(20, 2);
+    expect(storeWallet!.balance).toBeCloseTo(20, 2);
+  });
+});

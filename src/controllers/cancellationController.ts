@@ -792,8 +792,16 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // ENTREGA (deliveryFee), via calculateCancellationFee({actor:'store'});
     // `motoboyInvolved` controla só a divisão (100% app vs 50/50 quando há MTB atribuído).
     // O refund ao cliente permanece 100% (a loja é a culpada) — não é descontado.
+    //
+    // ESCOPO PIX: o novo gate configurável (base=entrega) vale para PIX. Para COD,
+    // preservamos o comportamento LEGADO — taxa só quando `isLate` — para que o bloco
+    // de taxa e o bloco de liberação da reserva COD (`if (isCashOnDelivery && !isLate)`,
+    // adiante) permaneçam MUTUAMENTE EXCLUSIVOS como antes. Sem isso, um COD aceito-não-
+    // enviado rodaria os DOIS, drenando o `blockedBalance` (pool compartilhado de reservas
+    // de outros pedidos) em dobro.
+    const chargeStoreFee = storeAccepted && (!isCashOnDelivery || isLate);
     let cancellationFeeCharged = 0;
-    if (storeAccepted) {
+    if (chargeStoreFee) {
       try {
         const config = await getPlatformConfig();
         const feeConfig = {
