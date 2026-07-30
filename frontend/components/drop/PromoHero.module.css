@@ -1,0 +1,76 @@
+/* PromoHero — hero de promoção, gradiente roxo grande (--brand-grad) ao
+ * lado de FreteBanner/OrderTracker (spec Regra D: roxo com hierarquia,
+ * reservado a momentos de destaque). Preço sempre branco via PriceTag,
+ * CTA via Button onImage, desconto em selo circular via Badge tone seal.
+ */
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-5);
+  border-radius: var(--r-xl);
+  background: var(--brand-grad);
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tag {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--on-brand) 78%, transparent);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h2);
+  color: var(--on-brand);
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: color-mix(in srgb, var(--on-brand) 82%, transparent);
+  line-height: 1.4;
+}
+
+.cta {
+  margin-top: var(--space-1);
+}
+
+.media {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-lg);
+  background-color: var(--surface-2);
+  background-position: center;
+  background-size: cover;
+}
+
+.seal {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+}

@@ -1,0 +1,37 @@
+/* FreteBanner — banner de frete grátis. Replica `.promo` do mock canônico:
+ * gradiente roxo grande (--brand-grad), CTA sobre a superfície, ilustração
+ * de moto à direita.
+ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4);
+  border-radius: var(--r-xl);
+  background: var(--brand-grad);
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.title {
+  max-width: 190px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-h3);
+  color: var(--on-brand);
+  line-height: 1.15;
+}
+
+.moto {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--on-brand) 92%, transparent);
+}

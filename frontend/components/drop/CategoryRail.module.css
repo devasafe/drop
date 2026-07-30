@@ -1,0 +1,16 @@
+/* CategoryRail — trilha horizontal de categorias (chips inline via Chip).
+ * Replica `.cats` do mock canônico: scroll horizontal, sem scrollbar visível.
+ */
+
+.rail {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.rail::-webkit-scrollbar {
+  height: 0;
+}
