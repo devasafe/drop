@@ -50,6 +50,17 @@
   background: color-mix(in srgb, var(--brand) 26%, transparent);
 }
 
+/* .srch .f do mock: quadrado roxo sólido, ícone branco — ação de filtro
+ * ao lado de um campo de busca (raio de função "input", --r-md, não pill). */
+.brandSquare {
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.brandSquare:hover:not(:disabled) {
+  box-shadow: var(--shadow-brand);
+}
+
 /* Controle solto sobre imagem/hero: scrim neutro, nunca roxo (evita
  * competir com o brand quando a foto já tem cor própria). */
 .onImage {

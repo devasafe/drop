@@ -13,8 +13,10 @@ export interface SearchFieldProps {
 
 /**
  * Campo de busca do DROP (`.srch` no mock canônico): `Input` com ícone de
- * lupa + `IconButton` brand de filtro opcional. Botão de filtro exige nome
- * acessível (`aria-label="Filtrar"`) por não ter texto visível.
+ * lupa + `IconButton` `brandSquare` de filtro opcional (quadrado roxo
+ * sólido, ícone branco, 42px — bate a altura do Input, replica `.srch .f`).
+ * Botão de filtro exige nome acessível (`aria-label="Filtrar"`) por não ter
+ * texto visível.
  */
 export function SearchField({ value, onChange, placeholder, onFilter }: SearchFieldProps) {
   return (
@@ -29,7 +31,7 @@ export function SearchField({ value, onChange, placeholder, onFilter }: SearchFi
       {onFilter && (
         <IconButton
           icon={<SlidersHorizontal size={18} strokeWidth={ICON_BUTTON_STROKE_WIDTH} />}
-          variant="brand"
+          variant="brandSquare"
           aria-label="Filtrar"
           onClick={onFilter}
         />

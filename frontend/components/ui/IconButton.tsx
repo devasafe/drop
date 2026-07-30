@@ -1,7 +1,7 @@
 import { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from 'react';
 import styles from './IconButton.module.css';
 
-export type IconButtonVariant = 'brand' | 'soft' | 'onImage';
+export type IconButtonVariant = 'brand' | 'soft' | 'onImage' | 'brandSquare';
 
 export interface IconButtonProps
   extends Omit<
@@ -16,11 +16,12 @@ export interface IconButtonProps
   onClick?: MouseEventHandler<HTMLButtonElement>;
 }
 
-/** Diâmetro padrão por variante, herdado do mock canônico (`.of .add` / `.rep .add`). */
+/** Diâmetro padrão por variante, herdado do mock canônico (`.of .add` / `.rep .add` / `.srch .f`). */
 const DEFAULT_SIZE: Record<IconButtonVariant, number> = {
   brand: 34,
   soft: 30,
   onImage: 34,
+  brandSquare: 42,
 };
 
 /**

@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, ReactNode } from 'react';
+import { InputHTMLAttributes, ReactNode, useId } from 'react';
 import styles from './Input.module.css';
 
 export interface InputProps
@@ -32,6 +32,8 @@ export function Input({
   id,
   ...rest
 }: InputProps) {
+  const errorId = useId();
+
   return (
     <div className={className}>
       <div
@@ -49,10 +51,15 @@ export function Input({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           {...rest}
         />
       </div>
-      {error && <p className={styles.errorText}>{error}</p>}
+      {error && (
+        <p id={errorId} className={styles.errorText}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

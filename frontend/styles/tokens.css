@@ -4,7 +4,7 @@
   --brand-grad:linear-gradient(150deg,#6C2BD9,#8B5CF6);
   --brand-glow:rgba(108,43,217,.45);
   /* Superfícies (dark) */
-  --bg:#0A0A0A; --surface:#151021; --surface-2:#1b1526;
+  --bg:#0A0A0A; --surface:#151021; --surface-2:#1b1526; --surface-field:rgba(255,255,255,.04);
   --line:rgba(255,255,255,.07); --divider:rgba(255,255,255,.06);
   --bg-radial:radial-gradient(135% 40% at 50% -6%,#1c1136 0%,#0A0A0A 46%);
   /* Texto */

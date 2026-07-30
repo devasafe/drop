@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   height: 42px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-field);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   transition: border-color var(--dur-fast) var(--ease);
