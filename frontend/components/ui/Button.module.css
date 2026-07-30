@@ -1,0 +1,105 @@
+/* Button — primitivo do design system DROP.
+ * Raio de função "botão": --r-sm (não herda --r-lg de card).
+ * Roxo com hierarquia: only .primary carrega fundo roxo; ghost/onImage não
+ * empilham roxo em fundo+borda+sombra ao mesmo tempo (regra D do spec).
+ * Sem borda decorativa — ghost usa mudança de fundo no hover, não contorno.
+ */
+
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Tamanhos */
+
+.sm {
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+.md {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--fs-body);
+}
+
+/* Variantes */
+
+.primary {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.primary:hover:not(:disabled) {
+  background: var(--brand-grad);
+  box-shadow: var(--shadow-brand);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+
+.onImage {
+  background: var(--text-strong);
+  color: var(--brand);
+}
+.onImage:hover:not(:disabled) {
+  box-shadow: var(--shadow-float);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.spinner {
+  animation: button-spin 0.85s linear infinite;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
