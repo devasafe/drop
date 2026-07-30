@@ -1,0 +1,58 @@
+/* Select — mesmo tratamento de borda funcional do Input (spec §3.1-B),
+ * já que é outro campo de formulário editável. Seta customizada em
+ * --text-muted para não depender do estilo nativo do navegador. */
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.field:focus-within {
+  border-color: var(--brand-2);
+}
+
+.field.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-8) 0 var(--space-3);
+  border: none;
+  outline: none;
+  background: transparent;
+  appearance: none;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.select:disabled {
+  cursor: not-allowed;
+}
+
+.chevron {
+  position: absolute;
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field {
+    transition: none;
+  }
+}

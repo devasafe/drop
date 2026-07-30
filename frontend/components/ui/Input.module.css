@@ -1,0 +1,63 @@
+/* Input — único primitivo do design system com borda funcional (spec §3.1-B):
+ * campo de entrada precisa de um contorno legível para ser reconhecido como
+ * área clicável/editável. Replica `.srch .box` do mock canônico. */
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 42px;
+  padding: 0 var(--space-3);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.field:focus-within {
+  border-color: var(--brand-2);
+}
+
+.field.error {
+  border-color: var(--danger);
+}
+
+.field.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.errorText {
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field {
+    transition: none;
+  }
+}
