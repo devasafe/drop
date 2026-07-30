@@ -1174,4 +1174,90 @@ describe('Task 10: cliente ausente — motoboy marca após espera mínima cumpri
     const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
     expect(updatedOrder!.status).toBe('enviado');
   });
+
+  // ============================================================
+  // Fix round 1 (review): edge de MAIOR risco — deliveryFee > totalFee →
+  // appShare = totalFee - motoboyShare fica NEGATIVO (motoboyShare = deliveryFee,
+  // entrega CHEIA, fixa; totalFee = orderTotal * cancelFeeCustomerPercent/100).
+  // O handler NUNCA lança `appShare` como entrada de caixa — só `fee.totalFee`
+  // (sempre ≥ 0). Este teste prova que o comportamento é esse na prática: a
+  // entrada de income no AppCashbox é `totalFee` (10), nunca `appShare` (-40)
+  // nem qualquer valor negativo; o Payout do MTB continua recebendo a entrega
+  // cheia (50); e o refund ao cliente continua correto (total - totalFee = 90).
+  // ============================================================
+  it('edge: deliveryFee > totalFee → appShare negativo, mas caixa NUNCA recebe income negativo (lança totalFee)', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 200, totalIncome: 200, totalSpent: 0 });
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Ausente AppShare Negativo' } });
+
+    // total=100, deliveryFee=50. Config: cancelFeeCustomerPercent=10% de 100 = totalFee=10.
+    // motoboyShare = deliveryFee = 50 (entrega CHEIA) > totalFee(10) → appShare = 10-50 = -40.
+    // refundToCustomer = 100 - 10 = 90.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 100), quantity: 1, price: 100 }] },
+      totalValue: 100,
+      deliveryFee: 50,
+      status: 'enviado',
+      paymentMethod: 'pix',
+      paymentStatus: 'paid',
+      acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: {
+        orderId: order.id, motoboyId: motoboy.id, fee: 50, status: 'picked',
+        updatedAt: new Date(Date.now() - 30 * 60 * 1000),
+      },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/cliente-ausente`)
+      .set('Authorization', `Bearer ${motoboy.token}`)
+      .send({ reason: 'Cliente ausente' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelado');
+    // O response expõe appShare calculado (-40) só como informação — não é o que
+    // vai pro caixa.
+    expect(res.body.appShare).toBeCloseTo(-40, 2);
+
+    // PROVA 1: refund ao cliente = total - totalFee = 90.
+    expect(res.body.refundAmount).toBeCloseTo(90, 2);
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(290, 2); // 200 + 90
+
+    // PROVA 2: Payout de compensação do MTB = deliveryFee (entrega cheia) = 50,
+    // MESMO sendo maior que a taxa cobrada do cliente (10).
+    const compPayout = await findPayout({ recipientType: 'motoboy', recipientId: motoboy.id, status: 'released' });
+    expect(compPayout).not.toBeNull();
+    expect(compPayout!.amount).toBeCloseTo(50, 2);
+
+    // PROVA 3 (o ponto central do fix): o AppCashbox recebe `totalFee` (10) como
+    // income — NUNCA `appShare` (-40) e NUNCA um valor negativo. Nenhuma entrada
+    // de income negativa é criada em NENHUM lugar do caixa.
+    const cashbox = await findAppCashbox();
+    const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
+    expect(feeEntry).toBeTruthy();
+    expect(feeEntry!.amount).toBeCloseTo(10, 2); // = totalFee, não appShare
+    expect(feeEntry!.type).toBe('income');
+    expect(feeEntry!.amount).toBeGreaterThan(0);
+    const negativeIncomeEntries = cashbox!.history.filter((h: any) => h.type === 'income' && h.amount < 0);
+    expect(negativeIncomeEntries.length).toBe(0);
+
+    // PROVA 4: produto volta pra loja + pedido cancelado.
+    const updatedDelivery = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updatedDelivery!.statusDevolucao).toBe('aguardando_confirmacao');
+    expect(updatedDelivery!.pinDevolucao).toBeTruthy();
+
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('cancelado');
+  });
 });
