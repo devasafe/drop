@@ -1,0 +1,46 @@
+/* Logo — pin em gradiente de marca + wordmark caixa alta.
+ * Replica `.pin`/`.wm` do mock canônico. Raio de função "ícone de marca":
+ * --r-sm (não pill — o mock usa 9px, canto levemente arredondado).
+ */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--brand-grad);
+  color: var(--on-brand);
+  box-shadow: var(--shadow-brand);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-strong);
+}
+
+.md .pin {
+  width: 30px;
+  height: 30px;
+}
+
+.md .wordmark {
+  font-size: var(--fs-hero);
+}
+
+.sm .pin {
+  width: 24px;
+  height: 24px;
+}
+
+.sm .wordmark {
+  font-size: var(--fs-h2);
+}

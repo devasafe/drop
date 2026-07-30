@@ -1,0 +1,33 @@
+/* AddressBar — endereço de entrega, de-cardificado (spec Regra B): sem
+ * fundo, sem borda, só texto+ícones sobre a superfície do header. Replica
+ * `.addr` do mock canônico.
+ */
+
+.addressBar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: var(--space-3);
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pin {
+  flex-shrink: 0;
+  color: var(--brand-2);
+}
+
+.address {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}

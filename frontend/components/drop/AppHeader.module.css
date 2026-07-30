@@ -1,0 +1,46 @@
+/* AppHeader — marca + sino com contador + avatar. Replica `.hd` do mock
+ * canônico. O anel ao redor do contador (`.dot`) usa `box-shadow` com
+ * `--bg` em vez de `border`, para não deslocar o layout do sino.
+ */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.bell {
+  position: relative;
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--brand-grad);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+}
