@@ -1,0 +1,149 @@
+/* ProductCard — variantes por contexto (spec §3.2). `tile` (home/recomendado)
+ * = card visual, imagem manda, replica `.of` do mock canônico. `line`
+ * (busca/loja/carrinho) = linha densa com divisor, de-cardificação
+ * (spec §3.1-A) — mesma lógica anti-card de StoreCard `resultado`.
+ */
+
+.product {
+  display: flex;
+}
+
+.media {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: var(--surface-2);
+  background-position: center;
+  background-size: cover;
+  color: var(--text-subtle);
+}
+
+.discountBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+.addOnImage {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text-strong);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.store {
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---- tile: card visual (home / recomendado) ---- */
+.tile {
+  flex-direction: column;
+}
+
+.tile .image {
+  border-radius: var(--r-lg);
+}
+
+.tile .info {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-2);
+}
+
+.tile .priceRow {
+  margin-top: 5px;
+}
+
+.home {
+  width: 150px;
+}
+
+.home .image {
+  height: 130px;
+}
+
+.recomendado {
+  width: 118px;
+}
+
+.recomendado .image {
+  height: 96px;
+}
+
+/* ---- line: linha densa com divisor (busca / loja / carrinho) ---- */
+.line {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.line:last-child {
+  border-bottom: 0;
+}
+
+.line .image {
+  border-radius: var(--r-md);
+}
+
+.line .info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.line .textBlock {
+  min-width: 0;
+}
+
+.line .priceRow {
+  flex-shrink: 0;
+}
+
+.busca .media {
+  width: 64px;
+  height: 64px;
+}
+
+.loja .media {
+  width: 72px;
+  height: 72px;
+}
+
+.carrinho .media {
+  width: 52px;
+  height: 52px;
+}

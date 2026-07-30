@@ -1,0 +1,163 @@
+/* StoreCard — `destaque` (card de imagem, replica `.feat`) e `resultado`
+ * (LINHA com divisor, replica `.lrow`). De-cardificação (spec §3.1-A):
+ * `.row` nunca ganha borda/superfície de card — só divisor + espaçamento.
+ */
+
+/* ---- destaque: único card de imagem real ---- */
+.card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  cursor: pointer;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 130px;
+  background-color: var(--surface-2);
+  background-position: center;
+  background-size: cover;
+  color: var(--text-subtle);
+}
+
+.gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--scrim-strong) 12%, transparent 60%);
+}
+
+.statusWrap {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+}
+
+.info {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-3);
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-strong);
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: 5px;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: color-mix(in srgb, var(--text-strong) 84%, transparent);
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.starIcon {
+  color: var(--rating);
+}
+
+/* ---- resultado: LINHA com divisor, NÃO card com borda ---- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 58px;
+  height: 58px;
+  border-radius: var(--r-lg);
+  background-color: var(--surface-2);
+  background-position: center;
+  background-size: cover;
+  color: var(--text-subtle);
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowName {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category {
+  margin: 2px 0 6px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
