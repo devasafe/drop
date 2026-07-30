@@ -34,7 +34,7 @@
   border-radius: var(--r-pill);
   background: var(--text-strong);
   color: var(--brand);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-neutral);
 }
 .brand:hover:not(:disabled) {
   box-shadow: var(--shadow-brand);
@@ -54,12 +54,12 @@
  * competir com o brand quando a foto já tem cor própria). */
 .onImage {
   border-radius: var(--r-pill);
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--scrim-soft);
   color: var(--text-strong);
   backdrop-filter: blur(6px);
 }
 .onImage:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--scrim);
 }
 
 @media (prefers-reduced-motion: reduce) {
