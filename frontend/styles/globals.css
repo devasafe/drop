@@ -2,6 +2,8 @@
    DROP — Design System
    ============================================================ */
 
+@import './tokens.css';
+
 :root {
   --drop-bg:          #0A0A0A;
   --drop-bg-2:        #111111;
@@ -49,6 +51,12 @@
   padding: 0;
 }
 
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -56,9 +64,6 @@ html {
 }
 
 body {
-  font-family: var(--drop-font-body);
-  background-color: var(--drop-bg);
-  color: var(--drop-text);
   font-size: 15px;
   line-height: 1.6;
 }

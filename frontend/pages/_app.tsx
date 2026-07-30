@@ -18,6 +18,7 @@ import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { useLivePresence } from '../hooks/useLivePresence';
+import { spaceGrotesk, inter } from '../lib/fonts';
 
 // Pequeno componente renderizado DENTRO do SocketProvider para que o hook
 // de presença consiga acessar o contexto do socket.
@@ -95,9 +96,11 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
 export default function App(props: AppProps) {
   return (
-    <AuthProvider>
-      <AppWrapper {...props} />
-    </AuthProvider>
+    <div className={`${spaceGrotesk.variable} ${inter.variable}`}>
+      <AuthProvider>
+        <AppWrapper {...props} />
+      </AuthProvider>
+    </div>
   );
 }
 

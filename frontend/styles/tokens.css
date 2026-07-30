@@ -1,0 +1,27 @@
+:root {
+  /* Marca */
+  --brand:#6C2BD9; --brand-2:#8B5CF6;
+  --brand-grad:linear-gradient(150deg,#6C2BD9,#8B5CF6);
+  --brand-glow:rgba(108,43,217,.45);
+  /* Superfícies (dark) */
+  --bg:#0A0A0A; --surface:#151021; --surface-2:#1b1526;
+  --line:rgba(255,255,255,.07); --divider:rgba(255,255,255,.06);
+  --bg-radial:radial-gradient(135% 40% at 50% -6%,#1c1136 0%,#0A0A0A 46%);
+  /* Texto */
+  --text:#EDEBF2; --text-strong:#FFFFFF; --text-muted:#8f8aa0; --text-subtle:#6a6577;
+  /* Semântico */
+  --success:#3ddc84; --rating:#ffb020; --danger:#ff5a5f; --on-brand:#FFFFFF;
+  /* Tipografia */
+  --font-display:var(--font-space-grotesk),system-ui,sans-serif;
+  --font-body:var(--font-inter),system-ui,sans-serif;
+  --fs-hero:22px; --fs-h2:16px; --fs-h3:14.5px; --fs-body:13.5px; --fs-sm:12px; --fs-xs:10.5px; --fs-price:14px;
+  /* Espaçamento (base 4) */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-10:40px;
+  /* Raio (variável por função) */
+  --r-sm:9px; --r-md:13px; --r-lg:16px; --r-xl:20px; --r-2xl:24px; --r-pill:999px;
+  /* Elevação */
+  --shadow-brand:0 6px 18px var(--brand-glow);
+  --shadow-float:0 12px 30px rgba(108,43,217,.5);
+  /* Movimento */
+  --dur-fast:140ms; --dur-base:220ms; --dur-slow:340ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
