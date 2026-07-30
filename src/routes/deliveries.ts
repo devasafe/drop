@@ -2,7 +2,7 @@
 
 import { Router } from 'express';
 import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation } from '../controllers/deliveryController';
-import { rejectDeliveryByMotoboy } from '../controllers/cancellationController';
+import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { CreateDeliverySchema } from '../validation/schemas';
@@ -35,6 +35,9 @@ router.put('/:id/status', authenticate, authorizeRoles('motoboy'), updateDeliver
 
 // motoboy rejects delivery (returns to pool or cancels)
 router.post('/:id/reject', authenticate, authorizeRoles('motoboy'), rejectDeliveryByMotoboy);
+
+// motoboy marca cliente ausente no local, após espera mínima cumprida (spec §3.2/§6.3)
+router.post('/:id/cliente-ausente', authenticate, authorizeRoles('motoboy'), marcarClienteAusente);
 
 // motoboy claims a delivery (first-claim-wins)
 router.post('/:id/claim', authenticate, authorizeRoles('motoboy'), claimDelivery);

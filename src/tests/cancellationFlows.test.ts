@@ -1019,3 +1019,159 @@ describe('Task 9: job de timeout pool (marca flag, não auto-cancela) + decisão
     expect(res.status).toBe(409);
   });
 });
+
+// ============================================================
+// Task 10: CLIENTE AUSENTE (spec §3.2/§6.3) — motoboy, no local, marca o
+// cliente como ausente após a espera mínima (`customerAbsentWaitMin`) cumprida
+// desde o pickup. Taxa via calculateCancellationFee({actor:'customer_absent'}):
+// base=orderTotal (cliente paga), motoboy recebe ENTREGA CHEIA (deliveryFee),
+// o resto (totalFee - motoboyShare = appShare) fica com a plataforma. O produto
+// volta pra loja (statusDevolucao/pinDevolucao) e o pedido é cancelado com
+// refund PARCIAL (orderTotal - totalFee).
+// ============================================================
+describe('Task 10: cliente ausente — motoboy marca após espera mínima cumprida', () => {
+  beforeAll(async () => {
+    // Fixa customerAbsentWaitMin em um valor conhecido (snapshot/restore do topo
+    // do arquivo já cobre esta linha).
+    const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+    await prisma.platformConfig.update({ where: { id: existing!.id }, data: { customerAbsentWaitMin: 15 } });
+  });
+
+  it('refund parcial ao cliente + Payout de entrega CHEIA ao MTB + appShare no caixa + produto volta à loja', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Cliente Ausente' } });
+
+    // total=1000, deliveryFee=50. Config: cancelFeeCustomerPercent=10% de 1000 = totalFee=100.
+    // motoboyShare = deliveryFee = 50 (entrega CHEIA, não fração da taxa). appShare = 100-50 = 50.
+    // refundToCustomer = 1000 - 100 = 900.
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id,
+      storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 1000), quantity: 1, price: 1000 }] },
+      totalValue: 1000,
+      deliveryFee: 50,
+      status: 'enviado',
+      paymentMethod: 'pix',
+      paymentStatus: 'paid',
+      acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Entrega 'picked' há 30min — bem além dos 15min configurados.
+    const delivery = await prisma.delivery.create({
+      data: {
+        orderId: order.id, motoboyId: motoboy.id, fee: 50, status: 'picked',
+        updatedAt: new Date(Date.now() - 30 * 60 * 1000),
+      },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/cliente-ausente`)
+      .set('Authorization', `Bearer ${motoboy.token}`)
+      .send({ reason: 'Cliente não atendeu no endereço' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelado');
+
+    // PROVA 1: refund PARCIAL — total - totalFee.
+    expect(res.body.refundAmount).toBeCloseTo(900, 2);
+    expect(res.body.refundStatus).toBe('processed');
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(1400, 2); // 500 + 900
+
+    // PROVA 2: compensação do MTB = deliveryFee (entrega CHEIA), Payout 'released'.
+    const compPayout = await findPayout({ recipientType: 'motoboy', recipientId: motoboy.id, status: 'released' });
+    expect(compPayout).not.toBeNull();
+    expect(compPayout!.amount).toBeCloseTo(50, 2);
+
+    // PROVA 3: AppCashbox recebe a taxa cheia (R$100) como lastro; o líquido da
+    // plataforma (income - payout do motoboy) é appShare (R$50).
+    const cashbox = await findAppCashbox();
+    const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
+    expect(feeEntry).toBeTruthy();
+    expect(feeEntry!.amount).toBeCloseTo(100, 2);
+    expect(feeEntry!.amount - compPayout!.amount).toBeCloseTo(50, 2); // = appShare
+
+    // PROVA 4: produto volta pra loja — statusDevolucao setado + PIN gerado.
+    const updatedDelivery = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updatedDelivery!.statusDevolucao).toBe('aguardando_confirmacao');
+    expect(updatedDelivery!.pinDevolucao).toBeTruthy();
+    expect(updatedDelivery!.status).toBe('cancelled');
+
+    // PROVA 5: pedido cancelado.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('cancelado');
+  });
+
+  it('controle: motoboy que NÃO é o dono da entrega → 403', async () => {
+    const motoboyDono = await createUser('motoboy');
+    const outroMotoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Ausente IDOR' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 30, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    const delivery = await prisma.delivery.create({
+      data: {
+        orderId: order.id, motoboyId: motoboyDono.id, fee: 30, status: 'picked',
+        updatedAt: new Date(Date.now() - 30 * 60 * 1000),
+      },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/cliente-ausente`)
+      .set('Authorization', `Bearer ${outroMotoboy.token}`)
+      .send({ reason: 'Tentativa indevida' });
+
+    expect(res.status).toBe(403);
+
+    // Pedido/entrega intocados.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('enviado');
+  });
+
+  it('controle: espera mínima ainda NÃO cumprida → 400', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Ausente Cedo' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 30, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Entrega retirada há só 1 minuto — dentro dos 15min configurados.
+    const delivery = await prisma.delivery.create({
+      data: {
+        orderId: order.id, motoboyId: motoboy.id, fee: 30, status: 'picked',
+        updatedAt: new Date(Date.now() - 1 * 60 * 1000),
+      },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/deliveries/${delivery.id}/cliente-ausente`)
+      .set('Authorization', `Bearer ${motoboy.token}`)
+      .send({ reason: 'Muito cedo' });
+
+    expect(res.status).toBe(400);
+
+    // Pedido/entrega intocados.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('enviado');
+  });
+});
