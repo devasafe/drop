@@ -23,7 +23,7 @@ export interface StatusPillProps {
 export function StatusPill({ status }: StatusPillProps) {
   return (
     <span className={[styles.pill, styles[status]].join(' ')}>
-      <span className={styles.dot} />
+      <span className={styles.dot} aria-hidden="true" />
       {STATUS_LABEL[status]}
     </span>
   );
