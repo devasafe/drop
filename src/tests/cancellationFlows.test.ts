@@ -620,6 +620,77 @@ describe('Task 7: cliente decide reembolso após motoboy cancelar (picked) — r
   });
 });
 
+// ============================================================
+// FIX 1 (revisão final da branch): guard "devolução em andamento" no endpoint
+// legado POST /orders/:id/cancel. Depois do motoboy cancelar PÓS-PICKUP (Task 7),
+// a delivery fica em statusDevolucao='aguardando_confirmacao' com o motoboyId de
+// quem abandonou, e o pedido segue 'enviado' (cancelável). Sem o guard,
+// cancelOrderByCustomer cobraria a taxa do CLIENTE e pagaria 50% dela ao motoboy
+// que abandonou — o oposto da spec. A ação correta é POST /orders/:id/pos-devolucao.
+// ============================================================
+describe('FIX 1: cliente tenta /cancel legado com devolução em andamento — bloqueado', () => {
+  it('retorna 409 RETURN_IN_PROGRESS, NÃO cancela o pedido e NÃO move dinheiro', async () => {
+    const motoboy = await createUser('motoboy');
+    const customer = await createUser('cliente');
+
+    await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 40, totalIncome: 40, totalSpent: 0 });
+    await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
+
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Return In Progress' } });
+
+    const order = await prisma.order.create({ data: {
+      customerId: customer.id, storeId: store.id,
+      items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
+      totalValue: 200, deliveryFee: 100, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid', acceptedAt: new Date(),
+    }, include: { items: true } });
+
+    // Estado pós-rejeição do motoboy (Task 7): devolução aguardando confirmação,
+    // motoboyId ainda é o do motoboy que abandonou, pedido segue 'enviado'.
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '999999' },
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+
+    const res = await request(app)
+      .post(`/api/orders/${order.id}/cancel`)
+      .set('Authorization', `Bearer ${customer.token}`)
+      .send({ reason: 'Quero cancelar' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('RETURN_IN_PROGRESS');
+
+    // Pedido NÃO foi cancelado — status inalterado.
+    const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(updatedOrder!.status).toBe('enviado');
+    expect(updatedOrder!.cancelledAt).toBeNull();
+
+    // Delivery inalterada.
+    const updatedDelivery = await prisma.delivery.findUnique({ where: { id: delivery.id } });
+    expect(updatedDelivery!.statusDevolucao).toBe('aguardando_confirmacao');
+    expect(updatedDelivery!.motoboyId).toBe(motoboy.id);
+
+    // Nenhum movimento de dinheiro: sem refund/penalty no cliente, sem payout de comp.
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(500, 2);
+    expect(custWallet!.history.find((h: any) => h.category === 'refund')).toBeFalsy();
+
+    const mtbWallet = await findWallet({ owner: motoboy.id, ownerType: 'motoboy' });
+    expect(mtbWallet!.balance).toBeCloseTo(40, 2);
+    expect(mtbWallet!.history.find((h: any) => h.category === 'penalty')).toBeFalsy();
+
+    const compPayout = await findPayout({ recipientType: 'motoboy', recipientId: motoboy.id });
+    expect(compPayout).toBeNull();
+
+    const cashbox = await findAppCashbox();
+    expect(cashbox!.history.find((h: any) => h.source === 'cancelled_order')).toBeFalsy();
+
+    // Nenhum documento de Cancellation criado para este pedido.
+    const cancellation = await prisma.cancellation.findFirst({ where: { orderId: order.id } });
+    expect(cancellation).toBeNull();
+  });
+});
+
 describe('Task 7: cliente decide reentrega após motoboy cancelar (picked) — volta ao pool', () => {
   it('POST /orders/:id/pos-devolucao {reentrega} + confirmReturn da loja → delivery pending, motoboyId null', async () => {
     const owner = await createUser('lojista');

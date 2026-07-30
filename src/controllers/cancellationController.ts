@@ -111,10 +111,30 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       lateCancellationMotoboyShare: cfg?.lateCancellationMotoboyShare ?? 50,
     };
     let compMotoboyId: string | null = null;
+    let deliveryForGuard: { motoboyId: string | null; statusDevolucao: string | null } | null = null;
     if (order.deliveryId) {
-      const del = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+      const del = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+      deliveryForGuard = del ?? null;
       compMotoboyId = del?.motoboyId ?? null;
     }
+
+    // ✅ Guard "devolução em andamento" (mesmo espírito do PICKED_UP_CANNOT_CANCEL da
+    // loja em rejectOrderByStore, ~linha 1327). Depois que o motoboy cancela PÓS-PICKUP
+    // (Task 7), a delivery fica em statusDevolucao='aguardando_confirmacao' com o
+    // motoboyId de quem ABANDONOU a entrega, enquanto o pedido segue cancelável
+    // ('enviado'). Sem este guard, este endpoint legado cobraria a taxa do CLIENTE e
+    // pagaria 50% dela ao motoboy que abandonou — o oposto da spec (motoboy culpado →
+    // cliente 100%, motoboy nada). A ação correta é POST /orders/:id/pos-devolucao.
+    // Checado ANTES da trava atômica de reivindicação: nada é reivindicado/cancelado e
+    // nenhum dinheiro se move. Não bloqueia cancelamentos legítimos (ex.: delivery
+    // 'picked' sem devolução em andamento continua caindo no fluxo normal abaixo).
+    if (deliveryForGuard?.statusDevolucao === 'aguardando_confirmacao') {
+      return res.status(409).json({
+        error: 'RETURN_IN_PROGRESS',
+        message: 'Devolução em andamento; use a decisão pós-devolução.',
+      });
+    }
+
     const motoboyInvolved = !!order.deliveryId && !!compMotoboyId;
     const fee = storeAccepted
       ? calculateCancellationFee({
@@ -461,7 +481,10 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
                 { owner: String(delivery.motoboyId), ownerType: 'motoboy', amount: fee.totalFee, reason: 'Taxa de cancelamento pós-retirada - motoboy', category: 'penalty', reference: feeRef },
                 tx,
               );
-              // Taxa cheia (= appShare, 100% app) como income no AppCashbox.
+              // Taxa cheia (= appShare, 100% app) como income no AppCashbox. Aqui usamos
+              // fee.appShare em vez de fee.totalFee (convenção dos demais pontos deste
+              // arquivo) porque para o ator 'motoboy' motoboyShare=0 → appShare === totalFee;
+              // é o mesmo valor, não há divergência contábil real.
               await recordCashboxEntry(tx, {
                 type: 'income', source: 'cancelled_order', amount: fee.appShare, orderId: String(delivery.orderId),
                 reason: `Taxa de cancelamento do motoboy pós-retirada - Pedido ${delivery.orderId}`,
