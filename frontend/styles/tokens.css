@@ -24,7 +24,9 @@
   --shadow-float:0 12px 30px rgba(108,43,217,.5);
   --shadow-neutral:0 4px 12px rgba(0,0,0,.4);
   /* Scrim neutro (overlays sobre imagem) */
-  --scrim-soft:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.5);
+  --scrim-soft:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.5); --scrim-strong:rgba(0,0,0,.6);
   /* Movimento */
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:340ms; --ease:cubic-bezier(.2,.7,.2,1);
+  /* Tom neutro informativo (ex.: Toast tone="info"), mesmo azul já usado em avisos/anúncios */
+  --info:#38BDF8;
 }
