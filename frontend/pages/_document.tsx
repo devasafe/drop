@@ -1,9 +1,10 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 import Script from 'next/script';
+import { spaceGrotesk, inter } from '../lib/fonts';
 
 export default function Document() {
   return (
-    <Html>
+    <Html className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <Head>
         {/* Favicon (ícone da aba) */}
         <link rel="icon" type="image/png" href="/images/drop_png.png" />

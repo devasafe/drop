@@ -69,7 +69,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <Nav />
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
-        <main style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>
+        <main className={`${spaceGrotesk.variable} ${inter.variable}`} style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>
           <PageTransition>
             <Component {...pageProps} />
           </PageTransition>
@@ -96,11 +96,9 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
 export default function App(props: AppProps) {
   return (
-    <div className={`${spaceGrotesk.variable} ${inter.variable}`}>
-      <AuthProvider>
-        <AppWrapper {...props} />
-      </AuthProvider>
-    </div>
+    <AuthProvider>
+      <AppWrapper {...props} />
+    </AuthProvider>
   );
 }
 
