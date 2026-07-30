@@ -1,0 +1,39 @@
+/* PriceTag — preço de produto, `de/por` opcional. Replica `.of .pr`/
+ * `.of .pr b`/`.of .pr s` do mock canônico. Roxo com hierarquia: preço é
+ * SEMPRE branco (--text-strong), nunca roxo — só desconto/CTA carregam
+ * roxo, preço não é nenhum dos dois (Regra D do spec).
+ */
+
+.priceTag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-family: var(--font-display);
+}
+
+.current {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.old {
+  font-family: var(--font-body);
+  color: var(--text-subtle);
+  text-decoration: line-through;
+}
+
+.sm .current {
+  font-size: var(--fs-sm);
+}
+
+.sm .old {
+  font-size: var(--fs-xs);
+}
+
+.md .current {
+  font-size: var(--fs-price);
+}
+
+.md .old {
+  font-size: var(--fs-xs);
+}

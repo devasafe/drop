@@ -1,0 +1,28 @@
+/* Badge — selo compacto sobre imagem/card.
+ * Raio de função "selo": --r-sm (replica `.of .disc` do mock canônico).
+ * Roxo com hierarquia: só .discount carrega fundo roxo sólido.
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+/* `.of .disc` do mock: fundo roxo sólido, texto branco. */
+.discount {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+/* Contador neutro (ex.: itens no carrinho) — nunca roxo. */
+.count {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}

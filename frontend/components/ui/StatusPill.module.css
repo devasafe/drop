@@ -1,0 +1,36 @@
+/* StatusPill — selo de status semântico. Cor por estado via `currentColor`
+ * herdado no dot, nunca roxo (roxo é reservado a CTA/ativo/progresso/promo/
+ * desconto — spec Regra D). `aberta`/`entregue` = --success, replicando
+ * `.lrow .open` e `.feat .badge` do mock canônico.
+ */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.aberta,
+.entregue {
+  color: var(--success);
+}
+
+.em_entrega {
+  color: var(--rating);
+}
+
+.fechada,
+.cancelado {
+  color: var(--text-subtle);
+}

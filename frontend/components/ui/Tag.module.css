@@ -1,0 +1,11 @@
+/* Tag — texto de categoria/loja sem caixa, replica `.of .stx` do mock
+ * canônico. Sem fundo, borda ou raio: é tipografia, não uma pílula.
+ */
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}

@@ -1,0 +1,40 @@
+/* Chip — pílula inline de categoria (ícone + texto), replica `.chip`/`.chip.on`
+ * do mock canônico. NÃO é icon-box: ícone e texto compartilham a mesma
+ * pílula (spec §3.1-F). Roxo com hierarquia: só .on carrega fundo roxo sólido.
+ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* `.chip.on` do mock: fundo roxo sólido, texto branco. */
+.on {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}
