@@ -52,12 +52,14 @@ function AppWrapper({ Component, pageProps }: AppProps) {
     router.pathname === '/seller/dashboard' ||
     router.pathname === '/store-dashboard' ||
     router.pathname === '/motoboy';
-  // /inicio, /stores e /stores/[id] usam o próprio header + TabBar do Design
-  // System (Fase 0/1), não o chrome de marketing (Nav global + Footer).
+  // /inicio, /stores, /stores/[id] e /product/[id] usam o próprio header +
+  // TabBar do Design System (Fase 0/1), não o chrome de marketing (Nav
+  // global + Footer).
   const hideChrome =
     router.pathname === '/inicio' ||
     router.pathname === '/stores' ||
-    router.pathname === '/stores/[id]';
+    router.pathname === '/stores/[id]' ||
+    router.pathname === '/product/[id]';
   const shouldShowFooter = !isDashboard && !hideChrome;
 
   return (
