@@ -1,0 +1,48 @@
+/* AddressSheet — form de endereço + MapPicker (Google Maps). Campos em
+ * coluna única ou par (grid2), mesmo padrão de espaçamento --space-2/3 dos
+ * outros forms do checkout (ver CouponField). Mapa sem card aninhado: só
+ * borda --line + raio --r-md pra separar do fundo --surface do Sheet.
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.map {
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.mapHint {
+  margin: calc(var(--space-3) * -1) 0 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+}
+
+.save {
+  width: 100%;
+}
