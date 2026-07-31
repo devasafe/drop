@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, PackageSearch } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { ICON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { useToast } from '../../components/ui/Toast';
 import { useOrderTracking } from '../../hooks/useOrderTracking';
+import { useCancellation } from '../../hooks/useCancellation';
 import type { OrderTrackerStep } from '../../components/drop/OrderTracker';
 import { OrderStatusHero } from '../../components/drop/order/OrderStatusHero';
 import { OrderTimeline } from '../../components/drop/order/OrderTimeline';
@@ -16,8 +17,8 @@ import { OrderItemsSummary } from '../../components/drop/order/OrderItemsSummary
 import { OrderActions } from '../../components/drop/order/OrderActions';
 import { RatingForm } from '../../components/drop/order/RatingForm';
 import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet';
-import { CancelOrderModal } from '../../components/order/CancelOrderModal';
-import { CancellationStatusDisplay } from '../../components/order/CancellationStatusDisplay';
+import { CancelOrderSheet } from '../../components/drop/order/CancelOrderSheet';
+import { CancellationStatus, type CancellationInfo } from '../../components/drop/order/CancellationStatus';
 import styles from './StoreOrderStatus.module.css';
 
 // Status em que o cliente ainda pode pedir cancelamento — mesma regra do
@@ -43,8 +44,19 @@ export default function StoreOrderStatus() {
   const { id } = router.query as { id?: string };
   const { showToast } = useToast();
   const t = useOrderTracking(id);
+  const { cancelOrder, getCancellationHistory } = useCancellation();
 
-  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancellationRecord, setCancellationRecord] = useState<{
+    cancelledBy: CancellationInfo['cancelledBy'];
+    reasonCode: string;
+    reason: string;
+    refundAmount?: number;
+    refundStatus?: CancellationInfo['refundStatus'];
+    createdAt: string;
+    cancellationFee?: number;
+  } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [payingPix, setPayingPix] = useState(false);
   const [submittingMotoboyRating, setSubmittingMotoboyRating] = useState(false);
@@ -80,8 +92,59 @@ export default function StoreOrderStatus() {
     setSubmittingStoreRating(false);
   };
 
+  const handleCancelConfirm = async ({ reason, reasonCode }: { reason: string; reasonCode: string }) => {
+    if (!t.order?._id || cancelling) return;
+    setCancelling(true);
+    const r = await cancelOrder(t.order._id, reason, reasonCode);
+    if (!r.success) {
+      showToast(r.error || 'Erro ao cancelar pedido', 'error');
+    } else {
+      setCancelOpen(false);
+      t.refetch();
+    }
+    setCancelling(false);
+  };
+
   const order = t.order;
   const delivery = t.delivery;
+
+  // Busca o registro do cancelamento (motivo, reembolso, taxa) só quando o
+  // pedido está cancelado — não há preview nem campo embutido em `order`.
+  // `GET /orders/:id/cancellations` devolve o `Cancellation` cru do Prisma
+  // (mesmos nomes de campo do model); `lateCancellationFee` é a taxa
+  // (Decimal→string no JSON) e mapeamos pra `cancellationFee` do DS.
+  useEffect(() => {
+    if (order?.status !== 'cancelado' || !order?._id) {
+      setCancellationRecord(null);
+      return;
+    }
+    const orderId = order._id;
+    let cancelled = false;
+    getCancellationHistory(orderId).then((r) => {
+      if (cancelled || !r.success || !r.data?.length) return;
+      const latest = r.data[0];
+      setCancellationRecord({
+        cancelledBy: latest.cancelledBy,
+        reasonCode: latest.reasonCode,
+        reason: latest.reason,
+        refundAmount: latest.refundAmount != null ? Number(latest.refundAmount) : undefined,
+        refundStatus: latest.refundStatus,
+        createdAt: latest.createdAt,
+        cancellationFee: latest.lateCancellationFee != null ? Number(latest.lateCancellationFee) : undefined,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.status, order?._id, getCancellationHistory]);
+
+  // O PIN de devolução NÃO mora no cancelamento — é campo do `Delivery`
+  // (`delivery.pinDevolucao`, fluxo motoboy → loja), então é combinado aqui
+  // com o registro buscado acima em vez de fixado no momento do fetch (a
+  // entrega pode terminar de carregar depois do histórico).
+  const cancellation: CancellationInfo | null = cancellationRecord
+    ? { ...cancellationRecord, pinDevolucao: delivery?.pinDevolucao || undefined }
+    : null;
 
   const showPixButton =
     !!order &&
@@ -159,9 +222,9 @@ export default function StoreOrderStatus() {
               </section>
             )}
 
-            {order.status === 'cancelado' && (
+            {order.status === 'cancelado' && cancellation && (
               <section className={styles.section}>
-                <CancellationStatusDisplay orderId={order._id} />
+                <CancellationStatus cancellation={cancellation} />
               </section>
             )}
 
@@ -183,7 +246,7 @@ export default function StoreOrderStatus() {
               canCancel={canCancel}
               canConfirmReceived={t.canConfirmReceived}
               confirming={confirming}
-              onCancel={() => setShowCancelModal(true)}
+              onCancel={() => setCancelOpen(true)}
               onConfirmReceived={handleConfirmReceived}
             />
 
@@ -209,15 +272,10 @@ export default function StoreOrderStatus() {
               </section>
             )}
 
-            <CancelOrderModal
-              isOpen={showCancelModal}
-              onClose={() => setShowCancelModal(false)}
-              orderId={order._id}
-              orderStatus={order.status}
-              onSuccess={() => {
-                setShowCancelModal(false);
-                t.refetch();
-              }}
+            <CancelOrderSheet
+              open={cancelOpen}
+              onClose={() => setCancelOpen(false)}
+              onConfirm={handleCancelConfirm}
             />
           </div>
         )}
