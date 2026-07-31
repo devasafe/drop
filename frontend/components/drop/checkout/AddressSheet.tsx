@@ -20,13 +20,64 @@ export interface AddressSheetProps {
 // usuário pode querer salvar o endereço textual antes do pin assentar.
 const REQUIRED_KEYS: (keyof Address)[] = ['cep', 'street', 'number', 'neighborhood', 'city', 'state'];
 
+// Tipos mínimos do SDK do Google Maps que de fato usamos aqui — o pacote não
+// tem @types instalado (carregado via script global, ver _document.tsx), então
+// modelamos localmente só a superfície usada, mesmo padrão de `GeocoderResult`
+// em `useCheckoutAddress.ts`. `getGoogleMaps` é o ÚNICO ponto que toca
+// `window as any` — o resto do arquivo trabalha com esses tipos.
+interface LatLngLike {
+  lat(): number;
+  lng(): number;
+}
+
+interface GeocoderAddressComponent {
+  types: string[];
+  long_name: string;
+  short_name: string;
+}
+
+interface GeocoderResult {
+  address_components: GeocoderAddressComponent[];
+}
+
+interface MapsGeocoder {
+  geocode(
+    request: { location: { lat: number; lng: number } },
+    callback: (results: GeocoderResult[] | null, status: string) => void
+  ): void;
+}
+
+interface MapsMap {
+  setCenter(pos: { lat: number; lng: number }): void;
+}
+
+interface MapsMarker {
+  setMap(map: MapsMap | null): void;
+  setPosition(pos: { lat: number; lng: number }): void;
+  addListener(event: 'dragend', handler: (e: { latLng: LatLngLike }) => void): void;
+}
+
+interface GoogleMapsSdk {
+  Map: new (el: HTMLElement, opts: { center: { lat: number; lng: number }; zoom: number }) => MapsMap;
+  Marker: new (opts: { position: { lat: number; lng: number }; map: MapsMap; draggable: boolean }) => MapsMarker;
+  Geocoder: new () => MapsGeocoder;
+  event?: { clearInstanceListeners: (instance: MapsMap | MapsMarker) => void };
+}
+
+function getGoogleMaps(): GoogleMapsSdk | undefined {
+  return (window as any).google?.maps;
+}
+
 /**
  * Sheet de endereço de entrega: form (CEP + campos) + mapa Google (marcador
- * arrastável). Porta a inicialização de mapa de `pages/checkout.tsx:328-412`,
- * mas defensiva num único `if (g?.maps)` — sem polling: o SDK é carregado
- * global em `_document.tsx` e já deve estar pronto quando o usuário abre o
- * sheet; se não estiver (ou em teste, onde `window.google` não existe), o
- * mapa fica vazio e o form segue 100% utilizável manualmente.
+ * arrastável). Porta a inicialização de mapa de `pages/checkout.tsx:328-412`.
+ * O SDK carrega async (`_document.tsx`), então a inicialização faz até 2
+ * retentativas leves (~150ms) antes de desistir; se ainda assim indisponível
+ * (ou em teste, onde `window.google` não existe), o mapa fica vazio e o form
+ * segue 100% utilizável manualmente. No cleanup (fechar o sheet ou desmontar),
+ * libera listeners do marker/map via `google.maps.event.clearInstanceListeners`
+ * e desassocia o marker do mapa (`setMap(null)`) — evita leak quando o sheet é
+ * reaberto várias vezes na mesma sessão.
  */
 export function AddressSheet({ open, onClose, fields, onField, onCepBlur, onSave }: AddressSheetProps) {
   const cepId = useId();
@@ -37,61 +88,92 @@ export function AddressSheet({ open, onClose, fields, onField, onCepBlur, onSave
   const cityId = useId();
   const stateId = useId();
 
-  // Tipos do SDK do Google Maps não estão instalados no projeto (carregado via
-  // script global, sem @types) — mesmo padrão de `useRef<any>` já usado em
-  // `pages/checkout.tsx` para os refs de mapa/marcador.
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
+  const mapRef = useRef<MapsMap | null>(null);
+  const markerRef = useRef<MapsMarker | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    const g = (window as any).google;
-    if (!g?.maps) return;
 
-    const gmapEl = document.getElementById('gmap-address');
-    if (!gmapEl || mapRef.current) return;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY_MS = 150;
 
-    const lat = fields.latitude ? parseFloat(fields.latitude) : -23.55052;
-    const lng = fields.longitude ? parseFloat(fields.longitude) : -46.633308;
+    const initMap = (g: GoogleMapsSdk) => {
+      const gmapEl = document.getElementById('gmap-address');
+      if (!gmapEl || mapRef.current) return;
 
-    try {
-      mapRef.current = new g.maps.Map(gmapEl, { center: { lat, lng }, zoom: 16 });
-      markerRef.current = new g.maps.Marker({
-        position: { lat, lng },
-        map: mapRef.current,
-        draggable: true,
-      });
-      markerRef.current.addListener('dragend', (e: any) => {
-        const newLat = e.latLng.lat();
-        const newLng = e.latLng.lng();
-        onField('latitude', String(newLat));
-        onField('longitude', String(newLng));
+      const lat = fields.latitude ? parseFloat(fields.latitude) : -23.55052;
+      const lng = fields.longitude ? parseFloat(fields.longitude) : -46.633308;
 
-        const geocoder = new g.maps.Geocoder();
-        geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results: any, status: string) => {
-          if (status !== 'OK' || !results?.[0]) return;
-          let street = '', number = '', neighborhood = '', city = '', state = '', cep = '';
-          results[0].address_components.forEach((comp: any) => {
-            if (comp.types.includes('route')) street = comp.long_name;
-            if (comp.types.includes('street_number')) number = comp.long_name;
-            if (comp.types.includes('sublocality')) neighborhood = comp.long_name;
-            if (comp.types.includes('administrative_area_level_2')) city = comp.long_name;
-            if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
-            if (comp.types.includes('postal_code')) cep = comp.long_name;
-          });
-          onField('street', street);
-          onField('number', number);
-          onField('neighborhood', neighborhood);
-          onField('city', city);
-          onField('state', state);
-          onField('cep', cep);
+      try {
+        mapRef.current = new g.Map(gmapEl, { center: { lat, lng }, zoom: 16 });
+        markerRef.current = new g.Marker({
+          position: { lat, lng },
+          map: mapRef.current,
+          draggable: true,
         });
-      });
-    } catch {
-      // Erro de inicialização do SDK — mapa fica indisponível, form segue manual.
-    }
+        markerRef.current.addListener('dragend', (e) => {
+          const newLat = e.latLng.lat();
+          const newLng = e.latLng.lng();
+          onField('latitude', String(newLat));
+          onField('longitude', String(newLng));
+
+          const geocoder = new g.Geocoder();
+          geocoder.geocode({ location: { lat: newLat, lng: newLng } }, (results, status) => {
+            if (status !== 'OK' || !results?.[0]) return;
+            let street = '', number = '', neighborhood = '', city = '', state = '', cep = '';
+            results[0].address_components.forEach((comp) => {
+              if (comp.types.includes('route')) street = comp.long_name;
+              if (comp.types.includes('street_number')) number = comp.long_name;
+              if (comp.types.includes('sublocality')) neighborhood = comp.long_name;
+              if (comp.types.includes('administrative_area_level_2')) city = comp.long_name;
+              if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
+              if (comp.types.includes('postal_code')) cep = comp.long_name;
+            });
+            onField('street', street);
+            onField('number', number);
+            onField('neighborhood', neighborhood);
+            onField('city', city);
+            onField('state', state);
+            onField('cep', cep);
+          });
+        });
+      } catch {
+        // Erro de inicialização do SDK — mapa fica indisponível, form segue manual.
+      }
+    };
+
+    // SDK carrega async (ver _document.tsx) — pode ainda não estar pronto no
+    // primeiro check. Tenta de novo com um delay curto antes de desistir.
+    const attemptInit = (attempt: number) => {
+      if (cancelled) return;
+      const g = getGoogleMaps();
+      if (g) {
+        initMap(g);
+        return;
+      }
+      if (attempt < MAX_RETRIES) {
+        retryTimer = setTimeout(() => attemptInit(attempt + 1), RETRY_DELAY_MS);
+      }
+    };
+
+    attemptInit(0);
 
     return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+
+      // Libera listeners e desassocia o marker do mapa — sem isso, cada
+      // reabertura do sheet criaria Map/Marker novos sem soltar os anteriores.
+      const g = getGoogleMaps();
+      if (markerRef.current) {
+        markerRef.current.setMap(null);
+        g?.event?.clearInstanceListeners(markerRef.current);
+      }
+      if (mapRef.current) {
+        g?.event?.clearInstanceListeners(mapRef.current);
+      }
       mapRef.current = null;
       markerRef.current = null;
     };
