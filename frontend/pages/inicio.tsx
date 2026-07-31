@@ -44,6 +44,15 @@ const PROGRESS_BY_STATUS: Record<string, number> = {
   entregue: 1,
 };
 
+/** Rótulo da fase atual mostrado no topo do tracker — nunca fixo "A caminho":
+ * um pedido `pago` ainda está sendo preparado, dizer "a caminho" seria
+ * status falso pro usuário. */
+const STATUS_LABEL: Record<string, string> = {
+  pago: 'Preparando',
+  aguardando_motoboy: 'Buscando entregador',
+  enviado: 'A caminho',
+};
+
 const TAB_ROUTES: Record<TabKey, string> = {
   inicio: '/inicio',
   buscar: '/',
@@ -195,6 +204,7 @@ export default function Inicio() {
             orderId={activeOrder._id.slice(-6).toUpperCase()}
             storeName={activeOrder.storeName || 'Loja'}
             imageUrl={imageUrl(activeOrder.products?.[0]?.image) || undefined}
+            statusLabel={STATUS_LABEL[activeOrder.status] ?? 'Em andamento'}
             progress={PROGRESS_BY_STATUS[activeOrder.status] ?? 0.35}
             steps={trackerSteps(activeOrder.status)}
           />
