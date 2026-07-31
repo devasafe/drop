@@ -8,7 +8,7 @@ import { useOrder, useDelivery } from '../../hooks/useSync';
 import { useSocket } from '../../contexts/SocketContext';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
 import { CancellationStatusDisplay } from '../../components/order/CancellationStatusDisplay';
-import PixPaymentModal from '../../components/PixPaymentModal';
+import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet';
 import styles from './StoreOrderStatus.module.css';
 
 export default function StoreOrderStatus() {
@@ -674,12 +674,13 @@ export default function StoreOrderStatus() {
 
           {/* Retomar pagamento PIX */}
           {pixData && (
-            <PixPaymentModal
+            <PixPaymentSheet
               pix={pixData}
               onPaid={() => {
                 setPixData(null);
                 setOrder((prev: any) => ({ ...prev, paymentStatus: 'paid' }));
               }}
+              onClose={() => setPixData(null)}
             />
           )}
         </div>
