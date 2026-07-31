@@ -1,5 +1,6 @@
 import { Bike, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import styles from './FreteBanner.module.css';
 
 export interface FreteBannerProps {
@@ -21,7 +22,7 @@ export function FreteBanner({ title, ctaLabel, onCta }: FreteBannerProps) {
         <Button
           variant="onImage"
           size="sm"
-          leftIcon={<ArrowRight size={13} strokeWidth={2} aria-hidden="true" />}
+          leftIcon={<ArrowRight size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
           onClick={onCta}
         >
           {ctaLabel}

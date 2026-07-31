@@ -22,7 +22,7 @@ export function AddressBar({ label = 'Entregar em', address, onClick }: AddressB
       onClick={onClick}
     >
       <MapPin size={15} strokeWidth={ICON_STROKE_WIDTH} className={styles.pin} aria-hidden="true" />
-      <span className={styles.text}>
+      <span>
         {label} <b className={styles.address}>{address}</b>
       </span>
       <ChevronDown size={15} strokeWidth={ICON_STROKE_WIDTH} className={styles.chevron} aria-hidden="true" />

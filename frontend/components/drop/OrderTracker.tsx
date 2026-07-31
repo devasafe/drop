@@ -65,7 +65,7 @@ export function OrderTracker({
         {steps.map((step) => (
           <span
             key={step.label}
-            className={[styles.step, step.done && styles.stepDone].filter(Boolean).join(' ')}
+            className={step.done ? styles.stepDone : undefined}
           >
             {step.label}
           </span>

@@ -1,6 +1,5 @@
 import { ArrowRight } from 'lucide-react';
 import { formatBRL } from '../ui/PriceTag';
-import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import styles from './StickyCart.module.css';
 
 export interface StickyCartProps {
