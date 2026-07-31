@@ -1,191 +1,188 @@
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import { ArrowLeft, Crown, Store as StoreIcon } from 'lucide-react';
+
 import { useStores } from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
-import Icon from '../components/Icon';
+
+import { SearchField } from '../components/ui/SearchField';
+import { IconButton } from '../components/ui/IconButton';
+import { Badge } from '../components/ui/Badge';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
+import { TabBar, TabKey } from '../components/drop/TabBar';
+import { ICON_STROKE_WIDTH } from '../components/ui/Icon';
+
 import styles from './Stores.module.css';
 
-type Store = {
+interface Store {
   _id: string;
   name: string;
   slug?: string;
   description?: string;
   address?: string;
-  cnpj?: string;
   plan?: number;
   featuredBannerUrl?: string;
   coverBannerUrl?: string;
-};
+  isOpen?: boolean;
+  categories?: Array<{ name: string }>;
+}
 
 const INITIAL_COUNT = 6;
+const LOAD_MORE_STEP = 6;
+
+const TAB_ROUTES: Record<TabKey, string> = {
+  inicio: '/inicio',
+  buscar: '/',
+  pedidos: '/user-dashboard',
+  carteira: '/wallet',
+  perfil: '/minha-conta',
+};
+
+/** Loja → StoreCardData. Sem rating/eta/frete reais no backend hoje (ver
+ * StoreCard.tsx) — ficam de fora, nunca um valor inventado. */
+function mapStore(store: Store): StoreCardData {
+  return {
+    name: store.name,
+    imageUrl: imageUrl(store.coverBannerUrl || store.featuredBannerUrl) || undefined,
+    status: store.isOpen ? 'aberta' : 'fechada',
+    category: store.categories?.[0]?.name || store.address || 'Loja DROP',
+  };
+}
 
 export default function StoresPage() {
+  const router = useRouter();
   const { stores, loading } = useStores();
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
 
-  const sorted = useMemo(() =>
-    [...stores].sort((a: Store, b: Store) => (b.plan ?? 1) - (a.plan ?? 1)),
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setVisibleCount(INITIAL_COUNT);
+  };
+
+  // Plano 3 primeiro — destaque premium sempre na frente da lista.
+  const sorted = useMemo(
+    () => [...stores].sort((a: Store, b: Store) => (b.plan ?? 1) - (a.plan ?? 1)),
     [stores]
   );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sorted;
     const q = search.toLowerCase();
-    return sorted.filter((s: Store) =>
-      s.name.toLowerCase().includes(q) || s.address?.toLowerCase().includes(q)
+    return sorted.filter(
+      (s: Store) =>
+        s.name.toLowerCase().includes(q) || s.address?.toLowerCase().includes(q)
     );
   }, [sorted, search]);
 
-  const visible = filtered.slice(0, visibleCount);
+  const visible = filtered.slice(0, visibleCount) as Store[];
   const hasMore = visibleCount < filtered.length;
 
-  const storeHref = (s: Store) => `/stores/${s.slug || s._id}`;
-  const storeBanner = (s: Store) => s.coverBannerUrl || s.featuredBannerUrl;
-  const storeInitials = (name: string) => name.slice(0, 2).toUpperCase();
+  const [featuredStore, ...rowStores] = visible;
 
-  const featured = visible.slice(0, 2) as Store[];
-  const gridStores = visible.slice(2) as Store[];
+  const storeHref = (s: Store) => `/stores/${s.slug || s._id}`;
+
+  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
 
   return (
     <div className={styles.page}>
-      {/* Hero Header */}
-      <header className={styles.heroHeader}>
-        <div className={styles.headerLabel}>Diretório de Lojas</div>
-        <h1 className={styles.heroTitle}>
-          LOJAS<br />PARCEIRAS
-        </h1>
-        <p className={styles.heroDesc}>
-          {loading
-            ? 'Carregando lojas...'
-            : `${stores.length} estabelecimento${stores.length !== 1 ? 's' : ''} selecionado${stores.length !== 1 ? 's' : ''} pela curadoria DROP. Cada loja é única na sua proposta e qualidade.`
-          }
-        </p>
-      </header>
-
-      {/* Search */}
-      <div className={styles.searchSection}>
-        <div className={styles.searchBar}>
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder="Buscar por nome ou endereço..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setVisibleCount(INITIAL_COUNT); }}
+      <header className={styles.top}>
+        <div className={styles.headerRow}>
+          <IconButton
+            icon={<ArrowLeft size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+            variant="soft"
+            aria-label="Voltar"
+            onClick={() => router.back()}
           />
-          <button className={styles.searchBtn}>BUSCAR</button>
-        </div>
-      </div>
-
-      {/* Store Entries */}
-      <div className={styles.storeList}>
-        {!loading && filtered.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}><Icon name="store" size={40} /></div>
-            <p className={styles.emptyText}>
-              Nenhuma loja encontrada{search ? ` para "${search}"` : ''}
+          <div className={styles.headerText}>
+            <h1 className={styles.title}>Lojas</h1>
+            <p className={styles.subtitle}>
+              {loading
+                ? 'Carregando lojas…'
+                : `${filtered.length} loja${filtered.length !== 1 ? 's' : ''}${search ? ` para "${search}"` : ' disponíveis'}`}
             </p>
           </div>
+        </div>
+
+        <div className={styles.searchRow}>
+          <SearchField
+            value={search}
+            onChange={handleSearchChange}
+            placeholder="Buscar por nome ou endereço…"
+          />
+        </div>
+      </header>
+
+      <section className={styles.section}>
+        {loading ? (
+          <div className={styles.skeletonStack}>
+            <Skeleton height={130} radius={20} />
+            <Skeleton height={58} radius={14} />
+            <Skeleton height={58} radius={14} />
+            <Skeleton height={58} radius={14} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<StoreIcon />}
+            title="Nenhuma loja encontrada"
+            description={
+              search
+                ? `Não encontramos lojas para "${search}". Tente outro nome ou endereço.`
+                : 'Ainda não há lojas cadastradas na plataforma.'
+            }
+          />
         ) : (
-          <div className={styles.storeEntries}>
-            {/* Featured stores — asymmetric editorial layout */}
-            {featured.map((store, idx) => {
-              const isLeft = idx % 2 === 0;
-              const banner = storeBanner(store);
-              return (
-                <section key={store._id} className={styles.storeEntry}>
-                  <div className={isLeft ? styles.storeImageBlockLeft : styles.storeImageBlockRight}>
-                    {store.plan === 3 && (
-                      <div className={styles.premiumBadge}>
-                        <Icon name="crown" size={12} /> Premium
-                      </div>
-                    )}
-                    <div className={styles.storeImageWrap}>
-                      {banner ? (
-                        <img src={imageUrl(banner)} alt={store.name} className={styles.storeImage} />
-                      ) : (
-                        <div className={styles.storePlaceholder}>{storeInitials(store.name)}</div>
-                      )}
-                    </div>
-
-                    <div className={isLeft ? styles.storeInfoCardLeft : styles.storeInfoCardRight}>
-                      <div className={styles.storeInfoHeader}>
-                        <div className={idx === 0 ? styles.storeAvatar : styles.storeAvatarAlt}>
-                          {storeInitials(store.name)}
-                        </div>
-                        <h3 className={styles.storeInfoName}>{store.name.toUpperCase()}</h3>
-                      </div>
-                      <p className={styles.storeInfoDesc}>
-                        {store.description || store.address || 'Loja parceira da plataforma DROP.'}
-                      </p>
-                      <Link href={storeHref(store)} className={idx === 0 ? styles.storeInfoBtn : styles.storeInfoBtnAlt}>
-                        Visitar Loja
-                      </Link>
-                    </div>
-                  </div>
-                </section>
-              );
-            })}
-
-            {/* Grid pair stores */}
-            {gridStores.length > 0 && (
-              <div className={styles.gridPair}>
-                <div>
-                  {gridStores.filter((_, i) => i % 2 === 0).map((store) => {
-                    const banner = storeBanner(store);
-                    return (
-                      <Link key={store._id} href={storeHref(store)} className={styles.gridCard}>
-                        <div className={styles.gridCardImageWrap}>
-                          {banner ? (
-                            <img src={imageUrl(banner)} alt={store.name} className={styles.gridCardImage} />
-                          ) : (
-                            <div className={styles.storePlaceholder}>{storeInitials(store.name)}</div>
-                          )}
-                        </div>
-                        <h3 className={styles.gridCardName}>{store.name.toUpperCase()}</h3>
-                        <p className={styles.gridCardMeta}>
-                          {store.address || 'Loja DROP'}
-                        </p>
-                        <span className={styles.gridCardLink}>EXPLORAR LOJA</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-                <div className={styles.gridPairRight}>
-                  {gridStores.filter((_, i) => i % 2 === 1).map((store) => {
-                    const banner = storeBanner(store);
-                    return (
-                      <Link key={store._id} href={storeHref(store)} className={styles.gridCard}>
-                        <div className={styles.gridCardImageWrap}>
-                          {banner ? (
-                            <img src={imageUrl(banner)} alt={store.name} className={styles.gridCardImage} />
-                          ) : (
-                            <div className={styles.storePlaceholder}>{storeInitials(store.name)}</div>
-                          )}
-                        </div>
-                        <h3 className={styles.gridCardName}>{store.name.toUpperCase()}</h3>
-                        <p className={styles.gridCardMeta}>
-                          {store.address || 'Loja DROP'}
-                        </p>
-                        <span className={styles.gridCardLink}>EXPLORAR LOJA</span>
-                      </Link>
-                    );
-                  })}
-                </div>
+          <>
+            {featuredStore && (
+              <div className={styles.featuredWrap}>
+                <StoreCard
+                  variant="destaque"
+                  store={mapStore(featuredStore)}
+                  onClick={() => router.push(storeHref(featuredStore))}
+                />
+                {featuredStore.plan === 3 && (
+                  <span className={styles.premiumBadge}>
+                    <Badge tone="discount">
+                      <span className={styles.premiumBadgeContent}>
+                        <Crown size={11} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+                        Premium
+                      </span>
+                    </Badge>
+                  </span>
+                )}
               </div>
             )}
-          </div>
+
+            {rowStores.length > 0 && (
+              <div className={styles.rows}>
+                {rowStores.map((store) => (
+                  <StoreCard
+                    key={store._id}
+                    variant="resultado"
+                    store={mapStore(store)}
+                    onClick={() => router.push(storeHref(store))}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {/* Load More */}
         {hasMore && (
-          <div className={styles.loadMore}>
-            <div className={styles.loadMoreDivider} />
-            <button className={styles.loadMoreText} onClick={() => setVisibleCount(c => c + 6)}>
-              Carregar Mais Lojas
-            </button>
-          </div>
+          <button
+            type="button"
+            className={styles.loadMore}
+            onClick={() => setVisibleCount((c) => c + LOAD_MORE_STEP)}
+          >
+            Carregar mais lojas
+          </button>
         )}
+      </section>
+
+      <div className={styles.tabBarWrap}>
+        <TabBar active="buscar" onNavigate={handleTabNavigate} />
       </div>
     </div>
   );

@@ -52,9 +52,9 @@ function AppWrapper({ Component, pageProps }: AppProps) {
     router.pathname === '/seller/dashboard' ||
     router.pathname === '/store-dashboard' ||
     router.pathname === '/motoboy';
-  // /inicio é o feed de delivery: usa o próprio AppHeader + TabBar do
-  // Design System (Fase 0/1), não o chrome de marketing (Nav global + Footer).
-  const hideChrome = router.pathname === '/inicio';
+  // /inicio e /stores usam o próprio header + TabBar do Design System
+  // (Fase 0/1), não o chrome de marketing (Nav global + Footer).
+  const hideChrome = router.pathname === '/inicio' || router.pathname === '/stores';
   const shouldShowFooter = !isDashboard && !hideChrome;
 
   return (
