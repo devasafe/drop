@@ -1,0 +1,17 @@
+/* OrderActions — botões contextuais (Cancelar / Confirmar recebimento) da
+ * tela de acompanhamento de pedido. Cancelar é `ghost` tingido de --danger
+ * (regra D: ghost não ganha fundo/borda, só cor de texto/ícone e hover).
+ */
+
+.wrap {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.cancel {
+  color: var(--danger);
+}
+
+.cancel:hover:not(:disabled) {
+  color: var(--danger);
+}
