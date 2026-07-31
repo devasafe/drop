@@ -1,0 +1,31 @@
+/* DeliveryPin — PIN de confirmação de entrega em destaque. Bloco único
+ * (fundo --surface-2 + borda --line), mesma fronteira do `.code` de
+ * PixPaymentSheet — não é card-em-card, é o único contêiner do componente.
+ */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+
+.pin {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-hero);
+  letter-spacing: 0.3em;
+  color: var(--brand-2);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+}

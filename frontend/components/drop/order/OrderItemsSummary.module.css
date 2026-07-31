@@ -1,0 +1,95 @@
+/* OrderItemsSummary — itens do pedido + resumo de valores na tela de
+ * acompanhamento. Mesmo padrão de CheckoutItems (linhas por divisor --line)
+ * seguido do padrão de OrderSummary (subtotal/frete/desconto/total, total
+ * com divisor + peso tipográfico maior). Sem cards aninhados.
+ */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qty {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-subtle);
+}
+
+.itemSubtotal {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-subtle);
+}
+
+.divider {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--line);
+}
+
+.total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+}
