@@ -92,8 +92,11 @@ export default function StoreOrderStatus() {
 
   const canCancel = !!order && CANCELABLE_STATUSES.includes(order.status);
 
-  const showMotoboyRating = delivery?.status === 'delivered' && !delivery.rating;
-  const showStoreRating = order?.status === 'entregue' && !order.storeRating;
+  // Mostra a section pelo estado que HABILITA avaliar (não por "ainda não
+  // avaliado") — o `RatingForm` decide sozinho form vs. confirmação via
+  // `submitted`. Assim o envio não faz a confirmação sumir sem feedback.
+  const showMotoboyRating = delivery?.status === 'delivered';
+  const showStoreRating = delivery?.status === 'delivered' || order?.status === 'entregue';
 
   return (
     <ProtectedRoute required_role="cliente">
@@ -190,6 +193,7 @@ export default function StoreOrderStatus() {
                   title="Avaliar motoboy"
                   onSubmit={handleMotoboyRating}
                   submitting={submittingMotoboyRating}
+                  submitted={!!delivery?.rating}
                 />
               </section>
             )}
@@ -200,6 +204,7 @@ export default function StoreOrderStatus() {
                   title="Avaliar loja"
                   onSubmit={handleStoreRating}
                   submitting={submittingStoreRating}
+                  submitted={!!order?.storeRating}
                 />
               </section>
             )}

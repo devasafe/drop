@@ -63,15 +63,18 @@
 }
 
 /* ---- banner de PIX pendente ---- */
+/* Mesma fronteira neutra de DeliveryPin (--surface-2 + --line, sem
+ * card-em-card) — a urgência entra só pela cor do ícone/texto (--rating),
+ * nunca por um fundo em hex reescrito à mão. */
 .pixBanner {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-5) var(--space-4);
-  border: 1px solid var(--rating);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background: rgba(255, 176, 32, 0.08);
   color: var(--rating);
   text-align: center;
 }
