@@ -15,12 +15,13 @@ export function useCoupon({ storeId, subtotal }: Params) {
     setValidating(true);
     setMessage(null);
     try {
-      const res = await api.post('/coupons/validate', { code: code.trim(), storeId, orderValue: subtotal });
+      const res = await api.post<{ discount: number }>('/coupons/validate', { code: code.trim(), storeId, orderValue: subtotal });
       setDiscount(res.data.discount);
       setMessage({ type: 'ok', text: `Cupom aplicado! Desconto de ${res.data.discount.toFixed(2)}` });
-    } catch (err: any) {
+    } catch (err) {
       setDiscount(0);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Cupom inválido' });
+      const text = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Cupom inválido';
+      setMessage({ type: 'error', text });
     } finally {
       setValidating(false);
     }
