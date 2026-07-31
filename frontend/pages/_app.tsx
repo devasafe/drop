@@ -52,7 +52,10 @@ function AppWrapper({ Component, pageProps }: AppProps) {
     router.pathname === '/seller/dashboard' ||
     router.pathname === '/store-dashboard' ||
     router.pathname === '/motoboy';
-  const shouldShowFooter = !isDashboard;
+  // /inicio é o feed de delivery: usa o próprio AppHeader + TabBar do
+  // Design System (Fase 0/1), não o chrome de marketing (Nav global + Footer).
+  const hideChrome = router.pathname === '/inicio';
+  const shouldShowFooter = !isDashboard && !hideChrome;
 
   return (
     <SocketProvider enabled={!!user}>
@@ -66,7 +69,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       <NotificationToaster />
       <CartProvider>
         <SeasonalThemeProvider>
-        <Nav />
+        {!hideChrome && <Nav />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main className={`${spaceGrotesk.variable} ${inter.variable}`} style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>

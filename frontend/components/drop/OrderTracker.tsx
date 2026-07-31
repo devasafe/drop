@@ -11,7 +11,10 @@ export interface OrderTrackerProps {
   orderId: string;
   storeName: string;
   imageUrl?: string;
-  etaMin: number;
+  /** Sem cálculo de ETA real no backend hoje — opcional. Quando ausente, o
+   * bloco de tempo inteiro (minutos + horário) some, em vez de mostrar um
+   * número inventado. */
+  etaMin?: number;
   etaLabel?: string;
   progress: number;
   steps: OrderTrackerStep[];
@@ -51,10 +54,12 @@ export function OrderTracker({
             Pedido #{orderId} · {storeName}
           </div>
         </div>
-        <div className={styles.eta}>
-          <div className={styles.etaBig}>{etaMin} min</div>
-          {etaLabel && <div className={styles.etaLabel}>{etaLabel}</div>}
-        </div>
+        {etaMin !== undefined && (
+          <div className={styles.eta}>
+            <div className={styles.etaBig}>{etaMin} min</div>
+            {etaLabel && <div className={styles.etaLabel}>{etaLabel}</div>}
+          </div>
+        )}
       </div>
 
       <div className={styles.bar}>

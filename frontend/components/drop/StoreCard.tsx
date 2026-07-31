@@ -10,9 +10,12 @@ export interface StoreCardData {
   imageUrl?: string;
   status: StoreStatus;
   category: string;
-  rating: number;
-  etaMin: [number, number];
-  fee: number;
+  /** Nota, tempo estimado e taxa de entrega são opcionais — o backend hoje
+   * não calcula nenhum dos três por loja. Quando ausentes, o pedaço
+   * correspondente simplesmente não é renderizado (nunca um valor inventado). */
+  rating?: number;
+  etaMin?: [number, number];
+  fee?: number;
 }
 
 export interface StoreCardProps {
@@ -40,7 +43,7 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
     }
   };
 
-  const eta = `${store.etaMin[0]}-${store.etaMin[1]} min`;
+  const eta = store.etaMin ? `${store.etaMin[0]}-${store.etaMin[1]} min` : undefined;
   const interactiveProps = {
     role: 'button' as const,
     tabIndex: 0,
@@ -66,23 +69,31 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
         </span>
         <div className={styles.info}>
           <div className={styles.name}>{store.name}</div>
-          <div className={styles.stats}>
-            <span className={styles.stat}>
-              <Star
-                size={13}
-                strokeWidth={ICON_STROKE_WIDTH}
-                className={styles.starIcon}
-                fill="currentColor"
-                aria-hidden="true"
-              />
-              {formatRating(store.rating)}
-            </span>
-            <span className={styles.stat}>
-              <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              {eta}
-            </span>
-            <span className={styles.stat}>Frete {formatBRL(store.fee)}</span>
-          </div>
+          {(store.rating !== undefined || eta || store.fee !== undefined) && (
+            <div className={styles.stats}>
+              {store.rating !== undefined && (
+                <span className={styles.stat}>
+                  <Star
+                    size={13}
+                    strokeWidth={ICON_STROKE_WIDTH}
+                    className={styles.starIcon}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  />
+                  {formatRating(store.rating)}
+                </span>
+              )}
+              {eta && (
+                <span className={styles.stat}>
+                  <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+                  {eta}
+                </span>
+              )}
+              {store.fee !== undefined && (
+                <span className={styles.stat}>Frete {formatBRL(store.fee)}</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -102,26 +113,32 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
       <div className={styles.meta}>
         <div className={styles.rowName}>{store.name}</div>
         <div className={styles.category}>{store.category}</div>
-        <div className={styles.rowStats}>
-          <span className={styles.stat}>
-            <Star
-              size={13}
-              strokeWidth={ICON_STROKE_WIDTH}
-              className={styles.starIcon}
-              fill="currentColor"
-              aria-hidden="true"
-            />
-            {formatRating(store.rating)}
-          </span>
-          <span className={styles.stat}>
-            <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-            {eta}
-          </span>
-        </div>
+        {(store.rating !== undefined || eta) && (
+          <div className={styles.rowStats}>
+            {store.rating !== undefined && (
+              <span className={styles.stat}>
+                <Star
+                  size={13}
+                  strokeWidth={ICON_STROKE_WIDTH}
+                  className={styles.starIcon}
+                  fill="currentColor"
+                  aria-hidden="true"
+                />
+                {formatRating(store.rating)}
+              </span>
+            )}
+            {eta && (
+              <span className={styles.stat}>
+                <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+                {eta}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className={styles.right}>
         <StatusPill status={store.status} />
-        <PriceTag price={store.fee} size="sm" />
+        {store.fee !== undefined && <PriceTag price={store.fee} size="sm" />}
       </div>
     </div>
   );

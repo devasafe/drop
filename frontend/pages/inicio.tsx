@@ -1,172 +1,324 @@
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useProducts } from '../hooks/useSync';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import { Store as StoreIcon } from 'lucide-react';
+
+import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import {
+  useAddresses,
+  useNotifications,
+  useOrders,
+  useProducts,
+  useStores,
+} from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
-import Icon from '../components/Icon';
+
+import { AppHeader } from '../components/drop/AppHeader';
+import { AddressBar } from '../components/drop/AddressBar';
+import { SearchField } from '../components/ui/SearchField';
+import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
+import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
+import { FreteBanner } from '../components/drop/FreteBanner';
+import { ProductCard } from '../components/drop/ProductCard';
+import { RepeatRow } from '../components/drop/RepeatRow';
+import { StickyCart } from '../components/drop/StickyCart';
+import { TabBar, TabKey } from '../components/drop/TabBar';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+
 import styles from './Inicio.module.css';
 
-type Product = {
-  _id: string;
-  name: string;
-  price: number;
-  image?: string;
-  storeId?: string;
-  storeName?: string;
+/**
+ * Pedido "ativo" p/ o OrderTracker: pago (loja confirmou), aguardando
+ * motoboy ou já enviado. `criado` (aguardando loja aceitar) e `entregue`
+ * ficam de fora — não é "a caminho" ainda ou já terminou.
+ */
+const ACTIVE_ORDER_STATUSES = new Set(['pago', 'aguardando_motoboy', 'enviado']);
+
+/** Progresso da barra do tracker por status — sem ETA real, é só a fração do fluxo. */
+const PROGRESS_BY_STATUS: Record<string, number> = {
+  criado: 0.15,
+  pago: 0.35,
+  aguardando_motoboy: 0.5,
+  enviado: 0.75,
+  entregue: 1,
 };
 
+const TAB_ROUTES: Record<TabKey, string> = {
+  inicio: '/inicio',
+  buscar: '/',
+  pedidos: '/user-dashboard',
+  carteira: '/wallet',
+  perfil: '/minha-conta',
+};
+
+function trackerSteps(status: string): OrderTrackerStep[] {
+  return [
+    { label: 'Confirmado', done: true },
+    { label: 'Preparando', done: status !== 'pago' },
+    { label: 'A caminho', done: status === 'enviado' },
+  ];
+}
+
+/** Loja → StoreCardData. Sem rating/eta/frete reais no backend hoje (ver
+ * StoreCard.tsx) — ficam de fora. `category` reaproveita bairro/cidade reais
+ * da loja (não existe segmento/categoria por loja na API de listagem). */
+function mapStore(store: any): StoreCardData {
+  return {
+    name: store.name,
+    imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl) || undefined,
+    status: store.isOpen ? 'aberta' : 'fechada',
+    category:
+      [store.neighborhood, store.city].filter(Boolean).join(' • ') ||
+      store.address ||
+      'Endereço não informado',
+  };
+}
+
 export default function Inicio() {
-  const { products } = useProducts();
-  const [stats, setStats] = useState({ stores: 0, products: 0, deliveries: 0 });
+  const router = useRouter();
+  const { user } = useAuth();
+  const { cart, add } = useCart();
 
-  useEffect(() => {
-    if (products.length > 0) {
-      const uniqueStores = new Set(products.map((p: Product) => p.storeId)).size;
-      setStats({ stores: uniqueStores, products: products.length, deliveries: Math.floor(products.length * 2.4) });
+  const { addresses, loading: addressesLoading } = useAddresses();
+  const { unreadCount } = useNotifications();
+  const { orders } = useOrders();
+  const { stores, loading: storesLoading } = useStores();
+  const { products, loading: productsLoading } = useProducts();
+
+  const [query, setQuery] = useState('');
+
+  const storeById = useMemo(() => {
+    const map = new Map<string, any>();
+    stores.forEach((s: any) => map.set(s._id, s));
+    return map;
+  }, [stores]);
+
+  const defaultAddress = useMemo(
+    () => addresses.find((a: any) => a.isDefault) || addresses[0],
+    [addresses]
+  );
+
+  const activeOrder = useMemo(
+    () => (user ? orders.find((o: any) => ACTIVE_ORDER_STATUSES.has(o.status)) : undefined),
+    [orders, user]
+  );
+
+  const storeCards = useMemo(() => stores.map(mapStore), [stores]);
+
+  const offerProducts = useMemo(() => products.slice(0, 8), [products]);
+
+  const repeatItems = useMemo(() => {
+    if (!user) return [];
+    const seen = new Set<string>();
+    const items: Array<{ key: string; productId: string; storeId?: string; name: string; store?: string; imageUrl?: string; price: number }> = [];
+    for (const order of orders) {
+      for (const item of order.products || []) {
+        if (!item.productId || seen.has(item.productId)) continue;
+        seen.add(item.productId);
+        items.push({
+          key: item.productId,
+          productId: item.productId,
+          storeId: order.storeId,
+          name: item.productName || 'Produto',
+          store: order.storeName,
+          imageUrl: imageUrl(item.image) || undefined,
+          price: item.price,
+        });
+        if (items.length >= 6) break;
+      }
+      if (items.length >= 6) break;
     }
-  }, [products]);
+    return items;
+  }, [orders, user]);
 
-  const featured = products[0] as Product | undefined;
-  const secondary = products.slice(1, 3) as Product[];
+  const cartCount = cart.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
+  const cartTotal = cart.reduce((sum: number, c: any) => sum + (c.price || 0) * (c.quantity || 0), 0);
+
+  const addToCart = (p: { productId: string; name: string; price: number; storeId?: string }) => {
+    add({ productId: p.productId, quantity: 1, name: p.name, price: p.price, storeId: p.storeId });
+  };
+
+  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
+
+  const handleSearch = () => {
+    const q = query.trim();
+    router.push(q ? `/?q=${encodeURIComponent(q)}` : '/');
+  };
 
   return (
-    <div>
-      {/* Hero */}
-      <section className={styles.hero}>
-        <div className={styles.heroBg}>
-          {featured?.image && (
-            <img src={imageUrl(featured.image)} alt="" className={styles.heroBgImage} />
-          )}
-          <div className={styles.heroBgGradient} />
+    <div className={styles.page}>
+      <div className={styles.top}>
+        <AppHeader
+          notifications={unreadCount}
+          onBell={() => router.push('/notifications')}
+          onAvatar={() => router.push(user ? '/minha-conta' : '/login')}
+        />
+
+        {!user ? (
+          <AddressBar
+            label="Entrar para"
+            address="escolher endereço"
+            onClick={() => router.push('/login')}
+          />
+        ) : addressesLoading ? (
+          <div className={styles.addressSkeleton}>
+            <Skeleton width={200} height={15} />
+          </div>
+        ) : defaultAddress ? (
+          <AddressBar
+            label={defaultAddress.label || 'Entregar em'}
+            address={`${defaultAddress.street}, ${defaultAddress.number}`}
+            onClick={() => router.push('/minha-conta')}
+          />
+        ) : (
+          <AddressBar
+            label="Adicionar"
+            address="endereço de entrega"
+            onClick={() => router.push('/minha-conta')}
+          />
+        )}
+
+        <div className={styles.searchRow}>
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Buscar produtos ou lojas…"
+            onFilter={handleSearch}
+          />
         </div>
-
-        <div className={styles.heroContent}>
-          <span className={styles.heroBadge}>Marketplace &amp; Delivery</span>
-          <h1 className={styles.heroTitle}>
-            Compre local,{' '}
-            <span className={styles.heroTitleAccent}>receba rápido</span>
-          </h1>
-          <p className={styles.heroDesc}>
-            Produtos das melhores lojas da sua região entregues na sua porta. Explore, compre e acompanhe tudo em tempo real.
-          </p>
-          <div className={styles.heroActions}>
-            <Link href="/register" className={styles.btnPrimary}>
-              <Icon name="zap" size={16} />
-              Criar Conta Grátis
-            </Link>
-            <Link href="/" className={styles.btnSecondary}>
-              <Icon name="shopping-bag" size={16} />
-              Ver Produtos
-            </Link>
-          </div>
-        </div>
-
-        <div className={styles.statsBar}>
-          <div className={styles.statItem}>
-            <div className={styles.statValue}>{stats.stores + 17 || '—'}</div>
-            <div className={styles.statLabel}>Lojas</div>
-          </div>
-          <div className={styles.statDivider} />
-          <div className={styles.statItem}>
-            <div className={styles.statValue}>{stats.products || '—'}</div>
-            <div className={styles.statLabel}>Produtos</div>
-          </div>
-          <div className={styles.statDivider} />
-          <div className={styles.statItem}>
-            <div className={styles.statValue}>{stats.deliveries + 126 || '—'}</div>
-            <div className={styles.statLabel}>Entregas</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Products */}
-      <section className={styles.productsSection}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <h2 className={styles.sectionTitle}>Em Destaque</h2>
-            <p className={styles.sectionDesc}>Produtos selecionados das lojas da plataforma</p>
-          </div>
-          <Link href="/" className={styles.sectionLink}>VER TODOS</Link>
-        </div>
-
-        <div className={styles.productGrid}>
-          {/* Featured card */}
-          {featured && (
-            <Link href={`/product/${featured._id}`} className={styles.featureCard}>
-              <div className={styles.cardImageWrap}>
-                <img src={imageUrl(featured.image)} alt={featured.name} />
-                <span className={styles.cardBadge}>DESTAQUE</span>
-              </div>
-              <div className={styles.cardInfo}>
-                <div>
-                  <h3 className={styles.cardName}>{featured.name}</h3>
-                  <p className={styles.cardStore}>{featured.storeName || 'Loja DROP'}</p>
-                </div>
-                <span className={styles.cardPrice}>
-                  R$ {featured.price.toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            </Link>
-          )}
-
-          {/* Secondary cards */}
-          <div className={styles.secondaryCards}>
-            {secondary.map((p) => (
-              <Link key={p._id} href={`/product/${p._id}`} className={styles.secondaryCard}>
-                <div className={styles.secondaryImageWrap}>
-                  <img src={imageUrl(p.image)} alt={p.name} />
-                </div>
-                <div className={styles.cardInfo}>
-                  <div>
-                    <h3 className={styles.cardName}>{p.name}</h3>
-                    <p className={styles.cardStore}>{p.storeName || 'Loja DROP'}</p>
-                  </div>
-                  <span className={styles.cardPrice}>
-                    R$ {p.price.toFixed(2).replace('.', ',')}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Watermark */}
-      <div className={styles.watermark}>
-        <div className={styles.watermarkText}>DROP</div>
       </div>
 
-      {/* Bento */}
-      <section className={styles.bentoSection}>
-        <div className={styles.bentoGrid}>
-          <div className={styles.bentoBig}>
-            {featured?.image && (
-              <img src={imageUrl(featured.image)} alt="" className={styles.bentoBigBg} />
-            )}
-            <div className={styles.bentoBigContent}>
-              <h3 className={styles.bentoBigTitle}>Lojas perto de você</h3>
-              <p className={styles.bentoBigDesc}>
-                Descubra estabelecimentos na sua região com entrega rápida. Apoie o comércio local.
-              </p>
-              <Link href="/stores" className={styles.bentoBigLink}>
-                EXPLORAR LOJAS →
-              </Link>
+      {user && activeOrder && (
+        <div className={styles.section}>
+          <OrderTracker
+            orderId={activeOrder._id.slice(-6).toUpperCase()}
+            storeName={activeOrder.storeName || 'Loja'}
+            imageUrl={imageUrl(activeOrder.products?.[0]?.image) || undefined}
+            progress={PROGRESS_BY_STATUS[activeOrder.status] ?? 0.35}
+            steps={trackerSteps(activeOrder.status)}
+          />
+        </div>
+      )}
+
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Lojas perto de você</h2>
+          <button type="button" className={styles.sectionLink} onClick={() => router.push('/stores')}>
+            Ver todas
+          </button>
+        </div>
+
+        {storesLoading ? (
+          <div className={styles.storesSkeleton}>
+            <Skeleton height={130} radius={20} />
+            <Skeleton height={58} radius={14} />
+            <Skeleton height={58} radius={14} />
+          </div>
+        ) : storeCards.length === 0 ? (
+          <EmptyState
+            icon={<StoreIcon />}
+            title="Nenhuma loja por perto"
+            description="Ainda não há lojas cadastradas na plataforma."
+          />
+        ) : (
+          <>
+            <StoreCard
+              variant="destaque"
+              store={storeCards[0]}
+              onClick={() => router.push(`/stores/${stores[0]._id}`)}
+            />
+            <div className={styles.storeRows}>
+              {storeCards.slice(1).map((s, i) => {
+                const raw = stores[i + 1];
+                return (
+                  <StoreCard
+                    key={raw._id}
+                    variant="resultado"
+                    store={s}
+                    onClick={() => router.push(`/stores/${raw._id}`)}
+                  />
+                );
+              })}
             </div>
+          </>
+        )}
+      </section>
+
+      <div className={styles.section}>
+        <FreteBanner
+          title="Frete grátis acima de R$ 40"
+          ctaLabel="Aproveitar"
+          onCta={() => router.push('/stores')}
+        />
+      </div>
+
+      {(productsLoading || offerProducts.length > 0) && (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Ofertas</h2>
+            <button type="button" className={styles.sectionLink} onClick={() => router.push('/')}>
+              Ver todas
+            </button>
           </div>
 
-          <div className={styles.bentoSmall}>
-            <div className={styles.bentoIcon}>
-              <Icon name="zap" size={24} />
+          {productsLoading ? (
+            <div className={styles.offersRow}>
+              <Skeleton width={150} height={130} radius={14} />
+              <Skeleton width={150} height={130} radius={14} />
             </div>
-            <h3 className={styles.bentoSmallTitle}>Entrega Express</h3>
-            <p className={styles.bentoSmallDesc}>
-              Motoboys dedicados levam seu pedido o mais rápido possível, com rastreamento ao vivo.
-            </p>
-            <Link href="/register" className={styles.bentoSmallBtn}>
-              COMEÇAR AGORA
-            </Link>
+          ) : (
+            <div className={styles.offersRow}>
+              {offerProducts.map((p: any) => (
+                <div
+                  key={p._id}
+                  className={styles.offerItem}
+                  onClick={() => router.push(`/product/${p._id}`)}
+                >
+                  <ProductCard
+                    variant="home"
+                    product={{
+                      name: p.name,
+                      store: storeById.get(p.storeId)?.name,
+                      imageUrl: imageUrl(p.image) || undefined,
+                      price: Number(p.price),
+                    }}
+                    onAdd={(e?: any) => {
+                      e?.stopPropagation?.();
+                      addToCart({ productId: p._id, name: p.name, price: Number(p.price), storeId: p.storeId });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {user && repeatItems.length > 0 && (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Pra você repetir</h2>
           </div>
-        </div>
-      </section>
+          <div className={styles.repeatList}>
+            {repeatItems.map((r) => (
+              <RepeatRow
+                key={r.key}
+                product={{ name: r.name, store: r.store, imageUrl: r.imageUrl, price: r.price }}
+                onAdd={() => addToCart({ productId: r.productId, name: r.name, price: r.price, storeId: r.storeId })}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cartCount > 0 && (
+        <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
+      )}
+
+      <div className={styles.tabBarWrap}>
+        <TabBar active="inicio" onNavigate={handleTabNavigate} />
+      </div>
     </div>
   );
 }
