@@ -154,15 +154,19 @@ export default function CheckoutPage() {
               if (!r.ok && r.error) showToast(r.error, 'error');
             }}
           />
-
-          {c.pixData && (
-            <PixPaymentSheet
-              pix={c.pixData}
-              onPaid={(id) => router.push('/store-order/' + id)}
-              onClose={c.closePix}
-            />
-          )}
         </>
+      )}
+
+      {/* Sheet de pagamento PIX: overlay que precisa aparecer sobre QUALQUER
+          estado — inclusive o "carrinho vazio". Ao criar o pedido, o carrinho
+          é limpo antes de `pixData` ser setado; se o sheet ficasse dentro do
+          ramo "com itens", a página cairia no EmptyState e esconderia o QR. */}
+      {c.pixData && (
+        <PixPaymentSheet
+          pix={c.pixData}
+          onPaid={(id) => router.push('/store-order/' + id)}
+          onClose={c.closePix}
+        />
       )}
     </ProtectedRoute>
   );
