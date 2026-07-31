@@ -1,0 +1,80 @@
+/* AddressSelector — endereço de entrega do checkout. Sem cards aninhados:
+ * lista de salvos separada por divisor `--line` entre linhas (mesmo padrão
+ * de CheckoutItems/OrderSummary, Regra de-cardify); linha ativa só ganha
+ * texto em --brand, sem fundo sólido (roxo reservado a CTA/ativo, Regra D).
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.headerLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.current {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-strong);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  border-bottom: 1px solid var(--line);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.row {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.row:hover {
+  color: var(--text);
+}
+
+.rowActive {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
