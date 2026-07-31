@@ -20,6 +20,11 @@ export interface ProductCardProps {
   variant: ProductCardVariant;
   product: ProductCardData;
   onAdd: () => void;
+  /** Sem estoque: cobre a imagem com "Esgotado" e desabilita o botão de adicionar. */
+  soldOut?: boolean;
+  /** Rótulo de estoque baixo (ex.: "Restam 2") — só quando fizer sentido mostrar;
+   * omitido = nada renderizado (nunca um valor inventado). Ignorado se `soldOut`. */
+  stockLabel?: string;
 }
 
 type LayoutKind = 'tile' | 'line';
@@ -70,12 +75,19 @@ const VARIANT_CONFIG: Record<ProductCardVariant, VariantConfig> = {
  * linha. Nome/preço nunca ganham caixa extra — texto direto sobre a
  * superfície da tela, como no mock. Sem `imageUrl`, cai para `--surface-2` +
  * ícone `ImageOff` em vez de quebrar; nome longo usa `-webkit-line-clamp: 2`.
+ *
+ * Estoque (opcional, aditivo — usado pela página da loja): `soldOut` cobre a
+ * imagem com um selo "Esgotado" (scrim sobre `.media`) e desabilita o botão
+ * de adicionar; `stockLabel` mostra uma linha discreta ponto+texto em
+ * `--rating` (mesma linguagem de `StatusPill`) abaixo do nome — só chega
+ * preenchido quando o estoque é baixo, nunca para estoque farto.
  */
-export function ProductCard({ variant, product, onAdd }: ProductCardProps) {
+export function ProductCard({ variant, product, onAdd, soldOut = false, stockLabel }: ProductCardProps) {
   const config = VARIANT_CONFIG[variant];
   const showDiscount = config.showPromo && product.discountPercent !== undefined;
   const oldPrice = config.showPromo ? product.oldPrice : undefined;
   const badgeOverImage = config.layout === 'tile';
+  const showStockLabel = !soldOut && !!stockLabel;
 
   const addButton = (
     <IconButton
@@ -87,7 +99,8 @@ export function ProductCard({ variant, product, onAdd }: ProductCardProps) {
       }
       variant={config.addOnImage ? 'brand' : 'soft'}
       aria-label="Adicionar"
-      onClick={onAdd}
+      disabled={soldOut}
+      onClick={soldOut ? undefined : onAdd}
     />
   );
 
@@ -108,6 +121,11 @@ export function ProductCard({ variant, product, onAdd }: ProductCardProps) {
             <Badge tone="discount">{product.discountPercent}% OFF</Badge>
           </span>
         )}
+        {soldOut && (
+          <span className={styles.soldOutOverlay}>
+            <span className={styles.soldOutLabel}>Esgotado</span>
+          </span>
+        )}
         {config.addOnImage && <span className={styles.addOnImage}>{addButton}</span>}
       </div>
 
@@ -116,6 +134,12 @@ export function ProductCard({ variant, product, onAdd }: ProductCardProps) {
           <div className={styles.name}>{product.name}</div>
           {config.showStore && product.store && (
             <div className={styles.store}>{product.store}</div>
+          )}
+          {showStockLabel && (
+            <div className={styles.stockLabel}>
+              <span className={styles.stockDot} aria-hidden="true" />
+              {stockLabel}
+            </div>
           )}
         </div>
         <div className={styles.priceRow}>

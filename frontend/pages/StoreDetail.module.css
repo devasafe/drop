@@ -1,0 +1,320 @@
+/* StoreDetail — página pública de uma loja (Fase 1). Layout puro: grid/gap/
+ * padding via tokens --space-*. Cor, tipografia e raio vêm sempre dos
+ * componentes do Design System (components/drop, components/ui) — zero hex
+ * aqui, ver styles/tokens.css.
+ */
+
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  /* espaço suficiente p/ o conteúdo não ficar atrás do StickyCart (52px,
+     bottom:90px) + TabBar (64px) fixos no fim da tela */
+  padding-bottom: 170px;
+}
+
+/* ---- loading ---- */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.loadingList {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+/* ---- not found ---- */
+.notFoundWrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- hero ---- */
+.hero {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+}
+
+.heroImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: var(--surface-2);
+  background-position: center;
+  background-size: cover;
+  color: var(--text-subtle);
+}
+
+.heroGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--bg) 4%, var(--scrim) 46%, transparent 78%);
+}
+
+.backBtn {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 1;
+}
+
+.heroBottom {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heroProfile {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.heroAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  background: var(--brand-grad);
+  box-shadow: var(--shadow-brand);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--text-strong);
+}
+
+.heroMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.heroNameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.heroName {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-hero);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.statusOpen,
+.statusClosed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.statusOpen {
+  color: var(--success);
+}
+
+.statusClosed {
+  color: var(--text-subtle);
+}
+
+.heroStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: 4px;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: color-mix(in srgb, var(--text-strong) 84%, transparent);
+}
+
+.heroStat b {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.heroActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ---- descrição ---- */
+.descSection {
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.descText {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ---- mapa ---- */
+.mapSection {
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.mapWrap {
+  height: 180px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.mapIframe {
+  border: 0;
+  display: block;
+}
+
+.mapAddress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* ---- seções genéricas ---- */
+.section {
+  padding: var(--space-5) 0 0;
+}
+
+.sectionTitle {
+  padding: 0 var(--space-4);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-h2);
+  color: var(--text-strong);
+  margin-bottom: var(--space-3);
+}
+
+/* ---- mais vendidos ---- */
+.bestSellersRail {
+  display: flex;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.bestSellersRail::-webkit-scrollbar {
+  height: 0;
+}
+
+.bestSellerItem {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rankBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+.bestSellerCard {
+  cursor: pointer;
+}
+
+.soldCaption {
+  margin-top: 2px;
+}
+
+/* ---- categorias + busca ---- */
+.navSection {
+  margin-top: var(--space-5);
+}
+
+.searchRow {
+  padding: 0 var(--space-4);
+}
+
+/* ---- produtos ---- */
+.productsSection {
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+.sortRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.countText {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.productList {
+  display: flex;
+  flex-direction: column;
+}
+
+.productRow {
+  position: relative;
+}
+
+.productClickable {
+  cursor: pointer;
+}
+
+.ownerBadge {
+  position: absolute;
+  top: var(--space-3);
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--brand-2);
+}
+
+.tabBarWrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+}

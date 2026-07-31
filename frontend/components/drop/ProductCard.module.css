@@ -37,6 +37,44 @@
   bottom: 8px;
 }
 
+/* ---- estoque (aditivo) ---- */
+.soldOutOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+}
+
+.soldOutLabel {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
+  text-transform: uppercase;
+}
+
+.stockLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--rating);
+}
+
+.stockDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+
 .name {
   font-family: var(--font-body);
   font-weight: 600;

@@ -1,15 +1,40 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  LayoutGrid,
+  MapPin,
+  MessageCircle,
+  Package,
+  Pencil,
+  Store as StoreIcon,
+  Tag as TagIcon,
+} from 'lucide-react';
+
 import api from '../../lib/api';
-import Link from 'next/link';
-import Icon from '../../components/Icon';
+import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts, useStores } from '../../hooks/useSync';
 import { imageUrl } from '../../lib/config';
-import styles from './StoreDetail.module.css';
+
+import { IconButton } from '../../components/ui/IconButton';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Tag } from '../../components/ui/Tag';
+import { Select } from '../../components/ui/Select';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { SearchField } from '../../components/ui/SearchField';
+import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
+import { CategoryRail, Category as CategoryChip } from '../../components/drop/CategoryRail';
+import { ProductCard } from '../../components/drop/ProductCard';
+import { StickyCart } from '../../components/drop/StickyCart';
+import { TabBar, TabKey } from '../../components/drop/TabBar';
+
+import styles from '../StoreDetail.module.css';
 
 type DayConfig = { open: string; close: string; closed: boolean };
-type OperatingHours = Partial<Record<'monday'|'tuesday'|'wednesday'|'thursday'|'friday'|'saturday'|'sunday', DayConfig>>;
+type OperatingHours = Partial<Record<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday', DayConfig>>;
 
 type StoreWithPlan = {
   _id: string;
@@ -27,8 +52,30 @@ type StoreWithPlan = {
   [key: string]: unknown;
 };
 
-const DAYS_MAP = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const;
+type Category = { _id: string; name: string };
 
+type SortKey = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
+
+const SORT_OPTIONS = [
+  { value: 'name-asc', label: 'Nome (A–Z)' },
+  { value: 'name-desc', label: 'Nome (Z–A)' },
+  { value: 'price-asc', label: 'Menor preço' },
+  { value: 'price-desc', label: 'Maior preço' },
+];
+
+const ALL_CATEGORY = 'all';
+
+const TAB_ROUTES: Record<TabKey, string> = {
+  inicio: '/inicio',
+  buscar: '/',
+  pedidos: '/user-dashboard',
+  carteira: '/wallet',
+  perfil: '/minha-conta',
+};
+
+const DAYS_MAP = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+/** Status aberta/fechada calculado a partir de `operatingHours`/`isOpen` da loja. */
 function getStoreOpenStatus(store: StoreWithPlan): { open: boolean; label: string } {
   if (store.isOpen === false) return { open: false, label: 'Fechada' };
   const hours = store.operatingHours;
@@ -50,181 +97,235 @@ function getStoreOpenStatus(store: StoreWithPlan): { open: boolean; label: strin
   return { open: false, label: `Fechada · ${day.open}` };
 }
 
+/** Estoque de um item do catálogo → estado visual do ProductCard (spec §"estoque").
+ * Estoque farto não ganha rótulo (nada inventado) — só esgotado ou baixo (<=3). */
+function getStockState(quantity: number): { soldOut: boolean; stockLabel?: string } {
+  if (quantity <= 0) return { soldOut: true };
+  if (quantity <= 3) return { soldOut: false, stockLabel: `Restam ${quantity}` };
+  return { soldOut: false };
+}
+
 export default function StorePage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
-  const { add } = useCart();
+  const { user } = useAuth();
+  const { cart, add } = useCart();
+
+  const { stores, loading: storesLoading } = useStores();
+  const { products: allProducts } = useProducts();
 
   const [store, setStore] = useState<StoreWithPlan | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sort, setSort] = useState<'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('name-asc');
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [detailLoading, setDetailLoading] = useState(true);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [showMap, setShowMap] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY);
+  const [sort, setSort] = useState<SortKey>('name-asc');
 
-  const { products: allProducts } = useProducts();
-  const { stores } = useStores();
-
+  // Loja: por _id ou slug, via useStores() (sincronizado por socket). Categorias
+  // reais da loja vêm de GET /categories?storeId=<store._id> (endpoint funcional).
   useEffect(() => {
-    if (!id || !store) return;
-    if (Number(store.plan) !== 3) { setTopProducts([]); return; }
+    if (!id || storesLoading) return;
+    const found = stores.find((s: any) => s._id === id || s.slug === id) as StoreWithPlan | undefined;
+    if (!found) {
+      setStore(null);
+      setNotFound(true);
+      setDetailLoading(false);
+      return;
+    }
+    setStore(found);
+    setNotFound(false);
+    let cancelled = false;
+    api.get(`/categories?storeId=${found._id}`)
+      .then((res) => { if (!cancelled) setCategories(res.data || []); })
+      .catch((err) => { console.error(err); if (!cancelled) setCategories([]); })
+      .finally(() => { if (!cancelled) setDetailLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, stores, storesLoading]);
+
+  // Mais Vendidos: exclusivo do plano 3.
+  useEffect(() => {
+    if (!id || !store || Number(store.plan) !== 3) {
+      setTopProducts([]);
+      return;
+    }
+    let cancelled = false;
     api.get(`/stores/${id}/top-products?limit=8`)
-      .then(res => setTopProducts(res.data?.products || []))
-      .catch(() => setTopProducts([]));
+      .then((res) => { if (!cancelled) setTopProducts(res.data?.products || []); })
+      .catch(() => { if (!cancelled) setTopProducts([]); });
+    return () => { cancelled = true; };
   }, [id, store]);
-
-  useEffect(() => {
-    if (!id || stores.length === 0) return;
-    (async () => {
-      try {
-        const foundStore = stores.find((s: any) => s._id === id || s.slug === id);
-        if (foundStore) {
-          setStore(foundStore);
-          const catRes = await api.get(`/categories?storeId=${foundStore._id}`);
-          setCategories(catRes.data || []);
-        }
-        setLoading(false);
-      } catch (e) {
-        console.error(e);
-        setLoading(false);
-      }
-    })();
-  }, [id, stores]);
 
   const products = useMemo(() => {
     if (!store) return [];
     return allProducts.filter((p: any) => String(p.storeId) === String(store._id));
   }, [store, allProducts]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const userRaw = localStorage.getItem('user');
-      setUser(userRaw ? JSON.parse(userRaw) : null);
+  const filteredSorted = useMemo(() => {
+    let list = products.filter((p: any) => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (selectedCategory !== ALL_CATEGORY) {
+      list = list.filter((p: any) => (p.categoryId || p.category) === selectedCategory);
     }
-  }, []);
+    return [...list].sort((a: any, b: any) => {
+      switch (sort) {
+        case 'name-asc': return a.name.localeCompare(b.name);
+        case 'name-desc': return b.name.localeCompare(a.name);
+        case 'price-asc': return a.price - b.price;
+        case 'price-desc': return b.price - a.price;
+        default: return 0;
+      }
+    });
+  }, [products, search, selectedCategory, sort]);
 
-  if (loading) {
+  const cartCount = cart.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
+  const cartTotal = cart.reduce((sum: number, c: any) => sum + (c.price || 0) * (c.quantity || 0), 0);
+
+  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
+
+  const addToCart = (p: any) => {
+    if (!store) return;
+    add({ productId: p._id, quantity: 1, name: p.name, price: p.price, storeId: store._id });
+  };
+
+  const handleMessage = () => {
+    if (!store) return;
+    if (!user) { alert('Por favor, faça login para iniciar um chat'); return; }
+    window.dispatchEvent(new CustomEvent('openChat', {
+      detail: { storeId: store._id, storeName: store.name || 'Loja', role: 'lojista' },
+    }));
+  };
+
+  // ---- Loading ----
+  if (detailLoading) {
     return (
-      <div className={styles.page} style={{ padding: '40px 24px', maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="drop-skeleton-card" style={{ animationDelay: `${i * 0.06}s`, animation: 'drop-card-enter 0.5s cubic-bezier(0.4,0,0,1) both' }}>
-              <div className="drop-skeleton-img" style={{ height: 200 }} />
-              <div style={{ padding: '4px 0' }}>
-                <div className="drop-skeleton-line" />
-                <div className="drop-skeleton-line" />
-              </div>
-            </div>
-          ))}
+      <div className={styles.page}>
+        <div className={styles.loadingWrap}>
+          <Skeleton height={220} radius={0} />
+          <div className={styles.loadingList}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} height={72} radius={13} />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!store) {
+  // ---- Not found ----
+  if (notFound || !store) {
     return (
-      <div className={styles.centered}>
-        <div className={styles.notFoundIcon}><Icon name="store" size={32} /></div>
-        <p className={styles.notFoundText}>Loja não encontrada</p>
-        <Link href="/stores" className={styles.notFoundLink}>Ver Lojas</Link>
+      <div className={styles.page}>
+        <div className={styles.notFoundWrap}>
+          <EmptyState
+            icon={<StoreIcon />}
+            title="Loja não encontrada"
+            description="Essa loja pode ter sido removida ou o link está incorreto."
+            action={
+              <Button variant="primary" onClick={() => router.push('/stores')}>Ver lojas</Button>
+            }
+          />
+        </div>
       </div>
     );
   }
 
-  const isOwner = user && (user.id === store.ownerId || user._id === store.ownerId);
+  const isOwner = !!user && (user.id === store.ownerId || user._id === store.ownerId);
   const status = getStoreOpenStatus(store);
-  const bannerUrl = store.coverBannerUrl || store.featuredBannerUrl;
-  const hasLocation = store.latitude && store.longitude;
+  const bannerUrl = imageUrl(store.coverBannerUrl || store.featuredBannerUrl);
+  const hasLocation = !!store.latitude && !!store.longitude;
 
-  let filtered = products.filter((p: any) => p.name.toLowerCase().includes(search.toLowerCase()));
-  if (selectedCategory) filtered = filtered.filter((p: any) => p.category === selectedCategory);
+  const categoryChips: CategoryChip[] = [
+    { id: ALL_CATEGORY, label: 'Todos', icon: <LayoutGrid size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /> },
+    ...categories.map((c) => ({
+      id: c._id,
+      label: c.name,
+      icon: <TagIcon size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />,
+    })),
+  ];
 
-  const sorted = [...filtered].sort((a: any, b: any) => {
-    switch (sort) {
-      case 'name-asc':   return a.name.localeCompare(b.name);
-      case 'name-desc':  return b.name.localeCompare(a.name);
-      case 'price-asc':  return a.price - b.price;
-      case 'price-desc': return b.price - a.price;
-      default:           return 0;
-    }
-  });
-
-  const getStockInfo = (qty: number) => {
-    if (qty <= 0) return { label: 'Esgotado', cls: styles.outOfStock };
-    if (qty <= 3) return { label: `Restam ${qty}`, cls: styles.lowStock };
-    return { label: `${qty} em estoque`, cls: styles.inStock };
-  };
+  const emptyDescription = search
+    ? `Não encontramos produtos para "${search}".`
+    : selectedCategory !== ALL_CATEGORY
+      ? 'Nenhum produto nessa categoria por enquanto.'
+      : 'Essa loja ainda não cadastrou produtos.';
 
   return (
     <div className={styles.page}>
-      {/* Cinematic Hero */}
+      {/* Hero */}
       <section className={styles.hero}>
-        {bannerUrl ? (
-          <img src={imageUrl(bannerUrl)} alt={store.name} className={styles.heroCover} />
-        ) : (
-          <div className={styles.heroFallback} />
-        )}
-        <div className={styles.heroGradient} />
+        <span
+          className={styles.heroImage}
+          style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
+          aria-hidden="true"
+        >
+          {!bannerUrl && <StoreIcon size={32} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+        </span>
+        <span className={styles.heroGradient} aria-hidden="true" />
+
+        <span className={styles.backBtn}>
+          <IconButton
+            icon={<ArrowLeft size={18} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
+            variant="onImage"
+            aria-label="Voltar"
+            onClick={() => router.back()}
+          />
+        </span>
 
         <div className={styles.heroBottom}>
           <div className={styles.heroProfile}>
-            <div className={styles.heroAvatar}>
-              {store.name.charAt(0).toUpperCase()}
-            </div>
+            <span className={styles.heroAvatar} aria-hidden="true">{store.name.charAt(0).toUpperCase()}</span>
             <div className={styles.heroMeta}>
               <div className={styles.heroNameRow}>
                 <h1 className={styles.heroName}>{store.name}</h1>
                 <span className={status.open ? styles.statusOpen : styles.statusClosed}>
+                  <span className={styles.statusDot} aria-hidden="true" />
                   {status.label}
                 </span>
               </div>
-              <div className={styles.heroStatsRow}>
-                <div className={styles.heroStatBlock}>
-                  <span className={styles.heroStatValue}>{products.length}</span>
-                  <span className={styles.heroStatLabel}>Produtos</span>
-                </div>
-                <div className={styles.heroStatBlock}>
-                  <span className={styles.heroStatValue}>{categories.length}</span>
-                  <span className={styles.heroStatLabel}>Categorias</span>
-                </div>
+              <div className={styles.heroStats}>
+                <span className={styles.heroStat}>
+                  <b>{products.length}</b> produto{products.length !== 1 ? 's' : ''}
+                </span>
+                <span className={styles.heroStat}>
+                  <b>{categories.length}</b> categoria{categories.length !== 1 ? 's' : ''}
+                </span>
               </div>
             </div>
           </div>
 
           <div className={styles.heroActions}>
             {hasLocation && (
-              <button className={styles.locationBtn} onClick={() => setShowMap(v => !v)}>
-                <Icon name="map-pin" size={14} />
-                {showMap ? 'Ocultar Mapa' : 'Localização'}
-              </button>
+              <Button
+                variant="onImage"
+                size="sm"
+                leftIcon={<MapPin size={15} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+                onClick={() => setShowMap((v) => !v)}
+              >
+                {showMap ? 'Ocultar mapa' : 'Localização'}
+              </Button>
             )}
-            <button
-              className={styles.chatBtn}
-              onClick={() => {
-                if (!user) { alert('Por favor, faça login para iniciar um chat'); return; }
-                window.dispatchEvent(new CustomEvent('openChat', {
-                  detail: { storeId: store._id, storeName: store.name || 'Loja', role: 'lojista' }
-                }));
-              }}
+            <Button
+              variant="onImage"
+              size="sm"
+              leftIcon={<MessageCircle size={15} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+              onClick={handleMessage}
             >
-              <Icon name="chat" size={14} />
-              Enviar Mensagem
-            </button>
+              Enviar mensagem
+            </Button>
           </div>
         </div>
       </section>
 
-      {/* Description */}
+      {/* Descrição */}
       {store.description && (
         <div className={styles.descSection}>
           <p className={styles.descText}>{store.description}</p>
         </div>
       )}
 
-      {/* Map (toggle) */}
+      {/* Mapa (toggle) */}
       {showMap && hasLocation && (
         <div className={styles.mapSection}>
           <div className={styles.mapWrap}>
@@ -239,137 +340,127 @@ export default function StorePage() {
           </div>
           {store.street && (
             <div className={styles.mapAddress}>
-              <Icon name="map-pin" size={12} />
+              <MapPin size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
               {store.street}
             </div>
           )}
         </div>
       )}
 
-      {/* Best sellers */}
+      {/* Mais Vendidos (plano 3) */}
       {topProducts.length >= 3 && (
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Mais Vendidos</h2>
-          <div className={styles.bestSellers}>
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Mais vendidos</h2>
+          <div className={styles.bestSellersRail}>
             {topProducts.map((product: any, idx: number) => (
-              <Link key={product._id} href={`/product/${product._id}`} className={`${styles.productCard} ${styles.bestSellerCard}`}>
-                <div className={styles.bestSellerRank}>#{idx + 1}</div>
-                <div className={styles.productImageBox}>
-                  {product.image ? (
-                    <img src={imageUrl(product.image)} alt={product.name} className={styles.productImage} />
-                  ) : (
-                    <div className={styles.productImagePlaceholder}><Icon name="package" size={24} /></div>
-                  )}
+              <div key={product._id} className={styles.bestSellerItem}>
+                <span className={styles.rankBadge}><Badge tone="count">#{idx + 1}</Badge></span>
+                <div
+                  className={styles.bestSellerCard}
+                  onClick={() => router.push(`/product/${product._id}`)}
+                >
+                  <ProductCard
+                    variant="recomendado"
+                    product={{
+                      name: product.name,
+                      imageUrl: imageUrl(product.image) || undefined,
+                      price: Number(product.price),
+                    }}
+                    onAdd={(e?: any) => {
+                      e?.stopPropagation?.();
+                      addToCart(product);
+                    }}
+                  />
                 </div>
-                <div className={styles.productBody}>
-                  <div className={styles.productHeader}>
-                    <h3 className={styles.productName}>{product.name}</h3>
-                    <span className={styles.productPrice}>R$ {product.price?.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                  <div className={styles.productFooter}>
-                    <div className={styles.bestSellerSold}>{product.quantity} vendido{product.quantity !== 1 ? 's' : ''}</div>
-                  </div>
+                <div className={styles.soldCaption}>
+                  <Tag>{product.quantity} vendido{product.quantity !== 1 ? 's' : ''}</Tag>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Categories + Search */}
+      {/* Categorias + busca */}
       <div className={styles.navSection}>
         {categories.length > 0 && (
-          <div className={styles.catList}>
-            {[{ _id: null, name: 'Todos' }, ...categories].map((cat: any) => (
-              <button
-                key={cat._id ?? 'all'}
-                className={`${styles.catBtn} ${selectedCategory === cat._id ? styles.catBtnActive : ''}`}
-                onClick={() => setSelectedCategory(cat._id)}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className={styles.searchWrap}>
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder={`BUSCAR EM ${store.name.toUpperCase()}...`}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+          <CategoryRail
+            categories={categoryChips}
+            activeId={selectedCategory}
+            onSelect={setSelectedCategory}
           />
-          <span className={styles.searchIcon}><Icon name="search" size={14} /></span>
+        )}
+        <div className={styles.searchRow}>
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder={`Buscar em ${store.name}…`}
+          />
         </div>
       </div>
 
-      {/* Products */}
-      <div className={styles.productsSection}>
+      {/* Produtos */}
+      <section className={styles.productsSection}>
         <div className={styles.sortRow}>
           <span className={styles.countText}>
-            {sorted.length} produto{sorted.length !== 1 ? 's' : ''}
+            {filteredSorted.length} produto{filteredSorted.length !== 1 ? 's' : ''}
           </span>
-          <select className={styles.sortSelect} value={sort} onChange={e => setSort(e.target.value as any)}>
-            <option value="name-asc">Nome (A–Z)</option>
-            <option value="name-desc">Nome (Z–A)</option>
-            <option value="price-asc">Menor Preço</option>
-            <option value="price-desc">Maior Preço</option>
-          </select>
+          <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} />
         </div>
 
-        {sorted.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}><Icon name="package" size={32} /></div>
-            <p className={styles.emptyText}>Nenhum produto encontrado</p>
-          </div>
+        {filteredSorted.length === 0 ? (
+          <EmptyState icon={<Package />} title="Nenhum produto encontrado" description={emptyDescription} />
         ) : (
-          <div className={styles.productGrid}>
-            {sorted.map((product: any) => {
-              const stock = getStockInfo(product.quantity);
+          <div className={styles.productList}>
+            {filteredSorted.map((product: any) => {
+              const stock = getStockState(Number(product.quantity) || 0);
               return (
-                <Link key={product._id} href={`/product/${product._id}`} className={styles.productCard}>
-                  <div className={styles.productImageBox}>
-                    {product.image ? (
-                      <img src={imageUrl(product.image)} alt={product.name} className={styles.productImage} />
-                    ) : (
-                      <div className={styles.productImagePlaceholder}><Icon name="package" size={32} /></div>
-                    )}
-                    {product.quantity <= 0 && (
-                      <div className={styles.soldOutOverlay}>
-                        <span className={styles.soldOutBadge}>Esgotado</span>
-                      </div>
-                    )}
+                <div key={product._id} className={styles.productRow}>
+                  <div
+                    className={styles.productClickable}
+                    onClick={() => router.push(`/product/${product._id}`)}
+                  >
+                    <ProductCard
+                      variant="loja"
+                      product={{
+                        name: product.name,
+                        imageUrl: imageUrl(product.image) || undefined,
+                        price: Number(product.price),
+                      }}
+                      soldOut={stock.soldOut}
+                      stockLabel={stock.stockLabel}
+                      onAdd={(e?: any) => {
+                        e?.stopPropagation?.();
+                        addToCart(product);
+                      }}
+                    />
                   </div>
-                  <div className={styles.productBody}>
-                    <div className={styles.productHeader}>
-                      <h3 className={styles.productName}>{product.name}</h3>
-                      <span className={styles.productPrice}>R$ {product.price?.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    {product.description && <p className={styles.productDesc}>{product.description}</p>}
-                    <div className={styles.productFooter}>
-                      <div className={`${styles.productStock} ${stock.cls}`}>
-                        <span className={styles.stockDot} />
-                        {stock.label}
-                      </div>
-                      <button
-                        className={styles.addCartBtn}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (product.quantity > 0) {
-                            add({ productId: product._id, quantity: 1, name: product.name, price: product.price, storeId: store._id });
-                          }
-                        }}
-                      >
-                        <Icon name="shopping-cart" size={18} />
-                      </button>
-                    </div>
-                    {isOwner && <div className={styles.ownerBadge}>Editar</div>}
-                  </div>
-                </Link>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className={styles.ownerBadge}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/seller/edit-product?edit=${product._id}`);
+                      }}
+                    >
+                      <Pencil size={11} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+                      Editar
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
+      </section>
+
+      {cartCount > 0 && (
+        <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
+      )}
+
+      <div className={styles.tabBarWrap}>
+        <TabBar active="buscar" onNavigate={handleTabNavigate} />
       </div>
     </div>
   );
