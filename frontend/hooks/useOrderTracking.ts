@@ -187,34 +187,26 @@ export function useOrderTracking(orderId?: string) {
     return () => clearInterval(pollInterval);
   }, [orderId, order?.deliveryId, refetchDelivery]);
 
-  // PIX pendente: busca automaticamente quando o pedido está aguardando
-  // pagamento. O polling de confirmação fica no PixPaymentSheet.
-  useEffect(() => {
-    if (!orderId || !order) {
-      setPixData(null);
-      return;
-    }
-    const eligible = order.paymentMethod === 'pix'
-      && order.paymentStatus !== 'paid'
-      && !!order.asaasPaymentId
-      && !['cancelado', 'rejeitado'].includes(order.status);
-    if (!eligible) {
-      setPixData(null);
-      return;
-    }
-    let cancelled = false;
-    api.get(`/orders/${orderId}/pix`).then((res) => {
-      if (cancelled) return;
+  // PIX pendente: SOB DEMANDA, só ao chamar `openPix()` (ex.: clique em
+  // "Pagar com PIX"). Não busca automaticamente no mount — o original
+  // (`openPix` em store-order/[id].tsx:34-49) só populava `pixData` quando o
+  // cliente pedia explicitamente, e como a página renderiza
+  // `{pixData && <PixPaymentSheet/>}`, popular sozinho faria o sheet abrir
+  // por conta própria. O polling de confirmação fica no PixPaymentSheet.
+  const openPix = useCallback(async (): Promise<ActionResult> => {
+    if (!orderId) return { ok: false, error: 'Pedido inválido' };
+    try {
+      const res = await api.get(`/orders/${orderId}/pix`);
       if (res.data?.paid) {
         setOrder((prev: any) => (prev ? { ...prev, paymentStatus: 'paid' } : prev));
       } else {
         setPixData({ ...res.data, orderId });
       }
-    }).catch((err) => {
-      console.error('Falha ao buscar PIX pendente:', err);
-    });
-    return () => { cancelled = true; };
-  }, [orderId, order?.paymentMethod, order?.paymentStatus, order?.asaasPaymentId, order?.status, setOrder]);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: getErrorMessage(err, 'Não foi possível carregar o PIX.') };
+    }
+  }, [orderId, setOrder]);
 
   const closePix = useCallback(() => setPixData(null), []);
 
@@ -282,6 +274,7 @@ export function useOrderTracking(orderId?: string) {
     submitMotoboyRating,
     submitStoreRating,
     pixData,
+    openPix,
     closePix,
     refetch,
   };

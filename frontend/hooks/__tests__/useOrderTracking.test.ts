@@ -181,17 +181,43 @@ test('desinscreve todos os listeners de socket ao desmontar', () => {
   expect(Object.keys(handlers).length).toBe(0);
 });
 
-test('busca PIX pendente automaticamente quando o pedido está aguardando pagamento', async () => {
+test('NÃO busca PIX pendente automaticamente no mount — é sob demanda', async () => {
+  stubOrder({ _id: 'o1', status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending', asaasPaymentId: 'pay_1' });
+  stubDelivery(null);
+
+  renderHook(() => useOrderTracking('o1'));
+  await act(async () => {});
+
+  expect(mockedApi.get).not.toHaveBeenCalledWith('/orders/o1/pix');
+});
+
+test('openPix() busca o PIX pendente e popula pixData sob demanda', async () => {
   stubOrder({ _id: 'o1', status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending', asaasPaymentId: 'pay_1' });
   stubDelivery(null);
   mockedApi.get.mockResolvedValue({ data: { qrCodePayload: 'copia-e-cola', paid: false } } as unknown as AxiosResponse);
 
   const { result } = renderHook(() => useOrderTracking('o1'));
-  await act(async () => {});
+  expect(result.current.pixData).toBeNull();
+
+  let response: { ok: boolean; error?: string } | undefined;
+  await act(async () => { response = await result.current.openPix(); });
 
   expect(mockedApi.get).toHaveBeenCalledWith('/orders/o1/pix');
+  expect(response?.ok).toBe(true);
   expect(result.current.pixData?.qrCodePayload).toBe('copia-e-cola');
 
   act(() => { result.current.closePix(); });
+  expect(result.current.pixData).toBeNull();
+});
+
+test('openPix() marca o pedido como pago quando o PIX já foi confirmado', async () => {
+  stubOrder({ _id: 'o1', status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending', asaasPaymentId: 'pay_1' });
+  stubDelivery(null);
+  mockedApi.get.mockResolvedValue({ data: { paid: true } } as unknown as AxiosResponse);
+
+  const { result } = renderHook(() => useOrderTracking('o1'));
+  await act(async () => { await result.current.openPix(); });
+
+  expect(result.current.order.paymentStatus).toBe('paid');
   expect(result.current.pixData).toBeNull();
 });
