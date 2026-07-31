@@ -12,7 +12,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
 import { TabBar, TabKey } from '../components/drop/TabBar';
-import { ICON_STROKE_WIDTH } from '../components/ui/Icon';
+import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../components/ui/Icon';
 
 import styles from './Stores.module.css';
 
@@ -91,7 +91,7 @@ export default function StoresPage() {
       <header className={styles.top}>
         <div className={styles.headerRow}>
           <IconButton
-            icon={<ArrowLeft size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+            icon={<ArrowLeft size={18} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
             variant="soft"
             aria-label="Voltar"
             onClick={() => router.back()}
