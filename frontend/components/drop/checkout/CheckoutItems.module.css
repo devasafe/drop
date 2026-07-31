@@ -1,0 +1,57 @@
+/* CheckoutItems — lista somente-leitura dos itens do pedido. Linhas
+ * separadas por divisor `--line` entre si (sem card-em-card); a última
+ * linha não leva divisor, como fronteira natural do bloco.
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qty {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-subtle);
+}
+
+.subtotal {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-strong);
+}
