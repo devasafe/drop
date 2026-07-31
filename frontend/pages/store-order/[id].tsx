@@ -13,6 +13,7 @@ import type { OrderTrackerStep } from '../../components/drop/OrderTracker';
 import { OrderStatusHero } from '../../components/drop/order/OrderStatusHero';
 import { OrderTimeline } from '../../components/drop/order/OrderTimeline';
 import { DeliveryPin } from '../../components/drop/order/DeliveryPin';
+import { MotoboyMap } from '../../components/drop/order/MotoboyMap';
 import { OrderItemsSummary } from '../../components/drop/order/OrderItemsSummary';
 import { OrderActions } from '../../components/drop/order/OrderActions';
 import { RatingForm } from '../../components/drop/order/RatingForm';
@@ -161,6 +162,20 @@ export default function StoreOrderStatus() {
   const showMotoboyRating = delivery?.status === 'delivered';
   const showStoreRating = delivery?.status === 'delivered' || order?.status === 'entregue';
 
+  // Coords de loja/cliente vêm pré-calculadas por `GET /deliveries/:id`
+  // (`deliveryController.getDelivery`): `pickupLat/Lng` (loja, com fallback
+  // pro `storeObj`) e `deliveryLat/Lng` (cliente, com fallback pro endereço
+  // padrão) — mesma fonte usada pela tela do motoboy. Só existem quando a
+  // entrega já carregou, daí o `delivery?.`.
+  const storeCoords =
+    delivery?.pickupLat != null && delivery?.pickupLng != null
+      ? { lat: Number(delivery.pickupLat), lng: Number(delivery.pickupLng) }
+      : undefined;
+  const customerCoords =
+    delivery?.deliveryLat != null && delivery?.deliveryLng != null
+      ? { lat: Number(delivery.deliveryLat), lng: Number(delivery.deliveryLng) }
+      : undefined;
+
   return (
     <ProtectedRoute required_role="cliente">
       <div className={styles.page}>
@@ -201,6 +216,17 @@ export default function StoreOrderStatus() {
                 steps={t.steps}
               />
             </section>
+
+            {t.showMap && (
+              <section className={styles.section}>
+                <MotoboyMap
+                  motoboy={t.motoboyPos ?? undefined}
+                  store={storeCoords}
+                  customer={customerCoords}
+                  height={280}
+                />
+              </section>
+            )}
 
             {showPixButton && (
               <section className={styles.section}>
