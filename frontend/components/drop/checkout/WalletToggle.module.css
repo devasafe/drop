@@ -1,0 +1,87 @@
+/* WalletToggle — alterna uso do saldo da carteira no checkout. Switch custom
+ * (não existe primitivo `Switch` no DS ainda): trilho neutro/roxo sólido no
+ * `on`, mesmo padrão de hierarquia de cor do `Chip` (roxo só quando ativo).
+ * Aviso de dívida pendente usa --danger, como `Toast` tone="error".
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.balance {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+}
+
+.switch {
+  flex-shrink: 0;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  padding: 3px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--surface-chip);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.switch.on {
+  background: var(--brand);
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--text-strong);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.switch.on .thumb {
+  transform: translateX(16px);
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .thumb {
+    transition: none;
+  }
+}
