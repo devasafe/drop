@@ -4,6 +4,7 @@ import type { AppProps } from 'next/app';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { CartProvider } from '../contexts/CartContext';
+import { ToastProvider } from '../components/ui/Toast';
 import Nav from '../components/Nav';
 import VerificationBanner from '../components/VerificationBanner';
 import Footer from '../components/Footer';
@@ -74,6 +75,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       {user && <RealtimeNotifier />}
       <NotificationToaster />
       <CartProvider>
+        <ToastProvider>
         <SeasonalThemeProvider>
         {!hideChrome && <Nav />}
         <VerificationBanner />
@@ -103,6 +105,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
         {/* Inbox de solicitações de acesso à carteira (clientes) */}
         {user?.role === 'cliente' && <WalletAccessInbox />}
+        </ToastProvider>
       </CartProvider>
     </SocketProvider>
   );
