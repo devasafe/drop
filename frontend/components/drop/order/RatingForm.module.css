@@ -35,7 +35,7 @@
   transition: color var(--dur-fast) var(--ease);
 }
 
-.star[aria-pressed='true'] {
+.starFilled {
   color: var(--rating);
 }
 
