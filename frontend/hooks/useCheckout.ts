@@ -33,6 +33,13 @@ interface PlatformConfigResponse {
   motoboyCutPerKm?: number;
 }
 
+// GET /debts/my-pending — ver debtController.ts: `{ debt: CustomerDebt | null }`.
+// `amount` é Decimal no Prisma (schema.prisma:659) — serializa como string em
+// JSON, então normalizamos pra number aqui em vez de repassar cru.
+interface PendingDebtResponse {
+  debt: { amount: number | string } | null;
+}
+
 export function useCheckout() {
   const router = useRouter();
   const { cart, clear } = useCart();
@@ -58,6 +65,7 @@ export function useCheckout() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [walletBalance, setWalletBalance] = useState(0);
   const [useWallet, setUseWallet] = useState(false);
+  const [pendingDebt, setPendingDebt] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
   const [blocked, setBlocked] = useState(false);
@@ -128,8 +136,22 @@ export function useCheckout() {
         });
       })
       .catch(() => {});
+    api.get<PendingDebtResponse>('/debts/my-pending')
+      .then(r => { if (!cancelled) setPendingDebt(r.data.debt ? Number(r.data.debt.amount) : null); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id]);
+
+  // Auto-seleciona o endereço padrão (isDefault, ver addressController.ts) assim
+  // que a lista carrega — sem isso o cliente recorrente tinha que escolher o
+  // endereço de novo a cada checkout. Só roda enquanto nada foi selecionado
+  // ainda, então não sobrescreve uma escolha manual do usuário.
+  useEffect(() => {
+    if (address.loading || address.selected || address.addresses.length === 0) return;
+    const idx = address.addresses.findIndex((a: { isDefault?: boolean }) => a.isDefault);
+    address.selectAddress(idx >= 0 ? idx : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address.loading, address.selected, address.addresses]);
 
   // Distância real de rota (loja -> endereço selecionado) via Google Directions.
   // Defensivo: sem Google Maps carregado ou sem endereço/loja com coordenadas, não faz nada.
@@ -200,7 +222,7 @@ export function useCheckout() {
 
   return {
     items: cart, subtotal, deliveryFee, discount: coupon.discount, total,
-    paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet,
+    paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
     address, coupon, isPlan1, blocked,
   };

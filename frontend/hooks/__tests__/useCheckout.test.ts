@@ -14,9 +14,10 @@ const savedAddress = {
   city: 'Rio de Janeiro', state: 'RJ', latitude: '-22.91', longitude: '-43.21',
 };
 
+const mockUseAddresses = jest.fn();
 jest.mock('../useSync', () => ({
   useStores: () => ({ stores: [{ _id: 's1', plan: 2, latitude: '-22.9', longitude: '-43.2' }], loading: false }),
-  useAddresses: () => ({ addresses: [savedAddress], loading: false, setAddresses: jest.fn() }),
+  useAddresses: () => mockUseAddresses(),
 }));
 jest.mock('../../contexts/CartContext', () => ({
   useCart: () => ({
@@ -35,6 +36,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   mockedApi.get.mockResolvedValue({ data: { balance: 0 } } as unknown as AxiosResponse);
+  mockUseAddresses.mockReturnValue({ addresses: [savedAddress], loading: false, setAddresses: jest.fn() });
 });
 
 test('total = subtotal + frete - desconto', async () => {
@@ -105,4 +107,58 @@ test('placeOrder envia payload com idempotentKey e abre pix', async () => {
   expect(payload?.idempotentKey).toBeTruthy();
   expect(payload?.products).toEqual([{ productId: 'p1', quantity: 2, price: 50 }]);
   expect(result.current.pixData?.orderId).toBe('o1');
+});
+
+test('auto-seleciona o endereço marcado como isDefault assim que a lista carrega', async () => {
+  const other = { ...savedAddress, _id: 'a0', isDefault: false };
+  const main = { ...savedAddress, _id: 'a1', isDefault: true };
+  // Padrão não é o primeiro da lista — confirma que a seleção olha a flag,
+  // não apenas cai pro índice 0.
+  mockUseAddresses.mockReturnValue({ addresses: [other, main], loading: false, setAddresses: jest.fn() });
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {}); // flush do effect de auto-seleção + fetch de carteira/config
+
+  expect(result.current.address.selected?._id).toBe('a1');
+});
+
+test('seleção manual após o auto-select não é revertida pro endereço padrão', async () => {
+  const other = { ...savedAddress, _id: 'a0', isDefault: false };
+  const main = { ...savedAddress, _id: 'a1', isDefault: true };
+  mockUseAddresses.mockReturnValue({ addresses: [other, main], loading: false, setAddresses: jest.fn() });
+
+  const { result } = renderHook(() => useCheckout());
+  // Nesse ponto o auto-select já rodou (selected = 'a1', o isDefault).
+  act(() => { result.current.address.selectAddress(0); }); // usuário troca manualmente
+  await act(async () => {});
+
+  expect(result.current.address.selected?._id).toBe('a0');
+});
+
+test('expõe pendingDebt vindo de GET /debts/my-pending', async () => {
+  mockedApi.get.mockImplementation((url: string) => {
+    if (url === '/debts/my-pending') {
+      return Promise.resolve({ data: { debt: { amount: '42.50' } } } as unknown as AxiosResponse);
+    }
+    return Promise.resolve({ data: { balance: 0 } } as unknown as AxiosResponse);
+  });
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {});
+
+  expect(result.current.pendingDebt).toBe(42.5);
+});
+
+test('pendingDebt fica null quando não há dívida pendente', async () => {
+  mockedApi.get.mockImplementation((url: string) => {
+    if (url === '/debts/my-pending') {
+      return Promise.resolve({ data: { debt: null } } as unknown as AxiosResponse);
+    }
+    return Promise.resolve({ data: { balance: 0 } } as unknown as AxiosResponse);
+  });
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {});
+
+  expect(result.current.pendingDebt).toBeNull();
 });

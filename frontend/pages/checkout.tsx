@@ -110,6 +110,7 @@ export default function CheckoutPage() {
                   enabled={c.paymentMethod === 'pix'}
                   checked={c.useWallet}
                   onChange={c.setUseWallet}
+                  pendingDebt={c.pendingDebt ?? undefined}
                 />
               </section>
 
