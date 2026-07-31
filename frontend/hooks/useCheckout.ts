@@ -7,7 +7,14 @@ import { useStores } from './useSync';
 import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
 import { useDeliveryFee } from './useDeliveryFee';
-import { PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
+import { Address, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
+
+const DRAFT_KEY = 'checkout_draft';
+
+interface CheckoutDraft {
+  fields: Address;
+  paymentMethod: PaymentMethod;
+}
 
 const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
   const r = Math.random() * 16 | 0; const v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16);
@@ -54,6 +61,7 @@ export function useCheckout() {
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
   // PIX não depende de saldo (cobrança externa Asaas); demais métodos exigem saldo.
@@ -71,6 +79,38 @@ export function useCheckout() {
   useEffect(() => {
     if (isPlan1) router.replace('/checkout-vitrine');
   }, [isPlan1, router]);
+
+  // Restaura rascunho (endereço em edição + método de pagamento) salvo em
+  // localStorage — uma única vez ao montar. `hydrated` só vira true depois
+  // dessa tentativa, pra o effect de auto-save (abaixo) nunca sobrescrever
+  // um rascunho existente com os valores vazios do estado inicial.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as Partial<CheckoutDraft>;
+        if (draft.fields) address.setFields(draft.fields);
+        if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
+      }
+    } catch {
+      // rascunho corrompido — ignora e segue com estado vazio
+    } finally {
+      setHydrated(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-salva o rascunho a cada mudança de endereço/pagamento — só depois
+  // de hidratado (ver acima).
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const draft: CheckoutDraft = { fields: address.fields, paymentMethod };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // localStorage indisponível (quota/privado) — rascunho é best-effort
+    }
+  }, [hydrated, address.fields, paymentMethod]);
 
   // Carteira + config de taxa de entrega (com cleanup pra evitar setState após unmount).
   useEffect(() => {
@@ -137,7 +177,7 @@ export function useCheckout() {
       const pix = 'pix' in data ? data.pix : undefined;
 
       localStorage.removeItem('cart');
-      localStorage.removeItem('checkout_draft');
+      localStorage.removeItem(DRAFT_KEY);
       clear();
 
       if (pix) {

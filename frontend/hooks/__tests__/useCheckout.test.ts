@@ -33,6 +33,7 @@ const mockedApi = api as jest.Mocked<typeof api>;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  localStorage.clear();
   mockedApi.get.mockResolvedValue({ data: { balance: 0 } } as unknown as AxiosResponse);
 });
 
@@ -43,6 +44,38 @@ test('total = subtotal + frete - desconto', async () => {
   expect(result.current.total).toBe(100);
   // flush do fetch de carteira/config (assíncrono) antes do teste terminar
   await act(async () => {});
+});
+
+test('restaura rascunho salvo e depois salva mudanças de endereço/pagamento', async () => {
+  const draft = {
+    fields: { cep: '30000-000', street: 'Rua Y', number: '5', neighborhood: 'B', city: 'C', state: 'MG', latitude: '', longitude: '' },
+    paymentMethod: 'credit_card',
+  };
+  localStorage.setItem('checkout_draft', JSON.stringify(draft));
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {}); // flush do restore (mount) + fetch de carteira/config
+
+  expect(result.current.address.fields).toEqual(draft.fields);
+  expect(result.current.paymentMethod).toBe('credit_card');
+
+  // Mudar o método de pagamento deve reescrever o rascunho persistido.
+  act(() => { result.current.setPaymentMethod('pix'); });
+  await act(async () => {});
+  const saved = JSON.parse(localStorage.getItem('checkout_draft') || '{}');
+  expect(saved.paymentMethod).toBe('pix');
+  expect(saved.fields).toEqual(draft.fields);
+});
+
+test('ignora rascunho corrompido sem quebrar e não sobrescreve com estado vazio antes de hidratar', async () => {
+  localStorage.setItem('checkout_draft', '{not valid json');
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {});
+
+  expect(result.current.paymentMethod).toBe('pix'); // default, rascunho corrompido foi ignorado
+  // depois de hidratar, o auto-save já reescreveu a chave com o estado atual (válido)
+  expect(() => JSON.parse(localStorage.getItem('checkout_draft') || '{}')).not.toThrow();
 });
 
 test('placeOrder envia payload com idempotentKey e abre pix', async () => {

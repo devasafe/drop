@@ -139,9 +139,15 @@ export default function CheckoutPage() {
 
           <CheckoutBar
             total={c.total}
-            disabled={!c.canPlace || c.placing}
+            disabled={!c.canPlace || c.placing || c.isWalletInsufficient}
             loading={c.placing}
-            hint={!c.canPlace ? 'Confirme o endereço no mapa' : undefined}
+            hint={
+              !c.canPlace
+                ? 'Confirme o endereço no mapa'
+                : c.isWalletInsufficient
+                  ? 'Saldo insuficiente'
+                  : undefined
+            }
             onConfirm={async () => {
               const r = await c.placeOrder();
               if (!r.ok && r.error) showToast(r.error, 'error');
