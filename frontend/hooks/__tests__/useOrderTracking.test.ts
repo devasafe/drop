@@ -174,6 +174,32 @@ test('evento socket ignorado quando é de outro pedido', () => {
   expect(result.current.order.status).toBe('pago');
 });
 
+test('motoboyPos começa null e é atualizado por delivery:location_updated (relay usa _id)', () => {
+  const { result } = renderHook(() => useOrderTracking('o1'));
+  expect(result.current.motoboyPos).toBeNull();
+
+  act(() => {
+    handlers['delivery:location_updated']({
+      _id: 'd1',
+      location: { latitude: -22.9, longitude: -43.2 },
+      estimatedTime: null,
+    });
+  });
+
+  expect(result.current.motoboyPos).toEqual({ lat: -22.9, lng: -43.2 });
+});
+
+test('delivery:location_updated é ignorado quando é de outra entrega', () => {
+  const { result } = renderHook(() => useOrderTracking('o1'));
+  act(() => {
+    handlers['delivery:location_updated']({
+      _id: 'outra-entrega',
+      location: { latitude: -22.9, longitude: -43.2 },
+    });
+  });
+  expect(result.current.motoboyPos).toBeNull();
+});
+
 test('desinscreve todos os listeners de socket ao desmontar', () => {
   const { unmount } = renderHook(() => useOrderTracking('o1'));
   expect(Object.keys(handlers).length).toBeGreaterThan(0);

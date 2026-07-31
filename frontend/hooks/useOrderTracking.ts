@@ -92,6 +92,7 @@ export function useOrderTracking(orderId?: string) {
   const { delivery, loading: deliveryLoading, setDelivery } = useDelivery(order?.deliveryId);
   const { on } = useSocket();
   const [pixData, setPixData] = useState<PixInfo | null>(null);
+  const [motoboyPos, setMotoboyPos] = useState<{ lat: number; lng: number } | null>(null);
 
   const refetchDelivery = useCallback(async (deliveryId: string) => {
     try {
@@ -161,6 +162,15 @@ export function useOrderTracking(orderId?: string) {
       setOrder((prev: any) => (prev ? { ...prev, status: 'entregue' } : prev));
     };
 
+    // Posição do motoboy em tempo real. Relay do backend (`notifier.ts`) usa
+    // `_id` (não `deliveryId`) e aninha as coordenadas em `location`.
+    const handleLocationUpdated = (data: any) => {
+      if (data._id !== currentDeliveryId) return;
+      const { latitude, longitude } = data.location || {};
+      if (latitude == null || longitude == null) return;
+      setMotoboyPos({ lat: latitude, lng: longitude });
+    };
+
     const unsubscribers = [
       on('order:accepted_by_store', handleOrderAccepted),
       on('motoboy:assigned', handleMotoboyAssigned),
@@ -171,6 +181,7 @@ export function useOrderTracking(orderId?: string) {
       on('delivery:return_confirmed', handleReturnConfirmed),
       on('order:cancelled', handleOrderCancelled),
       on('order:delivered', handleOrderDelivered),
+      on('delivery:location_updated', handleLocationUpdated),
     ];
 
     return () => {
@@ -269,6 +280,7 @@ export function useOrderTracking(orderId?: string) {
     statusTone: deriveStatusTone(order, delivery),
     showMap,
     showPin,
+    motoboyPos,
     canConfirmReceived,
     confirmReceived,
     submitMotoboyRating,
