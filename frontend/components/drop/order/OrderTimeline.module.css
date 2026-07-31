@@ -1,0 +1,8 @@
+/* OrderTimeline — wrapper fino do OrderTracker do DS na tela de
+ * acompanhamento de pedido. Sem estilo próprio de conteúdo (isso é do
+ * OrderTracker); só o respiro externo do bloco na página.
+ */
+
+.wrap {
+  margin: var(--space-4) 0;
+}
