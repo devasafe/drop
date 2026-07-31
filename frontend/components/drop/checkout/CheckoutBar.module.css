@@ -1,0 +1,42 @@
+/* CheckoutBar — barra fixa do rodapé do checkout. Mesmo padrão de
+ * `StickyCart` (fundo --surface + --shadow-float flutuando sobre o
+ * conteúdo), mas em superfície neutra: o roxo cheio fica reservado ao
+ * `Button` primary, não à barra inteira. z-index acima do conteúdo da
+ * página e do dock global (TabBar não renderiza em /checkout) e abaixo
+ * dos `Sheet`/`Toast` (1000+).
+ */
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.total {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+}
