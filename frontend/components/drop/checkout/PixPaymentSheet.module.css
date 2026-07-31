@@ -1,0 +1,88 @@
+/* PixPaymentSheet — QR + copia-e-cola do PIX, com estado de confirmação.
+ * `.qr` mantém fundo branco fixo (não é --surface): é a única forma de o QR
+ * ficar legível pra qualquer leitor de câmera, independente do tema dark do
+ * app. `.copyBtn` replica o visual do Button primary (roxo sólido) sem puxar
+ * o componente — só ícone + label, gap/raio nos tokens de função "botão".
+ */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.qr {
+  align-self: center;
+  width: 200px;
+  height: 200px;
+  background: #fff;
+  border-radius: var(--r-md);
+  padding: var(--space-2);
+}
+
+.code {
+  background: var(--surface-field);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text);
+  word-break: break-all;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+.copyBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  border: none;
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-5);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.copyBtn:hover {
+  background: var(--brand-grad);
+  box-shadow: var(--shadow-brand);
+}
+
+.waiting {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+}
+
+.paid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  color: var(--success);
+  text-align: center;
+}
+
+.paid p {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+}
