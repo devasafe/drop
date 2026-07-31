@@ -1,0 +1,40 @@
+/* CouponField — input de cupom + botão Aplicar/Remover. Mensagem de retorno
+ * em --success (ok) ou --danger (error), mesmo padrão semântico de
+ * Input.errorText.
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+}
+
+.message {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+}
+
+.message.ok {
+  color: var(--success);
+}
+
+.message.error {
+  color: var(--danger);
+}
