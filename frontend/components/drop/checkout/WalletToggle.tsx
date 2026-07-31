@@ -37,6 +37,7 @@ export function WalletToggle({ balance, enabled, checked, onChange, pendingDebt 
           type="button"
           role="switch"
           aria-checked={checked}
+          aria-label="Usar saldo da carteira"
           disabled={!enabled}
           className={[styles.switch, checked && styles.on].filter(Boolean).join(' ')}
           onClick={() => enabled && onChange(!checked)}
@@ -47,7 +48,7 @@ export function WalletToggle({ balance, enabled, checked, onChange, pendingDebt 
       {hasPendingDebt && (
         <div className={styles.warning}>
           <AlertTriangle size={14} strokeWidth={ICON_STROKE_WIDTH} />
-          <span>Dívida pendente de {formatBRL(pendingDebt as number)} será descontada do saldo.</span>
+          <span>Dívida pendente de {formatBRL(pendingDebt!)} será descontada do saldo.</span>
         </div>
       )}
     </div>

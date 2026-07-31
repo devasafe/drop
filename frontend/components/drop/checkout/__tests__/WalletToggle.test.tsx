@@ -25,9 +25,14 @@ test('switch reflete estado marcado via aria-checked', () => {
   expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
 });
 
-test('desabilitado marca aria-disabled/disabled no switch', () => {
+test('desabilitado marca o switch como disabled', () => {
   render(<WalletToggle balance={50} enabled={false} checked={false} onChange={jest.fn()} />);
   expect(screen.getByRole('switch')).toBeDisabled();
+});
+
+test('switch tem nome acessível', () => {
+  render(<WalletToggle balance={50} enabled checked={false} onChange={jest.fn()} />);
+  expect(screen.getByRole('switch', { name: /usar saldo/i })).toBeInTheDocument();
 });
 
 test('sem dívida pendente não mostra aviso', () => {
