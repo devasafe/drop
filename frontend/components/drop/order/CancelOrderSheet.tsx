@@ -14,6 +14,10 @@ export interface CancelOrderSheetProps {
    * origem em preview no backend, então quem calcula/decide passar (ou não)
    * é a página; o sheet nunca inventa um valor. */
   fee?: number;
+  /** Feedback de carregamento enquanto `onConfirm` está em andamento — o
+   * sheet não tem estado próprio de submissão, só reflete o que a página
+   * (dona da chamada `POST /orders/:id/cancel`) já rastreia. */
+  submitting?: boolean;
 }
 
 /** Portado de `CancelOrderModal` (motivos pré-definidos, mesmo `code`/label/description). */
@@ -45,7 +49,7 @@ const DEFAULT_REASON = CANCEL_REASONS[0];
  * (Regra D: cor de perigo entra via classe própria, não uma variante nova em
  * `Button`).
  */
-export function CancelOrderSheet({ open, onClose, onConfirm, fee }: CancelOrderSheetProps) {
+export function CancelOrderSheet({ open, onClose, onConfirm, fee, submitting }: CancelOrderSheetProps) {
   const [reasonCode, setReasonCode] = useState(DEFAULT_REASON.code);
   const [reason, setReason] = useState(DEFAULT_REASON.description);
   const reasonFieldId = useId();
@@ -115,7 +119,13 @@ export function CancelOrderSheet({ open, onClose, onConfirm, fee }: CancelOrderS
           rows={3}
         />
 
-        <Button variant="primary" className={styles.confirm} disabled={!canConfirm} onClick={handleConfirm}>
+        <Button
+          variant="primary"
+          className={styles.confirm}
+          disabled={!canConfirm}
+          loading={submitting}
+          onClick={handleConfirm}
+        >
           Confirmar cancelamento
         </Button>
       </div>

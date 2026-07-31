@@ -105,6 +105,16 @@ export function useOrderTracking(orderId?: string) {
 
   // Socket listeners: mantém order/delivery sincronizados em tempo real.
   // Cada `on(...)` devolve um unsubscribe, chamado no cleanup.
+  // Reseta a última posição conhecida sempre que a entrega assinada muda —
+  // sem isso, numa reatribuição de motoboy a posição do anterior ficava
+  // exibida no mapa até o primeiro `delivery:location_updated` do novo.
+  // Efeito separado (em vez de junto ao de subscribe abaixo) pra depender só
+  // de `deliveryId`, e não de `on`/`setDelivery`/etc — identidades que não
+  // são garantidas estáveis a cada render.
+  useEffect(() => {
+    setMotoboyPos(null);
+  }, [order?.deliveryId]);
+
   useEffect(() => {
     if (!orderId) return;
     const currentDeliveryId = order?.deliveryId;

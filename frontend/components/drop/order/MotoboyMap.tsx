@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Navigation } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '../../ui/Icon';
 import MotoboyRouteMap from '../../MotoboyRouteMap';
@@ -24,7 +25,25 @@ export interface MotoboyMapProps {
  * o `MotoboyRouteMap` em si já degrada sozinho quando falta o Google Maps.
  */
 export function MotoboyMap({ motoboy, store, customer, height = 300 }: MotoboyMapProps) {
-  if (!motoboy) {
+  // Memoizados pelas coordenadas NUMÉRICAS (não pelo objeto `motoboy`/
+  // `store`/`customer` em si): `MotoboyRouteMap` reconstrói o mapa e refaz a
+  // chamada de Directions sempre que a IDENTIDADE de pointA/B/C muda, e sem
+  // isso cada render (inclusive o polling de 5s do `useOrderTracking`) criava
+  // um objeto novo — mapa piscando e uma chamada à Directions API por poll.
+  const pointA = useMemo(
+    () => (motoboy ? { ...motoboy, label: 'Motoboy' } : undefined),
+    [motoboy?.lat, motoboy?.lng]
+  );
+  const pointB = useMemo(
+    () => (store ? { ...store, label: 'Loja' } : undefined),
+    [store?.lat, store?.lng]
+  );
+  const pointC = useMemo(
+    () => (customer ? { ...customer, label: 'Você' } : undefined),
+    [customer?.lat, customer?.lng]
+  );
+
+  if (!pointA) {
     return (
       <div className={styles.placeholder} style={{ height }}>
         <Navigation size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
@@ -35,12 +54,7 @@ export function MotoboyMap({ motoboy, store, customer, height = 300 }: MotoboyMa
 
   return (
     <div className={styles.wrap}>
-      <MotoboyRouteMap
-        pointA={{ ...motoboy, label: 'Motoboy' }}
-        pointB={store ? { ...store, label: 'Loja' } : undefined}
-        pointC={customer ? { ...customer, label: 'Você' } : undefined}
-        height={height}
-      />
+      <MotoboyRouteMap pointA={pointA} pointB={pointB} pointC={pointC} height={height} />
     </div>
   );
 }

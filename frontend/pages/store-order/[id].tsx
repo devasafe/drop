@@ -302,6 +302,7 @@ export default function StoreOrderStatus() {
               open={cancelOpen}
               onClose={() => setCancelOpen(false)}
               onConfirm={handleCancelConfirm}
+              submitting={cancelling}
             />
           </div>
         )}
