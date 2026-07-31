@@ -1,0 +1,9 @@
+/* PaymentSelector — chips de método de pagamento (ícone + texto) via Chip,
+ * mesmo padrão de CategoryRail. Sem scroll horizontal: lista curta e fixa.
+ */
+
+.selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
