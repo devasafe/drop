@@ -21,8 +21,6 @@ import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
 import { FreteBanner } from '../components/drop/FreteBanner';
 import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
-import { StickyCart } from '../components/drop/StickyCart';
-import { TabBar, TabKey } from '../components/drop/TabBar';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 
@@ -53,14 +51,6 @@ const STATUS_LABEL: Record<string, string> = {
   enviado: 'A caminho',
 };
 
-const TAB_ROUTES: Record<TabKey, string> = {
-  inicio: '/inicio',
-  buscar: '/',
-  pedidos: '/user-dashboard',
-  carteira: '/wallet',
-  perfil: '/minha-conta',
-};
-
 function trackerSteps(status: string): OrderTrackerStep[] {
   return [
     { label: 'Confirmado', done: true },
@@ -87,7 +77,7 @@ function mapStore(store: any): StoreCardData {
 export default function Inicio() {
   const router = useRouter();
   const { user } = useAuth();
-  const { cart, add } = useCart();
+  const { add } = useCart();
 
   const { addresses, loading: addressesLoading } = useAddresses();
   const { unreadCount } = useNotifications();
@@ -141,14 +131,9 @@ export default function Inicio() {
     return items;
   }, [orders, user]);
 
-  const cartCount = cart.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
-  const cartTotal = cart.reduce((sum: number, c: any) => sum + (c.price || 0) * (c.quantity || 0), 0);
-
   const addToCart = (p: { productId: string; name: string; price: number; storeId?: string }) => {
     add({ productId: p.productId, quantity: 1, name: p.name, price: p.price, storeId: p.storeId });
   };
-
-  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
 
   const handleSearch = () => {
     const q = query.trim();
@@ -322,13 +307,6 @@ export default function Inicio() {
         </section>
       )}
 
-      {cartCount > 0 && (
-        <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
-      )}
-
-      <div className={styles.tabBarWrap}>
-        <TabBar active="inicio" onNavigate={handleTabNavigate} />
-      </div>
     </div>
   );
 }

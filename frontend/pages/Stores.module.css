@@ -7,9 +7,9 @@
 .page {
   min-height: 100vh;
   background: var(--bg);
-  /* espaço suficiente p/ o conteúdo não ficar atrás da TabBar (64px) fixa
-     no fim da tela */
-  padding-bottom: 100px;
+  /* espaço p/ o conteúdo não ficar atrás do StickyCart (52px, bottom:90px)
+     + TabBar (64px) do chrome global fixo */
+  padding-bottom: 170px;
 }
 
 .top {
@@ -94,10 +94,3 @@
   cursor: pointer;
 }
 
-.tabBarWrap {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-}

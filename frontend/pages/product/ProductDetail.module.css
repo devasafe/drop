@@ -428,14 +428,6 @@
   cursor: pointer;
 }
 
-/* ---- rodapé fixo ---- */
-.tabBarWrap {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-}
 
 /* ── Tablet/desktop: galeria ganha teto de altura para não esticar ──── */
 @media (min-width: 640px) {

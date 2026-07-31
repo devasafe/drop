@@ -28,8 +28,6 @@ import { SearchField } from '../../components/ui/SearchField';
 import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { CategoryRail, Category as CategoryChip } from '../../components/drop/CategoryRail';
 import { ProductCard } from '../../components/drop/ProductCard';
-import { StickyCart } from '../../components/drop/StickyCart';
-import { TabBar, TabKey } from '../../components/drop/TabBar';
 
 import styles from '../StoreDetail.module.css';
 
@@ -64,14 +62,6 @@ const SORT_OPTIONS = [
 ];
 
 const ALL_CATEGORY = 'all';
-
-const TAB_ROUTES: Record<TabKey, string> = {
-  inicio: '/inicio',
-  buscar: '/',
-  pedidos: '/user-dashboard',
-  carteira: '/wallet',
-  perfil: '/minha-conta',
-};
 
 const DAYS_MAP = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
@@ -109,7 +99,7 @@ export default function StorePage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
   const { user } = useAuth();
-  const { cart, add } = useCart();
+  const { add } = useCart();
 
   const { stores, loading: storesLoading } = useStores();
   const { products: allProducts } = useProducts();
@@ -178,11 +168,6 @@ export default function StorePage() {
       }
     });
   }, [products, search, selectedCategory, sort]);
-
-  const cartCount = cart.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
-  const cartTotal = cart.reduce((sum: number, c: any) => sum + (c.price || 0) * (c.quantity || 0), 0);
-
-  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
 
   const addToCart = (p: any) => {
     if (!store) return;
@@ -455,13 +440,6 @@ export default function StorePage() {
         )}
       </section>
 
-      {cartCount > 0 && (
-        <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
-      )}
-
-      <div className={styles.tabBarWrap}>
-        <TabBar active="buscar" onNavigate={handleTabNavigate} />
-      </div>
     </div>
   );
 }

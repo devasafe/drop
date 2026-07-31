@@ -10,6 +10,7 @@ import Footer from '../components/Footer';
 import SeasonalBanner from '../components/SeasonalBanner';
 import PageTransition from '../components/PageTransition';
 import ChatWidgetWithTabs from '../components/ChatWidgetWithTabs';
+import { CustomerAppChrome } from '../components/drop/CustomerAppChrome';
 import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
 import RealtimeNotifier from '../components/RealtimeNotifier';
@@ -82,7 +83,12 @@ function AppWrapper({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </PageTransition>
         </main>
-        
+
+        {/* Chrome do app do cliente (TabBar + StickyCart) — fixo na viewport.
+            Precisa ficar FORA do <main>/<PageTransition>: aquele container tem
+            transform/filter, que quebra o position:fixed dos filhos. */}
+        {hideChrome && <CustomerAppChrome />}
+
         {shouldShowFooter && <Footer />}
         </SeasonalThemeProvider>
 

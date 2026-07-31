@@ -16,19 +16,9 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { ProductCard } from '../../components/drop/ProductCard';
-import { StickyCart } from '../../components/drop/StickyCart';
-import { TabBar, TabKey } from '../../components/drop/TabBar';
 import HtmlContent from '../../components/HtmlContent';
 
 import styles from './ProductDetail.module.css';
-
-const TAB_ROUTES: Record<TabKey, string> = {
-  inicio: '/inicio',
-  buscar: '/',
-  pedidos: '/user-dashboard',
-  carteira: '/wallet',
-  perfil: '/minha-conta',
-};
 
 /** Quanto tempo o CTA mostra "Adicionado!" antes de voltar ao rótulo normal. */
 const ADDED_FEEDBACK_MS = 1600;
@@ -45,7 +35,7 @@ function getStockState(quantity: number): { soldOut: boolean; stockLabel?: strin
 export default function ProductPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
-  const { cart, add } = useCart();
+  const { add } = useCart();
   const { products, loading: productsLoading } = useProducts();
   const { stores, loading: storesLoading } = useStores();
 
@@ -125,11 +115,6 @@ export default function ProductPage() {
       .filter((p: any) => p.storeId === product.storeId && p._id !== product._id)
       .slice(0, 4);
   }, [product, products]);
-
-  const cartCount = (cart || []).reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
-  const cartTotal = (cart || []).reduce((sum: number, c: any) => sum + (c.price || 0) * (c.quantity || 0), 0);
-
-  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
 
   const stock = Number(product?.quantity) || 0;
   const isOutOfStock = stock <= 0;
@@ -390,13 +375,6 @@ export default function ProductPage() {
         </section>
       )}
 
-      {cartCount > 0 && (
-        <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
-      )}
-
-      <div className={styles.tabBarWrap}>
-        <TabBar active="buscar" onNavigate={handleTabNavigate} />
-      </div>
     </div>
   );
 }

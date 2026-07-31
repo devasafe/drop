@@ -11,7 +11,6 @@ import { Badge } from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
-import { TabBar, TabKey } from '../components/drop/TabBar';
 import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../components/ui/Icon';
 
 import styles from './Stores.module.css';
@@ -31,14 +30,6 @@ interface Store {
 
 const INITIAL_COUNT = 6;
 const LOAD_MORE_STEP = 6;
-
-const TAB_ROUTES: Record<TabKey, string> = {
-  inicio: '/inicio',
-  buscar: '/',
-  pedidos: '/user-dashboard',
-  carteira: '/wallet',
-  perfil: '/minha-conta',
-};
 
 /** Loja → StoreCardData. Sem rating/eta/frete reais no backend hoje (ver
  * StoreCard.tsx) — ficam de fora, nunca um valor inventado. */
@@ -83,8 +74,6 @@ export default function StoresPage() {
   const [featuredStore, ...rowStores] = visible;
 
   const storeHref = (s: Store) => `/stores/${s.slug || s._id}`;
-
-  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
 
   return (
     <div className={styles.page}>
@@ -180,10 +169,6 @@ export default function StoresPage() {
           </button>
         )}
       </section>
-
-      <div className={styles.tabBarWrap}>
-        <TabBar active="buscar" onNavigate={handleTabNavigate} />
-      </div>
     </div>
   );
 }

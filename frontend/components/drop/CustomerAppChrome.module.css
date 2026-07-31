@@ -1,0 +1,23 @@
+/* Dock global do app do cliente — StickyCart + TabBar fixos na VIEWPORT.
+ *
+ * Renderizado no _app FORA do <PageTransition>: qualquer ancestral com
+ * transform/filter/will-change vira "containing block" e faz o
+ * position:fixed dos filhos grudar nesse container (que tem a altura do
+ * conteúdo) em vez da tela — por isso a barra "descia junto com a rolagem".
+ * Aqui, sem ancestral transformado, os filhos fixos grudam na viewport.
+ *
+ * O wrapper só carrega as CSS vars de fonte (next/font) e não participa do
+ * layout (filhos são todos position:fixed), então não empurra o conteúdo.
+ */
+
+.dock {
+  /* apenas escopo para --font-inter / --font-space-grotesk */
+}
+
+.tabBarWrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+}
