@@ -18,7 +18,11 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
 
   const selectArea = async (role: Role) => {
     if (role === activeRole) return;
-    try { await switchRole(role); } catch { /* backend valida */ }
+    try {
+      await switchRole(role);
+    } catch {
+      return; // troca falhou: não navega (backend é a fonte de verdade)
+    }
     onNavigate?.();
     router.push(ROLE_HOME[role]);
   };

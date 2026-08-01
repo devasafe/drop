@@ -41,4 +41,11 @@ describe('AccountMenu', () => {
     fireEvent.click(screen.getByText('Sair'));
     expect(logout).toHaveBeenCalled();
   });
+
+  it('clicar no card da role ativa não troca nem navega', () => {
+    render(<AccountMenu />);
+    fireEvent.click(screen.getByRole('button', { name: /Cliente.*ATUAL/i }));
+    expect(switchRole).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
 });
