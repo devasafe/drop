@@ -7,13 +7,17 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import { useOrders, useNotifications } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import { Package, FileText } from 'lucide-react';
+import { Package, FileText, MapPin } from 'lucide-react';
 import { orderStatusPill } from '../lib/orderStatus';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusPill } from '../components/ui/StatusPill';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PriceTag, formatBRL } from '../components/ui/PriceTag';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Chip } from '../components/ui/Chip';
+import { Tag } from '../components/ui/Tag';
 import styles from './UserDashboard.module.css';
 
 const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
@@ -149,7 +153,7 @@ export default function UserDashboard() {
 
             {/* Sidebar */}
             {user && (
-              <div className={styles.sidebar}>
+              <Card className={styles.sidebar}>
                 {/* Avatar */}
                 <div className={styles.avatarSection}>
                   {user.photo ? (
@@ -185,43 +189,36 @@ export default function UserDashboard() {
 
                 {/* Actions */}
                 <div className={styles.sidebarActions}>
-                  <button className={styles.btnEditProfile}>Editar Perfil</button>
-                  <button className={styles.btnChangePassword}>Alterar Senha</button>
+                  <Button variant="ghost" onClick={() => router.push('/user-profile')}>Editar perfil</Button>
+                  <Button variant="ghost" onClick={() => router.push('/editar-conta')}>Editar dados</Button>
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Main content */}
             <div className={styles.mainContent}>
 
               {/* Select de seção — visível apenas em tablet/mobile via CSS */}
-              <select
-                className={styles.tabsMobile}
-                value={activeTab}
-                onChange={e => setActiveTab(e.target.value)}
-              >
-                <option value="pending">Em Andamento ({pendingOrders.length})</option>
-                <option value="addresses">Endereços ({addresses.length})</option>
-                <option value="history">Histórico ({completedOrders.length})</option>
-              </select>
+              <div className={styles.tabsMobile}>
+                <Select
+                  value={activeTab}
+                  onChange={setActiveTab}
+                  options={[
+                    { value: 'pending', label: `Em Andamento (${pendingOrders.length})` },
+                    { value: 'addresses', label: `Endereços (${addresses.length})` },
+                    { value: 'history', label: `Histórico (${completedOrders.length})` },
+                  ]}
+                />
+              </div>
 
-              {/* Tabs */}
+              {/* Tabs (Chip do DS) */}
               <div className={styles.tabs}>
                 {[
-                  { id: 'pending',   label: 'Em Andamento', count: pendingOrders.length },
-                  { id: 'addresses', label: 'Endereços',    count: addresses.length },
-                  { id: 'history',   label: 'Histórico',    count: completedOrders.length },
+                  { id: 'pending',   label: `Em Andamento (${pendingOrders.length})` },
+                  { id: 'addresses', label: `Endereços (${addresses.length})` },
+                  { id: 'history',   label: `Histórico (${completedOrders.length})` },
                 ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`${styles.tab} ${activeTab === tab.id ? styles.tabActive : ''}`}
-                  >
-                    {tab.label}
-                    <span className={`${styles.tabCount} ${activeTab === tab.id ? styles.tabCountActive : ''}`}>
-                      {tab.count}
-                    </span>
-                  </button>
+                  <Chip key={tab.id} label={tab.label} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
                 ))}
               </div>
 
@@ -272,8 +269,10 @@ export default function UserDashboard() {
               {activeTab === 'addresses' && (
                 <div>
                   <div className={styles.addressHeader}>
-                    <h2 className={styles.addressTitle}>Seus Endereços</h2>
-                    <button
+                    <h2 className={styles.addressTitle}>Seus endereços</h2>
+                    <Button
+                      variant={showAddAddress ? 'ghost' : 'primary'}
+                      size="sm"
                       onClick={() => {
                         if (showAddAddress) {
                           setEditingAddress(null);
@@ -281,19 +280,13 @@ export default function UserDashboard() {
                         }
                         setShowAddAddress(!showAddAddress);
                       }}
-                      className={showAddAddress ? styles.btnAddAddressCancel : styles.btnAddAddress}
                     >
-                      {showAddAddress ? '✕ Fechar' : '+ Novo Endereço'}
-                    </button>
+                      {showAddAddress ? 'Fechar' : 'Novo endereço'}
+                    </Button>
                   </div>
 
                   {addresses.length === 0 && !showAddAddress && (
-                    <div className={styles.emptyState}>
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={styles.emptyIcon}>
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                      </svg>
-                      <p className={styles.emptyTitle}>Nenhum endereço cadastrado</p>
-                    </div>
+                    <EmptyState icon={<MapPin />} title="Nenhum endereço cadastrado" description="Adicione um endereço para receber seus pedidos." />
                   )}
 
                   {/* Formulário adicionar/editar */}
@@ -333,59 +326,19 @@ export default function UserDashboard() {
                         }
                       }}>
                         <div className={styles.formGrid2}>
-                          <input
-                            placeholder="Apelido (ex: Casa)"
-                            value={addressForm.label}
-                            onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
-                            className={styles.formInput}
-                          />
-                          <input
-                            required
-                            placeholder="CEP"
-                            value={addressForm.zip}
-                            onChange={(e) => setAddressForm({ ...addressForm, zip: e.target.value })}
-                            className={styles.formInput}
-                          />
+                          <Input placeholder="Apelido (ex: Casa)" value={addressForm.label} onChange={(v) => setAddressForm({ ...addressForm, label: v })} />
+                          <Input placeholder="CEP" value={addressForm.zip} onChange={(v) => setAddressForm({ ...addressForm, zip: v })} />
                         </div>
 
                         <div className={styles.formGrid21}>
-                          <input
-                            required
-                            placeholder="Rua"
-                            value={addressForm.street}
-                            onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })}
-                            className={styles.formInput}
-                          />
-                          <input
-                            required
-                            placeholder="Número"
-                            value={addressForm.number}
-                            onChange={(e) => setAddressForm({ ...addressForm, number: e.target.value })}
-                            className={styles.formInput}
-                          />
+                          <Input placeholder="Rua" value={addressForm.street} onChange={(v) => setAddressForm({ ...addressForm, street: v })} />
+                          <Input placeholder="Número" value={addressForm.number} onChange={(v) => setAddressForm({ ...addressForm, number: v })} />
                         </div>
 
                         <div className={styles.formGrid3}>
-                          <input
-                            placeholder="Bairro"
-                            value={addressForm.neighborhood}
-                            onChange={(e) => setAddressForm({ ...addressForm, neighborhood: e.target.value })}
-                            className={styles.formInput}
-                          />
-                          <input
-                            required
-                            placeholder="Cidade"
-                            value={addressForm.city}
-                            onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                            className={styles.formInput}
-                          />
-                          <input
-                            placeholder="UF"
-                            value={addressForm.state}
-                            onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value.toUpperCase() })}
-                            maxLength={2}
-                            className={styles.formInput}
-                          />
+                          <Input placeholder="Bairro" value={addressForm.neighborhood} onChange={(v) => setAddressForm({ ...addressForm, neighborhood: v })} />
+                          <Input placeholder="Cidade" value={addressForm.city} onChange={(v) => setAddressForm({ ...addressForm, city: v })} />
+                          <Input placeholder="UF" value={addressForm.state} onChange={(v) => setAddressForm({ ...addressForm, state: v.toUpperCase() })} />
                         </div>
 
                         {/* Checkbox padrão */}
@@ -433,8 +386,8 @@ export default function UserDashboard() {
                         )}
 
                         <div className={styles.formButtons}>
-                          <button type="submit" className={styles.btnSaveAddress}>Salvar Endereço</button>
-                          <button type="button" onClick={() => { setEditingAddress(null); setShowAddAddress(false); }} className={styles.btnCancelForm}>Cancelar</button>
+                          <Button type="submit" variant="primary">Salvar endereço</Button>
+                          <Button type="button" variant="ghost" onClick={() => { setEditingAddress(null); setShowAddAddress(false); }}>Cancelar</Button>
                         </div>
                       </form>
                     </div>
@@ -445,7 +398,7 @@ export default function UserDashboard() {
                     {addresses.map((addr, idx) => {
                       const isDefault = user?.mainAddress && (user.mainAddress._id === addr._id || user.mainAddress === addr._id || user.mainAddress === idx);
                       return (
-                        <div key={addr._id || idx} className={`${styles.addressCard} ${isDefault ? styles.addressCardDefault : ''}`}>
+                        <Card key={addr._id || idx} className={`${styles.addressCard} ${isDefault ? styles.addressCardDefault : ''}`}>
                           <div className={styles.addressCardTop}>
                             <div>
                               <div className={styles.addressLabel}>
@@ -456,60 +409,35 @@ export default function UserDashboard() {
                                 {addr.city} - {addr.state}, {addr.cep || addr.zip}
                               </div>
                             </div>
-                            {isDefault && (
-                              <div className={styles.defaultBadge}>Padrão</div>
-                            )}
+                            {isDefault && <Tag>Padrão</Tag>}
                           </div>
                           <div className={styles.addressActions}>
-                            <button
-                              onClick={() => {
-                                setEditingAddress({ ...addr, idx });
-                                setAddressForm({
-                                  label: addr.label || '',
-                                  street: addr.street || '',
-                                  number: addr.number || '',
-                                  neighborhood: addr.neighborhood || '',
-                                  city: addr.city || '',
-                                  state: addr.state || '',
-                                  zip: addr.cep || addr.zip || '',
-                                  latitude: addr.latitude || '',
-                                  longitude: addr.longitude || '',
-                                });
-                                setShowAddAddress(true);
-                              }}
-                              className={styles.btnAddrEdit}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (!window.confirm('Remover este endereço?')) return;
-                                try {
-                                  await api.delete(`/user/addresses/${idx}`);
-                                  setAddresses(addresses.filter((_, i) => i !== idx));
-                                } catch (err) {
-                                  alert('Erro ao remover endereço');
-                                }
-                              }}
-                              className={styles.btnAddrDelete}
-                            >
-                              Remover
-                            </button>
-                            <button
-                              onClick={async () => {
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setEditingAddress({ ...addr, idx });
+                              setAddressForm({
+                                label: addr.label || '', street: addr.street || '', number: addr.number || '',
+                                neighborhood: addr.neighborhood || '', city: addr.city || '', state: addr.state || '',
+                                zip: addr.cep || addr.zip || '', latitude: addr.latitude || '', longitude: addr.longitude || '',
+                              });
+                              setShowAddAddress(true);
+                            }}>Editar</Button>
+                            <Button variant="ghost" size="sm" onClick={async () => {
+                              if (!window.confirm('Remover este endereço?')) return;
+                              try {
+                                await api.delete(`/user/addresses/${idx}`);
+                                setAddresses(addresses.filter((_, i) => i !== idx));
+                              } catch { alert('Erro ao remover endereço'); }
+                            }}>Remover</Button>
+                            {!isDefault && (
+                              <Button variant="ghost" size="sm" onClick={async () => {
                                 try {
                                   await api.post('/user/addresses/set-default', { addressId: addr._id || idx });
                                   setUser((prev: any) => ({ ...prev, mainAddress: addr }));
-                                } catch (err) {
-                                  alert('Erro ao definir endereço padrão');
-                                }
-                              }}
-                              className={styles.btnAddrDefault}
-                            >
-                              Padrão
-                            </button>
+                                } catch { alert('Erro ao definir endereço padrão'); }
+                              }}>Tornar padrão</Button>
+                            )}
                           </div>
-                        </div>
+                        </Card>
                       );
                     })}
                   </div>
