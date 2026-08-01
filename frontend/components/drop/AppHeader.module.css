@@ -9,6 +9,13 @@
   justify-content: space-between;
 }
 
+.logoImg {
+  height: 28px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
+
 .actions {
   display: flex;
   align-items: center;
