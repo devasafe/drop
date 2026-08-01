@@ -1,43 +1,22 @@
 import { useContext, useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import AuthContext from '../../contexts/AuthContext';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
-import Icon, { IconName } from '../../components/Icon';
+import Icon from '../../components/Icon';
 import { useDeliveries } from '../../hooks/useSync';
 import dash from '../StoreDashboard.module.css';
 import styles from './MotoboyIndex.module.css';
 import OnboardingResumeBanner from '../../components/OnboardingResumeBanner';
 
-const NAV_ITEMS: { href: string; label: string; icon: IconName }[] = [
-  { href: '/motoboy',              label: 'Entregas',      icon: 'package' },
-  { href: '/motoboy/ongoing',      label: 'Em Andamento',  icon: 'truck' },
-  { href: '/motoboy/history',      label: 'Histórico',     icon: 'clipboard' },
-  { href: '/motoboy/wallet',       label: 'Minha Carteira', icon: 'wallet' },
-  { href: '/motoboy/gamification', label: 'Gamificação',   icon: 'star' },
-  { href: '/motoboy/ranking',      label: 'Ranking',       icon: 'award' },
-  { href: '/motoboy/beneficios',   label: 'Benefícios',    icon: 'gift' },
-  { href: '/motoboy/profile',      label: 'Perfil',        icon: 'user' },
-];
-
-const ACCOUNT_ITEMS: { href: string; label: string; icon: IconName }[] = [
-  { href: '/editar-conta', label: 'Editar meus dados', icon: 'settings' },
-  { href: '/suporte',      label: 'Suporte',           icon: 'headphones' },
-];
-
 export default function MotoboyPage() {
   useRequireAuth(['motoboy']);
   const { token, user } = useContext(AuthContext);
-  const router = useRouter();
   const { deliveries, loading, setDeliveries } = useDeliveries();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [takenMsg, setTakenMsg] = useState<string | null>(null);
   const [gpsDenied, setGpsDenied] = useState(false);
   const lastSentRef = useRef(0);
-
-  const go = (href: string) => { setSidebarOpen(false); router.push(href); };
 
   // Re-busca o pool (a entrega aceita some dos outros; e o raio cresce com o tempo).
   const refetchPool = async () => {
@@ -104,62 +83,10 @@ export default function MotoboyPage() {
     <ProtectedRoute required_role="motoboy">
       <div className={dash.dashLayout}>
 
-        {/* ═══ SIDEBAR ═══ */}
-        <aside className={`${dash.sidebar} ${sidebarOpen ? dash.sidebarOpen : ''}`}>
-          <div className={dash.sidebarHeader}>
-            <div className={dash.sidebarLogoRow}>
-              <div className={dash.sidebarLogoIcon}><Icon name="motorcycle" size={16} /></div>
-              <span className={dash.sidebarLogo}>DROP MOTOBOY</span>
-            </div>
-            <p className={dash.sidebarSubtitle}>Partner Dashboard</p>
-          </div>
-
-          {user && (
-            <div className={dash.sidebarStoreInfo}>
-              <div className={dash.sidebarStoreName}>{user.name}</div>
-            </div>
-          )}
-
-          <nav className={dash.sidebarNav}>
-            {NAV_ITEMS.map(item => (
-              <button
-                key={item.href}
-                onClick={() => go(item.href)}
-                className={`${dash.sidebarNavItem} ${router.pathname === item.href ? dash.sidebarNavItemActive : ''}`}
-              >
-                <Icon name={item.icon} size={16} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-
-            <div className={dash.sidebarNavLabel}>Conta</div>
-            {ACCOUNT_ITEMS.map(item => (
-              <button key={item.href} onClick={() => go(item.href)} className={dash.sidebarNavItem}>
-                <Icon name={item.icon} size={16} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          <div className={dash.sidebarActions}>
-            <button
-              onClick={() => go('/motoboy/request-withdrawal')}
-              className={`${dash.btnStoreAction} ${dash.btnStoreActionSuccess}`}
-            >
-              <Icon name="send" size={14} /> Solicitar Saque
-            </button>
-          </div>
-        </aside>
-
-        {sidebarOpen && <div className={dash.sidebarOverlay} onClick={() => setSidebarOpen(false)} />}
-
         {/* ═══ MAIN CONTENT ═══ */}
         <main className={dash.mainContent}>
           {/* Top Bar */}
           <div className={dash.topBar}>
-            <button className={dash.hamburgerBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <Icon name="menu" size={20} />
-            </button>
             <div className={dash.topBarTitle}>
               <h1 className={dash.pageTitle}>Painel do Motoboy</h1>
             </div>

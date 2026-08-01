@@ -7,6 +7,7 @@ import { CartProvider } from '../contexts/CartContext';
 import { OverlayProvider } from '../contexts/OverlayContext';
 import { ToastProvider } from '../components/ui/Toast';
 import Nav from '../components/Nav';
+import AppSidebar from '../components/nav/AppSidebar';
 import VerificationBanner from '../components/VerificationBanner';
 import Footer from '../components/Footer';
 import SeasonalBanner from '../components/SeasonalBanner';
@@ -80,6 +81,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <ToastProvider>
         <SeasonalThemeProvider>
         {!hideChrome && <Nav />}
+        {user && isDashboard && <AppSidebar />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main className={`${spaceGrotesk.variable} ${inter.variable}`} style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>

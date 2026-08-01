@@ -1,0 +1,163 @@
+.sidebar {
+  width: 256px;
+  position: fixed;
+  top: 60px;
+  bottom: 0;
+  left: 0;
+  background: #0a0a0a;
+  border-right: 1px solid rgba(74, 68, 85, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow-y: auto;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0, 1);
+}
+
+.sidebarHeader {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid rgba(74, 68, 85, 0.1);
+}
+
+.sidebarLogoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sidebarLogoIcon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sidebarLogo {
+  font-family: var(--drop-font-display);
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--drop-white);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.sidebarSubtitle {
+  font-size: 10px;
+  color: rgba(204, 195, 215, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin: 0;
+}
+
+.sidebarStoreInfo {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(74, 68, 85, 0.1);
+}
+
+.sidebarStoreName {
+  font-family: var(--drop-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--drop-white);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
+.sidebarPlanBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: rgba(108, 43, 217, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--drop-purple-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sidebarNav {
+  padding: 12px 0;
+}
+
+.sidebarNavLabel {
+  padding: 16px 24px 6px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(74, 68, 85, 0.1);
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(204, 195, 215, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.sidebarNavItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 24px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  color: rgba(204, 195, 215, 0.6);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--drop-font-body);
+  letter-spacing: 0.02em;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.sidebarNavItem:hover {
+  background: rgba(28, 27, 27, 0.5);
+  color: var(--drop-white);
+}
+
+.sidebarNavItemActive {
+  border-left-color: var(--drop-purple-2);
+  color: var(--drop-purple-2);
+  background: linear-gradient(90deg, rgba(108, 43, 217, 0.08), transparent);
+}
+
+.sidebarActions {
+  padding: 16px 16px 24px;
+  border-top: 1px solid rgba(74, 68, 85, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebarOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 99;
+}
+
+/* ---- RESPONSIVE ----
+   Não incluído nas linhas 347–490 do StoreDashboard.module.css original
+   (essas regras vivem no bloco `@media (max-width: 1024px)` no final do
+   arquivo, junto com regras de outras seções). Copiadas aqui (verbatim,
+   apenas os seletores .sidebar/.sidebarOpen/.sidebarOverlay) porque sem
+   elas a sidebar fica sempre visível e sobreposta ao conteúdo no mobile,
+   contrariando a exigência "Mobile: drawer" deste componente. */
+@media (max-width: 1024px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+  .sidebarOverlay {
+    display: block;
+  }
+}
