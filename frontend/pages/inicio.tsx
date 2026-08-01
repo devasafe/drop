@@ -9,6 +9,8 @@ import {
   useOrders,
   useProducts,
   useStores,
+  useTopStores,
+  useFeaturedStores,
 } from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
 
@@ -16,7 +18,10 @@ import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
 import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
 import { StoreCard } from '../components/drop/StoreCard';
+import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
+import { rankStores } from '../lib/catalogRanking';
+import { parseCoords } from '../lib/geo';
 import { FreteBanner } from '../components/drop/FreteBanner';
 import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
@@ -66,6 +71,8 @@ export default function Inicio() {
   const { addresses, loading: addressesLoading } = useAddresses();
   const { orders } = useOrders();
   const { stores, loading: storesLoading } = useStores();
+  const { stores: topStores } = useTopStores();
+  const { stores: featuredStores, loading: featuredLoading } = useFeaturedStores();
   const { products, loading: productsLoading } = useProducts();
 
   const [query, setQuery] = useState('');
@@ -86,7 +93,23 @@ export default function Inicio() {
     [orders, user]
   );
 
-  const storeCards = useMemo(() => stores.map(mapStore), [stores]);
+  const userCoords = useMemo(
+    () => (defaultAddress ? parseCoords(defaultAddress.latitude, defaultAddress.longitude) : null),
+    [defaultAddress]
+  );
+
+  // Banners do carrossel: lojas premium (Plano 3) com featuredBannerUrl.
+  const featuredItems = useMemo(
+    () => featuredStores.map((s: any) => ({ id: s._id, store: mapStore(s) })),
+    [featuredStores]
+  );
+
+  // Lojas perto de você: mais vendidas, premium primeiro + raio 20km.
+  // Sem dados de vendas, cai nas lojas gerais (mesma regra de ranking).
+  const rankedStores = useMemo(
+    () => rankStores(topStores.length ? topStores : stores, userCoords).slice(0, 5),
+    [topStores, stores, userCoords]
+  );
 
   const offerProducts = useMemo(() => products.slice(0, 8), [products]);
 
@@ -177,17 +200,17 @@ export default function Inicio() {
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Lojas perto de você</h2>
           <button type="button" className={styles.sectionLink} onClick={() => router.push('/stores')}>
-            Ver todas
+            Ver mais
           </button>
         </div>
 
-        {storesLoading ? (
+        {storesLoading || featuredLoading ? (
           <div className={styles.storesSkeleton}>
             <Skeleton height={130} radius={20} />
             <Skeleton height={58} radius={14} />
             <Skeleton height={58} radius={14} />
           </div>
-        ) : storeCards.length === 0 ? (
+        ) : featuredItems.length === 0 && rankedStores.length === 0 ? (
           <EmptyState
             icon={<StoreIcon />}
             title="Nenhuma loja por perto"
@@ -195,24 +218,26 @@ export default function Inicio() {
           />
         ) : (
           <>
-            <StoreCard
-              variant="destaque"
-              store={storeCards[0]}
-              onClick={() => router.push(`/stores/${stores[0]._id}`)}
-            />
-            <div className={styles.storeRows}>
-              {storeCards.slice(1).map((s, i) => {
-                const raw = stores[i + 1];
-                return (
+            {featuredItems.length > 0 && (
+              <div className={styles.carouselWrap}>
+                <PremiumCarousel
+                  items={featuredItems}
+                  onSelect={(id) => router.push(`/stores/${id}`)}
+                />
+              </div>
+            )}
+            {rankedStores.length > 0 && (
+              <div className={styles.storeRows}>
+                {rankedStores.map((s: any) => (
                   <StoreCard
-                    key={raw._id}
+                    key={s._id}
                     variant="resultado"
-                    store={s}
-                    onClick={() => router.push(`/stores/${raw._id}`)}
+                    store={mapStore(s)}
+                    onClick={() => router.push(`/stores/${s._id}`)}
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </section>
