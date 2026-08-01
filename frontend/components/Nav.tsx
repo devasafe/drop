@@ -5,7 +5,7 @@ import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
 import AccountMenu from './nav/AccountMenu';
 import { getNavItems, Role } from '../lib/navConfig';
-import Icon, { IconName } from './Icon';
+import Icon from './Icon';
 import styles from './Nav.module.css';
 
 // Badge numérico reutilizável (chip roxo). Não renderiza nada se count <= 0.

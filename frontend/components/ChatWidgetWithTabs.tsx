@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 import Icon from './Icon';
 import { notify } from '../lib/notify';
+import { useOverlay } from '../contexts/OverlayContext';
 
 interface Message {
   _id?: string;
@@ -52,8 +53,29 @@ export default function ChatWidgetWithTabs({
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ [conversationId: string]: string }>({});
   const { on, emit } = useSocket();
+  const overlay = useOverlay();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
+
+  // O painel do chat só "cobre a tela" quando está aberto e não minimizado
+  // (minimizado vira apenas a bolha flutuante). Reflete esse estado no overlay
+  // manager pra abrir o chat fechar AccountMenu/drawer/sidebar, e vice-versa.
+  const chatVisible = isOpen && !isMinimized;
+  useEffect(() => {
+    if (chatVisible) overlay.open('chat');
+    else overlay.close('chat');
+    // overlay.open/close são estáveis (useCallback); depender só de chatVisible
+    // evita loop de feedback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatVisible]);
+  useEffect(() => {
+    // Coerência: se outro overlay foi aberto em outro lugar enquanto o chat
+    // estava visível, minimiza o chat (mesmo efeito do botão "Minimizar").
+    if (chatVisible && overlay.active && overlay.active !== 'chat') {
+      setIsMinimized(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay.active]);
 
   // Refs com o estado atual da janela (para o listener de mensagens saber se o
   // usuário já está vendo a conversa e não notificar à toa)
