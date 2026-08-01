@@ -916,6 +916,19 @@ export const useTopProducts = () => {
   return { products, loading };
 };
 
+/** Avisos da DROP (banners ativos) — carrossel da home. */
+export const usePromoBanners = () => {
+  const [banners, setBanners] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/banners')
+      .then((r) => setBanners(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setBanners([]))
+      .finally(() => setLoading(false));
+  }, []);
+  return { banners, loading };
+};
+
 /** Lojas em destaque (Plano 3 com featuredBannerUrl) — banners do carrossel. */
 export const useFeaturedStores = () => {
   const [stores, setStores] = useState<any[]>([]);

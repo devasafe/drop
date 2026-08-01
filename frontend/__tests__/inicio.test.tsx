@@ -22,6 +22,7 @@ jest.mock('../hooks/useSync', () => ({
   useStores: () => ({ stores, loading: false }),
   useTopStores: () => ({ stores: topStores, loading: false }),
   useFeaturedStores: () => ({ stores: featuredStores, loading: false }),
+  usePromoBanners: () => ({ banners: [], loading: false }),
   useProducts: () => ({ products: [], loading: false }),
 }));
 

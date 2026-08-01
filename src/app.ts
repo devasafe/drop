@@ -30,6 +30,7 @@ import couponRoutes from './routes/coupons';
 import rolePermissionsRoutes from './routes/role-permissions';
 import supportRoutes from './routes/support';
 import broadcastRoutes from './routes/broadcasts';
+import promoBannerRoutes from './routes/promoBanners';
 import rankingPrizesRoutes from './routes/ranking-prizes';
 import analyticsRoutes from './routes/analytics'; // ✅ NOVO - Analytics
 import walletAccessRoutes from './routes/walletAccess'; // ✅ NOVO - Wallet access requests
@@ -142,6 +143,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/role-permissions', rolePermissionsRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/broadcasts', broadcastRoutes);
+app.use('/api/banners', promoBannerRoutes);
 app.use('/api/ranking-prizes', rankingPrizesRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/wallet-access', walletAccessRoutes);
