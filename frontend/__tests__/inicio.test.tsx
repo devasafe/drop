@@ -34,11 +34,10 @@ describe('/inicio', () => {
     expect(screen.getByRole('tablist', { name: /lojas em destaque/i })).toBeInTheDocument();
   });
 
-  it('lista as lojas mais vendidas com premium primeiro', () => {
+  it('lista só lojas premium (Plano 3) — loja comum não aparece', () => {
     render(<Inicio />);
-    const names = screen.getAllByText(/Premium Top|Loja Comum/).map((n) => n.textContent);
-    expect(names[0]).toBe('Premium Top');
-    expect(names).toContain('Loja Comum');
+    expect(screen.getByText('Premium Top')).toBeInTheDocument();
+    expect(screen.queryByText('Loja Comum')).toBeNull();
   });
 
   it('Ver mais leva para /stores', () => {

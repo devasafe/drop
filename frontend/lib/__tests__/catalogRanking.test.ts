@@ -18,6 +18,14 @@ describe('geo/catalogRanking', () => {
     ];
     expect(rankStores(stores, coords, { radiusKm: 20 }).map((s) => s._id)).toEqual(['b', 'a']);
   });
+  it('rankStores premiumOnly: descarta loja não-premium', () => {
+    const stores = [
+      { _id: 'a', plan: 1, ...near },
+      { _id: 'b', plan: 3, ...near },
+      { _id: 'c', plan: 3, ...near },
+    ];
+    expect(rankStores(stores, coords, { radiusKm: 20, premiumOnly: true }).map((s) => s._id)).toEqual(['b', 'c']);
+  });
   it('rankStores: sem coords do usuário não filtra por proximidade', () => {
     const stores = [{ _id: 'a', plan: 1, ...far }, { _id: 'b', plan: 3, ...far }];
     expect(rankStores(stores, null, { radiusKm: 20 }).map((s) => s._id)).toEqual(['b', 'a']);

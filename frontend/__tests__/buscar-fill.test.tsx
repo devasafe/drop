@@ -27,7 +27,8 @@ describe('Buscar — fallback da vitrine (sem vendas)', () => {
     render(<BuscarPage />);
     expect(screen.getAllByText('Loja Premium').length).toBeGreaterThan(0);
     expect(screen.getByText('Produto Premium')).toBeInTheDocument();
-    // "Mais vendidos" é premium-only: produto de loja comum não entra
+    // Só premium (Plano 3): loja e produto comuns não entram
+    expect(screen.queryByText('Loja Comum')).toBeNull();
     expect(screen.queryByText('Produto Comum')).toBeNull();
   });
 });
