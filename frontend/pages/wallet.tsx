@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Receipt } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -6,6 +7,10 @@ import { useAutoRefetch } from '../hooks/useAutoRefetch';
 import { useToast } from '../components/ui/Toast';
 import { formatBRL } from '../components/ui/PriceTag';
 import { Sheet } from '../components/ui/Sheet';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Chip } from '../components/ui/Chip';
+import { EmptyState } from '../components/ui/EmptyState';
 import styles from './Wallet.module.css';
 
 interface WalletData {
@@ -28,8 +33,8 @@ interface HistoryItem {
 type CreditMethod = 'pix' | 'credit_card' | 'debit_card';
 const METHODS: { id: CreditMethod; label: string }[] = [
   { id: 'pix', label: 'PIX' },
-  { id: 'credit_card', label: 'Cartão de crédito' },
-  { id: 'debit_card', label: 'Cartão de débito' },
+  { id: 'credit_card', label: 'Crédito' },
+  { id: 'debit_card', label: 'Débito' },
 ];
 
 export default function WalletPage() {
@@ -148,8 +153,8 @@ export default function WalletPage() {
 
         {/* Ações */}
         <div className={styles.actions}>
-          <button type="button" className={styles.actionBtn} onClick={() => setCreditOpen(true)}>Carregar</button>
-          <button type="button" className={styles.actionBtnGhost} onClick={() => setWithdrawOpen(true)}>Sacar</button>
+          <Button variant="primary" onClick={() => setCreditOpen(true)}>Carregar</Button>
+          <Button variant="ghost" onClick={() => setWithdrawOpen(true)}>Sacar</Button>
         </div>
 
         {/* Extrato */}
@@ -158,7 +163,7 @@ export default function WalletPage() {
           {loading ? (
             <p className={styles.muted}>Carregando…</p>
           ) : history.length === 0 ? (
-            <p className={styles.empty}>Sem movimentações ainda.</p>
+            <EmptyState icon={<Receipt />} title="Sem movimentações ainda" description="Suas entradas e saídas aparecem aqui." />
           ) : (
             <ul className={styles.txList}>
               {history.map((tx, i) => (
@@ -183,31 +188,14 @@ export default function WalletPage() {
         <div className={styles.form}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Valor</span>
-            <input
-              className={styles.input}
-              type="number"
-              inputMode="decimal"
-              aria-label="Valor"
-              placeholder="0,00"
-              value={creditAmount}
-              onChange={(e) => setCreditAmount(e.target.value)}
-            />
+            <Input value={creditAmount} onChange={setCreditAmount} placeholder="0,00" type="number" inputMode="decimal" aria-label="Valor" />
           </label>
           <div className={styles.methodRow}>
             {METHODS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className={`${styles.methodBtn} ${creditMethod === m.id ? styles.methodOn : ''}`}
-                onClick={() => setCreditMethod(m.id)}
-              >
-                {m.label}
-              </button>
+              <Chip key={m.id} label={m.label} active={creditMethod === m.id} onClick={() => setCreditMethod(m.id)} />
             ))}
           </div>
-          <button type="button" className={styles.submitBtn} disabled={loadingAction} onClick={handleCredit}>
-            {loadingAction ? 'Processando…' : 'Confirmar carregamento'}
-          </button>
+          <Button variant="primary" loading={loadingAction} onClick={handleCredit}>Confirmar carregamento</Button>
         </div>
       </Sheet>
 
@@ -216,32 +204,25 @@ export default function WalletPage() {
         <div className={styles.form}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Valor</span>
-            <input className={styles.input} type="number" inputMode="decimal" aria-label="Valor" placeholder="0,00"
-              value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
+            <Input value={withdrawAmount} onChange={setWithdrawAmount} placeholder="0,00" type="number" inputMode="decimal" aria-label="Valor" />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Banco</span>
-            <input className={styles.input} aria-label="Banco" value={bankData.banco}
-              onChange={(e) => setBankData({ ...bankData, banco: e.target.value })} />
+            <Input value={bankData.banco} onChange={(v) => setBankData({ ...bankData, banco: v })} aria-label="Banco" />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Agência</span>
-            <input className={styles.input} aria-label="Agência" value={bankData.agencia}
-              onChange={(e) => setBankData({ ...bankData, agencia: e.target.value })} />
+            <Input value={bankData.agencia} onChange={(v) => setBankData({ ...bankData, agencia: v })} aria-label="Agência" />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Conta</span>
-            <input className={styles.input} aria-label="Conta" value={bankData.conta}
-              onChange={(e) => setBankData({ ...bankData, conta: e.target.value })} />
+            <Input value={bankData.conta} onChange={(v) => setBankData({ ...bankData, conta: v })} aria-label="Conta" />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>CPF</span>
-            <input className={styles.input} aria-label="CPF" value={bankData.cpf}
-              onChange={(e) => setBankData({ ...bankData, cpf: e.target.value })} />
+            <Input value={bankData.cpf} onChange={(v) => setBankData({ ...bankData, cpf: v })} aria-label="CPF" />
           </label>
-          <button type="button" className={styles.submitBtn} disabled={loadingAction} onClick={handleWithdraw}>
-            {loadingAction ? 'Processando…' : 'Solicitar saque'}
-          </button>
+          <Button variant="primary" loading={loadingAction} onClick={handleWithdraw}>Solicitar saque</Button>
         </div>
       </Sheet>
     </ProtectedRoute>
