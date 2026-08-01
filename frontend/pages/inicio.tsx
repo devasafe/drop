@@ -6,15 +6,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import {
   useAddresses,
-  useNotifications,
   useOrders,
   useProducts,
   useStores,
 } from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
 
-import { AppHeader } from '../components/drop/AppHeader';
-import AccountMenuButton from '../components/nav/AccountMenuButton';
 import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
 import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
@@ -81,7 +78,6 @@ export default function Inicio() {
   const { add } = useCart();
 
   const { addresses, loading: addressesLoading } = useAddresses();
-  const { unreadCount } = useNotifications();
   const { orders } = useOrders();
   const { stores, loading: storesLoading } = useStores();
   const { products, loading: productsLoading } = useProducts();
@@ -144,12 +140,6 @@ export default function Inicio() {
   return (
     <div className={styles.page}>
       <div className={styles.top}>
-        <AppHeader
-          notifications={unreadCount}
-          onBell={() => router.push('/notifications')}
-          accountSlot={<AccountMenuButton />}
-        />
-
         {!user ? (
           <AddressBar
             label="Entrar para"
