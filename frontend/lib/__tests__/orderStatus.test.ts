@@ -1,4 +1,4 @@
-import { orderStatusLabel, orderStatusTone } from '../orderStatus';
+import { orderStatusLabel, orderStatusTone, orderStatusPill } from '../orderStatus';
 
 describe('orderStatus', () => {
   it('rótulos legíveis pt-BR', () => {
@@ -17,5 +17,13 @@ describe('orderStatus', () => {
     expect(orderStatusTone('entregue')).toBe('done');
     expect(orderStatusTone('rejeitado')).toBe('cancelled');
     expect(orderStatusTone('zzz')).toBe('pending');
+  });
+  it('orderStatusPill mapeia para o StatusPill do DS', () => {
+    expect(orderStatusPill('entregue')).toBe('entregue');
+    expect(orderStatusPill('delivered')).toBe('entregue');
+    expect(orderStatusPill('rejeitado')).toBe('cancelado');
+    expect(orderStatusPill('cancelado')).toBe('cancelado');
+    expect(orderStatusPill('aguardando_motoboy')).toBe('em_entrega');
+    expect(orderStatusPill('criado')).toBe('em_entrega');
   });
 });
