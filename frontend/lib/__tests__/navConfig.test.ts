@@ -64,6 +64,28 @@ describe('navConfig', () => {
     expect(isItemActive(item, '/motoboy')).toBe(false);
   });
 
+  it('Buscar (route "/") fica ativo em /, /stores, /product e /produtos — não o Início', () => {
+    const items = getNavItems('cliente', () => true, false);
+    const activeLabel = (pathname: string) =>
+      items.find((i) => isItemActive(i, pathname))?.label;
+    expect(activeLabel('/')).toBe('Buscar');
+    expect(activeLabel('/stores')).toBe('Buscar');
+    expect(activeLabel('/stores/abc')).toBe('Buscar');
+    expect(activeLabel('/product/xyz')).toBe('Buscar');
+    expect(activeLabel('/produtos')).toBe('Buscar');
+    // Início só na própria rota, nunca em "/"
+    expect(activeLabel('/inicio')).toBe('Início');
+    expect(isItemActive(items.find((i) => i.label === 'Início')!, '/')).toBe(false);
+  });
+
+  it('Perfil fica ativo em /user-profile e /editar-conta (não só /minha-conta)', () => {
+    const items = getNavItems('cliente', () => true, false);
+    const perfil = items.find((i) => i.label === 'Perfil')!;
+    expect(isItemActive(perfil, '/minha-conta')).toBe(true);
+    expect(isItemActive(perfil, '/user-profile')).toBe(true);
+    expect(isItemActive(perfil, '/editar-conta')).toBe(true);
+  });
+
   it('resolve o estado ativo por ?tab= no dashboard do lojista (um item por vez)', () => {
     const items = getNavItems('lojista', () => true, false);
     const active = (pathname: string, query: Record<string, string>) =>
