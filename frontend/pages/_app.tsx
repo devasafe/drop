@@ -60,12 +60,19 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // /inicio, /stores, /stores/[id] e /product/[id] usam o próprio header +
   // TabBar do Design System (Fase 0/1), não o chrome de marketing (Nav
   // global + Footer).
-  const hideChrome =
+  // Páginas do cliente que têm a bottom-nav (TabBar) do design system.
+  const showBottomChrome =
     router.pathname === '/inicio' ||
     router.pathname === '/stores' ||
     router.pathname === '/stores/[id]' ||
     router.pathname === '/product/[id]';
-  const shouldShowFooter = !isDashboard && !hideChrome;
+  // Páginas que escondem a Nav global (usam header próprio do DS). O /inicio
+  // agora usa a Nav global; só /stores e /product mantêm header próprio.
+  const hideChrome =
+    router.pathname === '/stores' ||
+    router.pathname === '/stores/[id]' ||
+    router.pathname === '/product/[id]';
+  const shouldShowFooter = !isDashboard && !showBottomChrome;
 
   return (
     <SocketProvider enabled={!!user}>
@@ -98,7 +105,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {/* Chrome do app do cliente (TabBar + StickyCart) — fixo na viewport.
             Precisa ficar FORA do <main>/<PageTransition>: aquele container tem
             transform/filter, que quebra o position:fixed dos filhos. */}
-        {hideChrome && <CustomerAppChrome />}
+        {showBottomChrome && <CustomerAppChrome />}
 
         {shouldShowFooter && <Footer />}
         </SeasonalThemeProvider>
