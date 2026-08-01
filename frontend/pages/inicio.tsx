@@ -14,6 +14,7 @@ import {
 import { imageUrl } from '../lib/config';
 
 import { AppHeader } from '../components/drop/AppHeader';
+import AccountMenuButton from '../components/nav/AccountMenuButton';
 import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
 import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
@@ -146,7 +147,7 @@ export default function Inicio() {
         <AppHeader
           notifications={unreadCount}
           onBell={() => router.push('/notifications')}
-          onAvatar={() => router.push(user ? '/minha-conta' : '/login')}
+          accountSlot={<AccountMenuButton />}
         />
 
         {!user ? (
