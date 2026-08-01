@@ -56,7 +56,7 @@ export default function AppSidebar() {
             <div key={group || 'root'}>
               {group && <div className={styles.sidebarNavLabel}>{group}</div>}
               {gItems.map((it) => {
-                const active = isItemActive(it, router.pathname);
+                const active = isItemActive(it, router.pathname, router.query);
                 const count = badgeCount(it.badge);
                 return (
                   <a
