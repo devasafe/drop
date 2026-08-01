@@ -5,7 +5,7 @@ import { useCart } from '../contexts/CartContext';
 import { useStores, useProducts, useTopStores, useTopProducts, useAddresses } from '../hooks/useSync';
 import { mapStore } from '../lib/mapStore';
 import { filterStores, filterProducts, productCategories, mapProductCard } from '../lib/searchCatalog';
-import { rankStores, rankPremiumProducts } from '../lib/catalogRanking';
+import { rankStores, rankPremiumProducts, take } from '../lib/catalogRanking';
 import { parseCoords } from '../lib/geo';
 import { SearchField } from '../components/ui/SearchField';
 import { Button } from '../components/ui/Button';
@@ -14,23 +14,6 @@ import { CategoryRail } from '../components/drop/CategoryRail';
 import { StoreCard } from '../components/drop/StoreCard';
 import { ProductCard } from '../components/drop/ProductCard';
 import styles from './Buscar.module.css';
-
-/** Junta várias listas ranqueadas em ordem, dedup por _id, até n itens.
- * Camadas anteriores têm prioridade (ex.: perto antes de longe). */
-function take<T>(sources: T[][], n: number): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const list of sources) {
-    for (const x of list) {
-      const id = (x as any)?._id;
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      out.push(x);
-      if (out.length >= n) return out;
-    }
-  }
-  return out;
-}
 
 /** Buscar (/) — vitrine (mais vendidos, premium+perto) + busca por texto. */
 export default function BuscarPage() {
@@ -80,10 +63,10 @@ export default function BuscarPage() {
   // pra nunca ficar quase vazio num marketplace novo (bug "1 loja / 1 produto").
   const vitrineStores = useMemo(
     () => take([
-      rankStores(topStores, userCoords),
-      rankStores(stores, userCoords),
-      rankStores(topStores, null),
-      rankStores(stores, null),
+      rankStores(topStores, userCoords, { premiumOnly: true }),
+      rankStores(stores, userCoords, { premiumOnly: true }),
+      rankStores(topStores, null, { premiumOnly: true }),
+      rankStores(stores, null, { premiumOnly: true }),
     ], 5),
     [topStores, stores, userCoords],
   );

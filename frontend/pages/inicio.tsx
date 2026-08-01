@@ -20,7 +20,7 @@ import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker'
 import { StoreCard } from '../components/drop/StoreCard';
 import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
-import { rankStores } from '../lib/catalogRanking';
+import { rankStores, take } from '../lib/catalogRanking';
 import { parseCoords } from '../lib/geo';
 import { FreteBanner } from '../components/drop/FreteBanner';
 import { ProductCard } from '../components/drop/ProductCard';
@@ -104,10 +104,16 @@ export default function Inicio() {
     [featuredStores]
   );
 
-  // Lojas perto de você: mais vendidas, premium primeiro + raio 20km.
-  // Sem dados de vendas, cai nas lojas gerais (mesma regra de ranking).
+  // Lojas perto de você: SÓ lojas premium (Plano 3), mais vendidas + raio 20km.
+  // Preenche em camadas (mais vendidas perto → catálogo perto → sem raio) e
+  // nunca mostra loja não-premium.
   const rankedStores = useMemo(
-    () => rankStores(topStores.length ? topStores : stores, userCoords).slice(0, 5),
+    () => take([
+      rankStores(topStores, userCoords, { premiumOnly: true }),
+      rankStores(stores, userCoords, { premiumOnly: true }),
+      rankStores(topStores, null, { premiumOnly: true }),
+      rankStores(stores, null, { premiumOnly: true }),
+    ], 5),
     [topStores, stores, userCoords]
   );
 
