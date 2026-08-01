@@ -15,6 +15,23 @@ import { StoreCard } from '../components/drop/StoreCard';
 import { ProductCard } from '../components/drop/ProductCard';
 import styles from './Buscar.module.css';
 
+/** Junta várias listas ranqueadas em ordem, dedup por _id, até n itens.
+ * Camadas anteriores têm prioridade (ex.: perto antes de longe). */
+function take<T>(sources: T[][], n: number): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const list of sources) {
+    for (const x of list) {
+      const id = (x as any)?._id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(x);
+      if (out.length >= n) return out;
+    }
+  }
+  return out;
+}
+
 /** Buscar (/) — vitrine (mais vendidos, premium+perto) + busca por texto. */
 export default function BuscarPage() {
   const router = useRouter();
@@ -40,10 +57,10 @@ export default function BuscarPage() {
     return a ? parseCoords(a.latitude, a.longitude) : null;
   }, [addresses]);
 
-  // storeId → { latitude, longitude } (p/ proximidade dos produtos).
-  const coordsByStore = useMemo(() => {
+  // storeId → loja (coords p/ proximidade, plan p/ premium, name p/ o card).
+  const storeById = useMemo(() => {
     const m = new Map<string, any>();
-    (stores || []).forEach((s: any) => m.set(s._id, { latitude: s.latitude, longitude: s.longitude }));
+    (stores || []).forEach((s: any) => m.set(s._id, s));
     return m;
   }, [stores]);
   const storeName = useMemo(() => {
@@ -52,11 +69,32 @@ export default function BuscarPage() {
     return m;
   }, [stores]);
 
-  // Vitrine (query vazia): 5 lojas + 5 produtos, premium+perto+mais vendidos.
-  const vitrineStores = useMemo(() => rankStores(topStores, userCoords).slice(0, 5), [topStores, userCoords]);
+  // Produtos do catálogo com storePlan derivado (p/ preencher a vitrine premium).
+  const catalogPremium = useMemo(
+    () => (products || []).map((p: any) => ({ ...p, storePlan: storeById.get(p.storeId)?.plan })),
+    [products, storeById],
+  );
+
+  // Vitrine (query vazia): até 5 lojas + 5 produtos, premium+perto+mais vendidos.
+  // Preenche em camadas: mais vendidos perto → catálogo perto → (fallback) sem raio,
+  // pra nunca ficar quase vazio num marketplace novo (bug "1 loja / 1 produto").
+  const vitrineStores = useMemo(
+    () => take([
+      rankStores(topStores, userCoords),
+      rankStores(stores, userCoords),
+      rankStores(topStores, null),
+      rankStores(stores, null),
+    ], 5),
+    [topStores, stores, userCoords],
+  );
   const vitrineProducts = useMemo(
-    () => rankPremiumProducts(topProducts, coordsByStore, userCoords).slice(0, 5),
-    [topProducts, coordsByStore, userCoords],
+    () => take([
+      rankPremiumProducts(topProducts, storeById, userCoords),
+      rankPremiumProducts(catalogPremium, storeById, userCoords),
+      rankPremiumProducts(topProducts, storeById, null),
+      rankPremiumProducts(catalogPremium, storeById, null),
+    ], 5),
+    [topProducts, catalogPremium, storeById, userCoords],
   );
 
   // Busca por texto.
@@ -151,7 +189,7 @@ export default function BuscarPage() {
               <div className={styles.productList}>
                 {vitrineProducts.map((p: any) => (
                   <div key={p._id} className={styles.productItem} onClick={() => router.push(`/product/${p._id}`)}>
-                    <ProductCard variant="busca" product={mapProductCard(p, p.storeName)} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
+                    <ProductCard variant="busca" product={mapProductCard(p, p.storeName || storeName.get(p.storeId))} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
                   </div>
                 ))}
               </div>

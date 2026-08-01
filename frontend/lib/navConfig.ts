@@ -13,8 +13,9 @@ export interface NavItem {
   group?: string;
   permission?: string;
   badge?: BadgeKey;
-  /** Prefixo p/ estado ativo. Default = route. */
-  activeMatch?: string;
+  /** Prefixo(s) p/ estado ativo. Default = route. Aceita vários (ex.: Buscar
+   * cobre '/', '/stores' e '/product'). */
+  activeMatch?: string | string[];
 }
 
 export interface RoleArea {
@@ -47,10 +48,10 @@ export const ROLE_AREAS: RoleArea[] = [
 const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   cliente: [
     { label: 'Início',   icon: 'home',        route: '/inicio',         placement: ['bottomNav'] },
-    { label: 'Buscar',   icon: 'search',      route: '/',               placement: ['bottomNav'], activeMatch: '/stores' },
+    { label: 'Buscar',   icon: 'search',      route: '/',               placement: ['bottomNav'], activeMatch: ['/', '/stores', '/product', '/produtos'] },
     { label: 'Pedidos',  icon: 'receipt',     route: '/user-dashboard', placement: ['bottomNav'] },
     { label: 'Carteira', icon: 'wallet',      route: '/wallet',         placement: ['bottomNav'] },
-    { label: 'Perfil',   icon: 'user',        route: '/minha-conta',    placement: ['bottomNav'] },
+    { label: 'Perfil',   icon: 'user',        route: '/minha-conta',    placement: ['bottomNav'], activeMatch: ['/minha-conta', '/user-profile', '/editar-conta'] },
   ],
   lojista: [
     { label: 'Visão geral',        icon: 'chart-bar', route: '/seller/dashboard',            placement: ['sidebar', 'bottomNav'], group: 'Visão geral' },
@@ -127,8 +128,11 @@ export function isItemActive(
   pathname: string,
   query?: Record<string, string | string[] | undefined>,
 ): boolean {
-  const base = (item.activeMatch || item.route).split('?')[0];
-  const pathMatches = pathname === base || pathname.startsWith(base + '/');
+  const matches = Array.isArray(item.activeMatch)
+    ? item.activeMatch
+    : [item.activeMatch || item.route];
+  const bases = matches.map((m) => m.split('?')[0]);
+  const pathMatches = bases.some((base) => pathname === base || pathname.startsWith(base + '/'));
   if (!pathMatches) return false;
   // Parse tab from the route (where it's defined in config)
   const routeQs = item.route.split('?')[1];
