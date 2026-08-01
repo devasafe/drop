@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import React, { useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
@@ -27,35 +26,20 @@ function CountPill({ count, style }: { count: number; style?: React.CSSPropertie
   );
 }
 
-const ROLE_META: Record<string, { icon: IconName; label: string }> = {
-  cliente:           { icon: 'shopping-bag', label: 'Cliente' },
-  lojista:           { icon: 'store',        label: 'Lojista' },
-  motoboy:           { icon: 'truck',        label: 'Motoboy' },
-  ceo:               { icon: 'shield',       label: 'CEO' },
-  admin:             { icon: 'settings',     label: 'Admin' },
-  marketing:         { icon: 'megaphone',    label: 'Marketing' },
-  gerente_geral:     { icon: 'briefcase',    label: 'Gerente Geral' },
-  gerente_clientes:  { icon: 'chat',         label: 'Ger. Clientes' },
-  gerente_lojistas:  { icon: 'store',        label: 'Ger. Lojistas' },
-  gerente_motoboys:  { icon: 'truck',        label: 'Ger. Motoboys' },
-};
-
 export default function Nav() {
   const { user, can } = useAuth() || {};
-  const router = useRouter();
   const overlay = useOverlay();
   const { unreadCount: unread } = useNotifications();
   const badges = useBadgeCounts();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const activeRole = (user?.activeRole || user?.role || 'cliente') as Role;
-  const isPanel = activeRole === 'lojista' || activeRole === 'motoboy' || activeRole === 'ceo'
-    || (can ? getNavItems('ceo', can, false).length > 0 : false);
-  const meta = ROLE_META[activeRole] || { icon: 'user' as IconName, label: activeRole };
+  const isAdmin = can ? getNavItems('ceo', can, false).length > 0 : false;
+  const isPanel = activeRole === 'lojista' || activeRole === 'motoboy' || isAdmin;
 
   // Total de pendências relevantes p/ o badge do botão de menu do painel.
   const menuTotal =
-    (activeRole === 'ceo' ? badges.verifications : 0) +
+    (isAdmin ? badges.verifications : 0) +
     (activeRole === 'lojista' ? badges.storeOrders : 0) +
     (activeRole === 'motoboy' ? badges.deliveries : 0);
 
