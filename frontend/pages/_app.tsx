@@ -8,6 +8,7 @@ import { OverlayProvider } from '../contexts/OverlayContext';
 import { ToastProvider } from '../components/ui/Toast';
 import Nav from '../components/Nav';
 import AppSidebar from '../components/nav/AppSidebar';
+import PanelBottomNav from '../components/nav/PanelBottomNav';
 import VerificationBanner from '../components/VerificationBanner';
 import Footer from '../components/Footer';
 import SeasonalBanner from '../components/SeasonalBanner';
@@ -82,6 +83,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <SeasonalThemeProvider>
         {!hideChrome && <Nav />}
         {user && isDashboard && <AppSidebar />}
+        {user && isDashboard && <PanelBottomNav />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main
