@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
-import AccountMenu from './nav/AccountMenu';
+import AccountMenuButton from './nav/AccountMenuButton';
 import { getNavItems, ROLE_HOME, Role } from '../lib/navConfig';
 import Icon from './Icon';
 import styles from './Nav.module.css';
@@ -31,7 +31,6 @@ export default function Nav() {
   const overlay = useOverlay();
   const { unreadCount: unread } = useNotifications();
   const badges = useBadgeCounts();
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const activeRole = (user?.activeRole || user?.role || 'cliente') as Role;
   const isAdmin = can ? getNavItems('ceo', can, false).length > 0 : false;
@@ -45,24 +44,6 @@ export default function Nav() {
     (isAdmin ? badges.verifications : 0) +
     (activeRole === 'lojista' ? badges.storeOrders : 0) +
     (activeRole === 'motoboy' ? badges.deliveries : 0);
-
-  // Fecha o popover do avatar ao clicar fora.
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) overlay.close('account');
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [overlay]);
-
-  // Esc fecha overlays no desktop.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') overlay.close(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [overlay]);
-
-  const accountOpen = overlay.isOpen('account');
 
   return (
     <>
@@ -96,26 +77,8 @@ export default function Nav() {
                 {unread > 0 && <span className={styles.badge}>{unread > 9 ? '9+' : unread}</span>}
               </Link>
 
-              {/* Avatar → AccountMenu */}
-              <div className={styles.menuWrap} ref={menuRef}>
-                <button
-                  className={`${styles.trigger} ${accountOpen ? styles.triggerOpen : ''}`}
-                  onClick={() => overlay.toggle('account')}
-                  aria-label="Abrir menu da conta"
-                  aria-expanded={accountOpen}
-                >
-                  <span className={styles.avatar}>{user.name.charAt(0).toUpperCase()}</span>
-                  <span className={styles.triggerName}>{user.name.split(' ')[0]}</span>
-                  <svg className={`${styles.chevron} ${accountOpen ? styles.chevronOpen : ''}`} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-                {accountOpen && (
-                  <div className={styles.dropdown}>
-                    <AccountMenu onNavigate={() => overlay.close('account')} />
-                  </div>
-                )}
-              </div>
+              {/* Avatar → AccountMenu (componente reutilizável) */}
+              <AccountMenuButton />
             </>
           ) : (
             <>
