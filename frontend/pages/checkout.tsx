@@ -81,7 +81,7 @@ export default function CheckoutPage() {
                   <ShoppingBag size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
                   Itens do pedido
                 </h2>
-                <CheckoutItems items={c.items} />
+                <CheckoutItems items={c.items} onChangeQty={c.updateQuantity} onRemove={c.removeItem} />
               </section>
 
               <section className={styles.section}>

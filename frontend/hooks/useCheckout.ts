@@ -42,7 +42,7 @@ interface PendingDebtResponse {
 
 export function useCheckout() {
   const router = useRouter();
-  const { cart, clear } = useCart();
+  const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
   const { stores } = useStores();
   const address = useCheckoutAddress();
@@ -221,7 +221,7 @@ export function useCheckout() {
   };
 
   return {
-    items: cart, subtotal, deliveryFee, discount: coupon.discount, total,
+    items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
     address, coupon, isPlan1, blocked,
