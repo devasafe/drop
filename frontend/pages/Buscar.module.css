@@ -1,0 +1,50 @@
+.page {
+  min-height: 100vh;
+  background: var(--drop-bg, #0A0A0A);
+  padding-bottom: 170px; /* espaço p/ StickyCart + bottom-nav */
+}
+
+.top {
+  padding: 16px 16px 8px;
+}
+
+.rail {
+  padding: 4px 0 8px;
+}
+
+.section {
+  padding: 8px 16px 0;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 8px 0;
+}
+
+.storeList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.productList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.productItem {
+  cursor: pointer;
+}
+
+.muted {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+}
