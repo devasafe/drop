@@ -11,6 +11,7 @@ import {
   useStores,
   useTopStores,
   useFeaturedStores,
+  usePromoBanners,
 } from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
 
@@ -22,7 +23,7 @@ import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
 import { rankStores, take } from '../lib/catalogRanking';
 import { parseCoords } from '../lib/geo';
-import { FreteBanner } from '../components/drop/FreteBanner';
+import { BannerCarousel } from '../components/drop/BannerCarousel';
 import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -73,6 +74,7 @@ export default function Inicio() {
   const { stores, loading: storesLoading } = useStores();
   const { stores: topStores } = useTopStores();
   const { stores: featuredStores, loading: featuredLoading } = useFeaturedStores();
+  const { banners: promoBanners } = usePromoBanners();
   const { products, loading: productsLoading } = useProducts();
 
   const [query, setQuery] = useState('');
@@ -248,13 +250,16 @@ export default function Inicio() {
         )}
       </section>
 
-      <div className={styles.section}>
-        <FreteBanner
-          title="Frete grátis acima de R$ 40"
-          ctaLabel="Aproveitar"
-          onCta={() => router.push('/stores')}
-        />
-      </div>
+      {promoBanners.length > 0 && (
+        <div className={styles.section}>
+          <BannerCarousel
+            banners={promoBanners}
+            onSelect={(url) =>
+              /^https?:\/\//.test(url) ? window.open(url, '_blank', 'noopener') : router.push(url)
+            }
+          />
+        </div>
+      )}
 
       {(productsLoading || offerProducts.length > 0) && (
         <section className={styles.section}>

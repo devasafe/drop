@@ -28,6 +28,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   { href: '/admin/plan-approvals', label: 'Planos',       icon: 'check-circle', permission: 'plan:view' },
   { href: '/admin/conversas',      label: 'Conversas',    icon: 'chat',         permission: 'conversations:view_all' },
   { href: '/admin/broadcasts',     label: 'Anúncios',     icon: 'megaphone',    permission: 'broadcast:send' },
+  { href: '/admin/avisos',         label: 'Avisos (home)', icon: 'star',        ceoOnly: true },
   { href: '/admin/suporte',        label: 'Suporte',      icon: 'headphones',   permission: 'support:attend' },
   { href: '/admin/ranking-config', label: 'Ranking',      icon: 'trophy',       permission: 'ranking:manage' },
   { href: '/admin/settings',       label: 'Config.',      icon: 'settings',     permission: 'settings:manage' },
