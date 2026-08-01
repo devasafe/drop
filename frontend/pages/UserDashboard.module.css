@@ -4,14 +4,32 @@
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
-  padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  padding: 0 0 170px; /* espaço p/ StickyCart + bottom-nav */
+  font-family: var(--font-body);
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 640px;
   margin: 0 auto;
+  padding: 0 16px;
+}
+
+.header {
+  padding: 16px 0 8px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+}
+
+.content {
+  animation: drop-fade-in 0.35s cubic-bezier(0.4, 0, 0, 1) both;
 }
 
 /* Loading */
