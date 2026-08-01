@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import styles from './VerificationHub.module.css';
 
 type Step = 'done' | 'pending' | 'todo';
 
@@ -14,13 +15,13 @@ interface Section {
 }
 
 const badge = (step: Step) => {
-  const map: Record<Step, [string, string, string]> = {
-    done: ['✅ Concluído', '#22C55E', 'rgba(34,197,94,0.12)'],
-    pending: ['⏳ Em análise', '#F59E0B', 'rgba(245,158,11,0.12)'],
-    todo: ['❌ Falta', '#EF4444', 'rgba(239,68,68,0.12)'],
+  const map: Record<Step, [string, string]> = {
+    done: ['✅ Concluído', styles.badgeDone],
+    pending: ['⏳ Em análise', styles.badgePending],
+    todo: ['❌ Falta', styles.badgeTodo],
   };
-  const [label, color, bg] = map[step];
-  return <span style={{ color, background: bg, border: `1px solid ${color}`, borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</span>;
+  const [label, cls] = map[step];
+  return <span className={`${styles.badge} ${cls}`}>{label}</span>;
 };
 
 /**
@@ -84,29 +85,26 @@ export default function VerificationHub() {
   if (!user || role === 'cliente') {
     // Cliente: só identidade — mostra mesmo assim se quiser; aqui retornamos identidade.
   }
-  if (loading) return <p style={{ color: 'rgba(255,255,255,0.5)' }}>Carregando verificações…</p>;
+  if (loading) return <p className={styles.loading}>Carregando verificações…</p>;
   if (sections.length === 0) return null;
 
   const pend = sections.filter((s) => s.step !== 'done').length;
 
   return (
     <div>
-      <p style={{ color: 'rgba(255,255,255,0.6)', margin: '0 0 4px' }}>
+      <p className={styles.intro}>
         {pend === 0 ? 'Tudo certo! Sua conta está completa. ✅' : `Você tem ${pend} item(ns) pendente(s).`}
       </p>
       {sections.map((s, i) => (
-        <div key={i} style={card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{s.title}</strong>
+        <div key={i} className={styles.card}>
+          <div className={styles.cardHead}>
+            <strong className={styles.cardTitle}>{s.title}</strong>
             {badge(s.step)}
           </div>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '8px 0 12px' }}>{s.desc}</p>
-          <button style={btn} onClick={() => router.push(s.href)}>{s.cta} →</button>
+          <p className={styles.cardDesc}>{s.desc}</p>
+          <button className={styles.btn} onClick={() => router.push(s.href)}>{s.cta} →</button>
         </div>
       ))}
     </div>
   );
 }
-
-const card: React.CSSProperties = { background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 18, marginTop: 12 };
-const btn: React.CSSProperties = { background: 'rgba(108,43,217,0.15)', color: '#C4B5FD', border: '1px solid #6C2BD9', borderRadius: 10, padding: '9px 16px', fontWeight: 600, cursor: 'pointer' };

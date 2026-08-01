@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { maskCPF, maskRG, maskPhone, onlyDigits, cleanRG } from '../lib/masks';
 import { useAuth } from '../contexts/AuthContext';
 import StoreSettingsEditor from './StoreSettingsEditor';
+import styles from './MeusDadosForm.module.css';
 
 /**
  * Formulário "Meus dados" (nome, e-mail, CPF, RG) + editor da loja (lojista).
@@ -61,27 +62,27 @@ export default function MeusDadosForm() {
     }
   };
 
-  if (loading) return <p style={hint}>Carregando seus dados...</p>;
+  if (loading) return <p className={styles.hint}>Carregando seus dados...</p>;
 
   return (
     <div>
-      <p style={hint}>Alterar <strong>CPF/RG</strong> ou <strong>email</strong> exige passar pela verificação novamente.</p>
-      {msg && <div style={banner}>{msg} <a href="/verificacao" style={{ color: '#8B5CF6' }}>Ir para verificação →</a></div>}
-      {err && <div style={{ ...banner, borderColor: '#EF4444', background: 'rgba(239,68,68,0.12)' }}>{err}</div>}
+      <p className={styles.hint}>Alterar <strong>CPF/RG</strong> ou <strong>email</strong> exige passar pela verificação novamente.</p>
+      {msg && <div className={styles.banner}>{msg} <a href="/verificacao" className={styles.link}>Ir para verificação →</a></div>}
+      {err && <div className={`${styles.banner} ${styles.bannerError}`}>{err}</div>}
 
-      <section style={card}>
-        <label style={hint}>Nome</label>
-        <input style={input} value={name} onChange={e => setName(e.target.value)} maxLength={80} />
-        <label style={hint}>Email</label>
-        <input style={input} type="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={120} />
-        <label style={hint}>Telefone</label>
-        <input style={input} value={telefone} onChange={e => setTelefone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} inputMode="numeric" />
-        <label style={hint}>CPF</label>
-        <input style={{ ...input, opacity: docApproved ? 0.6 : 1 }} value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} readOnly={docApproved} />
-        <label style={hint}>RG</label>
-        <input style={{ ...input, opacity: docApproved ? 0.6 : 1 }} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" maxLength={12} readOnly={docApproved} />
-        {docApproved && <p style={{ ...hint, color: '#F59E0B' }}>CPF e RG não podem ser alterados após o documento aprovado.</p>}
-        <button style={btn} onClick={salvar}>Salvar alterações</button>
+      <section className={styles.card}>
+        <label className={styles.hint}>Nome</label>
+        <input className={styles.input} value={name} onChange={e => setName(e.target.value)} maxLength={80} />
+        <label className={styles.hint}>Email</label>
+        <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={120} />
+        <label className={styles.hint}>Telefone</label>
+        <input className={styles.input} value={telefone} onChange={e => setTelefone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} inputMode="numeric" />
+        <label className={styles.hint}>CPF</label>
+        <input className={`${styles.input} ${docApproved ? styles.inputLocked : ''}`} value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} readOnly={docApproved} />
+        <label className={styles.hint}>RG</label>
+        <input className={`${styles.input} ${docApproved ? styles.inputLocked : ''}`} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" maxLength={12} readOnly={docApproved} />
+        {docApproved && <p className={styles.warn}>CPF e RG não podem ser alterados após o documento aprovado.</p>}
+        <button className={styles.btn} onClick={salvar}>Salvar alterações</button>
       </section>
 
       {isLojista && store && (
@@ -90,9 +91,3 @@ export default function MeusDadosForm() {
     </div>
   );
 }
-
-const card: React.CSSProperties = { background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, marginTop: 12 };
-const banner: React.CSSProperties = { background: 'rgba(108,43,217,0.15)', border: '1px solid #6C2BD9', borderRadius: 10, padding: '10px 14px', marginTop: 12, fontSize: 14 };
-const hint: React.CSSProperties = { color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'block', margin: '8px 0 4px' };
-const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 12px', marginBottom: 6 };
-const btn: React.CSSProperties = { background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', marginTop: 14 };
