@@ -1,4 +1,15 @@
+import type { StoreStatus } from '../components/ui/StatusPill';
+
 export type OrderTone = 'pending' | 'active' | 'done' | 'cancelled';
+
+/** Mapeia o status do pedido para o `StatusPill` do design system. */
+const PILL: Record<string, StoreStatus> = {
+  entregue: 'entregue', delivered: 'entregue',
+  cancelado: 'cancelado', cancelled: 'cancelado', rejeitado: 'cancelado',
+};
+export function orderStatusPill(status: string): StoreStatus {
+  return PILL[status] ?? 'em_entrega';
+}
 
 const LABEL: Record<string, string> = {
   criado: 'Aguardando aceite',

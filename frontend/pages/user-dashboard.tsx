@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import api from '../lib/api';
 import AuthContext from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -7,20 +8,19 @@ import { useOrders, useNotifications } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { Package, FileText } from 'lucide-react';
-import { orderStatusLabel, orderStatusTone } from '../lib/orderStatus';
+import { orderStatusPill } from '../lib/orderStatus';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { StatusPill } from '../components/ui/StatusPill';
+import { EmptyState } from '../components/ui/EmptyState';
+import { PriceTag, formatBRL } from '../components/ui/PriceTag';
 import styles from './UserDashboard.module.css';
 
 const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
 
-const toneClass = (status: string) => {
-  const map: Record<string, string> = {
-    pending: styles.tonePending, active: styles.toneActive, done: styles.toneDone, cancelled: styles.toneCancelled,
-  };
-  return map[orderStatusTone(status)] || styles.tonePending;
-};
-
 export default function UserDashboard() {
   const { user: authUser } = useContext(AuthContext);
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders();
@@ -125,7 +125,7 @@ export default function UserDashboard() {
 
           {/* Notificações */}
           {notifications.length > 0 && (
-            <div className={styles.notificationsBox}>
+            <Card className={styles.notificationsBox}>
               <h3 className={styles.notificationsTitle}>
                 {notifications.length} notificação{notifications.length > 1 ? 'ões' : ''}
               </h3>
@@ -141,7 +141,7 @@ export default function UserDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Grid principal */}
@@ -227,56 +227,45 @@ export default function UserDashboard() {
 
               {/* === PEDIDOS EM ANDAMENTO === */}
               {activeTab === 'pending' && (
-                <div>
-                  {pendingOrders.length === 0 ? (
-                    <div className={styles.emptyState}>
-                      <Package size={40} strokeWidth={1.5} className={styles.emptyIcon} />
-                      <p className={styles.emptyTitle}>Nenhum pedido em andamento</p>
-                      <p className={styles.emptySubtitle}>Quando você fizer um pedido, ele aparecerá aqui</p>
-                    </div>
-                  ) : (
-                    <div className={styles.orderList}>
-                      {pendingOrders.map((order, idx) => (
-                        <a
-                          key={order._id || idx}
-                          href={`/store-order/${order._id || order.id || order.orderId}`}
-                          className={styles.orderLink}
-                        >
-                          <div className={styles.orderCardPending}>
-                            <div className={styles.orderCardTop}>
-                              <div>
-                                <div className={styles.orderStoreName}>
-                                  {order.storeName || order.storeObj?.name || 'Loja desconhecida'}
-                                </div>
-                                <div className={styles.orderIdText}>
-                                  #{(order._id || order.id || order.orderId || '').slice(-8)}
-                                </div>
-                              </div>
-                              <div className={`${styles.statusBadge} ${toneClass(order.status)}`}>{orderStatusLabel(order.status)}</div>
+                pendingOrders.length === 0 ? (
+                  <EmptyState
+                    icon={<Package />}
+                    title="Nenhum pedido em andamento"
+                    description="Quando você fizer um pedido, ele aparecerá aqui."
+                    action={<Button variant="primary" onClick={() => router.push('/inicio')}>Explorar lojas</Button>}
+                  />
+                ) : (
+                  <div className={styles.orderList}>
+                    {pendingOrders.map((order, idx) => {
+                      const id = order._id || order.id || order.orderId || '';
+                      return (
+                        <Card key={id || idx} interactive onClick={() => router.push(`/store-order/${id}`)} className={styles.orderCard}>
+                          <div className={styles.orderTop}>
+                            <div className={styles.orderStoreBlock}>
+                              <div className={styles.orderStore}>{order.storeName || order.storeObj?.name || 'Loja'}</div>
+                              <div className={styles.orderId}>#{String(id).slice(-8)}</div>
                             </div>
-
-                            {order.products && Array.isArray(order.products) && order.products.length > 0 && (
-                              <div className={styles.productsMini}>
-                                {order.products.map((p: any, i: number) => (
-                                  <div key={p.productId || i} className={styles.productMiniItem}>
-                                    {p.name || p.product?.name || p.productName || 'Produto removido'} — <span className={styles.productMiniQty}>×{p.quantity}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className={styles.orderFooter}>
-                              <span>Total: <strong className={styles.orderValue}>R$ {order.totalValue?.toFixed(2) || '0.00'}</strong></span>
-                              {order.deliveryFee && (
-                                <span>Frete: <strong className={styles.orderValue}>R$ {order.deliveryFee.toFixed(2)}</strong></span>
-                              )}
-                            </div>
+                            <StatusPill status={orderStatusPill(order.status)} />
                           </div>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          {Array.isArray(order.products) && order.products.length > 0 && (
+                            <div className={styles.orderProducts}>
+                              {order.products.map((p: any, i: number) => (
+                                <div key={p.productId || i} className={styles.orderProductLine}>
+                                  <span>{p.name || p.product?.name || p.productName || 'Produto'}</span>
+                                  <span className={styles.orderProductQty}>×{p.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className={styles.orderFoot}>
+                            <span className={styles.orderFootLabel}>Total</span>
+                            <PriceTag price={order.totalValue || 0} size="sm" />
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )
               )}
 
               {/* === ENDEREÇOS === */}
@@ -529,80 +518,60 @@ export default function UserDashboard() {
 
               {/* === HISTÓRICO === */}
               {activeTab === 'history' && (
-                <div>
-                  {completedOrders.length === 0 ? (
-                    <div className={styles.emptyState}>
-                      <FileText size={40} strokeWidth={1.5} className={styles.emptyIcon} />
-                      <p className={styles.emptyTitle}>Nenhum pedido no histórico</p>
-                    </div>
-                  ) : (
-                    <div className={styles.orderList}>
-                      {completedOrders.map((order, idx) => {
-                        return (
-                          <div key={order._id || idx} className={styles.orderCardHistory}>
-                            <div className={styles.orderCardTop}>
-                              <div>
-                                <div className={styles.orderStoreName}>
-                                  {order.storeName || order.storeObj?.name || 'Loja desconhecida'}
+                completedOrders.length === 0 ? (
+                  <EmptyState icon={<FileText />} title="Nenhum pedido no histórico" description="Seus pedidos concluídos aparecem aqui." />
+                ) : (
+                  <div className={styles.orderList}>
+                    {completedOrders.map((order, idx) => {
+                      const id = order._id || order.id || order.orderId || '';
+                      return (
+                        <Card key={id || idx} className={styles.orderCard}>
+                          <div className={styles.orderTop}>
+                            <div className={styles.orderStoreBlock}>
+                              <div className={styles.orderStore}>{order.storeName || order.storeObj?.name || 'Loja'}</div>
+                              <div className={styles.orderId}>#{String(id).slice(-8)}</div>
+                              {order.createdAt && (
+                                <div className={styles.orderDate}>
+                                  {new Date(order.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                                 </div>
-                                <div className={styles.orderIdText}>
-                                  #{(order._id || order.id || order.orderId || '').slice(-8)}
-                                </div>
-                                {order.createdAt && (
-                                  <div className={styles.orderDate}>
-                                    {new Date(order.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                )}
-                              </div>
-                              <div className={styles.orderRight}>
-                                <div className={`${styles.statusBadge} ${toneClass(order.status)}`}>
-                                  {orderStatusLabel(order.status)}
-                                </div>
-                                <div className={styles.historyTotal}>
-                                  R$ {order.totalValue?.toFixed(2) || '0.00'}
-                                </div>
-                              </div>
+                              )}
                             </div>
+                            <div className={styles.orderRightCol}>
+                              <StatusPill status={orderStatusPill(order.status)} />
+                              <span className={styles.orderTotalStrong}>{formatBRL(order.totalValue || 0)}</span>
+                            </div>
+                          </div>
 
-                            {order.products && Array.isArray(order.products) && order.products.length > 0 && (
-                              <div className={styles.productsMini}>
-                                {order.products.map((p: any, i: number) => (
-                                  <div key={p.productId || i} className={`${styles.productMiniItem} ${styles.productMiniItemHistory}`}>
-                                    <span>{p.quantity}× {p.name || p.product?.name || p.productName || 'Produto removido'}</span>
-                                    <span className={styles.productMiniPrice}>R$ {p.price?.toFixed(2) || '0.00'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Distribuição financeira */}
-                            <div className={styles.financialGrid}>
-                              {[
-                                { label: 'Recebido', value: (order.walletDistribution?.storeAmount || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2), color: '#4ADE80' },
-                                { label: 'Taxa App', value: (order.walletDistribution?.appCommission || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2), color: '#F472B6' },
-                                { label: 'Subtotal', value: ((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2), color: 'rgba(255,255,255,0.7)' },
-                                { label: 'Frete', value: (order.deliveryFee || 0).toFixed(2), color: '#FB923C' },
-                                { label: 'Total Pago', value: order.totalValue?.toFixed(2) || '0.00', color: '#A78BFA' },
-                              ].map((item) => (
-                                <div key={item.label} className={styles.financialCell}>
-                                  <div className={styles.financialLabel}>{item.label}</div>
-                                  <div className={styles.financialValue}>R$ {item.value}</div>
+                          {Array.isArray(order.products) && order.products.length > 0 && (
+                            <div className={styles.orderProducts}>
+                              {order.products.map((p: any, i: number) => (
+                                <div key={p.productId || i} className={styles.orderProductLine}>
+                                  <span>{p.quantity}× {p.name || p.product?.name || p.productName || 'Produto'}</span>
+                                  <span className={styles.orderProductPrice}>{formatBRL(p.price || 0)}</span>
                                 </div>
                               ))}
                             </div>
+                          )}
 
-                            <a
-                              href={`/store-order/${order._id || order.id || order.orderId}`}
-                              className={styles.btnViewDetails}
-                            >
-                              Ver Detalhes
-                            </a>
+                          <div className={styles.financialGrid}>
+                            {[
+                              { label: 'Subtotal', value: (order.totalValue || 0) - (order.deliveryFee || 0) },
+                              { label: 'Frete', value: order.deliveryFee || 0 },
+                              { label: 'Total pago', value: order.totalValue || 0 },
+                            ].map((item) => (
+                              <div key={item.label} className={styles.financialCell}>
+                                <div className={styles.financialLabel}>{item.label}</div>
+                                <div className={styles.financialValue}>{formatBRL(item.value)}</div>
+                              </div>
+                            ))}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+
+                          <Button variant="ghost" size="sm" onClick={() => router.push(`/store-order/${id}`)}>Ver detalhes</Button>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )
               )}
 
             </div>
