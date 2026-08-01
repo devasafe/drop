@@ -14,6 +14,7 @@ import StoreBannerUpload from '../components/StoreBannerUpload';
 import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
+import OverviewTab from '../components/seller/OverviewTab';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -326,7 +327,7 @@ export default function StoreDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [historyOrders, setHistoryOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('orders');
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Deep-link da AppSidebar (?tab=orders) — sincroniza a aba ativa com a querystring.
   useEffect(() => {
@@ -727,6 +728,16 @@ export default function StoreDashboard() {
     }
   };
 
+  const handleToggleOpen = async (nextIsOpen: boolean) => {
+    if (!store?._id) return;
+    try {
+      await api.put(`/stores/${store._id}/operating-hours`, { isOpen: nextIsOpen });
+      fetchDashboard();
+    } catch (e) {
+      console.error('[overview] toggle open falhou:', e);
+    }
+  };
+
   if (loading) return (
     <div className={styles.loadingScreen}>
       <LoadingSkeleton variant="dashboard" />
@@ -769,6 +780,25 @@ export default function StoreDashboard() {
 
           <div className={styles.tabContent}>
             <OnboardingResumeBanner />
+
+          {/* Visão geral */}
+          {activeTab === 'overview' && (
+            <OverviewTab
+              store={store}
+              orders={orders}
+              history={historyOrders}
+              metrics={{
+                ongoing: orders.length,
+                delivered: historyOrders.filter((o: any) => o.status === 'entregue' || o.status === 'delivered').length,
+                totalSales: orders.length + historyOrders.length,
+                revenue: 0, // não usado nos tiles (faturamento é calculado por "hoje" no componente)
+              }}
+              returnRequests={returnRequests}
+              onGoToTab={setActiveTab}
+              onToggleOpen={handleToggleOpen}
+              onQuickAction={(href) => router.push(href)}
+            />
+          )}
 
           {/* Configurações */}
           {activeTab === 'metrics' && (
