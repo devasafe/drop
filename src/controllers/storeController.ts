@@ -528,6 +528,68 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
   }
 };
 
+const BILLABLE_STATUSES: any[] = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
+const TOP_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Público — lojas mais vendedoras (últimos 30 dias). Ordena por nº de pedidos.
+export const getTopStores = async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 40, 100);
+    const start = new Date(Date.now() - TOP_WINDOW_MS);
+    const grouped = await prisma.order.groupBy({
+      by: ['storeId'],
+      where: { createdAt: { gte: start }, status: { in: BILLABLE_STATUSES } },
+      _count: { _all: true },
+    });
+    const counts = new Map(grouped.map((g) => [g.storeId, g._count._all]));
+    const filter: any = { id: { in: grouped.map((g) => g.storeId) } };
+    if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    const stores = await prisma.store.findMany({ where: filter });
+    const out = stores
+      .map((s) => ({ ...s, _id: s.id, salesCount: counts.get(s.id) ?? 0 }))
+      .sort((a, b) => b.salesCount - a.salesCount)
+      .slice(0, limit);
+    return res.json(out);
+  } catch (err) {
+    console.error('[getTopStores] error:', err);
+    return res.status(500).json({ error: 'Failed to list top stores' });
+  }
+};
+
+// Público — produtos mais vendidos (últimos 30 dias). Traz storePlan p/ o front
+// saber quais são de loja premium.
+export const getTopProducts = async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 40, 100);
+    const start = new Date(Date.now() - TOP_WINDOW_MS);
+    const grouped = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: { order: { createdAt: { gte: start }, status: { in: BILLABLE_STATUSES } } },
+      _sum: { quantity: true },
+    });
+    const sold = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
+    const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } });
+    const storeIds = [...new Set(products.map((p) => p.storeId))];
+    const stores = await prisma.store.findMany({ where: { id: { in: storeIds } }, select: { id: true, name: true, plan: true } });
+    const storeMap = new Map(stores.map((s) => [s.id, s]));
+    const out = products
+      .map((p: any) => {
+        const st = storeMap.get(p.storeId) as any;
+        return {
+          _id: p.id, name: p.name, image: p.image, price: Number(p.price), quantity: p.quantity,
+          storeId: p.storeId, storeName: st?.name, storePlan: Number(st?.plan) || 1,
+          soldCount: sold.get(p.id) ?? 0,
+        };
+      })
+      .sort((a, b) => b.soldCount - a.soldCount)
+      .slice(0, limit);
+    return res.json(out);
+  } catch (err) {
+    console.error('[getTopProducts] error:', err);
+    return res.status(500).json({ error: 'Failed to list top products' });
+  }
+};
+
 // Buscar loja por id ou slug
 export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response) => {
   try {
