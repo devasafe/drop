@@ -30,7 +30,16 @@ export const CartProvider = ({ children }: any) => {
     save([]);
   };
 
-  return <CartContext.Provider value={{ cart, add, clear }}>{children}</CartContext.Provider>;
+  const updateQuantity = (productId: string, quantity: number) => {
+    const q = Math.max(1, Math.floor(quantity));
+    save(cart.map((x) => (x.productId === productId ? { ...x, quantity: q } : x)));
+  };
+
+  const removeItem = (productId: string) => {
+    save(cart.filter((x) => x.productId !== productId));
+  };
+
+  return <CartContext.Provider value={{ cart, add, clear, updateQuantity, removeItem }}>{children}</CartContext.Provider>;
 };
 
 export const useCart = () => useContext(CartContext);
