@@ -65,6 +65,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
     router.pathname === '/' ||
     router.pathname === '/inicio' ||
     router.pathname === '/wallet' ||
+    router.pathname === '/user-dashboard' ||
     router.pathname === '/user-profile' ||
     router.pathname === '/stores' ||
     router.pathname === '/stores/[id]' ||
