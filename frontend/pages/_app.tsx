@@ -84,7 +84,10 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {user && isDashboard && <AppSidebar />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
-        <main className={`${spaceGrotesk.variable} ${inter.variable}`} style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>
+        <main
+          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}`}
+          style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
+        >
           <PageTransition>
             <Component {...pageProps} />
           </PageTransition>

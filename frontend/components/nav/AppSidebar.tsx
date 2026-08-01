@@ -60,7 +60,7 @@ export default function AppSidebar() {
                 const count = badgeCount(it.badge);
                 return (
                   <a
-                    key={it.route}
+                    key={it.label}
                     href={it.route}
                     aria-current={active ? 'page' : undefined}
                     className={`${styles.sidebarNavItem} ${active ? styles.sidebarNavItemActive : ''}`}
