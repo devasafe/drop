@@ -4,21 +4,50 @@ import { useRouter } from 'next/router';
 import api from '../lib/api';
 import AuthContext from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-import { useOrders, useNotifications } from '../hooks/useSync';
+import { useOrders } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
+import { imageUrl } from '../lib/config';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { Package, FileText, MapPin } from 'lucide-react';
-import { orderStatusPill } from '../lib/orderStatus';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { StatusPill } from '../components/ui/StatusPill';
 import { EmptyState } from '../components/ui/EmptyState';
-import { PriceTag, formatBRL } from '../components/ui/PriceTag';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Chip } from '../components/ui/Chip';
 import { Tag } from '../components/ui/Tag';
+import { OrderCard, OrderCardData } from '../components/drop/OrderCard';
 import styles from './UserDashboard.module.css';
+
+/** Resumo de itens do pedido: "3 itens · Pizza, Refri…". */
+function itemsSummary(products: any[]): string {
+  if (!Array.isArray(products) || products.length === 0) return '';
+  const totalQty = products.reduce((s, p) => s + (Number(p.quantity) || 1), 0);
+  const names = products
+    .slice(0, 2)
+    .map((p: any) => p.name || p.product?.name || p.productName || 'Produto');
+  const unit = totalQty === 1 ? 'item' : 'itens';
+  const more = products.length > 2 ? '…' : '';
+  return `${totalQty} ${unit} · ${names.join(', ')}${more}`;
+}
+
+/** Normaliza um pedido para o OrderCard. `withDate` inclui a data (histórico). */
+function toOrderCard(order: any, withDate: boolean): OrderCardData {
+  const id = order._id || order.id || order.orderId || '';
+  return {
+    id: String(id),
+    code: String(id).slice(-8).toUpperCase(),
+    storeName: order.storeName || order.storeObj?.name || 'Loja',
+    status: order.status,
+    total: order.totalValue || 0,
+    itemsLabel: itemsSummary(order.products),
+    imageUrl: imageUrl(order.products?.[0]?.image) || undefined,
+    date:
+      withDate && order.createdAt
+        ? new Date(order.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+        : undefined,
+  };
+}
 
 const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
 
@@ -28,7 +57,6 @@ export default function UserDashboard() {
   const [user, setUser] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders();
-  const { notifications, loading: notificationsLoading } = useNotifications();
   const [activeTab, setActiveTab] = useState('pending'); // pending, history, addresses
   const [_editingAddress, setEditingAddress] = useState<any | null>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -104,7 +132,7 @@ export default function UserDashboard() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  if (loading || ordersLoading || notificationsLoading) return (
+  if (loading || ordersLoading) return (
     <div className={styles.loadingScreen}>
       <LoadingSkeleton variant="dashboard" />
     </div>
@@ -119,83 +147,13 @@ export default function UserDashboard() {
       <div className={styles.page}>
         <div className={styles.container}>
 
-          {/* Page header */}
-          <div className={styles.pageHeader}>
-            <h1 className={styles.pageTitle}>Meu Painel</h1>
-            <p className={styles.pageSubtitle}>
-              Gerencie sua conta, pedidos e endereços de entrega
-            </p>
-          </div>
+          {/* Cabeçalho da tela de Pedidos */}
+          <header className={styles.header}>
+            <h1 className={styles.title}>Pedidos</h1>
+          </header>
 
-          {/* Notificações */}
-          {notifications.length > 0 && (
-            <Card className={styles.notificationsBox}>
-              <h3 className={styles.notificationsTitle}>
-                {notifications.length} notificação{notifications.length > 1 ? 'ões' : ''}
-              </h3>
-              <div className={styles.notificationsList}>
-                {notifications.map((n: any, idx: number) => (
-                  <div key={n._id || idx} className={styles.notificationItem}>
-                    <div>{n.message}</div>
-                    {n.createdAt && (
-                      <div className={styles.notificationDate}>
-                        {new Date(n.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Grid principal */}
-          <div className={styles.mainGrid}>
-
-            {/* Sidebar */}
-            {user && (
-              <Card className={styles.sidebar}>
-                {/* Avatar */}
-                <div className={styles.avatarSection}>
-                  {user.photo ? (
-                    <img
-                      src={user.photo}
-                      alt="Foto de perfil"
-                      className={styles.avatarImg}
-                    />
-                  ) : (
-                    <div className={styles.avatarInitial}>
-                      {user.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className={styles.sidebarName}>{user.name}</div>
-                  <div className={styles.sidebarEmail}>{user.email}</div>
-                </div>
-
-                {/* Info rows */}
-                <div className={styles.sidebarInfo}>
-                  {user.telefone && (
-                    <div className={styles.sidebarInfoRow}>
-                      <div className={styles.sidebarInfoLabel}>Telefone</div>
-                      <div className={styles.sidebarInfoValue}>{user.telefone}</div>
-                    </div>
-                  )}
-                  {user.cpf && (
-                    <div className={styles.sidebarInfoRow}>
-                      <div className={styles.sidebarInfoLabel}>CPF</div>
-                      <div className={styles.sidebarInfoValue}>{user.cpf}</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className={styles.sidebarActions}>
-                  <Button variant="ghost" onClick={() => router.push('/user-profile')}>Editar perfil</Button>
-                  <Button variant="ghost" onClick={() => router.push('/editar-conta')}>Editar dados</Button>
-                </div>
-              </Card>
-            )}
-
-            {/* Main content */}
+          <div className={styles.content}>
+            {/* Conteúdo */}
             <div className={styles.mainContent}>
 
               {/* Select de seção — visível apenas em tablet/mobile via CSS */}
@@ -234,31 +192,13 @@ export default function UserDashboard() {
                 ) : (
                   <div className={styles.orderList}>
                     {pendingOrders.map((order, idx) => {
-                      const id = order._id || order.id || order.orderId || '';
+                      const card = toOrderCard(order, false);
                       return (
-                        <Card key={id || idx} interactive onClick={() => router.push(`/store-order/${id}`)} className={styles.orderCard}>
-                          <div className={styles.orderTop}>
-                            <div className={styles.orderStoreBlock}>
-                              <div className={styles.orderStore}>{order.storeName || order.storeObj?.name || 'Loja'}</div>
-                              <div className={styles.orderId}>#{String(id).slice(-8)}</div>
-                            </div>
-                            <StatusPill status={orderStatusPill(order.status)} />
-                          </div>
-                          {Array.isArray(order.products) && order.products.length > 0 && (
-                            <div className={styles.orderProducts}>
-                              {order.products.map((p: any, i: number) => (
-                                <div key={p.productId || i} className={styles.orderProductLine}>
-                                  <span>{p.name || p.product?.name || p.productName || 'Produto'}</span>
-                                  <span className={styles.orderProductQty}>×{p.quantity}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div className={styles.orderFoot}>
-                            <span className={styles.orderFootLabel}>Total</span>
-                            <PriceTag price={order.totalValue || 0} size="sm" />
-                          </div>
-                        </Card>
+                        <OrderCard
+                          key={card.id || idx}
+                          order={card}
+                          onClick={() => router.push(`/store-order/${card.id}`)}
+                        />
                       );
                     })}
                   </div>
@@ -451,51 +391,13 @@ export default function UserDashboard() {
                 ) : (
                   <div className={styles.orderList}>
                     {completedOrders.map((order, idx) => {
-                      const id = order._id || order.id || order.orderId || '';
+                      const card = toOrderCard(order, true);
                       return (
-                        <Card key={id || idx} className={styles.orderCard}>
-                          <div className={styles.orderTop}>
-                            <div className={styles.orderStoreBlock}>
-                              <div className={styles.orderStore}>{order.storeName || order.storeObj?.name || 'Loja'}</div>
-                              <div className={styles.orderId}>#{String(id).slice(-8)}</div>
-                              {order.createdAt && (
-                                <div className={styles.orderDate}>
-                                  {new Date(order.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                </div>
-                              )}
-                            </div>
-                            <div className={styles.orderRightCol}>
-                              <StatusPill status={orderStatusPill(order.status)} />
-                              <span className={styles.orderTotalStrong}>{formatBRL(order.totalValue || 0)}</span>
-                            </div>
-                          </div>
-
-                          {Array.isArray(order.products) && order.products.length > 0 && (
-                            <div className={styles.orderProducts}>
-                              {order.products.map((p: any, i: number) => (
-                                <div key={p.productId || i} className={styles.orderProductLine}>
-                                  <span>{p.quantity}× {p.name || p.product?.name || p.productName || 'Produto'}</span>
-                                  <span className={styles.orderProductPrice}>{formatBRL(p.price || 0)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className={styles.financialGrid}>
-                            {[
-                              { label: 'Subtotal', value: (order.totalValue || 0) - (order.deliveryFee || 0) },
-                              { label: 'Frete', value: order.deliveryFee || 0 },
-                              { label: 'Total pago', value: order.totalValue || 0 },
-                            ].map((item) => (
-                              <div key={item.label} className={styles.financialCell}>
-                                <div className={styles.financialLabel}>{item.label}</div>
-                                <div className={styles.financialValue}>{formatBRL(item.value)}</div>
-                              </div>
-                            ))}
-                          </div>
-
-                          <Button variant="ghost" size="sm" onClick={() => router.push(`/store-order/${id}`)}>Ver detalhes</Button>
-                        </Card>
+                        <OrderCard
+                          key={card.id || idx}
+                          order={card}
+                          onClick={() => router.push(`/store-order/${card.id}`)}
+                        />
                       );
                     })}
                   </div>
