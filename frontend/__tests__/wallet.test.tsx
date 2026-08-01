@@ -33,6 +33,13 @@ describe('Carteira (/wallet)', () => {
     expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/banc/i), 'error');
     expect(post).not.toHaveBeenCalled();
   });
+  it('tocar numa movimentação abre os detalhes', async () => {
+    render(<WalletPage />);
+    await waitFor(() => screen.getByText(/150,00/));
+    fireEvent.click(screen.getByText('Reembolso'));
+    expect(await screen.findByText('Detalhes da entrada')).toBeInTheDocument();
+    expect(screen.getByText('Entrada')).toBeInTheDocument();
+  });
   it('Carregar com valor válido → API de crédito + toast de sucesso', async () => {
     render(<WalletPage />);
     await waitFor(() => screen.getByText(/150,00/));

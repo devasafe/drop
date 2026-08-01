@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Receipt } from 'lucide-react';
+import { Receipt, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -52,6 +52,8 @@ export default function WalletPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [bankData, setBankData] = useState({ banco: '', agencia: '', conta: '', cpf: '' });
+
+  const [selectedTx, setSelectedTx] = useState<HistoryItem | null>(null);
 
   const fetchWallet = useCallback(async () => {
     try {
@@ -167,15 +169,18 @@ export default function WalletPage() {
           ) : (
             <ul className={styles.txList}>
               {history.map((tx, i) => (
-                <li key={i} className={styles.txRow}>
-                  <span className={`${styles.txDot} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`} />
-                  <span className={styles.txInfo}>
-                    <span className={styles.txReason}>{tx.reason}</span>
-                    <span className={styles.txDate}>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
-                  </span>
-                  <span className={`${styles.txAmount} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`}>
-                    {tx.type === 'credit' ? '+' : '−'} {formatBRL(tx.amount)}
-                  </span>
+                <li key={i}>
+                  <button type="button" className={styles.txRow} onClick={() => setSelectedTx(tx)}>
+                    <span className={`${styles.txDot} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`} />
+                    <span className={styles.txInfo}>
+                      <span className={styles.txReason}>{tx.reason}</span>
+                      <span className={styles.txDate}>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                    </span>
+                    <span className={`${styles.txAmount} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`}>
+                      {tx.type === 'credit' ? '+' : '−'} {formatBRL(tx.amount)}
+                    </span>
+                    <ChevronRight size={16} className={styles.txChevron} aria-hidden="true" />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -224,6 +229,29 @@ export default function WalletPage() {
           </label>
           <Button variant="primary" loading={loadingAction} onClick={handleWithdraw}>Solicitar saque</Button>
         </div>
+      </Sheet>
+
+      {/* Sheet Detalhes da transação */}
+      <Sheet
+        open={!!selectedTx}
+        onClose={() => setSelectedTx(null)}
+        title={selectedTx?.type === 'credit' ? 'Detalhes da entrada' : 'Detalhes da saída'}
+      >
+        {selectedTx && (
+          <div className={styles.txDetails}>
+            <div className={`${styles.txDetailAmount} ${selectedTx.type === 'credit' ? styles.txCredit : styles.txDebit}`}>
+              {selectedTx.type === 'credit' ? '+' : '−'} {formatBRL(selectedTx.amount)}
+            </div>
+            <dl className={styles.txDetailList}>
+              <div className={styles.txDetailRow}><dt>Motivo</dt><dd>{selectedTx.reason}</dd></div>
+              <div className={styles.txDetailRow}><dt>Data</dt><dd>{new Date(selectedTx.date).toLocaleString('pt-BR')}</dd></div>
+              <div className={styles.txDetailRow}><dt>Tipo</dt><dd>{selectedTx.type === 'credit' ? 'Entrada' : 'Saída'}</dd></div>
+              {selectedTx.relatedId && (
+                <div className={styles.txDetailRow}><dt>Referência</dt><dd className={styles.mono}>{selectedTx.relatedId}</dd></div>
+              )}
+            </dl>
+          </div>
+        )}
       </Sheet>
     </ProtectedRoute>
   );
