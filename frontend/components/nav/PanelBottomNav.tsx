@@ -18,6 +18,7 @@ export default function PanelBottomNav() {
 
   const all = getNavItems(role, can, role === 'ceo');
   const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, 4);
+  if (bottom.length === 0) return null; // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer)
   const more = all.filter((i) => i.placement.includes('drawer') && !bottom.includes(i));
   const drawerOpen = overlay.isOpen('panelDrawer');
   const count = (b?: NavItem['badge']) =>
