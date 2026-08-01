@@ -10,7 +10,7 @@ jest.mock('../contexts/AuthContext', () => {
   const React = require('react');
   return { __esModule: true, default: React.createContext({ user: { id: 'u1', name: 'Teste', roles: ['cliente'] } }) };
 });
-jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), query: {} }) }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => children }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(() => Promise.resolve({ data: [] })) } }));
 jest.mock('../hooks/useSync', () => ({
