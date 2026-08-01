@@ -889,3 +889,29 @@ export const useWallet = (ownerId?: string, ownerType: 'user' | 'store' = 'user'
 
   return { wallet, loading, setWallet };
 };
+
+/** Lojas mais vendedoras (últimos 30 dias). */
+export const useTopStores = () => {
+  const [stores, setStores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/stores/top')
+      .then((r) => setStores(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setStores([]))
+      .finally(() => setLoading(false));
+  }, []);
+  return { stores, loading };
+};
+
+/** Produtos mais vendidos (últimos 30 dias) — inclui storePlan. */
+export const useTopProducts = () => {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/products/top')
+      .then((r) => setProducts(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+  return { products, loading };
+};

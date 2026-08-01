@@ -7,6 +7,7 @@ import {
   deleteProduct,
   updateStock
 } from '../controllers/productController';
+import { getTopProducts } from '../controllers/storeController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 
 import upload, { uploadProductMedia } from '../middleware/upload';
@@ -17,6 +18,7 @@ const router = Router();
 
 // Public listing
 router.get('/', listProducts);
+router.get('/top', getTopProducts);
 router.get('/:id', getProduct);
 
 // Protected routes (require authentication) - agora aceita upload de imagem

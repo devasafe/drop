@@ -1,0 +1,35 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding-bottom: 170px; /* StickyCart + bottom-nav */
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 0;
+}
+
+.rail {
+  padding: var(--space-1) 0 var(--space-2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.cell {
+  cursor: pointer;
+}

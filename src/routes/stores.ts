@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createStore, listStores, deleteStoreAndUser, getStore, listarAvaliacoesLoja, dashboard, updateStore, getFeaturedStores, uploadStoreBanner, updateOperatingHours, getStoreTopProducts } from '../controllers/storeController';
+import { createStore, listStores, deleteStoreAndUser, getStore, listarAvaliacoesLoja, dashboard, updateStore, getFeaturedStores, uploadStoreBanner, updateOperatingHours, getStoreTopProducts, getTopStores } from '../controllers/storeController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import upload from '../middleware/upload';
 
@@ -10,6 +10,7 @@ router.get('/dashboard', authenticate, authorizeRoles('lojista'), dashboard);
 
 // [Plan1] Lojas em destaque — Plano 3 com banner preenchido (rota pública)
 router.get('/featured', getFeaturedStores);
+router.get('/top', getTopStores);
 
 // Upload de banner (featured) ou capa (cover) — exclusivo Plano 3
 router.post('/banner', authenticate, authorizeRoles('lojista'), upload.single('banner'), uploadStoreBanner);
