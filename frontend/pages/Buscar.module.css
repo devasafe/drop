@@ -15,6 +15,12 @@
 .section {
   padding: 8px 16px 0;
 }
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 
 .sectionTitle {
   font-size: 15px;
