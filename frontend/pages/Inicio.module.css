@@ -59,6 +59,10 @@
   gap: var(--space-3);
 }
 
+.carouselWrap {
+  margin-bottom: 12px;
+}
+
 .storeRows {
   display: flex;
   flex-direction: column;

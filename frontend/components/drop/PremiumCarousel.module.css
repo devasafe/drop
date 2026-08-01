@@ -1,0 +1,45 @@
+.carousel {
+  position: relative;
+}
+
+.viewport {
+  overflow: hidden;
+  border-radius: var(--r-xl);
+}
+
+.track {
+  display: flex;
+  transition: transform 0.5s ease;
+}
+
+.slide {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.dot,
+.dotActive {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.dot {
+  background: var(--line);
+}
+
+.dotActive {
+  width: 18px;
+  background: var(--brand);
+}

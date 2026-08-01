@@ -915,3 +915,16 @@ export const useTopProducts = () => {
   }, []);
   return { products, loading };
 };
+
+/** Lojas em destaque (Plano 3 com featuredBannerUrl) — banners do carrossel. */
+export const useFeaturedStores = () => {
+  const [stores, setStores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/stores/featured')
+      .then((r) => setStores(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setStores([]))
+      .finally(() => setLoading(false));
+  }, []);
+  return { stores, loading };
+};
