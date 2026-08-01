@@ -3,6 +3,9 @@ import api from '../lib/api';
 import { maskCPF, maskRG, maskPhone, onlyDigits, cleanRG } from '../lib/masks';
 import { useAuth } from '../contexts/AuthContext';
 import StoreSettingsEditor from './StoreSettingsEditor';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 import styles from './MeusDadosForm.module.css';
 
 /**
@@ -70,20 +73,30 @@ export default function MeusDadosForm() {
       {msg && <div className={styles.banner}>{msg} <a href="/verificacao" className={styles.link}>Ir para verificação →</a></div>}
       {err && <div className={`${styles.banner} ${styles.bannerError}`}>{err}</div>}
 
-      <section className={styles.card}>
-        <label className={styles.hint}>Nome</label>
-        <input className={styles.input} value={name} onChange={e => setName(e.target.value)} maxLength={80} />
-        <label className={styles.hint}>Email</label>
-        <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} maxLength={120} />
-        <label className={styles.hint}>Telefone</label>
-        <input className={styles.input} value={telefone} onChange={e => setTelefone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} inputMode="numeric" />
-        <label className={styles.hint}>CPF</label>
-        <input className={`${styles.input} ${docApproved ? styles.inputLocked : ''}`} value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} readOnly={docApproved} />
-        <label className={styles.hint}>RG</label>
-        <input className={`${styles.input} ${docApproved ? styles.inputLocked : ''}`} value={rg} onChange={e => setRg(maskRG(e.target.value))} placeholder="00.000.000-0" maxLength={12} readOnly={docApproved} />
+      <Card className={styles.card}>
+        <label className={styles.field}>
+          <span className={styles.hint}>Nome</span>
+          <Input value={name} onChange={setName} maxLength={80} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.hint}>Email</span>
+          <Input value={email} onChange={setEmail} type="email" maxLength={120} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.hint}>Telefone</span>
+          <Input value={telefone} onChange={(v) => setTelefone(maskPhone(v))} placeholder="(00) 00000-0000" maxLength={15} inputMode="numeric" />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.hint}>CPF</span>
+          <Input value={cpf} onChange={(v) => setCpf(maskCPF(v))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} disabled={docApproved} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.hint}>RG</span>
+          <Input value={rg} onChange={(v) => setRg(maskRG(v))} placeholder="00.000.000-0" maxLength={12} disabled={docApproved} />
+        </label>
         {docApproved && <p className={styles.warn}>CPF e RG não podem ser alterados após o documento aprovado.</p>}
-        <button className={styles.btn} onClick={salvar}>Salvar alterações</button>
-      </section>
+        <Button variant="primary" onClick={salvar}>Salvar alterações</Button>
+      </Card>
 
       {isLojista && store && (
         <StoreSettingsEditor store={store} onSaved={(u: any) => setStore((prev: any) => ({ ...prev, ...u }))} />

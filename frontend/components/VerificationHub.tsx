@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
 import styles from './VerificationHub.module.css';
 
 type Step = 'done' | 'pending' | 'todo';
@@ -96,14 +98,14 @@ export default function VerificationHub() {
         {pend === 0 ? 'Tudo certo! Sua conta está completa. ✅' : `Você tem ${pend} item(ns) pendente(s).`}
       </p>
       {sections.map((s, i) => (
-        <div key={i} className={styles.card}>
+        <Card key={i} className={styles.card}>
           <div className={styles.cardHead}>
             <strong className={styles.cardTitle}>{s.title}</strong>
             {badge(s.step)}
           </div>
           <p className={styles.cardDesc}>{s.desc}</p>
-          <button className={styles.btn} onClick={() => router.push(s.href)}>{s.cta} →</button>
-        </div>
+          <Button variant="ghost" size="sm" onClick={() => router.push(s.href)}>{s.cta} →</Button>
+        </Card>
       ))}
     </div>
   );

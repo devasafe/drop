@@ -6,6 +6,8 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import MeusDadosForm from '../components/MeusDadosForm';
 import VerificationHub from '../components/VerificationHub';
 import StoreRatingsBlock from '../components/StoreRatingsBlock';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import styles from './UserProfile.module.css';
 
 const roleLabel = (role: string) => {
@@ -50,22 +52,22 @@ export default function UserProfile() {
     <div className={styles.page}>
       <div className={styles.container}>
         {/* Avatar card */}
-        <div className={styles.avatarCard}>
+        <Card className={styles.avatarCard}>
           <div className={styles.avatarGlow} />
           <div className={styles.avatar}>{user.name.charAt(0).toUpperCase()}</div>
           <h1 className={styles.userName}>{user.name}</h1>
           <p className={styles.userEmail}>{user.email}</p>
           <div className={styles.roleBadge}>{roleLabel(activeRole)}</div>
           {isLojista && store?.name && <p className={styles.storeNote}>Loja: <b>{store.name}</b></p>}
-        </div>
+        </Card>
 
         {/* Avaliações da loja (lojista) */}
         {isLojista && store?._id && (
           <>
             <h2 className={styles.sectionTitle}>Avaliações da loja</h2>
-            <div className={styles.ratingsWrap}>
+            <Card className={styles.ratingsWrap}>
               <StoreRatingsBlock storeId={String(store._id)} />
-            </div>
+            </Card>
           </>
         )}
 
@@ -78,9 +80,7 @@ export default function UserProfile() {
         <MeusDadosForm />
 
         {/* Sair */}
-        <button onClick={logout} className={`${styles.btnLogout} ${styles.logout}`}>
-          Sair
-        </button>
+        <Button variant="ghost" onClick={logout} className={styles.logout}>Sair</Button>
       </div>
     </div>
   );
