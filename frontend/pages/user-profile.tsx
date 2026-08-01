@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -56,34 +56,32 @@ export default function UserProfile() {
           <h1 className={styles.userName}>{user.name}</h1>
           <p className={styles.userEmail}>{user.email}</p>
           <div className={styles.roleBadge}>{roleLabel(activeRole)}</div>
-          {isLojista && store?.name && <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>Loja: <b>{store.name}</b></p>}
+          {isLojista && store?.name && <p className={styles.storeNote}>Loja: <b>{store.name}</b></p>}
         </div>
 
         {/* Avaliações da loja (lojista) */}
         {isLojista && store?._id && (
           <>
-            <h2 style={sectionTitle}>Avaliações da loja</h2>
-            <div style={{ background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 18 }}>
+            <h2 className={styles.sectionTitle}>Avaliações da loja</h2>
+            <div className={styles.ratingsWrap}>
               <StoreRatingsBlock storeId={String(store._id)} />
             </div>
           </>
         )}
 
-        {/* Verificações e recebimento */}
-        <h2 style={sectionTitle}>Verificações e recebimento</h2>
+        {/* Verificações e segurança */}
+        <h2 className={styles.sectionTitle}>Verificações e segurança</h2>
         <VerificationHub />
 
         {/* Meus dados */}
-        <h2 style={{ ...sectionTitle, marginTop: 28 }}>Meus dados</h2>
+        <h2 className={`${styles.sectionTitle} ${styles.sectionTitleTop}`}>Meus dados</h2>
         <MeusDadosForm />
 
         {/* Sair */}
-        <button onClick={logout} className={styles.btnLogout} style={{ marginTop: 24, width: '100%' }}>
+        <button onClick={logout} className={`${styles.btnLogout} ${styles.logout}`}>
           Sair
         </button>
       </div>
     </div>
   );
 }
-
-const sectionTitle: React.CSSProperties = { fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.92)', margin: '24px 0 4px' };

@@ -196,6 +196,25 @@
   color: var(--drop-white);
 }
 
+.sectionTitle {
+  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 24px 0 4px;
+}
+.sectionTitleTop { margin-top: 28px; }
+
+.ratingsWrap {
+  background: var(--drop-bg-2, #161616);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.storeNote { color: rgba(255, 255, 255, 0.6); margin-top: 8px; }
+
+.logout { margin-top: 24px; width: 100%; justify-content: center; }
+
 .btnLogout {
   display: inline-flex;
   align-items: center;
