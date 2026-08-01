@@ -327,7 +327,13 @@ export default function StoreDashboard() {
   const [historyOrders, setHistoryOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('orders');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Deep-link da AppSidebar (?tab=orders) — sincroniza a aba ativa com a querystring.
+  useEffect(() => {
+    const t = router.query.tab;
+    if (typeof t === 'string') setActiveTab(t);
+  }, [router.query.tab]);
+
   const [pinInputs, setPinInputs] = useState<{[id:string]:string}>({});
   const [pinStatuses, setPinStatuses] = useState<{[id:string]:string}>({});
   const pollingRef = useRef<any>(null);
@@ -731,90 +737,10 @@ export default function StoreDashboard() {
     <ProtectedRoute required_role="lojista">
       <div className={styles.dashLayout}>
 
-        {/* ═══ SIDEBAR ═══ */}
-        <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
-          <div className={styles.sidebarHeader}>
-            <div className={styles.sidebarLogoRow}>
-              <div className={styles.sidebarLogoIcon}><Icon name="package" size={16} /></div>
-              <span className={styles.sidebarLogo}>DROP SELLER</span>
-            </div>
-            <p className={styles.sidebarSubtitle}>Partner Dashboard</p>
-          </div>
-
-          {store && (
-            <div className={styles.sidebarStoreInfo}>
-              <div className={styles.sidebarStoreName}>{store.name}</div>
-              {store.plan && (
-                <span className={styles.sidebarPlanBadge}>
-                  Plano {store.plan === 3 ? 'Premium' : store.plan === 2 ? 'Pro' : 'Basic'}
-                </span>
-              )}
-            </div>
-          )}
-
-          <nav className={styles.sidebarNav}>
-            {[
-              { id: 'metrics', label: 'Configurações', icon: 'settings' as const },
-              { id: 'orders', label: `Pedidos (${orders.length})`, icon: 'package' as const },
-              { id: 'history', label: `Histórico (${historyOrders.length})`, icon: 'clipboard' as const },
-              { id: 'returns', label: `Devoluções (${returnRequests.length})`, icon: 'truck' as const },
-              { id: 'chat', label: 'Chat', icon: 'chat' as const },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); setSidebarOpen(false); }}
-                className={`${styles.sidebarNavItem} ${activeTab === tab.id ? styles.sidebarNavItemActive : ''}`}
-              >
-                <Icon name={tab.icon} size={16} />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-
-            <div className={styles.sidebarNavLabel}>Gerenciar</div>
-            {[
-              { href: '/seller/products', label: 'Meus Produtos', icon: 'package' as const },
-              { href: '/seller/analytics', label: 'Analytics', icon: 'chart-up' as const },
-              { href: '/seller/coupons', label: 'Meus Cupons', icon: 'tag' as const },
-              { href: '/editar-conta', label: 'Editar meus dados', icon: 'settings' as const },
-            ].map(link => (
-              <button
-                key={link.href}
-                onClick={() => { setSidebarOpen(false); router.push(link.href); }}
-                className={styles.sidebarNavItem}
-              >
-                <Icon name={link.icon} size={16} />
-                <span>{link.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          {store && (
-            <div className={styles.sidebarActions}>
-              <button
-                onClick={() => router.push('/seller/select-plan')}
-                className={`${styles.btnStoreAction} ${styles.btnStoreActionSuccess}`}
-              >
-                <Icon name="clipboard" size={14} /> Escolher Plano
-              </button>
-              <button
-                onClick={() => router.push('/seller/wallet')}
-                className={`${styles.btnStoreAction} ${styles.btnStoreActionWarning}`}
-              >
-                <Icon name="wallet" size={14} /> Carteira
-              </button>
-            </div>
-          )}
-        </aside>
-
-        {sidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setSidebarOpen(false)} />}
-
         {/* ═══ MAIN CONTENT ═══ */}
         <main className={styles.mainContent}>
           {/* Top Bar */}
           <div className={styles.topBar}>
-            <button className={styles.hamburgerBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <Icon name="menu" size={20} />
-            </button>
             <div className={styles.topBarTitle}>
               <h1 className={styles.pageTitle}>Painel do Lojista</h1>
             </div>

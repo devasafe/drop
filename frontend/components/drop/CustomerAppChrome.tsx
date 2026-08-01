@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useCart } from '../../contexts/CartContext';
 import { spaceGrotesk, inter } from '../../lib/fonts';
+import { getNavItems, isItemActive } from '../../lib/navConfig';
 import { StickyCart } from './StickyCart';
 import { TabBar, TabKey } from './TabBar';
 import styles from './CustomerAppChrome.module.css';
@@ -10,18 +11,19 @@ interface CartItem {
   quantity?: number;
 }
 
-const TAB_ROUTES: Record<TabKey, string> = {
-  inicio: '/inicio',
-  buscar: '/',
-  pedidos: '/user-dashboard',
-  carteira: '/wallet',
-  perfil: '/minha-conta',
+// Ordem canônica das abas do cliente = ordem dos itens bottomNav da config.
+const CLIENTE_ITEMS = getNavItems('cliente', () => true, false).filter((i) => i.placement.includes('bottomNav'));
+const KEY_BY_LABEL: Record<string, TabKey> = {
+  'Início': 'inicio', 'Buscar': 'buscar', 'Pedidos': 'pedidos', 'Carteira': 'carteira', 'Perfil': 'perfil',
 };
 
-/** Aba ativa derivada da rota do app-shell do cliente. As telas de vitrine
- * (/stores, /stores/[id], /product/[id]) mapeiam para "Buscar". */
+/** Aba ativa derivada da rota do app-shell do cliente, via navConfig (rota +
+ * activeMatch de cada item). As telas de vitrine (/stores, /stores/[id],
+ * /product/[id]) mapeiam para "Buscar" através do activeMatch '/stores'
+ * declarado no item Buscar da config. */
 function activeTab(pathname: string): TabKey {
-  return pathname === '/inicio' ? 'inicio' : 'buscar';
+  const hit = CLIENTE_ITEMS.find((i) => isItemActive(i, pathname));
+  return hit ? KEY_BY_LABEL[hit.label] : 'inicio';
 }
 
 /**
@@ -39,7 +41,10 @@ export function CustomerAppChrome() {
   const cartCount = items.reduce((sum, c) => sum + (c.quantity || 0), 0);
   const cartTotal = items.reduce((sum, c) => sum + (c.price || 0) * (c.quantity || 0), 0);
 
-  const handleTabNavigate = (key: TabKey) => router.push(TAB_ROUTES[key]);
+  const handleTabNavigate = (key: TabKey) => {
+    const item = CLIENTE_ITEMS.find((i) => KEY_BY_LABEL[i.label] === key);
+    if (item) router.push(item.route);
+  };
 
   return (
     <div className={`${spaceGrotesk.variable} ${inter.variable} ${styles.dock}`}>

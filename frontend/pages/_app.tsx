@@ -4,8 +4,11 @@ import type { AppProps } from 'next/app';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { CartProvider } from '../contexts/CartContext';
+import { OverlayProvider } from '../contexts/OverlayContext';
 import { ToastProvider } from '../components/ui/Toast';
 import Nav from '../components/Nav';
+import AppSidebar from '../components/nav/AppSidebar';
+import PanelBottomNav from '../components/nav/PanelBottomNav';
 import VerificationBanner from '../components/VerificationBanner';
 import Footer from '../components/Footer';
 import SeasonalBanner from '../components/SeasonalBanner';
@@ -75,12 +78,18 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       {user && <RealtimeNotifier />}
       <NotificationToaster />
       <CartProvider>
+        <OverlayProvider>
         <ToastProvider>
         <SeasonalThemeProvider>
         {!hideChrome && <Nav />}
+        {user && isDashboard && <AppSidebar />}
+        {user && isDashboard && <PanelBottomNav />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
-        <main className={`${spaceGrotesk.variable} ${inter.variable}`} style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}>
+        <main
+          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}`}
+          style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
+        >
           <PageTransition>
             <Component {...pageProps} />
           </PageTransition>
@@ -106,6 +115,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {/* Inbox de solicitações de acesso à carteira (clientes) */}
         {user?.role === 'cliente' && <WalletAccessInbox />}
         </ToastProvider>
+        </OverlayProvider>
       </CartProvider>
     </SocketProvider>
   );

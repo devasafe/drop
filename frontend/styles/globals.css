@@ -976,3 +976,13 @@ body.theme-halloween {
     text-size-adjust: 100%;
   }
 }
+
+/* ── Panel content offset ──────────────────────────────────
+   Compensa a AppSidebar fixa (256px) nas rotas de painel
+   (lojista/motoboy/admin) no desktop. Aplicada globalmente ao
+   <main> em _app.tsx quando a AppSidebar está montada — assim
+   TODAS as páginas de painel (não só as duas "home") ficam sem
+   sobreposição, com um único mecanismo de offset. */
+@media (min-width: 1025px) {
+  .panelContentOffset { margin-left: 256px; }
+}

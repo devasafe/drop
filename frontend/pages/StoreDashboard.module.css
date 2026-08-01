@@ -492,7 +492,6 @@
 /* ---- MAIN CONTENT ---- */
 
 .mainContent {
-  margin-left: 256px;
   flex: 1;
   min-height: calc(100vh - 60px);
 }
@@ -1512,9 +1511,6 @@
   }
   .sidebarOverlay {
     display: block;
-  }
-  .mainContent {
-    margin-left: 0;
   }
   .hamburgerBtn {
     display: flex;
