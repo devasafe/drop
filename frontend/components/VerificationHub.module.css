@@ -1,36 +1,25 @@
-.loading { color: rgba(255, 255, 255, 0.5); }
-.intro { color: rgba(255, 255, 255, 0.6); margin: 0 0 4px; }
+.loading { color: var(--text-muted); }
+.intro { color: var(--text-muted); margin: 0 0 var(--space-1); }
 
 .card {
-  background: var(--drop-bg-2, #161616);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
-  padding: 18px;
-  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
-.cardHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.cardTitle { font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: rgba(255, 255, 255, 0.92); }
-.cardDesc { color: rgba(255, 255, 255, 0.5); font-size: 13px; margin: 8px 0 12px; }
-
-.btn {
-  background: rgba(108, 43, 217, 0.15);
-  color: #C4B5FD;
-  border: 1px solid #6C2BD9;
-  border-radius: 10px;
-  padding: 9px 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn:hover { background: rgba(108, 43, 217, 0.25); }
+.cardHead { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); width: 100%; }
+.cardTitle { font-family: var(--font-display); font-weight: 600; color: var(--text-strong); }
+.cardDesc { color: var(--text-muted); font-size: 13px; margin: 0; }
 
 .badge {
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid currentColor;
 }
-.badgeDone { color: #22C55E; background: rgba(34, 197, 94, 0.12); }
-.badgePending { color: #F59E0B; background: rgba(245, 158, 11, 0.12); }
-.badgeTodo { color: #EF4444; background: rgba(239, 68, 68, 0.12); }
+.badgeDone { color: var(--success); background: rgba(61, 220, 132, 0.12); }
+.badgePending { color: var(--rating); background: rgba(255, 176, 32, 0.12); }
+.badgeTodo { color: var(--danger); background: rgba(255, 90, 95, 0.12); }
