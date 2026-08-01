@@ -30,10 +30,21 @@
 /* Header */
 .header {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 40px;
+  gap: 4px;
+  margin-bottom: 28px;
   animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+}
+
+.group { margin-bottom: 20px; }
+.groupLabel {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--drop-text-dim, rgba(255, 255, 255, 0.5));
 }
 
 .titleGroup {}
