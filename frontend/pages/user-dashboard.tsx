@@ -6,9 +6,18 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import { useOrders, useNotifications } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import { Package, FileText } from 'lucide-react';
+import { orderStatusLabel, orderStatusTone } from '../lib/orderStatus';
 import styles from './UserDashboard.module.css';
 
 const MapPicker = dynamic(() => import('../components/MapPicker'), { ssr: false });
+
+const toneClass = (status: string) => {
+  const map: Record<string, string> = {
+    pending: styles.tonePending, active: styles.toneActive, done: styles.toneDone, cancelled: styles.toneCancelled,
+  };
+  return map[orderStatusTone(status)] || styles.tonePending;
+};
 
 export default function UserDashboard() {
   const { user: authUser } = useContext(AuthContext);
@@ -98,17 +107,6 @@ export default function UserDashboard() {
   );
 
   // Helper function to get status badge info
-  const getStatusBadgeInfo = (status: string) => {
-    const statusMap: any = {
-      entregue:   { label: 'Entregue',  color: '#4ADE80', bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.3)' },
-      delivered:  { label: 'Entregue',  color: '#4ADE80', bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.3)' },
-      cancelado:  { label: 'Cancelado', color: '#F87171', bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.3)' },
-      cancelled:  { label: 'Cancelado', color: '#F87171', bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.3)' },
-      rejeitado:  { label: 'Rejeitado', color: '#FB923C', bg: 'rgba(251,146,60,0.15)', border: 'rgba(251,146,60,0.3)' },
-    };
-    return statusMap[status] || { label: status.toUpperCase(), color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.15)' };
-  };
-
   const pendingOrders = orders.filter(order => !['entregue', 'delivered', 'cancelado', 'rejeitado'].includes(order.status));
   const completedOrders = orders.filter(order => ['entregue', 'delivered', 'cancelado', 'rejeitado'].includes(order.status));
 
@@ -232,9 +230,7 @@ export default function UserDashboard() {
                 <div>
                   {pendingOrders.length === 0 ? (
                     <div className={styles.emptyState}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={styles.emptyIcon}>
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                      </svg>
+                      <Package size={40} strokeWidth={1.5} className={styles.emptyIcon} />
                       <p className={styles.emptyTitle}>Nenhum pedido em andamento</p>
                       <p className={styles.emptySubtitle}>Quando você fizer um pedido, ele aparecerá aqui</p>
                     </div>
@@ -256,7 +252,7 @@ export default function UserDashboard() {
                                   #{(order._id || order.id || order.orderId || '').slice(-8)}
                                 </div>
                               </div>
-                              <div className={styles.statusBadgePending}>{order.status}</div>
+                              <div className={`${styles.statusBadge} ${toneClass(order.status)}`}>{orderStatusLabel(order.status)}</div>
                             </div>
 
                             {order.products && Array.isArray(order.products) && order.products.length > 0 && (
@@ -536,15 +532,12 @@ export default function UserDashboard() {
                 <div>
                   {completedOrders.length === 0 ? (
                     <div className={styles.emptyState}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={styles.emptyIcon}>
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                      </svg>
+                      <FileText size={40} strokeWidth={1.5} className={styles.emptyIcon} />
                       <p className={styles.emptyTitle}>Nenhum pedido no histórico</p>
                     </div>
                   ) : (
                     <div className={styles.orderList}>
                       {completedOrders.map((order, idx) => {
-                        const badge = getStatusBadgeInfo(order.status);
                         return (
                           <div key={order._id || idx} className={styles.orderCardHistory}>
                             <div className={styles.orderCardTop}>
@@ -561,17 +554,11 @@ export default function UserDashboard() {
                                   </div>
                                 )}
                               </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{
-                                  background: badge.bg, border: `1px solid ${badge.border}`,
-                                  color: badge.color, padding: '4px 12px', borderRadius: '20px',
-                                  fontSize: '11px', fontWeight: 700, marginBottom: '8px',
-                                  textTransform: 'uppercase', letterSpacing: '0.05em',
-                                  display: 'inline-block',
-                                }}>
-                                  {badge.label}
+                              <div className={styles.orderRight}>
+                                <div className={`${styles.statusBadge} ${toneClass(order.status)}`}>
+                                  {orderStatusLabel(order.status)}
                                 </div>
-                                <div style={{ fontWeight: 800, fontSize: '18px', color: badge.color, fontFamily: 'Space Grotesk, sans-serif' }}>
+                                <div className={styles.historyTotal}>
                                   R$ {order.totalValue?.toFixed(2) || '0.00'}
                                 </div>
                               </div>
@@ -599,7 +586,7 @@ export default function UserDashboard() {
                               ].map((item) => (
                                 <div key={item.label} className={styles.financialCell}>
                                   <div className={styles.financialLabel}>{item.label}</div>
-                                  <div className={styles.financialValue} style={{ color: item.color }}>R$ {item.value}</div>
+                                  <div className={styles.financialValue}>R$ {item.value}</div>
                                 </div>
                               ))}
                             </div>
