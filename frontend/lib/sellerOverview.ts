@@ -6,8 +6,6 @@ const BUCKET: Record<string, OrderBucket> = {
   picked: 'aCaminho', enviado: 'aCaminho', shipped: 'aCaminho', aguardando_confirmacao: 'aCaminho',
 };
 
-const TERMINAL = new Set(['entregue', 'delivered', 'cancelado', 'cancelled', 'rejeitado']);
-
 export function bucketOfStatus(status: string): OrderBucket | null {
   return BUCKET[status] ?? null;
 }
