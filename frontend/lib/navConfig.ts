@@ -119,8 +119,19 @@ export function getNavItems(
   return items.filter((it) => !it.permission || can(it.permission));
 }
 
-/** Estado ativo por prefixo de rota (ignora querystring). */
-export function isItemActive(item: NavItem, pathname: string): boolean {
+/** Estado ativo por prefixo de rota e tab na querystring. */
+export function isItemActive(
+  item: NavItem,
+  pathname: string,
+  query?: Record<string, string | string[] | undefined>,
+): boolean {
   const base = (item.activeMatch || item.route).split('?')[0];
-  return pathname === base || pathname.startsWith(base + '/');
+  const pathMatches = pathname === base || pathname.startsWith(base + '/');
+  if (!pathMatches) return false;
+  // Parse tab from the route (where it's defined in config)
+  const routeQs = item.route.split('?')[1];
+  const itemTab = routeQs ? new URLSearchParams(routeQs).get('tab') : null;
+  const curTab = query && typeof query.tab === 'string' ? query.tab : null;
+  if (itemTab) return curTab === itemTab;   // item targets a specific tab
+  return curTab === null;                    // no-tab item = overview: active only when no tab selected
 }

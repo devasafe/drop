@@ -63,4 +63,15 @@ describe('navConfig', () => {
     expect(isItemActive(item, '/motoboy/ongoing/123')).toBe(true);
     expect(isItemActive(item, '/motoboy')).toBe(false);
   });
+
+  it('resolve o estado ativo por ?tab= no dashboard do lojista (um item por vez)', () => {
+    const items = getNavItems('lojista', () => true, false);
+    const active = (pathname: string, query: Record<string, string>) =>
+      items.filter((i) => isItemActive(i, pathname, query)).map((i) => i.label);
+
+    // Sem tab na URL → só a Visão geral
+    expect(active('/seller/dashboard', {})).toEqual(['Visão geral']);
+    // ?tab=orders → só Pedidos
+    expect(active('/seller/dashboard', { tab: 'orders' })).toEqual(['Pedidos']);
+  });
 });
