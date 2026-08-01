@@ -60,6 +60,12 @@ export default function MyWalletPage() {
   const ownerId = ownerType === 'store' ? user?.storeId : user?._id;
   const { wallet: realtimeWallet } = useWallet(ownerId, ownerType as 'user' | 'store');
 
+  // Carteira do cliente foi unificada na /wallet (design system). Lojista/motoboy
+  // seguem com a carteira por papel aqui.
+  useEffect(() => {
+    if (!authLoading && user && currentRole === 'cliente') router.replace('/wallet');
+  }, [authLoading, user, currentRole, router]);
+
   useEffect(() => {
     console.log('🔔 ROLE CHANGED DETECTED:', {
       oldRole: user?.role,

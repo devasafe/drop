@@ -42,7 +42,7 @@ export default function Footer() {
             <Link href="/login" className={styles.link}>Entrar</Link>
             <Link href="/register" className={styles.link}>Cadastrar</Link>
             <Link href="/user-dashboard" className={styles.link}>Meus Pedidos</Link>
-            <Link href="/my-wallet" className={styles.link}>Minha Carteira</Link>
+            <Link href="/wallet" className={styles.link}>Minha Carteira</Link>
           </div>
         </div>
 
