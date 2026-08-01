@@ -64,6 +64,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   const showBottomChrome =
     router.pathname === '/' ||
     router.pathname === '/inicio' ||
+    router.pathname === '/wallet' ||
     router.pathname === '/stores' ||
     router.pathname === '/stores/[id]' ||
     router.pathname === '/product/[id]';
