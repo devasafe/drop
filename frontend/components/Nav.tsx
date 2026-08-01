@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
 import AccountMenu from './nav/AccountMenu';
-import { getNavItems, Role } from '../lib/navConfig';
+import { getNavItems, ROLE_HOME, Role } from '../lib/navConfig';
 import Icon from './Icon';
 import styles from './Nav.module.css';
 
@@ -36,6 +36,9 @@ export default function Nav() {
   const activeRole = (user?.activeRole || user?.role || 'cliente') as Role;
   const isAdmin = can ? getNavItems('ceo', can, false).length > 0 : false;
   const isPanel = activeRole === 'lojista' || activeRole === 'motoboy' || isAdmin;
+  // A logo leva cada role à SUA Home (lojista/motoboy → painel; cliente → /inicio;
+  // admin/ceo e admins delegados → painel admin).
+  const homeHref = ROLE_HOME[activeRole] ?? (isAdmin ? ROLE_HOME.ceo : ROLE_HOME.cliente);
 
   // Total de pendências relevantes p/ o badge do botão de menu do painel.
   const menuTotal =
@@ -67,7 +70,7 @@ export default function Nav() {
       <nav className={styles.nav}>
 
         {/* Logo */}
-        <Link href="/inicio" className={styles.logo}>
+        <Link href={homeHref} className={styles.logo}>
           <img src="/images/logog_png.png" alt="DROP" />
         </Link>
 
