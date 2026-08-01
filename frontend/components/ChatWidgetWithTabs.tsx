@@ -67,15 +67,18 @@ export default function ChatWidgetWithTabs({
     // overlay.open/close são estáveis (useCallback); depender só de chatVisible
     // evita loop de feedback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => overlay.close('chat');
   }, [chatVisible]);
   useEffect(() => {
-    // Coerência: se outro overlay foi aberto em outro lugar enquanto o chat
-    // estava visível, minimiza o chat (mesmo efeito do botão "Minimizar").
-    if (chatVisible && overlay.active && overlay.active !== 'chat') {
+    // Coerência: se outro overlay assumiu o controle (ou todos fecharam, ex.
+    // via Esc) enquanto o chat estava visível, minimiza o chat (mesmo efeito
+    // do botão "Minimizar"). Cobre tanto overlay.active !== 'chat' (outro
+    // overlay abriu) quanto overlay.active === null (Esc fechou tudo).
+    if (chatVisible && overlay.active !== 'chat') {
       setIsMinimized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlay.active]);
+  }, [overlay.active, chatVisible]);
 
   // Refs com o estado atual da janela (para o listener de mensagens saber se o
   // usuário já está vendo a conversa e não notificar à toa)

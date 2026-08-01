@@ -31,10 +31,15 @@ export default function AppSidebar() {
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
-  const meta = PANEL_META[role];
-  if (!meta) return null; // cliente não tem sidebar
+  // Roles administrativas delegadas (marketing, gerente_*) acessam /admin/* com
+  // permissões parciais, mas não são a role literal 'ceo'. Sem isso, PANEL_META
+  // não teria entrada pra elas e a sidebar (e o gutter/hambúrguer) sumiriam.
+  const isAdminRole = role === 'ceo' || getNavItems('ceo', can, false).length > 0;
+  const effRole = isAdminRole ? 'ceo' : role;
+  const meta = PANEL_META[effRole];
+  if (!meta) return null; // cliente (ou role sem painel) não tem sidebar
 
-  const items = getNavItems(role, can, role === 'ceo').filter((i) => i.placement.includes('sidebar'));
+  const items = getNavItems(effRole, can, role === 'ceo').filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>

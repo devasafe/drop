@@ -55,6 +55,8 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   lojista: [
     { label: 'Visão geral',        icon: 'chart-bar', route: '/seller/dashboard',            placement: ['sidebar', 'bottomNav'], group: 'Visão geral' },
     { label: 'Pedidos',            icon: 'receipt',   route: '/seller/dashboard?tab=orders', placement: ['sidebar', 'bottomNav'], group: 'Operação', badge: 'storeOrders', activeMatch: '/seller/dashboard' },
+    { label: 'Histórico',          icon: 'clock',     route: '/seller/dashboard?tab=history', placement: ['sidebar', 'drawer'],  group: 'Operação', activeMatch: '/seller/dashboard' },
+    { label: 'Devoluções',         icon: 'refresh',   route: '/seller/dashboard?tab=returns', placement: ['sidebar', 'drawer'],  group: 'Operação', activeMatch: '/seller/dashboard' },
     { label: 'Produtos e estoque', icon: 'package',   route: '/seller/products',             placement: ['sidebar', 'bottomNav'], group: 'Operação' },
     { label: 'Mensagens',          icon: 'chat',      route: '/seller/dashboard?tab=chat',   placement: ['sidebar', 'drawer'],   group: 'Operação' }, // FOLLOW-UP (Etapa 3): rota real
     { label: 'Marketing',          icon: 'megaphone', route: '/seller/coupons',              placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
