@@ -4,6 +4,7 @@ import Nav from '../Nav';
 let mockUser: any = { name: 'X', activeRole: 'cliente', roles: ['cliente'] };
 let mockCan: (p: string) => boolean = () => false;
 
+jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../../hooks/useSync', () => ({
   useNotifications: () => ({ unreadCount: 0 }),
   useBadgeCounts: () => ({ verifications: 0, storeOrders: 0, deliveries: 0 }),
