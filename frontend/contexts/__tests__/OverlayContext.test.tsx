@@ -11,6 +11,7 @@ function Probe() {
       <button onClick={() => open('panelSidebar')}>open-sidebar</button>
       <button onClick={() => toggle('chat')}>toggle-chat</button>
       <button onClick={() => close()}>close</button>
+      <button onClick={() => close('chat')}>close-chat</button>
     </div>
   );
 }
@@ -45,5 +46,12 @@ describe('OverlayContext', () => {
     act(() => screen.getByText('open-account').click());
     act(() => screen.getByText('close').click());
     expect(screen.getByTestId('active').textContent).toBe('none');
+  });
+
+  it('close(id) só fecha se id for o overlay ativo', () => {
+    setup();
+    act(() => screen.getByText('open-account').click());   // active = account
+    act(() => screen.getByText('close-chat').click());      // close('chat') não é o ativo → no-op
+    expect(screen.getByTestId('active').textContent).toBe('account');
   });
 });
