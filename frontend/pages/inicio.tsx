@@ -15,7 +15,8 @@ import { imageUrl } from '../lib/config';
 import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
 import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
-import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
+import { StoreCard } from '../components/drop/StoreCard';
+import { mapStore } from '../lib/mapStore';
 import { FreteBanner } from '../components/drop/FreteBanner';
 import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
@@ -55,21 +56,6 @@ function trackerSteps(status: string): OrderTrackerStep[] {
     { label: 'Preparando', done: status !== 'pago' },
     { label: 'A caminho', done: status === 'enviado' },
   ];
-}
-
-/** Loja → StoreCardData. Sem rating/eta/frete reais no backend hoje (ver
- * StoreCard.tsx) — ficam de fora. `category` reaproveita bairro/cidade reais
- * da loja (não existe segmento/categoria por loja na API de listagem). */
-function mapStore(store: any): StoreCardData {
-  return {
-    name: store.name,
-    imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl) || undefined,
-    status: store.isOpen ? 'aberta' : 'fechada',
-    category:
-      [store.neighborhood, store.city].filter(Boolean).join(' • ') ||
-      store.address ||
-      'Endereço não informado',
-  };
 }
 
 export default function Inicio() {

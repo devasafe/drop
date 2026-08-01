@@ -62,6 +62,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // global + Footer).
   // Páginas do cliente que têm a bottom-nav (TabBar) do design system.
   const showBottomChrome =
+    router.pathname === '/' ||
     router.pathname === '/inicio' ||
     router.pathname === '/stores' ||
     router.pathname === '/stores/[id]' ||
