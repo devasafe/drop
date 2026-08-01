@@ -1,246 +1,191 @@
 /* =============================================
-   UserProfile.module.css
+   UserProfile.module.css — Conta (hub)
    ============================================= */
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
-  padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  padding: 0 0 170px; /* espaço p/ StickyCart + bottom-nav */
+  font-family: var(--font-body);
 }
 
 .container {
-  max-width: 720px;
+  max-width: 640px;
   margin: 0 auto;
+  padding: 0 16px;
 }
 
 .loadingScreen {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.loadingText {
-  color: var(--drop-text-dim);
-  animation: pulse 1.5s infinite;
-}
-
-/* Back link */
-.backLink {
-  display: inline-flex;
+/* Cabeçalho */
+.header {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--drop-text-dim);
-  font-size: 13px;
-  text-decoration: none;
-  margin-bottom: 32px;
-  transition: color var(--drop-transition);
-}
-
-.backLink:hover {
-  color: var(--drop-purple-2);
-}
-
-/* Avatar card */
-.avatarCard {
-  padding: var(--space-6);
-  margin-bottom: var(--space-5);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.avatarGlow {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 400px;
-  height: 300px;
-  background: radial-gradient(ellipse, rgba(108, 43, 217, 0.12) 0%, transparent 70%);
-  pointer-events: none;
+  gap: var(--space-3);
+  padding: 20px 4px 16px;
 }
 
 .avatar {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
+  background: var(--brand-grad);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-family: var(--font-display);
+  font-size: 22px;
   font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  margin: 0 auto 16px;
-  box-shadow: 0 8px 32px rgba(108, 43, 217, 0.4);
-  position: relative;
+  color: #fff;
+  box-shadow: var(--shadow-brand);
+}
+
+.headInfo {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .userName {
-  margin: 0 0 6px;
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  letter-spacing: -0.01em;
-  position: relative;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .userEmail {
-  margin: 0 0 16px;
-  font-size: 14px;
-  color: var(--drop-text-dim);
-  position: relative;
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.roleBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(108, 43, 217, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  color: var(--drop-purple-2);
-  border-radius: 999px;
-  padding: 4px 14px;
-  font-size: 12px;
+.roleChip {
+  flex: 0 0 auto;
+  align-self: center;
+  background: var(--surface-chip);
+  color: var(--brand-2);
+  border-radius: var(--r-pill);
+  padding: 4px 12px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  position: relative;
 }
 
-/* Info table */
-.infoTable {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-md);
+/* Lista de atalhos */
+.list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
-  margin-bottom: 24px;
-  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.05s both;
 }
 
-.infoTableHeader {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--drop-border);
-}
-
-.infoTableTitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--drop-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.infoRow {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+.row {
+  display: flex;
   align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  transition: background 0.15s ease;
 }
 
-.infoRow:last-child {
+.row:last-child {
   border-bottom: none;
 }
 
-.infoLabel {
-  font-size: 13px;
-  color: var(--drop-text-dim);
-  font-weight: 600;
+.row:hover {
+  background: var(--surface-2);
 }
 
-.infoValue {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 500;
-}
-
-/* Actions */
-.actions {
+.rowIcon {
+  flex: 0 0 auto;
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.1s both;
+  color: var(--text-muted);
 }
 
-.btnBack {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  padding: 11px 20px;
-  font-size: 14px;
+.rowLabel {
+  flex: 1 1 auto;
   font-weight: 600;
+  color: var(--text-strong);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+
+.statusOk {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--success);
+}
+
+.statusPend {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--rating);
+}
+
+/* Sair */
+.logoutRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  margin-top: var(--space-4);
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   cursor: pointer;
-  text-decoration: none;
-  color: var(--drop-text-muted);
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  transition: background 0.15s ease;
 }
 
-.btnBack:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--drop-white);
+.logoutRow:hover {
+  background: var(--surface-2);
 }
 
+.logoutRow .rowIcon,
+.logoutRow .rowLabel {
+  color: var(--danger);
+}
+
+/* Lojista — avaliações da loja */
 .sectionTitle {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: var(--fs-h2);
   color: var(--text-strong);
-  margin: var(--space-5) 0 var(--space-1);
-}
-.sectionTitleTop { margin-top: var(--space-6); }
-
-.ratingsWrap { padding: var(--space-4); }
-
-.storeNote { color: var(--text-muted); margin-top: var(--space-2); }
-
-.logout { margin-top: var(--space-5); width: 100%; }
-
-.btnLogout {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: var(--drop-radius-sm);
-  padding: 11px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--drop-danger);
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  margin: var(--space-5) 0 var(--space-2);
 }
 
-.btnLogout:hover {
-  background: rgba(239, 68, 68, 0.18);
-  border-color: rgba(239, 68, 68, 0.4);
-}
-
-/* ── Tablet ────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  .container { padding: 20px 16px; }
-}
-
-/* ── Mobile ─────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .page { padding: 20px 16px 64px; }
-  .container { padding: 0; }
-  .avatarCard { padding: 24px; margin-bottom: 16px; }
-  .avatar { width: 60px; height: 60px; font-size: 24px; }
-  .userName { font-size: 20px; }
-  .infoRow { grid-template-columns: 100px 1fr; }
-  .infoTable { margin-bottom: 16px; }
-  .actions { flex-direction: column; }
-  .btnBack, .btnLogout { width: 100%; justify-content: center; }
+.ratingsWrap {
+  padding: var(--space-4);
 }

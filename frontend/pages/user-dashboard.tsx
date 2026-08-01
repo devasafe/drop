@@ -58,6 +58,11 @@ export default function UserDashboard() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders();
   const [activeTab, setActiveTab] = useState('pending'); // pending, history, addresses
+  // Deep-link: /user-dashboard?tab=addresses (ex.: atalho "Endereços" do perfil).
+  useEffect(() => {
+    const t = router.query.tab;
+    if (typeof t === 'string' && ['pending', 'history', 'addresses'].includes(t)) setActiveTab(t);
+  }, [router.query.tab]);
   const [_editingAddress, setEditingAddress] = useState<any | null>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [addressForm, setAddressForm] = useState<any>({ label: '', street: '', number: '', neighborhood: '', city: '', state: '', zip: '', latitude: '', longitude: '' });
