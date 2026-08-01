@@ -55,3 +55,65 @@
   font-weight: 600;
   color: var(--text-strong);
 }
+
+/* ── Modo editável: stepper + remover ─────────────────── */
+.end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-shrink: 0;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.stepBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.stepBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepBtn:not(:disabled):hover {
+  background: rgba(108, 43, 217, 0.12);
+}
+
+.stepQty {
+  min-width: 20px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--danger, #EF4444);
+  cursor: pointer;
+}
+
+.removeBtn:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
