@@ -155,6 +155,8 @@ async function run() {
         name: p.name,
         description: `${p.name} — ${def.name}`,
         price: p.price,
+        // Desconto de exemplo em ~2 produtos por loja (preço antigo ~25% acima).
+        oldPrice: i === 0 || i === 2 ? Math.round(p.price * 1.25 * 100) / 100 : null,
         quantity: 25,
         image: img(p.kw, 500, 500, s * 10 + i + 1),
       })),
@@ -164,6 +166,52 @@ async function run() {
   }
 
   console.log(`\n🎉 ${STORES.length} lojas (5 premium + 5 plano 2) e ${totalProducts} produtos criados.`);
+
+  // Avaliações de exemplo: clientes demo avaliam alguns produtos das premium.
+  const REVIEWERS = [
+    { email: 'ana.demo@drop.test', name: 'Ana Souza' },
+    { email: 'bruno.demo@drop.test', name: 'Bruno Lima' },
+    { email: 'carla.demo@drop.test', name: 'Carla Nunes' },
+  ];
+  const COMMENTS = [
+    'Produto ótimo, recomendo!',
+    'Chegou rápido e bem embalado.',
+    'Boa qualidade pelo preço.',
+    'Superou minhas expectativas.',
+    'Gostei bastante, compraria de novo.',
+  ];
+  const reviewers = [];
+  for (const r of REVIEWERS) {
+    reviewers.push(await prisma.user.upsert({
+      where: { email: r.email },
+      update: { name: r.name },
+      create: {
+        email: r.email, name: r.name, passwordHash,
+        role: 'cliente', roles: ['cliente'], activeRole: 'cliente', status: 'active',
+      },
+    }));
+  }
+  // Produtos das lojas premium (reviews caem em cascata quando o produto some).
+  const reviewables = await prisma.product.findMany({
+    where: { store: { ownerId: owner.id, plan: 3 } },
+    orderBy: { createdAt: 'asc' },
+    take: 10,
+  });
+  let reviewTotal = 0;
+  for (let pi = 0; pi < reviewables.length; pi++) {
+    const prod = reviewables[pi];
+    const n = 2 + (pi % 2); // 2 ou 3 avaliações
+    for (let k = 0; k < n; k++) {
+      const rev = reviewers[k % reviewers.length];
+      await prisma.productReview.upsert({
+        where: { productId_userId_orderId: { productId: prod.id, userId: rev.id, orderId: `seed-${k}` } },
+        update: { rating: 4 + ((pi + k) % 2), comment: COMMENTS[(pi + k) % COMMENTS.length] },
+        create: { productId: prod.id, userId: rev.id, orderId: `seed-${k}`, rating: 4 + ((pi + k) % 2), comment: COMMENTS[(pi + k) % COMMENTS.length] },
+      });
+      reviewTotal++;
+    }
+  }
+  console.log(`⭐ ${reviewTotal} avaliações de exemplo em ${reviewables.length} produtos.`);
 
   // Avisos de exemplo (carrossel da home). Idempotente por título.
   await prisma.promoBanner.deleteMany({ where: { title: { in: DEMO_BANNERS.map((b) => b.title) } } });
