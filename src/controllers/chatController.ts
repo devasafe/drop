@@ -24,6 +24,7 @@ import userRepository from '../repositories/user.repository';
 import notifier from '../services/notifier';
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
+import { unreadForUser } from '../utils/chatUnread';
 
 /**
  * Normalizar role para match com schema enum
@@ -181,7 +182,8 @@ export const listConversations = async (
         const last = await lastMessage(conv._id);
         return {
           ...conv,
-          lastMessage: last || null
+          lastMessage: last || null,
+          unreadCount: unreadForUser(conv.unreadCount, conv.participant1?.userId, userId),
         };
       })
     );
@@ -849,9 +851,7 @@ export const getPrePurchaseConversations = async (
                 createdAt: last.createdAt
               }
             : null,
-          unreadCount: String(conv.participant1.userId) === storeId
-            ? conv.unreadCount[1]
-            : conv.unreadCount[0]
+          unreadCount: unreadForUser(conv.unreadCount, conv.participant1?.userId, storeId)
         };
       })
     );
