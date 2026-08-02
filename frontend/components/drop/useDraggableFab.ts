@@ -7,6 +7,9 @@ interface Opts {
   safeTop?: number;
   safeBottom?: number;
   storageKey?: string;
+  /** Chamado no toque (pointerup sem arrasto) — usar p/ "abrir". Não depende do
+   * evento `click`, que o pointer capture suprime no touch. */
+  onTap?: () => void;
 }
 interface Pos { left: number; top: number }
 
@@ -18,10 +21,13 @@ interface Pos { left: number; top: number }
  * quando o gesto foi um arrasto.
  */
 export function useDraggableFab(opts: Opts = {}) {
-  const { size = 56, margin = 16, safeTop = 76, safeBottom = 96, storageKey = 'fabPos' } = opts;
+  const { size = 56, margin = 16, safeTop = 76, safeBottom = 96, storageKey = 'fabPos', onTap } = opts;
   const [pos, setPos] = useState<Pos | null>(null);
-  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; captured: boolean } | null>(null);
   const movedRef = useRef(false);
+  const onTapRef = useRef(onTap);
+  useEffect(() => { onTapRef.current = onTap; }, [onTap]);
+  const THRESHOLD = 8;
 
   const vw = () => (typeof window !== 'undefined' ? window.innerWidth : 400);
   const vh = () => (typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -39,20 +45,29 @@ export function useDraggableFab(opts: Opts = {}) {
 
   const onPointerDown = (e: PointerEvent) => {
     const cur = pos || defaultPos();
-    drag.current = { sx: e.clientX, sy: e.clientY, ox: cur.left, oy: cur.top };
+    // NÃO capturar o ponteiro aqui: capturar no toque suprime o comportamento
+    // normal e a captura só é necessária quando vira arrasto (feito no move).
+    drag.current = { sx: e.clientX, sy: e.clientY, ox: cur.left, oy: cur.top, captured: false };
     movedRef.current = false;
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
   };
   const onPointerMove = (e: PointerEvent) => {
-    if (!drag.current) return;
-    const dx = e.clientX - drag.current.sx;
-    const dy = e.clientY - drag.current.sy;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) movedRef.current = true;
-    setPos({ left: clampLeft(drag.current.ox + dx), top: clampTop(drag.current.oy + dy) });
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    if (!d.captured) {
+      if (Math.abs(dx) <= THRESHOLD && Math.abs(dy) <= THRESHOLD) return; // ainda é toque
+      d.captured = true;
+      movedRef.current = true;
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+    }
+    setPos({ left: clampLeft(d.ox + dx), top: clampTop(d.oy + dy) });
   };
   const endDrag = () => {
-    if (!drag.current) return;
+    const d = drag.current;
+    if (!d) return;
     drag.current = null;
+    if (!d.captured) { onTapRef.current?.(); return; } // toque → abre, sem mexer na posição
     setPos((p) => {
       if (!p) return p;
       const snappedLeft = p.left + size / 2 < vw() / 2 ? margin : vw() - size - margin;

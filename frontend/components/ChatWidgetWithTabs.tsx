@@ -55,7 +55,10 @@ export default function ChatWidgetWithTabs({
   const [typingUsers, setTypingUsers] = useState<{ [conversationId: string]: string }>({});
   const { on, emit } = useSocket();
   const overlay = useOverlay();
-  const fab = useDraggableFab({ storageKey: 'chatFabPos' });
+  const fab = useDraggableFab({
+    storageKey: 'chatFabPos',
+    onTap: () => { setIsOpen(true); setIsMinimized(false); },
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
 
