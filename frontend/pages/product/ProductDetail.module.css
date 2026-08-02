@@ -436,3 +436,53 @@
     max-height: 420px;
   }
 }
+
+/* ── Avaliações ─────────────────────────────────────────── */
+.ratingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--rating);
+}
+.starOn { color: var(--rating); }
+.starOff { color: var(--line); }
+.ratingText {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.reviewsSection {
+  padding: var(--space-4) var(--space-4) 0;
+}
+.reviewsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.reviewItem {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.reviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.reviewName {
+  font-weight: 600;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+}
+.reviewComment {
+  margin: var(--space-2) 0 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}

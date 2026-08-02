@@ -145,7 +145,10 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
 export const getProduct = async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
-    const product = await prisma.product.findUnique({ where: { id } });
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: { category: { select: { name: true } } },
+    });
     if (!product) return res.status(404).json({ error: 'Product not found' });
     return res.json(toApiProduct(product));
   } catch (err) {

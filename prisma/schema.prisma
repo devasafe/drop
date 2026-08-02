@@ -433,12 +433,29 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  store    Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  category Category?   @relation(fields: [categoryId], references: [id])
+  store    Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category Category?       @relation(fields: [categoryId], references: [id])
   items    OrderItem[]
+  reviews  ProductReview[]
 
   @@index([storeId])
   @@index([categoryId])
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  orderId   String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId, orderId])
+  @@index([productId])
 }
 
 model Order {
