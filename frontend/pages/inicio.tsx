@@ -21,6 +21,7 @@ import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker'
 import { StoreCard } from '../components/drop/StoreCard';
 import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
+import { mapProductCard } from '../lib/searchCatalog';
 import { rankStores, take } from '../lib/catalogRanking';
 import { parseCoords } from '../lib/geo';
 import { BannerCarousel } from '../components/drop/BannerCarousel';
@@ -285,12 +286,7 @@ export default function Inicio() {
                 >
                   <ProductCard
                     variant="home"
-                    product={{
-                      name: p.name,
-                      store: storeById.get(p.storeId)?.name,
-                      imageUrl: imageUrl(p.image) || undefined,
-                      price: Number(p.price),
-                    }}
+                    product={mapProductCard(p, storeById.get(p.storeId)?.name)}
                     onAdd={(e?: any) => {
                       e?.stopPropagation?.();
                       addToCart({ productId: p._id, name: p.name, price: Number(p.price), storeId: p.storeId });

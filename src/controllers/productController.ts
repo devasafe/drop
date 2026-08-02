@@ -11,11 +11,23 @@ import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
-const toApiProduct = (p: any) => ({ ...p, _id: p?.id, price: p?.price != null ? Number(p.price) : p?.price });
+const toApiProduct = (p: any) => ({
+  ...p,
+  _id: p?.id,
+  price: p?.price != null ? Number(p.price) : p?.price,
+  oldPrice: p?.oldPrice != null ? Number(p.oldPrice) : p?.oldPrice,
+});
+
+/** "12,90" / "12.90" / "" → number | null (preço antigo é opcional). */
+const parseOptionalPrice = (v: any): number | null => {
+  if (v == null || v === '') return null;
+  const n = Number(String(v).replace(',', '.'));
+  return isFinite(n) && n > 0 ? n : null;
+};
 
 export const createProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { storeId, name, price, quantity, category, subCategory, tags, description } = req.body;
+    const { storeId, name, price, oldPrice, quantity, category, subCategory, tags, description } = req.body;
 
     // Validação básica
     if (!storeId || !name || !price) {
@@ -61,7 +73,8 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
     const product = await prisma.product.create({
       data: {
         storeId: String(storeId), name, description,
-        price: Number(price), quantity: Number(quantity) || 0,
+        price: Number(price), oldPrice: parseOptionalPrice(oldPrice),
+        quantity: Number(quantity) || 0,
         categoryId: category || undefined, subCategory, tags,
         image: imagePath,
         images: imageUrls,
@@ -139,7 +152,7 @@ export const getProduct = async (req: Request<{ id: string }>, res: Response) =>
 export const updateProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, price, quantity, category, subCategory, tags, keepImages, removeVideo } = req.body;
+    const { name, description, price, oldPrice, quantity, category, subCategory, tags, keepImages, removeVideo } = req.body;
 
     const productDoc: any = await prisma.product.findUnique({ where: { id } });
     if (!productDoc) return res.status(404).json({ error: 'Product not found' });
@@ -157,6 +170,7 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
     if (price !== undefined) data.price = Number(price);
+    if (oldPrice !== undefined) data.oldPrice = parseOptionalPrice(oldPrice); // vazio → null (remove desconto)
     if (quantity !== undefined) data.quantity = Number(quantity);
     if (category !== undefined) data.categoryId = category || null; // campo real é categoryId
     if (subCategory !== undefined) data.subCategory = subCategory;

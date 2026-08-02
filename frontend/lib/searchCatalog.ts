@@ -33,10 +33,16 @@ export function productCategories(products: any[]): { id: string; label: string 
 }
 
 export function mapProductCard(product: any, storeName?: string): ProductCardData {
+  const price = Number(product?.price) || 0;
+  const oldRaw = Number(product?.oldPrice);
+  // Só é "desconto" quando o preço antigo é maior que o atual.
+  const hasDiscount = isFinite(oldRaw) && oldRaw > price && price > 0;
   return {
     name: product?.name,
     store: storeName,
     imageUrl: imageUrl(product?.image) || undefined,
-    price: Number(product?.price) || 0,
+    price,
+    oldPrice: hasDiscount ? oldRaw : undefined,
+    discountPercent: hasDiscount ? Math.round((1 - price / oldRaw) * 100) : undefined,
   };
 }

@@ -24,6 +24,7 @@ export default function CreateProduct() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState(0);
+  const [oldPrice, setOldPrice] = useState('');
   const [quantity, setQuantity] = useState(0);
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -65,12 +66,12 @@ export default function CreateProduct() {
     if (!storeId) return alert('Loja não encontrada. Aguarde carregar ou recarregue a página.');
     if (!price || price < 0) return alert('Insira um preço válido');
     if (!quantity || quantity < 0) return alert('Insira uma quantidade válida');
-    setDrafts((prev) => [...prev, { storeId, name, description, price, quantity, category, images: [...images], videoFile, videoPreview }]);
+    setDrafts((prev) => [...prev, { storeId, name, description, price, oldPrice, quantity, category, images: [...images], videoFile, videoPreview }]);
     resetForm();
   };
 
   const resetForm = () => {
-    setName(''); setDescription(''); setPrice(0); setQuantity(0); setCategory('');
+    setName(''); setDescription(''); setPrice(0); setOldPrice(''); setQuantity(0); setCategory('');
     setImages([]);
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoFile(null); setVideoPreview(null);
@@ -88,6 +89,7 @@ export default function CreateProduct() {
         form.append('name', draft.name);
         form.append('description', draft.description || '');
         form.append('price', String(Number(draft.price)));
+        if (draft.oldPrice) form.append('oldPrice', String(draft.oldPrice));
         form.append('quantity', String(Number(draft.quantity) || 0));
         if (draft.category) form.append('category', draft.category);
         for (const img of draft.images || []) form.append('images', img.file);
@@ -195,6 +197,19 @@ export default function CreateProduct() {
                       className={styles.input}
                     />
                   </div>
+                </div>
+
+                {/* Preço antigo (opcional) — mostra desconto */}
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Preço antigo (opcional)</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={oldPrice}
+                    onChange={(e) => setOldPrice(e.target.value)}
+                    placeholder="Deixe vazio se não estiver em promoção"
+                    className={styles.input}
+                  />
+                  <p className={styles.labelHint}>Se maior que o preço atual, o produto aparece riscado com a % de desconto.</p>
                 </div>
 
                 {/* Categoria */}
