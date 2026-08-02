@@ -29,6 +29,13 @@ describe('searchCatalog', () => {
       { id: 'Pizzas', label: 'Pizzas' },
     ]);
   });
+  it('productCategories usa o nome como label (id = categoryId cuid)', () => {
+    const prods = [
+      { _id: 'x', name: 'X', categoryId: 'cat_abc123', categoryName: 'Eletrônicos' },
+      { _id: 'y', name: 'Y', categoryId: 'cat_abc123', categoryName: 'Eletrônicos' },
+    ];
+    expect(productCategories(prods)).toEqual([{ id: 'cat_abc123', label: 'Eletrônicos' }]);
+  });
   it('mapProductCard mapeia campos', () => {
     expect(mapProductCard({ name: 'Pizza', price: 40, image: 'x.jpg' }, 'Loja')).toMatchObject({
       name: 'Pizza', price: 40, store: 'Loja',

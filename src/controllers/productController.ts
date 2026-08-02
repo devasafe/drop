@@ -16,6 +16,9 @@ const toApiProduct = (p: any) => ({
   _id: p?.id,
   price: p?.price != null ? Number(p.price) : p?.price,
   oldPrice: p?.oldPrice != null ? Number(p.oldPrice) : p?.oldPrice,
+  // Nome legível da categoria (quando a relação foi incluída) — o front mostra
+  // isso nos filtros em vez do categoryId (cuid).
+  categoryName: p?.category?.name ?? undefined,
 });
 
 /** "12,90" / "12.90" / "" → number | null (preço antigo é opcional). */
@@ -115,7 +118,10 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const limit = Math.min(100, Number(req.query.limit) || 20);
     const skip = (page - 1) * limit;
 
-    const rows = await prisma.product.findMany({ where: filter, skip, take: limit });
+    const rows = await prisma.product.findMany({
+      where: filter, skip, take: limit,
+      include: { category: { select: { name: true } } },
+    });
     const products = rows.map(toApiProduct);
 
     const total = await prisma.product.count({ where: filter });
