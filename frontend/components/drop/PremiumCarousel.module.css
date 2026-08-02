@@ -5,6 +5,13 @@
 .viewport {
   overflow: hidden;
   border-radius: var(--r-xl);
+  touch-action: pan-y;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.viewport:active {
+  cursor: grabbing;
 }
 
 .track {
