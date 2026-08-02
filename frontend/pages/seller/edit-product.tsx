@@ -22,6 +22,7 @@ export default function EditProduct() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState(0);
+  const [oldPrice, setOldPrice] = useState('');
   const [quantity, setQuantity] = useState(0);
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -45,6 +46,7 @@ export default function EditProduct() {
     setName(product.name || '');
     setDescription(product.description || '');
     setPrice(product.price || 0);
+    setOldPrice(product.oldPrice != null ? String(product.oldPrice) : '');
     setQuantity(product.quantity || 0);
     setCategory(product.category || '');
     // Carrega imagens existentes
@@ -97,6 +99,7 @@ export default function EditProduct() {
       form.append('name', name);
       form.append('description', description);
       form.append('price', String(price));
+      form.append('oldPrice', oldPrice); // vazio → backend salva null (remove desconto)
       form.append('quantity', String(quantity));
       form.append('category', category);
       // Imagens existentes que permanecem
@@ -186,6 +189,15 @@ export default function EditProduct() {
                     <input type="number" min="0" value={quantity}
                       onChange={(e) => setQuantity(Number(e.target.value))} required className={styles.input} />
                   </div>
+                </div>
+
+                {/* Preço antigo (opcional) — mostra desconto */}
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Preço antigo (opcional)</label>
+                  <input type="number" min="0" step="0.01" value={oldPrice}
+                    onChange={(e) => setOldPrice(e.target.value)}
+                    placeholder="Deixe vazio se não estiver em promoção" className={styles.input} />
+                  <p className={styles.labelHint}>Se maior que o preço atual, o produto aparece riscado com a % de desconto.</p>
                 </div>
 
                 {/* Categoria */}

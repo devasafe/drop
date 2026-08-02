@@ -34,4 +34,17 @@ describe('searchCatalog', () => {
       name: 'Pizza', price: 40, store: 'Loja',
     });
   });
+
+  it('mapProductCard: preço antigo maior → desconto (riscado + %)', () => {
+    const card = mapProductCard({ name: 'X', price: 80, oldPrice: 100 });
+    expect(card.oldPrice).toBe(100);
+    expect(card.discountPercent).toBe(20);
+  });
+
+  it('mapProductCard: sem preço antigo ou menor/igual → sem desconto', () => {
+    expect(mapProductCard({ name: 'X', price: 80 }).oldPrice).toBeUndefined();
+    expect(mapProductCard({ name: 'X', price: 80 }).discountPercent).toBeUndefined();
+    expect(mapProductCard({ name: 'X', price: 80, oldPrice: 80 }).oldPrice).toBeUndefined();
+    expect(mapProductCard({ name: 'X', price: 80, oldPrice: 50 }).discountPercent).toBeUndefined();
+  });
 });
