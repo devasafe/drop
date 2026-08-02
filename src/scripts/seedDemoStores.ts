@@ -17,6 +17,12 @@ const PASS = 'Senha@123456';
 const banner = (slug: string) => `https://picsum.photos/seed/${slug}-banner/1000/500`;
 const productImg = (slug: string, i: number) => `https://picsum.photos/seed/${slug}-p${i}/500/500`;
 
+// Avisos de exemplo do carrossel da home (2:1). Idempotente: recriados por título.
+const DEMO_BANNERS = [
+  { title: 'Cupom BEMVINDO10 — 10% off no 1º pedido', imageUrl: 'https://picsum.photos/seed/aviso-cupom/1000/500', linkUrl: '/produtos', sortOrder: 0 },
+  { title: 'Frete grátis acima de R$ 40', imageUrl: 'https://picsum.photos/seed/aviso-frete/1000/500', linkUrl: '/stores', sortOrder: 1 },
+];
+
 interface StoreDef {
   name: string;
   slug: string;
@@ -132,6 +138,13 @@ async function run() {
   }
 
   console.log(`\n🎉 ${STORES.length} lojas (5 premium + 5 plano 2) e ${totalProducts} produtos criados.`);
+
+  // Avisos de exemplo (carrossel da home). Idempotente por título.
+  await prisma.promoBanner.deleteMany({ where: { title: { in: DEMO_BANNERS.map((b) => b.title) } } });
+  for (const b of DEMO_BANNERS) {
+    await prisma.promoBanner.create({ data: { ...b, active: true } });
+  }
+  console.log(`📣 ${DEMO_BANNERS.length} avisos de exemplo criados.`);
 }
 
 run()
