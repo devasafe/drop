@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, PackageSearch } from 'lucide-react';
+import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -62,6 +63,8 @@ export default function StoreOrderStatus() {
   const [payingPix, setPayingPix] = useState(false);
   const [submittingMotoboyRating, setSubmittingMotoboyRating] = useState(false);
   const [submittingStoreRating, setSubmittingStoreRating] = useState(false);
+  const [reviewedProducts, setReviewedProducts] = useState<Record<string, boolean>>({});
+  const [submittingProduct, setSubmittingProduct] = useState<string | null>(null);
 
   const handleConfirmReceived = async () => {
     if (confirming) return;
@@ -91,6 +94,21 @@ export default function StoreOrderStatus() {
     const r = await t.submitStoreRating(rating, comment);
     if (!r.ok && r.error) showToast(r.error, 'error');
     setSubmittingStoreRating(false);
+  };
+
+  const handleProductRating = (productId: string) => async (rating: number, comment: string) => {
+    const orderId = t.order?._id;
+    if (!orderId) return;
+    setSubmittingProduct(productId);
+    try {
+      await api.post(`/products/${productId}/reviews`, { rating, comment, orderId });
+      setReviewedProducts((prev) => ({ ...prev, [productId]: true }));
+      showToast('Avaliação enviada!', 'success');
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Erro ao avaliar produto', 'error');
+    } finally {
+      setSubmittingProduct(null);
+    }
   };
 
   const handleCancelConfirm = async ({ reason, reasonCode }: { reason: string; reasonCode: string }) => {
@@ -297,6 +315,21 @@ export default function StoreOrderStatus() {
                 />
               </section>
             )}
+
+            {showStoreRating && (order.products || []).map((p: any) => {
+              const pid = p.productId || p.product?._id || p.product?.id;
+              if (!pid) return null;
+              return (
+                <section key={pid} className={styles.section}>
+                  <RatingForm
+                    title={`Avaliar: ${p.productName || 'Produto'}`}
+                    onSubmit={handleProductRating(pid)}
+                    submitting={submittingProduct === pid}
+                    submitted={!!reviewedProducts[pid]}
+                  />
+                </section>
+              );
+            })}
 
             <CancelOrderSheet
               open={cancelOpen}
