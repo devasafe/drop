@@ -265,7 +265,7 @@ export default function Inicio() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Ofertas</h2>
-            <button type="button" className={styles.sectionLink} onClick={() => router.push('/')}>
+            <button type="button" className={styles.sectionLink} onClick={() => router.push('/produtos')}>
               Ver todas
             </button>
           </div>
