@@ -5,85 +5,110 @@ import { prisma } from '../lib/prisma';
 
 /**
  * Seed de demonstração: 10 lojas (5 premium/Plano 3 + 5 Plano 2), cada uma com
- * banner e 5 produtos. Todas pertencem a um dono demo (demo-lojas@drop.test) e
- * ficam SEM coordenadas (latitude/longitude nulas) de propósito — assim o filtro
- * de proximidade nunca as esconde e elas aparecem em qualquer lugar.
+ * banner e 5 produtos. DROP é delivery de COISAS NÃO ESSENCIAIS (gadgets,
+ * presentes, beleza, games, decoração…) — não comida. Todas pertencem a um dono
+ * demo (demo-lojas@drop.test) e ficam SEM coordenadas (latitude/longitude nulas)
+ * de propósito — assim o filtro de proximidade nunca as esconde.
  *
+ * Fotos temáticas via loremflickr (palavra-chave + lock estável).
  * Idempotente: apaga as lojas do dono demo (produtos caem em cascata) e recria.
  * Uso: npx ts-node src/scripts/seedDemoStores.ts   (ou: npm run seed:stores)
  */
 
 const PASS = 'Senha@123456';
-const banner = (slug: string) => `https://picsum.photos/seed/${slug}-banner/1000/500`;
-const productImg = (slug: string, i: number) => `https://picsum.photos/seed/${slug}-p${i}/500/500`;
+// Imagem temática por palavra-chave (lock = imagem estável e única).
+const img = (kw: string, w: number, h: number, lock: number) =>
+  `https://loremflickr.com/${w}/${h}/${kw}?lock=${lock}`;
 
-// Avisos de exemplo do carrossel da home (2:1). Idempotente: recriados por título.
-const DEMO_BANNERS = [
-  { title: 'Cupom BEMVINDO10 — 10% off no 1º pedido', imageUrl: 'https://picsum.photos/seed/aviso-cupom/1000/500', linkUrl: '/produtos', sortOrder: 0 },
-  { title: 'Frete grátis acima de R$ 40', imageUrl: 'https://picsum.photos/seed/aviso-frete/1000/500', linkUrl: '/stores', sortOrder: 1 },
-];
-
+interface ProductDef { name: string; price: number; kw: string }
 interface StoreDef {
   name: string;
   slug: string;
   plan: 2 | 3;
   city: string;
-  products: { name: string; price: number }[];
+  bannerKw: string;
+  products: ProductDef[];
 }
 
 const STORES: StoreDef[] = [
   // ── 5 Premium (Plano 3) ────────────────────────────────────────────────
-  { name: 'Burger Prime', slug: 'burger-prime', plan: 3, city: 'Centro', products: [
-    { name: 'Smash Duplo', price: 32.9 }, { name: 'Cheddar Bacon', price: 36.5 },
-    { name: 'Veggie Supremo', price: 29.9 }, { name: 'Batata Rústica', price: 18 },
-    { name: 'Milk Shake Ovomaltine', price: 22 },
+  { name: 'TechDrop', slug: 'techdrop', plan: 3, city: 'Centro', bannerKw: 'electronics', products: [
+    { name: 'Fone Bluetooth TWS', price: 189.9, kw: 'earbuds' },
+    { name: 'Smartwatch Fit', price: 249.9, kw: 'smartwatch' },
+    { name: 'Caixa de Som Portátil', price: 219, kw: 'speaker' },
+    { name: 'Power Bank 20000mAh', price: 139, kw: 'powerbank' },
+    { name: 'Ring Light 26cm', price: 99, kw: 'ringlight' },
   ] },
-  { name: 'Sushi Zen', slug: 'sushi-zen', plan: 3, city: 'Centro', products: [
-    { name: 'Combo 20 peças', price: 59.9 }, { name: 'Temaki Salmão', price: 27 },
-    { name: 'Hot Roll (8un)', price: 24 }, { name: 'Uramaki Filadélfia', price: 28 },
-    { name: 'Guioza (6un)', price: 21 },
+  { name: 'GameZone', slug: 'gamezone', plan: 3, city: 'Centro', bannerKw: 'gaming', products: [
+    { name: 'Controle Sem Fio', price: 279, kw: 'gamepad' },
+    { name: 'Headset Gamer RGB', price: 199, kw: 'headset' },
+    { name: 'Mousepad Speed XL', price: 79, kw: 'mousepad' },
+    { name: 'Teclado Mecânico', price: 329, kw: 'keyboard' },
+    { name: 'Mouse Gamer 16000dpi', price: 159, kw: 'mouse' },
   ] },
-  { name: 'Pizza Nobile', slug: 'pizza-nobile', plan: 3, city: 'Centro', products: [
-    { name: 'Margherita', price: 44.9 }, { name: 'Calabresa', price: 46.9 },
-    { name: 'Portuguesa', price: 49.9 }, { name: 'Quatro Queijos', price: 52 },
-    { name: 'Doce de Nutella', price: 48 },
+  { name: 'Bella Beauty', slug: 'bella-beauty', plan: 3, city: 'Centro', bannerKw: 'cosmetics', products: [
+    { name: 'Kit Skincare Completo', price: 189, kw: 'skincare' },
+    { name: 'Perfume Importado 100ml', price: 349, kw: 'perfume' },
+    { name: 'Paleta de Sombras', price: 89, kw: 'makeup' },
+    { name: 'Secador Profissional', price: 279, kw: 'hairdryer' },
+    { name: 'Máscara Facial (kit 5)', price: 59, kw: 'facemask' },
   ] },
-  { name: 'Café Aurora', slug: 'cafe-aurora', plan: 3, city: 'Centro', products: [
-    { name: 'Cappuccino Cremoso', price: 14.9 }, { name: 'Croissant de Amêndoas', price: 16 },
-    { name: 'Bowl de Açaí', price: 24 }, { name: 'Pão de Queijo (6un)', price: 12 },
-    { name: 'Cheesecake de Frutas', price: 19 },
+  { name: 'Presente Perfeito', slug: 'presente-perfeito', plan: 3, city: 'Centro', bannerKw: 'gift', products: [
+    { name: 'Cesta de Chocolates', price: 129, kw: 'chocolate' },
+    { name: 'Buquê de Flores', price: 99, kw: 'bouquet' },
+    { name: 'Kit Vinho & Taças', price: 199, kw: 'wine' },
+    { name: 'Urso de Pelúcia G', price: 149, kw: 'teddybear' },
+    { name: 'Caixa Surpresa', price: 89, kw: 'giftbox' },
   ] },
-  { name: 'Doce Encanto', slug: 'doce-encanto', plan: 3, city: 'Centro', products: [
-    { name: 'Bolo no Pote', price: 15 }, { name: 'Brigadeiro Gourmet (6un)', price: 18 },
-    { name: 'Torta de Limão', price: 39 }, { name: 'Cookie Recheado', price: 12 },
-    { name: 'Caixa de Trufas (9un)', price: 45 },
+  { name: 'Casa Chique', slug: 'casa-chique', plan: 3, city: 'Centro', bannerKw: 'homedecor', products: [
+    { name: 'Luminária de Mesa', price: 159, kw: 'lamp' },
+    { name: 'Vaso Decorativo', price: 89, kw: 'vase' },
+    { name: 'Quadro Canvas', price: 119, kw: 'painting' },
+    { name: 'Almofada Estampada', price: 69, kw: 'pillow' },
+    { name: 'Difusor de Aromas', price: 79, kw: 'candle' },
   ] },
   // ── 5 Plano 2 ──────────────────────────────────────────────────────────
-  { name: 'Mercado do Bairro', slug: 'mercado-bairro', plan: 2, city: 'Centro', products: [
-    { name: 'Arroz 5kg', price: 27.9 }, { name: 'Feijão 1kg', price: 8.5 },
-    { name: 'Óleo de Soja 900ml', price: 7.9 }, { name: 'Açúcar 1kg', price: 5.5 },
-    { name: 'Café 500g', price: 16.9 },
+  { name: 'AcessóriosZZ', slug: 'acessorios-zz', plan: 2, city: 'Centro', bannerKw: 'smartphone', products: [
+    { name: 'Capinha Personalizada', price: 39.9, kw: 'phonecase' },
+    { name: 'Película 3D', price: 24.9, kw: 'screenprotector' },
+    { name: 'Carregador Turbo', price: 59, kw: 'charger' },
+    { name: 'Suporte Veicular', price: 45, kw: 'phoneholder' },
+    { name: 'Cabo USB-C Trançado', price: 29, kw: 'cable' },
   ] },
-  { name: 'Padaria Trigo Dourado', slug: 'padaria-trigo', plan: 2, city: 'Centro', products: [
-    { name: 'Pão Francês (kg)', price: 16.9 }, { name: 'Bolo de Fubá', price: 22 },
-    { name: 'Sonho de Creme', price: 6.5 }, { name: 'Baguete Artesanal', price: 12 },
-    { name: 'Pão de Forma Integral', price: 14 },
+  { name: 'Brinca Mais', slug: 'brinca-mais', plan: 2, city: 'Centro', bannerKw: 'toys', products: [
+    { name: 'Blocos de Montar 500pç', price: 129, kw: 'lego' },
+    { name: 'Boneca Fashion', price: 89, kw: 'doll' },
+    { name: 'Carrinho de Controle', price: 149, kw: 'toycar' },
+    { name: 'Quebra-cabeça 1000pç', price: 59, kw: 'puzzle' },
+    { name: 'Pelúcia Fofa', price: 49, kw: 'plush' },
   ] },
-  { name: 'Hortifruti Verde', slug: 'hortifruti-verde', plan: 2, city: 'Centro', products: [
-    { name: 'Banana Prata (kg)', price: 6.9 }, { name: 'Tomate (kg)', price: 8.9 },
-    { name: 'Alface Crespa', price: 3.5 }, { name: 'Maçã Gala (kg)', price: 11.9 },
-    { name: 'Cenoura (kg)', price: 5.9 },
+  { name: 'Vintage Style', slug: 'vintage-style', plan: 2, city: 'Centro', bannerKw: 'fashion', products: [
+    { name: 'Óculos de Sol', price: 119, kw: 'sunglasses' },
+    { name: 'Relógio Casual', price: 199, kw: 'watch' },
+    { name: 'Boné Aba Reta', price: 69, kw: 'cap' },
+    { name: 'Carteira de Couro', price: 89, kw: 'wallet' },
+    { name: 'Mochila Urbana', price: 179, kw: 'backpack' },
   ] },
-  { name: 'Farmácia Vida', slug: 'farmacia-vida', plan: 2, city: 'Centro', products: [
-    { name: 'Dipirona 500mg (10cp)', price: 9.9 }, { name: 'Álcool em Gel 500ml', price: 14 },
-    { name: 'Vitamina C (60cp)', price: 29.9 }, { name: 'Protetor Solar FPS50', price: 45 },
-    { name: 'Máscara Facial (kit)', price: 22 },
+  { name: 'PetLux', slug: 'petlux', plan: 2, city: 'Centro', bannerKw: 'dog', products: [
+    { name: 'Roupinha Pet', price: 49, kw: 'dogclothes' },
+    { name: 'Brinquedo Mordedor', price: 29, kw: 'dogtoy' },
+    { name: 'Casinha Fofa', price: 199, kw: 'doghouse' },
+    { name: 'Coleira Estilosa', price: 39, kw: 'dogcollar' },
+    { name: 'Comedouro Design', price: 59, kw: 'petbowl' },
   ] },
-  { name: 'Pet Amigo', slug: 'pet-amigo', plan: 2, city: 'Centro', products: [
-    { name: 'Ração Cães 3kg', price: 49.9 }, { name: 'Areia Higiênica 4kg', price: 27 },
-    { name: 'Brinquedo Mordedor', price: 19 }, { name: 'Petisco Natural', price: 15 },
-    { name: 'Shampoo Pet 500ml', price: 24 },
+  { name: 'Flor & Cia', slug: 'flor-cia', plan: 2, city: 'Centro', bannerKw: 'flowers', products: [
+    { name: 'Kit de Suculentas', price: 69, kw: 'succulent' },
+    { name: 'Orquídea no Vaso', price: 89, kw: 'orchid' },
+    { name: 'Buquê de Girassóis', price: 79, kw: 'sunflower' },
+    { name: 'Planta Artificial', price: 59, kw: 'plant' },
+    { name: 'Cachepô Decorativo', price: 45, kw: 'flowerpot' },
   ] },
+];
+
+// Avisos de exemplo do carrossel da home (2:1). Idempotente: recriados por título.
+const DEMO_BANNERS = [
+  { title: 'Cupom BEMVINDO10 — 10% off no 1º pedido', imageUrl: img('sale', 1000, 500, 901), linkUrl: '/produtos', sortOrder: 0 },
+  { title: 'Frete grátis acima de R$ 40', imageUrl: img('delivery', 1000, 500, 902), linkUrl: '/stores', sortOrder: 1 },
 ];
 
 async function run() {
@@ -108,15 +133,16 @@ async function run() {
   console.log(`🧹 Removidas ${removed.count} loja(s) demo antiga(s).`);
 
   let totalProducts = 0;
-  for (const def of STORES) {
+  for (let s = 0; s < STORES.length; s++) {
+    const def = STORES[s];
     const store = await prisma.store.create({
       data: {
         ownerId: owner.id,
         name: def.name,
         plan: def.plan,
         city: def.city,
-        featuredBannerUrl: banner(def.slug), // banner de destaque (carrossel usa nos premium)
-        coverBannerUrl: banner(def.slug),
+        featuredBannerUrl: img(def.bannerKw, 1000, 500, s * 10), // banner (carrossel usa nos premium)
+        coverBannerUrl: img(def.bannerKw, 1000, 500, s * 10),
         isVerified: true,
         isOpen: true,
         latitude: null,
@@ -130,7 +156,7 @@ async function run() {
         description: `${p.name} — ${def.name}`,
         price: p.price,
         quantity: 25,
-        image: productImg(def.slug, i + 1),
+        image: img(p.kw, 500, 500, s * 10 + i + 1),
       })),
     });
     totalProducts += def.products.length;
