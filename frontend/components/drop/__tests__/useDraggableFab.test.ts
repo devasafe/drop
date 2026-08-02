@@ -22,12 +22,32 @@ describe('useDraggableFab', () => {
     expect(result.current.movedRef.current).toBe(true);
   });
 
-  it('toque sem arrastar (<5px) não marca movedRef', () => {
+  it('toque sem arrastar não marca movedRef', () => {
     const { result } = renderHook(() => useDraggableFab({ storageKey: 'fab-c' }));
     const h = () => result.current.pointerHandlers as any;
     act(() => h().onPointerDown(ev(952, 616)));
     act(() => h().onPointerMove(ev(954, 617)));
     act(() => h().onPointerUp(ev(954, 617)));
     expect(result.current.movedRef.current).toBe(false);
+  });
+
+  it('toque (pointerup sem arrasto) chama onTap — abre sem depender do click', () => {
+    const onTap = jest.fn();
+    const { result } = renderHook(() => useDraggableFab({ storageKey: 'fab-d', onTap }));
+    const h = () => result.current.pointerHandlers as any;
+    act(() => h().onPointerDown(ev(952, 616)));
+    act(() => h().onPointerUp(ev(952, 616)));
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
+  it('arrasto real não chama onTap (reposiciona e gruda)', () => {
+    const onTap = jest.fn();
+    const { result } = renderHook(() => useDraggableFab({ storageKey: 'fab-e', onTap }));
+    const h = () => result.current.pointerHandlers as any;
+    act(() => h().onPointerDown(ev(952, 616)));
+    act(() => h().onPointerMove(ev(100, 616)));
+    act(() => h().onPointerUp(ev(100, 616)));
+    expect(onTap).not.toHaveBeenCalled();
+    expect(result.current.style.left).toBe(16);
   });
 });
