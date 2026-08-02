@@ -60,6 +60,10 @@
   position: relative;
 }
 
+.carouselWrap {
+  margin-bottom: var(--space-3);
+}
+
 .premiumBadge {
   position: absolute;
   top: var(--space-3);

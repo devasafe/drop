@@ -449,7 +449,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
 
     const rows = await prisma.store.findMany({
       where: featuredFilter,
-      select: { id: true, name: true, featuredBannerUrl: true, plan: true },
+      select: { id: true, name: true, featuredBannerUrl: true, coverBannerUrl: true, plan: true, isOpen: true, city: true, neighborhood: true },
     });
     const stores = rows.map((st) => ({ ...st, _id: st.id }));
     return res.json(stores);

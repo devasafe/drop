@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { ArrowLeft, Crown, Store as StoreIcon } from 'lucide-react';
+import { ArrowLeft, Store as StoreIcon } from 'lucide-react';
 
-import { useStores } from '../hooks/useSync';
+import { useStores, useFeaturedStores } from '../hooks/useSync';
 import { imageUrl } from '../lib/config';
 
 import { SearchField } from '../components/ui/SearchField';
 import { IconButton } from '../components/ui/IconButton';
-import { Badge } from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
-import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../components/ui/Icon';
+import { PremiumCarousel } from '../components/drop/PremiumCarousel';
+import { ICON_BUTTON_STROKE_WIDTH } from '../components/ui/Icon';
 
 import styles from './Stores.module.css';
 
@@ -45,6 +45,7 @@ function mapStore(store: Store): StoreCardData {
 export default function StoresPage() {
   const router = useRouter();
   const { stores, loading } = useStores();
+  const { stores: featuredStores } = useFeaturedStores();
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
 
@@ -71,7 +72,11 @@ export default function StoresPage() {
   const visible = filtered.slice(0, visibleCount) as Store[];
   const hasMore = visibleCount < filtered.length;
 
-  const [featuredStore, ...rowStores] = visible;
+  // Banners do carrossel: lojas premium (Plano 3 com featuredBannerUrl).
+  const featuredItems = useMemo(
+    () => (featuredStores as Store[]).map((s) => ({ id: s._id, store: mapStore(s) })),
+    [featuredStores]
+  );
 
   const storeHref = (s: Store) => `/stores/${s.slug || s._id}`;
 
@@ -124,38 +129,25 @@ export default function StoresPage() {
           />
         ) : (
           <>
-            {featuredStore && (
-              <div className={styles.featuredWrap}>
-                <StoreCard
-                  variant="destaque"
-                  store={mapStore(featuredStore)}
-                  onClick={() => router.push(storeHref(featuredStore))}
+            {featuredItems.length > 0 && !search.trim() && (
+              <div className={styles.carouselWrap}>
+                <PremiumCarousel
+                  items={featuredItems}
+                  onSelect={(id) => router.push(`/stores/${id}`)}
                 />
-                {featuredStore.plan === 3 && (
-                  <span className={styles.premiumBadge}>
-                    <Badge tone="discount">
-                      <span className={styles.premiumBadgeContent}>
-                        <Crown size={11} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-                        Premium
-                      </span>
-                    </Badge>
-                  </span>
-                )}
               </div>
             )}
 
-            {rowStores.length > 0 && (
-              <div className={styles.rows}>
-                {rowStores.map((store) => (
-                  <StoreCard
-                    key={store._id}
-                    variant="resultado"
-                    store={mapStore(store)}
-                    onClick={() => router.push(storeHref(store))}
-                  />
-                ))}
-              </div>
-            )}
+            <div className={styles.rows}>
+              {visible.map((store) => (
+                <StoreCard
+                  key={store._id}
+                  variant="resultado"
+                  store={mapStore(store)}
+                  onClick={() => router.push(storeHref(store))}
+                />
+              ))}
+            </div>
           </>
         )}
 
