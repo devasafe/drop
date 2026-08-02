@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import Icon from './Icon';
 import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
+import { useDraggableFab } from './drop/useDraggableFab';
 
 interface Message {
   _id?: string;
@@ -54,6 +55,7 @@ export default function ChatWidgetWithTabs({
   const [typingUsers, setTypingUsers] = useState<{ [conversationId: string]: string }>({});
   const { on, emit } = useSocket();
   const overlay = useOverlay();
+  const fab = useDraggableFab({ storageKey: 'chatFabPos' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
 
@@ -61,6 +63,8 @@ export default function ChatWidgetWithTabs({
   // (minimizado vira apenas a bolha flutuante). Reflete esse estado no overlay
   // manager pra abrir o chat fechar AccountMenu/drawer/sidebar, e vice-versa.
   const chatVisible = isOpen && !isMinimized;
+  const chatVisibleRef = useRef(chatVisible);
+  useEffect(() => { chatVisibleRef.current = chatVisible; }, [chatVisible]);
   useEffect(() => {
     if (chatVisible) overlay.open('chat');
     else overlay.close('chat');
@@ -70,15 +74,18 @@ export default function ChatWidgetWithTabs({
     return () => overlay.close('chat');
   }, [chatVisible]);
   useEffect(() => {
-    // Coerência: se outro overlay assumiu o controle (ou todos fecharam, ex.
-    // via Esc) enquanto o chat estava visível, minimiza o chat (mesmo efeito
-    // do botão "Minimizar"). Cobre tanto overlay.active !== 'chat' (outro
-    // overlay abriu) quanto overlay.active === null (Esc fechou tudo).
-    if (chatVisible && overlay.active !== 'chat') {
+    // Coerência: se OUTRO overlay assumiu o controle (ou o Esc fechou tudo)
+    // enquanto o chat estava visível, minimiza o chat. Depende SÓ de
+    // `overlay.active` (não de chatVisible): ao ABRIR o chat, `overlay.open`
+    // ainda não refletiu o novo active neste render — se dependêssemos de
+    // chatVisible, este efeito rodaria com o active velho (null) e minimizaria
+    // o chat na hora (bug "não abre"). Lendo chatVisible por ref e reagindo só
+    // à MUDANÇA de active, só minimizamos quando outro overlay realmente entra.
+    if (chatVisibleRef.current && overlay.active !== 'chat') {
       setIsMinimized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlay.active, chatVisible]);
+  }, [overlay.active]);
 
   // Refs com o estado atual da janela (para o listener de mensagens saber se o
   // usuário já está vendo a conversa e não notificar à toa)
@@ -807,12 +814,13 @@ export default function ChatWidgetWithTabs({
   const activeTab = tabs.find((t) => t._id === activeTabId);
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 50, fontFamily: "'Inter', sans-serif" }}>
-      {/* Botão de abrir */}
+    <>
+      {/* Botão de abrir (arrastável) */}
       {(!isOpen || isMinimized) && (
-        <div style={{ position: 'relative' }}>
+        <div style={{ ...fab.style, fontFamily: "'Inter', sans-serif" }} {...fab.pointerHandlers}>
           <button
             onClick={() => {
+              if (fab.movedRef.current) return; // foi arrasto, não abre
               setIsOpen(true);
               setIsMinimized(false);
             }}
@@ -862,11 +870,16 @@ export default function ChatWidgetWithTabs({
       {/* Janela */}
       {isOpen && !isMinimized && (
         <div style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          zIndex: 50,
+          fontFamily: "'Inter', sans-serif",
           backgroundColor: '#111111',
           borderRadius: 16,
           border: '1px solid rgba(255,255,255,0.07)',
           boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(108,43,217,0.15)',
-          width: 384,
+          width: 'min(384px, calc(100vw - 40px))',
           height: 420,
           display: 'flex',
           flexDirection: 'column',
@@ -1297,6 +1310,6 @@ export default function ChatWidgetWithTabs({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
