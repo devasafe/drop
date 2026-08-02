@@ -5,6 +5,7 @@ import Icon from './Icon';
 import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
+import { participantTypeFor } from '../lib/chatContacts';
 
 interface Message {
   _id?: string;
@@ -53,6 +54,13 @@ export default function ChatWidgetWithTabs({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ [conversationId: string]: string }>({});
+  // "Nova conversa": cliente escolhe qualquer loja; motoboy/lojista escolhem
+  // entre os contatos da entrega/pedidos ativos (GET /chat/contacts).
+  const [newOpen, setNewOpen] = useState(false);
+  const [contactList, setContactList] = useState<any[]>([]);
+  const [storeList, setStoreList] = useState<any[]>([]);
+  const [contactSearch, setContactSearch] = useState('');
+  const [loadingContacts, setLoadingContacts] = useState(false);
   const { on, emit } = useSocket();
   const overlay = useOverlay();
   const fab = useDraggableFab({
@@ -458,7 +466,7 @@ export default function ChatWidgetWithTabs({
     participantId: string,
     participantName: string,
     participantRole: 'lojista' | 'motoboy' | 'cliente',
-    participantType?: 'store' | 'customer', // Novo parâmetro para diferenciar
+    participantType?: 'store' | 'customer' | 'motoboy', // Novo parâmetro para diferenciar
   ) => {
     if (!user) {
       console.error('❌ Sem usuário');
@@ -497,6 +505,13 @@ export default function ChatWidgetWithTabs({
         // Chat motoboy com loja: usar rota genérica com tipo loja_motoboy
         console.log('📡 Fazendo POST para /chat/conversations (motoboy→loja)');
         console.log('   Enviando:', { type: 'loja_motoboy', otherParticipantId: participantId });
+        response = await api.post('/chat/conversations', {
+          type: 'loja_motoboy',
+          otherParticipantId: participantId,
+        });
+      } else if (participantType === 'motoboy') {
+        // Chat lojista → motoboy (participante é userId do motoboy)
+        console.log('📡 Fazendo POST para /chat/conversations (lojista→motoboy)');
         response = await api.post('/chat/conversations', {
           type: 'loja_motoboy',
           otherParticipantId: participantId,
@@ -814,6 +829,39 @@ export default function ChatWidgetWithTabs({
     }
   };
 
+  // Carrega contatos/lojas quando abre "Nova conversa".
+  useEffect(() => {
+    if (!newOpen || !user) return;
+    const role = user.activeRole || user.role;
+    setLoadingContacts(true);
+    if (role === 'cliente') {
+      api.get('/stores')
+        .then((r) => setStoreList(Array.isArray(r.data) ? r.data : (r.data?.stores || [])))
+        .catch(() => setStoreList([]))
+        .finally(() => setLoadingContacts(false));
+    } else {
+      api.get('/chat/contacts')
+        .then((r) => setContactList(r.data?.contacts || []))
+        .catch(() => setContactList([]))
+        .finally(() => setLoadingContacts(false));
+    }
+  }, [newOpen, user]);
+
+  const startWithContact = (c: any) => {
+    setNewOpen(false);
+    setIsOpen(true);
+    setIsMinimized(false);
+    openChatWithStore(c.id, c.name, c.role, participantTypeFor(c));
+  };
+  const startWithStore = (s: any) => {
+    setNewOpen(false);
+    setIsOpen(true);
+    setIsMinimized(false);
+    openChatWithStore(s._id || s.id, s.name, 'lojista', 'store');
+  };
+
+  const isCustomerRole = (user?.activeRole || user?.role) === 'cliente';
+
   const activeTab = tabs.find((t) => t._id === activeTabId);
 
   return (
@@ -1054,7 +1102,74 @@ export default function ChatWidgetWithTabs({
                   padding: 12,
                   backgroundColor: '#0A0A0A',
                 }}>
-                  {loadingConversations ? (
+                  <button
+                    type="button"
+                    onClick={() => setNewOpen((v) => !v)}
+                    style={{
+                      background: newOpen ? 'rgba(255,255,255,0.06)' : 'rgba(108,43,217,0.15)',
+                      border: '1px solid rgba(108,43,217,0.3)',
+                      color: '#fff',
+                      borderRadius: 10,
+                      padding: '9px 12px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                      flexShrink: 0,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {newOpen ? '← Conversas' : '+ Nova conversa'}
+                  </button>
+                  {newOpen ? (
+                    isCustomerRole ? (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Buscar loja..."
+                          value={contactSearch}
+                          onChange={(e) => setContactSearch(e.target.value)}
+                          style={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 12px', fontSize: 13, background: '#161616', color: 'rgba(255,255,255,0.92)', outline: 'none', marginBottom: 8, flexShrink: 0 }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {loadingContacts ? (
+                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando lojas...</div>
+                          ) : (
+                            storeList
+                              .filter((s) => (s.name || '').toLowerCase().includes(contactSearch.toLowerCase()))
+                              .slice(0, 40)
+                              .map((s) => (
+                                <div key={s._id || s.id} onClick={() => startWithStore(s)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{s.name}</div>
+                                </div>
+                              ))
+                          )}
+                          {!loadingContacts && storeList.length === 0 && (
+                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Nenhuma loja disponível</div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {loadingContacts ? (
+                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando contatos...</div>
+                        ) : contactList.length === 0 ? (
+                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>
+                            Nenhum contato disponível agora.<br />Aparecem os participantes das entregas/pedidos ativos.
+                          </div>
+                        ) : (
+                          contactList.map((c) => (
+                            <div key={c.id} onClick={() => startWithContact(c)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{c.name}</div>
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                                {[c.context, c.role === 'lojista' ? 'Loja' : c.role === 'motoboy' ? 'Motoboy' : 'Cliente'].filter(Boolean).join(' · ')}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )
+                  ) : loadingConversations ? (
                     <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: '#6C2BD9', animation: 'spin 0.7s linear infinite' }} />
                       Carregando conversas...

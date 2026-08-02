@@ -1037,3 +1037,72 @@ export const getConversationMessagesAdmin = async (req: Request, res: Response):
     return res.status(500).json({ error: 'Erro interno' });
   }
 };
+
+// Status "ativos" p/ o seletor de contatos.
+const ACTIVE_ORDER_STATUSES: any[] = ['criado', 'pago', 'aguardando_motoboy', 'enviado'];
+const ACTIVE_DELIVERY_STATUSES: any[] = ['assigned', 'picked'];
+
+interface ChatContact { id: string; name: string; role: 'lojista' | 'cliente' | 'motoboy'; kind: 'store' | 'user'; context?: string }
+
+/**
+ * Contatos elegíveis p/ INICIAR conversa, conforme o papel ativo:
+ *  - motoboy: loja + cliente da entrega atual (assigned/picked).
+ *  - lojista: clientes e motoboys dos pedidos ativos da sua loja.
+ *  - cliente: [] (o front usa a lista de lojas — "qualquer loja").
+ */
+export const getChatContacts = async (req: Request, res: Response) => {
+  try {
+    const userId = String((req as any).user?.id || '');
+    const role = (req as any).user?.activeRole || (req as any).user?.role;
+    const contacts: ChatContact[] = [];
+
+    if (role === 'motoboy') {
+      const delivery = await prisma.delivery.findFirst({
+        where: { motoboyId: userId, status: { in: ACTIVE_DELIVERY_STATUSES } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (delivery) {
+        const order = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
+        if (order) {
+          const [store, customer] = await Promise.all([
+            prisma.store.findUnique({ where: { id: String(order.storeId) }, select: { id: true, name: true } }),
+            prisma.user.findUnique({ where: { id: String(order.customerId) }, select: { id: true, name: true } }),
+          ]);
+          if (store) contacts.push({ id: store.id, name: store.name, role: 'lojista', kind: 'store', context: 'Entrega atual' });
+          if (customer) contacts.push({ id: customer.id, name: customer.name, role: 'cliente', kind: 'user', context: 'Entrega atual' });
+        }
+      }
+    } else if (role === 'lojista' || role === 'seller') {
+      const store = await prisma.store.findFirst({ where: { ownerId: userId }, select: { id: true } });
+      if (store) {
+        const orders = await prisma.order.findMany({
+          where: { storeId: store.id, status: { in: ACTIVE_ORDER_STATUSES } },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        });
+        const seen = new Set<string>();
+        for (const o of orders) {
+          const short = `Pedido #${String(o.id).slice(-6).toUpperCase()}`;
+          if (o.customerId && !seen.has(o.customerId)) {
+            seen.add(o.customerId);
+            const c = await prisma.user.findUnique({ where: { id: String(o.customerId) }, select: { id: true, name: true } });
+            if (c) contacts.push({ id: c.id, name: c.name, role: 'cliente', kind: 'user', context: short });
+          }
+          if (o.deliveryId) {
+            const d = await prisma.delivery.findUnique({ where: { id: String(o.deliveryId) }, select: { motoboyId: true } });
+            if (d?.motoboyId && !seen.has(d.motoboyId)) {
+              seen.add(d.motoboyId);
+              const m = await prisma.user.findUnique({ where: { id: String(d.motoboyId) }, select: { id: true, name: true } });
+              if (m) contacts.push({ id: m.id, name: m.name, role: 'motoboy', kind: 'user', context: 'Entregador' });
+            }
+          }
+        }
+      }
+    }
+
+    return res.json({ contacts });
+  } catch (error) {
+    logger.error('Erro ao listar contatos de chat', error as Error);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+};
