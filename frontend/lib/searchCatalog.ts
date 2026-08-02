@@ -27,9 +27,17 @@ export function filterProducts(products: any[], query: string, categoryId?: stri
 }
 
 export function productCategories(products: any[]): { id: string; label: string }[] {
-  const set = new Set<string>();
-  (products || []).forEach((p) => { const c = categoryOf(p); if (c) set.add(c); });
-  return [...set].sort((a, b) => a.localeCompare(b)).map((c) => ({ id: c, label: c }));
+  // id = categoryId (p/ filtrar); label = nome legível da categoria (fallback
+  // pro id se o nome não veio). Evita mostrar o cuid nos filtros.
+  const map = new Map<string, string>();
+  (products || []).forEach((p) => {
+    const id = categoryOf(p);
+    if (!id) return;
+    if (!map.has(id)) map.set(id, (p?.categoryName || p?.category?.name || id).toString());
+  });
+  return [...map.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, label]) => ({ id, label }));
 }
 
 export function mapProductCard(product: any, storeName?: string): ProductCardData {
