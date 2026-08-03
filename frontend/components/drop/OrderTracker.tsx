@@ -24,6 +24,7 @@ export interface OrderTrackerProps {
   statusLabel?: string;
   progress: number;
   steps: OrderTrackerStep[];
+  onClick?: () => void;
 }
 
 /** Fallback de rótulo quando `statusLabel` não é passado: nome do último
@@ -48,12 +49,25 @@ export function OrderTracker({
   statusLabel,
   progress,
   steps,
+  onClick,
 }: OrderTrackerProps) {
   const clampedProgress = Math.min(1, Math.max(0, progress));
   const resolvedLabel = statusLabel ?? deriveStatusLabel(steps);
+  const interactive = !!onClick;
 
   return (
-    <section className={styles.track} aria-label={`Pedido #${orderId} — ${resolvedLabel}`}>
+    <section
+      className={interactive ? `${styles.track} ${styles.clickable}` : styles.track}
+      aria-label={`Pedido #${orderId} — ${resolvedLabel}`}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } }
+          : undefined
+      }
+    >
       <div className={styles.row}>
         <span
           className={styles.thumb}
