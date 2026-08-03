@@ -15,6 +15,10 @@ export interface PixPaymentSheetProps {
 const POLL_INTERVAL_MS = 4000;
 const REDIRECT_DELAY_MS = 1800;
 const COPY_FEEDBACK_MS = 2000;
+// Nº de tentativas de poll sem conseguir o QR antes de desistir e mostrar erro.
+// Sem isto, quando o Asaas não devolve o QR (ex: conta-mãe sem chave PIX, timeout),
+// o sheet gira em "Gerando o QR Code…" pra sempre. 5 × 4s ≈ 20s de tolerância.
+const MAX_QR_ATTEMPTS = 5;
 
 /**
  * Sheet de pagamento PIX: QR + copia-e-cola, consultando `/orders/:id/pix`
@@ -30,7 +34,15 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
   // O poll de /orders/:id/pix também devolve o QR — usamos como fallback.
   const [qrImage, setQrImage] = useState<string | undefined>(pix.qrCodeImage);
   const [qrPayload, setQrPayload] = useState<string | undefined>(pix.qrCodePayload);
+  // Vira true quando esgotamos as tentativas de obter o QR — troca o "Gerando o
+  // QR Code…" eterno por uma saída acionável.
+  const [qrFailed, setQrFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Refs (não state) pra sobreviver ao closure do setInterval, que captura os
+  // valores do 1º render: `gotQr` marca se o QR já chegou algum dia; `attempts`
+  // conta os polls sem QR.
+  const gotQr = useRef<boolean>(!!(pix.qrCodeImage || pix.qrCodePayload));
+  const attempts = useRef<number>(0);
 
   useEffect(() => {
     const check = async () => {
@@ -42,10 +54,19 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
           setTimeout(() => onPaid(pix.orderId), REDIRECT_DELAY_MS);
           return;
         }
-        if (res.data?.qrCodeImage) setQrImage(res.data.qrCodeImage);
-        if (res.data?.qrCodePayload) setQrPayload(res.data.qrCodePayload);
+        if (res.data?.qrCodeImage) { setQrImage(res.data.qrCodeImage); gotQr.current = true; }
+        if (res.data?.qrCodePayload) { setQrPayload(res.data.qrCodePayload); gotQr.current = true; }
       } catch {
-        /* segue tentando */
+        /* segue tentando (erro/timeout ainda conta como tentativa abaixo) */
+      }
+      // Enquanto não temos QR, conta a tentativa. Estourou o limite → desiste do
+      // poll e mostra erro. Se o QR já veio, nunca falha (segue só verificando pgto).
+      if (!gotQr.current) {
+        attempts.current += 1;
+        if (attempts.current >= MAX_QR_ATTEMPTS) {
+          if (timer.current) clearInterval(timer.current);
+          setQrFailed(true);
+        }
       }
     };
     timer.current = setInterval(check, POLL_INTERVAL_MS);
@@ -65,11 +86,21 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
   };
 
   return (
-    <Sheet open onClose={onClose} title={paid ? 'Pagamento confirmado' : 'Pague com PIX'}>
+    <Sheet open onClose={onClose} title={paid ? 'Pagamento confirmado' : qrFailed ? 'Não foi possível gerar o PIX' : 'Pague com PIX'}>
       {paid ? (
         <div className={styles.paid}>
           <Check size={40} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
           <p>Redirecionando para o seu pedido…</p>
+        </div>
+      ) : qrFailed ? (
+        <div className={styles.body}>
+          <p className={styles.hint}>
+            Não conseguimos gerar o código PIX para este pedido agora. Seu pedido
+            foi criado — você pode tentar pagar de novo na tela do pedido.
+          </p>
+          <button type="button" className={styles.copyBtn} onClick={() => onPaid(pix.orderId)}>
+            Ver pedido e pagar
+          </button>
         </div>
       ) : (
         <div className={styles.body}>

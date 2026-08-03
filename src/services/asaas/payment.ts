@@ -84,9 +84,11 @@ export async function createPixCharge(params: {
   const charge: PixCharge = { paymentId: payment.id, status: payment.status };
 
   // Busca o QR Code do PIX (endpoint separado no Asaas, às vezes leva um instante
-  // pra ficar pronto logo após criar a cobrança → retry).
+  // pra ficar pronto logo após criar a cobrança). Aqui usamos UMA tentativa curta
+  // pra NÃO segurar o checkout: se o Asaas engasgar, o pedido volta sem QR e o
+  // polling da tela do pedido (getOrderPix) rebusca com mais folga.
   try {
-    const qr = await fetchPixQrWithRetry(payment.id);
+    const qr = await fetchPixQrWithRetry(payment.id, { attempts: 1, timeoutMs: 6000 });
     charge.qrCodeImage = qr.encodedImage;
     charge.qrCodePayload = qr.payload;
     charge.expiresAt = qr.expirationDate;
@@ -104,16 +106,14 @@ export async function createPixCharge(params: {
  * pronto no instante seguinte à criação da cobrança). */
 async function fetchPixQrWithRetry(
   paymentId: string,
-  attempts = 2,
+  { attempts = 2, timeoutMs = 12000 }: { attempts?: number; timeoutMs?: number } = {},
 ): Promise<{ encodedImage: string; payload: string; expirationDate: string }> {
   let lastErr: any;
   for (let i = 0; i < attempts; i++) {
     try {
-      // Timeout curto (8s): se o QR travar, não segura o pedido — a tela do
-      // pedido rebusca o QR depois via getOrderPix.
       return await asaasClient.get<{ encodedImage: string; payload: string; expirationDate: string }>(
         `/payments/${paymentId}/pixQrCode`,
-        8000,
+        timeoutMs,
       );
     } catch (err) {
       lastErr = err;
@@ -123,9 +123,11 @@ async function fetchPixQrWithRetry(
   throw lastErr;
 }
 
-/** Busca o QR Code PIX de uma cobrança existente (p/ retomar pagamento). */
+/** Busca o QR Code PIX de uma cobrança existente (p/ retomar pagamento). Chamado
+ * no polling da tela do pedido (getOrderPix), FORA do caminho crítico do checkout
+ * — por isso é mais paciente que a criação: tolera o Asaas lento (2×12s). */
 export async function getPixQrCode(asaasPaymentId: string): Promise<{ qrCodeImage?: string; qrCodePayload?: string; expiresAt?: string }> {
-  const qr = await fetchPixQrWithRetry(asaasPaymentId);
+  const qr = await fetchPixQrWithRetry(asaasPaymentId, { attempts: 2, timeoutMs: 12000 });
   return { qrCodeImage: qr.encodedImage, qrCodePayload: qr.payload, expiresAt: qr.expirationDate };
 }
 
