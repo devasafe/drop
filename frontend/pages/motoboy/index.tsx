@@ -1,204 +1,167 @@
-import { useContext, useState, useEffect, useRef } from 'react';
+import { useContext, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User } from 'lucide-react';
 import api from '../../lib/api';
-import useRequireAuth from '../../hooks/useRequireAuth';
-import AuthContext from '../../contexts/AuthContext';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import Icon from '../../components/Icon';
-import { useDeliveries } from '../../hooks/useSync';
-import dash from '../StoreDashboard.module.css';
-import styles from './MotoboyIndex.module.css';
+import AuthContext from '../../contexts/AuthContext';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { Button } from '../../components/ui/Button';
+import { ICON_STROKE_WIDTH } from '../../components/ui/Icon';
+import { formatBRL } from '../../components/ui/PriceTag';
+import { useToast } from '../../components/ui/Toast';
+import { useMotoboyStatus } from '../../hooks/useMotoboyStatus';
+import { useDeliveries, useOngoingDeliveries, useDeliveryHistory } from '../../hooks/useSync';
+import { earningsToday, deliveriesToday, avgRating } from '../../lib/motoboyOverview';
+import { DeliveryOfferCard } from '../../components/motoboy/DeliveryOfferCard';
 import OnboardingResumeBanner from '../../components/OnboardingResumeBanner';
+import styles from './MotoboyCockpit.module.css';
+
+const POOL_POLL_MS = 25000;
+const SHORTCUTS = [
+  { href: '/motoboy/wallet', label: 'Ganhos e saques', icon: Wallet },
+  { href: '/motoboy/history', label: 'Histórico', icon: Clock },
+  { href: '/motoboy/gamification', label: 'Gamificação', icon: Trophy },
+  { href: '/motoboy/profile', label: 'Perfil', icon: User },
+];
 
 export default function MotoboyPage() {
-  useRequireAuth(['motoboy']);
-  const { token, user } = useContext(AuthContext);
-  const { deliveries, loading, setDeliveries } = useDeliveries();
-  const [takenMsg, setTakenMsg] = useState<string | null>(null);
-  const [gpsDenied, setGpsDenied] = useState(false);
-  const lastSentRef = useRef(0);
+  const router = useRouter();
+  const { user } = useContext(AuthContext);
+  const { showToast } = useToast();
+  const { online, loading: statusLoading, setOnline } = useMotoboyStatus();
+  const { deliveries: pool, loading: poolLoading, setDeliveries: setPool, refetch } = useDeliveries();
+  const { deliveries: ongoing } = useOngoingDeliveries();
+  const { deliveries: history } = useDeliveryHistory();
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
 
-  // Re-busca o pool (a entrega aceita some dos outros; e o raio cresce com o tempo).
-  const refetchPool = async () => {
-    try {
-      const res = await api.get('/deliveries/available');
-      const data = res.data?.deliveries || res.data || [];
-      setDeliveries(Array.isArray(data) ? data : []);
-    } catch { /* silencioso */ }
+  // Polling do pool só quando online. Refetch imediato ao ficar online evita
+  // esperar até 25s (POOL_POLL_MS) pra ver o pool atualizado.
+  useEffect(() => {
+    if (!online) return;
+    refetch?.();
+    const t = setInterval(() => refetch?.(), POOL_POLL_MS);
+    return () => clearInterval(t);
+  }, [online, refetch]);
+
+  const active = ongoing?.[0] || null;
+  const rating = avgRating(history);
+  const kpis = [
+    { label: 'Ganho hoje', value: formatBRL(earningsToday(history)) },
+    { label: 'Entregas hoje', value: String(deliveriesToday(history)) },
+    { label: 'Disponíveis', value: online ? String(pool.length) : '—' },
+    { label: 'Avaliação', value: rating != null ? `${rating.toFixed(1)} ★` : '—' },
+  ];
+
+  const toggle = async () => {
+    setToggling(true);
+    try { await setOnline(!online); }
+    catch { showToast('Não foi possível mudar seu status. Tente de novo.', 'error'); }
+    finally { setToggling(false); }
   };
 
-  // GPS do motoboy → alimenta o despacho por raio. Throttle de ~15s.
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-    const sendLocation = (pos: GeolocationPosition) => {
-      const now = Date.now();
-      if (now - lastSentRef.current < 15000) return;
-      lastSentRef.current = now;
-      api.post('/deliveries/location', {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        isOnline: true,
-      }).then(refetchPool).catch(() => {});
-    };
-    const onErr = (e: GeolocationPositionError) => {
-      if (e.code === e.PERMISSION_DENIED) setGpsDenied(true);
-    };
-    // posição inicial imediata + acompanhamento contínuo
-    navigator.geolocation.getCurrentPosition(sendLocation, onErr, { enableHighAccuracy: true, timeout: 10000 });
-    const watchId = navigator.geolocation.watchPosition(sendLocation, onErr, {
-      enableHighAccuracy: true, maximumAge: 10000, timeout: 20000,
-    });
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  // Refetch periódico para captar a ampliação do raio sem depender de evento.
-  useEffect(() => {
-    const t = setInterval(refetchPool, 25000);
-    return () => clearInterval(t);
-  }, []);
-
   const claim = async (id: string) => {
+    setAccepting(id);
     try {
       const res = await api.post(`/deliveries/${id}/claim`);
-      window.location.href = `/motoboy/delivery/${res.data._id}`;
+      router.push(`/motoboy/delivery/${res.data._id}`);
     } catch (err: any) {
-      // 409 = outro motoboy aceitou primeiro → popup + tira da lista.
       if (err?.response?.status === 409) {
-        setTakenMsg('Essa corrida já foi aceita por outro motoboy.');
-        setDeliveries((prev: any) => prev.filter((del: any) => del._id !== id));
-        refetchPool();
+        showToast('Essa corrida já foi aceita por outro motoboy.', 'error');
+        setPool((prev: any) => prev.filter((d: any) => d._id !== id));
+        refetch?.();
       } else {
-        setTakenMsg(err?.response?.data?.error || 'Falha ao aceitar a corrida.');
+        showToast(err?.response?.data?.error || 'Falha ao aceitar a corrida.', 'error');
       }
+    } finally {
+      setAccepting(null);
     }
   };
 
-  const stats = [
-    { label: 'Entregas Disponíveis', value: loading ? '...' : String(deliveries.length), valueClass: styles.statValuePurple, cardClass: styles.statCardPurple },
-    { label: 'Ganho Hoje',           value: 'R$ 0',                                      valueClass: styles.statValueGreen,  cardClass: styles.statCardGreen  },
-    { label: 'Nível / Reputação',    value: '—',                                          valueClass: styles.statValueOrange, cardClass: styles.statCardOrange },
-  ];
+  const reject = (id: string) => setPool((prev: any) => prev.filter((d: any) => d._id !== id));
 
   return (
     <ProtectedRoute required_role="motoboy">
-      <div className={dash.dashLayout}>
-
-        {/* ═══ MAIN CONTENT ═══ */}
-        <main className={dash.mainContent}>
-          {/* Top Bar */}
-          <div className={dash.topBar}>
-            <div className={dash.topBarTitle}>
-              <h1 className={dash.pageTitle}>Painel do Motoboy</h1>
-            </div>
-            <div className={dash.topBarActions}>
-              <div className={dash.topBarProfile}>
-                <div className={dash.profileAvatar}>{user?.name?.charAt(0)?.toUpperCase() || 'M'}</div>
-                <span className={dash.profileName}>{user?.name || 'Motoboy'}</span>
+      <div className={styles.page}>
+        <div className={styles.container}>
+          {/* Header de status */}
+          <header className={styles.header}>
+            <div>
+              <h1 className={styles.title}>Olá, {user?.name?.split(' ')[0] || 'Motoboy'}</h1>
+              <div className={styles.statusRow}>
+                <span className={`${styles.dot} ${online ? styles.dotOn : styles.dotOff}`} />
+                <span className={styles.statusText}>{online ? 'Online' : 'Offline'}</span>
               </div>
             </div>
+            <Button onClick={toggle} disabled={toggling || statusLoading} variant={online ? 'ghost' : 'primary'}>
+              {online ? 'Ficar offline' : 'Ficar online'}
+            </Button>
+          </header>
+
+          <OnboardingResumeBanner />
+
+          {/* Entrega ativa */}
+          {active && (
+            <button className={styles.activeCard} onClick={() => router.push('/motoboy/ongoing')}>
+              <span className={styles.activeLabel}>Entrega em andamento</span>
+              <span className={styles.activeOrder}>Pedido #{(active.orderId || active._id)?.slice(-6)}</span>
+              <span className={styles.activeCta}>Ver detalhes →</span>
+            </button>
+          )}
+
+          {/* KPIs */}
+          <div className={styles.kpis}>
+            {kpis.map((k) => (
+              <div key={k.label} className={styles.kpi}>
+                <div className={styles.kpiValue}>{k.value}</div>
+                <div className={styles.kpiLabel}>{k.label}</div>
+              </div>
+            ))}
           </div>
 
-          <div className={dash.tabContent}>
-            <OnboardingResumeBanner />
-            {gpsDenied && (
-              <div style={{
-                background: 'rgba(245,158,11,0.12)', border: '1px solid #F59E0B', borderRadius: 10,
-                padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'rgba(255,255,255,0.85)',
-              }}>
-                <Icon name="alert-triangle" size={14} /> Ative a localização para receber as corridas mais próximas de você. Sem GPS, você vê todas as corridas (inclusive distantes).
+          {/* Pool / offline */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Corridas disponíveis</h2>
+            {!online ? (
+              <EmptyState
+                icon={<WifiOff size={22} strokeWidth={ICON_STROKE_WIDTH} />}
+                title="Você está offline"
+                description="Fique online para receber corridas perto de você."
+                action={<Button onClick={toggle} disabled={toggling}>Ficar online</Button>}
+              />
+            ) : poolLoading ? (
+              <div className={styles.list}><Skeleton height={120} /><Skeleton height={120} /></div>
+            ) : pool.length === 0 ? (
+              <EmptyState
+                icon={<PackageSearch size={22} strokeWidth={ICON_STROKE_WIDTH} />}
+                title="Nenhuma corrida agora"
+                description="Assim que aparecer uma corrida perto, ela surge aqui."
+              />
+            ) : (
+              <div className={styles.list}>
+                {pool.map((d: any) => (
+                  <DeliveryOfferCard key={d._id} delivery={d} accepting={accepting === d._id}
+                    onAccept={() => claim(d._id)} onReject={() => reject(d._id)} />
+                ))}
               </div>
             )}
+          </section>
 
-            {/* Stats */}
-            <div className={styles.statsGrid}>
-              {stats.map((stat) => (
-                <div key={stat.label} className={`${styles.statCard} ${stat.cardClass}`}>
-                  <div className={`${styles.statValue} ${stat.valueClass}`}>{stat.value}</div>
-                  <div className={styles.statLabel}>{stat.label}</div>
-                </div>
-              ))}
+          {/* Atalhos */}
+          <section className={styles.section}>
+            <div className={styles.shortcuts}>
+              {SHORTCUTS.map((s) => {
+                const Ico = s.icon;
+                return (
+                  <button key={s.href} className={styles.shortcut} onClick={() => router.push(s.href)}>
+                    <Ico size={18} /> <span>{s.label}</span>
+                  </button>
+                );
+              })}
             </div>
-
-            {/* Deliveries */}
-            <div className={styles.deliveriesSection}>
-              <h2 className={styles.sectionTitle}>Entregas Disponíveis</h2>
-
-              {loading ? (
-                <LoadingSkeleton variant="list" count={4} />
-              ) : deliveries.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(74,222,128,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={styles.emptyIcon}>
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
-                  <p className={styles.emptyTitle}>Nenhuma entrega disponível</p>
-                  <p className={styles.emptyText}>Volte mais tarde para ver novas oportunidades</p>
-                </div>
-              ) : (
-                <div className={styles.deliveriesGrid}>
-                  {deliveries.map((d: any, idx: number) => (
-                    <div key={d._id} className={styles.deliveryCard} style={{ animationDelay: `${idx * 0.05}s` }}>
-                      <div className={styles.cardHeader}>
-                        <div className={styles.orderId}>PEDIDO #{d.orderId?.slice(-6) || d._id?.slice(-6)}</div>
-                        <div className={styles.deliveryValue}>R$ {((d.fee || 0) * 0.8).toFixed(2)}</div>
-                        <div className={styles.feeNote}>Taxa: R$ {(d.fee || 0).toFixed(2)} · você recebe 80%</div>
-                      </div>
-
-                      <div className={styles.cardDetails}>
-                        <div className={styles.cardDetailRow}>
-                          Distância: <strong className={styles.cardDetailValue}>{(d.distance || 0).toFixed(1)} km</strong>
-                        </div>
-                        <div className={styles.cardDetailRow}>
-                          Origem: <strong className={styles.cardDetailValue}>{d.pickupLocation || 'A confirmar'}</strong>
-                        </div>
-                        {d.destination && (
-                          <div className={styles.cardDetailRow}>
-                            Destino: <strong className={styles.cardDetailValue}>{d.destination}</strong>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className={styles.cardActions}>
-                        <button onClick={() => claim(d._id)} className={styles.btnAccept}>Aceitar</button>
-                        <button
-                          onClick={() => setDeliveries(deliveries.filter((del: any) => del._id !== d._id))}
-                          className={styles.btnReject}
-                        >
-                          Recusar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-
-        {/* Popup: corrida já aceita por outro motoboy (first-accept-wins) */}
-        {takenMsg && (
-          <div
-            onClick={() => setTakenMsg(null)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-            }}
-          >
-            <div onClick={(e) => e.stopPropagation()} style={{
-              background: '#161616', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
-              padding: 24, maxWidth: 360, width: '100%', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}><Icon name="alert-triangle" size={32} /></div>
-              <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 15, margin: '0 0 16px' }}>{takenMsg}</p>
-              <button
-                onClick={() => setTakenMsg(null)}
-                style={{ background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Entendi
-              </button>
-            </div>
-          </div>
-        )}
+          </section>
+        </div>
       </div>
     </ProtectedRoute>
   );

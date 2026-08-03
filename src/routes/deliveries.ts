@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -44,6 +44,10 @@ router.post('/:id/claim', authenticate, authorizeRoles('motoboy'), claimDelivery
 
 // motoboy reporta localização (GPS) p/ despacho por raio
 router.post('/location', authenticate, authorizeRoles('motoboy'), updateMotoboyLocation);
+
+// motoboy liga/desliga o recebimento de corridas (cockpit), sem depender de GPS
+router.get('/availability', authenticate, authorizeRoles('motoboy'), getMotoboyAvailability);
+router.post('/availability', authenticate, authorizeRoles('motoboy'), setMotoboyAvailability);
 
 // ✅ FIX #6: motoboy solicita devolução do produto (gera PIN)
 router.post('/:id/request-return', authenticate, authorizeRoles('motoboy'), requestReturn);
