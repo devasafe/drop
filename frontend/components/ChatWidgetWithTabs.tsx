@@ -8,6 +8,7 @@ import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
 import { ConversationView } from './drop/chat/ConversationView';
 import { ChatComposer } from './drop/chat/ChatComposer';
+import { ChatHeader } from './drop/chat/ChatHeader';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -897,80 +898,25 @@ export default function ChatWidgetWithTabs({
           overflow: 'hidden',
         }}>
           {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C2BD9 0%, #8B5CF6 100%)',
-            color: 'white',
-            padding: '12px 16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-              {/* Botão voltar se estiver vendo uma aba (conversas abertas) */}
-              {tabs.length > 0 && (
-                <button
-                  onClick={() => setActiveTabId(null)}
-                  title="Voltar para conversas"
-                  style={{
-                    background: 'rgba(255,255,255,0.15)',
-                    color: 'white',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                    fontSize: 14,
-                    borderRadius: 6,
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  ←
-                </button>
-              )}
-              <div>
-                {activeTabId && tabs.length > 0 ? (
-                  <>
-                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>
-                      {tabs.find(t => t._id === activeTabId)?.otherParticipantName}
-                    </div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 1 }}>
-                      {tabs.find(t => t._id === activeTabId)?.otherParticipantRole === 'lojista' ? 'Loja' :
-                       tabs.find(t => t._id === activeTabId)?.otherParticipantRole === 'motoboy' ? 'Motoboy' :
-                       'Cliente'}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>Chat DROP</div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 1 }}>
-                      {tabs.length} conversa{tabs.length !== 1 ? 's' : ''}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={async () => {
-                  if (activeTabId) await markMessagesAsRead(activeTabId);
-                  setIsMinimized(true);
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.15)',
-                  color: 'white',
-                  border: 'none',
-                  cursor: 'pointer',
-                  width: 30, height: 30,
-                  borderRadius: 6,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16,
-                  transition: 'background 0.2s',
-                }}
-                title="Minimizar"
-              >
-                −
-              </button>
-            </div>
-          </div>
+          <ChatHeader
+            title={activeTab?.otherParticipantName ?? 'Conversas'}
+            subtitle={
+              activeTab
+                ? (activeTab.otherParticipantRole === 'lojista' ? 'Loja' :
+                   activeTab.otherParticipantRole === 'motoboy' ? 'Motoboy' :
+                   'Cliente')
+                : undefined
+            }
+            onMinimize={async () => {
+              if (activeTabId) await markMessagesAsRead(activeTabId);
+              setIsMinimized(true);
+            }}
+            onClose={() => {
+              setIsOpen(false);
+              setIsMinimized(false);
+            }}
+            onBack={tabs.length > 0 ? () => setActiveTabId(null) : undefined}
+          />
 
           {!isMinimized && (
             <>
