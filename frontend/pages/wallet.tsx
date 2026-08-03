@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Receipt, ChevronRight } from 'lucide-react';
+import { Receipt, ChevronRight, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -137,26 +137,44 @@ export default function WalletPage() {
   return (
     <ProtectedRoute required_role="cliente">
       <div className={styles.page}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Carteira</h1>
+        </header>
+
         {/* Card de saldo */}
         <div className={styles.balanceCard}>
-          <span className={styles.balanceLabel}>Saldo · Carteira Drop</span>
+          <span className={styles.balanceGlow} aria-hidden="true" />
+          <div className={styles.balanceTop}>
+            <span className={styles.balanceLabel}>Saldo disponível</span>
+            <span className={styles.walletBadge}><Wallet size={18} aria-hidden="true" /></span>
+          </div>
           <span className={styles.balanceValue}>{loading ? '—' : formatBRL(wallet?.balance ?? 0)}</span>
           <div className={styles.stats}>
             <div className={styles.stat}>
-              <span className={styles.statLabel}>Entradas</span>
-              <span className={styles.statValue}>{formatBRL(wallet?.totalIncome ?? 0)}</span>
+              <span className={styles.statIcon}><ArrowDownLeft size={14} aria-hidden="true" /></span>
+              <div className={styles.statText}>
+                <span className={styles.statLabel}>Entradas</span>
+                <span className={styles.statValue}>{formatBRL(wallet?.totalIncome ?? 0)}</span>
+              </div>
             </div>
             <div className={styles.stat}>
-              <span className={styles.statLabel}>Saídas</span>
-              <span className={styles.statValue}>{formatBRL(wallet?.totalSpent ?? 0)}</span>
+              <span className={styles.statIcon}><ArrowUpRight size={14} aria-hidden="true" /></span>
+              <div className={styles.statText}>
+                <span className={styles.statLabel}>Saídas</span>
+                <span className={styles.statValue}>{formatBRL(wallet?.totalSpent ?? 0)}</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Ações */}
         <div className={styles.actions}>
-          <Button variant="primary" onClick={() => setCreditOpen(true)}>Carregar</Button>
-          <Button variant="ghost" onClick={() => setWithdrawOpen(true)}>Sacar</Button>
+          <button type="button" className={`${styles.actionBtn} ${styles.actionPrimary}`} onClick={() => setCreditOpen(true)}>
+            <Plus size={17} aria-hidden="true" /> Carregar
+          </button>
+          <button type="button" className={`${styles.actionBtn} ${styles.actionSecondary}`} onClick={() => setWithdrawOpen(true)}>
+            <ArrowUpRight size={17} aria-hidden="true" /> Sacar
+          </button>
         </div>
 
         {/* Extrato */}
