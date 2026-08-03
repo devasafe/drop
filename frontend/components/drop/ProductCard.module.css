@@ -130,6 +130,21 @@
   height: 130px;
 }
 
+/* ---- grade: tile que preenche a célula (grid de /produtos) ---- */
+.grade {
+  width: 100%;
+}
+
+.grade .image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.grade .name {
+  min-height: 2.5em; /* reserva 2 linhas → cards alinhados na grade */
+}
+
 .recomendado {
   width: 118px;
 }

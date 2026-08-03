@@ -5,7 +5,7 @@ import { IconButton } from '../ui/IconButton';
 import { ICON_BUTTON_STROKE_WIDTH, ICON_STROKE_WIDTH } from '../ui/Icon';
 import styles from './ProductCard.module.css';
 
-export type ProductCardVariant = 'home' | 'busca' | 'loja' | 'carrinho' | 'recomendado';
+export type ProductCardVariant = 'home' | 'grade' | 'busca' | 'loja' | 'carrinho' | 'recomendado';
 
 export interface ProductCardData {
   name: string;
@@ -49,6 +49,8 @@ interface VariantConfig {
  */
 const VARIANT_CONFIG: Record<ProductCardVariant, VariantConfig> = {
   home: { layout: 'tile', showStore: true, showPromo: true, addOnImage: true, priceSize: 'sm' },
+  // Igual ao home, mas ocupa 100% da célula (grade responsiva) — usado em /produtos.
+  grade: { layout: 'tile', showStore: true, showPromo: true, addOnImage: true, priceSize: 'sm' },
   recomendado: {
     layout: 'tile',
     showStore: true,

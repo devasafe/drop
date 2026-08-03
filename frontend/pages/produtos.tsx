@@ -3,21 +3,24 @@ import { useRouter } from 'next/router';
 import { Tag, LayoutGrid, ArrowLeft } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useProducts, useStores } from '../hooks/useSync';
-import { filterProducts, productCategories, mapProductCard } from '../lib/searchCatalog';
+import { mapProductCard } from '../lib/searchCatalog';
 import { isPremium } from '../lib/catalogRanking';
 import { IconButton } from '../components/ui/IconButton';
+import { SearchField } from '../components/ui/SearchField';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CategoryRail } from '../components/drop/CategoryRail';
 import { ProductCard } from '../components/drop/ProductCard';
 import styles from './Produtos.module.css';
 
-/** /produtos — grade com todos os produtos (lojas premium primeiro). */
+/** /produtos — grade com todos os produtos (busca + filtro por categoria,
+ * lojas premium primeiro). */
 export default function ProdutosPage() {
   const router = useRouter();
   const { add } = useCart();
   const { products } = useProducts();
   const { stores } = useStores();
   const [category, setCategory] = useState('all');
+  const [search, setSearch] = useState('');
 
   // storeId → { name, plan } (nome no card + ordenação premium-primeiro).
   const storeInfo = useMemo(() => {
@@ -26,20 +29,33 @@ export default function ProdutosPage() {
     return m;
   }, [stores]);
 
+  // Categorias deduplicadas por NOME (evita dois chips "Eletrônicos" quando há
+  // categorias com o mesmo nome e ids diferentes). Filtro passa a ser por nome.
   const categories = useMemo(() => {
-    const base = productCategories(products).map((c) => ({ id: c.id, label: c.label, icon: <Tag size={15} /> }));
+    const seen = new Set<string>();
+    const base: { id: string; label: string; icon: JSX.Element }[] = [];
+    (products || []).forEach((p: any) => {
+      const name = p.categoryName;
+      if (name && !seen.has(name)) { seen.add(name); base.push({ id: name, label: name, icon: <Tag size={15} /> }); }
+    });
+    base.sort((a, b) => a.label.localeCompare(b.label));
     return [{ id: 'all', label: 'Tudo', icon: <LayoutGrid size={15} /> }, ...base];
   }, [products]);
 
-  // Todos os produtos da categoria, lojas premium primeiro (ordem estável).
   const ordered = useMemo(() => {
-    const list = filterProducts(products, '', category === 'all' ? undefined : category);
+    const q = search.trim().toLowerCase();
+    const list = (products || []).filter((p: any) => {
+      if (q && !(p.name || '').toLowerCase().includes(q)) return false;
+      if (category !== 'all' && p.categoryName !== category) return false;
+      return true;
+    });
+    // Lojas premium primeiro (ordem estável).
     return [...list].sort((a: any, b: any) => {
       const pa = isPremium({ plan: storeInfo.get(a.storeId)?.plan }) ? 0 : 1;
       const pb = isPremium({ plan: storeInfo.get(b.storeId)?.plan }) ? 0 : 1;
       return pa - pb;
     });
-  }, [products, category, storeInfo]);
+  }, [products, search, category, storeInfo]);
 
   const addToCart = (p: any, e?: any) => {
     e?.stopPropagation?.();
@@ -50,8 +66,15 @@ export default function ProdutosPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <IconButton aria-label="Voltar" variant="soft" icon={<ArrowLeft size={18} />} onClick={() => router.back()} />
-        <h1 className={styles.title}>Produtos</h1>
+        <div className={styles.headText}>
+          <h1 className={styles.title}>Produtos</h1>
+          <p className={styles.subtitle}>{ordered.length} {ordered.length === 1 ? 'produto' : 'produtos'}</p>
+        </div>
       </header>
+
+      <div className={styles.searchRow}>
+        <SearchField value={search} onChange={setSearch} placeholder="Buscar produtos…" />
+      </div>
 
       {categories.length > 1 && (
         <div className={styles.rail}>
@@ -60,13 +83,13 @@ export default function ProdutosPage() {
       )}
 
       {ordered.length === 0 ? (
-        <EmptyState icon={<LayoutGrid />} title="Nenhum produto por aqui ainda" />
+        <EmptyState icon={<LayoutGrid />} title={search ? `Nada encontrado para “${search}”` : 'Nenhum produto por aqui ainda'} />
       ) : (
         <div className={styles.grid}>
           {ordered.map((p: any) => (
             <div key={p._id} className={styles.cell} onClick={() => router.push(`/product/${p._id}`)}>
               <ProductCard
-                variant="home"
+                variant="grade"
                 product={mapProductCard(p, storeInfo.get(p.storeId)?.name)}
                 soldOut={Number(p.quantity) <= 0}
                 onAdd={(e?: any) => addToCart(p, e)}
