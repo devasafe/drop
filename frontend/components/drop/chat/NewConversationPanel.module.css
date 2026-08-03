@@ -1,0 +1,88 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  background: var(--bg);
+}
+
+.backButton {
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.status {
+  margin: auto;
+  color: var(--text-subtle);
+  font-size: var(--fs-body);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.section + .section {
+  margin-top: var(--space-3);
+}
+
+.sectionLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--text-strong) 6%, var(--surface-2));
+}
+
+.name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}

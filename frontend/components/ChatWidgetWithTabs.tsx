@@ -11,6 +11,7 @@ import { ChatComposer } from './drop/chat/ChatComposer';
 import { ChatHeader } from './drop/chat/ChatHeader';
 import { ChatTabBar } from './drop/chat/ChatTabBar';
 import { ConversationList } from './drop/chat/ConversationList';
+import { NewConversationPanel } from './drop/chat/NewConversationPanel';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -825,6 +826,13 @@ export default function ChatWidgetWithTabs({
 
   const isCustomerRole = (user?.activeRole || user?.role) === 'cliente';
 
+  // NewConversationPanel manda um único item escolhido (contato ou loja,
+  // dependendo do papel ativo) — despacha para o handler correto.
+  const handlePickContact = (item: any) => {
+    if (isCustomerRole) startWithStore(item);
+    else startWithContact(item);
+  };
+
   const activeTab = tabs.find((t) => t._id === activeTabId);
 
   return (
@@ -929,81 +937,15 @@ export default function ChatWidgetWithTabs({
               {/* Conteúdo */}
               {tabs.length === 0 || activeTabId === null ? (
                 newOpen ? (
-                  <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'auto',
-                    padding: 12,
-                    backgroundColor: '#0A0A0A',
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => setNewOpen(false)}
-                      style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(108,43,217,0.3)',
-                        color: '#fff',
-                        borderRadius: 10,
-                        padding: '9px 12px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        marginBottom: 10,
-                        flexShrink: 0,
-                        fontFamily: "'Inter', sans-serif",
-                      }}
-                    >
-                      ← Conversas
-                    </button>
-                    {isCustomerRole ? (
-                      <>
-                        <input
-                          type="text"
-                          placeholder="Buscar loja..."
-                          value={contactSearch}
-                          onChange={(e) => setContactSearch(e.target.value)}
-                          style={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 12px', fontSize: 13, background: '#161616', color: 'rgba(255,255,255,0.92)', outline: 'none', marginBottom: 8, flexShrink: 0 }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {loadingContacts ? (
-                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando lojas...</div>
-                          ) : (
-                            storeList
-                              .filter((s) => (s.name || '').toLowerCase().includes(contactSearch.toLowerCase()))
-                              .slice(0, 40)
-                              .map((s) => (
-                                <div key={s._id || s.id} onClick={() => startWithStore(s)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{s.name}</div>
-                                </div>
-                              ))
-                          )}
-                          {!loadingContacts && storeList.length === 0 && (
-                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Nenhuma loja disponível</div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {loadingContacts ? (
-                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando contatos...</div>
-                        ) : contactList.length === 0 ? (
-                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>
-                            Nenhum contato disponível agora.<br />Aparecem os participantes das entregas/pedidos ativos.
-                          </div>
-                        ) : (
-                          contactList.map((c) => (
-                            <div key={c.id} onClick={() => startWithContact(c)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{c.name}</div>
-                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                                {[c.context, c.role === 'lojista' ? 'Loja' : c.role === 'motoboy' ? 'Motoboy' : 'Cliente'].filter(Boolean).join(' · ')}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <NewConversationPanel
+                    contacts={contactList}
+                    stores={storeList}
+                    search={contactSearch}
+                    onSearch={setContactSearch}
+                    loading={loadingContacts}
+                    onPick={handlePickContact}
+                    onBack={() => setNewOpen(false)}
+                  />
                 ) : (
                   <ConversationList
                     conversations={conversations}
