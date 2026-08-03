@@ -6,6 +6,7 @@ import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
+import { ConversationView } from './drop/chat/ConversationView';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -41,7 +42,6 @@ export default function ChatWidgetWithTabs({
     storageKey: 'chatFabPos',
     onTap: () => { setIsOpen(true); setIsMinimized(false); },
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
 
   // O painel do chat só "cobre a tela" quando está aberto e não minimizado
@@ -329,21 +329,6 @@ export default function ChatWidgetWithTabs({
       unsubs.forEach((u) => u());
     };
   }, [user, on]);
-
-  // Auto-scroll: ao abrir/trocar de conversa, vai pro fim sem animação
-  // (abre já nas últimas mensagens).
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    });
-  }, [activeTabId]);
-
-  // Mensagem nova na aba ativa: rola suave pro fim.
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    });
-  }, [tabs]);
 
   // Carregar conversas quando abre o widget
   useEffect(() => {
@@ -1249,73 +1234,12 @@ export default function ChatWidgetWithTabs({
               ) : activeTab ? (
                 <>
                   {/* Mensagens */}
-                  <div style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: '12px 14px',
-                    backgroundColor: '#0A0A0A',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}>
-                    {activeTab.isLoading ? (
-                      <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: '#6C2BD9', animation: 'spin 0.7s linear infinite' }} />
-                        Carregando mensagens...
-                      </div>
-                    ) : activeTab.messages.length === 0 ? (
-                      <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center' }}>
-                        <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}><Icon name="chat" size={28} /></div>
-                        Sem mensagens ainda
-                      </div>
-                    ) : (
-                      <div>
-                        {activeTab.messages.map((msg, idx) => {
-                          const isOwn = msg.senderId === user.id;
-                          const isUnread = msg.status !== 'read' && !isOwn;
-
-                          return (
-                          <div
-                            key={msg._id || idx}
-                            style={{
-                              display: 'flex',
-                              marginBottom: 4,
-                              justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                            }}
-                          >
-                            <div style={{
-                              maxWidth: '78%',
-                              padding: '8px 12px',
-                              borderRadius: 13,
-                              borderBottomRightRadius: isOwn ? 3 : 13,
-                              borderBottomLeftRadius: isOwn ? 13 : 3,
-                              background: isOwn ? '#6C2BD9' : '#1A1A1A',
-                              color: isOwn ? '#fff' : 'rgba(255,255,255,0.92)',
-                              wordBreak: 'break-word',
-                              border: isOwn ? 'none' : isUnread
-                                ? '1px solid rgba(108,43,217,0.35)'
-                                : '1px solid rgba(255,255,255,0.07)',
-                              boxShadow: isOwn
-                                ? '0 2px 10px rgba(108,43,217,0.3)'
-                                : '0 1px 4px rgba(0,0,0,0.3)',
-                              fontSize: 13,
-                              lineHeight: 1.5,
-                            }}>
-                              <p style={{ margin: 0 }}>{msg.text}</p>
-                              <p style={{ fontSize: 10, opacity: 0.55, marginTop: 4, textAlign: 'right', margin: '4px 0 0 0' }}>
-                                {new Date(msg.createdAt || msg.timestamp || new Date()).toLocaleTimeString(
-                                  'pt-BR',
-                                  { hour: '2-digit', minute: '2-digit' },
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
+                  <ConversationView
+                    messages={activeTab.messages}
+                    loading={activeTab.isLoading}
+                    currentUserId={user.id}
+                    typingName={typingUsers[activeTabId || ''] ? 'alguém' : undefined}
+                  />
 
                   {/* Input */}
                   <div style={{
@@ -1327,17 +1251,6 @@ export default function ChatWidgetWithTabs({
                     gap: 6,
                     flexShrink: 0,
                   }}>
-                    {/* Indicador de digitação */}
-                    {typingUsers[activeTabId || ''] && (
-                      <div style={{
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,0.4)',
-                        fontStyle: 'italic',
-                        height: 14,
-                      }}>
-                        digitando...
-                      </div>
-                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input
                         type="text"
