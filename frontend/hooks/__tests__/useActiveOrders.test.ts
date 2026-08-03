@@ -29,6 +29,11 @@ test('retorna só os pedidos ativos', () => {
   expect(result.current.activeOrders.map((o: any) => o._id)).toEqual(['a']);
 });
 
+test('também retorna a lista crua de pedidos (orders), para reuso sem duplicar useOrders', () => {
+  const { result } = renderHook(() => useActiveOrders());
+  expect(result.current.orders.map((o: any) => o._id)).toEqual(['a', 'b']);
+});
+
 test('um evento delivery dispara refetch', () => {
   renderHook(() => useActiveOrders());
   expect(typeof handlers['delivery:picked']).toBe('function');

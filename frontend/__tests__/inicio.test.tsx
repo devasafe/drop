@@ -14,14 +14,13 @@ const featuredStores = [
 ];
 
 const mockUseAuth = jest.fn(() => ({ user: null as any }));
-const mockUseActiveOrders = jest.fn(() => ({ activeOrders: [] as any[], loading: false }));
+const mockUseActiveOrders = jest.fn(() => ({ activeOrders: [] as any[], orders: [] as any[], loading: false }));
 
 jest.mock('next/router', () => ({ useRouter: () => ({ push }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ add }) }));
 jest.mock('../hooks/useSync', () => ({
   useAddresses: () => ({ addresses: [], loading: false }),
-  useOrders: () => ({ orders: [] }),
   useStores: () => ({ stores, loading: false }),
   useTopStores: () => ({ stores: topStores, loading: false }),
   useFeaturedStores: () => ({ stores: featuredStores, loading: false }),
@@ -34,7 +33,7 @@ beforeEach(() => {
   push.mockClear();
   add.mockClear();
   mockUseAuth.mockReturnValue({ user: null });
-  mockUseActiveOrders.mockReturnValue({ activeOrders: [], loading: false });
+  mockUseActiveOrders.mockReturnValue({ activeOrders: [], orders: [], loading: false });
 });
 
 describe('/inicio', () => {
@@ -65,6 +64,9 @@ describe('/inicio', () => {
     mockUseAuth.mockReturnValue({ user: { _id: 'u1' } });
     mockUseActiveOrders.mockReturnValue({
       activeOrders: [
+        { _id: 'order123', status: 'enviado', storeName: 'Loja X', products: [] },
+      ],
+      orders: [
         { _id: 'order123', status: 'enviado', storeName: 'Loja X', products: [] },
       ],
       loading: false,

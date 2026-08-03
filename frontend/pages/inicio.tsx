@@ -6,7 +6,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import {
   useAddresses,
-  useOrders,
   useProducts,
   useStores,
   useTopStores,
@@ -39,8 +38,7 @@ export default function Inicio() {
   const { add } = useCart();
 
   const { addresses, loading: addressesLoading } = useAddresses();
-  const { orders } = useOrders();
-  const { activeOrders } = useActiveOrders();
+  const { orders, activeOrders } = useActiveOrders();
   const { stores, loading: storesLoading } = useStores();
   const { stores: topStores } = useTopStores();
   const { stores: featuredStores, loading: featuredLoading } = useFeaturedStores();

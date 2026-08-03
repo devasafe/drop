@@ -12,7 +12,7 @@ const DELIVERY_EVENTS = [
   'delivery:status_changed', 'delivery:updated', 'motoboy:assigned',
 ];
 
-export function useActiveOrders(): { activeOrders: any[]; loading: boolean } {
+export function useActiveOrders(): { activeOrders: any[]; orders: any[]; loading: boolean } {
   const { orders, loading, refetch } = useOrders();
   const { on } = useSocket();
 
@@ -21,5 +21,5 @@ export function useActiveOrders(): { activeOrders: any[]; loading: boolean } {
     return () => unsubs.forEach((u) => u());
   }, [on, refetch]);
 
-  return { activeOrders: pickActiveOrders(orders), loading };
+  return { activeOrders: pickActiveOrders(orders), orders, loading };
 }
