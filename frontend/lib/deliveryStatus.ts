@@ -30,3 +30,17 @@ export function filterHistory(history: any[], filter: 'all' | 'delivered' | 'can
   const list = history || [];
   return filter === 'all' ? list : list.filter((d) => d?.status === filter);
 }
+
+export type PayoutTone = 'pending' | 'available' | 'requested' | 'paid' | 'cancelled';
+
+/** Rótulo + tom visual de um repasse (payout) do motoboy. */
+export function payoutStatusView(status: string): { label: string; tone: PayoutTone } {
+  switch (status) {
+    case 'pending': return { label: 'Pendente', tone: 'pending' };
+    case 'released': return { label: 'Disponível', tone: 'available' };
+    case 'requested': return { label: 'Saque solicitado', tone: 'requested' };
+    case 'paid': return { label: 'Pago', tone: 'paid' };
+    case 'cancelled': return { label: 'Cancelado', tone: 'cancelled' };
+    default: return { label: status || 'Pendente', tone: 'pending' };
+  }
+}
