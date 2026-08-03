@@ -1,0 +1,10 @@
+.card { display: flex; flex-direction: column; gap: var(--space-2); }
+.header { display: flex; align-items: center; justify-content: space-between; }
+.order { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--text-muted); }
+.value { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--success); font-weight: 700; }
+.feeNote { font-size: var(--fs-xs); color: var(--text-subtle); }
+.rows { display: flex; flex-direction: column; gap: var(--space-1); }
+.row { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--text-muted); }
+.row strong { color: var(--text); font-weight: 600; }
+.actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.actions > * { flex: 1; }
