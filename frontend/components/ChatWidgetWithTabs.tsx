@@ -9,6 +9,7 @@ import { participantTypeFor } from '../lib/chatContacts';
 import { ConversationView } from './drop/chat/ConversationView';
 import { ChatComposer } from './drop/chat/ChatComposer';
 import { ChatHeader } from './drop/chat/ChatHeader';
+import { ChatTabBar } from './drop/chat/ChatTabBar';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -917,82 +918,12 @@ export default function ChatWidgetWithTabs({
           {!isMinimized && (
             <>
               {/* Abas */}
-              {tabs.length > 0 && (
-                <div style={{
-                  display: 'flex',
-                  gap: 4,
-                  backgroundColor: '#161616',
-                  borderBottom: '1px solid rgba(255,255,255,0.07)',
-                  overflowX: 'auto',
-                  padding: '6px 8px',
-                }}>
-                  {tabs.map((tab) => (
-                    <div
-                      key={tab._id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        whiteSpace: 'nowrap',
-                        backgroundColor: activeTabId === tab._id
-                          ? 'rgba(108,43,217,0.2)'
-                          : tab.unreadCount > 0
-                            ? 'rgba(108,43,217,0.1)'
-                            : 'rgba(255,255,255,0.04)',
-                        border: activeTabId === tab._id
-                          ? '1px solid rgba(108,43,217,0.5)'
-                          : tab.unreadCount > 0
-                            ? '1px solid rgba(108,43,217,0.25)'
-                            : '1px solid rgba(255,255,255,0.07)',
-                        color: activeTabId === tab._id
-                          ? '#fff'
-                          : 'rgba(255,255,255,0.55)',
-                        fontWeight: tab.unreadCount > 0 ? 600 : 400,
-                      }}
-                      onClick={() => setActiveTabId(tab._id)}
-                    >
-                      <span>
-                        {tab.otherParticipantName.substring(0, 12)}
-                        {tab.unreadCount > 0 && (
-                          <span style={{
-                            marginLeft: 4,
-                            backgroundColor: '#6C2BD9',
-                            color: 'white',
-                            fontSize: 9,
-                            padding: '1px 5px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}>
-                            {tab.unreadCount}
-                          </span>
-                        )}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab._id);
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: 0,
-                          fontSize: 11,
-                          color: 'rgba(255,255,255,0.3)',
-                          lineHeight: 1,
-                        }}
-                        title="Fechar aba"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ChatTabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSelect={setActiveTabId}
+                onClose={closeTab}
+              />
 
               {/* Conteúdo */}
               {tabs.length === 0 || activeTabId === null ? (
