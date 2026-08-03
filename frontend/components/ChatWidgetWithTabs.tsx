@@ -800,11 +800,13 @@ export default function ChatWidgetWithTabs({
     const role = user.activeRole || user.role;
     setLoadingContacts(true);
     if (role === 'cliente') {
+      setContactList([]);
       api.get('/stores')
         .then((r) => setStoreList(Array.isArray(r.data) ? r.data : (r.data?.stores || [])))
         .catch(() => setStoreList([]))
         .finally(() => setLoadingContacts(false));
     } else {
+      setStoreList([]);
       api.get('/chat/contacts')
         .then((r) => setContactList(r.data?.contacts || []))
         .catch(() => setContactList([]))
@@ -857,13 +859,13 @@ export default function ChatWidgetWithTabs({
         <div className={styles.window}>
           {/* Header */}
           <ChatHeader
-            title={activeTab?.otherParticipantName ?? 'Conversas'}
+            title={activeTab?.otherParticipantName ?? 'Chat DROP'}
             subtitle={
               activeTab
                 ? (activeTab.otherParticipantRole === 'lojista' ? 'Loja' :
                    activeTab.otherParticipantRole === 'motoboy' ? 'Motoboy' :
                    'Cliente')
-                : undefined
+                : `${conversations.length} conversa${conversations.length === 1 ? '' : 's'}`
             }
             onMinimize={async () => {
               if (activeTabId) await markMessagesAsRead(activeTabId);
