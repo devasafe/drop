@@ -13,6 +13,7 @@ import { ChatTabBar } from './drop/chat/ChatTabBar';
 import { ConversationList } from './drop/chat/ConversationList';
 import { NewConversationPanel } from './drop/chat/NewConversationPanel';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
+import styles from './ChatWidgetWithTabs.module.css';
 
 interface ChatWidgetProps {
   storeId?: string;
@@ -839,7 +840,7 @@ export default function ChatWidgetWithTabs({
     <>
       {/* Botão de abrir (arrastável) */}
       {(!isOpen || isMinimized) && (
-        <div style={{ ...fab.style, fontFamily: "'Inter', sans-serif" }} {...fab.pointerHandlers}>
+        <div className={styles.fabWrapper} style={fab.style} {...fab.pointerHandlers}>
           <ChatFab
             unreadTotal={totalUnread}
             onOpen={() => {
@@ -853,22 +854,7 @@ export default function ChatWidgetWithTabs({
 
       {/* Janela */}
       {isOpen && !isMinimized && (
-        <div style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 50,
-          fontFamily: "'Inter', sans-serif",
-          backgroundColor: '#111111',
-          borderRadius: 16,
-          border: '1px solid rgba(255,255,255,0.07)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(108,43,217,0.15)',
-          width: 'min(384px, calc(100vw - 40px))',
-          height: 420,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
+        <div className={styles.window}>
           {/* Header */}
           <ChatHeader
             title={activeTab?.otherParticipantName ?? 'Conversas'}
@@ -929,7 +915,6 @@ export default function ChatWidgetWithTabs({
 
                   {/* Input */}
                   <ChatComposer value={messageText} onChange={handleMessageInputChange} onSend={sendMessage} />
-                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </>
               ) : null}
             </>
