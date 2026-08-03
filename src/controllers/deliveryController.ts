@@ -782,6 +782,24 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
   }
 };
 
+// Motoboy lê o próprio status (estado inicial do cockpit).
+export const getMotoboyAvailability = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { isOnline: true } });
+  return res.json({ isOnline: !!me?.isOnline });
+};
+
+// Motoboy liga/desliga o recebimento de corridas SEM depender de GPS.
+export const setMotoboyAvailability = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
+  const isOnline = (req.body as any)?.isOnline;
+  if (typeof isOnline !== 'boolean') return res.status(400).json({ error: 'isOnline deve ser boolean' });
+  await prisma.user.update({ where: { id: req.user.id }, data: { isOnline } });
+  return res.json({ isOnline });
+};
+
 // motoboy claims a delivery (first-claim-wins) — atomic update
 export const claimDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
