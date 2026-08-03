@@ -36,9 +36,11 @@ export default function MotoboyPage() {
   const [accepting, setAccepting] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
 
-  // Polling do pool só quando online.
+  // Polling do pool só quando online. Refetch imediato ao ficar online evita
+  // esperar até 25s (POOL_POLL_MS) pra ver o pool atualizado.
   useEffect(() => {
     if (!online) return;
+    refetch?.();
     const t = setInterval(() => refetch?.(), POOL_POLL_MS);
     return () => clearInterval(t);
   }, [online, refetch]);

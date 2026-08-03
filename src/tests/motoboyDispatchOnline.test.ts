@@ -7,7 +7,15 @@ import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
-afterEach(async () => { await cleanupUsersByEmailDomain('@disp.test'); });
+let createdDeliveryIds: string[] = [];
+
+afterEach(async () => {
+  if (createdDeliveryIds.length) {
+    await prisma.delivery.deleteMany({ where: { id: { in: createdDeliveryIds } } });
+    createdDeliveryIds = [];
+  }
+  await cleanupUsersByEmailDomain('@disp.test');
+});
 
 async function motoboy(isOnline: boolean) {
   const user = await prisma.user.create({
@@ -42,7 +50,8 @@ async function pendingDelivery() {
   // então um id sintético satisfaz a coluna sem precisar criar Store/Order completos,
   // que este teste (gate de isOnline, sem filtro por raio já que o motoboy não reporta GPS) não usa.
   const orderId = `order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  await prisma.delivery.create({ data: { orderId, status: 'pending', fee: 10 } as any });
+  const delivery = await prisma.delivery.create({ data: { orderId, status: 'pending', fee: 10 } as any });
+  createdDeliveryIds.push(delivery.id);
 }
 
 describe('gate de disponibilidade no despacho', () => {
