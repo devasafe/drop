@@ -25,7 +25,11 @@ if (typeof window !== 'undefined') {
   console.log('🔌 API Base URL:', BASE, '| Hostname:', window.location.hostname);
 }
 
-export const api = axios.create({ baseURL: BASE, withCredentials: true });
+// `timeout` é essencial: sem ele o axios espera indefinidamente. Se o backend
+// abrir a conexão e não devolver resposta (lentidão, restart, conexão meio-aberta),
+// a UI trava "carregando pra sempre" sem nunca dar erro. 30s corta esse caso e
+// deixa o catch das telas exibir uma mensagem acionável.
+export const api = axios.create({ baseURL: BASE, withCredentials: true, timeout: 30000 });
 
 export const setAuthToken = (token?: string) => {
   if (token) {

@@ -52,6 +52,25 @@ test('copiar código chama clipboard e mostra feedback', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: /copiado/i })).toBeInTheDocument());
 });
 
+test('desiste e mostra erro quando o QR nunca chega', async () => {
+  jest.useFakeTimers();
+  // Pedido sem QR inicial e o poll também nunca devolve QR (paid:false sempre).
+  mockedApi.get.mockResolvedValue({ data: { paid: false } } as unknown as AxiosResponse);
+  const onPaid = jest.fn();
+  render(<PixPaymentSheet pix={{ orderId: 'o1' }} onPaid={onPaid} onClose={() => {}} />);
+
+  // 1 check imediato + 5 intervalos de 4s cobrem as MAX_QR_ATTEMPTS tentativas.
+  for (let i = 0; i < 5; i++) {
+    await act(async () => { jest.advanceTimersByTime(4000); });
+  }
+
+  await waitFor(() => expect(screen.getByText(/não foi possível gerar o pix/i)).toBeInTheDocument());
+
+  fireEvent.click(screen.getByRole('button', { name: /ver pedido e pagar/i }));
+  expect(onPaid).toHaveBeenCalledWith('o1');
+  jest.useRealTimers();
+});
+
 test('onClose é chamado ao fechar o sheet', async () => {
   mockedApi.get.mockResolvedValue({ data: { paid: false } } as unknown as AxiosResponse);
   const onClose = jest.fn();

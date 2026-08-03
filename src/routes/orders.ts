@@ -11,6 +11,7 @@ import {
   posDevolucaoDecision,
   poolTimeoutDecision,
 } from '../controllers/cancellationController';
+import { getMyProductReviewsForOrder } from '../controllers/productReviewController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
@@ -42,6 +43,8 @@ router.get('/stats/cancellations', authenticate, authorizeRoles('lojista'), getC
 
 // Get single order details
 router.get('/:id', authenticate, getOrder);
+// Produtos que o cliente logado já avaliou neste pedido (hidrata a UI pós-F5).
+router.get('/:id/my-product-reviews', authenticate, getMyProductReviewsForOrder);
 // Retomar pagamento PIX de um pedido pendente
 router.get('/:id/pix', authenticate, getOrderPix);
 
