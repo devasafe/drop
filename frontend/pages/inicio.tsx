@@ -17,7 +17,6 @@ import { imageUrl } from '../lib/config';
 
 import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
-import { OrderTracker, OrderTrackerStep } from '../components/drop/OrderTracker';
 import { StoreCard } from '../components/drop/StoreCard';
 import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
@@ -29,41 +28,10 @@ import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useActiveOrders } from '../hooks/useActiveOrders';
+import { ActiveOrdersSection } from '../components/drop/ActiveOrdersSection';
 
 import styles from './Inicio.module.css';
-
-/**
- * Pedido "ativo" p/ o OrderTracker: pago (loja confirmou), aguardando
- * motoboy ou já enviado. `criado` (aguardando loja aceitar) e `entregue`
- * ficam de fora — não é "a caminho" ainda ou já terminou.
- */
-const ACTIVE_ORDER_STATUSES = new Set(['pago', 'aguardando_motoboy', 'enviado']);
-
-/** Progresso da barra do tracker por status — sem ETA real, é só a fração do fluxo. */
-const PROGRESS_BY_STATUS: Record<string, number> = {
-  criado: 0.15,
-  pago: 0.35,
-  aguardando_motoboy: 0.5,
-  enviado: 0.75,
-  entregue: 1,
-};
-
-/** Rótulo da fase atual mostrado no topo do tracker — nunca fixo "A caminho":
- * um pedido `pago` ainda está sendo preparado, dizer "a caminho" seria
- * status falso pro usuário. */
-const STATUS_LABEL: Record<string, string> = {
-  pago: 'Preparando',
-  aguardando_motoboy: 'Buscando entregador',
-  enviado: 'A caminho',
-};
-
-function trackerSteps(status: string): OrderTrackerStep[] {
-  return [
-    { label: 'Confirmado', done: true },
-    { label: 'Preparando', done: status !== 'pago' },
-    { label: 'A caminho', done: status === 'enviado' },
-  ];
-}
 
 export default function Inicio() {
   const router = useRouter();
@@ -72,6 +40,7 @@ export default function Inicio() {
 
   const { addresses, loading: addressesLoading } = useAddresses();
   const { orders } = useOrders();
+  const { activeOrders } = useActiveOrders();
   const { stores, loading: storesLoading } = useStores();
   const { stores: topStores } = useTopStores();
   const { stores: featuredStores, loading: featuredLoading } = useFeaturedStores();
@@ -89,11 +58,6 @@ export default function Inicio() {
   const defaultAddress = useMemo(
     () => addresses.find((a: any) => a.isDefault) || addresses[0],
     [addresses]
-  );
-
-  const activeOrder = useMemo(
-    () => (user ? orders.find((o: any) => ACTIVE_ORDER_STATUSES.has(o.status)) : undefined),
-    [orders, user]
   );
 
   const userCoords = useMemo(
@@ -192,16 +156,9 @@ export default function Inicio() {
         </div>
       </div>
 
-      {user && activeOrder && (
+      {user && activeOrders.length > 0 && (
         <div className={styles.section}>
-          <OrderTracker
-            orderId={activeOrder._id.slice(-6).toUpperCase()}
-            storeName={activeOrder.storeName || 'Loja'}
-            imageUrl={imageUrl(activeOrder.products?.[0]?.image) || undefined}
-            statusLabel={STATUS_LABEL[activeOrder.status] ?? 'Em andamento'}
-            progress={PROGRESS_BY_STATUS[activeOrder.status] ?? 0.35}
-            steps={trackerSteps(activeOrder.status)}
-          />
+          <ActiveOrdersSection orders={activeOrders} onOpen={(id) => router.push('/store-order/' + id)} />
         </div>
       )}
 

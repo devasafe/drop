@@ -13,8 +13,11 @@ const featuredStores = [
   { _id: 'f2', name: 'Banner Premium 2', plan: 3, featuredBannerUrl: 'b2.jpg' },
 ];
 
+const mockUseAuth = jest.fn(() => ({ user: null as any }));
+const mockUseActiveOrders = jest.fn(() => ({ activeOrders: [] as any[], loading: false }));
+
 jest.mock('next/router', () => ({ useRouter: () => ({ push }) }));
-jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
+jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ add }) }));
 jest.mock('../hooks/useSync', () => ({
   useAddresses: () => ({ addresses: [], loading: false }),
@@ -25,8 +28,14 @@ jest.mock('../hooks/useSync', () => ({
   usePromoBanners: () => ({ banners: [], loading: false }),
   useProducts: () => ({ products: [], loading: false }),
 }));
+jest.mock('../hooks/useActiveOrders', () => ({ useActiveOrders: () => mockUseActiveOrders() }));
 
-beforeEach(() => { push.mockClear(); add.mockClear(); });
+beforeEach(() => {
+  push.mockClear();
+  add.mockClear();
+  mockUseAuth.mockReturnValue({ user: null });
+  mockUseActiveOrders.mockReturnValue({ activeOrders: [], loading: false });
+});
 
 describe('/inicio', () => {
   it('mostra o banner premium no carrossel', () => {
@@ -45,5 +54,29 @@ describe('/inicio', () => {
     render(<Inicio />);
     fireEvent.click(screen.getByText('Ver mais'));
     expect(push).toHaveBeenCalledWith('/stores');
+  });
+
+  it('não mostra o card de pedido ativo quando não há pedidos ativos', () => {
+    render(<Inicio />);
+    expect(screen.queryByRole('button', { name: /Pedido #/i })).toBeNull();
+  });
+
+  it('mostra o card de pedido ativo e navega para /store-order/:id ao clicar', () => {
+    mockUseAuth.mockReturnValue({ user: { _id: 'u1' } });
+    mockUseActiveOrders.mockReturnValue({
+      activeOrders: [
+        { _id: 'order123', status: 'enviado', storeName: 'Loja X', products: [] },
+      ],
+      loading: false,
+    });
+
+    render(<Inicio />);
+
+    const card = screen.getByRole('button', { name: /Pedido #DER123/i });
+    expect(card).toBeInTheDocument();
+    expect(screen.getByText(/Loja X/)).toBeInTheDocument();
+
+    fireEvent.click(card);
+    expect(push).toHaveBeenCalledWith('/store-order/order123');
   });
 });
