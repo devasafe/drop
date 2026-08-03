@@ -20,7 +20,7 @@ import styles from './MotoboyCockpit.module.css';
 const POOL_POLL_MS = 25000;
 const SHORTCUTS = [
   { href: '/motoboy/wallet', label: 'Ganhos e saques', icon: Wallet },
-  { href: '/motoboy/history', label: 'Histórico', icon: Clock },
+  { href: '/motoboy/ongoing?tab=history', label: 'Histórico', icon: Clock },
   { href: '/motoboy/gamification', label: 'Gamificação', icon: Trophy },
   { href: '/motoboy/profile', label: 'Perfil', icon: User },
 ];
