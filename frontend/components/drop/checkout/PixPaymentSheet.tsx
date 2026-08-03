@@ -26,17 +26,24 @@ const COPY_FEEDBACK_MS = 2000;
 export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) {
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
+  // O QR pode vir vazio da criação do pedido (Asaas às vezes demora a gerar).
+  // O poll de /orders/:id/pix também devolve o QR — usamos como fallback.
+  const [qrImage, setQrImage] = useState<string | undefined>(pix.qrCodeImage);
+  const [qrPayload, setQrPayload] = useState<string | undefined>(pix.qrCodePayload);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await api.get<{ paid: boolean }>(`/orders/${pix.orderId}/pix`);
+        const res = await api.get<{ paid: boolean; qrCodeImage?: string; qrCodePayload?: string }>(`/orders/${pix.orderId}/pix`);
         if (res.data?.paid === true) {
           setPaid(true);
           if (timer.current) clearInterval(timer.current);
           setTimeout(() => onPaid(pix.orderId), REDIRECT_DELAY_MS);
+          return;
         }
+        if (res.data?.qrCodeImage) setQrImage(res.data.qrCodeImage);
+        if (res.data?.qrCodePayload) setQrPayload(res.data.qrCodePayload);
       } catch {
         /* segue tentando */
       }
@@ -47,9 +54,9 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
   }, [pix.orderId, onPaid]);
 
   const copy = async () => {
-    if (!pix.qrCodePayload) return;
+    if (!qrPayload) return;
     try {
-      await navigator.clipboard.writeText(pix.qrCodePayload);
+      await navigator.clipboard.writeText(qrPayload);
       setCopied(true);
       setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     } catch {
@@ -67,12 +74,15 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
       ) : (
         <div className={styles.body}>
           <p className={styles.hint}>Escaneie o QR Code ou copie o código. A confirmação é automática.</p>
-          {pix.qrCodeImage && (
-            <img className={styles.qr} src={`data:image/png;base64,${pix.qrCodeImage}`} alt="QR Code PIX" />
+          {!qrImage && !qrPayload && (
+            <div className={styles.waiting}>Gerando o QR Code…</div>
           )}
-          {pix.qrCodePayload && (
+          {qrImage && (
+            <img className={styles.qr} src={`data:image/png;base64,${qrImage}`} alt="QR Code PIX" />
+          )}
+          {qrPayload && (
             <>
-              <div className={styles.code}>{pix.qrCodePayload}</div>
+              <div className={styles.code}>{qrPayload}</div>
               <button type="button" className={styles.copyBtn} onClick={copy}>
                 {copied ? (
                   <Check size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />

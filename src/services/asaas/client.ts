@@ -39,23 +39,39 @@ type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 // apiKey opcional: quando informada, a chamada é feita COMO aquela subconta
 // (necessário p/ saque da subconta). Sem ela, usa a conta-mãe (env.ASAAS_API_KEY).
-async function request<T>(method: Method, path: string, body?: unknown, apiKey?: string): Promise<T> {
+async function request<T>(method: Method, path: string, body?: unknown, apiKey?: string, timeoutMs = 20000): Promise<T> {
   const key = apiKey || env.ASAAS_API_KEY;
   if (!key) {
     throw new AsaasNotConfiguredError();
   }
 
   const url = `${env.ASAAS_API_URL}${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      access_token: key,
-      'Content-Type': 'application/json',
-      // O Asaas recomenda identificar a aplicação no User-Agent.
-      'User-Agent': 'DROP-Marketplace',
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  // `fetch` nativo NÃO tem timeout — sem isto, uma chamada pendurada trava o
+  // pedido "pra sempre". AbortController limita a duração de toda chamada.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        access_token: key,
+        'Content-Type': 'application/json',
+        // O Asaas recomenda identificar a aplicação no User-Agent.
+        'User-Agent': 'DROP-Marketplace',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      logger.warn('Timeout na chamada Asaas', { method, path, timeoutMs });
+      throw new Error(`Timeout (${timeoutMs}ms) na chamada Asaas ${method} ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = await res.text();
   let data: any = {};
@@ -79,7 +95,7 @@ async function request<T>(method: Method, path: string, body?: unknown, apiKey?:
 }
 
 export const asaasClient = {
-  get: <T>(path: string) => request<T>('GET', path),
+  get: <T>(path: string, timeoutMs?: number) => request<T>('GET', path, undefined, undefined, timeoutMs),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),

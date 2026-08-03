@@ -104,13 +104,16 @@ export async function createPixCharge(params: {
  * pronto no instante seguinte à criação da cobrança). */
 async function fetchPixQrWithRetry(
   paymentId: string,
-  attempts = 3,
+  attempts = 2,
 ): Promise<{ encodedImage: string; payload: string; expirationDate: string }> {
   let lastErr: any;
   for (let i = 0; i < attempts; i++) {
     try {
+      // Timeout curto (8s): se o QR travar, não segura o pedido — a tela do
+      // pedido rebusca o QR depois via getOrderPix.
       return await asaasClient.get<{ encodedImage: string; payload: string; expirationDate: string }>(
         `/payments/${paymentId}/pixQrCode`,
+        8000,
       );
     } catch (err) {
       lastErr = err;
