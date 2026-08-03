@@ -11,15 +11,19 @@ import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
-const toApiProduct = (p: any) => ({
-  ...p,
-  _id: p?.id,
-  price: p?.price != null ? Number(p.price) : p?.price,
-  oldPrice: p?.oldPrice != null ? Number(p.oldPrice) : p?.oldPrice,
-  // Nome legível da categoria (quando a relação foi incluída) — o front mostra
-  // isso nos filtros em vez do categoryId (cuid).
-  categoryName: p?.category?.name ?? undefined,
-});
+const toApiProduct = (p: any) => {
+  // Remove a RELAÇÃO `category` ({ name }) do payload — ela é um objeto e
+  // quebrava o front que renderiza `product.category` como texto (React #31).
+  // O nome vai em `categoryName`; o `categoryId` (string) continua no `...rest`.
+  const { category, ...rest } = p || {};
+  return {
+    ...rest,
+    _id: p?.id,
+    price: p?.price != null ? Number(p.price) : p?.price,
+    oldPrice: p?.oldPrice != null ? Number(p.oldPrice) : p?.oldPrice,
+    categoryName: category?.name ?? undefined,
+  };
+};
 
 /** "12,90" / "12.90" / "" → number | null (preço antigo é opcional). */
 const parseOptionalPrice = (v: any): number | null => {
