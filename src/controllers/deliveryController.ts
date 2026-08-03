@@ -720,6 +720,18 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     // idade da entrega. Carregamos o lote pendente (cap defensivo) e filtramos em
     // memória, pois o raio depende da idade de cada entrega + da localização atual.
     const me = await userRepository.findById(String(req.user.id)) as any;
+
+    // Gate de disponibilidade: offline = não recebe corridas (curto-circuito antes
+    // do filtro por raio). O motoboy religa pelo toggle do cockpit.
+    if ((me as any)?.isOnline === false) {
+      return res.json({
+        deliveries: [],
+        offline: true,
+        locationKnown: false,
+        pagination: { page: 1, limit: 0, total: 0, pages: 0 },
+      });
+    }
+
     const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
       ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
       : null;
