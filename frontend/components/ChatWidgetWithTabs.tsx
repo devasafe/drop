@@ -1010,6 +1010,7 @@ export default function ChatWidgetWithTabs({
                     loading={loadingConversations}
                     onSelect={openConversation}
                     onNew={() => setNewOpen(true)}
+                    onRemove={(c) => closeConversation(c._id)}
                   />
                 )
               ) : activeTab ? (
