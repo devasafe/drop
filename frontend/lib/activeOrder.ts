@@ -30,23 +30,22 @@ const LABEL: Record<string, string> = {
   enviado: 'A caminho',
 };
 
-// Sem ETA real no backend — progress é só a fração do fluxo.
-const PROGRESS: Record<string, number> = {
-  criado: 0.15, pago: 0.35, aguardando_motoboy: 0.5, enviado: 0.75,
-};
-
 export function activeOrderView(order: any): ActiveOrderView {
   const status = order?.status;
-  const shipped = status === 'enviado';
-  const preparing = status === 'aguardando_motoboy' || shipped;
+  // Os mesmos 5 passos da tela de acompanhamento (deriveSteps do useOrderTracking),
+  // derivados só do order.status — o card da Home não tem o delivery em mãos.
+  const steps = [
+    { label: 'Criado', done: !!status },
+    { label: 'Pago', done: !!status && status !== 'criado' },
+    { label: 'Aceito', done: ['pago', 'aguardando_motoboy', 'enviado', 'entregue'].includes(status) },
+    { label: 'A caminho', done: status === 'enviado' || status === 'entregue' },
+    { label: 'Entregue', done: status === 'entregue' },
+  ];
+  // Sem ETA real no backend — a barra reflete a fração de passos já concluídos.
+  const doneCount = steps.filter((s) => s.done).length;
   return {
     statusLabel: LABEL[status] ?? 'Em andamento',
-    progress: PROGRESS[status] ?? 0.15,
-    steps: [
-      // 'criado' = loja ainda não aceitou → 1º passo é "Recebido"; a partir de 'pago' vira "Confirmado".
-      { label: status === 'criado' ? 'Recebido' : 'Confirmado', done: true },
-      { label: 'Preparando', done: preparing },
-      { label: 'A caminho', done: shipped },
-    ],
+    progress: doneCount / steps.length,
+    steps,
   };
 }

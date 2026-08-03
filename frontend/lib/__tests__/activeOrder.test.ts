@@ -19,24 +19,28 @@ describe('activeOrder', () => {
     expect(pickActiveOrders(orders).map((o) => o._id)).toEqual(['c', 'a']);
   });
 
-  it('activeOrderView: criado marca "Recebido" (não "Confirmado")', () => {
+  it('activeOrderView: os 5 passos são Criado/Pago/Aceito/A caminho/Entregue', () => {
+    const labels = activeOrderView({ status: 'criado' }).steps.map((s) => s.label);
+    expect(labels).toEqual(['Criado', 'Pago', 'Aceito', 'A caminho', 'Entregue']);
+  });
+
+  it('activeOrderView: criado → só "Criado" concluído', () => {
     const v = activeOrderView({ status: 'criado' });
     expect(v.statusLabel).toBe('Aguardando confirmação');
-    expect(v.steps[0]).toEqual({ label: 'Recebido', done: true });
-    expect(v.steps[1].done).toBe(false);
-    expect(v.steps[2].done).toBe(false);
+    expect(v.steps.map((s) => s.done)).toEqual([true, false, false, false, false]);
+    expect(v.progress).toBeCloseTo(0.2);
   });
 
-  it('activeOrderView: enviado marca todos os steps done e label "A caminho"', () => {
-    const v = activeOrderView({ status: 'enviado' });
-    expect(v.statusLabel).toBe('A caminho');
-    expect(v.steps.map((s) => s.done)).toEqual([true, true, true]);
-    expect(v.steps[0].label).toBe('Confirmado');
-  });
-
-  it('activeOrderView: aguardando_motoboy → Preparando done, A caminho não', () => {
+  it('activeOrderView: aguardando_motoboy → até "Aceito" concluído', () => {
     const v = activeOrderView({ status: 'aguardando_motoboy' });
     expect(v.statusLabel).toBe('Buscando entregador');
-    expect(v.steps.map((s) => s.done)).toEqual([true, true, false]);
+    expect(v.steps.map((s) => s.done)).toEqual([true, true, true, false, false]);
+  });
+
+  it('activeOrderView: enviado → até "A caminho" concluído, "Entregue" não', () => {
+    const v = activeOrderView({ status: 'enviado' });
+    expect(v.statusLabel).toBe('A caminho');
+    expect(v.steps.map((s) => s.done)).toEqual([true, true, true, true, false]);
+    expect(v.progress).toBeCloseTo(0.8);
   });
 });
