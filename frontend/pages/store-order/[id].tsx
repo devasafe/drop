@@ -66,6 +66,26 @@ export default function StoreOrderStatus() {
   const [reviewedProducts, setReviewedProducts] = useState<Record<string, boolean>>({});
   const [submittingProduct, setSubmittingProduct] = useState<string | null>(null);
 
+  // Hidrata quais produtos deste pedido o cliente JÁ avaliou. Sem isto, após um
+  // F5 o estado local zerava e os formulários de avaliação de produto reapareciam
+  // como se nada tivesse sido enviado (motoboy/loja não sofrem: vêm do backend
+  // no order/delivery). O backend faz upsert, então reavaliar não duplica — isto
+  // é só pra a UI refletir o que já foi feito.
+  const delivered = t.order?.status === 'entregue' || t.delivery?.status === 'delivered';
+  useEffect(() => {
+    if (!id || !delivered) return;
+    let cancelled = false;
+    api.get<{ reviewedProductIds: string[] }>(`/orders/${id}/my-product-reviews`)
+      .then((res) => {
+        if (cancelled) return;
+        const map: Record<string, boolean> = {};
+        for (const pid of res.data?.reviewedProductIds || []) map[pid] = true;
+        setReviewedProducts((prev) => ({ ...prev, ...map }));
+      })
+      .catch(() => { /* melhor esforço — se falhar, o form aparece e o upsert protege contra duplicidade */ });
+    return () => { cancelled = true; };
+  }, [id, delivered]);
+
   const handleConfirmReceived = async () => {
     if (confirming) return;
     setConfirming(true);

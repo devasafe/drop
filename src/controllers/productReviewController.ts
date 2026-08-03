@@ -44,6 +44,26 @@ export const getProductReviews = async (req: Request, res: Response) => {
   }
 };
 
+/** Cliente — IDs dos produtos que ELE já avaliou naquele pedido. Hidrata a UI
+ * após um reload: o "já avaliado" do produto não vinha do backend (diferente de
+ * loja/motoboy), então um F5 zerava o estado local e os formulários reapareciam. */
+export const getMyProductReviewsForOrder = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orderId = String(req.params.id);
+    const userId = String(req.user?.id || '');
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+
+    const rows = await prisma.productReview.findMany({
+      where: { orderId, userId },
+      select: { productId: true },
+    });
+    return res.json({ reviewedProductIds: rows.map((r) => r.productId) });
+  } catch (err) {
+    console.error('[getMyProductReviewsForOrder] error:', err);
+    return res.status(500).json({ error: 'Erro ao carregar suas avaliações' });
+  }
+};
+
 /** Cliente avalia um produto que comprou (pedido entregue). Idempotente por
  * (produto, usuário, pedido) — reavaliar atualiza. */
 export const createProductReview = async (req: AuthenticatedRequest, res: Response) => {
