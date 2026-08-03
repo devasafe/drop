@@ -1,0 +1,60 @@
+.conversation {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) 14px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.status,
+.empty {
+  margin: auto;
+  color: var(--text-subtle);
+  font-size: var(--fs-body);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.empty {
+  flex-direction: column;
+  text-align: center;
+  font-size: var(--fs-sm);
+}
+
+.emptyIcon {
+  font-size: 28px;
+  margin-bottom: var(--space-2);
+  opacity: 0.4;
+  display: flex;
+  justify-content: center;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  animation: spin 0.7s linear infinite;
+}
+
+.typing {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  font-style: italic;
+  height: 14px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

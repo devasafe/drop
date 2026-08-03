@@ -1,38 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
-import Icon from './Icon';
 import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
-
-interface Message {
-  _id?: string;
-  senderId: string;
-  senderName?: string;
-  text: string;
-  createdAt: string;
-  timestamp?: string;
-  status?: 'sent' | 'delivered' | 'read';
-}
-
-interface Conversation {
-  _id: string;
-  otherParticipantId: string;
-  otherParticipantName: string;
-  otherParticipantRole: 'lojista' | 'motoboy' | 'cliente';
-  lastMessage?: { text: string; senderName: string; createdAt: string } | null;
-  lastMessageTime?: string;
-  unreadCount: number;
-  isActive: boolean;
-}
-
-interface ChatTab extends Conversation {
-  messages: Message[];
-  isLoading: boolean;
-  isUserTyping?: boolean;
-}
+import { ConversationView } from './drop/chat/ConversationView';
+import { ChatComposer } from './drop/chat/ChatComposer';
+import { ChatFab } from './drop/chat/ChatFab';
+import { ChatHeader } from './drop/chat/ChatHeader';
+import { ChatTabBar } from './drop/chat/ChatTabBar';
+import { ConversationList } from './drop/chat/ConversationList';
+import { NewConversationPanel } from './drop/chat/NewConversationPanel';
+import type { Message, Conversation, ChatTab } from './drop/chat/types';
+import styles from './ChatWidgetWithTabs.module.css';
 
 interface ChatWidgetProps {
   storeId?: string;
@@ -67,7 +48,6 @@ export default function ChatWidgetWithTabs({
     storageKey: 'chatFabPos',
     onTap: () => { setIsOpen(true); setIsMinimized(false); },
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<{ [conversationId: string]: NodeJS.Timeout }>({});
 
   // O painel do chat só "cobre a tela" quando está aberto e não minimizado
@@ -355,21 +335,6 @@ export default function ChatWidgetWithTabs({
       unsubs.forEach((u) => u());
     };
   }, [user, on]);
-
-  // Auto-scroll: ao abrir/trocar de conversa, vai pro fim sem animação
-  // (abre já nas últimas mensagens).
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    });
-  }, [activeTabId]);
-
-  // Mensagem nova na aba ativa: rola suave pro fim.
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    });
-  }, [tabs]);
 
   // Carregar conversas quando abre o widget
   useEffect(() => {
@@ -835,11 +800,13 @@ export default function ChatWidgetWithTabs({
     const role = user.activeRole || user.role;
     setLoadingContacts(true);
     if (role === 'cliente') {
+      setContactList([]);
       api.get('/stores')
         .then((r) => setStoreList(Array.isArray(r.data) ? r.data : (r.data?.stores || [])))
         .catch(() => setStoreList([]))
         .finally(() => setLoadingContacts(false));
     } else {
+      setStoreList([]);
       api.get('/chat/contacts')
         .then((r) => setContactList(r.data?.contacts || []))
         .catch(() => setContactList([]))
@@ -862,566 +829,94 @@ export default function ChatWidgetWithTabs({
 
   const isCustomerRole = (user?.activeRole || user?.role) === 'cliente';
 
+  // NewConversationPanel manda um único item escolhido (contato ou loja,
+  // dependendo do papel ativo) — despacha para o handler correto.
+  const handlePickContact = (item: any) => {
+    if (isCustomerRole) startWithStore(item);
+    else startWithContact(item);
+  };
+
   const activeTab = tabs.find((t) => t._id === activeTabId);
 
   return (
     <>
       {/* Botão de abrir (arrastável) */}
       {(!isOpen || isMinimized) && (
-        <div style={{ ...fab.style, fontFamily: "'Inter', sans-serif" }} {...fab.pointerHandlers}>
-          <button
-            onClick={() => {
+        <div className={styles.fabWrapper} style={fab.style} {...fab.pointerHandlers}>
+          <ChatFab
+            unreadTotal={totalUnread}
+            onOpen={() => {
               if (fab.movedRef.current) return; // foi arrasto, não abre
               setIsOpen(true);
               setIsMinimized(false);
             }}
-            style={{
-              backgroundColor: '#6C2BD9',
-              color: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: 56,
-              height: 56,
-              fontSize: 24,
-              cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(108,43,217,0.45)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.25s ease',
-            }}
-            title="Abrir chat"
-          >
-            <Icon name="chat" size={24} />
-          </button>
-          {/* Badge de notificação */}
-          {totalUnread > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: -8,
-              right: -8,
-              backgroundColor: '#6C2BD9',
-              color: 'white',
-              borderRadius: '50%',
-              width: 22,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 700,
-              boxShadow: '0 0 12px rgba(108,43,217,0.5)',
-            }}>
-              {totalUnread > 99 ? '99+' : totalUnread}
-            </div>
-          )}
+          />
         </div>
       )}
 
       {/* Janela */}
       {isOpen && !isMinimized && (
-        <div style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 50,
-          fontFamily: "'Inter', sans-serif",
-          backgroundColor: '#111111',
-          borderRadius: 16,
-          border: '1px solid rgba(255,255,255,0.07)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(108,43,217,0.15)',
-          width: 'min(384px, calc(100vw - 40px))',
-          height: 420,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
+        <div className={styles.window}>
           {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C2BD9 0%, #8B5CF6 100%)',
-            color: 'white',
-            padding: '12px 16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-              {/* Botão voltar se estiver vendo uma aba (conversas abertas) */}
-              {tabs.length > 0 && (
-                <button
-                  onClick={() => setActiveTabId(null)}
-                  title="Voltar para conversas"
-                  style={{
-                    background: 'rgba(255,255,255,0.15)',
-                    color: 'white',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                    fontSize: 14,
-                    borderRadius: 6,
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  ←
-                </button>
-              )}
-              <div>
-                {activeTabId && tabs.length > 0 ? (
-                  <>
-                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>
-                      {tabs.find(t => t._id === activeTabId)?.otherParticipantName}
-                    </div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 1 }}>
-                      {tabs.find(t => t._id === activeTabId)?.otherParticipantRole === 'lojista' ? 'Loja' :
-                       tabs.find(t => t._id === activeTabId)?.otherParticipantRole === 'motoboy' ? 'Motoboy' :
-                       'Cliente'}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>Chat DROP</div>
-                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 1 }}>
-                      {tabs.length} conversa{tabs.length !== 1 ? 's' : ''}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={async () => {
-                  if (activeTabId) await markMessagesAsRead(activeTabId);
-                  setIsMinimized(true);
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.15)',
-                  color: 'white',
-                  border: 'none',
-                  cursor: 'pointer',
-                  width: 30, height: 30,
-                  borderRadius: 6,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16,
-                  transition: 'background 0.2s',
-                }}
-                title="Minimizar"
-              >
-                −
-              </button>
-            </div>
-          </div>
+          <ChatHeader
+            title={activeTab?.otherParticipantName ?? 'Chat DROP'}
+            subtitle={
+              activeTab
+                ? (activeTab.otherParticipantRole === 'lojista' ? 'Loja' :
+                   activeTab.otherParticipantRole === 'motoboy' ? 'Motoboy' :
+                   'Cliente')
+                : `${conversations.length} conversa${conversations.length === 1 ? '' : 's'}`
+            }
+            onMinimize={async () => {
+              if (activeTabId) await markMessagesAsRead(activeTabId);
+              setIsMinimized(true);
+            }}
+            onBack={tabs.length > 0 ? () => setActiveTabId(null) : undefined}
+          />
 
           {!isMinimized && (
             <>
               {/* Abas */}
-              {tabs.length > 0 && (
-                <div style={{
-                  display: 'flex',
-                  gap: 4,
-                  backgroundColor: '#161616',
-                  borderBottom: '1px solid rgba(255,255,255,0.07)',
-                  overflowX: 'auto',
-                  padding: '6px 8px',
-                }}>
-                  {tabs.map((tab) => (
-                    <div
-                      key={tab._id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        whiteSpace: 'nowrap',
-                        backgroundColor: activeTabId === tab._id
-                          ? 'rgba(108,43,217,0.2)'
-                          : tab.unreadCount > 0
-                            ? 'rgba(108,43,217,0.1)'
-                            : 'rgba(255,255,255,0.04)',
-                        border: activeTabId === tab._id
-                          ? '1px solid rgba(108,43,217,0.5)'
-                          : tab.unreadCount > 0
-                            ? '1px solid rgba(108,43,217,0.25)'
-                            : '1px solid rgba(255,255,255,0.07)',
-                        color: activeTabId === tab._id
-                          ? '#fff'
-                          : 'rgba(255,255,255,0.55)',
-                        fontWeight: tab.unreadCount > 0 ? 600 : 400,
-                      }}
-                      onClick={() => setActiveTabId(tab._id)}
-                    >
-                      <span>
-                        {tab.otherParticipantName.substring(0, 12)}
-                        {tab.unreadCount > 0 && (
-                          <span style={{
-                            marginLeft: 4,
-                            backgroundColor: '#6C2BD9',
-                            color: 'white',
-                            fontSize: 9,
-                            padding: '1px 5px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                          }}>
-                            {tab.unreadCount}
-                          </span>
-                        )}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab._id);
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: 0,
-                          fontSize: 11,
-                          color: 'rgba(255,255,255,0.3)',
-                          lineHeight: 1,
-                        }}
-                        title="Fechar aba"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ChatTabBar
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSelect={setActiveTabId}
+                onClose={closeTab}
+              />
 
               {/* Conteúdo */}
               {tabs.length === 0 || activeTabId === null ? (
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'auto',
-                  padding: 12,
-                  backgroundColor: '#0A0A0A',
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setNewOpen((v) => !v)}
-                    style={{
-                      background: newOpen ? 'rgba(255,255,255,0.06)' : 'rgba(108,43,217,0.15)',
-                      border: '1px solid rgba(108,43,217,0.3)',
-                      color: '#fff',
-                      borderRadius: 10,
-                      padding: '9px 12px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      marginBottom: 10,
-                      flexShrink: 0,
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    {newOpen ? '← Conversas' : '+ Nova conversa'}
-                  </button>
-                  {newOpen ? (
-                    isCustomerRole ? (
-                      <>
-                        <input
-                          type="text"
-                          placeholder="Buscar loja..."
-                          value={contactSearch}
-                          onChange={(e) => setContactSearch(e.target.value)}
-                          style={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 12px', fontSize: 13, background: '#161616', color: 'rgba(255,255,255,0.92)', outline: 'none', marginBottom: 8, flexShrink: 0 }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {loadingContacts ? (
-                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando lojas...</div>
-                          ) : (
-                            storeList
-                              .filter((s) => (s.name || '').toLowerCase().includes(contactSearch.toLowerCase()))
-                              .slice(0, 40)
-                              .map((s) => (
-                                <div key={s._id || s.id} onClick={() => startWithStore(s)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{s.name}</div>
-                                </div>
-                              ))
-                          )}
-                          {!loadingContacts && storeList.length === 0 && (
-                            <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>Nenhuma loja disponível</div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {loadingContacts ? (
-                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Carregando contatos...</div>
-                        ) : contactList.length === 0 ? (
-                          <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>
-                            Nenhum contato disponível agora.<br />Aparecem os participantes das entregas/pedidos ativos.
-                          </div>
-                        ) : (
-                          contactList.map((c) => (
-                            <div key={c.id} onClick={() => startWithContact(c)} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{c.name}</div>
-                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                                {[c.context, c.role === 'lojista' ? 'Loja' : c.role === 'motoboy' ? 'Motoboy' : 'Cliente'].filter(Boolean).join(' · ')}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )
-                  ) : loadingConversations ? (
-                    <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: '#6C2BD9', animation: 'spin 0.7s linear infinite' }} />
-                      Carregando conversas...
-                    </div>
-                  ) : conversations.length === 0 ? (
-                    <div style={{
-                      margin: 'auto',
-                      textAlign: 'center',
-                      color: 'rgba(255,255,255,0.35)',
-                    }}>
-                      <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}><Icon name="chat" size={28} /></div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Nenhuma conversa</p>
-                      <p style={{ fontSize: 11 }}>
-                        Clique em "Chat com a loja" nos produtos
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Conversas
-                      </div>
-                      {conversations.map((conv) => {
-                        const hasUnread = conv.unreadCount > 0;
-                        return (
-                        <div
-                          key={conv._id}
-                          style={{
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            background: hasUnread ? 'rgba(108,43,217,0.1)' : 'rgba(255,255,255,0.03)',
-                            border: hasUnread ? '1px solid rgba(108,43,217,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                          }}
-                          onMouseOver={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = hasUnread
-                              ? 'rgba(108,43,217,0.15)'
-                              : 'rgba(255,255,255,0.06)';
-                          }}
-                          onMouseOut={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = hasUnread
-                              ? 'rgba(108,43,217,0.1)'
-                              : 'rgba(255,255,255,0.03)';
-                          }}
-                        >
-                          <div
-                            onClick={() => openConversation(conv)}
-                            style={{ flex: 1 }}
-                          >
-                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3, color: 'rgba(255,255,255,0.92)' }}>
-                              {conv.otherParticipantName}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: conv.unreadCount > 0 ? 6 : 0 }}>
-                              {conv.lastMessage?.text
-                                ? conv.lastMessage.text.substring(0, 45) + (conv.lastMessage.text.length > 45 ? '...' : '')
-                                : 'Nenhuma mensagem'}
-                            </div>
-                            {conv.unreadCount > 0 && (
-                              <div style={{
-                                background: '#6C2BD9',
-                                color: 'white',
-                                fontSize: 10,
-                                padding: '2px 8px',
-                                borderRadius: 999,
-                                display: 'inline-block',
-                                fontWeight: 700,
-                              }}>
-                                {conv.unreadCount} nova{conv.unreadCount !== 1 ? 's' : ''}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              closeConversation(conv._id);
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              fontSize: 14,
-                              color: 'rgba(255,255,255,0.25)',
-                              marginLeft: 8,
-                              lineHeight: 1,
-                              transition: 'color 0.2s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.color = '#EF4444'; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)'; }}
-                            title="Fechar conversa"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                newOpen ? (
+                  <NewConversationPanel
+                    contacts={contactList}
+                    stores={storeList}
+                    search={contactSearch}
+                    onSearch={setContactSearch}
+                    loading={loadingContacts}
+                    onPick={handlePickContact}
+                    onBack={() => setNewOpen(false)}
+                  />
+                ) : (
+                  <ConversationList
+                    conversations={conversations}
+                    loading={loadingConversations}
+                    onSelect={openConversation}
+                    onNew={() => setNewOpen(true)}
+                    onRemove={(c) => closeConversation(c._id)}
+                  />
+                )
               ) : activeTab ? (
                 <>
                   {/* Mensagens */}
-                  <div style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: '12px 14px',
-                    backgroundColor: '#0A0A0A',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}>
-                    {activeTab.isLoading ? (
-                      <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: '#6C2BD9', animation: 'spin 0.7s linear infinite' }} />
-                        Carregando mensagens...
-                      </div>
-                    ) : activeTab.messages.length === 0 ? (
-                      <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center' }}>
-                        <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}><Icon name="chat" size={28} /></div>
-                        Sem mensagens ainda
-                      </div>
-                    ) : (
-                      <div>
-                        {activeTab.messages.map((msg, idx) => {
-                          const isOwn = msg.senderId === user.id;
-                          const isUnread = msg.status !== 'read' && !isOwn;
-
-                          return (
-                          <div
-                            key={msg._id || idx}
-                            style={{
-                              display: 'flex',
-                              marginBottom: 4,
-                              justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                            }}
-                          >
-                            <div style={{
-                              maxWidth: '78%',
-                              padding: '8px 12px',
-                              borderRadius: 13,
-                              borderBottomRightRadius: isOwn ? 3 : 13,
-                              borderBottomLeftRadius: isOwn ? 13 : 3,
-                              background: isOwn ? '#6C2BD9' : '#1A1A1A',
-                              color: isOwn ? '#fff' : 'rgba(255,255,255,0.92)',
-                              wordBreak: 'break-word',
-                              border: isOwn ? 'none' : isUnread
-                                ? '1px solid rgba(108,43,217,0.35)'
-                                : '1px solid rgba(255,255,255,0.07)',
-                              boxShadow: isOwn
-                                ? '0 2px 10px rgba(108,43,217,0.3)'
-                                : '0 1px 4px rgba(0,0,0,0.3)',
-                              fontSize: 13,
-                              lineHeight: 1.5,
-                            }}>
-                              <p style={{ margin: 0 }}>{msg.text}</p>
-                              <p style={{ fontSize: 10, opacity: 0.55, marginTop: 4, textAlign: 'right', margin: '4px 0 0 0' }}>
-                                {new Date(msg.createdAt || msg.timestamp || new Date()).toLocaleTimeString(
-                                  'pt-BR',
-                                  { hour: '2-digit', minute: '2-digit' },
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
+                  <ConversationView
+                    messages={activeTab.messages}
+                    loading={activeTab.isLoading}
+                    currentUserId={user.id}
+                    typingName={typingUsers[activeTabId || ''] ? 'alguém' : undefined}
+                  />
 
                   {/* Input */}
-                  <div style={{
-                    borderTop: '1px solid rgba(255,255,255,0.07)',
-                    padding: '10px 12px',
-                    backgroundColor: '#111111',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    flexShrink: 0,
-                  }}>
-                    {/* Indicador de digitação */}
-                    {typingUsers[activeTabId || ''] && (
-                      <div style={{
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,0.4)',
-                        fontStyle: 'italic',
-                        height: 14,
-                      }}>
-                        digitando...
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="text"
-                        placeholder="Sua mensagem..."
-                        value={messageText}
-                        onChange={(e) => handleMessageInputChange(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          border: '1px solid rgba(255,255,255,0.07)',
-                          borderRadius: 8,
-                          padding: '8px 12px',
-                          fontSize: 13,
-                          fontFamily: "'Inter', sans-serif",
-                          outline: 'none',
-                          background: '#161616',
-                          color: 'rgba(255,255,255,0.92)',
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                        }}
-                        onFocus={e => {
-                          e.currentTarget.style.borderColor = '#6C2BD9';
-                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(108,43,217,0.12)';
-                        }}
-                        onBlur={e => {
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!messageText.trim()}
-                        style={{
-                          background: messageText.trim() ? '#6C2BD9' : 'rgba(108,43,217,0.3)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '8px 14px',
-                          cursor: messageText.trim() ? 'pointer' : 'not-allowed',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          fontFamily: "'Inter', sans-serif",
-                          transition: 'all 0.2s',
-                          flexShrink: 0,
-                        }}
-                        onMouseEnter={e => { if (messageText.trim()) e.currentTarget.style.background = '#8B5CF6'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = messageText.trim() ? '#6C2BD9' : 'rgba(108,43,217,0.3)'; }}
-                        title="Enviar (Enter)"
-                      >
-                        Enviar
-                      </button>
-                    </div>
-                  </div>
-                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                  <ChatComposer value={messageText} onChange={handleMessageInputChange} onSend={sendMessage} />
                 </>
               ) : null}
             </>

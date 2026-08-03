@@ -1,0 +1,20 @@
+.fabWrapper {
+  font-family: var(--font-body);
+}
+
+.window {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 50;
+  font-family: var(--font-body);
+  background: var(--bg);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(108, 43, 217, 0.15);
+  width: min(384px, calc(100vw - 40px));
+  height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
