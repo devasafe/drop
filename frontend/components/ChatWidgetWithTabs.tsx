@@ -6,33 +6,7 @@ import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
-
-interface Message {
-  _id?: string;
-  senderId: string;
-  senderName?: string;
-  text: string;
-  createdAt: string;
-  timestamp?: string;
-  status?: 'sent' | 'delivered' | 'read';
-}
-
-interface Conversation {
-  _id: string;
-  otherParticipantId: string;
-  otherParticipantName: string;
-  otherParticipantRole: 'lojista' | 'motoboy' | 'cliente';
-  lastMessage?: { text: string; senderName: string; createdAt: string } | null;
-  lastMessageTime?: string;
-  unreadCount: number;
-  isActive: boolean;
-}
-
-interface ChatTab extends Conversation {
-  messages: Message[];
-  isLoading: boolean;
-  isUserTyping?: boolean;
-}
+import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
   storeId?: string;
