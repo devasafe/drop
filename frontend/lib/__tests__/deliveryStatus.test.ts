@@ -1,4 +1,4 @@
-import { ongoingStatusView, historyStats, filterHistory } from '../deliveryStatus';
+import { ongoingStatusView, historyStats, filterHistory, payoutStatusView } from '../deliveryStatus';
 
 describe('deliveryStatus', () => {
   it('ongoingStatusView mapeia os status de entrega em andamento', () => {
@@ -24,6 +24,13 @@ describe('deliveryStatus', () => {
   it('historyStats devolve avgRating null quando não há nota', () => {
     expect(historyStats([{ status: 'delivered', fee: 5 }]).avgRating).toBeNull();
     expect(historyStats([]).avgRating).toBeNull();
+  });
+
+  it('payoutStatusView mapeia os status de repasse', () => {
+    expect(payoutStatusView('released')).toEqual({ label: 'Disponível', tone: 'available' });
+    expect(payoutStatusView('paid')).toEqual({ label: 'Pago', tone: 'paid' });
+    expect(payoutStatusView('requested').label).toBe('Saque solicitado');
+    expect(payoutStatusView('zzz').tone).toBe('pending');
   });
 
   it('filterHistory filtra por status', () => {
