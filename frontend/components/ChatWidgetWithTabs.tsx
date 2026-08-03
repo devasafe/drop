@@ -7,6 +7,7 @@ import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
 import { ConversationView } from './drop/chat/ConversationView';
+import { ChatComposer } from './drop/chat/ChatComposer';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -1242,72 +1243,7 @@ export default function ChatWidgetWithTabs({
                   />
 
                   {/* Input */}
-                  <div style={{
-                    borderTop: '1px solid rgba(255,255,255,0.07)',
-                    padding: '10px 12px',
-                    backgroundColor: '#111111',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    flexShrink: 0,
-                  }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="text"
-                        placeholder="Sua mensagem..."
-                        value={messageText}
-                        onChange={(e) => handleMessageInputChange(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          border: '1px solid rgba(255,255,255,0.07)',
-                          borderRadius: 8,
-                          padding: '8px 12px',
-                          fontSize: 13,
-                          fontFamily: "'Inter', sans-serif",
-                          outline: 'none',
-                          background: '#161616',
-                          color: 'rgba(255,255,255,0.92)',
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                        }}
-                        onFocus={e => {
-                          e.currentTarget.style.borderColor = '#6C2BD9';
-                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(108,43,217,0.12)';
-                        }}
-                        onBlur={e => {
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!messageText.trim()}
-                        style={{
-                          background: messageText.trim() ? '#6C2BD9' : 'rgba(108,43,217,0.3)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '8px 14px',
-                          cursor: messageText.trim() ? 'pointer' : 'not-allowed',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          fontFamily: "'Inter', sans-serif",
-                          transition: 'all 0.2s',
-                          flexShrink: 0,
-                        }}
-                        onMouseEnter={e => { if (messageText.trim()) e.currentTarget.style.background = '#8B5CF6'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = messageText.trim() ? '#6C2BD9' : 'rgba(108,43,217,0.3)'; }}
-                        title="Enviar (Enter)"
-                      >
-                        Enviar
-                      </button>
-                    </div>
-                  </div>
+                  <ChatComposer value={messageText} onChange={handleMessageInputChange} onSend={sendMessage} />
                   <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </>
               ) : null}
