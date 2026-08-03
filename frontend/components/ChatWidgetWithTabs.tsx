@@ -911,10 +911,6 @@ export default function ChatWidgetWithTabs({
               if (activeTabId) await markMessagesAsRead(activeTabId);
               setIsMinimized(true);
             }}
-            onClose={() => {
-              setIsOpen(false);
-              setIsMinimized(false);
-            }}
             onBack={tabs.length > 0 ? () => setActiveTabId(null) : undefined}
           />
 
