@@ -10,6 +10,7 @@ import { ConversationView } from './drop/chat/ConversationView';
 import { ChatComposer } from './drop/chat/ChatComposer';
 import { ChatHeader } from './drop/chat/ChatHeader';
 import { ChatTabBar } from './drop/chat/ChatTabBar';
+import { ConversationList } from './drop/chat/ConversationList';
 import type { Message, Conversation, ChatTab } from './drop/chat/types';
 
 interface ChatWidgetProps {
@@ -927,35 +928,35 @@ export default function ChatWidgetWithTabs({
 
               {/* Conteúdo */}
               {tabs.length === 0 || activeTabId === null ? (
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'auto',
-                  padding: 12,
-                  backgroundColor: '#0A0A0A',
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setNewOpen((v) => !v)}
-                    style={{
-                      background: newOpen ? 'rgba(255,255,255,0.06)' : 'rgba(108,43,217,0.15)',
-                      border: '1px solid rgba(108,43,217,0.3)',
-                      color: '#fff',
-                      borderRadius: 10,
-                      padding: '9px 12px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      marginBottom: 10,
-                      flexShrink: 0,
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    {newOpen ? '← Conversas' : '+ Nova conversa'}
-                  </button>
-                  {newOpen ? (
-                    isCustomerRole ? (
+                newOpen ? (
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'auto',
+                    padding: 12,
+                    backgroundColor: '#0A0A0A',
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setNewOpen(false)}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(108,43,217,0.3)',
+                        color: '#fff',
+                        borderRadius: 10,
+                        padding: '9px 12px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        marginBottom: 10,
+                        flexShrink: 0,
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      ← Conversas
+                    </button>
+                    {isCustomerRole ? (
                       <>
                         <input
                           type="text"
@@ -1001,110 +1002,16 @@ export default function ChatWidgetWithTabs({
                           ))
                         )}
                       </div>
-                    )
-                  ) : loadingConversations ? (
-                    <div style={{ margin: 'auto', color: 'rgba(255,255,255,0.35)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: '#6C2BD9', animation: 'spin 0.7s linear infinite' }} />
-                      Carregando conversas...
-                    </div>
-                  ) : conversations.length === 0 ? (
-                    <div style={{
-                      margin: 'auto',
-                      textAlign: 'center',
-                      color: 'rgba(255,255,255,0.35)',
-                    }}>
-                      <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}><Icon name="chat" size={28} /></div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Nenhuma conversa</p>
-                      <p style={{ fontSize: 11 }}>
-                        Clique em "Chat com a loja" nos produtos
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Conversas
-                      </div>
-                      {conversations.map((conv) => {
-                        const hasUnread = conv.unreadCount > 0;
-                        return (
-                        <div
-                          key={conv._id}
-                          style={{
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            background: hasUnread ? 'rgba(108,43,217,0.1)' : 'rgba(255,255,255,0.03)',
-                            border: hasUnread ? '1px solid rgba(108,43,217,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                          }}
-                          onMouseOver={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = hasUnread
-                              ? 'rgba(108,43,217,0.15)'
-                              : 'rgba(255,255,255,0.06)';
-                          }}
-                          onMouseOut={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = hasUnread
-                              ? 'rgba(108,43,217,0.1)'
-                              : 'rgba(255,255,255,0.03)';
-                          }}
-                        >
-                          <div
-                            onClick={() => openConversation(conv)}
-                            style={{ flex: 1 }}
-                          >
-                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3, color: 'rgba(255,255,255,0.92)' }}>
-                              {conv.otherParticipantName}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: conv.unreadCount > 0 ? 6 : 0 }}>
-                              {conv.lastMessage?.text
-                                ? conv.lastMessage.text.substring(0, 45) + (conv.lastMessage.text.length > 45 ? '...' : '')
-                                : 'Nenhuma mensagem'}
-                            </div>
-                            {conv.unreadCount > 0 && (
-                              <div style={{
-                                background: '#6C2BD9',
-                                color: 'white',
-                                fontSize: 10,
-                                padding: '2px 8px',
-                                borderRadius: 999,
-                                display: 'inline-block',
-                                fontWeight: 700,
-                              }}>
-                                {conv.unreadCount} nova{conv.unreadCount !== 1 ? 's' : ''}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              closeConversation(conv._id);
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              fontSize: 14,
-                              color: 'rgba(255,255,255,0.25)',
-                              marginLeft: 8,
-                              lineHeight: 1,
-                              transition: 'color 0.2s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.color = '#EF4444'; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)'; }}
-                            title="Fechar conversa"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  <ConversationList
+                    conversations={conversations}
+                    loading={loadingConversations}
+                    onSelect={openConversation}
+                    onNew={() => setNewOpen(true)}
+                  />
+                )
               ) : activeTab ? (
                 <>
                   {/* Mensagens */}

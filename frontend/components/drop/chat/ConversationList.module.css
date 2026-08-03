@@ -1,0 +1,102 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--bg);
+}
+
+.newButton {
+  align-self: flex-start;
+  margin-bottom: var(--space-3);
+  flex-shrink: 0;
+}
+
+.status {
+  margin: auto;
+  color: var(--text-subtle);
+  font-size: var(--fs-body);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sectionLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--text-strong) 6%, var(--surface-2));
+}
+
+.itemUnread {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.itemUnread:hover {
+  background: color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  margin-bottom: 3px;
+  color: var(--text-strong);
+}
+
+.preview {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.itemUnread .preview {
+  margin-bottom: var(--space-2);
+}
+
+.badge {
+  background: var(--danger);
+  color: var(--on-brand);
+  font-size: var(--fs-xs);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  display: inline-block;
+  font-weight: 700;
+  margin-top: var(--space-1);
+}
