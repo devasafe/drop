@@ -153,6 +153,12 @@ export default function MotoboyDeliveryDetail() {
   const st = STATUS_VIEW[delivery.status] || { label: delivery.status, cls: 'stTransit' };
   const code = (order._id || delivery.orderId)?.slice(-8) || 'N/A';
 
+  const fmtDateTime = (d?: string) =>
+    d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  const orderDate = fmtDateTime(order.createdAt || delivery.createdAt);
+  const statusDateLabel = delivery.status === 'delivered' ? 'Entregue em' : delivery.status === 'cancelled' ? 'Cancelada em' : 'Atualizada em';
+  const statusDate = fmtDateTime(delivery.cancelledAt || delivery.updatedAt);
+
   const accuracyClass = locationAccuracy
     ? locationAccuracy < 20 ? styles.accGood : locationAccuracy < 50 ? styles.accMed : styles.accBad
     : styles.accGood;
@@ -201,6 +207,19 @@ export default function MotoboyDeliveryDetail() {
               <div className={styles.kpiLabel}>Você recebe</div>
             </div>
           </div>
+
+          {/* Informações da entrega */}
+          <Card className={styles.section}>
+            <h2 className={styles.sectionTitle}><Icon name="clipboard" size={16} /> Informações da entrega</h2>
+            <dl className={styles.summary}>
+              <div className={styles.sumRow}><dt className={styles.sumLabel}>Pedido</dt><dd className={styles.sumValue}>#{code}</dd></div>
+              {store.name && <div className={styles.sumRow}><dt className={styles.sumLabel}>Loja</dt><dd className={styles.sumValue}>{store.name}</dd></div>}
+              {customer.name && <div className={styles.sumRow}><dt className={styles.sumLabel}>Cliente</dt><dd className={styles.sumValue}>{customer.name}</dd></div>}
+              {orderDate && <div className={styles.sumRow}><dt className={styles.sumLabel}>Pedido em</dt><dd className={styles.sumValue}>{orderDate}</dd></div>}
+              {statusDate && <div className={styles.sumRow}><dt className={styles.sumLabel}>{statusDateLabel}</dt><dd className={styles.sumValue}>{statusDate}</dd></div>}
+              <div className={styles.sumRow}><dt className={styles.sumLabel}>Distância</dt><dd className={styles.sumValue}>{(delivery.distance || 0).toFixed(1)} km</dd></div>
+            </dl>
+          </Card>
 
           {/* Retirada na loja */}
           <Card className={styles.section}>
