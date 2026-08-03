@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
-import Icon from './Icon';
 import { notify } from '../lib/notify';
 import { useOverlay } from '../contexts/OverlayContext';
 import { useDraggableFab } from './drop/useDraggableFab';
 import { participantTypeFor } from '../lib/chatContacts';
 import { ConversationView } from './drop/chat/ConversationView';
 import { ChatComposer } from './drop/chat/ChatComposer';
+import { ChatFab } from './drop/chat/ChatFab';
 import { ChatHeader } from './drop/chat/ChatHeader';
 import { ChatTabBar } from './drop/chat/ChatTabBar';
 import { ConversationList } from './drop/chat/ConversationList';
@@ -840,52 +840,14 @@ export default function ChatWidgetWithTabs({
       {/* Botão de abrir (arrastável) */}
       {(!isOpen || isMinimized) && (
         <div style={{ ...fab.style, fontFamily: "'Inter', sans-serif" }} {...fab.pointerHandlers}>
-          <button
-            onClick={() => {
+          <ChatFab
+            unreadTotal={totalUnread}
+            onOpen={() => {
               if (fab.movedRef.current) return; // foi arrasto, não abre
               setIsOpen(true);
               setIsMinimized(false);
             }}
-            style={{
-              backgroundColor: '#6C2BD9',
-              color: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: 56,
-              height: 56,
-              fontSize: 24,
-              cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(108,43,217,0.45)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.25s ease',
-            }}
-            title="Abrir chat"
-          >
-            <Icon name="chat" size={24} />
-          </button>
-          {/* Badge de notificação */}
-          {totalUnread > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: -8,
-              right: -8,
-              backgroundColor: '#6C2BD9',
-              color: 'white',
-              borderRadius: '50%',
-              width: 22,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 700,
-              boxShadow: '0 0 12px rgba(108,43,217,0.5)',
-            }}>
-              {totalUnread > 99 ? '99+' : totalUnread}
-            </div>
-          )}
+          />
         </div>
       )}
 
