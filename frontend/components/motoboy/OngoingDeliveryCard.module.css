@@ -1,0 +1,12 @@
+.card { display: flex; flex-direction: column; gap: var(--space-2); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.pill { font-size: var(--fs-xs); font-weight: 600; padding: 2px 10px; border-radius: var(--r-pill); white-space: nowrap; }
+.waiting { background: color-mix(in srgb, var(--rating) 18%, transparent); color: var(--rating); }
+.transit { background: color-mix(in srgb, var(--brand-2) 20%, transparent); color: var(--brand-2); }
+.near { background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand-2); }
+.value { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--success); font-weight: 700; white-space: nowrap; }
+.order { font-size: var(--fs-xs); color: var(--text-muted); }
+.locs { display: flex; flex-direction: column; gap: var(--space-1); }
+.loc { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-xs); }
+.locLabel { color: var(--text-subtle); flex-shrink: 0; }
+.locValue { color: var(--text); text-align: right; }
