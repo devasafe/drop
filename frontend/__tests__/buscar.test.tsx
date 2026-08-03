@@ -25,11 +25,12 @@ jest.mock('../hooks/useSync', () => ({
 beforeEach(() => { add.mockClear(); mockQuery = {}; });
 
 describe('Buscar (/)', () => {
-  it('vitrine (sem query): seções de destaque + Mais vendidos + Ver mais', () => {
+  it('vitrine (sem query): seções de destaque + Produtos mais vendidos + Ver todos', () => {
     render(<BuscarPage />);
     expect(screen.getByText('Lojas em destaque')).toBeInTheDocument();
-    expect(screen.getByText('Mais vendidos')).toBeInTheDocument();
-    expect(screen.getAllByText('Ver mais').length).toBe(2);
+    expect(screen.getByText('Produtos mais vendidos')).toBeInTheDocument();
+    expect(screen.getByText('Ver mais')).toBeInTheDocument(); // Lojas em destaque
+    expect(screen.getByText('Ver todos')).toBeInTheDocument(); // Produtos mais vendidos
     expect(screen.getByText('Top Pizza')).toBeInTheDocument(); // produto premium mais vendido
   });
   it('busca por texto (?q=pizza) filtra lojas e produtos', () => {

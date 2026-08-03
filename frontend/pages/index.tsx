@@ -161,13 +161,13 @@ export default function BuscarPage() {
 
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Mais vendidos</h2>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/produtos')}>Ver mais</Button>
+              <h2 className={styles.sectionTitle}>Produtos mais vendidos</h2>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/produtos')}>Ver todos</Button>
             </div>
             {topProductsLoading ? (
               <p className={styles.muted}>Carregando…</p>
             ) : vitrineProducts.length === 0 ? (
-              <EmptyState icon={<Tag />} title="Sem produtos em destaque ainda" description="Veja todos os produtos em Ver mais." />
+              <EmptyState icon={<Tag />} title="Sem produtos em destaque ainda" description="Veja todos os produtos em Ver todos." />
             ) : (
               <div className={styles.productList}>
                 {vitrineProducts.map((p: any) => (
