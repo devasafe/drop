@@ -35,10 +35,15 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# node_modules já traz o Prisma Client gerado + o CLI (usado no migrate deploy do start).
+# Reaproveita o node_modules do build (traz o Prisma Client gerado), MAS remove as
+# devDependencies (typescript, jest, eslint, ts-node-dev…) p/ a imagem final ficar
+# bem menor — o export da imagem estava estourando memória/disco (OOM) na VPS.
+# `prisma` (CLI, usado no migrate deploy) virou dependency, então sobrevive ao prune;
+# `prisma generate` reconstrói o client caso o prune toque em .prisma.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY --from=build /app/node_modules ./node_modules
+RUN npm prune --omit=dev && npx prisma generate
 COPY --from=build /app/dist ./dist
 
 # O server escuta em 0.0.0.0:PORT (default 4000). Coolify injeta as envs.
