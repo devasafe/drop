@@ -131,7 +131,7 @@ export default function SellerProducts() {
                     <div className={styles.productMeta}>
                       <span>R$ <strong className={styles.productPrice}>{typeof product.price === 'number' ? product.price.toFixed(2) : product.price}</strong></span>
                       <span>Estoque: <strong className={product.quantity > 0 ? styles.stockPositive : styles.stockEmpty}>{product.quantity}</strong></span>
-                      {product.category && <span>Cat: {product.category}</span>}
+                      {product.categoryName && <span>Cat: {product.categoryName}</span>}
                     </div>
                     {product.tags && product.tags.length > 0 && (
                       <div className={styles.tagList}>
