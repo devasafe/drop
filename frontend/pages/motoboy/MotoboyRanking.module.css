@@ -4,8 +4,10 @@
 .title { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
 .subtitle { font-size: var(--fs-sm); color: var(--text-muted); margin: 2px 0 0; }
 
-.myPos { display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4); }
-.myPosItem { flex: 1; text-align: center; }
+/* Minha posição = faixa flat com divisórias verticais, sem card */
+.myPos { display: flex; padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+.myPosItem { flex: 1; text-align: center; padding: 0 var(--space-2); }
+.myPosItem + .myPosItem { border-left: 1px solid var(--line); }
 .myPosValue { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--text-strong); }
 .myPosValueGreen { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--success); }
 .myPosValueYellow { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--rating); }
@@ -14,8 +16,10 @@
 .section { display: flex; flex-direction: column; gap: var(--space-3); }
 .sectionTitle { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); margin: 0; }
 
-.rankCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
-.rankRow { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+/* Classificação = linhas flat com divisória, sem card em volta (linhas sangram
+ * até as bordas do container; o padding interno realinha o conteúdo). */
+.rankList { display: flex; flex-direction: column; }
+.rankRow { display: flex; align-items: center; gap: var(--space-3); width: calc(100% + var(--space-4) * 2); margin: 0 calc(var(--space-4) * -1); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
 .rankRow:last-child { border-bottom: none; }
 .rankRowMe { background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .rankPos { font-family: var(--font-display); font-weight: 700; color: var(--text-subtle); font-size: var(--fs-body); min-width: 28px; flex-shrink: 0; }

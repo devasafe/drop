@@ -65,7 +65,7 @@ export default function MotoboyMonthlyRanking() {
                 {data.length === 0 ? (
                   <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Ninguém pontuou ainda" description="Complete entregas para aparecer no ranking do mês." />
                 ) : (
-                  <div className={styles.rankCard}>
+                  <div className={styles.rankList}>
                     {data.map((r, i) => {
                       const pos = i + 1;
                       const isMe = r.user_id === currentUserId || r._id === currentUserId;

@@ -72,24 +72,29 @@ export default function MotoboyBeneficios() {
           </div>
 
           {loading ? (
-            <div className={styles.grid}><Skeleton height={160} radius="var(--r-lg)" /><Skeleton height={160} radius="var(--r-lg)" /></div>
+            <>
+              <Skeleton height={72} radius="var(--r-lg)" />
+              <Skeleton height={72} radius="var(--r-lg)" />
+            </>
           ) : benefits.length === 0 ? (
             <EmptyState icon={<Gift size={22} aria-hidden="true" />} title="Sem benefícios agora" description="Novas recompensas para resgatar aparecem aqui." />
           ) : (
-            <div className={styles.grid}>
+            <div className={styles.benefitList}>
               {benefits.map((b) => {
                 const canRedeem = points >= b.cost;
                 return (
                   <div key={b.id} className={`${styles.benefit} ${canRedeem ? '' : styles.locked}`}>
                     <span className={styles.benefitIcon}>{b.icon}</span>
-                    <div className={styles.benefitName}>{b.name}</div>
-                    <div className={styles.benefitDesc}>{b.description}</div>
-                    <div className={styles.benefitType}>
-                      {b.type === 'wallet'
-                        ? <><Wallet size={13} aria-hidden="true" /> Crédito na carteira</>
-                        : <><Settings size={13} aria-hidden="true" /> Automático</>}
+                    <div className={styles.benefitInfo}>
+                      <div className={styles.benefitName}>{b.name}</div>
+                      <div className={styles.benefitDesc}>{b.description}</div>
+                      <div className={styles.benefitType}>
+                        {b.type === 'wallet'
+                          ? <><Wallet size={13} aria-hidden="true" /> Crédito na carteira</>
+                          : <><Settings size={13} aria-hidden="true" /> Automático</>}
+                      </div>
                     </div>
-                    <div className={styles.benefitFooter}>
+                    <div className={styles.benefitRight}>
                       <span className={styles.benefitCost}>{b.cost} pts</span>
                       <Button size="sm" disabled={!canRedeem} onClick={() => setConfirmB(b)}>
                         {canRedeem ? 'Resgatar' : 'Insuficiente'}
