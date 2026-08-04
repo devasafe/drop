@@ -4,7 +4,6 @@ import { ArrowUpRight, KeyRound, Receipt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Sheet } from '../../components/ui/Sheet';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -188,20 +187,20 @@ export default function MototboyWalletPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Nenhuma movimentação" description="Seus repasses e saques aparecem aqui." />
             ) : (
-              <div className={styles.list}>
+              <div className={styles.extractCard}>
                 {entries.map((e) => (
-                  <Card key={e.key} interactive onClick={e.onClick} className={styles.entry}>
-                    <div className={styles.entryInfo}>
-                      <span className={styles.entryTitle}>{e.title}</span>
-                      <span className={styles.entryDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
+                  <button key={e.key} onClick={e.onClick} className={styles.row}>
+                    <div className={styles.rowInfo}>
+                      <span className={styles.rowTitle}>{e.title}</span>
+                      <span className={styles.rowDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
                     </div>
-                    <div className={styles.entryRight}>
-                      <span className={`${styles.entryAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>
+                    <div className={styles.rowRight}>
+                      <span className={`${styles.rowAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>
                         {e.sign} {formatBRL(e.amount)}
                       </span>
                       <span className={`${styles.pill} ${styles[e.statusView.tone]}`}>{e.statusView.label}</span>
                     </div>
-                  </Card>
+                  </button>
                 ))}
               </div>
             )}

@@ -19,14 +19,17 @@
 
 .section { display: flex; flex-direction: column; gap: var(--space-3); }
 .sectionTitle { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); margin: 0; }
-.list { display: flex; flex-direction: column; gap: var(--space-2); }
 
-.entry { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); }
-.entryInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.entryTitle { font-weight: 600; color: var(--text-strong); font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.entryDate { font-size: var(--fs-xs); color: var(--text-subtle); }
-.entryRight { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.entryAmount { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-body); white-space: nowrap; }
+/* Extrato = um card único com linhas separadas por divisória (sem card por item) */
+.extractCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid var(--line); padding: var(--space-3) var(--space-4); cursor: pointer; transition: background-color var(--dur-fast) var(--ease); }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--surface-2); }
+.rowInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rowTitle { font-weight: 600; color: var(--text-strong); font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowDate { font-size: var(--fs-xs); color: var(--text-subtle); }
+.rowRight { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.rowAmount { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-body); white-space: nowrap; }
 .credit { color: var(--success); }
 .debit { color: var(--danger); }
 
