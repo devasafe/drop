@@ -171,7 +171,7 @@ export default function MotoboyGamification() {
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Histórico recente</h2>
                 {gam.history && gam.history.length > 0 ? (
-                  <div className={styles.histCard}>
+                  <div className={styles.histList}>
                     {gam.history.slice(-20).reverse().map((h: any, i: number) => (
                       <div key={i} className={styles.histRow}>
                         <div className={styles.histInfo}>
