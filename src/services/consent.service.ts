@@ -16,8 +16,12 @@ interface RecordConsentInput {
 export async function recordConsent(input: RecordConsentInput): Promise<void> {
   const base = { userId: input.userId, ipAddress: input.ipAddress, userAgent: input.userAgent };
   try {
-    await prisma.consentLog.create({ data: { ...base, documentType: 'terms', version: input.termsVersion } });
-    await prisma.consentLog.create({ data: { ...base, documentType: 'privacy', version: input.privacyVersion } });
+    await prisma.consentLog.createMany({
+      data: [
+        { ...base, documentType: 'terms', version: input.termsVersion },
+        { ...base, documentType: 'privacy', version: input.privacyVersion },
+      ],
+    });
   } catch (err) {
     console.warn('[consent] falha ao gravar ConsentLog:', err);
   }
