@@ -208,18 +208,13 @@ export default function MotoboyDeliveryDetail() {
             </div>
           </div>
 
-          {/* Informações da entrega */}
-          <Card className={styles.section}>
-            <h2 className={styles.sectionTitle}><Icon name="clipboard" size={16} /> Informações da entrega</h2>
-            <dl className={styles.summary}>
-              <div className={styles.sumRow}><dt className={styles.sumLabel}>Pedido</dt><dd className={styles.sumValue}>#{code}</dd></div>
-              {store.name && <div className={styles.sumRow}><dt className={styles.sumLabel}>Loja</dt><dd className={styles.sumValue}>{store.name}</dd></div>}
-              {customer.name && <div className={styles.sumRow}><dt className={styles.sumLabel}>Cliente</dt><dd className={styles.sumValue}>{customer.name}</dd></div>}
-              {orderDate && <div className={styles.sumRow}><dt className={styles.sumLabel}>Pedido em</dt><dd className={styles.sumValue}>{orderDate}</dd></div>}
-              {statusDate && <div className={styles.sumRow}><dt className={styles.sumLabel}>{statusDateLabel}</dt><dd className={styles.sumValue}>{statusDate}</dd></div>}
-              <div className={styles.sumRow}><dt className={styles.sumLabel}>Distância</dt><dd className={styles.sumValue}>{(delivery.distance || 0).toFixed(1)} km</dd></div>
-            </dl>
-          </Card>
+          {/* Datas (info que não repete nos KPIs/seções) */}
+          {(orderDate || statusDate) && (
+            <div className={styles.dates}>
+              {orderDate && <span>Feito em {orderDate}</span>}
+              {statusDate && <span>{statusDateLabel} {statusDate}</span>}
+            </div>
+          )}
 
           {/* Retirada na loja */}
           <Card className={styles.section}>
@@ -235,7 +230,8 @@ export default function MotoboyDeliveryDetail() {
             <ContactInfo name={customer.name || 'Cliente'} email={customer.email} phone={customer.telefone} onChatClick={() => openChatWith('customer')} />
           </Card>
 
-          {/* Rota */}
+          {/* Rota — só faz sentido em entrega ativa */}
+          {['assigned', 'picked'].includes(delivery.status) && (
           <Card className={styles.section}>
             <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Rota de entrega</h2>
             <div className={styles.legend}>
@@ -272,6 +268,7 @@ export default function MotoboyDeliveryDetail() {
               </div>
             )}
           </Card>
+          )}
 
           {/* PIN de retirada */}
           {delivery.status === 'assigned' && (
