@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User } from 'lucide-react';
+import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AuthContext from '../../contexts/AuthContext';
@@ -155,7 +155,9 @@ export default function MotoboyPage() {
                 const Ico = s.icon;
                 return (
                   <button key={s.href} className={styles.shortcut} onClick={() => router.push(s.href)}>
-                    <Ico size={18} /> <span>{s.label}</span>
+                    <Ico size={18} className={styles.shortcutIcon} aria-hidden="true" />
+                    <span className={styles.shortcutLabel}>{s.label}</span>
+                    <ChevronRight size={16} className={styles.shortcutChevron} aria-hidden="true" />
                   </button>
                 );
               })}
