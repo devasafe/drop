@@ -3,7 +3,6 @@ import api from '../lib/api';
 import { maskCPF, maskRG, maskPhone, onlyDigits, cleanRG } from '../lib/masks';
 import { useAuth } from '../contexts/AuthContext';
 import StoreSettingsEditor from './StoreSettingsEditor';
-import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import styles from './MeusDadosForm.module.css';
@@ -73,7 +72,7 @@ export default function MeusDadosForm() {
       {msg && <div className={styles.banner}>{msg} <a href="/verificacao" className={styles.link}>Ir para verificação →</a></div>}
       {err && <div className={`${styles.banner} ${styles.bannerError}`}>{err}</div>}
 
-      <Card className={styles.card}>
+      <div className={styles.fields}>
         <label className={styles.field}>
           <span className={styles.hint}>Nome</span>
           <Input value={name} onChange={setName} maxLength={80} />
@@ -96,7 +95,7 @@ export default function MeusDadosForm() {
         </label>
         {docApproved && <p className={styles.warn}>CPF e RG não podem ser alterados após o documento aprovado.</p>}
         <Button variant="primary" onClick={salvar}>Salvar alterações</Button>
-      </Card>
+      </div>
 
       {isLojista && store && (
         <StoreSettingsEditor store={store} onSaved={(u: any) => setStore((prev: any) => ({ ...prev, ...u }))} />

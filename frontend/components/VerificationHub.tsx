@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import styles from './VerificationHub.module.css';
 
@@ -18,9 +17,9 @@ interface Section {
 
 const badge = (step: Step) => {
   const map: Record<Step, [string, string]> = {
-    done: ['✅ Concluído', styles.badgeDone],
-    pending: ['⏳ Em análise', styles.badgePending],
-    todo: ['❌ Falta', styles.badgeTodo],
+    done: ['Concluído', styles.badgeDone],
+    pending: ['Em análise', styles.badgePending],
+    todo: ['Pendente', styles.badgeTodo],
   };
   const [label, cls] = map[step];
   return <span className={`${styles.badge} ${cls}`}>{label}</span>;
@@ -95,18 +94,22 @@ export default function VerificationHub() {
   return (
     <div>
       <p className={styles.intro}>
-        {pend === 0 ? 'Tudo certo! Sua conta está completa. ✅' : `Você tem ${pend} item(ns) pendente(s).`}
+        {pend === 0 ? 'Tudo certo — sua conta está completa.' : `Você tem ${pend} item(ns) pendente(s).`}
       </p>
-      {sections.map((s, i) => (
-        <Card key={i} className={styles.card}>
-          <div className={styles.cardHead}>
-            <strong className={styles.cardTitle}>{s.title}</strong>
-            {badge(s.step)}
+      <div className={styles.list}>
+        {sections.map((s, i) => (
+          <div key={i} className={styles.row}>
+            <div className={styles.rowInfo}>
+              <div className={styles.rowHead}>
+                <strong className={styles.rowTitle}>{s.title}</strong>
+                {badge(s.step)}
+              </div>
+              <p className={styles.rowDesc}>{s.desc}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => router.push(s.href)}>{s.cta} →</Button>
           </div>
-          <p className={styles.cardDesc}>{s.desc}</p>
-          <Button variant="ghost" size="sm" onClick={() => router.push(s.href)}>{s.cta} →</Button>
-        </Card>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
