@@ -1,9 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { Trophy } from 'lucide-react';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import { Button } from '../../components/ui/Button';
+import { Chip } from '../../components/ui/Chip';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useToast } from '../../components/ui/Toast';
 import { useGamification } from '../../hooks/useSync';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './MotoboyGamification.module.css';
@@ -11,11 +16,11 @@ import styles from './MotoboyGamification.module.css';
 const LEVEL_ORDER = ['Bronze', 'Prata', 'Ouro', 'Platina', 'Diamante', 'Lendário'];
 
 const LEVEL_THRESHOLDS: Record<string, { min: number; max: number; color: string; icon: string }> = {
-  Bronze:   { min: 0,     max: 499,   color: '#CD7F32', icon: 'medal' },
-  Prata:    { min: 500,   max: 1499,  color: '#C0C0C0', icon: 'award' },
-  Ouro:     { min: 1500,  max: 2999,  color: '#FFD700', icon: 'trophy' },
-  Platina:  { min: 3000,  max: 5999,  color: '#E5E4E2', icon: 'gem' },
-  Diamante: { min: 6000,  max: 9999,  color: '#60A5FA', icon: 'star' },
+  Bronze:   { min: 0,     max: 499,      color: '#CD7F32', icon: 'medal' },
+  Prata:    { min: 500,   max: 1499,     color: '#C0C0C0', icon: 'award' },
+  Ouro:     { min: 1500,  max: 2999,     color: '#FFD700', icon: 'trophy' },
+  Platina:  { min: 3000,  max: 5999,     color: '#E5E4E2', icon: 'gem' },
+  Diamante: { min: 6000,  max: 9999,     color: '#60A5FA', icon: 'star' },
   Lendário: { min: 10000, max: Infinity, color: '#A855F7', icon: 'crown' },
 };
 
@@ -54,9 +59,10 @@ const BADGE_CATEGORIES = ['Entregas', 'Qualidade', 'Horário', 'Distância', 'Co
 
 export default function MotoboyGamification() {
   useRequireAuth(['motoboy']);
+  const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { gam, loading } = useGamification(user?.id || user?._id);
-  const [newBadgeMsg, setNewBadgeMsg] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const prevBadges = useRef<string[]>([]);
 
@@ -64,10 +70,10 @@ export default function MotoboyGamification() {
     if (!gam?.badges) return;
     if (prevBadges.current.length > 0) {
       const fresh = gam.badges.filter((b: string) => !prevBadges.current.includes(b));
-      if (fresh.length > 0) setNewBadgeMsg(`Parabéns! Badge desbloqueado: ${fresh.join(', ')}`);
+      if (fresh.length > 0) showToast(`Novo badge desbloqueado: ${fresh.join(', ')}`, 'success');
     }
     prevBadges.current = gam.badges || [];
-  }, [gam]);
+  }, [gam, showToast]);
 
   const unlockedSet = new Set<string>(gam?.badges || []);
 
@@ -85,10 +91,7 @@ export default function MotoboyGamification() {
     return LEVEL_ORDER[idx + 1] || null;
   };
 
-  const filteredBadges = activeCategory
-    ? ALL_BADGES.filter(b => b.category === activeCategory)
-    : ALL_BADGES;
-
+  const filteredBadges = activeCategory ? ALL_BADGES.filter((b) => b.category === activeCategory) : ALL_BADGES;
   const lvlInfo = LEVEL_THRESHOLDS[gam?.level || 'Bronze'];
   const progress = getLevelProgress();
   const nextLevel = getNextLevel();
@@ -97,142 +100,107 @@ export default function MotoboyGamification() {
     <ProtectedRoute required_role="motoboy">
       <div className={styles.page}>
         <div className={styles.container}>
-
-          {/* Header */}
-          <div className={styles.header}>
-            <div>
-              <h1 className={styles.pageTitle}>Gamificação</h1>
-              <p className={styles.pageSubtitle}>Conquistas, badges e seu progresso</p>
+          <header className={styles.header}>
+            <h1 className={styles.title}>Desempenho</h1>
+            <div className={styles.headerActions}>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/ranking')}>Ranking</Button>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/beneficios')}>Benefícios</Button>
             </div>
-            <div className={styles.headerLinks}>
-              <Link href="/motoboy/ranking" className={styles.linkBtn}>Ranking</Link>
-              <Link href="/motoboy/beneficios" className={styles.linkBtnPurple}>Benefícios</Link>
-            </div>
-          </div>
+          </header>
 
           {loading ? (
-            <div className={styles.loadingBox}>
-              <LoadingSkeleton variant="dashboard" />
-            </div>
+            <>
+              <Skeleton height={80} radius="var(--r-lg)" />
+              <Skeleton height={120} radius="var(--r-lg)" />
+              <Skeleton height={200} radius="var(--r-lg)" />
+            </>
           ) : !gam ? (
-            <div className={styles.errorBox}>
-              <p>Não foi possível carregar os dados</p>
-            </div>
+            <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Sem dados" description="Não foi possível carregar seu desempenho agora." />
           ) : (
             <>
-              {newBadgeMsg && (
-                <div className={styles.newBadgeAlert}>
-                  <Icon name="star" size={16} /> {newBadgeMsg}
-                </div>
-              )}
-
-              {/* Stats + Level */}
-              <div className={styles.statsRow}>
-                <div className={styles.statCard}>
-                  <div className={styles.statLabel}>PONTOS DISPONÍVEIS</div>
+              {/* Stats */}
+              <div className={styles.stats}>
+                <div className={styles.stat}>
                   <div className={styles.statValue}>{gam.points || 0}</div>
-                  <div className={styles.statNote}>para resgatar benefícios</div>
+                  <div className={styles.statLabel}>Pontos disponíveis</div>
                 </div>
-                <div className={styles.statCard}>
-                  <div className={styles.statLabel}>PONTOS ACUMULADOS</div>
+                <div className={styles.stat}>
                   <div className={styles.statValue}>{gam.totalPoints || 0}</div>
-                  <div className={styles.statNote}>para subir de nível</div>
+                  <div className={styles.statLabel}>Acumulados</div>
                 </div>
-                <div className={styles.statCard}>
-                  <div className={styles.statLabel}>BADGES</div>
-                  <div className={styles.statValuePurple}>{unlockedSet.size}</div>
-                  <div className={styles.statNote}>de {ALL_BADGES.length} total</div>
+                <div className={styles.stat}>
+                  <div className={styles.statValue}>{unlockedSet.size}</div>
+                  <div className={styles.statLabel}>de {ALL_BADGES.length} badges</div>
                 </div>
               </div>
 
-              {/* Level Card */}
+              {/* Nível */}
               <div className={styles.levelCard}>
-                <div className={styles.levelTop}>
-                  <div>
-                    <div className={styles.levelIcon}>{lvlInfo?.icon || 'award'}</div>
-                    <div className={styles.levelName} style={{ color: lvlInfo?.color || 'var(--drop-purple)' }}>
-                      {gam.level || 'Bronze'}
-                    </div>
+                <div className={styles.levelHead}>
+                  <div className={styles.levelId}>
+                    <span className={styles.levelIcon} style={{ color: lvlInfo?.color }}>
+                      <Icon name={(lvlInfo?.icon || 'award') as any} size={22} />
+                    </span>
+                    <span className={styles.levelName} style={{ color: lvlInfo?.color }}>{gam.level || 'Bronze'}</span>
                   </div>
                   {nextLevel && (
-                    <div className={styles.levelNext}>
-                      Próximo: <span style={{ color: LEVEL_THRESHOLDS[nextLevel]?.color }}>
-                        {LEVEL_THRESHOLDS[nextLevel]?.icon} {nextLevel}
-                      </span>
-                      <div className={styles.levelNextPts}>
-                        em {(LEVEL_THRESHOLDS[nextLevel]?.min || 0) - (gam.totalPoints || 0)} pts
-                      </div>
-                    </div>
+                    <span className={styles.levelNext}>
+                      Faltam {Math.max(0, (LEVEL_THRESHOLDS[nextLevel]?.min || 0) - (gam.totalPoints || 0))} pts para {nextLevel}
+                    </span>
                   )}
                 </div>
                 <div className={styles.progressTrack}>
-                  <div
-                    className={styles.progressBar}
-                    style={{ width: `${progress}%`, background: `linear-gradient(90deg, var(--drop-purple), ${lvlInfo?.color || '#A855F7'})` }}
-                  />
+                  <div className={styles.progressBar} style={{ width: `${progress}%` }} />
                 </div>
                 <div className={styles.progressLabel}>{progress}% para {nextLevel || 'nível máximo'}</div>
               </div>
 
-              {/* Badges */}
-              <div className={styles.badgesSection}>
+              {/* Conquistas */}
+              <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Conquistas</h2>
-
-                {/* Filtro de categorias */}
-                <div className={styles.categoryFilter}>
-                  <button
-                    className={`${styles.categoryBtn} ${!activeCategory ? styles.categoryBtnActive : ''}`}
-                    onClick={() => setActiveCategory(null)}
-                  >
-                    Todas
-                  </button>
-                  {BADGE_CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      className={`${styles.categoryBtn} ${activeCategory === cat ? styles.categoryBtnActive : ''}`}
-                      onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-                    >
-                      {cat}
-                    </button>
+                <div className={styles.filters}>
+                  <Chip label="Todas" active={!activeCategory} onClick={() => setActiveCategory(null)} />
+                  {BADGE_CATEGORIES.map((cat) => (
+                    <Chip key={cat} label={cat} active={activeCategory === cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)} />
                   ))}
                 </div>
-
                 <div className={styles.badgesGrid}>
-                  {filteredBadges.map(badge => {
+                  {filteredBadges.map((badge) => {
                     const unlocked = unlockedSet.has(badge.id);
                     return (
-                      <div key={badge.id} className={`${styles.badgeCard} ${unlocked ? styles.badgeCardUnlocked : styles.badgeCardLocked}`}>
-                        <div className={styles.badgeIcon}>{unlocked ? <Icon name={badge.icon as any} size={32} /> : <Icon name="lock" size={32} />}</div>
-                        <div className={styles.badgeName}>{badge.label}</div>
-                        <div className={styles.badgeDesc}>{badge.description}</div>
-                        {unlocked && <div className={styles.badgeUnlockedChip}>Desbloqueado</div>}
+                      <div key={badge.id} className={`${styles.badge} ${unlocked ? '' : styles.badgeLocked}`}>
+                        <span className={styles.badgeIcon}>
+                          <Icon name={(unlocked ? badge.icon : 'lock') as any} size={24} />
+                        </span>
+                        <span className={styles.badgeName}>{badge.label}</span>
+                        <span className={styles.badgeDesc}>{badge.description}</span>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </section>
 
               {/* Histórico */}
-              <div className={styles.historySection}>
-                <h2 className={styles.sectionTitle}>Histórico Recente</h2>
+              <section className={styles.section}>
+                <h2 className={styles.sectionTitle}>Histórico recente</h2>
                 {gam.history && gam.history.length > 0 ? (
-                  <div className={styles.historyList}>
+                  <div className={styles.histCard}>
                     {gam.history.slice(-20).reverse().map((h: any, i: number) => (
-                      <div key={i} className={styles.historyItem}>
-                        <div>
-                          <div className={styles.historyAction}>{h.action}</div>
-                          <div className={styles.historyDate}>{new Date(h.date).toLocaleDateString('pt-BR')}</div>
+                      <div key={i} className={styles.histRow}>
+                        <div className={styles.histInfo}>
+                          <div className={styles.histAction}>{h.action}</div>
+                          <div className={styles.histDate}>{new Date(h.date).toLocaleDateString('pt-BR')}</div>
                         </div>
-                        <div className={h.points > 0 ? styles.historyPos : styles.historyNeg}>
+                        <div className={h.points > 0 ? styles.histPos : styles.histNeg}>
                           {h.points > 0 ? '+' : ''}{h.points} pts
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className={styles.empty}>Nenhum registro ainda</p>
+                  <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Nada ainda" description="Suas conquistas de pontos aparecem aqui." />
                 )}
-              </div>
+              </section>
             </>
           )}
         </div>
@@ -242,7 +210,5 @@ export default function MotoboyGamification() {
 }
 
 export async function getServerSideProps() {
-  return {
-    props: {},
-  };
+  return { props: {} };
 }
