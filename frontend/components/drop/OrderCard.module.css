@@ -1,6 +1,19 @@
-.card {
-  padding: var(--space-3);
+/* Linha flat clicável (sem card): sangra até as bordas do container; o padding
+ * interno realinha o conteúdo. Divisória separa os itens da lista. */
+.row {
+  display: block;
+  width: calc(100% + var(--space-4) * 2);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
 }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--surface); }
 
 .body {
   display: flex;

@@ -1,5 +1,4 @@
 import { ChevronRight, Package } from 'lucide-react';
-import { Card } from '../ui/Card';
 import { StatusPill } from '../ui/StatusPill';
 import { PriceTag } from '../ui/PriceTag';
 import { orderStatusPill } from '../../lib/orderStatus';
@@ -32,9 +31,10 @@ interface OrderCardProps {
  */
 export function OrderCard({ order, onClick }: OrderCardProps) {
   const sub = [order.code ? `#${order.code}` : null, order.itemsLabel].filter(Boolean).join(' · ');
+  const Wrapper: any = onClick ? 'button' : 'div';
 
   return (
-    <Card interactive={!!onClick} onClick={onClick} className={styles.card}>
+    <Wrapper {...(onClick ? { type: 'button', onClick } : {})} className={styles.row}>
       <div className={styles.body}>
         <span
           className={styles.media}
@@ -58,6 +58,6 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
 
         {onClick && <ChevronRight size={18} className={styles.chevron} aria-hidden="true" />}
       </div>
-    </Card>
+    </Wrapper>
   );
 }
