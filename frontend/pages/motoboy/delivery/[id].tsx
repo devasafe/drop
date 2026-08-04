@@ -8,7 +8,6 @@ import api from '../../../lib/api';
 import useRequireAuth from '../../../hooks/useRequireAuth';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import Icon from '../../../components/Icon';
-import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -217,22 +216,22 @@ export default function MotoboyDeliveryDetail() {
           )}
 
           {/* Retirada na loja */}
-          <Card className={styles.section}>
+          <section className={styles.section}>
             <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Retirada na loja</h2>
             <div className={styles.addr}>{pickupAddress}</div>
             <ContactInfo name={store.name || 'Loja'} email={store.email} phone={store.telefone} onChatClick={() => openChatWith('store')} />
-          </Card>
+          </section>
 
           {/* Entrega no cliente */}
-          <Card className={styles.section}>
+          <section className={styles.section}>
             <h2 className={styles.sectionTitle}><Icon name="truck" size={16} /> Entrega no cliente</h2>
             <div className={styles.addr}>{deliveryAddress}</div>
             <ContactInfo name={customer.name || 'Cliente'} email={customer.email} phone={customer.telefone} onChatClick={() => openChatWith('customer')} />
-          </Card>
+          </section>
 
           {/* Rota — só faz sentido em entrega ativa */}
           {['assigned', 'picked'].includes(delivery.status) && (
-          <Card className={styles.section}>
+          <section className={styles.section}>
             <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Rota de entrega</h2>
             <div className={styles.legend}>
               <span className={styles.legendItem}><span className={`${styles.dot} ${styles.dotA}`} /> Você</span>
@@ -267,21 +266,21 @@ export default function MotoboyDeliveryDetail() {
                 {currentLocation && storeLat !== null && storeLng !== null && (customerLat === null || customerLng === null) && 'Sem coordenadas do cliente (C).'}
               </div>
             )}
-          </Card>
+          </section>
           )}
 
           {/* PIN de retirada */}
           {delivery.status === 'assigned' && (
-            <Card className={styles.pinCard}>
+            <div className={styles.pinCard}>
               <h2 className={styles.sectionTitle}><Icon name="lock" size={16} /> Retirar na loja</h2>
               <p className={styles.hint}>Informe este PIN à loja para autorizar a retirada:</p>
               <div className={styles.pinDisplay}>{delivery.pinRetirada}</div>
-            </Card>
+            </div>
           )}
 
           {/* Finalizar entrega */}
           {delivery.status === 'picked' && (
-            <Card className={styles.section}>
+            <section className={styles.section}>
               <h2 className={styles.sectionTitle}><Icon name="check" size={16} /> Finalizar entrega</h2>
               <p className={styles.hint}>Informe o PIN fornecido pelo cliente:</p>
               <Input
@@ -293,21 +292,21 @@ export default function MotoboyDeliveryDetail() {
               <Button onClick={finalizarEntrega} disabled={loadingFinalizar}>
                 {loadingFinalizar ? 'Finalizando…' : 'Finalizar entrega'}
               </Button>
-            </Card>
+            </section>
           )}
 
           {/* Rejeitar */}
           {['assigned', 'picked'].includes(delivery.status) && (
-            <Card className={styles.section}>
+            <section className={styles.section}>
               <h2 className={styles.sectionTitle}><Icon name="alert-triangle" size={16} /> Rejeitar entrega</h2>
               <p className={styles.hint}>Se não conseguir fazer esta entrega, pode rejeitá-la — ela será reatribuída ou cancelada.</p>
               <Button variant="ghost" onClick={() => setShowRejectModal(true)}>Rejeitar entrega</Button>
-            </Card>
+            </section>
           )}
 
           {/* Avaliação */}
           {delivery.status === 'delivered' && delivery.rating && (
-            <Card className={styles.section}>
+            <section className={styles.section}>
               <h2 className={styles.sectionTitle}><Icon name="star" size={16} /> Avaliação do cliente</h2>
               <div className={styles.stars} aria-label={`Avaliação ${delivery.rating} de 5`}>
                 {[1, 2, 3, 4, 5].map((s) => (
@@ -315,7 +314,7 @@ export default function MotoboyDeliveryDetail() {
                 ))}
               </div>
               {delivery.comment && <p className={styles.comment}>“{delivery.comment}”</p>}
-            </Card>
+            </section>
           )}
 
           {msg && <div className={styles.msg}>{msg}</div>}

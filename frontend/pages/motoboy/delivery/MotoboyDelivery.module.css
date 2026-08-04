@@ -1,5 +1,5 @@
 .page { min-height: 100vh; background: var(--bg); padding-bottom: 170px; }
-.container { max-width: 640px; margin: 0 auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+.container { max-width: 640px; margin: 0 auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
 
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .title { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
@@ -38,7 +38,7 @@
 .routeHint { font-size: var(--fs-sm); color: var(--text-muted); }
 .mapEmpty { font-size: var(--fs-sm); color: var(--text-subtle); padding: var(--space-4); text-align: center; background: var(--surface-2); border-radius: var(--r-md); }
 
-.pinCard { display: flex; flex-direction: column; gap: var(--space-2); align-items: center; text-align: center; border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.pinCard { display: flex; flex-direction: column; gap: var(--space-2); align-items: center; text-align: center; background: var(--surface); border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--line)); border-radius: var(--r-lg); padding: var(--space-5); }
 .pinDisplay { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: 6px; color: var(--brand-2); background: var(--surface-field); border-radius: var(--r-md); padding: var(--space-3) var(--space-5); }
 
 .stars { display: flex; gap: 2px; font-size: var(--fs-hero); line-height: 1; }
