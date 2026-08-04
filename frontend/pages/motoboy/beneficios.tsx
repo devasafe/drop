@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { Zap, Wallet, Settings, Gift } from 'lucide-react';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import { Button } from '../../components/ui/Button';
+import { Sheet } from '../../components/ui/Sheet';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useToast } from '../../components/ui/Toast';
 import { useGamification } from '../../hooks/useSync';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
@@ -20,35 +24,32 @@ interface Benefit {
 
 export default function MotoboyBeneficios() {
   useRequireAuth(['motoboy']);
+  const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { gam } = useGamification(user?.id || user?._id);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
-  const [redeeming, setRedeeming] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [confirmB, setConfirmB] = useState<Benefit | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
-    api.get('/gamification/benefits').then(r => setBenefits(r.data)).catch(() => {});
+    api.get('/gamification/benefits').then((r) => setBenefits(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const points = gam?.points || 0;
 
-  const handleRedeem = async (benefit: Benefit) => {
-    if (points < benefit.cost) return;
-    if (!confirm(`Resgatar "${benefit.name}" por ${benefit.cost} pontos?`)) return;
-    setRedeeming(benefit.id);
-    setSuccessMsg('');
-    setErrorMsg('');
+  const confirmRedeem = async () => {
+    if (!confirmB) return;
+    setRedeeming(true);
     try {
-      await api.post('/gamification/redeem', {
-        user_id: user?.id || user?._id,
-        benefit: benefit.id,
-      });
-      setSuccessMsg(`"${benefit.name}" resgatado com sucesso!`);
+      await api.post('/gamification/redeem', { user_id: user?.id || user?._id, benefit: confirmB.id });
+      showToast(`"${confirmB.name}" resgatado com sucesso!`, 'success');
+      setConfirmB(null);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error || 'Erro ao resgatar');
+      showToast(err?.response?.data?.error || 'Erro ao resgatar', 'error');
     } finally {
-      setRedeeming(null);
+      setRedeeming(false);
     }
   };
 
@@ -56,62 +57,64 @@ export default function MotoboyBeneficios() {
     <ProtectedRoute required_role="motoboy">
       <div className={styles.page}>
         <div className={styles.container}>
+          <header className={styles.header}>
+            <h1 className={styles.title}>Benefícios</h1>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
+          </header>
 
-          <div className={styles.header}>
-            <div>
-              <h1 className={styles.pageTitle}>Benefícios</h1>
-              <p className={styles.pageSubtitle}>Resgate recompensas com seus pontos</p>
-            </div>
-            <Link href="/motoboy/gamification" className={styles.linkBtn}>← Gamificação</Link>
-          </div>
-
-          {/* Pontos disponíveis */}
           <div className={styles.pointsCard}>
-            <div className={styles.pointsIcon}><Icon name="zap" size={28} /></div>
+            <span className={styles.pointsGlow} aria-hidden="true" />
+            <span className={styles.pointsIcon}><Zap size={24} aria-hidden="true" /></span>
             <div>
               <div className={styles.pointsValue}>{points} pts</div>
               <div className={styles.pointsLabel}>disponíveis para resgate</div>
             </div>
           </div>
 
-          {successMsg && <div className={styles.successAlert}>{successMsg}</div>}
-          {errorMsg && <div className={styles.errorAlert}>{errorMsg}</div>}
-
-          {/* Grid de benefícios */}
-          <div className={styles.benefitsGrid}>
-            {benefits.map(b => {
-              const canRedeem = points >= b.cost;
-              const isLoading = redeeming === b.id;
-              return (
-                <div key={b.id} className={`${styles.benefitCard} ${!canRedeem ? styles.benefitCardLocked : ''}`}>
-                  <div className={styles.benefitIcon}>{b.icon}</div>
-                  <div className={styles.benefitName}>{b.name}</div>
-                  <div className={styles.benefitDesc}>{b.description}</div>
-                  <div className={styles.benefitFooter}>
-                    <div className={styles.benefitCost}>
-                      <span className={styles.costValue}>{b.cost}</span>
-                      <span className={styles.costLabel}> pts</span>
+          {loading ? (
+            <div className={styles.grid}><Skeleton height={160} radius="var(--r-lg)" /><Skeleton height={160} radius="var(--r-lg)" /></div>
+          ) : benefits.length === 0 ? (
+            <EmptyState icon={<Gift size={22} aria-hidden="true" />} title="Sem benefícios agora" description="Novas recompensas para resgatar aparecem aqui." />
+          ) : (
+            <div className={styles.grid}>
+              {benefits.map((b) => {
+                const canRedeem = points >= b.cost;
+                return (
+                  <div key={b.id} className={`${styles.benefit} ${canRedeem ? '' : styles.locked}`}>
+                    <span className={styles.benefitIcon}>{b.icon}</span>
+                    <div className={styles.benefitName}>{b.name}</div>
+                    <div className={styles.benefitDesc}>{b.description}</div>
+                    <div className={styles.benefitType}>
+                      {b.type === 'wallet'
+                        ? <><Wallet size={13} aria-hidden="true" /> Crédito na carteira</>
+                        : <><Settings size={13} aria-hidden="true" /> Automático</>}
                     </div>
-                    <button
-                      className={`${styles.redeemBtn} ${!canRedeem ? styles.redeemBtnDisabled : ''}`}
-                      disabled={!canRedeem || !!redeeming}
-                      onClick={() => handleRedeem(b)}
-                    >
-                      {isLoading ? '...' : canRedeem ? 'Resgatar' : 'Insuficiente'}
-                    </button>
+                    <div className={styles.benefitFooter}>
+                      <span className={styles.benefitCost}>{b.cost} pts</span>
+                      <Button size="sm" disabled={!canRedeem} onClick={() => setConfirmB(b)}>
+                        {canRedeem ? 'Resgatar' : 'Insuficiente'}
+                      </Button>
+                    </div>
                   </div>
-                  {b.type === 'wallet' && <div className={styles.typeChip}><Icon name="wallet" size={14} /> Crédito na carteira</div>}
-                  {b.type === 'system' && <div className={styles.typeChipSystem}><Icon name="settings" size={14} /> Benefício automático</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {benefits.length === 0 && (
-            <LoadingSkeleton variant="list" count={3} />
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
+
+      <Sheet open={!!confirmB} onClose={() => setConfirmB(null)} title="Resgatar benefício">
+        {confirmB && (
+          <div className={styles.sheetBody}>
+            <p className={styles.sheetText}>
+              Resgatar <strong>{confirmB.name}</strong> por <strong>{confirmB.cost} pts</strong>?
+            </p>
+            <Button onClick={confirmRedeem} disabled={redeeming}>
+              {redeeming ? 'Resgatando…' : 'Confirmar resgate'}
+            </Button>
+          </div>
+        )}
+      </Sheet>
     </ProtectedRoute>
   );
 }
