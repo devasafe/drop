@@ -4,17 +4,15 @@
 .title { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
 .headerActions { display: flex; gap: var(--space-2); }
 
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-3); text-align: center; }
-.statValue { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--text-strong); font-weight: 700; }
-.statLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
-
 .levelCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
-.levelHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.levelId { display: flex; align-items: center; gap: var(--space-2); }
-.levelIcon { display: flex; }
+.levelHead { display: flex; align-items: center; gap: var(--space-3); }
+.levelIcon { display: flex; flex-shrink: 0; }
+.levelId { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .levelName { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 800; }
-.levelNext { font-size: var(--fs-xs); color: var(--text-muted); text-align: right; }
+.levelSub { font-size: var(--fs-xs); color: var(--text-muted); }
+.levelPoints { display: flex; flex-direction: column; align-items: flex-end; text-align: right; flex-shrink: 0; }
+.levelPointsValue { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--text-strong); }
+.levelPointsLabel { font-size: var(--fs-xs); color: var(--text-subtle); }
 .progressTrack { height: 8px; background: var(--surface-2); border-radius: var(--r-pill); overflow: hidden; }
 .progressBar { height: 100%; background: var(--brand-grad); border-radius: var(--r-pill); }
 .progressLabel { font-size: var(--fs-xs); color: var(--text-subtle); }
@@ -23,13 +21,13 @@
 .sectionTitle { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); margin: 0; }
 .filters { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
-.badgesGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
-.badge { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4) var(--space-3); display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-1); }
-.badgeLocked { opacity: 0.45; }
-.badgeIcon { color: var(--brand-2); display: flex; margin-bottom: var(--space-1); }
-.badgeLocked .badgeIcon { color: var(--text-subtle); }
-.badgeName { font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); }
-.badgeDesc { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.35; }
+/* Conquistas = grid de ícones leves, sem card por badge */
+.badgesGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3) var(--space-2); }
+.badge { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
+.badgeIcon { width: 48px; height: 48px; border-radius: var(--r-pill); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand-2); }
+.badgeLocked .badgeIcon { background: var(--surface-2); color: var(--text-subtle); }
+.badgeName { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.2; }
+.badgeLocked .badgeName { color: var(--text-subtle); }
 
 .histCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
 .histRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
