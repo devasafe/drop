@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { maskCPF, maskPhone, maskRG, onlyDigits, cleanRG } from '../lib/masks';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { LEGAL_VERSIONS } from '../lib/legalDocs';
 import styles from './Register.module.css';
 
 export default function RegisterPage() {
@@ -19,6 +20,7 @@ export default function RegisterPage() {
   const [photoPreview, setPhotoPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [accepted, setAccepted] = useState(false);
   const router = useRouter();
   const auth = useAuth();
 
@@ -72,6 +74,7 @@ export default function RegisterPage() {
   const submit = async (e: any) => {
     e.preventDefault();
     setError('');
+    if (!accepted) { setError('É necessário aceitar os Termos de Uso e a Política de Privacidade'); return; }
     if ((role === 'motoboy' || role === 'lojista') && !photo) {
       setError(`Foto é obrigatória para ${role === 'motoboy' ? 'Motoboys' : 'Lojistas'}`);
       return;
@@ -88,6 +91,8 @@ export default function RegisterPage() {
       formData.append('rg', cleanRG(rg));
       formData.append('dataNascimento', dataNascimento);
       formData.append('sexo', sexo);
+      formData.append('acceptedTermsVersion', LEGAL_VERSIONS.terms);
+      formData.append('acceptedPrivacyVersion', LEGAL_VERSIONS.privacy);
       if (photo) formData.append('photo', photo);
       await api.post('/auth/register', formData);
       await auth.login(email, password);
@@ -216,6 +221,11 @@ export default function RegisterPage() {
               </label>
             </div>
           )}
+
+          <label className={styles.acceptRow}>
+            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className={styles.acceptCheckbox} />
+            <span>Li e aceito os <a href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
+          </label>
 
           <button type="submit" disabled={loading} className={styles.submitBtn}>
             {loading ? 'Cadastrando...' : 'Criar Conta'}
