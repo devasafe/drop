@@ -1,5 +1,4 @@
 import { ChevronRight, Bike } from 'lucide-react';
-import { Card } from '../ui/Card';
 import { StatusPill } from '../ui/StatusPill';
 import { formatBRL } from '../ui/PriceTag';
 import styles from './HistoryDeliveryCard.module.css';
@@ -16,7 +15,7 @@ export function HistoryDeliveryCard({ delivery: d, onDetails }: HistoryDeliveryC
   const rating = typeof d.rating === 'number' ? d.rating : 0;
 
   return (
-    <Card interactive onClick={onDetails} className={styles.card}>
+    <button type="button" onClick={onDetails} className={styles.row}>
       <div className={styles.body}>
         <span className={styles.media} aria-hidden="true"><Bike size={20} /></span>
         <div className={styles.info}>
@@ -38,6 +37,6 @@ export function HistoryDeliveryCard({ delivery: d, onDetails }: HistoryDeliveryC
         </div>
         <ChevronRight size={18} className={styles.chevron} aria-hidden="true" />
       </div>
-    </Card>
+    </button>
   );
 }

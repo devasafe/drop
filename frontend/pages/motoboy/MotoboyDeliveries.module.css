@@ -3,8 +3,14 @@
 .title { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
 .tabs { display: flex; gap: var(--space-2); }
 .filters { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.list { display: flex; flex-direction: column; gap: var(--space-3); }
-.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
-.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-3); text-align: center; }
-.kpiValue { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); font-weight: 700; }
+/* Lista de entregas = linhas flat com divisória (os cards colocam a divisória
+ * e sangram até as bordas); gap 0 pra não duplicar o respiro da divisória. */
+.list { display: flex; flex-direction: column; }
+.skeletonList { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* KPIs do histórico = faixa flat com divisórias verticais, sem card */
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); padding: var(--space-1) 0; }
+.kpi { text-align: center; padding: 0 var(--space-2); }
+.kpi + .kpi { border-left: 1px solid var(--line); }
+.kpiValue { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--text-strong); font-weight: 700; line-height: 1.2; }
 .kpiLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }

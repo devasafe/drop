@@ -1,5 +1,4 @@
 import { ChevronRight, Bike } from 'lucide-react';
-import { Card } from '../ui/Card';
 import { formatBRL } from '../ui/PriceTag';
 import { ongoingStatusView } from '../../lib/deliveryStatus';
 import styles from './OngoingDeliveryCard.module.css';
@@ -15,7 +14,7 @@ export function OngoingDeliveryCard({ delivery: d, onDetails }: OngoingDeliveryC
   const route = [d.pickupLocation || 'A confirmar', d.destination].filter(Boolean).join(' → ');
 
   return (
-    <Card interactive onClick={onDetails} className={styles.card}>
+    <button type="button" onClick={onDetails} className={styles.row}>
       <div className={styles.body}>
         <span className={styles.media} aria-hidden="true"><Bike size={20} /></span>
         <div className={styles.info}>
@@ -30,6 +29,6 @@ export function OngoingDeliveryCard({ delivery: d, onDetails }: OngoingDeliveryC
         </div>
         <ChevronRight size={18} className={styles.chevron} aria-hidden="true" />
       </div>
-    </Card>
+    </button>
   );
 }

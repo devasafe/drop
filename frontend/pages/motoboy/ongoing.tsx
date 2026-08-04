@@ -60,7 +60,7 @@ export default function MotoboyDeliveries() {
 
           {tab === 'ongoing' ? (
             ongoingLoading ? (
-              <div className={styles.list}><Skeleton height={140} /><Skeleton height={140} /></div>
+              <div className={styles.skeletonList}><Skeleton height={140} /><Skeleton height={140} /></div>
             ) : ongoing.length === 0 ? (
               <EmptyState
                 icon={<Package size={22} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
@@ -99,7 +99,7 @@ export default function MotoboyDeliveries() {
               </div>
 
               {historyLoading ? (
-                <div className={styles.list}><Skeleton height={110} /><Skeleton height={110} /></div>
+                <div className={styles.skeletonList}><Skeleton height={110} /><Skeleton height={110} /></div>
               ) : filtered.length === 0 ? (
                 <EmptyState
                   icon={<Clock size={22} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
