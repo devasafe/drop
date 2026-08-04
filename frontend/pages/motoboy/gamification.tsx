@@ -118,44 +118,32 @@ export default function MotoboyGamification() {
             <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Sem dados" description="Não foi possível carregar seu desempenho agora." />
           ) : (
             <>
-              {/* Stats */}
-              <div className={styles.stats}>
-                <div className={styles.stat}>
-                  <div className={styles.statValue}>{gam.points || 0}</div>
-                  <div className={styles.statLabel}>Pontos disponíveis</div>
-                </div>
-                <div className={styles.stat}>
-                  <div className={styles.statValue}>{gam.totalPoints || 0}</div>
-                  <div className={styles.statLabel}>Acumulados</div>
-                </div>
-                <div className={styles.stat}>
-                  <div className={styles.statValue}>{unlockedSet.size}</div>
-                  <div className={styles.statLabel}>de {ALL_BADGES.length} badges</div>
-                </div>
-              </div>
-
-              {/* Nível */}
+              {/* Nível (combina nível + pontos + progresso + badges num card só) */}
               <div className={styles.levelCard}>
                 <div className={styles.levelHead}>
+                  <span className={styles.levelIcon} style={{ color: lvlInfo?.color }}>
+                    <Icon name={(lvlInfo?.icon || 'award') as any} size={26} />
+                  </span>
                   <div className={styles.levelId}>
-                    <span className={styles.levelIcon} style={{ color: lvlInfo?.color }}>
-                      <Icon name={(lvlInfo?.icon || 'award') as any} size={22} />
-                    </span>
                     <span className={styles.levelName} style={{ color: lvlInfo?.color }}>{gam.level || 'Bronze'}</span>
+                    <span className={styles.levelSub}>{gam.totalPoints || 0} pts acumulados · {unlockedSet.size}/{ALL_BADGES.length} badges</span>
                   </div>
-                  {nextLevel && (
-                    <span className={styles.levelNext}>
-                      Faltam {Math.max(0, (LEVEL_THRESHOLDS[nextLevel]?.min || 0) - (gam.totalPoints || 0))} pts para {nextLevel}
-                    </span>
-                  )}
+                  <div className={styles.levelPoints}>
+                    <span className={styles.levelPointsValue}>{gam.points || 0}</span>
+                    <span className={styles.levelPointsLabel}>pts p/ resgatar</span>
+                  </div>
                 </div>
                 <div className={styles.progressTrack}>
                   <div className={styles.progressBar} style={{ width: `${progress}%` }} />
                 </div>
-                <div className={styles.progressLabel}>{progress}% para {nextLevel || 'nível máximo'}</div>
+                <div className={styles.progressLabel}>
+                  {nextLevel
+                    ? `${progress}% — faltam ${Math.max(0, (LEVEL_THRESHOLDS[nextLevel]?.min || 0) - (gam.totalPoints || 0))} pts para ${nextLevel}`
+                    : 'Nível máximo atingido'}
+                </div>
               </div>
 
-              {/* Conquistas */}
+              {/* Conquistas — grid de ícones leves (sem card por badge) */}
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Conquistas</h2>
                 <div className={styles.filters}>
@@ -168,12 +156,11 @@ export default function MotoboyGamification() {
                   {filteredBadges.map((badge) => {
                     const unlocked = unlockedSet.has(badge.id);
                     return (
-                      <div key={badge.id} className={`${styles.badge} ${unlocked ? '' : styles.badgeLocked}`}>
+                      <div key={badge.id} className={`${styles.badge} ${unlocked ? '' : styles.badgeLocked}`} title={`${badge.label} — ${badge.description}`}>
                         <span className={styles.badgeIcon}>
-                          <Icon name={(unlocked ? badge.icon : 'lock') as any} size={24} />
+                          <Icon name={(unlocked ? badge.icon : 'lock') as any} size={22} />
                         </span>
                         <span className={styles.badgeName}>{badge.label}</span>
-                        <span className={styles.badgeDesc}>{badge.description}</span>
                       </div>
                     );
                   })}

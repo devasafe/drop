@@ -1,46 +1,27 @@
 .page { min-height: 100vh; background: var(--bg); padding-bottom: 170px; }
 .container { max-width: 640px; margin: 0 auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
 .header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-.pageTitle { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
-.pageSubtitle { font-size: var(--fs-sm); color: var(--text-muted); margin: 2px 0 0; }
-.linkBtn { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-sm); color: var(--brand-2); text-decoration: none; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--r-pill); }
+.title { font-family: var(--font-display); font-size: var(--fs-hero); color: var(--text-strong); margin: 0; }
+.subtitle { font-size: var(--fs-sm); color: var(--text-muted); margin: 2px 0 0; }
 
-.podiumGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); align-items: end; }
-.podiumCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-3); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.podiumPos1 { border-color: color-mix(in srgb, var(--rating) 55%, var(--line)); }
-.podiumCardMe { border-color: var(--brand); }
-.podiumMedal { font-family: var(--font-display); font-weight: 800; color: var(--brand-2); font-size: var(--fs-h2); }
-.podiumName { font-weight: 700; color: var(--text-strong); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.podiumPts { font-size: var(--fs-xs); color: var(--text-muted); }
-.podiumLevel { font-size: var(--fs-xs); color: var(--text-subtle); }
-.podiumPrize { font-size: var(--fs-xs); color: var(--success); font-weight: 700; }
-.prizeManual { color: var(--text-subtle); font-weight: 400; }
-.podiumBadgeCount { font-size: var(--fs-xs); color: var(--text-subtle); }
+.myPos { display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4); }
+.myPosItem { flex: 1; text-align: center; }
+.myPosValue { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--text-strong); }
+.myPosValueGreen { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--success); }
+.myPosValueYellow { display: block; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--rating); }
+.myPosLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
 
-.prizesCard, .rankingCard, .myPositionCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4); }
-.prizesTitle, .rankingTitle, .myPositionTitle { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); margin: 0 0 var(--space-3); display: flex; align-items: center; gap: var(--space-2); }
-.distributedBadge { font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
-.prizesGrid { display: flex; flex-direction: column; gap: var(--space-2); }
-.prizeItem { display: flex; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); }
-.prizePosition { font-family: var(--font-display); font-weight: 700; color: var(--brand-2); min-width: 32px; }
-.prizeAmount { font-weight: 700; color: var(--success); }
-.prizeType { color: var(--text-subtle); font-size: var(--fs-xs); margin-left: auto; }
+.section { display: flex; flex-direction: column; gap: var(--space-3); }
+.sectionTitle { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); margin: 0; }
 
-.empty { font-size: var(--fs-sm); color: var(--text-subtle); text-align: center; padding: var(--space-4); }
-.rankingList { display: flex; flex-direction: column; }
-.rankRow { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.rankCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.rankRow { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
 .rankRow:last-child { border-bottom: none; }
-.rankPos { font-family: var(--font-display); font-weight: 700; color: var(--brand-2); min-width: 32px; }
-.rankName { flex: 1 1 auto; color: var(--text-strong); font-size: var(--fs-body); display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.rankRowMe .rankName { color: var(--brand-2); }
-.youChip { font-size: var(--fs-xs); font-weight: 600; padding: 1px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand-2); }
-.rankLevel { font-size: var(--fs-xs); color: var(--text-subtle); }
-.rankPts { font-family: var(--font-display); font-weight: 700; color: var(--text); font-size: var(--fs-sm); white-space: nowrap; }
-
-.myPositionRow { display: flex; gap: var(--space-2); }
-.myPositionStat { flex: 1; text-align: center; }
-.myPositionValue, .myPositionValueGreen, .myPositionValueYellow { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; }
-.myPositionValue { color: var(--text-strong); }
-.myPositionValueGreen { color: var(--success); }
-.myPositionValueYellow { color: var(--rating); }
-.myPositionLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
+.rankRowMe { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.rankPos { font-family: var(--font-display); font-weight: 700; color: var(--text-subtle); font-size: var(--fs-body); min-width: 28px; flex-shrink: 0; }
+.rankPosTop { color: var(--rating); }
+.rankInfo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.rankName { color: var(--text-strong); font-size: var(--fs-body); display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.rankMeta { font-size: var(--fs-xs); color: var(--text-subtle); }
+.youChip { font-size: var(--fs-xs); font-weight: 600; padding: 1px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand-2); flex-shrink: 0; }
+.rankPts { font-family: var(--font-display); font-weight: 700; color: var(--text); font-size: var(--fs-sm); white-space: nowrap; flex-shrink: 0; }
