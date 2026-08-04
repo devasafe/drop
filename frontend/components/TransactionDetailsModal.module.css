@@ -1,0 +1,29 @@
+.body { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.headerBlock { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+.subtitle { font-size: var(--fs-sm); color: var(--text-muted); }
+.amount { font-family: var(--font-display); font-size: 30px; font-weight: 800; color: var(--text-strong); }
+.amountPos { color: var(--success); }
+.amountNeg { color: var(--danger); }
+
+.statusPill { align-self: flex-start; padding: 4px 12px; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 700; }
+.tonePending { background: color-mix(in srgb, var(--rating) 18%, transparent); color: var(--rating); }
+.toneReleased { background: color-mix(in srgb, var(--brand-2) 20%, transparent); color: var(--brand-2); }
+.toneRequested { background: color-mix(in srgb, var(--brand-2) 20%, transparent); color: var(--brand-2); }
+.tonePaid { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.toneCancelled { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+.rows { display: flex; flex-direction: column; gap: var(--space-3); }
+.sectionHead { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 1px; color: var(--text-subtle); text-transform: uppercase; }
+.row { display: flex; justify-content: space-between; gap: var(--space-4); align-items: flex-start; }
+.rowLabel { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+.rowValue { font-size: var(--fs-sm); text-align: right; word-break: break-all; color: var(--text); font-weight: 500; }
+.mono { font-family: monospace; }
+
+.hlSuccess { color: var(--success); font-weight: 700; }
+.hlDanger { color: var(--danger); font-weight: 700; }
+.hlWarning { color: var(--rating); font-weight: 700; }
+.hlInfo { color: var(--brand-2); font-weight: 700; }
+.hlNeutral { color: var(--text-muted); font-weight: 700; }
+
+.footer { padding-top: var(--space-4); border-top: 1px solid var(--line); }
