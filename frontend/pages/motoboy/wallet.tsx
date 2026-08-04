@@ -187,7 +187,7 @@ export default function MototboyWalletPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Nenhuma movimentação" description="Seus repasses e saques aparecem aqui." />
             ) : (
-              <div className={styles.extractCard}>
+              <div className={styles.extractList}>
                 {entries.map((e) => (
                   <button key={e.key} onClick={e.onClick} className={styles.row}>
                     <div className={styles.rowInfo}>
