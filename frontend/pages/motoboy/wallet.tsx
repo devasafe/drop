@@ -24,7 +24,7 @@ interface MototboyWallet {
 interface PayoutItem {
   _id: string; amount: number;
   status: 'pending' | 'released' | 'requested' | 'paid' | 'cancelled';
-  orderId: string; createdAt: string;
+  orderId: string; deliveryId?: string; createdAt: string;
 }
 interface HistoryItem {
   date: string; type: 'credit' | 'debit'; amount: number; reason: string; relatedId?: string;
@@ -119,7 +119,8 @@ export default function MototboyWalletPage() {
     ...payouts.map((p) => ({
       key: `p-${p._id}`, date: p.createdAt, sign: '+' as const, amount: p.amount,
       title: `Entrega #${p.orderId?.slice(-6) || '—'}`, statusView: payoutStatusView(p.status),
-      onClick: () => handlePayoutClick(p),
+      // Repasse leva ao detalhe da entrega (com tudo). Sem deliveryId, cai no modal.
+      onClick: () => p.deliveryId ? router.push(`/motoboy/delivery/${p.deliveryId}`) : handlePayoutClick(p),
     })),
     ...history.filter((h) => h.type === 'debit').map((h, i) => ({
       key: `h-${i}`, date: h.date, sign: '-' as const, amount: h.amount,
