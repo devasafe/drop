@@ -19,6 +19,7 @@ import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
 import RealtimeNotifier from '../components/RealtimeNotifier';
 import NotificationToaster from '../components/NotificationToaster';
+import CookieBanner from '../components/CookieBanner';
 import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
@@ -126,6 +127,9 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
         {/* Inbox de solicitações de acesso à carteira (clientes) */}
         {user?.role === 'cliente' && <WalletAccessInbox />}
+
+        {/* Banner de consentimento de cookies (LGPD) — global, aparece uma vez */}
+        <CookieBanner />
         </ToastProvider>
         </OverlayProvider>
       </CartProvider>

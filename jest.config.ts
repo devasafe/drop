@@ -4,7 +4,7 @@ const config: Config.InitialOptions = {
   verbose: true,
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/src/tests/**/*.test.ts'],
+  testMatch: ['**/src/tests/**/*.test.ts', '**/src/services/__tests__/**/*.test.ts'],
   testPathIgnorePatterns: ['/node_modules/'],
 
   // ✅ Setup de variáveis de ambiente para testes

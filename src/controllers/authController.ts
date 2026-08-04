@@ -12,6 +12,7 @@ import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
+import { recordConsent } from '../services/consent.service';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -27,6 +28,8 @@ const registerSchema = z.object({
   rg: optionalShort,
   dataNascimento: optionalShort,
   sexo: optionalShort,
+  acceptedTermsVersion: z.string().min(1, 'É necessário aceitar os Termos de Uso'),
+  acceptedPrivacyVersion: z.string().min(1, 'É necessário aceitar a Política de Privacidade'),
 }).passthrough();
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
@@ -51,7 +54,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
     }
-    const { name, email, password, role, telefone, cpf, rg, dataNascimento, sexo } = parsed.data as any;
+    const { name, email, password, role, telefone, cpf, rg, dataNascimento, sexo, acceptedTermsVersion, acceptedPrivacyVersion } = parsed.data as any;
 
     // Validar foto obrigatória para motoboy e lojista
     if ((role === 'motoboy' || role === 'lojista') && !req.file) {
@@ -100,6 +103,14 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     } catch (err) {
       console.warn(`⚠️ Erro ao criar carteira para ${user.id}:`, err);
     }
+
+    await recordConsent({
+      userId: user.id,
+      termsVersion: acceptedTermsVersion,
+      privacyVersion: acceptedPrivacyVersion,
+      ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip,
+      userAgent: req.headers['user-agent'],
+    });
 
     // Não criar loja automaticamente. Loja será criada após cadastro pelo painel.
     return res.status(201).json({ id: user.id, email: user.email, role: user.role });

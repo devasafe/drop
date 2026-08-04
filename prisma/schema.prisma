@@ -339,6 +339,7 @@ model User {
   addresses    Address[]
   ownedStores  Store[]   @relation("StoreOwner")
   orders       Order[]   @relation("CustomerOrders")
+  consentLogs  ConsentLog[]
 
   @@index([status])
   @@index([storeId])
@@ -1056,4 +1057,17 @@ model PromoBanner {
   updatedAt DateTime @updatedAt
 
   @@index([active])
+}
+
+model ConsentLog {
+  id           String   @id @default(cuid())
+  userId       String
+  documentType String   // "terms" | "privacy"
+  version      String
+  acceptedAt   DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

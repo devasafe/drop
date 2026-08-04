@@ -44,6 +44,14 @@ export default function Footer() {
             <Link href="/user-dashboard" className={styles.link}>Meus Pedidos</Link>
             <Link href="/wallet" className={styles.link}>Minha Carteira</Link>
           </div>
+
+          <div className={styles.col}>
+            <div className={styles.colTitle}>Legal</div>
+            <Link href="/termos" className={styles.link}>Termos de Uso</Link>
+            <Link href="/privacidade" className={styles.link}>Política de Privacidade</Link>
+            <Link href="/cookies" className={styles.link}>Política de Cookies</Link>
+            <Link href="/privacidade/solicitacoes" className={styles.link}>Seus dados (LGPD)</Link>
+          </div>
         </div>
 
       </div>
