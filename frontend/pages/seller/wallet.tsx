@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { ArrowUpRight, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
+import { Chip } from '../../components/ui/Chip';
+import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './SellerWallet.module.css';
 
 interface StoreWallet {
@@ -44,7 +47,7 @@ export default function SellerWalletPage() {
   const [wallet, setWallet] = useState<StoreWallet | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'saldo' | 'historico' | 'payouts' | 'analises'>('saldo');
+  const [activeTab, setActiveTab] = useState<'historico' | 'payouts' | 'analises'>('historico');
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [transferring, setTransferring] = useState(false);
   const [resolvedStoreId, setResolvedStoreId] = useState<string>('');
@@ -156,6 +159,23 @@ export default function SellerWalletPage() {
     3: 'Premium (70%)'
   };
 
+  const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
+
+  // Extrato unificado: repasses (crédito) + saques (débito), mais recente primeiro.
+  const historyEntries = [
+    ...payouts.map((p) => ({
+      key: `p-${p._id}`, date: p.createdAt, sign: '+' as const, amount: p.amount,
+      title: `Pedido #${p.orderId?.slice(-6) || '—'}`,
+      statusLabel: payoutStatusLabel(p.status), statusClass: p.status as string,
+      onClick: () => handlePayoutClick(p),
+    })),
+    ...history.filter((h) => h.type === 'debit').map((h, i) => ({
+      key: `h-${i}`, date: h.date, sign: '-' as const, amount: h.amount,
+      title: 'Saque', statusLabel: 'Saque', statusClass: 'requested',
+      onClick: () => setSelectedTx({ kind: 'history', data: h }),
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return (
     <ProtectedRoute required_role="lojista">
       <div className={styles.page}>
@@ -167,310 +187,123 @@ export default function SellerWalletPage() {
             <p className={styles.headerSubtitle}>Acompanhe os ganhos e despesas da sua loja</p>
           </div>
 
-          {/* Dados de recebimento (PIX) */}
-          <a href="/dados-recebimento" style={{ display: 'block', background: 'rgba(108,43,217,0.12)', border: '1px solid #6C2BD9', borderRadius: 12, padding: '12px 16px', margin: '0 0 16px', color: '#C4B5FD', textDecoration: 'none', fontWeight: 600 }}>
-            💳 Dados de recebimento (chave PIX) — configure para receber e sacar →
-          </a>
+          {/* Hero de saldo */}
+          <div className={styles.balanceCard}>
+            <span className={styles.balanceGlow} aria-hidden="true" />
+            <span className={styles.balanceLabel}>Disponível para saque</span>
+            <span className={styles.balanceValue}>{formatBRL(available)}</span>
+            <button className={styles.btnWithdraw} onClick={handleSacar} disabled={available <= 0 || transferring}>
+              <ArrowUpRight size={17} aria-hidden="true" /> {transferring ? 'Sacando…' : 'Sacar para meu PIX'}
+            </button>
+          </div>
 
-          {/* Saldo Principal */}
+          {/* Stats */}
           {wallet && (
-            <div className={styles.balanceCard}>
-              <div className={styles.balanceGrid}>
-                <div>
-                  <p className={styles.balanceLabel}>Disponivel para Saque</p>
-                  <h2 className={styles.balanceAmount}>
-                    R$ {(wallet.availableBalance ?? wallet.balance).toFixed(2)}
-                  </h2>
-                </div>
-                <div>
-                  <p className={styles.balanceLabel}>Pendente (aguardando entrega)</p>
-                  <h2 className={styles.balanceAmountSm || styles.balanceAmount} style={{ color: '#f59e0b' }}>
-                    R$ {(wallet.pendingBalance ?? 0).toFixed(2)}
-                  </h2>
-                </div>
-                <div>
-                  <p className={styles.balanceLabel}>Plano</p>
-                  <h2 className={styles.balancePlanName}>
-                    {planNames[wallet.plan || 1]}
-                  </h2>
-                  <p className={styles.balancePlanFee}>
-                    Taxa: {wallet.feePercent}% de comissao
-                  </p>
-                </div>
-                <div>
-                  <p className={styles.balanceLabel}>Total Ganho</p>
-                  <h2 className={styles.balanceIncome}>
-                    R$ {wallet.totalIncome.toFixed(2)}
-                  </h2>
-                </div>
+            <div className={styles.stats}>
+              <div className={styles.stat}>
+                <div className={`${styles.statValue} ${styles.statValuePending}`}>{formatBRL(wallet.pendingBalance ?? 0)}</div>
+                <div className={styles.statLabel}>Pendente</div>
+              </div>
+              <div className={styles.stat}>
+                <div className={styles.statValue}>{formatBRL(wallet.totalIncome)}</div>
+                <div className={styles.statLabel}>Total ganho</div>
+              </div>
+              <div className={styles.stat}>
+                <div className={styles.statValue}>{100 - (wallet.feePercent || 15)}%</div>
+                <div className={styles.statLabel}>Você retém</div>
               </div>
             </div>
           )}
 
+          {/* Banner PIX */}
+          <a href="/dados-recebimento" className={styles.pixBanner}>
+            <KeyRound size={16} aria-hidden="true" />
+            <span>Dados de recebimento (chave PIX) — configure para receber e sacar</span>
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </a>
+
           {!wallet && (
-            <div style={{ background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, marginBottom: 16, color: 'rgba(255,255,255,0.7)' }}>
-              <p style={{ margin: 0 }}>Não foi possível carregar a carteira da loja. Verifique se sua loja está cadastrada e recarregue a página.</p>
-            </div>
+            <p className={styles.emptyMsg}>Não foi possível carregar a carteira da loja. Verifique se sua loja está cadastrada e recarregue a página.</p>
           )}
 
           {/* Abas */}
           <div className={styles.tabs}>
-            {(['saldo', 'historico', 'payouts', 'analises'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-              >
-                {tab === 'saldo' && 'Saldo'}
-                {tab === 'historico' && 'Historico'}
-                {tab === 'payouts' && 'Meus Payouts'}
-                {tab === 'analises' && 'Analises'}
-              </button>
-            ))}
+            <Chip label="Histórico" active={activeTab === 'historico'} onClick={() => setActiveTab('historico')} />
+            <Chip label="Payouts" active={activeTab === 'payouts'} onClick={() => setActiveTab('payouts')} />
+            <Chip label="Análises" active={activeTab === 'analises'} onClick={() => setActiveTab('analises')} />
           </div>
 
-          {/* Conteúdo — Saldo */}
-          {activeTab === 'saldo' && wallet && (
-            <div className={styles.saldoGrid}>
-              <div className={styles.saldoCard}>
-                <h3 className={styles.saldoCardTitle}>Saldo Atual</h3>
-                <div className={styles.saldoAmount}>
-                  R$ {wallet.balance.toFixed(2)}
-                </div>
-                <p className={styles.saldoHint}>
-                  Valor disponível para saque da sua loja
-                </p>
-                <button
-                  className={styles.btnWithdraw}
-                  onClick={handleSacar}
-                  disabled={(wallet.availableBalance ?? 0) <= 0 || transferring}
-                >
-                  {transferring
-                    ? 'Sacando...'
-                    : (wallet.availableBalance ?? 0) > 0
-                      ? `Sacar R$ ${(wallet.availableBalance ?? 0).toFixed(2)} para meu PIX`
-                      : 'Nenhum saldo disponível'}
-                </button>
-                <p style={{ fontSize: 12, color: 'var(--drop-text-dim)', marginTop: 8, textAlign: 'center' }}>
-                  Para sacar pro banco, vá em <strong>Minha Carteira</strong>
-                </p>
-              </div>
-
-              <div className={styles.saldoRight}>
-                <div className={styles.saldoStatCard}>
-                  <p className={styles.statLabel}>Total Ganho</p>
-                  <h3 className={styles.statValueSuccess}>
-                    R$ {wallet.totalIncome.toFixed(2)}
-                  </h3>
-                </div>
-
-                <div className={styles.saldoStatCard}>
-                  <h4 className={styles.statLabel}>Plano Atual</h4>
-                  <p className={styles.statValueMuted}>
-                    <strong>{planNames[wallet.plan || 1]}</strong>
-                  </p>
-                  <p className={styles.statRetain}>
-                    Você retém {100 - (wallet.feePercent || 15)}% das vendas
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Conteudo — Payouts */}
-          {activeTab === 'payouts' && (
-            <div className={styles.historyCard}>
-              {payouts.length === 0 ? (
-                <p className={styles.historyEmpty}>Nenhum payout encontrado</p>
-              ) : (
-                <table className={styles.historyTable}>
-                  <thead className={styles.historyThead}>
-                    <tr>
-                      <th className={styles.historyTh}>Data</th>
-                      <th className={styles.historyTh}>Pedido</th>
-                      <th className={styles.historyTh}>Valor</th>
-                      <th className={styles.historyTh}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payouts.map((p) => (
-                      <tr
-                        key={p._id}
-                        className={styles.txRow}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => handlePayoutClick(p)}
-                      >
-                        <td className={styles.txCell}>
-                          {new Date(p.createdAt).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className={styles.txCell} style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                          {p.orderId?.slice(-6)}
-                        </td>
-                        <td className={styles.txCell}>
-                          <span className={styles.txAmountCredit}>
-                            R$ {p.amount.toFixed(2)}
-                          </span>
-                        </td>
-                        <td className={styles.txCell}>
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background:
-                              p.status === 'paid' ? 'rgba(34,197,94,0.15)' :
-                              p.status === 'released' ? 'rgba(59,130,246,0.15)' :
-                              p.status === 'pending' ? 'rgba(245,158,11,0.15)' :
-                              p.status === 'requested' ? 'rgba(139,92,246,0.15)' :
-                              'rgba(239,68,68,0.15)',
-                            color:
-                              p.status === 'paid' ? '#22C55E' :
-                              p.status === 'released' ? '#3B82F6' :
-                              p.status === 'pending' ? '#F59E0B' :
-                              p.status === 'requested' ? '#8B5CF6' :
-                              '#EF4444',
-                          }}>
-                            {p.status === 'pending' && 'Pendente'}
-                            {p.status === 'released' && 'Disponivel'}
-                            {p.status === 'requested' && 'Saque solicitado'}
-                            {p.status === 'paid' && 'Pago'}
-                            {p.status === 'cancelled' && 'Cancelado'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-
-          {/* Conteudo — Historico (payouts + saques) */}
+          {/* Histórico (repasses + saques) */}
           {activeTab === 'historico' && (
-            <div className={styles.historyCard}>
-              {payouts.length === 0 && history.length === 0 ? (
-                <p className={styles.historyEmpty}>Nenhuma transação ainda</p>
+            <section className={styles.section}>
+              {historyEntries.length === 0 ? (
+                <p className={styles.emptyMsg}>Nenhuma transação ainda</p>
               ) : (
-                <table className={styles.historyTable}>
-                  <thead className={styles.historyThead}>
-                    <tr>
-                      <th className={styles.historyTh}>Data</th>
-                      <th className={styles.historyTh}>Pedido</th>
-                      <th className={styles.historyTh}>Valor</th>
-                      <th className={styles.historyTh}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Repasses por pedido */}
-                    {payouts.map((p) => (
-                      <tr
-                        key={p._id}
-                        className={styles.txRow}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => handlePayoutClick(p)}
-                      >
-                        <td className={styles.txCell}>{new Date(p.createdAt).toLocaleDateString('pt-BR')}</td>
-                        <td className={styles.txCell} style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                          #{p.orderId?.slice(-6)}
-                        </td>
-                        <td className={styles.txCell}>
-                          <span className={styles.txAmountCredit}>+ R$ {p.amount.toFixed(2)}</span>
-                        </td>
-                        <td className={styles.txCell}>
-                          <span style={{
-                            padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                            background:
-                              p.status === 'paid' ? 'rgba(34,197,94,0.15)' :
-                              p.status === 'released' ? 'rgba(59,130,246,0.15)' :
-                              p.status === 'pending' ? 'rgba(245,158,11,0.15)' :
-                              p.status === 'requested' ? 'rgba(139,92,246,0.15)' :
-                              'rgba(239,68,68,0.15)',
-                            color:
-                              p.status === 'paid' ? '#22C55E' :
-                              p.status === 'released' ? '#3B82F6' :
-                              p.status === 'pending' ? '#F59E0B' :
-                              p.status === 'requested' ? '#8B5CF6' : '#EF4444',
-                          }}>
-                            {p.status === 'pending' && '⏳ Pendente'}
-                            {p.status === 'released' && '✓ Disponivel'}
-                            {p.status === 'requested' && 'Saque solicitado'}
-                            {p.status === 'paid' && '✓ Pago'}
-                            {p.status === 'cancelled' && 'Cancelado'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {/* Saques realizados */}
-                    {history.filter(h => h.type === 'debit').map((item, idx) => (
-                      <tr
-                        key={`debit-${idx}`}
-                        className={styles.txRow}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedTx({ kind: 'history', data: item })}
-                      >
-                        <td className={styles.txCell}>{new Date(item.date).toLocaleDateString('pt-BR')}</td>
-                        <td className={styles.txCell} style={{ fontSize: 11, opacity: 0.5 }}>—</td>
-                        <td className={styles.txCell}>
-                          <span className={styles.txAmountDebit}>− R$ {item.amount.toFixed(2)}</span>
-                        </td>
-                        <td className={styles.txCell}>
-                          <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.12)', color: '#EF4444' }}>
-                            Saque
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className={styles.extractList}>
+                  {historyEntries.map((e) => (
+                    <button key={e.key} className={styles.row} onClick={e.onClick}>
+                      <div className={styles.rowInfo}>
+                        <span className={styles.rowTitle}>{e.title}</span>
+                        <span className={styles.rowDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                      <div className={styles.rowRight}>
+                        <span className={`${styles.rowAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>{e.sign} {formatBRL(e.amount)}</span>
+                        <span className={`${styles.pill} ${styles[e.statusClass] || ''}`}>{e.statusLabel}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )}
-            </div>
+            </section>
           )}
 
-          {/* Conteúdo — Análises */}
+          {/* Payouts */}
+          {activeTab === 'payouts' && (
+            <section className={styles.section}>
+              {payouts.length === 0 ? (
+                <p className={styles.emptyMsg}>Nenhum payout encontrado</p>
+              ) : (
+                <div className={styles.extractList}>
+                  {payouts.map((p) => (
+                    <button key={p._id} className={styles.row} onClick={() => handlePayoutClick(p)}>
+                      <div className={styles.rowInfo}>
+                        <span className={styles.rowTitle}>Pedido #{p.orderId?.slice(-6) || '—'}</span>
+                        <span className={styles.rowDate}>{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                      <div className={styles.rowRight}>
+                        <span className={`${styles.rowAmount} ${styles.credit}`}>+ {formatBRL(p.amount)}</span>
+                        <span className={`${styles.pill} ${styles[p.status] || ''}`}>{payoutStatusLabel(p.status)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Análises */}
           {activeTab === 'analises' && wallet && (
-            <div className={styles.analisesGrid}>
-              <div className={styles.analisesCard}>
-                <h3 className={styles.analisesTitle}>Análises</h3>
-
-                <div className={styles.analisesStat}>
-                  <p className={styles.analisesStatLabel}>Média por Dia</p>
-                  <p className={styles.analisesStatValueSuccess}>
-                    R$ {(wallet.totalIncome / 30).toFixed(2)}
-                  </p>
+            <div className={styles.analises}>
+              <div className={styles.analisesStats}>
+                <div className={styles.analiseStat}>
+                  <div className={`${styles.analiseValue} ${styles.analiseValueSuccess}`}>{formatBRL(wallet.totalIncome / 30)}</div>
+                  <div className={styles.analiseLabel}>Média/dia</div>
                 </div>
-
-                <div className={styles.analisesStat}>
-                  <p className={styles.analisesStatLabel}>Taxa Atual</p>
-                  <p className={styles.analisesStatValueWarning}>
-                    {wallet.feePercent}% de Comissão
-                  </p>
+                <div className={styles.analiseStat}>
+                  <div className={`${styles.analiseValue} ${styles.analiseValueWarning}`}>{wallet.feePercent}%</div>
+                  <div className={styles.analiseLabel}>Comissão</div>
                 </div>
-
-                <div className={styles.analisesStat}>
-                  <p className={styles.analisesStatLabel}>Você Retém</p>
-                  <p className={styles.analisesStatValueSuccess}>
-                    {100 - (wallet.feePercent || 15)}%
-                  </p>
+                <div className={styles.analiseStat}>
+                  <div className={`${styles.analiseValue} ${styles.analiseValueSuccess}`}>{100 - (wallet.feePercent || 15)}%</div>
+                  <div className={styles.analiseLabel}>Você retém</div>
                 </div>
               </div>
-
-              <div className={styles.analisesCard}>
-                <h3 className={styles.analisesTitle}>Seu Plano</h3>
-
-                <div className={styles.planBadge}>
-                  <p className={styles.planBadgeLabel}>Plano Ativo</p>
-                  <h3 className={styles.planBadgeName}>
-                    {planNames[wallet.plan || 1]}
-                  </h3>
-                </div>
-
+              <div className={styles.planBlock}>
+                <p className={styles.planLabel}>Plano ativo</p>
+                <h3 className={styles.planName}>{planNames[wallet.plan || 1]}</h3>
                 <p className={styles.planDescription}>
-                  Seu plano determina qual percentual você retém de cada venda. Quanto maior o plano, maiores os recursos e menores as comissões.
+                  Seu plano determina o percentual que você retém de cada venda. Quanto maior o plano, menores as comissões.
                 </p>
-
-                <button className={styles.btnPlan}>
-                  Ver Detalhes do Plano
-                </button>
               </div>
             </div>
           )}
