@@ -203,19 +203,17 @@ export default function OrderDetailPage() {
           <div className={styles.infoCardHeader}>
             <h3 className={styles.infoCardTitle}>Produtos</h3>
           </div>
-          <div style={{ padding: '16px 20px' }}>
-            <ul className={styles.productsList}>
-              {order.products?.map((p: any, i: number) => (
-                <li key={p.productId || i} className={styles.productItem}>
-                  <span>{p.productName || p.name || 'Produto'}</span>
-                  <span className={styles.productQty}>x{p.quantity}</span>
-                  {p.price != null && (
-                    <span className={styles.productPrice}>{fmtMoney(p.price * p.quantity)}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className={styles.productsList}>
+            {order.products?.map((p: any, i: number) => (
+              <li key={p.productId || i} className={styles.productItem}>
+                <span>{p.productName || p.name || 'Produto'}</span>
+                <span className={styles.productQty}>x{p.quantity}</span>
+                {p.price != null && (
+                  <span className={styles.productPrice}>{fmtMoney(p.price * p.quantity)}</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* ─── Resumo Financeiro ─── */}
