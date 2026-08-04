@@ -78,6 +78,19 @@ describe('navConfig', () => {
     expect(isItemActive(items.find((i) => i.label === 'Início')!, '/')).toBe(false);
   });
 
+  it('motoboy: "Visão geral" fica ativa só em /motoboy, nunca junto de uma subtela', () => {
+    const items = getNavItems('motoboy', () => true, false);
+    const active = (pathname: string) =>
+      items.filter((i) => isItemActive(i, pathname)).map((i) => i.label);
+
+    // Na home, só a Visão geral
+    expect(active('/motoboy')).toEqual(['Visão geral']);
+    // Em subtelas, só o item da subtela — Visão geral NÃO acompanha
+    expect(active('/motoboy/ongoing')).toEqual(['Entregas']);
+    expect(active('/motoboy/wallet')).toEqual(['Ganhos e saques']);
+    expect(active('/motoboy/gamification')).toEqual(['Desempenho']);
+  });
+
   it('Perfil fica ativo em /user-profile e /editar-conta (não só /minha-conta)', () => {
     const items = getNavItems('cliente', () => true, false);
     const perfil = items.find((i) => i.label === 'Perfil')!;

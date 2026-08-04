@@ -16,6 +16,10 @@ export interface NavItem {
   /** Prefixo(s) p/ estado ativo. Default = route. Aceita vários (ex.: Buscar
    * cobre '/', '/stores' e '/product'). */
   activeMatch?: string | string[];
+  /** Casa SÓ exatamente com a rota (sem prefixo). Use na home de área, cuja
+   * rota é prefixo de todas as outras (ex.: '/motoboy') — senão ela ficaria
+   * ativa em qualquer subtela junto com o item real. */
+  exact?: boolean;
 }
 
 export interface RoleArea {
@@ -68,7 +72,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Configurações',      icon: 'settings',  route: '/seller/dashboard?tab=metrics', placement: ['sidebar', 'drawer'],  group: 'Loja', activeMatch: '/seller/dashboard' }, // FOLLOW-UP (Etapa 3)
   ],
   motoboy: [
-    { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral' },
+    { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
     { label: 'Entregas',         icon: 'truck',     route: '/motoboy/ongoing',     placement: ['sidebar', 'bottomNav'], group: 'Trabalho', badge: 'deliveries' },
     { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro' },
     { label: 'Desempenho',       icon: 'trophy',    route: '/motoboy/gamification', placement: ['sidebar', 'bottomNav'], group: 'Desempenho' },
@@ -132,7 +136,9 @@ export function isItemActive(
     ? item.activeMatch
     : [item.activeMatch || item.route];
   const bases = matches.map((m) => m.split('?')[0]);
-  const pathMatches = bases.some((base) => pathname === base || pathname.startsWith(base + '/'));
+  const pathMatches = item.exact
+    ? bases.some((base) => pathname === base)
+    : bases.some((base) => pathname === base || pathname.startsWith(base + '/'));
   if (!pathMatches) return false;
   // Parse tab from the route (where it's defined in config)
   const routeQs = item.route.split('?')[1];
