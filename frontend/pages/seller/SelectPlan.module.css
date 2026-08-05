@@ -117,7 +117,9 @@
   font-size: var(--fs-sm);
 }
 
-/* Plans grid — cards legítimos de item de lista */
+/* Plans grid — cards de pricing (caso legítimo de Card, ver DESIGN-SYSTEM.md).
+   O contêiner é o componente Card (ui/Card): superfície + borda + raio vêm
+   dele; aqui fica só o layout. */
 .plansGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -126,25 +128,18 @@
 }
 
 .planCard {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
   padding: var(--space-6);
-  transition:
-    border-color var(--dur-base) var(--ease),
-    background var(--dur-base) var(--ease);
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
-.planCard:hover {
-  border-color: color-mix(in srgb, var(--brand-2) 35%, var(--line));
-}
-
+/* Plano atual: anel + tint da marca em camada (box-shadow inset), sem
+   sobrescrever background/border do Card entre módulos. */
 .planCardSelected {
-  border-color: color-mix(in srgb, var(--brand) 60%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent),
+    inset 0 0 0 999px color-mix(in srgb, var(--brand) 8%, transparent);
 }
 
 /* Selo de plano atual */

@@ -7,6 +7,7 @@ import LoadingSkeleton from '../../components/LoadingSkeleton';
 import OnboardingProgress from '../../components/OnboardingProgress';
 import OnboardingFooter from '../../components/OnboardingFooter';
 import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
 import api from '../../lib/api';
 import styles from './SelectPlan.module.css';
 
@@ -218,7 +219,7 @@ export default function SelectPlan() {
             const isPending = subscription.planChangeStatus === 'pending' && subscription.requestedPlan === plan.id;
 
             return (
-              <div
+              <Card
                 key={plan.id}
                 className={`${styles.planCard} ${isCurrent ? styles.planCardSelected : ''}`}
               >
@@ -266,7 +267,7 @@ export default function SelectPlan() {
                     ? 'Solicitando...'
                     : 'Selecionar'}
                 </Button>
-              </div>
+              </Card>
             );
           })}
         </div>
