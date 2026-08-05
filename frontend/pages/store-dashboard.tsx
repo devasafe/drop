@@ -15,6 +15,9 @@ import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { EmptyState } from '../components/ui/EmptyState';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -829,24 +832,18 @@ export default function StoreDashboard() {
             <div>
               <h2 className={styles.ordersTitle}>Pedidos em Andamento</h2>
               {orders.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="gift" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido em andamento</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="gift" size={24} />}
+                  title="Nenhum pedido em andamento"
+                />
               ) : (
                 <div className={styles.ordersList}>
                   {orders.map(order => (
                     <div
                       key={order._id}
-                      className={styles.orderCard}
-                      style={{
-                        border: newOrderIds.includes(order._id)
-                          ? `2px solid ${orderColors[order._id] || '#ff9800'}`
-                          : undefined,
-                        background: newOrderIds.includes(order._id)
-                          ? (orderColors[order._id] ? orderColors[order._id] + '10' : 'rgba(255,152,0,0.06)')
-                          : undefined
-                      }}
+                      className={[styles.orderCard, newOrderIds.includes(order._id) && styles.orderCardNew]
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       <div className={styles.orderCardTop}>
                         <div className={styles.orderCardLeft}>
@@ -855,12 +852,7 @@ export default function StoreDashboard() {
                         </div>
                         <div className={styles.orderCardBadges}>
                           {newOrderIds.includes(order._id) && (
-                            <span
-                              className={styles.badgeNew}
-                              style={{ backgroundColor: orderColors[order._id] || '#ff9800' }}
-                            >
-                              NOVO
-                            </span>
+                            <span className={styles.badgeNew}>NOVO</span>
                           )}
                           <span className={styles.badgeStatus}>
                             {(() => {
@@ -903,7 +895,7 @@ export default function StoreDashboard() {
                         </div>
                       </div>
 
-                      {/* Produtos do Pedido */}
+                      {/* Produtos do Pedido — achatado, com divisória por item */}
                       {order.products && order.products.length > 0 && (
                         <div className={styles.orderProducts}>
                           <div className={styles.orderProductsTitle}><Icon name="package" size={12} /> Itens do Pedido:</div>
@@ -926,30 +918,31 @@ export default function StoreDashboard() {
                         </div>
                       )}
 
-                      {/* [Plano 1] Endereço do cliente para entrega */}
+                      {/* [Plano 1] Endereço do cliente para entrega — achatado, divisória no topo */}
                       {(!order.deliveryFee || order.deliveryFee === 0) && order.customerAddress && (
                         <div className={styles.plan1AddressBox}>
-                          <div className={styles.plan1AddressTitle}><Icon name="map-pin" /> Endereço de Entrega:</div>
+                          <div className={styles.plan1AddressTitle}><Icon name="map-pin" size={12} /> Endereço de Entrega:</div>
                           <div className={styles.plan1AddressText}>{order.customerAddress}</div>
                         </div>
                       )}
 
                       {order.delivery && order.delivery.status === 'assigned' && (
                         <div className={styles.pinRow}>
-                          <input
-                            type="text"
-                            placeholder="PIN"
+                          <Input
                             value={pinInputs[order._id] || ''}
-                            onChange={e => handlePinInput(order._id, e.target.value)}
-                            className={styles.pinInput}
+                            onChange={value => handlePinInput(order._id, value)}
+                            placeholder="PIN"
+                            className={styles.pinInputWrap}
                           />
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnPinValidate}
                             onClick={() => handlePinValidate(order)}
                             disabled={!pinInputs[order._id]}
-                            className={styles.btnPinValidate}
                           >
                             Validar PIN
-                          </button>
+                          </Button>
                         </div>
                       )}
                       {pinStatuses[order._id] && (
@@ -964,15 +957,33 @@ export default function StoreDashboard() {
                       {order.status === 'criado' ? (
                         // Pedido ainda não aceito — mostrar Aceitar / Rejeitar / Detalhes
                         <div className={styles.orderActions3}>
-                          <button onClick={() => handleAcceptOrder(order._id)} className={styles.btnAccept}>
-                            <Icon name="check" size={12} /> Aceitar
-                          </button>
-                          <button onClick={() => setRejectModalOrderId(order._id)} className={styles.btnReject}>
-                            ✕ Rejeitar
-                          </button>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className={styles.btnAccept}
+                            leftIcon={<Icon name="check" size={12} />}
+                            onClick={() => handleAcceptOrder(order._id)}
+                          >
+                            Aceitar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnReject}
+                            leftIcon={<Icon name="x" size={12} />}
+                            onClick={() => setRejectModalOrderId(order._id)}
+                          >
+                            Rejeitar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
                         </div>
                       ) : !order.delivery && order.status === 'pago' && (!order.deliveryFee || order.deliveryFee === 0) ? (
                         // [Plano 1] Aceito — aguardando cliente confirmar recebimento
@@ -980,19 +991,36 @@ export default function StoreDashboard() {
                           <div className={styles.plan1WaitingLabel}>
                             <Icon name="clock" size={12} /> Aguardando cliente confirmar recebimento
                           </div>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails} style={{ marginTop: 8 }}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
                         </div>
                       ) : (
                         // [Plano 2/3] Pedido aceito com delivery — mostrar Detalhes e Cancelar
                         <div className={styles.orderActions2}>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
-                          <button onClick={() => setRejectModalOrderId(order._id)} className={styles.btnReject}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnReject}
+                            onClick={() => setRejectModalOrderId(order._id)}
+                          >
                             Cancelar Pedido
-                          </button>
+                          </Button>
                         </div>
                       )}
 

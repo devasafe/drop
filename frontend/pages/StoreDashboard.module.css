@@ -723,15 +723,15 @@
 /* ---- ORDERS ---- */
 
 .ordersTitle {
-  margin: 0 0 24px 0;
-  font-size: 24px;
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
   font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
+  color: var(--text-strong);
 }
 
+/* .emptyState/.emptyStateIcon/.emptyStateText continuam usadas pelas abas
+ * História/Devoluções (fora do escopo desta view) — não tocar/migrar aqui. */
 .emptyState {
   border: 1px solid var(--drop-border);
   background: rgba(28, 27, 27, 0.5);
@@ -747,249 +747,219 @@
 .ordersList {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .orderCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
-  padding: 20px;
-  transition: all 0.3s;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--space-5);
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
-.orderCard:hover { border-color: rgba(139, 92, 246, 0.2); }
+.orderCard:hover { border-color: var(--brand-2); }
+
+/* Realce de pedido novo (newOrderIds) — mesmo idioma de "light highlight"
+ * usado em OnboardingResumeBanner/OverviewTab .activeOrder (superfície +1,
+ * acento --brand na borda esquerda), no lugar da cor hex aleatória por pedido. */
+.orderCardNew {
+  background: var(--surface-2);
+  border-left: 3px solid var(--brand);
+}
 
 .orderCardTop {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.orderCardLeft { display: flex; flex-direction: column; gap: 4px; }
+.orderCardLeft { display: flex; flex-direction: column; gap: var(--space-1); }
 
 .orderCardId {
   font-weight: 600;
-  font-size: 10px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   font-family: monospace;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .orderCardCustomer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   font-weight: 700;
-  font-size: 16px;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+  font-family: var(--font-display);
 }
 
-.orderCardBadges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.orderCardBadges { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 
 .badgeNew {
-  color: white;
-  padding: 4px 14px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
-
-.badgeStatus {
-  background: rgba(245, 158, 11, 0.15);
-  color: #F59E0B;
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  padding: 4px 14px;
-  border-radius: 8px;
-  font-size: 10px;
+  background: var(--brand);
+  color: var(--on-brand);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
+.badgeStatus {
+  background: color-mix(in srgb, var(--rating) 16%, transparent);
+  color: var(--rating);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .orderCardMeta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--drop-text-muted);
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
 }
 
-.orderMetaKey { font-weight: 700; color: var(--drop-text-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
+.orderMetaKey { font-weight: 700; color: var(--text-subtle); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; }
 
 .orderMetaWarn {
-  margin-left: 8px;
-  color: #EF4444;
-  font-size: 11px;
+  margin-left: var(--space-2);
+  color: var(--danger);
+  font-size: var(--fs-xs);
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
+/* Itens do pedido — achatado (sem caixa), só divisória entre linhas. */
 .orderProducts {
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid var(--drop-border);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 16px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  margin-bottom: var(--space-4);
 }
 
 .orderProductsTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 10px;
-  font-size: 9px;
+  color: var(--text-subtle);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.1em;
 }
 
-.orderProductsGrid { display: grid; gap: 6px; }
+.orderProductsGrid { display: grid; gap: var(--space-2); }
 
 .orderProductItem {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  color: var(--drop-text-muted);
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--divider);
 }
 
 .orderProductItem:last-child { border-bottom: none; padding-bottom: 0; }
-.orderProductQty { font-weight: 700; color: var(--drop-white); }
-.orderProductPrice { font-weight: 700; color: var(--drop-purple-2); }
+.orderProductQty { font-weight: 700; color: var(--text-strong); }
+.orderProductPrice { font-weight: 700; color: var(--brand-2); }
 
 /* ---- PIN ---- */
 
-.pinRow { margin-bottom: 12px; display: flex; gap: 8px; }
+.pinRow { margin-bottom: var(--space-3); display: flex; gap: var(--space-2); align-items: flex-start; }
 
-.pinInput {
-  flex: 1;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--drop-border);
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--drop-white);
-  font-family: monospace;
-  outline: none;
-  letter-spacing: 4px;
-}
+.pinInputWrap { flex: 1; }
+.pinInputWrap input { font-family: monospace; letter-spacing: 4px; text-align: center; }
 
-.pinInput::placeholder { color: var(--drop-text-dim); letter-spacing: normal; }
-.pinInput:focus { border-color: var(--drop-purple); }
+/* Botão ghost tingido de --success (regra D: cor de ação positiva entra via
+ * classe própria, não uma variante nova no Button). */
+.btnPinValidate { color: var(--success); }
+.btnPinValidate:hover:not(:disabled) { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
 
-.btnPinValidate {
-  padding: 10px 16px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 11px;
-  color: #22C55E;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: background 0.2s;
-}
-
-.btnPinValidate:hover { background: rgba(34, 197, 94, 0.2); }
-.btnPinValidate:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.pinStatus { padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
-.pinStatusOk { background: rgba(34, 197, 94, 0.08); color: #22C55E; border: 1px solid rgba(34, 197, 94, 0.15); }
-.pinStatusErr { background: rgba(239, 68, 68, 0.08); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.15); }
+.pinStatus { padding: var(--space-2) var(--space-3); border-radius: var(--r-sm); font-size: var(--fs-sm); margin-bottom: var(--space-3); }
+.pinStatusOk { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent); }
+.pinStatusErr { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); }
 
 /* ---- PLANO 1 ---- */
 
+/* Endereço de entrega (plano 1, sem motoboy) — achatado, divisória no topo. */
 .plan1AddressBox {
-  margin: 12px 0;
-  padding: 14px;
-  background: rgba(245, 158, 11, 0.05);
-  border: 1px solid rgba(245, 158, 11, 0.15);
-  border-radius: 10px;
+  margin: var(--space-3) 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 
 .plan1AddressTitle {
-  font-size: 9px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 6px;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-1);
 }
 
-.plan1AddressText { font-size: 13px; color: rgba(255, 255, 255, 0.8); line-height: 1.5; }
+.plan1AddressText { font-size: var(--fs-body); color: var(--text); line-height: 1.5; }
 
 .plan1WaitingLabel {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px;
-  background: rgba(245, 158, 11, 0.05);
-  border: 1px solid rgba(245, 158, 11, 0.1);
-  border-radius: 10px;
-  font-size: 12px;
-  color: var(--drop-text-muted);
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--rating) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rating) 22%, transparent);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   font-style: italic;
 }
 
-.plan1ActionsWrap { display: flex; flex-direction: column; }
+.plan1ActionsWrap { display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* ---- ORDER ACTIONS ---- */
 
-.orderActions3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.orderActions2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.orderActions3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); }
+.orderActions2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 
+/* Aceitar — primary tingido de --success (mesmo espírito de CancelOrderSheet
+ * .confirm: cor de estado entra via classe própria, não variante nova). */
 .btnAccept {
-  padding: 12px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 10px;
-  color: #22C55E;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: background 0.2s;
+  width: 100%;
+  background: var(--success);
+  color: var(--bg);
 }
+.btnAccept:hover:not(:disabled) { background: var(--success); box-shadow: var(--shadow-neutral); }
 
-.btnAccept:hover { background: rgba(34, 197, 94, 0.2); }
-
+/* Rejeitar/Cancelar — ghost tingido de --danger (regra D, mesmo padrão de
+ * OrderActions .cancel). */
 .btnReject {
-  padding: 12px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 10px;
-  color: #EF4444;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: background 0.2s;
+  width: 100%;
+  color: var(--danger);
 }
+.btnReject:hover:not(:disabled) { color: var(--danger); }
 
-.btnReject:hover { background: rgba(239, 68, 68, 0.15); }
-
+/* Detalhes — ghost tingido de --brand-2 (ação secundária "de marca"). */
 .btnDetails {
-  padding: 12px;
-  background: rgba(108, 43, 217, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 10px;
-  color: var(--drop-purple-2);
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: background 0.2s;
+  width: 100%;
+  color: var(--brand-2);
 }
-
-.btnDetails:hover { background: rgba(108, 43, 217, 0.2); }
+.btnDetails:hover:not(:disabled) { color: var(--brand-2); }
 
 /* ---- HISTORY ---- */
 
