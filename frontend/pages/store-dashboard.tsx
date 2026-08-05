@@ -1279,6 +1279,15 @@ export default function StoreDashboard() {
                   description="Todas as devoluções foram processadas"
                 />
               ) : (
+                <>
+                <div className={styles.returnInstructions}>
+                  <div className={styles.returnInstructionsTitle}><Icon name="clipboard" size={12} /> Como confirmar uma devolução</div>
+                  <ul className={styles.returnInstructionsList}>
+                    <li>O motoboy retorna com o produto</li>
+                    <li>Confirme o recebimento do produto</li>
+                    <li>Insira o PIN fornecido e clique em confirmar</li>
+                  </ul>
+                </div>
                 <div className={styles.returnsList}>
                   {returnRequests.map((request) => (
                     <div
@@ -1298,15 +1307,6 @@ export default function StoreDashboard() {
                         <span className={styles.returnStatusPill}>
                           <Icon name="clock" size={12} /> Aguardando Confirmação
                         </span>
-                      </div>
-
-                      <div className={styles.returnInstructions}>
-                        <div className={styles.returnInstructionsTitle}><Icon name="clipboard" size={12} /> Instruções</div>
-                        <ul className={styles.returnInstructionsList}>
-                          <li>O motoboy está retornando com o produto</li>
-                          <li>Confirme o recebimento do produto</li>
-                          <li>Insira o PIN fornecido e clique em confirmar</li>
-                        </ul>
                       </div>
 
                       <div className={styles.returnPinSection}>
@@ -1351,6 +1351,7 @@ export default function StoreDashboard() {
                     </div>
                   ))}
                 </div>
+                </>
               )}
             </div>
           )}
