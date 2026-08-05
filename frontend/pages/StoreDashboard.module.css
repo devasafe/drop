@@ -1204,20 +1204,20 @@
 
 /* ---- CHAT TAB ---- */
 
-.chatTabGrid { display: grid; grid-template-rows: auto 1fr; gap: 16px; }
+.chatTabGrid { display: grid; grid-template-rows: auto 1fr; gap: var(--space-4); }
 
 .chatListCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   overflow: hidden;
   height: 300px;
 }
 
 .chatDetailCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   overflow: hidden;
   height: 400px;
 }
@@ -1227,13 +1227,13 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .chatEmptyInner { text-align: center; }
-.chatEmptyIcon { margin-bottom: 12px; opacity: 0.3; }
-.chatEmptyTitle { font-weight: 700; color: var(--drop-text-muted); font-size: 14px; }
-.chatEmptyDesc { font-size: 12px; margin-top: 4px; color: var(--drop-text-dim); }
+.chatEmptyIcon { margin-bottom: var(--space-3); opacity: 0.3; }
+.chatEmptyTitle { font-weight: 700; color: var(--text-muted); font-size: 14px; }
+.chatEmptyDesc { font-size: 12px; margin-top: var(--space-1); color: var(--text-subtle); }
 
 /* ---- REJECT MODAL ---- */
 
