@@ -756,7 +756,7 @@ export default function StoreDashboard() {
               <h1 className={styles.pageTitle}>Painel do Lojista</h1>
             </div>
             <div className={styles.topBarActions}>
-              <button className={styles.topBarIcon} onClick={() => setActiveTab('orders')}>
+              <button className={styles.topBarIcon} onClick={() => setActiveTab('orders')} aria-label="Ver pedidos">
                 <Icon name="bell" size={18} />
                 {orders.length > 0 && <span className={styles.topBarBadge}>{orders.length}</span>}
               </button>
@@ -769,12 +769,9 @@ export default function StoreDashboard() {
 
           {/* Notificação */}
           {showNotif && newOrderIds.length > 0 && (
-            <div
-              className={styles.notifBanner}
-              style={{ backgroundColor: notifColor }}
-            >
+            <div className={styles.notifBanner}>
               <span><Icon name="bell" size={14} /> Novo pedido recebido!</span>
-              <button onClick={() => setShowNotif(false)} className={styles.notifClose}>×</button>
+              <button onClick={() => setShowNotif(false)} className={styles.notifClose} aria-label="Fechar notificação">×</button>
             </div>
           )}
 

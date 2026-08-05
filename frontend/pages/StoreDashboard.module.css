@@ -328,9 +328,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--drop-bg);
-  color: var(--drop-text-dim);
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  color: var(--text-subtle);
+  font-family: var(--font-body);
 }
 
 /* ---- DASHBOARD LAYOUT ---- */
@@ -338,8 +338,8 @@
 .dashLayout {
   display: flex;
   min-height: calc(100vh - 60px);
-  background: var(--drop-bg);
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  font-family: var(--font-body);
 }
 
 /* ---- SIDEBAR ---- */
@@ -502,21 +502,19 @@
   position: sticky;
   top: 60px;
   z-index: 50;
-  padding: 16px 32px;
-  background: rgba(28, 27, 27, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(74, 68, 85, 0.1);
+  padding: var(--space-4) var(--space-8);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .hamburgerBtn {
   display: none;
   background: none;
   border: none;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
 }
@@ -524,33 +522,32 @@
 .topBarTitle { flex: 1; }
 
 .pageTitle {
-  font-size: 16px;
+  font-size: var(--fs-h2);
   font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.01em;
-  text-transform: uppercase;
   margin: 0;
 }
 
 .topBarActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .topBarIcon {
   position: relative;
   background: none;
   border: none;
-  color: rgba(204, 195, 215, 0.6);
+  color: var(--text-muted);
   cursor: pointer;
-  padding: 6px;
-  border-radius: 8px;
-  transition: all 0.2s;
+  padding: var(--space-2);
+  border-radius: var(--r-sm);
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.topBarIcon:hover { color: var(--drop-purple-2); }
+.topBarIcon:hover { color: var(--brand-2); }
 
 .topBarBadge {
   position: absolute;
@@ -558,11 +555,11 @@
   right: 0;
   min-width: 16px;
   height: 16px;
-  background: var(--drop-purple);
-  border-radius: 50%;
-  font-size: 9px;
+  background: var(--brand);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
-  color: #fff;
+  color: var(--on-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -572,61 +569,62 @@
 .topBarProfile {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 1px solid rgba(74, 68, 85, 0.2);
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
 }
 
 .profileAvatar {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  border-radius: var(--r-pill);
+  background: var(--brand-grad);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 14px;
-  color: #fff;
-  font-family: var(--drop-font-display);
+  color: var(--on-brand);
+  font-family: var(--font-display);
+  flex-shrink: 0;
 }
 
 .profileName {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  color: var(--drop-white);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  color: var(--text-strong);
 }
 
 /* ---- TAB CONTENT ---- */
 
 .tabContent {
-  padding: 32px;
+  padding: var(--space-8);
 }
 
 /* ---- NOTIF ---- */
 
 .notifBanner {
-  padding: 16px 20px;
-  border-radius: 12px;
-  margin: 0 32px 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-md);
+  margin: var(--space-4) var(--space-8) 0;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
+  gap: var(--space-3);
   justify-content: space-between;
-  color: #fff;
-  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 .notifClose {
   background: transparent;
   border: none;
-  color: #fff;
+  color: inherit;
   font-size: 20px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 700;
   line-height: 1;
 }
 
