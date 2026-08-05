@@ -11,6 +11,7 @@ export type AuthUser = {
   roles?: string[];
   storeId?: string;
   mainAddress?: any;
+  photo?: string | null;
 };
 
 interface AuthContextType {

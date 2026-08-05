@@ -2,6 +2,7 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROLE_AREAS, ROLE_HOME, Role } from '../../lib/navConfig';
+import { imageUrl } from '../../lib/config';
 import Icon from '../Icon';
 import styles from './AccountMenu.module.css';
 
@@ -33,7 +34,13 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
   return (
     <div className={styles.menu} role="menu" aria-label="Conta">
       <div className={styles.dropHead}>
-        <div className={styles.dropAvatar}>{initial}</div>
+        <div className={styles.dropAvatar}>
+          {user.photo ? (
+            <img src={imageUrl(user.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+          ) : (
+            initial
+          )}
+        </div>
         <div>
           <div className={styles.dropName}>{user.name}</div>
           {activeArea && (

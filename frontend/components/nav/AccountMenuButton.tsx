@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOverlay } from '../../contexts/OverlayContext';
+import { imageUrl } from '../../lib/config';
 import AccountMenu from './AccountMenu';
 import styles from './AccountMenuButton.module.css';
 
@@ -51,7 +52,13 @@ export default function AccountMenuButton() {
         aria-expanded={open}
         onClick={() => overlay.toggle('account')}
       >
-        <span className={styles.avatar}>{initial}</span>
+        <span className={styles.avatar}>
+          {user.photo ? (
+            <img src={imageUrl(user.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+          ) : (
+            initial
+          )}
+        </span>
         <ChevronDown size={16} className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true" />
       </button>
       {open && (
