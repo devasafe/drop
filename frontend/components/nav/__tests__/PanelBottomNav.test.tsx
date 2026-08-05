@@ -34,19 +34,10 @@ describe('PanelBottomNav (lojista)', () => {
     expect(screen.getByText('Mais')).toBeInTheDocument();
   });
 
-  it('o drawer "Mais" não repete os itens da bottom-nav', () => {
-    overlayActive = 'panelDrawer';
-    render(<PanelBottomNav />);
-    // "Marketing" é item de drawer; "Visão geral" (bottomNav) não deve reaparecer no drawer
-    const drawer = screen.getByRole('dialog');
-    expect(drawer).toHaveTextContent('Marketing');
-    expect(drawer).not.toHaveTextContent('Visão geral');
-  });
-
-  it('botão Mais alterna o overlay panelDrawer', () => {
+  it('botão Mais abre a sidebar lateral (panelSidebar)', () => {
     render(<PanelBottomNav />);
     fireEvent.click(screen.getByText('Mais'));
-    expect(toggle).toHaveBeenCalledWith('panelDrawer');
+    expect(toggle).toHaveBeenCalledWith('panelSidebar');
   });
 });
 
