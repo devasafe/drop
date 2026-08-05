@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { maskCNPJ, maskCEP } from '../../lib/masks';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import styles from './CreateStore.module.css';
 
 export default function CreateStore() {
@@ -219,8 +221,8 @@ export default function CreateStore() {
           <div className={styles.mainGrid}>
 
             {/* LEFT - Formulário */}
-            <div className={styles.formCard}>
-              <h2 className={styles.cardTitle}>Informações da Loja</h2>
+            <div>
+              <h2 className={styles.sectionTitle}>Informações da Loja</h2>
 
               <form onSubmit={submit} className={styles.form}>
 
@@ -231,26 +233,24 @@ export default function CreateStore() {
                 {/* Nome */}
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Nome da Loja</label>
-                  <input
-                    type="text"
+                  <Input
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={setName}
                     required
                     placeholder="Sua Loja Delivery"
-                    className={styles.input}
+                    aria-label="Nome da loja"
                   />
                 </div>
 
                 {/* CNPJ */}
                 <div className={styles.formGroup}>
                   <label className={styles.label}>CNPJ</label>
-                  <input
-                    type="text"
+                  <Input
                     value={cnpj}
-                    onChange={(e) => setCnpj(maskCNPJ(e.target.value))}
+                    onChange={(v) => setCnpj(maskCNPJ(v))}
                     required
                     placeholder="00.000.000/0000-00"
-                    className={styles.input}
+                    aria-label="CNPJ"
                   />
                 </div>
 
@@ -258,39 +258,34 @@ export default function CreateStore() {
                 <div className={styles.formGroup}>
                   <label className={styles.label}>CEP</label>
                   <div className={styles.cepRow}>
-                    <input
-                      type="text"
-                      placeholder="00000-000"
+                    <Input
                       value={cep}
-                      onChange={(e) => setCep(maskCEP(e.target.value))}
+                      onChange={(v) => setCep(maskCEP(v))}
                       onBlur={(e) => {
                         if (e.target.value.length === 8 || e.target.value.replace(/\D/g, '').length === 8) {
                           fetchAddressByCep(e.target.value);
                         }
                       }}
-                      className={`${styles.input} ${styles.cepInput}`}
+                      placeholder="00000-000"
+                      aria-label="CEP"
+                      className={styles.cepInputWrap}
                     />
-                    <button
-                      type="button"
-                      onClick={() => fetchAddressByCep(cep)}
-                      className={styles.btnCep}
-                    >
+                    <Button type="button" size="sm" onClick={() => fetchAddressByCep(cep)}>
                       Buscar
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {/* Rua */}
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Rua</label>
-                  <input
-                    type="text"
+                  <Input
                     value={street}
-                    onChange={(e) => setStreet(e.target.value)}
+                    onChange={setStreet}
                     onBlur={updateMapFromAddress}
                     required
                     placeholder="Rua das Flores"
-                    className={styles.input}
+                    aria-label="Rua"
                   />
                 </div>
 
@@ -298,26 +293,24 @@ export default function CreateStore() {
                 <div className={styles.grid2}>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Número</label>
-                    <input
-                      type="text"
+                    <Input
                       value={number}
-                      onChange={(e) => setNumber(e.target.value)}
+                      onChange={setNumber}
                       onBlur={updateMapFromAddress}
                       required
                       placeholder="123"
-                      className={styles.input}
+                      aria-label="Número"
                     />
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Bairro</label>
-                    <input
-                      type="text"
+                    <Input
                       value={neighborhood}
-                      onChange={(e) => setNeighborhood(e.target.value)}
+                      onChange={setNeighborhood}
                       onBlur={updateMapFromAddress}
                       required
                       placeholder="Centro"
-                      className={styles.input}
+                      aria-label="Bairro"
                     />
                   </div>
                 </div>
@@ -326,27 +319,25 @@ export default function CreateStore() {
                 <div className={styles.gridCidadeEstado}>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Cidade</label>
-                    <input
-                      type="text"
+                    <Input
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
+                      onChange={setCity}
                       onBlur={updateMapFromAddress}
                       required
                       placeholder="São Paulo"
-                      className={styles.input}
+                      aria-label="Cidade"
                     />
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Estado</label>
-                    <input
-                      type="text"
+                    <Input
                       value={state}
-                      onChange={(e) => setState(e.target.value.toUpperCase())}
+                      onChange={(v) => setState(v.toUpperCase())}
                       onBlur={updateMapFromAddress}
                       required
                       placeholder="SP"
                       maxLength={2}
-                      className={styles.input}
+                      aria-label="Estado"
                     />
                   </div>
                 </div>
@@ -355,38 +346,24 @@ export default function CreateStore() {
                 <div className={styles.grid2}>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Latitude</label>
-                    <input
-                      type="text"
-                      value={latitude}
-                      readOnly
-                      className={styles.inputReadonly}
-                    />
+                    <Input value={latitude} onChange={() => {}} disabled aria-label="Latitude" />
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Longitude</label>
-                    <input
-                      type="text"
-                      value={longitude}
-                      readOnly
-                      className={styles.inputReadonly}
-                    />
+                    <Input value={longitude} onChange={() => {}} disabled aria-label="Longitude" />
                   </div>
                 </div>
 
                 {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={styles.btnSubmit}
-                >
-                  {loading ? 'Cadastrando...' : 'Cadastrar Loja'}
-                </button>
+                <Button type="submit" variant="primary" loading={loading} className={styles.submitBtn}>
+                  Cadastrar Loja
+                </Button>
               </form>
             </div>
 
             {/* RIGHT - Mapa */}
-            <div className={styles.mapColumn}>
-              <h2 className={styles.cardTitle}>Localização no Mapa</h2>
+            <div>
+              <h2 className={styles.sectionTitle}>Localização no Mapa</h2>
 
               <div className={styles.mapWrapper}>
                 <div id="gmap" className={styles.mapEl}></div>
