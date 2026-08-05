@@ -123,6 +123,14 @@ export const updatePhoto = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
+    // Motoboy/lojista têm o avatar definido pela selfie de verificação (facial aprovada);
+    // não podem trocar por uma foto livre. Só cliente sobe foto de perfil aqui.
+    const me: any = await userRepository.findById(userId);
+    const roles: string[] = me?.roles || (me?.role ? [me.role] : []);
+    if (roles.includes('motoboy') || roles.includes('lojista')) {
+      return res.status(403).json({ error: 'Sua foto de perfil é a selfie de verificação e não pode ser alterada aqui.' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: 'Nenhuma imagem enviada' });
     }
