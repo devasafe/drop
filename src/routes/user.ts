@@ -2,21 +2,10 @@ import { Router, Request, Response } from 'express';
 import { getMe, updateMe, updatePhoto, getBankInfo, setBankInfo } from '../controllers/userController';
 import { addAddress, listAddresses, removeAddress, editAddress, setDefaultAddress } from '../controllers/addressController';
 import { authenticate } from '../middleware/auth';
-import upload from '../middleware/upload';
+import upload, { handleUploadError } from '../middleware/upload';
 import userRepository from '../repositories/user.repository';
 
 const router = Router();
-
-// Middleware de erro para upload (mesmo padrão de src/routes/auth.ts)
-const handleUploadError = (err: any, req: any, res: any, next: any) => {
-  if (err instanceof Error && err.message.includes('File')) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (err && err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ error: 'File size exceeds 5MB limit' });
-  }
-  next(err);
-};
 
 // Dados do usuário autenticado
 router.get('/me', authenticate, getMe);

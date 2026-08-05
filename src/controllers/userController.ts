@@ -5,20 +5,7 @@ import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
-
-// Validar magic bytes para detectar fake images (usando buffer em memória).
-// Antes vivia em authController (removido no cadastro mínimo); duplicado aqui
-// pois não há mais um util compartilhado para isso.
-const isValidImageBuffer = (buffer: Buffer): boolean => {
-  if (buffer.length < 12) return false;
-  const hex = buffer.slice(0, 12).toString('hex').toLowerCase();
-  return (
-    hex.startsWith('89504e47') || // PNG
-    hex.startsWith('ffd8ff') ||   // JPEG
-    hex.startsWith('47494638') || // GIF
-    hex.startsWith('52494646')    // WebP (RIFF)
-  );
-};
+import { isValidImageBuffer } from '../middleware/upload';
 
 // Retorna os dados do usuário autenticado
 export const getMe = async (req: AuthenticatedRequest, res: Response) => {
