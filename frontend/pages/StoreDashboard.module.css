@@ -601,6 +601,31 @@
   padding: var(--space-8);
 }
 
+/* ---- CONFIG (flat, seções divididas por linha) ---- */
+
+.configWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.configSection {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--line);
+}
+
+.configSection:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.configSectionTitle {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
 /* ---- NOTIF ---- */
 
 .notifBanner {

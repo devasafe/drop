@@ -799,21 +799,27 @@ export default function StoreDashboard() {
 
           {/* Configurações */}
           {activeTab === 'config' && (
-            <div>
+            <div className={styles.configWrap}>
               {store?.plan === 3 && (
-                <StoreBannerUpload
-                  currentFeaturedBanner={store?.featuredBannerUrl}
-                  currentCoverBanner={store?.coverBannerUrl}
-                  onUploaded={fetchDashboard}
-                />
+                <section className={styles.configSection}>
+                  <h2 className={styles.configSectionTitle}>Banner da loja</h2>
+                  <StoreBannerUpload
+                    currentFeaturedBanner={store?.featuredBannerUrl}
+                    currentCoverBanner={store?.coverBannerUrl}
+                    onUploaded={fetchDashboard}
+                  />
+                </section>
               )}
               {store?._id && (
-                <OperatingHoursEditor
-                  storeId={store._id}
-                  initialHours={store.operatingHours}
-                  initialIsOpen={store.isOpen !== false}
-                  onSaved={fetchDashboard}
-                />
+                <section className={styles.configSection}>
+                  <h2 className={styles.configSectionTitle}>Horário de funcionamento</h2>
+                  <OperatingHoursEditor
+                    storeId={store._id}
+                    initialHours={store.operatingHours}
+                    initialIsOpen={store.isOpen !== false}
+                    onSaved={fetchDashboard}
+                  />
+                </section>
               )}
             </div>
           )}
