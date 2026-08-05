@@ -62,12 +62,9 @@ export default function OperatingHoursEditor({ storeId, initialHours, initialIsO
   };
 
   return (
-    <div className={styles.card}>
+    <div className={styles.wrap}>
       <div className={styles.header}>
-        <div>
-          <h3 className={styles.title}>Horário de Funcionamento</h3>
-          <p className={styles.subtitle}>Defina quando sua loja está disponível para pedidos</p>
-        </div>
+        <p className={styles.subtitle}>Defina quando sua loja está disponível para pedidos</p>
         <div className={styles.toggleWrap}>
           <span className={styles.toggleLabel}>{isOpen ? 'Aberta' : 'Fechada'}</span>
           <button

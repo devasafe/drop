@@ -1,4 +1,5 @@
 import Icon from '../Icon';
+import { Button } from '../ui/Button';
 import {
   countByBucket, pickActiveOrder, todayStats, isStoreOpen,
 } from '../../lib/sellerOverview';
@@ -33,6 +34,16 @@ export default function OverviewTab({
       <span className={styles.counterLabel}>{label}</span>
     </button>
   );
+
+  const kpis: { label: string; value: string }[] = [
+    { label: 'Pedidos hoje', value: String(pedidosHoje) },
+    { label: 'Faturamento hoje', value: BRL(faturamentoHoje) },
+    { label: 'Em andamento', value: String(metrics?.ongoing ?? 0) },
+    { label: 'Entregues', value: String(metrics?.delivered ?? 0) },
+  ];
+  if (typeof store?.rating === 'number') {
+    kpis.push({ label: 'Avaliação', value: `${store.rating}★` });
+  }
 
   return (
     <div className={styles.wrap}>
@@ -74,23 +85,30 @@ export default function OverviewTab({
         <div className={styles.empty}>Nenhum pedido ativo agora.</div>
       )}
 
-      {/* 4. KPIs */}
+      {/* 4. KPIs — faixa flat com divisórias verticais */}
       <div className={styles.kpis}>
-        <div className={styles.kpi}><div className={styles.kpiNum}>{pedidosHoje}</div><div className={styles.kpiLabel}>Pedidos hoje</div></div>
-        <div className={styles.kpi}><div className={styles.kpiNum}>{BRL(faturamentoHoje)}</div><div className={styles.kpiLabel}>Faturamento hoje</div></div>
-        <div className={styles.kpi}><div className={styles.kpiNum}>{metrics?.ongoing ?? 0}</div><div className={styles.kpiLabel}>Em andamento</div></div>
-        <div className={styles.kpi}><div className={styles.kpiNum}>{metrics?.delivered ?? 0}</div><div className={styles.kpiLabel}>Entregues</div></div>
-        {typeof store?.rating === 'number' && (
-          <div className={styles.kpi}><div className={styles.kpiNum}>{store.rating}★</div><div className={styles.kpiLabel}>Avaliação</div></div>
-        )}
+        {kpis.map((k) => (
+          <div key={k.label} className={styles.kpi}>
+            <div className={styles.kpiNum}>{k.value}</div>
+            <div className={styles.kpiLabel}>{k.label}</div>
+          </div>
+        ))}
       </div>
 
       {/* 5. Atalhos */}
       <div className={styles.actions}>
-        <button type="button" className={styles.actionBtn} onClick={() => onQuickAction('/seller/create-product')}><Icon name="plus" size={14} /> Adicionar produto</button>
-        <button type="button" className={styles.actionBtn} onClick={() => onGoToTab('orders')}><Icon name="clipboard" size={14} /> Ver pedidos</button>
-        <button type="button" className={styles.actionBtn} onClick={() => onQuickAction('/seller/coupons')}><Icon name="tag" size={14} /> Marketing</button>
-        <button type="button" className={styles.actionBtn} onClick={() => onQuickAction('/seller/wallet')}><Icon name="wallet" size={14} /> Financeiro</button>
+        <Button variant="ghost" size="sm" leftIcon={<Icon name="plus" size={14} />} onClick={() => onQuickAction('/seller/create-product')}>
+          Adicionar produto
+        </Button>
+        <Button variant="ghost" size="sm" leftIcon={<Icon name="clipboard" size={14} />} onClick={() => onGoToTab('orders')}>
+          Ver pedidos
+        </Button>
+        <Button variant="ghost" size="sm" leftIcon={<Icon name="tag" size={14} />} onClick={() => onQuickAction('/seller/coupons')}>
+          Marketing
+        </Button>
+        <Button variant="ghost" size="sm" leftIcon={<Icon name="wallet" size={14} />} onClick={() => onQuickAction('/seller/wallet')}>
+          Financeiro
+        </Button>
       </div>
     </div>
   );

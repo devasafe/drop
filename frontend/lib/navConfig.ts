@@ -67,9 +67,8 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Marketing',          icon: 'megaphone', route: '/seller/coupons',              placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
     { label: 'Analytics',          icon: 'chart-up',  route: '/seller/analytics',            placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
     { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro' },
-    { label: 'Minha loja',         icon: 'store',     route: '/seller/dashboard?tab=metrics', placement: ['sidebar', 'drawer'],  group: 'Loja', activeMatch: '/seller/dashboard' }, // FOLLOW-UP (Etapa 3)
     { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja' },
-    { label: 'Configurações',      icon: 'settings',  route: '/seller/dashboard?tab=metrics', placement: ['sidebar', 'drawer'],  group: 'Loja', activeMatch: '/seller/dashboard' }, // FOLLOW-UP (Etapa 3)
+    { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
   ],
   motoboy: [
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },

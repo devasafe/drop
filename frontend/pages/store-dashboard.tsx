@@ -15,6 +15,13 @@ import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Chip } from '../components/ui/Chip';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Sheet } from '../components/ui/Sheet';
+import Modal from '../components/common/Modal';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -81,209 +88,213 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      entregue: '#28a745',
-      delivered: '#28a745',
-      enviado: '#ff9800',
-      shipped: '#ff9800',
-      pago: '#007bff',
-      paid: '#007bff',
-      criado: '#6c757d',
-      created: '#6c757d',
-      cancelado: '#dc3545',
-      cancelled: '#dc3545',
-      rejeitado: '#dc3545',
-      aguardando_motoboy: '#ffc107',
-      assigned: '#17a2b8',
-      picked: '#17a2b8'
+  // Tom semântico do status (não mais hex por status — mapeado a tokens de cor).
+  const getStatusTone = (status: string) => {
+    const toneMap: Record<string, string> = {
+      entregue: styles.statusSuccess,
+      delivered: styles.statusSuccess,
+      enviado: styles.statusWarning,
+      shipped: styles.statusWarning,
+      pago: styles.statusInfo,
+      paid: styles.statusInfo,
+      criado: styles.statusNeutral,
+      created: styles.statusNeutral,
+      cancelado: styles.statusDanger,
+      cancelled: styles.statusDanger,
+      rejeitado: styles.statusDanger,
+      aguardando_motoboy: styles.statusWarning,
+      assigned: styles.statusInfo,
+      picked: styles.statusInfo,
     };
-    return colorMap[status] || '#6c757d';
+    return toneMap[status] || styles.statusNeutral;
   };
 
-  return (
-    <div className={styles.modal}>
-      <div className={styles.modalDialog}>
-        {/* Botão Fechar */}
-        <button onClick={onClose} className={styles.modalClose}>×</button>
+  const statusLabel =
+    order.status === 'entregue' || order.status === 'delivered' ? '✓ Entregue' :
+    order.status === 'enviado' || order.status === 'shipped' ? 'Enviado' :
+    order.status === 'pago' || order.status === 'paid' ? 'Pago' :
+    order.status === 'criado' || order.status === 'created' ? 'Criado' :
+    order.status === 'cancelado' || order.status === 'cancelled' ? 'Cancelado' :
+    order.status === 'rejeitado' ? 'Rejeitado' :
+    order.status === 'aguardando_motoboy' ? 'Aguardando' :
+    order.status === 'assigned' ? 'Atribuído' :
+    order.status === 'picked' ? 'Retirado' : order.status;
 
-        {/* HEADER com Status */}
-        <div
-          className={styles.modalHeader}
-          style={{ background: `linear-gradient(135deg, ${getStatusColor(order.status)}20 0%, ${getStatusColor(order.status)}10 100%)` }}
-        >
-          <div className={styles.modalHeaderLeft}>
-            <h2 className={styles.modalOrderTitle}><Icon name="clipboard" size={16} /> Pedido #{order._id.slice(0, 8).toUpperCase()}</h2>
-            <div className={styles.modalDate}>
-              {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
-            </div>
-          </div>
-          <span
-            className={styles.modalStatusBadge}
-            style={{ backgroundColor: getStatusColor(order.status) }}
-          >
-            {order.status === 'entregue' || order.status === 'delivered' ? '✓ Entregue' :
-             order.status === 'enviado' || order.status === 'shipped' ? 'Enviado' :
-             order.status === 'pago' || order.status === 'paid' ? 'Pago' :
-             order.status === 'criado' || order.status === 'created' ? 'Criado' :
-             order.status === 'cancelado' || order.status === 'cancelled' ? 'Cancelado' :
-             order.status === 'rejeitado' ? 'Rejeitado' :
-             order.status === 'aguardando_motoboy' ? 'Aguardando' :
-             order.status === 'assigned' ? 'Atribuído' :
-             order.status === 'picked' ? 'Retirado' : order.status}
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`Pedido #${order._id.slice(0, 8).toUpperCase()}`}
+      size="lg"
+    >
+      <div className={styles.modalContent}>
+        {/* STATUS + DATA */}
+        <div className={styles.statusRow}>
+          <span className={`${styles.statusPill} ${getStatusTone(order.status)}`}>{statusLabel}</span>
+          <span className={styles.statusDate}>
+            {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
           </span>
         </div>
 
-        <div className={styles.modalBody}>
-          {/* GRID: Comprador, Loja, Motoboy, Método */}
-          <div className={styles.infoGrid2}>
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="user" size={12} /> Comprador</div>
+        <div className={styles.divider} />
+
+        {/* Comprador, Loja, Motoboy, Método */}
+        <div className={styles.infoRows}>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="user" size={12} /> Comprador</span>
+            <div className={styles.infoRowValue}>
               <button
                 onClick={() => handleClickName(order.customerId || order.customerObj?._id, 'customer')}
-                className={styles.btnLink}
+                className={styles.linkValue}
               >
                 {order.customerName || 'Cliente'}
               </button>
-              <div className={styles.infoCellSub}>{(order.customerId || order.customerObj?._id || '').toString().slice(0, 8)}...</div>
+              <span className={styles.infoValueSub}>{(order.customerId || order.customerObj?._id || '').toString().slice(0, 8)}...</span>
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="store" size={12} /> Loja</div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="store" size={12} /> Loja</span>
+            <div className={styles.infoRowValue}>
               <button
                 onClick={() => handleClickName(order.storeId || order.storeObj?._id, 'store')}
-                className={styles.btnLink}
+                className={styles.linkValue}
               >
                 {order.storeName || 'Loja'}
               </button>
-              <div className={styles.infoCellSub}>{(order.storeId || order.storeObj?._id || '').toString().slice(0, 8)}...</div>
+              <span className={styles.infoValueSub}>{(order.storeId || order.storeObj?._id || '').toString().slice(0, 8)}...</span>
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="motorcycle" size={12} /> Motoboy</div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="motorcycle" size={12} /> Motoboy</span>
+            <div className={styles.infoRowValue}>
               {order.delivery?.motoboyName ? (
                 <button
                   onClick={() => handleClickName(typeof order.delivery.motoboyId === 'object' ? order.delivery.motoboyId._id : order.delivery.motoboyId, 'motoboy')}
-                  className={styles.btnLink}
+                  className={styles.linkValue}
                 >
                   {order.delivery.motoboyName}
                 </button>
               ) : (
-                <div className={styles.infoCellValue}>Aguardando</div>
+                <span className={styles.infoValueText}>Aguardando</span>
               )}
               {order.delivery?.motoboyId && (
-                <div className={styles.infoCellSub}>
+                <span className={styles.infoValueSub}>
                   {(typeof order.delivery.motoboyId === 'object' ? order.delivery.motoboyId._id : order.delivery.motoboyId).toString().slice(0, 8)}...
-                </div>
+                </span>
               )}
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="credit-card" size={12} /> Pagamento</div>
-              <div className={styles.infoCellValue}>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="credit-card" size={12} /> Pagamento</span>
+            <div className={styles.infoRowValue}>
+              <span className={styles.infoValueText}>
                 {order.paymentMethod === 'credit_card' ? 'Cartão' :
                  order.paymentMethod === 'debit_card' ? 'Débito' :
                  order.paymentMethod === 'pix' ? 'PIX' :
                  order.paymentMethod === 'money' ? 'Dinheiro' :
                  order.paymentMethod || '---'}
-              </div>
-              <div className={styles.infoCellSub}>
+              </span>
+              <span className={styles.infoValueSub}>
                 Status: {order.paymentStatus === 'paid' ? '✓ Pago' : order.paymentStatus === 'pending' ? 'Pendente' : order.paymentStatus || '---'}
-              </div>
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* PRODUTOS */}
-          {order.products && order.products.length > 0 && (
-            <div className={styles.productsList}>
-              <div className={styles.productsListTitle}><Icon name="package" size={12} /> Itens do Pedido ({order.products.length}):</div>
-              {order.products.map((item: any, idx: number) => (
-                <div key={idx} className={styles.productRow}>
-                  <div>
-                    <span className={styles.productQty}>{item.quantity}x</span>{' '}
-                    <span>{item.productName || 'Produto'}</span>
+        {/* PRODUTOS */}
+        {order.products && order.products.length > 0 && (
+          <>
+            <div className={styles.divider} />
+            <div>
+              <div className={styles.sectionTitle}><Icon name="package" size={12} /> Itens do Pedido ({order.products.length})</div>
+              <div className={styles.productsList}>
+                {order.products.map((item: any, idx: number) => (
+                  <div key={idx} className={styles.productRow}>
+                    <div>
+                      <span className={styles.productQty}>{item.quantity}x</span>{' '}
+                      <span>{item.productName || 'Produto'}</span>
+                    </div>
+                    <div className={styles.productTotal}>R$ {(item.price * item.quantity).toFixed(2)}</div>
                   </div>
-                  <div className={styles.productTotal}>R$ {(item.price * item.quantity).toFixed(2)}</div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          )}
+          </>
+        )}
 
-          {/* DETALHES DE PAGAMENTO - 5 Colunas */}
-          <div className={styles.financialGrid5}>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="wallet" size={14} /> VOCÊ RECEBE</div>
-              <div className={styles.financialValue} style={{ color: '#10b981' }}>
-                R$ {(order.walletDistribution?.storeAmount || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(produto - taxa)</div>
+        <div className={styles.divider} />
+
+        {/* DETALHES FINANCEIROS */}
+        <div className={styles.financialRows}>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="wallet" size={12} /> Você recebe <span className={styles.financialHint}>(produto − taxa)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialSuccess}`}>
+              R$ {(order.walletDistribution?.storeAmount || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="building" size={12} /> Taxa app <span className={styles.financialHint}>(comissão)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialBrand}`}>
+              R$ {(order.walletDistribution?.appCommission || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="package" size={12} /> Subtotal <span className={styles.financialHint}>(produtos)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialMuted}`}>
+              R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="truck" size={12} /> Entrega <span className={styles.financialHint}>(taxa)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialWarning}`}>
+              R$ {(order.deliveryFee || 0).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="credit-card" size={12} /> Total <span className={styles.financialHint}>(cliente)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialInfo}`}>
+              R$ {order.totalValue?.toFixed(2) || '0.00'}
+            </span>
+          </div>
+        </div>
+
+        {/* STATUS DE PAGAMENTO - LOJISTA PODE ALTERAR */}
+        {user?.activeRole === 'lojista' && (
+          <div className={styles.paymentStatusSection}>
+            <div className={styles.sectionTitle}>
+              <Icon name="credit-card" size={12} /> Status de Pagamento (Temporário)
             </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="building" size={14} /> TAXA APP</div>
-              <div className={styles.financialValue} style={{ color: '#fc5a8d' }}>
-                R$ {(order.walletDistribution?.appCommission || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(comissão)</div>
+            <div className={styles.paymentStatusRow}>
+              <Select
+                value={selectedPaymentStatus}
+                onChange={setSelectedPaymentStatus}
+                options={[
+                  { value: 'pending', label: 'Pendente' },
+                  { value: 'paid', label: '✓ Pago' },
+                  { value: 'failed', label: 'Falhou' },
+                  { value: 'refunded', label: 'Reembolsado' },
+                ]}
+              />
+              <Button onClick={handleUpdatePaymentStatus} loading={changingPayment}>
+                Atualizar
+              </Button>
             </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="package" size={14} /> SUBTOTAL</div>
-              <div className={styles.financialValue} style={{ color: 'var(--drop-text-muted)' }}>
-                R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(produtos)</div>
-            </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="truck" size={14} /> ENTREGA</div>
-              <div className={styles.financialValue} style={{ color: 'var(--drop-warning)' }}>
-                R$ {(order.deliveryFee || 0).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(taxa)</div>
-            </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="credit-card" size={14} /> TOTAL</div>
-              <div className={styles.financialValue} style={{ color: '#60A5FA' }}>
-                R$ {order.totalValue?.toFixed(2) || '0.00'}
-              </div>
-              <div className={styles.financialSub}>(cliente)</div>
+            <div className={styles.paymentStatusNote}>
+              Status atual: <strong>{selectedPaymentStatus === 'paid' ? '✓ Pago' : selectedPaymentStatus === 'pending' ? 'Pendente' : selectedPaymentStatus}</strong>
             </div>
           </div>
+        )}
 
-          {/* STATUS DE PAGAMENTO - LOJISTA PODE ALTERAR */}
-          {user?.activeRole === 'lojista' && (
-            <div className={styles.paymentStatusSection}>
-              <div className={styles.paymentStatusTitle}>
-                <Icon name="credit-card" size={14} /> Status de Pagamento (Temporário)
-              </div>
-              <div className={styles.paymentStatusRow}>
-                <select
-                  value={selectedPaymentStatus}
-                  onChange={(e) => setSelectedPaymentStatus(e.target.value)}
-                  className={styles.select}
-                >
-                  <option value="pending">Pendente</option>
-                  <option value="paid">✓ Pago</option>
-                  <option value="failed">Falhou</option>
-                  <option value="refunded">Reembolsado</option>
-                </select>
-                <button
-                  onClick={handleUpdatePaymentStatus}
-                  disabled={changingPayment}
-                  className={styles.btnSave}
-                >
-                  {changingPayment ? 'Atualizando...' : '✓ Atualizar'}
-                </button>
-              </div>
-              <div className={styles.paymentStatusNote}>
-                Status atual: <strong>{selectedPaymentStatus === 'paid' ? '✓ Pago' : selectedPaymentStatus === 'pending' ? 'Pendente' : selectedPaymentStatus}</strong>
-              </div>
-            </div>
-          )}
-
-          {/* SEÇÃO DE CHAT */}
-          {showChat && chatConvId ? (
+        {/* SEÇÃO DE CHAT */}
+        {showChat && chatConvId ? (
+          <>
+            <div className={styles.divider} />
             <div className={styles.chatBox}>
-              <div className={styles.chatBoxTitle}><Icon name="chat" size={14} /> Chat com Cliente</div>
-              <div style={{ height: 420 }}>
+              <div className={styles.sectionTitle}><Icon name="chat" size={12} /> Chat com Cliente</div>
+              <div className={styles.chatFrame}>
                 <ChatConversationDetail
                   conversationId={chatConvId}
                   currentUserId={user?._id}
@@ -293,29 +304,28 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
                 />
               </div>
             </div>
-          ) : null}
+          </>
+        ) : null}
 
-          {/* BOTÕES DE AÇÃO */}
-          <div className={styles.actionBtns}>
-            <button
-              onClick={handleToggleChat}
-              disabled={chatLoading}
-              className={`${styles.btnToggleChat} ${showChat ? styles.btnToggleChatClose : styles.btnToggleChatOpen}`}
-            >
-              {chatLoading ? 'Abrindo...' : showChat ? <><Icon name="x-circle" /> Fechar Chat</> : <><Icon name="chat" /> Abrir Chat</>}
-            </button>
+        <div className={styles.divider} />
 
-            {/* BOTÃO FECHAR */}
-            <button
-              onClick={onClose}
-              className={styles.btnCloseModal}
-            >
-              ✕ Fechar
-            </button>
-          </div>
+        {/* BOTÕES DE AÇÃO */}
+        <div className={styles.actionBtns}>
+          <Button
+            variant={showChat ? 'ghost' : 'primary'}
+            leftIcon={<Icon name={showChat ? 'x-circle' : 'chat'} size={14} />}
+            onClick={handleToggleChat}
+            loading={chatLoading}
+          >
+            {showChat ? 'Fechar Chat' : 'Abrir Chat'}
+          </Button>
+
+          <Button variant="ghost" onClick={onClose}>
+            Fechar
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -340,8 +350,6 @@ export default function StoreDashboard() {
   const pollingRef = useRef<any>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
-  const [notifColor, setNotifColor] = useState<string>('#ff9800');
-  const [orderColors, setOrderColors] = useState<{[id:string]:string}>({});
   const [detalhesPedido, setDetalhesPedido] = useState<any>(null);
   const [rejectModalOrderId, setRejectModalOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('store_closed');
@@ -368,6 +376,8 @@ export default function StoreDashboard() {
   const [filterProductName, setFilterProductName] = useState<string>('');
   const [storeCategories, setStoreCategories] = useState<string[]>([]);
   const [historyLimit, setHistoryLimit] = useState(10);
+  // Painel de filtros do histórico recolhido por padrão (Task 6 — DS flat)
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
 
   const { acceptOrder, rejectOrder } = useCancellation();
@@ -400,9 +410,6 @@ export default function StoreDashboard() {
       setOrders(incoming);
       if (incoming.length > 0) {
         const newest = incoming[0];
-        const color = getRandomColor();
-        setNotifColor(color);
-        setOrderColors(prev => ({ ...prev, [newest._id]: color }));
         setShowNotif(true);
         setNewOrderIds(prev => [...prev, newest._id]);
       }
@@ -468,24 +475,32 @@ export default function StoreDashboard() {
     }
   }, []));
 
-  function getRandomColor() {
-    const colors = ['#ff9800', '#2196f3', '#4caf50', '#e91e63', '#9c27b0', '#f44336', '#00bcd4', '#8bc34a', '#ffc107', '#ff5722'];
-    return colors[Math.floor(Math.random() * colors.length)];
+  function getStatusBadgeInfo(status: string) {
+    // Cada status mapeia para uma classe modificadora do badge (tokens
+    // semânticos), no lugar da cor hex fixa — mesma granularidade de antes,
+    // só a expressão visual muda (Task 6 — DS flat).
+    const statusMap: any = {
+      pago: { label: 'Pago', className: styles.statusInfo },
+      criado: { label: 'Criado', className: styles.statusNeutral },
+      aguardando_motoboy: { label: 'Aguardando Motoboy', className: styles.statusWarn },
+      entregue: { label: '✓ Entregue', className: styles.statusSuccess },
+      delivered: { label: '✓ Entregue', className: styles.statusSuccess },
+      cancelado: { label: 'Cancelado', className: styles.statusDanger },
+      cancelled: { label: 'Cancelado', className: styles.statusDanger },
+      rejeitado: { label: 'Rejeitado', className: styles.statusDanger },
+    };
+    return statusMap[status] || { label: status.toUpperCase(), className: styles.statusNeutral };
   }
 
-  function getStatusBadgeInfo(status: string) {
-    const statusMap: any = {
-      pago: { label: 'Pago', color: '#007bff', bg: '#007bff' },
-      criado: { label: 'Criado', color: '#6c757d', bg: '#6c757d' },
-      aguardando_motoboy: { label: 'Aguardando Motoboy', color: '#ffc107', bg: '#ffc107' },
-      entregue: { label: '✓ Entregue', color: '#28a745', bg: '#28a745' },
-      delivered: { label: '✓ Entregue', color: '#28a745', bg: '#28a745' },
-      cancelado: { label: 'Cancelado', color: '#dc3545', bg: '#dc3545' },
-      cancelled: { label: 'Cancelado', color: '#dc3545', bg: '#dc3545' },
-      rejeitado: { label: 'Rejeitado', color: '#fd7e14', bg: '#fd7e14' },
-    };
-    return statusMap[status] || { label: status.toUpperCase(), color: '#6c757d', bg: '#6c757d' };
-  }
+  // 🔍 Conta quantos dos 8 filtros de histórico estão ativos (mesma condição
+  // usada para exibir "Limpar Filtros"; também alimenta o indicador "N ativos"
+  // do painel recolhido — Task 6, apresentação apenas).
+  const getActiveFilterCount = () => {
+    return [
+      filterStatus, filterCustomer, filterDateFrom, filterDateTo,
+      filterMinValue, filterMaxValue, filterCategory, filterProductName,
+    ].filter(Boolean).length;
+  };
 
   // Volta a exibir 10 ao mudar qualquer filtro do histórico
   useEffect(() => { setHistoryLimit(10); }, [filterStatus, filterCustomer, filterDateFrom, filterDateTo, filterMinValue, filterMaxValue, filterCategory, filterProductName]);
@@ -756,7 +771,7 @@ export default function StoreDashboard() {
               <h1 className={styles.pageTitle}>Painel do Lojista</h1>
             </div>
             <div className={styles.topBarActions}>
-              <button className={styles.topBarIcon} onClick={() => setActiveTab('orders')}>
+              <button className={styles.topBarIcon} onClick={() => setActiveTab('orders')} aria-label="Ver pedidos">
                 <Icon name="bell" size={18} />
                 {orders.length > 0 && <span className={styles.topBarBadge}>{orders.length}</span>}
               </button>
@@ -769,12 +784,9 @@ export default function StoreDashboard() {
 
           {/* Notificação */}
           {showNotif && newOrderIds.length > 0 && (
-            <div
-              className={styles.notifBanner}
-              style={{ backgroundColor: notifColor }}
-            >
+            <div className={styles.notifBanner}>
               <span><Icon name="bell" size={14} /> Novo pedido recebido!</span>
-              <button onClick={() => setShowNotif(false)} className={styles.notifClose}>×</button>
+              <button onClick={() => setShowNotif(false)} className={styles.notifClose} aria-label="Fechar notificação">×</button>
             </div>
           )}
 
@@ -801,22 +813,28 @@ export default function StoreDashboard() {
           )}
 
           {/* Configurações */}
-          {activeTab === 'metrics' && (
-            <div>
+          {activeTab === 'config' && (
+            <div className={styles.configWrap}>
               {store?.plan === 3 && (
-                <StoreBannerUpload
-                  currentFeaturedBanner={store?.featuredBannerUrl}
-                  currentCoverBanner={store?.coverBannerUrl}
-                  onUploaded={fetchDashboard}
-                />
+                <section className={styles.configSection}>
+                  <h2 className={styles.configSectionTitle}>Banner da loja</h2>
+                  <StoreBannerUpload
+                    currentFeaturedBanner={store?.featuredBannerUrl}
+                    currentCoverBanner={store?.coverBannerUrl}
+                    onUploaded={fetchDashboard}
+                  />
+                </section>
               )}
               {store?._id && (
-                <OperatingHoursEditor
-                  storeId={store._id}
-                  initialHours={store.operatingHours}
-                  initialIsOpen={store.isOpen !== false}
-                  onSaved={fetchDashboard}
-                />
+                <section className={styles.configSection}>
+                  <h2 className={styles.configSectionTitle}>Horário de funcionamento</h2>
+                  <OperatingHoursEditor
+                    storeId={store._id}
+                    initialHours={store.operatingHours}
+                    initialIsOpen={store.isOpen !== false}
+                    onSaved={fetchDashboard}
+                  />
+                </section>
               )}
             </div>
           )}
@@ -826,24 +844,18 @@ export default function StoreDashboard() {
             <div>
               <h2 className={styles.ordersTitle}>Pedidos em Andamento</h2>
               {orders.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="gift" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido em andamento</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="gift" size={24} />}
+                  title="Nenhum pedido em andamento"
+                />
               ) : (
                 <div className={styles.ordersList}>
                   {orders.map(order => (
                     <div
                       key={order._id}
-                      className={styles.orderCard}
-                      style={{
-                        border: newOrderIds.includes(order._id)
-                          ? `2px solid ${orderColors[order._id] || '#ff9800'}`
-                          : undefined,
-                        background: newOrderIds.includes(order._id)
-                          ? (orderColors[order._id] ? orderColors[order._id] + '10' : 'rgba(255,152,0,0.06)')
-                          : undefined
-                      }}
+                      className={[styles.orderCard, newOrderIds.includes(order._id) && styles.orderCardNew]
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       <div className={styles.orderCardTop}>
                         <div className={styles.orderCardLeft}>
@@ -852,12 +864,7 @@ export default function StoreDashboard() {
                         </div>
                         <div className={styles.orderCardBadges}>
                           {newOrderIds.includes(order._id) && (
-                            <span
-                              className={styles.badgeNew}
-                              style={{ backgroundColor: orderColors[order._id] || '#ff9800' }}
-                            >
-                              NOVO
-                            </span>
+                            <span className={styles.badgeNew}>NOVO</span>
                           )}
                           <span className={styles.badgeStatus}>
                             {(() => {
@@ -900,7 +907,7 @@ export default function StoreDashboard() {
                         </div>
                       </div>
 
-                      {/* Produtos do Pedido */}
+                      {/* Produtos do Pedido — achatado, com divisória por item */}
                       {order.products && order.products.length > 0 && (
                         <div className={styles.orderProducts}>
                           <div className={styles.orderProductsTitle}><Icon name="package" size={12} /> Itens do Pedido:</div>
@@ -923,30 +930,31 @@ export default function StoreDashboard() {
                         </div>
                       )}
 
-                      {/* [Plano 1] Endereço do cliente para entrega */}
+                      {/* [Plano 1] Endereço do cliente para entrega — achatado, divisória no topo */}
                       {(!order.deliveryFee || order.deliveryFee === 0) && order.customerAddress && (
                         <div className={styles.plan1AddressBox}>
-                          <div className={styles.plan1AddressTitle}><Icon name="map-pin" /> Endereço de Entrega:</div>
+                          <div className={styles.plan1AddressTitle}><Icon name="map-pin" size={12} /> Endereço de Entrega:</div>
                           <div className={styles.plan1AddressText}>{order.customerAddress}</div>
                         </div>
                       )}
 
                       {order.delivery && order.delivery.status === 'assigned' && (
                         <div className={styles.pinRow}>
-                          <input
-                            type="text"
-                            placeholder="PIN"
+                          <Input
                             value={pinInputs[order._id] || ''}
-                            onChange={e => handlePinInput(order._id, e.target.value)}
-                            className={styles.pinInput}
+                            onChange={value => handlePinInput(order._id, value)}
+                            placeholder="PIN"
+                            className={styles.pinInputWrap}
                           />
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnPinValidate}
                             onClick={() => handlePinValidate(order)}
                             disabled={!pinInputs[order._id]}
-                            className={styles.btnPinValidate}
                           >
                             Validar PIN
-                          </button>
+                          </Button>
                         </div>
                       )}
                       {pinStatuses[order._id] && (
@@ -961,15 +969,33 @@ export default function StoreDashboard() {
                       {order.status === 'criado' ? (
                         // Pedido ainda não aceito — mostrar Aceitar / Rejeitar / Detalhes
                         <div className={styles.orderActions3}>
-                          <button onClick={() => handleAcceptOrder(order._id)} className={styles.btnAccept}>
-                            <Icon name="check" size={12} /> Aceitar
-                          </button>
-                          <button onClick={() => setRejectModalOrderId(order._id)} className={styles.btnReject}>
-                            ✕ Rejeitar
-                          </button>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className={styles.btnAccept}
+                            leftIcon={<Icon name="check" size={12} />}
+                            onClick={() => handleAcceptOrder(order._id)}
+                          >
+                            Aceitar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnReject}
+                            leftIcon={<Icon name="x" size={12} />}
+                            onClick={() => setRejectModalOrderId(order._id)}
+                          >
+                            Rejeitar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
                         </div>
                       ) : !order.delivery && order.status === 'pago' && (!order.deliveryFee || order.deliveryFee === 0) ? (
                         // [Plano 1] Aceito — aguardando cliente confirmar recebimento
@@ -977,19 +1003,36 @@ export default function StoreDashboard() {
                           <div className={styles.plan1WaitingLabel}>
                             <Icon name="clock" size={12} /> Aguardando cliente confirmar recebimento
                           </div>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails} style={{ marginTop: 8 }}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
                         </div>
                       ) : (
                         // [Plano 2/3] Pedido aceito com delivery — mostrar Detalhes e Cancelar
                         <div className={styles.orderActions2}>
-                          <button onClick={() => setDetalhesPedido(order)} className={styles.btnDetails}>
-                            <Icon name="clipboard" size={12} /> Detalhes
-                          </button>
-                          <button onClick={() => setRejectModalOrderId(order._id)} className={styles.btnReject}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnDetails}
+                            leftIcon={<Icon name="clipboard" size={12} />}
+                            onClick={() => setDetalhesPedido(order)}
+                          >
+                            Detalhes
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.btnReject}
+                            onClick={() => setRejectModalOrderId(order._id)}
+                          >
                             Cancelar Pedido
-                          </button>
+                          </Button>
                         </div>
                       )}
 
@@ -1005,137 +1048,155 @@ export default function StoreDashboard() {
             <div>
               <h2 className={styles.historyTitle}>Histórico de Pedidos</h2>
 
-              {/* 🔍 SEÇÃO DE FILTROS */}
+              {/* 🔍 SEÇÃO DE FILTROS — recolhível, colapsada por padrão (Task 6) */}
               <div className={styles.filtersPanel}>
                 <div className={styles.filtersPanelHeader}>
-                  <Icon name="search" size={14} /> Filtros de Pesquisa
-                  {(filterStatus || filterCustomer || filterDateFrom || filterDateTo || filterMinValue || filterMaxValue || filterCategory || filterProductName) && (
-                    <button
-                      onClick={() => {
-                        setFilterStatus('');
-                        setFilterCustomer('');
-                        setFilterDateFrom('');
-                        setFilterDateTo('');
-                        setFilterMinValue('');
-                        setFilterMaxValue('');
-                        setFilterCategory('');
-                        setFilterProductName('');
-                      }}
-                      className={styles.btnClearFilters}
-                    >
-                      ✕ Limpar Filtros
-                    </button>
+                  <button
+                    type="button"
+                    className={styles.filtersToggle}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                    aria-expanded={filtersOpen}
+                  >
+                    <Icon name="filter" size={14} /> Filtros
+                    <Icon
+                      name="chevron-down"
+                      size={16}
+                      className={filtersOpen ? styles.filtersChevronOpen : styles.filtersChevron}
+                    />
+                  </button>
+                  {!filtersOpen && getActiveFilterCount() > 0 && (
+                    <Chip
+                      icon={<Icon name="filter" size={12} />}
+                      label={`${getActiveFilterCount()} ativos`}
+                      active
+                    />
                   )}
                 </div>
 
-                <div className={styles.filtersGrid}>
-                  {/* Filtro por Status */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="filter" size={12} /> Status</label>
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className={styles.filterInput}
-                    >
-                      <option value="">Todos os Status</option>
-                      <option value="entregue">✓ Entregue</option>
-                      <option value="pago">Pago</option>
-                      <option value="criado">Criado</option>
-                      <option value="aguardando_motoboy">Aguardando Motoboy</option>
-                      <option value="cancelado">Cancelado</option>
-                      <option value="rejeitado">Rejeitado</option>
-                    </select>
-                  </div>
+                {filtersOpen && (
+                  <div className={styles.filtersBody}>
+                    <div className={styles.filtersGrid}>
+                      {/* Filtro por Status */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="filter" size={12} /> Status</label>
+                        <Select
+                          value={filterStatus}
+                          onChange={setFilterStatus}
+                          options={[
+                            { value: '', label: 'Todos os Status' },
+                            { value: 'entregue', label: '✓ Entregue' },
+                            { value: 'pago', label: 'Pago' },
+                            { value: 'criado', label: 'Criado' },
+                            { value: 'aguardando_motoboy', label: 'Aguardando Motoboy' },
+                            { value: 'cancelado', label: 'Cancelado' },
+                            { value: 'rejeitado', label: 'Rejeitado' },
+                          ]}
+                        />
+                      </div>
 
-                  {/* Filtro por Cliente */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="user" size={12} /> Nome do Cliente</label>
-                    <input
-                      type="text"
-                      placeholder="Digite o nome..."
-                      value={filterCustomer}
-                      onChange={(e) => setFilterCustomer(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Cliente */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="user" size={12} /> Nome do Cliente</label>
+                        <Input
+                          type="text"
+                          placeholder="Digite o nome..."
+                          value={filterCustomer}
+                          onChange={setFilterCustomer}
+                        />
+                      </div>
 
-                  {/* Filtro por Data - De */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📅 Data De</label>
-                    <input
-                      type="date"
-                      value={filterDateFrom}
-                      onChange={(e) => setFilterDateFrom(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Data - De */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="calendar" size={12} /> Data De</label>
+                        <Input
+                          type="date"
+                          value={filterDateFrom}
+                          onChange={setFilterDateFrom}
+                        />
+                      </div>
 
-                  {/* Filtro por Data - Até */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📅 Data Até</label>
-                    <input
-                      type="date"
-                      value={filterDateTo}
-                      onChange={(e) => setFilterDateTo(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Data - Até */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="calendar" size={12} /> Data Até</label>
+                        <Input
+                          type="date"
+                          value={filterDateTo}
+                          onChange={setFilterDateTo}
+                        />
+                      </div>
 
-                  {/* Filtro por Valor Mínimo */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Mínimo (R$)</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={filterMinValue}
-                      onChange={(e) => setFilterMinValue(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Valor Mínimo */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Mínimo (R$)</label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          step="0.01"
+                          value={filterMinValue}
+                          onChange={setFilterMinValue}
+                        />
+                      </div>
 
-                  {/* Filtro por Valor Máximo */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Máximo (R$)</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={filterMaxValue}
-                      onChange={(e) => setFilterMaxValue(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Valor Máximo */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Máximo (R$)</label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          step="0.01"
+                          value={filterMaxValue}
+                          onChange={setFilterMaxValue}
+                        />
+                      </div>
 
-                  {/* Filtro por Categoria de Produtos */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📂 Categoria de Produto</label>
-                    <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className={styles.filterInput}
-                    >
-                      <option value="">Todas as Categorias</option>
-                      {storeCategories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {/* Filtro por Categoria de Produtos */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="tag" size={12} /> Categoria de Produto</label>
+                        <Select
+                          value={filterCategory}
+                          onChange={setFilterCategory}
+                          options={[
+                            { value: '', label: 'Todas as Categorias' },
+                            ...storeCategories.map((cat) => ({ value: cat, label: cat })),
+                          ]}
+                        />
+                      </div>
 
-                  {/* Filtro por Nome de Produto */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="package" size={12} /> Nome do Produto</label>
-                    <input
-                      type="text"
-                      placeholder="Digite o nome..."
-                      value={filterProductName}
-                      onChange={(e) => setFilterProductName(e.target.value)}
-                      className={styles.filterInput}
-                    />
+                      {/* Filtro por Nome de Produto */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="package" size={12} /> Nome do Produto</label>
+                        <Input
+                          type="text"
+                          placeholder="Digite o nome..."
+                          value={filterProductName}
+                          onChange={setFilterProductName}
+                        />
+                      </div>
+                    </div>
+
+                    {getActiveFilterCount() > 0 && (
+                      <div className={styles.filtersFooter}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Icon name="x" size={12} />}
+                          onClick={() => {
+                            setFilterStatus('');
+                            setFilterCustomer('');
+                            setFilterDateFrom('');
+                            setFilterDateTo('');
+                            setFilterMinValue('');
+                            setFilterMaxValue('');
+                            setFilterCategory('');
+                            setFilterProductName('');
+                          }}
+                        >
+                          Limpar Filtros
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Contador de resultados filtrados */}
@@ -1144,45 +1205,42 @@ export default function StoreDashboard() {
               </div>
 
               {getFilteredHistoryOrders().length === 0 && historyOrders.length > 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="search" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido encontrado</div>
-                  <div style={{ fontSize: 13, marginTop: 8, opacity: 0.7 }}>Tente ajustar os filtros</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="search" size={24} />}
+                  title="Nenhum pedido encontrado"
+                  description="Tente ajustar os filtros"
+                />
               ) : historyOrders.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="clipboard" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido no histórico</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="clipboard" size={24} />}
+                  title="Nenhum pedido no histórico"
+                />
               ) : (
                 <>
-                <div className={styles.ordersList}>
+                <div className={styles.historyList}>
                   {[...getFilteredHistoryOrders()]
                     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                     .slice(0, historyLimit)
                     .map(order => (
-                    <div key={order._id} className={styles.historyCard}>
+                    <div key={order._id} className={styles.historyRow}>
                       {/* TOPO: Info básica + Status + Total */}
-                      <div className={styles.historyCardTop}>
+                      <div className={styles.historyRowTop}>
                         <div>
-                          <div className={styles.historyCardTopLabel}>CLIENTE</div>
-                          <div className={styles.historyCardCustomer}><Icon name="user" size={12} /> {order.customerName || 'Cliente'}</div>
-                          <div className={styles.historyCardId}>ID: {order._id.slice(0, 8)}...</div>
+                          <div className={styles.historyRowTopLabel}>CLIENTE</div>
+                          <div className={styles.historyRowCustomer}><Icon name="user" size={12} /> {order.customerName || 'Cliente'}</div>
+                          <div className={styles.historyRowId}>ID: {order._id.slice(0, 8)}...</div>
                         </div>
-                        <div className={styles.historyCardStatusCenter}>
-                          <div
-                            className={styles.historyCardStatusBadge}
-                            style={{ backgroundColor: getStatusBadgeInfo(order.status).bg }}
-                          >
+                        <div className={styles.historyRowStatusCenter}>
+                          <div className={`${styles.historyRowStatusBadge} ${getStatusBadgeInfo(order.status).className}`}>
                             {getStatusBadgeInfo(order.status).label}
                           </div>
-                          <div className={styles.historyCardDate}>
+                          <div className={styles.historyRowDate}>
                             {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </div>
                         </div>
-                        <div className={styles.historyCardAmountRight}>
-                          <div className={styles.historyCardAmountLabel}>VOCÊ RECEBE</div>
-                          <div className={styles.historyCardAmount}>
+                        <div className={styles.historyRowAmountRight}>
+                          <div className={styles.historyRowAmountLabel}>VOCÊ RECEBE</div>
+                          <div className={styles.historyRowAmount}>
                             R$ {(order.walletDistribution?.storeAmount ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
                           </div>
@@ -1193,15 +1251,15 @@ export default function StoreDashboard() {
                       <div className={styles.historyFinancial}>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}>VOCÊ RECEBE</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#10b981' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialSuccess}`}>
                             R$ {(order.walletDistribution?.storeAmount ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(produto - taxa)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}>🏢 TAXA APP</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#fc5a8d' }}>
+                          <div className={styles.historyFinancialLabel}><Icon name="building" size={12} /> TAXA APP</div>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialDanger}`}>
                             R$ {(order.walletDistribution?.appCommission ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
                           </div>
@@ -1209,21 +1267,21 @@ export default function StoreDashboard() {
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}><Icon name="package" size={12} /> SUBTOTAL</div>
-                          <div className={styles.historyFinancialValue} style={{ color: 'var(--drop-text-muted)' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialMuted}`}>
                             R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(produtos)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}><Icon name="truck" size={12} /> ENTREGA</div>
-                          <div className={styles.historyFinancialValue} style={{ color: 'var(--drop-warning)' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialWarn}`}>
                             R$ {(order.deliveryFee || 0).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(taxa)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}>CLIENTE PAGOU</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#60A5FA' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialInfo}`}>
                             R$ {order.totalValue?.toFixed(2) || '0.00'}
                           </div>
                           <div className={styles.historyFinancialSub}>(total)</div>
@@ -1251,61 +1309,66 @@ export default function StoreDashboard() {
                       )}
 
                       {/* BOTÃO */}
-                      <div className={styles.historyCardFooter}>
-                        <button
+                      <div className={styles.historyRowFooter}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Icon name="clipboard" size={12} />}
                           onClick={() => setDetalhesPedido(order)}
-                          className={styles.btnMoreDetails}
                         >
-                          <Icon name="clipboard" size={12} /> Mais Detalhes
-                        </button>
+                          Mais Detalhes
+                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
                 {getFilteredHistoryOrders().length > historyLimit && (
-                  <button
-                    onClick={() => setHistoryLimit(n => n + 10)}
-                    className={styles.btnMoreDetails}
-                    style={{ margin: '20px auto 0', display: 'flex' }}
-                  >
-                    <Icon name="clipboard" size={12} /> Ver mais ({getFilteredHistoryOrders().length - historyLimit} restantes)
-                  </button>
+                  <div className={styles.historyLoadMoreWrap}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Icon name="clipboard" size={12} />}
+                      onClick={() => setHistoryLimit(n => n + 10)}
+                    >
+                      Ver mais ({getFilteredHistoryOrders().length - historyLimit} restantes)
+                    </Button>
+                  </div>
                 )}
                 </>
               )}
             </div>
           )}
 
-          {/* ✅ FIX #6: Tab de Devoluções Pendentes */}
+          {/* ✅ FIX #6: Tab de Devoluções Pendentes — lista achatada no DS (Task 8) */}
           {activeTab === 'returns' && (
             <div>
               <h2 className={styles.returnsTitle}><Icon name="package" size={16} /> Devoluções Pendentes</h2>
               {returnRequests.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="check-circle" size={24} /></div>
-                  <div className={styles.emptyStateText}>Nenhuma devolução pendente</div>
-                  <div style={{ fontSize: 13, marginTop: 8, opacity: 0.7 }}>Todas as devoluções foram processadas</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="check-circle" size={24} />}
+                  title="Nenhuma devolução pendente"
+                  description="Todas as devoluções foram processadas"
+                />
               ) : (
-                <div className={styles.ordersList}>
+                <div className={styles.returnsList}>
                   {returnRequests.map((request) => (
                     <div
                       key={request.deliveryId}
-                      className={styles.returnCard}
+                      className={styles.returnRow}
                     >
-                      <div className={styles.returnCardTop}>
+                      <div className={styles.returnRowTop}>
                         <div>
-                          <div className={styles.returnCardTitle}><Icon name="truck" size={14} /> Devolução Solicitada</div>
-                          <div className={styles.returnCardOrder}>
+                          <div className={styles.returnRowTitle}><Icon name="truck" size={14} /> Devolução Solicitada</div>
+                          <div className={styles.returnRowMeta}>
                             Pedido: {request.orderId?.slice(-8) || 'N/A'}
                           </div>
-                          <div className={styles.returnCardMotoboy}>
+                          <div className={styles.returnRowMeta}>
                             Motoboy: {request.motoboyId || 'ID'}
                           </div>
                         </div>
-                        <div className={styles.returnBadge}>
-                          <Icon name="clock" size={12} /> Aguardando<br />Confirmação
-                        </div>
+                        <span className={styles.returnStatusPill}>
+                          <Icon name="clock" size={12} /> Aguardando Confirmação
+                        </span>
                       </div>
 
                       <div className={styles.returnInstructions}>
@@ -1318,11 +1381,12 @@ export default function StoreDashboard() {
                       </div>
 
                       <div className={styles.returnPinSection}>
-                        <label className={styles.returnPinLabel}>
+                        <label className={styles.returnPinLabel} htmlFor={`return-pin-${request.deliveryId}`}>
                           <Icon name="lock" size={12} /> PIN de Devolução (6 dígitos)
                         </label>
                         <div className={styles.returnPinWrapper}>
                           <input
+                            id={`return-pin-${request.deliveryId}`}
                             type="text"
                             placeholder="______"
                             maxLength={6}
@@ -1346,13 +1410,15 @@ export default function StoreDashboard() {
                         </p>
                       </div>
 
-                      <button
+                      <Button
+                        variant="primary"
+                        className={styles.btnConfirmReturn}
+                        leftIcon={<Icon name="check" size={14} />}
                         onClick={() => handleConfirmReturn(request)}
                         disabled={!returnPinInputs[request.deliveryId] || returnPinInputs[request.deliveryId].length !== 6}
-                        className={`${styles.btnConfirmReturn} ${returnPinInputs[request.deliveryId]?.length === 6 ? styles.btnConfirmReturnReady : styles.btnConfirmReturnDisabled}`}
                       >
-                        ✓ Confirmar Devolução
-                      </button>
+                        Confirmar Devolução
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -1400,71 +1466,63 @@ export default function StoreDashboard() {
         {detalhesPedido && <DetalhesPedidoModal order={detalhesPedido} onClose={() => setDetalhesPedido(null)} token={token} />}
 
         {/* Modal de Rejeição */}
-        {rejectModalOrderId && (
-          <div className={styles.rejectOverlay}>
-            <div className={styles.rejectDialog}>
-              <div className={styles.rejectDialogHeader}>
-                <h3 className={styles.rejectDialogTitle}><Icon name="x-circle" size={16} /> Rejeitar Pedido</h3>
+        <Sheet
+          open={!!rejectModalOrderId}
+          onClose={() => setRejectModalOrderId(null)}
+          title="Rejeitar Pedido"
+        >
+          <div className={styles.rejectWrap}>
+            <span className={styles.rejectLabel}>Motivo da Rejeição</span>
+            <div className={styles.rejectReasons} role="radiogroup" aria-label="Motivo da rejeição">
+              {[
+                { code: 'store_closed', label: 'Loja fechada' },
+                { code: 'store_busy', label: 'Loja muito ocupada' },
+                { code: 'not_available', label: 'Itens indisponíveis' },
+                { code: 'payment_issue', label: 'Problema de pagamento' },
+                { code: 'other', label: 'Outro motivo' },
+              ].map(option => (
                 <button
-                  onClick={() => setRejectModalOrderId(null)}
-                  className={styles.rejectCloseBtn}
+                  key={option.code}
+                  type="button"
+                  role="radio"
+                  aria-checked={rejectReason === option.code}
+                  className={[styles.rejectReason, rejectReason === option.code && styles.rejectReasonActive].filter(Boolean).join(' ')}
+                  onClick={() => setRejectReason(option.code)}
                 >
-                  ×
+                  {option.label}
                 </button>
-              </div>
+              ))}
+            </div>
 
-              <div>
-                <label className={styles.rejectLabel}>Motivo da Rejeição</label>
-                <div className={styles.rejectOptions}>
-                  {[
-                    { code: 'store_closed', label: 'Loja fechada' },
-                    { code: 'store_busy', label: 'Loja muito ocupada' },
-                    { code: 'not_available', label: 'Itens indisponíveis' },
-                    { code: 'payment_issue', label: 'Problema de pagamento' },
-                    { code: 'other', label: 'Outro motivo' },
-                  ].map(option => (
-                    <label key={option.code} className={styles.rejectOption}>
-                      <input
-                        type="radio"
-                        name="reject-reason"
-                        value={option.code}
-                        checked={rejectReason === option.code}
-                        onChange={e => setRejectReason(e.target.value)}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
+            {rejectReason === 'other' && (
+              <textarea
+                value={rejectCustomReason}
+                onChange={e => setRejectCustomReason(e.target.value)}
+                placeholder="Descreva o motivo..."
+                className={styles.rejectTextarea}
+                rows={3}
+              />
+            )}
 
-                {rejectReason === 'other' && (
-                  <textarea
-                    value={rejectCustomReason}
-                    onChange={e => setRejectCustomReason(e.target.value)}
-                    placeholder="Descreva o motivo..."
-                    className={styles.rejectTextarea}
-                  />
-                )}
-              </div>
-
-              <div className={styles.rejectBtnRow}>
-                <button
-                  onClick={() => setRejectModalOrderId(null)}
-                  disabled={rejectLoading}
-                  className={styles.btnRejectCancel}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRejectOrder}
-                  disabled={rejectLoading}
-                  className={styles.btnRejectConfirm}
-                >
-                  {rejectLoading ? 'Rejeitando...' : '✕ Rejeitar'}
-                </button>
-              </div>
+            <div className={styles.rejectActions}>
+              <Button
+                variant="ghost"
+                onClick={() => setRejectModalOrderId(null)}
+                disabled={rejectLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className={styles.rejectConfirm}
+                onClick={handleRejectOrder}
+                loading={rejectLoading}
+              >
+                Rejeitar Pedido
+              </Button>
             </div>
           </div>
-        )}
+        </Sheet>
       </div>
     </ProtectedRoute>
   );

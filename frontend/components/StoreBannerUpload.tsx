@@ -40,14 +40,8 @@ export default function StoreBannerUpload({ currentFeaturedBanner, currentCoverB
   };
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <span className={styles.cardIcon}><Icon name="crown" size={20} /></span>
-        <div>
-          <h3 className={styles.cardTitle}>Banners Premium</h3>
-          <p className={styles.cardDesc}>Configure seus banners de divulgação no app</p>
-        </div>
-      </div>
+    <div className={styles.wrap}>
+      <p className={styles.desc}><Icon name="crown" size={14} /> Banners premium — configure a divulgação da sua loja no app</p>
 
       {error && <div className={styles.errorMsg}>{error}</div>}
 
