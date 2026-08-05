@@ -6,6 +6,7 @@ import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import OnboardingProgress from '../../components/OnboardingProgress';
 import OnboardingFooter from '../../components/OnboardingFooter';
+import { Button } from '../../components/ui/Button';
 import api from '../../lib/api';
 import styles from './SelectPlan.module.css';
 
@@ -245,21 +246,17 @@ export default function SelectPlan() {
                   <p className={styles.featuresTitle}>Recursos:</p>
                   {plan.features.map((feature, idx) => (
                     <p key={idx} className={styles.planFeature}>
-                      <Icon name={feature.included ? 'check-circle' : 'x-circle'} size={14} color={feature.included ? '#10b981' : '#ef4444'} /> {feature.text}
+                      <Icon name={feature.included ? 'check-circle' : 'x-circle'} size={14} color={feature.included ? '#3ddc84' : '#ff5a5f'} /> {feature.text}
                     </p>
                   ))}
                 </div>
 
-                <button
+                <Button
+                  variant={isCurrent || isPending ? 'ghost' : 'primary'}
                   onClick={() => handleRequestPlanChange(plan.id)}
                   disabled={isCurrent || requesting === plan.id || isPending}
-                  className={`${styles.btnSelectPlan} ${
-                    isCurrent
-                      ? styles.btnSelectPlanCurrent
-                      : isPending
-                      ? styles.btnSelectPlanPending
-                      : ''
-                  }`}
+                  loading={requesting === plan.id}
+                  className={styles.selectBtn}
                 >
                   {isCurrent
                     ? 'Plano Atual'
@@ -268,7 +265,7 @@ export default function SelectPlan() {
                     : requesting === plan.id
                     ? 'Solicitando...'
                     : 'Selecionar'}
-                </button>
+                </Button>
               </div>
             );
           })}
