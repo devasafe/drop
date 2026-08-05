@@ -1349,36 +1349,36 @@ export default function StoreDashboard() {
             </div>
           )}
 
-          {/* ✅ FIX #6: Tab de Devoluções Pendentes */}
+          {/* ✅ FIX #6: Tab de Devoluções Pendentes — lista achatada no DS (Task 8) */}
           {activeTab === 'returns' && (
             <div>
               <h2 className={styles.returnsTitle}><Icon name="package" size={16} /> Devoluções Pendentes</h2>
               {returnRequests.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="check-circle" size={24} /></div>
-                  <div className={styles.emptyStateText}>Nenhuma devolução pendente</div>
-                  <div style={{ fontSize: 13, marginTop: 8, opacity: 0.7 }}>Todas as devoluções foram processadas</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="check-circle" size={24} />}
+                  title="Nenhuma devolução pendente"
+                  description="Todas as devoluções foram processadas"
+                />
               ) : (
-                <div className={styles.ordersList}>
+                <div className={styles.returnsList}>
                   {returnRequests.map((request) => (
                     <div
                       key={request.deliveryId}
-                      className={styles.returnCard}
+                      className={styles.returnRow}
                     >
-                      <div className={styles.returnCardTop}>
+                      <div className={styles.returnRowTop}>
                         <div>
-                          <div className={styles.returnCardTitle}><Icon name="truck" size={14} /> Devolução Solicitada</div>
-                          <div className={styles.returnCardOrder}>
+                          <div className={styles.returnRowTitle}><Icon name="truck" size={14} /> Devolução Solicitada</div>
+                          <div className={styles.returnRowMeta}>
                             Pedido: {request.orderId?.slice(-8) || 'N/A'}
                           </div>
-                          <div className={styles.returnCardMotoboy}>
+                          <div className={styles.returnRowMeta}>
                             Motoboy: {request.motoboyId || 'ID'}
                           </div>
                         </div>
-                        <div className={styles.returnBadge}>
-                          <Icon name="clock" size={12} /> Aguardando<br />Confirmação
-                        </div>
+                        <span className={styles.returnStatusPill}>
+                          <Icon name="clock" size={12} /> Aguardando Confirmação
+                        </span>
                       </div>
 
                       <div className={styles.returnInstructions}>
@@ -1391,11 +1391,12 @@ export default function StoreDashboard() {
                       </div>
 
                       <div className={styles.returnPinSection}>
-                        <label className={styles.returnPinLabel}>
+                        <label className={styles.returnPinLabel} htmlFor={`return-pin-${request.deliveryId}`}>
                           <Icon name="lock" size={12} /> PIN de Devolução (6 dígitos)
                         </label>
                         <div className={styles.returnPinWrapper}>
                           <input
+                            id={`return-pin-${request.deliveryId}`}
                             type="text"
                             placeholder="______"
                             maxLength={6}
@@ -1419,13 +1420,15 @@ export default function StoreDashboard() {
                         </p>
                       </div>
 
-                      <button
+                      <Button
+                        variant="primary"
+                        className={styles.btnConfirmReturn}
+                        leftIcon={<Icon name="check" size={14} />}
                         onClick={() => handleConfirmReturn(request)}
                         disabled={!returnPinInputs[request.deliveryId] || returnPinInputs[request.deliveryId].length !== 6}
-                        className={`${styles.btnConfirmReturn} ${returnPinInputs[request.deliveryId]?.length === 6 ? styles.btnConfirmReturnReady : styles.btnConfirmReturnDisabled}`}
                       >
-                        ✓ Confirmar Devolução
-                      </button>
+                        Confirmar Devolução
+                      </Button>
                     </div>
                   ))}
                 </div>

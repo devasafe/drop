@@ -1056,62 +1056,85 @@
   margin-top: var(--space-5);
 }
 
-/* ---- RETURNS ---- */
+/* ---- RETURNS ----
+ * Lista achatada — mesmo idioma de .historyList/.historyRow (linhas com
+ * divisória, sem card), pill de status em tom âmbar (--rating, semântica de
+ * "aguardando ação") e confirmação via `Button` (Task 8 — DS flat).
+ */
 
 .returnsTitle {
-  margin: 0 0 24px 0;
-  font-size: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-6) 0;
+  font-size: var(--fs-hero);
   font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   text-transform: uppercase;
 }
 
-.returnCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 2px solid rgba(245, 158, 11, 0.3);
-  border-radius: 14px;
-  padding: 24px;
+.returnsList { display: flex; flex-direction: column; }
+
+.returnRow {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.returnCardTop {
+.returnRow:first-child { padding-top: 0; }
+.returnRow:last-child { border-bottom: none; }
+
+.returnRowTop {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.returnCardTitle { font-weight: 700; font-size: 16px; color: #F59E0B; }
-.returnCardOrder { font-weight: 600; font-size: 14px; color: var(--drop-text-muted); margin-top: 4px; }
-.returnCardMotoboy { font-size: 13px; color: var(--drop-text-dim); margin-top: 4px; }
+.returnRowTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+  font-family: var(--font-display);
+}
 
-.returnBadge {
-  background: rgba(245, 158, 11, 0.08);
-  color: #F59E0B;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 11px;
+.returnRowMeta { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--space-1); }
+
+.returnStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--rating) 16%, transparent);
+  color: var(--rating);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-align: center;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .returnInstructions {
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid var(--drop-border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
 .returnInstructionsTitle {
   font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 10px;
-  font-size: 9px;
+  color: var(--text-subtle);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
@@ -1119,69 +1142,65 @@
 .returnInstructionsList {
   margin: 0;
   padding-left: 18px;
-  font-size: 13px;
-  color: var(--drop-text-muted);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   line-height: 1.7;
 }
 
 .returnInstructionsList li { margin-bottom: 4px; }
 
-.returnPinSection { margin-bottom: 16px; }
+.returnPinSection { margin-bottom: var(--space-4); }
 
 .returnPinLabel {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
-  margin-bottom: 10px;
-  color: var(--drop-white);
-  font-size: 13px;
+  margin-bottom: var(--space-2);
+  color: var(--text-strong);
+  font-size: var(--fs-body);
 }
 
 .returnPinWrapper { position: relative; }
 
 .returnPinInput {
   width: 100%;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 2px solid rgba(245, 158, 11, 0.3);
-  border-radius: 10px;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 10px;
   text-align: center;
   box-sizing: border-box;
   font-family: monospace;
-  color: var(--drop-white);
+  color: var(--text-strong);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
-.returnPinInput:focus { border-color: #F59E0B; }
+.returnPinInput:focus { border-color: var(--rating); }
 
 .returnPinIndicator {
   position: absolute;
-  right: 14px;
+  right: var(--space-4);
   top: 50%;
   transform: translateY(-50%);
+  color: var(--rating);
+  display: flex;
 }
 
-.returnPinCount { font-size: 11px; color: var(--drop-text-dim); margin-top: 6px; }
+.returnPinCount { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: var(--space-2); }
 
+/* Confirmar — primary tingido de --rating (regra D: cor de ação/estado entra
+ * via classe própria, mesmo espírito de .btnAccept com --success). */
 .btnConfirmReturn {
   width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  transition: all 0.2s;
-  color: #fff;
+  background: var(--rating);
+  color: var(--bg);
 }
-
-.btnConfirmReturnReady { background: #F59E0B; cursor: pointer; }
-.btnConfirmReturnReady:hover { opacity: 0.9; }
-.btnConfirmReturnDisabled { background: rgba(255, 255, 255, 0.06); color: var(--drop-text-dim); cursor: not-allowed; }
+.btnConfirmReturn:hover:not(:disabled) { background: var(--rating); box-shadow: var(--shadow-neutral); }
 
 /* ---- CHAT TAB ---- */
 
