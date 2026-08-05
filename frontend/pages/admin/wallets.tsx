@@ -558,10 +558,10 @@ export default function AdminWalletsPanel() {
               style={{
                 background: 'var(--drop-surface)', border: '1px solid var(--drop-border)',
                 borderRadius: 'var(--drop-radius-lg)', padding: 24, maxWidth: 440, width: '100%',
-                color: 'var(--drop-white)', fontFamily: 'var(--drop-font-body)'
+                color: 'var(--drop-white)', fontFamily: 'var(--font-body)'
               }}
             >
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontFamily: 'var(--drop-font-display)' }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontFamily: 'var(--font-display)' }}>
                 <Icon name="lock" size={16} /> Solicitar acesso à carteira
               </h3>
               <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--drop-text-muted)' }}>
@@ -579,7 +579,7 @@ export default function AdminWalletsPanel() {
                   width: '100%', background: 'rgba(255,255,255,0.04)',
                   border: '1px solid var(--drop-border)', borderRadius: 'var(--drop-radius-sm)',
                   color: 'var(--drop-white)', padding: 10, fontSize: 14, resize: 'vertical',
-                  fontFamily: 'var(--drop-font-body)', boxSizing: 'border-box', outline: 'none'
+                  fontFamily: 'var(--font-body)', boxSizing: 'border-box', outline: 'none'
                 }}
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>

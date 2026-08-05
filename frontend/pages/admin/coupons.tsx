@@ -111,7 +111,7 @@ export default function AdminCoupons() {
               <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
                 ← Dashboard
               </button>
-              <h1 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 24, fontWeight: 700, color: 'var(--drop-text)', margin: 0 }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--drop-text)', margin: 0 }}>
                 Gerenciar Cupons
               </h1>
             </div>
@@ -125,7 +125,7 @@ export default function AdminCoupons() {
 
           {showForm && (
             <form onSubmit={handleCreate} style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border-md)', borderRadius: 14, padding: 24, marginBottom: 24 }}>
-              <h3 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', marginBottom: 16 }}>Criar Cupom</h3>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', marginBottom: 16 }}>Criar Cupom</h3>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>

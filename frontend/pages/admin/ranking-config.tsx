@@ -89,7 +89,7 @@ export default function AdminRankingConfig() {
             <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
               ← Dashboard
             </button>
-            <h1 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 26, fontWeight: 700, color: 'var(--drop-text)', margin: '0 0 4px' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--drop-text)', margin: '0 0 4px' }}>
               Prêmios do Ranking
             </h1>
             <p style={{ fontSize: 14, color: 'var(--drop-text-muted)', margin: 0 }}>
@@ -109,7 +109,7 @@ export default function AdminRankingConfig() {
 
           {/* Configuração de prêmios */}
           <div style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border-md)', borderRadius: 16, padding: 24, marginBottom: 24 }}>
-            <h2 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 20px' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 20px' }}>
               Prêmios para Top 3
             </h2>
 
@@ -164,7 +164,7 @@ export default function AdminRankingConfig() {
           {/* Histórico */}
           {history.length > 0 && (
             <div style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border-md)', borderRadius: 16, padding: 24 }}>
-              <h2 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 16px' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 16px' }}>
                 Histórico de Distribuições
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

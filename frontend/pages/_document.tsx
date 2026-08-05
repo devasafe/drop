@@ -9,13 +9,8 @@ export default function Document() {
         {/* Favicon (ícone da aba) */}
         <link rel="icon" type="image/png" href="/images/drop_png.png" />
         <link rel="apple-touch-icon" href="/images/drop_png.png" />
-        {/* Google Fonts — Space Grotesk + Inter */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        {/* Fontes (Space Grotesk + Inter) são carregadas e self-hospedadas pelo
+            next/font (lib/fonts, aplicado no <Html> acima) — sem <link> externo. */}
         <Script
           id="suppress-dev-warnings"
           dangerouslySetInnerHTML={{

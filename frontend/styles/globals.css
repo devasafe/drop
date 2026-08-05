@@ -36,9 +36,6 @@
   --drop-radius-lg:   var(--r-lg);
   --drop-radius-xl:   var(--r-xl);
 
-  --drop-font-display: var(--font-display);
-  --drop-font-body:    var(--font-body);
-
   --drop-shadow-sm:   var(--shadow-neutral);
   --drop-shadow:      var(--shadow-neutral);
   --drop-shadow-lg:   var(--shadow-neutral);
@@ -78,11 +75,11 @@ a {
 }
 
 button {
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 input, select, textarea {
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────── */
@@ -146,7 +143,7 @@ input, select, textarea {
 .nav-username {
   font-weight: 600;
   color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .role-badge {
@@ -164,7 +161,7 @@ input, select, textarea {
 .store-name {
   font-weight: 700;
   color: var(--drop-purple-2);
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .nav-loading { color: var(--drop-text-dim); font-size: 13px; }
@@ -208,7 +205,7 @@ input, select, textarea {
   border-radius: var(--drop-radius-sm);
   color: var(--drop-text);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
   outline: none;
   box-sizing: border-box;
@@ -231,7 +228,7 @@ input, select, textarea {
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   cursor: pointer;
   transition: var(--drop-transition);
   letter-spacing: 0.01em;
@@ -256,7 +253,7 @@ input, select, textarea {
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   cursor: pointer;
   transition: var(--drop-transition);
 }
@@ -622,7 +619,7 @@ input, select, textarea {
 }
 
 .drop-page-header h1 {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
   color: var(--drop-white);
@@ -642,7 +639,7 @@ input, select, textarea {
 }
 
 .drop-section-title {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
   color: var(--drop-text-muted);
@@ -751,7 +748,7 @@ input, select, textarea {
 }
 
 .drop-stat-value {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
   color: var(--drop-white);
@@ -825,7 +822,7 @@ input, select, textarea {
 }
 
 .drop-empty-state h3 {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
   color: var(--drop-text);

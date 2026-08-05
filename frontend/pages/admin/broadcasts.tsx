@@ -100,7 +100,7 @@ export default function AdminBroadcasts() {
             <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
               ← Dashboard
             </button>
-            <h1 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 26, fontWeight: 700, color: 'var(--drop-text)', margin: '0 0 4px' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--drop-text)', margin: '0 0 4px' }}>
               Enviar Anúncio
             </h1>
             <p style={{ fontSize: 14, color: 'var(--drop-text-muted)', margin: 0 }}>
@@ -162,7 +162,7 @@ export default function AdminBroadcasts() {
           </form>
 
           {/* Histórico */}
-          <h2 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 18, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 16px' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 16px' }}>
             Histórico
           </h2>
 

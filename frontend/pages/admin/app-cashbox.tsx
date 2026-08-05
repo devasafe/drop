@@ -637,7 +637,7 @@ export default function AppCashbox() {
               style={{
                 background: 'var(--drop-surface)', border: '1px solid var(--drop-border)',
                 borderRadius: 'var(--drop-radius-lg)', padding: 24, maxWidth: 480, width: '100%',
-                color: 'var(--drop-white)', fontFamily: 'var(--drop-font-body)',
+                color: 'var(--drop-white)', fontFamily: 'var(--font-body)',
                 maxHeight: '85vh', overflowY: 'auto'
               }}
             >
@@ -646,7 +646,7 @@ export default function AppCashbox() {
                   <span className={detailItem.type === 'income' ? styles.badgeIncome : styles.badgeExpense}>
                     {detailItem.type === 'income' ? 'Entrada' : 'Saída'}
                   </span>
-                  <h3 style={{ margin: '10px 0 0 0', fontSize: 18, fontFamily: 'var(--drop-font-display)' }}>
+                  <h3 style={{ margin: '10px 0 0 0', fontSize: 18, fontFamily: 'var(--font-display)' }}>
                     {getSourceLabel(detailItem.source)}
                   </h3>
                 </div>
@@ -664,7 +664,7 @@ export default function AppCashbox() {
                 <div style={{ fontSize: 12, color: 'var(--drop-text-muted)', marginBottom: 4 }}>Valor</div>
                 <div
                   className={detailItem.type === 'income' ? styles.tdAmountIncome : styles.tdAmountExpense}
-                  style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--drop-font-display)' }}
+                  style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)' }}
                 >
                   {detailItem.type === 'income' ? '+' : '-'} R$ {Number(detailItem.amount || 0).toFixed(2)}
                 </div>

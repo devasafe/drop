@@ -7,7 +7,7 @@
   gap: 10px;
   font-size: 13px;
   font-weight: 600;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
 }

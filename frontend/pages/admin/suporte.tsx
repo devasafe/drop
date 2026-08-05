@@ -177,7 +177,7 @@ export default function AdminSuporte() {
             <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 6 }}>
               ← Dashboard
             </button>
-            <h1 style={{ fontFamily: 'var(--drop-font-display)', fontSize: 24, fontWeight: 700, color: 'var(--drop-text)', margin: 0 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--drop-text)', margin: 0 }}>
               Central de Suporte
             </h1>
           </div>

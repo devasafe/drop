@@ -93,11 +93,11 @@ export default function WalletAccessInbox() {
           width: 360, maxHeight: '70vh', overflowY: 'auto',
           background: 'var(--drop-surface)', border: '1px solid var(--drop-border)',
           borderRadius: 'var(--drop-radius-lg)', padding: 16,
-          color: 'var(--drop-white)', fontFamily: 'var(--drop-font-body)',
+          color: 'var(--drop-white)', fontFamily: 'var(--font-body)',
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontFamily: 'var(--drop-font-display)' }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontFamily: 'var(--font-display)' }}>
               <Icon name="lock" size={14} /> Acessos à sua carteira
             </h3>
             <button onClick={() => setOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 18 }}>✕</button>

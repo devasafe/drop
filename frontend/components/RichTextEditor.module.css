@@ -39,7 +39,7 @@
   color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
   font-size: 13px;
-  font-family: var(--drop-font-body, 'Inter', sans-serif);
+  font-family: var(--font-body);
   transition: background 0.15s, color 0.15s;
   flex-shrink: 0;
 }
@@ -78,7 +78,7 @@
   color: rgba(255, 255, 255, 0.85);
   font-size: 14px;
   line-height: 1.65;
-  font-family: var(--drop-font-body, 'Inter', sans-serif);
+  font-family: var(--font-body);
   resize: vertical;
   overflow-y: auto;
   scrollbar-width: thin;

@@ -20,7 +20,7 @@
 
 .title {
   margin: 0;
-  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.96);
@@ -330,7 +330,7 @@
   font-size: 13px;
   color: #22C55E;
   font-weight: 600;
-  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-family: var(--font-display);
 }
 
 /* ---- Local Keyframes ---- */

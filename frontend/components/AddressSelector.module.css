@@ -116,7 +116,7 @@
   font-size: 17px;
   font-weight: 700;
   color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .btnClose {

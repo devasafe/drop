@@ -7,7 +7,7 @@
   min-height: 100vh;
   background: var(--drop-bg);
   padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   color: var(--drop-white);
 }
 
@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: center;
   color: var(--drop-text-dim);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   background: var(--drop-bg);
 }
 
