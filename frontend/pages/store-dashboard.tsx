@@ -20,6 +20,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Chip } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Sheet } from '../components/ui/Sheet';
+import Modal from '../components/common/Modal';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
   const router = useRouter();
@@ -86,209 +88,213 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      entregue: '#28a745',
-      delivered: '#28a745',
-      enviado: '#ff9800',
-      shipped: '#ff9800',
-      pago: '#007bff',
-      paid: '#007bff',
-      criado: '#6c757d',
-      created: '#6c757d',
-      cancelado: '#dc3545',
-      cancelled: '#dc3545',
-      rejeitado: '#dc3545',
-      aguardando_motoboy: '#ffc107',
-      assigned: '#17a2b8',
-      picked: '#17a2b8'
+  // Tom semântico do status (não mais hex por status — mapeado a tokens de cor).
+  const getStatusTone = (status: string) => {
+    const toneMap: Record<string, string> = {
+      entregue: styles.statusSuccess,
+      delivered: styles.statusSuccess,
+      enviado: styles.statusWarning,
+      shipped: styles.statusWarning,
+      pago: styles.statusInfo,
+      paid: styles.statusInfo,
+      criado: styles.statusNeutral,
+      created: styles.statusNeutral,
+      cancelado: styles.statusDanger,
+      cancelled: styles.statusDanger,
+      rejeitado: styles.statusDanger,
+      aguardando_motoboy: styles.statusWarning,
+      assigned: styles.statusInfo,
+      picked: styles.statusInfo,
     };
-    return colorMap[status] || '#6c757d';
+    return toneMap[status] || styles.statusNeutral;
   };
 
-  return (
-    <div className={styles.modal}>
-      <div className={styles.modalDialog}>
-        {/* Botão Fechar */}
-        <button onClick={onClose} className={styles.modalClose}>×</button>
+  const statusLabel =
+    order.status === 'entregue' || order.status === 'delivered' ? '✓ Entregue' :
+    order.status === 'enviado' || order.status === 'shipped' ? 'Enviado' :
+    order.status === 'pago' || order.status === 'paid' ? 'Pago' :
+    order.status === 'criado' || order.status === 'created' ? 'Criado' :
+    order.status === 'cancelado' || order.status === 'cancelled' ? 'Cancelado' :
+    order.status === 'rejeitado' ? 'Rejeitado' :
+    order.status === 'aguardando_motoboy' ? 'Aguardando' :
+    order.status === 'assigned' ? 'Atribuído' :
+    order.status === 'picked' ? 'Retirado' : order.status;
 
-        {/* HEADER com Status */}
-        <div
-          className={styles.modalHeader}
-          style={{ background: `linear-gradient(135deg, ${getStatusColor(order.status)}20 0%, ${getStatusColor(order.status)}10 100%)` }}
-        >
-          <div className={styles.modalHeaderLeft}>
-            <h2 className={styles.modalOrderTitle}><Icon name="clipboard" size={16} /> Pedido #{order._id.slice(0, 8).toUpperCase()}</h2>
-            <div className={styles.modalDate}>
-              {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
-            </div>
-          </div>
-          <span
-            className={styles.modalStatusBadge}
-            style={{ backgroundColor: getStatusColor(order.status) }}
-          >
-            {order.status === 'entregue' || order.status === 'delivered' ? '✓ Entregue' :
-             order.status === 'enviado' || order.status === 'shipped' ? 'Enviado' :
-             order.status === 'pago' || order.status === 'paid' ? 'Pago' :
-             order.status === 'criado' || order.status === 'created' ? 'Criado' :
-             order.status === 'cancelado' || order.status === 'cancelled' ? 'Cancelado' :
-             order.status === 'rejeitado' ? 'Rejeitado' :
-             order.status === 'aguardando_motoboy' ? 'Aguardando' :
-             order.status === 'assigned' ? 'Atribuído' :
-             order.status === 'picked' ? 'Retirado' : order.status}
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`Pedido #${order._id.slice(0, 8).toUpperCase()}`}
+      size="lg"
+    >
+      <div className={styles.modalContent}>
+        {/* STATUS + DATA */}
+        <div className={styles.statusRow}>
+          <span className={`${styles.statusPill} ${getStatusTone(order.status)}`}>{statusLabel}</span>
+          <span className={styles.statusDate}>
+            {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
           </span>
         </div>
 
-        <div className={styles.modalBody}>
-          {/* GRID: Comprador, Loja, Motoboy, Método */}
-          <div className={styles.infoGrid2}>
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="user" size={12} /> Comprador</div>
+        <div className={styles.divider} />
+
+        {/* Comprador, Loja, Motoboy, Método */}
+        <div className={styles.infoRows}>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="user" size={12} /> Comprador</span>
+            <div className={styles.infoRowValue}>
               <button
                 onClick={() => handleClickName(order.customerId || order.customerObj?._id, 'customer')}
-                className={styles.btnLink}
+                className={styles.linkValue}
               >
                 {order.customerName || 'Cliente'}
               </button>
-              <div className={styles.infoCellSub}>{(order.customerId || order.customerObj?._id || '').toString().slice(0, 8)}...</div>
+              <span className={styles.infoValueSub}>{(order.customerId || order.customerObj?._id || '').toString().slice(0, 8)}...</span>
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="store" size={12} /> Loja</div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="store" size={12} /> Loja</span>
+            <div className={styles.infoRowValue}>
               <button
                 onClick={() => handleClickName(order.storeId || order.storeObj?._id, 'store')}
-                className={styles.btnLink}
+                className={styles.linkValue}
               >
                 {order.storeName || 'Loja'}
               </button>
-              <div className={styles.infoCellSub}>{(order.storeId || order.storeObj?._id || '').toString().slice(0, 8)}...</div>
+              <span className={styles.infoValueSub}>{(order.storeId || order.storeObj?._id || '').toString().slice(0, 8)}...</span>
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="motorcycle" size={12} /> Motoboy</div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="motorcycle" size={12} /> Motoboy</span>
+            <div className={styles.infoRowValue}>
               {order.delivery?.motoboyName ? (
                 <button
                   onClick={() => handleClickName(typeof order.delivery.motoboyId === 'object' ? order.delivery.motoboyId._id : order.delivery.motoboyId, 'motoboy')}
-                  className={styles.btnLink}
+                  className={styles.linkValue}
                 >
                   {order.delivery.motoboyName}
                 </button>
               ) : (
-                <div className={styles.infoCellValue}>Aguardando</div>
+                <span className={styles.infoValueText}>Aguardando</span>
               )}
               {order.delivery?.motoboyId && (
-                <div className={styles.infoCellSub}>
+                <span className={styles.infoValueSub}>
                   {(typeof order.delivery.motoboyId === 'object' ? order.delivery.motoboyId._id : order.delivery.motoboyId).toString().slice(0, 8)}...
-                </div>
+                </span>
               )}
             </div>
+          </div>
 
-            <div className={styles.infoCell}>
-              <div className={styles.infoCellLabel}><Icon name="credit-card" size={12} /> Pagamento</div>
-              <div className={styles.infoCellValue}>
+          <div className={styles.infoRow}>
+            <span className={styles.infoRowLabel}><Icon name="credit-card" size={12} /> Pagamento</span>
+            <div className={styles.infoRowValue}>
+              <span className={styles.infoValueText}>
                 {order.paymentMethod === 'credit_card' ? 'Cartão' :
                  order.paymentMethod === 'debit_card' ? 'Débito' :
                  order.paymentMethod === 'pix' ? 'PIX' :
                  order.paymentMethod === 'money' ? 'Dinheiro' :
                  order.paymentMethod || '---'}
-              </div>
-              <div className={styles.infoCellSub}>
+              </span>
+              <span className={styles.infoValueSub}>
                 Status: {order.paymentStatus === 'paid' ? '✓ Pago' : order.paymentStatus === 'pending' ? 'Pendente' : order.paymentStatus || '---'}
-              </div>
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* PRODUTOS */}
-          {order.products && order.products.length > 0 && (
-            <div className={styles.productsList}>
-              <div className={styles.productsListTitle}><Icon name="package" size={12} /> Itens do Pedido ({order.products.length}):</div>
-              {order.products.map((item: any, idx: number) => (
-                <div key={idx} className={styles.productRow}>
-                  <div>
-                    <span className={styles.productQty}>{item.quantity}x</span>{' '}
-                    <span>{item.productName || 'Produto'}</span>
+        {/* PRODUTOS */}
+        {order.products && order.products.length > 0 && (
+          <>
+            <div className={styles.divider} />
+            <div>
+              <div className={styles.sectionTitle}><Icon name="package" size={12} /> Itens do Pedido ({order.products.length})</div>
+              <div className={styles.productsList}>
+                {order.products.map((item: any, idx: number) => (
+                  <div key={idx} className={styles.productRow}>
+                    <div>
+                      <span className={styles.productQty}>{item.quantity}x</span>{' '}
+                      <span>{item.productName || 'Produto'}</span>
+                    </div>
+                    <div className={styles.productTotal}>R$ {(item.price * item.quantity).toFixed(2)}</div>
                   </div>
-                  <div className={styles.productTotal}>R$ {(item.price * item.quantity).toFixed(2)}</div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          )}
+          </>
+        )}
 
-          {/* DETALHES DE PAGAMENTO - 5 Colunas */}
-          <div className={styles.financialGrid5}>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="wallet" size={14} /> VOCÊ RECEBE</div>
-              <div className={styles.financialValue} style={{ color: '#10b981' }}>
-                R$ {(order.walletDistribution?.storeAmount || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(produto - taxa)</div>
+        <div className={styles.divider} />
+
+        {/* DETALHES FINANCEIROS */}
+        <div className={styles.financialRows}>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="wallet" size={12} /> Você recebe <span className={styles.financialHint}>(produto − taxa)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialSuccess}`}>
+              R$ {(order.walletDistribution?.storeAmount || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="building" size={12} /> Taxa app <span className={styles.financialHint}>(comissão)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialBrand}`}>
+              R$ {(order.walletDistribution?.appCommission || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="package" size={12} /> Subtotal <span className={styles.financialHint}>(produtos)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialMuted}`}>
+              R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="truck" size={12} /> Entrega <span className={styles.financialHint}>(taxa)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialWarning}`}>
+              R$ {(order.deliveryFee || 0).toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.financialRow}>
+            <span className={styles.financialLabel}><Icon name="credit-card" size={12} /> Total <span className={styles.financialHint}>(cliente)</span></span>
+            <span className={`${styles.financialValue} ${styles.financialInfo}`}>
+              R$ {order.totalValue?.toFixed(2) || '0.00'}
+            </span>
+          </div>
+        </div>
+
+        {/* STATUS DE PAGAMENTO - LOJISTA PODE ALTERAR */}
+        {user?.activeRole === 'lojista' && (
+          <div className={styles.paymentStatusSection}>
+            <div className={styles.sectionTitle}>
+              <Icon name="credit-card" size={12} /> Status de Pagamento (Temporário)
             </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="building" size={14} /> TAXA APP</div>
-              <div className={styles.financialValue} style={{ color: '#fc5a8d' }}>
-                R$ {(order.walletDistribution?.appCommission || (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(comissão)</div>
+            <div className={styles.paymentStatusRow}>
+              <Select
+                value={selectedPaymentStatus}
+                onChange={setSelectedPaymentStatus}
+                options={[
+                  { value: 'pending', label: 'Pendente' },
+                  { value: 'paid', label: '✓ Pago' },
+                  { value: 'failed', label: 'Falhou' },
+                  { value: 'refunded', label: 'Reembolsado' },
+                ]}
+              />
+              <Button onClick={handleUpdatePaymentStatus} loading={changingPayment}>
+                Atualizar
+              </Button>
             </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="package" size={14} /> SUBTOTAL</div>
-              <div className={styles.financialValue} style={{ color: 'var(--drop-text-muted)' }}>
-                R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(produtos)</div>
-            </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="truck" size={14} /> ENTREGA</div>
-              <div className={styles.financialValue} style={{ color: 'var(--drop-warning)' }}>
-                R$ {(order.deliveryFee || 0).toFixed(2)}
-              </div>
-              <div className={styles.financialSub}>(taxa)</div>
-            </div>
-            <div className={styles.financialCell}>
-              <div className={styles.financialLabel}><Icon name="credit-card" size={14} /> TOTAL</div>
-              <div className={styles.financialValue} style={{ color: '#60A5FA' }}>
-                R$ {order.totalValue?.toFixed(2) || '0.00'}
-              </div>
-              <div className={styles.financialSub}>(cliente)</div>
+            <div className={styles.paymentStatusNote}>
+              Status atual: <strong>{selectedPaymentStatus === 'paid' ? '✓ Pago' : selectedPaymentStatus === 'pending' ? 'Pendente' : selectedPaymentStatus}</strong>
             </div>
           </div>
+        )}
 
-          {/* STATUS DE PAGAMENTO - LOJISTA PODE ALTERAR */}
-          {user?.activeRole === 'lojista' && (
-            <div className={styles.paymentStatusSection}>
-              <div className={styles.paymentStatusTitle}>
-                <Icon name="credit-card" size={14} /> Status de Pagamento (Temporário)
-              </div>
-              <div className={styles.paymentStatusRow}>
-                <select
-                  value={selectedPaymentStatus}
-                  onChange={(e) => setSelectedPaymentStatus(e.target.value)}
-                  className={styles.select}
-                >
-                  <option value="pending">Pendente</option>
-                  <option value="paid">✓ Pago</option>
-                  <option value="failed">Falhou</option>
-                  <option value="refunded">Reembolsado</option>
-                </select>
-                <button
-                  onClick={handleUpdatePaymentStatus}
-                  disabled={changingPayment}
-                  className={styles.btnSave}
-                >
-                  {changingPayment ? 'Atualizando...' : '✓ Atualizar'}
-                </button>
-              </div>
-              <div className={styles.paymentStatusNote}>
-                Status atual: <strong>{selectedPaymentStatus === 'paid' ? '✓ Pago' : selectedPaymentStatus === 'pending' ? 'Pendente' : selectedPaymentStatus}</strong>
-              </div>
-            </div>
-          )}
-
-          {/* SEÇÃO DE CHAT */}
-          {showChat && chatConvId ? (
+        {/* SEÇÃO DE CHAT */}
+        {showChat && chatConvId ? (
+          <>
+            <div className={styles.divider} />
             <div className={styles.chatBox}>
-              <div className={styles.chatBoxTitle}><Icon name="chat" size={14} /> Chat com Cliente</div>
-              <div style={{ height: 420 }}>
+              <div className={styles.sectionTitle}><Icon name="chat" size={12} /> Chat com Cliente</div>
+              <div className={styles.chatFrame}>
                 <ChatConversationDetail
                   conversationId={chatConvId}
                   currentUserId={user?._id}
@@ -298,29 +304,28 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
                 />
               </div>
             </div>
-          ) : null}
+          </>
+        ) : null}
 
-          {/* BOTÕES DE AÇÃO */}
-          <div className={styles.actionBtns}>
-            <button
-              onClick={handleToggleChat}
-              disabled={chatLoading}
-              className={`${styles.btnToggleChat} ${showChat ? styles.btnToggleChatClose : styles.btnToggleChatOpen}`}
-            >
-              {chatLoading ? 'Abrindo...' : showChat ? <><Icon name="x-circle" /> Fechar Chat</> : <><Icon name="chat" /> Abrir Chat</>}
-            </button>
+        <div className={styles.divider} />
 
-            {/* BOTÃO FECHAR */}
-            <button
-              onClick={onClose}
-              className={styles.btnCloseModal}
-            >
-              ✕ Fechar
-            </button>
-          </div>
+        {/* BOTÕES DE AÇÃO */}
+        <div className={styles.actionBtns}>
+          <Button
+            variant={showChat ? 'ghost' : 'primary'}
+            leftIcon={<Icon name={showChat ? 'x-circle' : 'chat'} size={14} />}
+            onClick={handleToggleChat}
+            loading={chatLoading}
+          >
+            {showChat ? 'Fechar Chat' : 'Abrir Chat'}
+          </Button>
+
+          <Button variant="ghost" onClick={onClose}>
+            Fechar
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1468,71 +1473,63 @@ export default function StoreDashboard() {
         {detalhesPedido && <DetalhesPedidoModal order={detalhesPedido} onClose={() => setDetalhesPedido(null)} token={token} />}
 
         {/* Modal de Rejeição */}
-        {rejectModalOrderId && (
-          <div className={styles.rejectOverlay}>
-            <div className={styles.rejectDialog}>
-              <div className={styles.rejectDialogHeader}>
-                <h3 className={styles.rejectDialogTitle}><Icon name="x-circle" size={16} /> Rejeitar Pedido</h3>
+        <Sheet
+          open={!!rejectModalOrderId}
+          onClose={() => setRejectModalOrderId(null)}
+          title="Rejeitar Pedido"
+        >
+          <div className={styles.rejectWrap}>
+            <span className={styles.rejectLabel}>Motivo da Rejeição</span>
+            <div className={styles.rejectReasons} role="radiogroup" aria-label="Motivo da rejeição">
+              {[
+                { code: 'store_closed', label: 'Loja fechada' },
+                { code: 'store_busy', label: 'Loja muito ocupada' },
+                { code: 'not_available', label: 'Itens indisponíveis' },
+                { code: 'payment_issue', label: 'Problema de pagamento' },
+                { code: 'other', label: 'Outro motivo' },
+              ].map(option => (
                 <button
-                  onClick={() => setRejectModalOrderId(null)}
-                  className={styles.rejectCloseBtn}
+                  key={option.code}
+                  type="button"
+                  role="radio"
+                  aria-checked={rejectReason === option.code}
+                  className={[styles.rejectReason, rejectReason === option.code && styles.rejectReasonActive].filter(Boolean).join(' ')}
+                  onClick={() => setRejectReason(option.code)}
                 >
-                  ×
+                  {option.label}
                 </button>
-              </div>
+              ))}
+            </div>
 
-              <div>
-                <label className={styles.rejectLabel}>Motivo da Rejeição</label>
-                <div className={styles.rejectOptions}>
-                  {[
-                    { code: 'store_closed', label: 'Loja fechada' },
-                    { code: 'store_busy', label: 'Loja muito ocupada' },
-                    { code: 'not_available', label: 'Itens indisponíveis' },
-                    { code: 'payment_issue', label: 'Problema de pagamento' },
-                    { code: 'other', label: 'Outro motivo' },
-                  ].map(option => (
-                    <label key={option.code} className={styles.rejectOption}>
-                      <input
-                        type="radio"
-                        name="reject-reason"
-                        value={option.code}
-                        checked={rejectReason === option.code}
-                        onChange={e => setRejectReason(e.target.value)}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
+            {rejectReason === 'other' && (
+              <textarea
+                value={rejectCustomReason}
+                onChange={e => setRejectCustomReason(e.target.value)}
+                placeholder="Descreva o motivo..."
+                className={styles.rejectTextarea}
+                rows={3}
+              />
+            )}
 
-                {rejectReason === 'other' && (
-                  <textarea
-                    value={rejectCustomReason}
-                    onChange={e => setRejectCustomReason(e.target.value)}
-                    placeholder="Descreva o motivo..."
-                    className={styles.rejectTextarea}
-                  />
-                )}
-              </div>
-
-              <div className={styles.rejectBtnRow}>
-                <button
-                  onClick={() => setRejectModalOrderId(null)}
-                  disabled={rejectLoading}
-                  className={styles.btnRejectCancel}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRejectOrder}
-                  disabled={rejectLoading}
-                  className={styles.btnRejectConfirm}
-                >
-                  {rejectLoading ? 'Rejeitando...' : '✕ Rejeitar'}
-                </button>
-              </div>
+            <div className={styles.rejectActions}>
+              <Button
+                variant="ghost"
+                onClick={() => setRejectModalOrderId(null)}
+                disabled={rejectLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className={styles.rejectConfirm}
+                onClick={handleRejectOrder}
+                loading={rejectLoading}
+              >
+                Rejeitar Pedido
+              </Button>
             </div>
           </div>
-        )}
+        </Sheet>
       </div>
     </ProtectedRoute>
   );

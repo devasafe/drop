@@ -2,324 +2,159 @@
    StoreDashboard.module.css — DROP Seller (Cinematic)
    =================================================== */
 
-/* ---- MODAL DetalhesPedido ---- */
+/* ---- MODAL DetalhesPedido (DS) ----
+ * Container = `Modal` (common/Modal, size="lg"). Conteúdo flat com
+ * divisores em vez de cards em grid; cor do status vem de tom semântico
+ * (--success/--danger/--rating/--brand-2/--text-muted), nunca hex por
+ * status. Financeiro também virou lista de linhas, não grid de 5 colunas.
+ */
 
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(12px);
-  z-index: 1000;
+.modalContent { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.divider { border-top: 1px solid var(--line); }
+
+.statusRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+
+.statusDate { font-size: var(--fs-xs); color: var(--text-subtle); letter-spacing: 0.03em; }
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusSuccess { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.statusDanger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.statusWarning { background: color-mix(in srgb, var(--rating) 18%, transparent); color: var(--rating); }
+.statusInfo { background: color-mix(in srgb, var(--brand-2) 20%, transparent); color: var(--brand-2); }
+.statusNeutral { background: var(--surface-chip); color: var(--text-muted); }
+
+.sectionTitle {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.modalDialog {
-  background: var(--drop-bg);
-  border: 1px solid var(--drop-border);
-  border-radius: 16px;
-  max-width: 720px;
-  width: 100%;
-  max-height: 90vh;
-  overflow: auto;
-  position: relative;
-}
-
-.modalClose {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--drop-text-dim);
-  font-size: 24px;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  transition: all 0.2s;
-  z-index: 10;
-  line-height: 1;
-}
-
-.modalClose:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--drop-white);
-}
-
-.modalHeader {
-  padding: 28px;
-  border-bottom: 1px solid var(--drop-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.modalHeaderLeft {
-  display: flex;
-  flex-direction: column;
   gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: var(--space-3);
 }
 
-.modalOrderTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  margin: 0;
-  letter-spacing: -0.01em;
+.infoRows { display: flex; flex-direction: column; }
+
+.infoRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.modalStatusBadge {
-  display: inline-block;
-  padding: 6px 16px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff;
+.infoRow:last-child { border-bottom: none; }
+
+.infoRowLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
   letter-spacing: 0.1em;
-  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
-.modalDate {
-  font-size: 11px;
-  color: var(--drop-text-dim);
-  margin-top: 4px;
-  letter-spacing: 0.03em;
-}
+.infoRowValue { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.infoValueText { font-size: var(--fs-body); font-weight: 700; color: var(--text-strong); }
+.infoValueSub { font-size: var(--fs-xs); color: var(--text-subtle); font-family: monospace; }
 
-.modalBody { padding: 28px; }
-
-.infoGrid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.infoCell {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--drop-border);
-  border-radius: 12px;
-}
-
-.infoCellLabel {
-  font-size: 10px;
-  color: var(--drop-text-dim);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 8px;
-}
-
-.infoCellValue {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--drop-white);
-}
-
-.infoCellSub {
-  font-size: 11px;
-  color: var(--drop-text-dim);
-  margin-top: 2px;
-  font-family: monospace;
-}
-
-.btnLink {
+.linkValue {
   background: none;
   border: none;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--drop-purple-2);
-  text-align: left;
   padding: 0;
-  margin-bottom: 4px;
-  display: block;
-  width: 100%;
-  transition: color 0.2s;
-}
-
-.btnLink:hover { color: var(--drop-white); }
-
-.productsList {
-  background: rgba(255, 255, 255, 0.015);
-  border-radius: 12px;
-  padding: 16px;
-  border: 1px solid var(--drop-border);
-  margin-bottom: 24px;
-}
-
-.productsListTitle {
-  font-size: 10px;
+  cursor: pointer;
+  font-size: var(--fs-body);
   font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
+  color: var(--brand-2);
+  transition: color var(--dur-fast) var(--ease);
 }
+
+.linkValue:hover { color: var(--text-strong); }
+
+.productsList { display: flex; flex-direction: column; }
 
 .productRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  font-size: 13px;
-  color: var(--drop-text-muted);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
 }
 
 .productRow:last-child { border-bottom: none; }
-.productQty { font-weight: 700; color: var(--drop-white); }
-.productTotal { font-weight: 700; color: var(--drop-success); }
+.productQty { font-weight: 700; color: var(--text-strong); }
+.productTotal { font-weight: 700; color: var(--success); }
 
-.financialGrid5 {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.015);
-  border-radius: 12px;
-  border: 1px solid var(--drop-border);
+.financialRows { display: flex; flex-direction: column; }
+
+.financialRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.financialCell { text-align: center; }
+.financialRow:last-child { border-bottom: none; }
 
 .financialLabel {
-  font-size: 9px;
-  color: var(--drop-text-dim);
-  font-weight: 700;
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
 }
 
-.financialValue { font-weight: 700; font-size: 15px; font-family: var(--drop-font-display); }
-.financialSub { font-size: 9px; color: var(--drop-text-dim); margin-top: 4px; }
+.financialHint { text-transform: none; letter-spacing: 0; color: var(--text-subtle); }
+
+.financialValue { font-weight: 700; font-size: var(--fs-body); font-family: var(--font-display); }
+.financialSuccess { color: var(--success); }
+.financialBrand { color: var(--brand-2); }
+.financialMuted { color: var(--text-muted); }
+.financialWarning { color: var(--rating); }
+.financialInfo { color: var(--info); }
 
 .paymentStatusSection {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid var(--drop-border);
-  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
 }
 
-.paymentStatusTitle {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
+.paymentStatusRow { display: flex; gap: var(--space-3); align-items: flex-start; }
+.paymentStatusRow > *:first-child { flex: 1; }
+.paymentStatusNote { font-size: var(--fs-xs); color: var(--text-subtle); }
 
-.paymentStatusRow { display: flex; gap: 12px; margin-bottom: 12px; }
+.chatBox { display: flex; flex-direction: column; }
+.chatFrame { height: 420px; }
 
-.select {
-  flex: 1;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--drop-border);
-  border-radius: 8px;
-  color: var(--drop-white);
-  font-size: 13px;
-  font-family: var(--drop-font-body);
-  cursor: pointer;
-  outline: none;
-}
-
-.select option { background: #131313; color: var(--drop-white); }
-
-.btnSave {
-  padding: 10px 24px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  transition: opacity 0.2s;
-}
-
-.btnSave:disabled { opacity: 0.4; cursor: not-allowed; }
-.btnSave:hover { opacity: 0.9; }
-
-.paymentStatusNote { font-size: 11px; color: var(--drop-text-dim); }
-
-.chatBox {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.015);
-  border-radius: 12px;
-  border: 1px solid var(--drop-border);
-  min-height: 300px;
-}
-
-.chatBoxTitle {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
-
-.actionBtns { display: flex; gap: 10px; flex-wrap: wrap; }
-
-.btnToggleChat {
-  flex: 1;
-  padding: 14px 16px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: all 0.2s;
-  color: var(--drop-white);
-}
-
-.btnToggleChatOpen { background: var(--drop-purple); }
-.btnToggleChatOpen:hover { opacity: 0.9; }
-
-.btnToggleChatClose {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #EF4444;
-}
-
-.btnToggleChatClose:hover { background: rgba(239, 68, 68, 0.25); }
-
-.btnCloseModal {
-  flex: 1;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border);
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--drop-text-muted);
-  transition: all 0.2s;
-}
-
-.btnCloseModal:hover { background: rgba(255, 255, 255, 0.08); color: var(--drop-white); }
+.actionBtns { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.actionBtns > * { flex: 1; }
 
 /* ---- LOADING ---- */
 
@@ -1383,132 +1218,67 @@
 
 /* ---- REJECT MODAL ---- */
 
-.rejectOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(12px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
+/* ---- MODAL Rejeição (DS) ----
+ * Container = `Sheet` (ui/Sheet). Mesmo padrão visual do
+ * `CancelOrderSheet` (motivos como lista de botões-radio + textarea +
+ * confirmação em --danger via override local — Regra D).
+ */
 
-.rejectDialog {
-  background: var(--drop-bg);
-  border: 1px solid var(--drop-border);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 500px;
-  width: 90%;
-}
-
-.rejectDialogHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.rejectDialogTitle {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-}
-
-.rejectCloseBtn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--drop-text-dim);
-  line-height: 1;
-  transition: color 0.2s;
-}
-
-.rejectCloseBtn:hover { color: var(--drop-white); }
+.rejectWrap { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .rejectLabel {
-  display: block;
+  font-family: var(--font-body);
   font-weight: 700;
-  margin-bottom: 12px;
-  color: var(--drop-text-dim);
-  font-size: 10px;
+  color: var(--text-subtle);
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
 
-.rejectOptions { display: grid; gap: 10px; }
+.rejectReasons { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 
-.rejectOption {
-  display: flex;
-  align-items: center;
+.rejectReason {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
   cursor: pointer;
-  font-size: 14px;
-  color: var(--drop-text-muted);
-  gap: 10px;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-subtle);
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.rejectOption input { accent-color: var(--drop-purple-2); }
+.rejectReason:hover { color: var(--text); }
+.rejectReasonActive { color: var(--brand-2); font-weight: 700; }
 
 .rejectTextarea {
   width: 100%;
-  margin-top: 12px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--drop-border);
-  border-radius: 10px;
-  font-family: var(--drop-font-body);
-  font-size: 14px;
-  min-height: 100px;
+  padding: var(--space-3);
+  background: var(--surface-field);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  min-height: 96px;
   resize: vertical;
-  color: var(--drop-white);
+  color: var(--text);
   outline: none;
   box-sizing: border-box;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
-.rejectTextarea::placeholder { color: var(--drop-text-dim); }
-.rejectTextarea:focus { border-color: var(--drop-purple); }
+.rejectTextarea::placeholder { color: var(--text-muted); }
+.rejectTextarea:focus { border-color: var(--brand-2); }
 
-.rejectBtnRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+.rejectActions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.rejectActions > * { width: 100%; }
 
-.btnRejectCancel {
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border);
-  color: var(--drop-text-muted);
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btnRejectCancel:hover { background: rgba(255, 255, 255, 0.07); color: var(--drop-white); }
-.btnRejectCancel:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.btnRejectConfirm {
-  padding: 14px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #EF4444;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btnRejectConfirm:hover { background: rgba(239, 68, 68, 0.2); }
-.btnRejectConfirm:disabled { opacity: 0.4; cursor: not-allowed; }
+.rejectConfirm { background: var(--danger); }
+.rejectConfirm:hover:not(:disabled) { background: var(--danger); box-shadow: var(--shadow-neutral); }
 
 /* ---- TABS MOBILE ---- */
 
@@ -1527,9 +1297,7 @@
   .hamburgerBtn {
     display: flex;
   }
-  .financialGrid5 { grid-template-columns: repeat(3, 1fr); }
   .historyFinancial { grid-template-columns: repeat(3, 1fr); }
-  .infoGrid2 { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -1541,11 +1309,9 @@
   .orderCardTop { flex-wrap: wrap; gap: 8px; }
   .orderActions3 { grid-template-columns: 1fr; }
   .orderActions2 { grid-template-columns: 1fr; }
-  .modalDialog { max-width: 100%; border-radius: 14px; }
-  .financialGrid5 { grid-template-columns: repeat(2, 1fr); }
   .historyFinancial { grid-template-columns: repeat(2, 1fr); }
   .historyRowTop { grid-template-columns: 1fr; gap: 12px; }
   .historyRowAmountRight { text-align: left; }
   .historyRowStatusCenter { text-align: left; }
-  .rejectBtnRow { grid-template-columns: 1fr; }
+  .rejectActions { grid-template-columns: 1fr; }
 }
