@@ -2,6 +2,8 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { getNextStep, getFinalDestination, getStepIndexByPath } from '../lib/onboardingFlow';
+import { Button } from './ui/Button';
+import styles from './OnboardingFooter.module.css';
 
 export default function OnboardingFooter() {
   const router = useRouter();
@@ -22,43 +24,19 @@ export default function OnboardingFooter() {
   };
 
   return (
-    <div style={wrap}>
+    <div className={styles.wrap}>
       {!isLast && (
-        <button style={skipBtn} onClick={() => router.push(getFinalDestination(role))}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(getFinalDestination(role))}
+        >
           Pular por agora →
-        </button>
+        </Button>
       )}
-      <button style={primaryBtn} onClick={go}>
+      <Button variant="primary" onClick={go} className={styles.next}>
         {isLast ? finalLabel : 'Continuar →'}
-      </button>
+      </Button>
     </div>
   );
 }
-
-const wrap: React.CSSProperties = {
-  maxWidth: 560,
-  width: '100%',
-  margin: '20px auto 40px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 12,
-};
-const skipBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: 'rgba(255,255,255,0.5)',
-  border: 'none',
-  fontSize: 14,
-  cursor: 'pointer',
-};
-const primaryBtn: React.CSSProperties = {
-  background: '#6C2BD9',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: '12px 22px',
-  fontWeight: 600,
-  fontSize: 15,
-  cursor: 'pointer',
-  marginLeft: 'auto',
-};

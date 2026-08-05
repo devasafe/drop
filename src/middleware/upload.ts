@@ -44,6 +44,31 @@ export const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+// Validar magic bytes para detectar fake images (usando buffer em memória).
+// Fonte única — antes vivia duplicado em authController/userController.
+export const isValidImageBuffer = (buffer: Buffer): boolean => {
+  if (buffer.length < 12) return false;
+  const hex = buffer.slice(0, 12).toString('hex').toLowerCase();
+  return (
+    hex.startsWith('89504e47') || // PNG
+    hex.startsWith('ffd8ff') ||   // JPEG
+    hex.startsWith('47494638') || // GIF
+    hex.startsWith('52494646')    // WebP (RIFF)
+  );
+};
+
+// Middleware de erro para upload (multer -> 400). Fonte única — antes vivia
+// duplicado em routes/auth.ts e routes/user.ts.
+export const handleUploadError = (err: any, req: any, res: any, next: any) => {
+  if (err instanceof Error && err.message.includes('File')) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'File size exceeds 5MB limit' });
+  }
+  next(err);
+};
+
 // Upload de mídia de produto: imagens + vídeo. Mantido em memória, mas com
 // teto de 50MB para reduzir o risco de OOM/DoS (vários uploads simultâneos).
 export const uploadProductMedia = multer({

@@ -1,7 +1,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
+import AuthLayout from '../components/auth/AuthLayout';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 import styles from './Login.module.css';
+
+const STEP_COPY: Record<1 | 2 | 3, { title: string; subtitle: string }> = {
+  1: { title: 'Recuperar senha', subtitle: 'Informe o e-mail da sua conta e enviaremos um código de verificação.' },
+  2: { title: 'Redefinir senha', subtitle: 'Digite o código recebido por e-mail e escolha uma nova senha.' },
+  3: { title: 'Senha redefinida', subtitle: 'Sua senha foi alterada com sucesso.' },
+};
 
 export default function EsqueciSenhaPage() {
   const router = useRouter();
@@ -44,110 +53,85 @@ export default function EsqueciSenhaPage() {
     }
   };
 
+  const { title, subtitle } = STEP_COPY[step];
+
   return (
-    <div className={styles.page}>
-      <div className={styles.glow} />
-      <div className={styles.card}>
-        <div className={styles.logoWrapper}>
-          <div className={styles.logoimg}>
-            <img src="/images/logog_png.png" alt="DROP" />
+    <AuthLayout title={title} subtitle={subtitle}>
+      {step === 1 && (
+        <form onSubmit={sendCode} className={styles.form}>
+          {error && <div className={styles.notice}>{error}</div>}
+          <Input
+            value={email}
+            onChange={setEmail}
+            type="email"
+            placeholder="seu@email.com"
+            required
+            aria-label="Email da conta"
+          />
+          <Button type="submit" loading={loading} className={styles.submitBtn}>
+            Enviar código
+          </Button>
+        </form>
+      )}
+
+      {step === 2 && (
+        <form onSubmit={resetPw} className={styles.form}>
+          {error && <div className={styles.notice}>{error}</div>}
+          {notice && !error && (
+            <div className={`${styles.notice} ${styles.noticeSuccess}`}>{notice}</div>
+          )}
+          <Input
+            value={code}
+            onChange={setCode}
+            placeholder="000000"
+            inputMode="numeric"
+            maxLength={6}
+            required
+            aria-label="Código (6 dígitos)"
+          />
+          <Input
+            value={pw}
+            onChange={setPw}
+            type="password"
+            placeholder="Nova senha"
+            required
+            aria-label="Nova senha"
+          />
+          <Input
+            value={pw2}
+            onChange={setPw2}
+            type="password"
+            placeholder="Confirmar nova senha"
+            required
+            aria-label="Confirmar nova senha"
+          />
+          <Button type="submit" loading={loading} className={styles.submitBtn}>
+            Redefinir senha
+          </Button>
+          <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); setStep(1); setError(''); setNotice(''); }}
+            className={styles.link}
+          >
+            Não recebeu? Reenviar
+          </a>
+        </form>
+      )}
+
+      {step === 3 && (
+        <div className={styles.form}>
+          <div className={`${styles.notice} ${styles.noticeSuccess}`}>
+            Senha redefinida com sucesso! Você já pode entrar com a nova senha.
           </div>
-          <p className={styles.logoSubtitle}>
-            {step === 3 ? 'Senha redefinida' : 'Recuperar sua senha'}
-          </p>
+          <Button onClick={() => router.push('/login')} className={styles.submitBtn}>
+            Ir para o login
+          </Button>
         </div>
+      )}
 
-        {error && <div className={styles.errorBox}>{error}</div>}
-        {notice && !error && step === 2 && (
-          <div className={styles.errorBox} style={{ background: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.35)', color: '#22c55e' }}>
-            {notice}
-          </div>
-        )}
-
-        {step === 1 && (
-          <form onSubmit={sendCode} className={styles.form}>
-            <div className={styles.field}>
-              <label className={styles.label}>Email da conta</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-                className={styles.input}
-              />
-            </div>
-            <button type="submit" disabled={loading} className={styles.submitBtn}>
-              {loading ? 'Enviando...' : 'Enviar código'}
-            </button>
-          </form>
-        )}
-
-        {step === 2 && (
-          <form onSubmit={resetPw} className={styles.form}>
-            <div className={styles.field}>
-              <label className={styles.label}>Código (6 dígitos)</label>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                placeholder="000000"
-                inputMode="numeric"
-                maxLength={6}
-                className={styles.input}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Nova senha</label>
-              <input
-                type="password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                required
-                placeholder="••••••••"
-                className={styles.input}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Confirmar nova senha</label>
-              <input
-                type="password"
-                value={pw2}
-                onChange={(e) => setPw2(e.target.value)}
-                required
-                placeholder="••••••••"
-                className={styles.input}
-              />
-            </div>
-            <button type="submit" disabled={loading} className={styles.submitBtn}>
-              {loading ? 'Salvando...' : 'Redefinir senha'}
-            </button>
-            <a href="#" onClick={(e) => { e.preventDefault(); setStep(1); setError(''); setNotice(''); }} className={styles.forgotLink}>
-              Não recebeu? Reenviar
-            </a>
-          </form>
-        )}
-
-        {step === 3 && (
-          <div className={styles.form}>
-            <div className={styles.errorBox} style={{ background: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.35)', color: '#22c55e' }}>
-              Senha redefinida com sucesso! Você já pode entrar com a nova senha.
-            </div>
-            <button onClick={() => router.push('/login')} className={styles.submitBtn}>
-              Ir para o login
-            </button>
-          </div>
-        )}
-
-        <div className={styles.divider}>
-          <div className={styles.dividerLine} />
-          <span className={styles.dividerLabel}>ou</span>
-          <div className={styles.dividerLine} />
-        </div>
-        <div className={styles.cta}>
-          <a href="/login" className={styles.ctaLink}>Voltar ao login</a>
-        </div>
-      </div>
-    </div>
+      <p className={styles.switchLine}>
+        <a href="/login" className={styles.link}>Voltar ao login</a>
+      </p>
+    </AuthLayout>
   );
 }

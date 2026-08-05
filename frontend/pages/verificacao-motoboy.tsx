@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ChangeEvent } from 'react';
 import { useRouter } from 'next/router';
+import { CheckCircle2, Clock, XCircle, Upload } from 'lucide-react';
 import api from '../lib/api';
 import { maskCPF, maskRG, maskCNH, maskPlate } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Chip } from '../components/ui/Chip';
+import styles from './VerificacaoMotoboy.module.css';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface CourierVer {
@@ -102,8 +107,24 @@ export default function VerificacaoMotoboyPage() {
     setEditCourier(false);
   }, 'Dados enviados para análise.');
 
-  if (loading) return <div style={wrap}><p>Carregando...</p></div>;
-  if (err) return <div style={wrap}><div style={card}><p>{err}</p></div></div>;
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.loadingText}>Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.errorText}>{err}</p>
+        </div>
+      </div>
+    );
+  }
 
   const hasCpf = !!account.cpf;
   const hasRg = !!account.rg;
@@ -120,44 +141,59 @@ export default function VerificacaoMotoboyPage() {
     : (ver?.missing ?? []);
 
   return (
-    <div style={wrap}>
-      <div style={{ maxWidth: 560, width: '100%' }}>
+    <div className={styles.page}>
+      <div className={styles.container}>
         <OnboardingProgress />
-        <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação de motoboy</h1>
-        {!onboarding && (
-          <a href="/motoboy" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
-        )}
-        <p style={{ color: 'rgba(255,255,255,0.6)' }}>
+
+        <div className={styles.header}>
+          <h1 className={styles.title}>Verificação de motoboy</h1>
+          {!onboarding && <a href="/motoboy" className={styles.laterLink}>Verificar depois →</a>}
+        </div>
+        <p className={`${styles.subtitle} ${ver?.verified ? styles.subtitleOk : ''}`}>
+          {ver?.verified && <CheckCircle2 size={16} aria-hidden="true" />}
           {ver?.verified
-            ? '✅ Você está verificado — já pode aceitar entregas.'
+            ? 'Você está verificado — já pode aceitar entregas.'
             : 'Conclua os passos abaixo para aceitar entregas.'}
         </p>
-        {msg && <div style={banner}>{msg}</div>}
+        {msg && <div className={styles.banner}>{msg}</div>}
 
+        {/* Documento */}
         {!onboarding && (
-          <section style={card}>
-            <Head title="Documento (CPF ou RG)" s={ds} />
-            {ds === 'rejected' && <p style={errp}>Recusado: {doc.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
-            {ds === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>Documento (CPF ou RG)</h2>
+              <StatusBadge s={ds} />
+            </div>
+            {ds === 'pending' && (
+              <p className={styles.hint}><Clock size={14} aria-hidden="true" /> Em análise pela nossa equipe.</p>
+            )}
+            {ds === 'rejected' && (
+              <p className={styles.hintDanger}>Recusado: {doc.rejectionReason || 'reenvie com fotos legíveis.'}</p>
+            )}
             {(ds === 'none' || ds === 'rejected') && (
               !hasAnyDoc ? (
-                <p style={hint}>
-                  Cadastre seu CPF ou RG em <a href="/editar-conta" style={link}>Editar meus dados</a> antes de enviar o documento.
+                <p className={styles.hint}>
+                  Cadastre seu CPF ou RG em <a href="/editar-conta" className={styles.link}>Editar meus dados</a> antes de enviar o documento.
                 </p>
               ) : (
                 <>
-                  <label style={hint}>Qual documento você vai enviar?</label>
-                  <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
-                    {hasCpf && <option value="cpf">CPF</option>}
-                    {hasRg && <option value="rg">RG</option>}
-                  </select>
-                  <label style={hint}>Número (cadastrado em Editar meus dados)</label>
-                  <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
-                  <label style={hint}>Frente</label>
-                  <input type="file" accept="image/*" onChange={e => setDocFront(e.target.files?.[0] || null)} style={file} />
-                  <label style={hint}>Verso</label>
-                  <input type="file" accept="image/*" onChange={e => setDocBack(e.target.files?.[0] || null)} style={file} />
-                  <button style={btn} onClick={submitDoc}>Enviar documento</button>
+                  {hasCpf && hasRg && (
+                    <div className={styles.chipRow}>
+                      <Chip label="CPF" active={docType === 'cpf'} onClick={() => setDocType('cpf')} />
+                      <Chip label="RG" active={docType === 'rg'} onClick={() => setDocType('rg')} />
+                    </div>
+                  )}
+                  <label className={styles.fieldLabel}>Número (cadastrado em Editar meus dados)</label>
+                  <div className={styles.numberField}>
+                    <Input value={maskedNumber} onChange={() => {}} disabled aria-label="Número do documento" />
+                  </div>
+
+                  <div className={styles.uploadRow}>
+                    <DropzoneField label="Frente" file={docFront} onChange={setDocFront} />
+                    <DropzoneField label="Verso" file={docBack} onChange={setDocBack} />
+                  </div>
+
+                  <Button variant="primary" onClick={submitDoc} className={styles.submitBtn}>Enviar documento</Button>
                 </>
               )
             )}
@@ -165,78 +201,134 @@ export default function VerificacaoMotoboyPage() {
         )}
 
         {/* Selfie facial */}
-        <section style={card}>
-          <Head title="Selfie (facial)" s={fs} />
-          {fs === 'rejected' && <p style={errp}>Recusado: {ver?.facial.rejectionReason || 'reenvie com boa iluminação.'}</p>}
-          {fs === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Selfie (facial)</h2>
+            <StatusBadge s={fs} />
+          </div>
+          {fs === 'pending' && (
+            <p className={styles.hint}><Clock size={14} aria-hidden="true" /> Em análise pela nossa equipe.</p>
+          )}
+          {fs === 'rejected' && (
+            <p className={styles.hintDanger}>Recusado: {ver?.facial.rejectionReason || 'reenvie com boa iluminação.'}</p>
+          )}
           {(fs === 'none' || fs === 'rejected') && (
             <>
-              <p style={hint}>Tire uma selfie do seu rosto (para comparar com o documento).</p>
-              <input type="file" accept="image/*" onChange={e => setSelfie(e.target.files?.[0] || null)} style={file} />
-              <button style={btn} onClick={sendFacial}>Enviar selfie</button>
+              <p className={styles.hint}>Tire uma selfie do seu rosto (para comparar com o documento).</p>
+              <div className={styles.uploadSingle}>
+                <DropzoneField label="Selfie" file={selfie} onChange={setSelfie} />
+              </div>
+              <Button variant="primary" onClick={sendFacial} className={styles.submitBtn}>Enviar selfie</Button>
             </>
           )}
         </section>
 
         {/* CNH / placa */}
-        <section style={card}>
-          <Head title="CNH, placa e foto da placa" s={cs} />
-          {cs === 'rejected' && <p style={errp}>Recusado: {ver?.courier.rejectionReason}</p>}
-          {cs === 'pending' && !editCourier && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
-          {cs === 'approved' && !editCourier && <p style={hint}>✅ Aprovado. Placa: {ver?.courier?.plate}</p>}
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>CNH, placa e foto da placa</h2>
+            <StatusBadge s={cs} />
+          </div>
+          {cs === 'rejected' && (
+            <p className={styles.hintDanger}>Recusado: {ver?.courier.rejectionReason}</p>
+          )}
+          {cs === 'pending' && !editCourier && (
+            <p className={styles.hint}><Clock size={14} aria-hidden="true" /> Em análise pela nossa equipe.</p>
+          )}
+          {cs === 'approved' && !editCourier && (
+            <p className={styles.plateInfo}><CheckCircle2 size={14} aria-hidden="true" /> Aprovado. Placa: {ver?.courier?.plate}</p>
+          )}
           {(cs === 'pending' || cs === 'approved') && !editCourier && (
-            <button style={btn} onClick={() => { setCnh(ver?.courier?.cnhNumber || ''); setPlate(ver?.courier?.plate || ''); setEditCourier(true); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setCnh(ver?.courier?.cnhNumber || ''); setPlate(ver?.courier?.plate || ''); setEditCourier(true); }}
+            >
               Trocar foto da placa / reenviar
-            </button>
+            </Button>
           )}
           {(cs === 'none' || cs === 'rejected' || editCourier) && (
             <>
-              <input style={input} placeholder="Número de registro da CNH (11 dígitos)" value={cnh} onChange={e => setCnh(maskCNH(e.target.value))} inputMode="numeric" />
-              <input style={input} placeholder="Placa da moto (ABC1D23)" value={plate} onChange={e => setPlate(maskPlate(e.target.value))} />
-              <label style={hint}>Foto da CNH {editCourier && '(opcional — mantém a atual se não enviar)'}</label>
-              <input type="file" accept="image/*" onChange={e => setCnhPhoto(e.target.files?.[0] || null)} style={file} />
-              <label style={hint}>Foto da placa da moto {editCourier && '(opcional)'}</label>
-              <input type="file" accept="image/*" onChange={e => setPlatePhoto(e.target.files?.[0] || null)} style={file} />
-              <button style={btn} onClick={sendCourier}>Enviar para análise</button>
+              <div className={styles.fieldGroup}>
+                <Input
+                  value={cnh}
+                  onChange={(v) => setCnh(maskCNH(v))}
+                  placeholder="Número de registro da CNH (11 dígitos)"
+                  inputMode="numeric"
+                  aria-label="Número da CNH"
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <Input
+                  value={plate}
+                  onChange={(v) => setPlate(maskPlate(v))}
+                  placeholder="Placa da moto (ABC1D23)"
+                  aria-label="Placa da moto"
+                />
+              </div>
+              <label className={styles.fieldLabel}>
+                Foto da CNH {editCourier && '(opcional — mantém a atual se não enviar)'}
+              </label>
+              <div className={styles.uploadSingle}>
+                <DropzoneField label="Foto da CNH" file={cnhPhoto} onChange={setCnhPhoto} />
+              </div>
+              <label className={styles.fieldLabel}>
+                Foto da placa da moto {editCourier && '(opcional)'}
+              </label>
+              <div className={styles.uploadSingle}>
+                <DropzoneField label="Foto da placa" file={platePhoto} onChange={setPlatePhoto} />
+              </div>
+              <Button variant="primary" onClick={sendCourier} className={styles.submitBtn}>Enviar para análise</Button>
             </>
           )}
         </section>
 
-        <p style={hint}>
-          O <strong>e-mail</strong> é verificado na <a href="/verificacao" style={link}>página da conta</a>. Todos os passos
+        <p className={styles.hint}>
+          O <strong>e-mail</strong> é verificado na <a href="/verificacao" className={styles.link}>página da conta</a>. Todos os passos
           precisam estar aprovados para liberar as entregas.
         </p>
         {shownMissing.length > 0 && (
-          <p style={hint}>Ainda falta: {shownMissing.join(', ')}.</p>
+          <p className={styles.hint}>Ainda falta: {shownMissing.join(', ')}.</p>
         )}
-        <OnboardingFooter />
       </div>
+      <OnboardingFooter />
     </div>
   );
 }
 
-function Head({ title, s }: { title: string; s: St }) {
-  const map: Record<St, [string, string]> = {
-    approved: ['✅ Aprovado', '#22C55E'],
-    pending: ['Em análise', '#F59E0B'],
-    rejected: ['Recusado', '#EF4444'],
-    none: ['Pendente', 'rgba(255,255,255,0.5)'],
+function StatusBadge({ s }: { s: St }) {
+  const map: Record<St, { label: string; cls: string; icon?: JSX.Element }> = {
+    approved: { label: 'Aprovado', cls: styles.badgeDone, icon: <CheckCircle2 size={12} aria-hidden="true" /> },
+    pending: { label: 'Em análise', cls: styles.badgePending, icon: <Clock size={12} aria-hidden="true" /> },
+    rejected: { label: 'Recusado', cls: styles.badgeRejected, icon: <XCircle size={12} aria-hidden="true" /> },
+    none: { label: 'Pendente', cls: styles.badgeTodo },
   };
-  const [label, color] = map[s];
+  const { label, cls, icon } = map[s];
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{title}</strong>
-      <span style={{ color, fontSize: 13, fontWeight: 600 }}>{label}</span>
-    </div>
+    <span className={`${styles.badge} ${cls}`}>
+      {icon}
+      {label}
+    </span>
   );
 }
 
-const wrap: React.CSSProperties = { minHeight: '100vh', background: '#0A0A0A', color: 'rgba(255,255,255,0.92)', display: 'flex', justifyContent: 'center', padding: 24 };
-const card: React.CSSProperties = { background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, marginTop: 16 };
-const banner: React.CSSProperties = { background: 'rgba(108,43,217,0.15)', border: '1px solid #6C2BD9', borderRadius: 10, padding: '10px 14px', marginTop: 12, fontSize: 14 };
-const hint: React.CSSProperties = { color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'block', margin: '6px 0' };
-const errp: React.CSSProperties = { color: '#EF4444', fontSize: 13, margin: '6px 0' };
-const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 };
-const file: React.CSSProperties = { color: '#fff', marginBottom: 10, display: 'block' };
-const btn: React.CSSProperties = { background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer' };
-const link: React.CSSProperties = { color: '#8B5CF6' };
+function DropzoneField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => onChange(e.target.files?.[0] || null);
+  return (
+    <label className={`${styles.dropzone} ${file ? styles.dropzoneFilled : ''}`}>
+      {file ? (
+        <CheckCircle2 size={20} className={styles.dropIconFilled} aria-hidden="true" />
+      ) : (
+        <Upload size={20} className={styles.dropIcon} aria-hidden="true" />
+      )}
+      <span className={styles.dropText}>{file ? file.name : label}</span>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleChange}
+        className={styles.hiddenInput}
+        aria-label={`Foto — ${label.toLowerCase()}`}
+      />
+    </label>
+  );
+}

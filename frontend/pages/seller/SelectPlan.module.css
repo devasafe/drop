@@ -1,302 +1,294 @@
+/* =============================================
+   SelectPlan.module.css — Escolha de plano (lojista)
+   Último passo do onboarding do lojista
+   ============================================= */
+
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
-  padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px var(--space-4) 64px;
 }
 
 .container {
+  width: 100%;
   max-width: 1000px;
-  margin: 0 auto;
 }
 
 .pageTitle {
-  font-family: var(--drop-font-display);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 0 0 8px 0;
 }
 
 .pageSubtitle {
-  font-size: 14px;
-  color: var(--drop-text-muted);
-  margin: 0 0 30px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-8) 0;
 }
 
 /* Alerts */
 .alert {
-  padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
-  margin-bottom: 20px;
-  font-size: 14px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-sm);
+  margin-bottom: var(--space-5);
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 
 .alertSuccess {
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: var(--drop-success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
 }
 
 .alertError {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--drop-danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
 }
 
 .alertInfo {
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  color: var(--drop-purple-2);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  color: var(--brand-2);
 }
 
 /* Pending / rejected banners */
 .pendingBanner {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: var(--drop-warning);
-  padding: 16px;
-  border-radius: var(--drop-radius-sm);
-  margin-bottom: 20px;
+  background: color-mix(in srgb, var(--rating) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rating) 30%, transparent);
+  color: var(--rating);
+  padding: var(--space-4);
+  border-radius: var(--r-sm);
+  margin-bottom: var(--space-5);
 }
 
 .pendingBannerTitle {
-  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-2) 0;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .pendingBannerText {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .pendingBannerNote {
-  margin: 8px 0 0 0;
-  font-size: 12px;
-  color: rgba(245, 158, 11, 0.7);
+  margin: var(--space-2) 0 0 0;
+  font-size: var(--fs-xs);
+  color: color-mix(in srgb, var(--rating) 70%, transparent);
 }
 
 .rejectedBanner {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--drop-danger);
-  padding: 16px;
-  border-radius: var(--drop-radius-sm);
-  margin-bottom: 20px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+  padding: var(--space-4);
+  border-radius: var(--r-sm);
+  margin-bottom: var(--space-5);
 }
 
 .rejectedBannerTitle {
-  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-2) 0;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .rejectedBannerText {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
-/* Plans grid */
+/* Plans grid — cards legítimos de item de lista */
 .plansGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-bottom: 40px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-10);
 }
 
 .planCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
-  padding: 28px;
-  transition: var(--drop-transition);
-  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--space-6);
+  transition:
+    border-color var(--dur-base) var(--ease),
+    background var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
 .planCard:hover {
-  border-color: rgba(139, 92, 246, 0.35);
+  border-color: color-mix(in srgb, var(--brand-2) 35%, var(--line));
   transform: translateY(-3px);
 }
 
 .planCardSelected {
-  border-color: rgba(108, 43, 217, 0.6);
-  background: rgba(108, 43, 217, 0.08);
-  box-shadow: 0 8px 32px rgba(108, 43, 217, 0.2);
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
-/* Current plan badge */
+/* Selo de plano atual */
 .currentBadge {
   position: absolute;
   top: -12px;
-  left: 16px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
-  color: var(--drop-white);
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 11px;
+  left: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--brand-grad);
+  color: var(--on-brand);
+  padding: 4px var(--space-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-/* Plan header */
+/* Cabeçalho do card */
 .planHeader {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .planEmoji {
-  font-size: 32px;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   display: block;
 }
 
 .planName {
-  font-family: var(--drop-font-display);
-  font-size: 18px;
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
   font-weight: 700;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 0 0 4px 0;
 }
 
 .planSubtitle {
   margin: 0;
-  font-size: 13px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-sm);
+  color: var(--text-subtle);
 }
 
-/* Commission box */
+/* Comissão */
 .commissionBox {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border);
-  padding: 12px;
-  border-radius: var(--drop-radius-sm);
-  margin-bottom: 16px;
+  background: var(--surface-field);
+  border: 1px solid var(--line);
+  padding: var(--space-3);
+  border-radius: var(--r-sm);
+  margin-bottom: var(--space-4);
   text-align: center;
 }
 
 .commissionLabel {
   margin: 0;
-  font-size: 11px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .commissionValue {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 36px;
   font-weight: 800;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 4px 0 0 0;
   line-height: 1;
 }
 
 .commissionNote {
   margin: 4px 0 0 0;
-  font-size: 11px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
 }
 
-/* Features list */
+/* Lista de recursos */
 .featuresList {
   flex: 1;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .featuresTitle {
-  margin: 0 0 8px 0;
-  font-size: 11px;
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .planFeature {
-  font-size: 13px;
-  color: var(--drop-text-muted);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   margin-bottom: 6px;
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
-/* Buttons */
-.btnSelectPlan {
+/* CTA do card */
+.selectBtn {
   width: 100%;
-  padding: 13px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
-  border: none;
-  border-radius: 12px;
-  color: var(--drop-white);
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
 }
 
-.btnSelectPlan:hover:not(:disabled) {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.btnSelectPlan:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.btnSelectPlanCurrent {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.btnSelectPlanPending {
-  background: rgba(245, 158, 11, 0.25);
-  color: var(--drop-warning);
-}
-
-/* Loading state */
+/* Loading */
 .loadingWrapper {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 40px var(--space-5);
   text-align: center;
-  color: var(--drop-text-muted);
-  font-family: var(--drop-font-body);
+  color: var(--text-muted);
 }
 
-/* Back link */
+/* Voltar */
 .backLinkWrapper {
   text-align: center;
 }
 
 .backLink {
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 500;
   display: inline-block;
-  transition: var(--drop-transition);
+  transition: color var(--dur-base) var(--ease);
 }
 
 .backLink:hover {
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 /* ── Tablet ────────────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .plansGrid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .plansGrid { grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
 }
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .container { padding: 16px; }
   .pageTitle { font-size: 22px; }
-  .plansGrid { grid-template-columns: 1fr; gap: 12px; }
-  .planCard { padding: 20px; }
+  .plansGrid { grid-template-columns: 1fr; gap: var(--space-3); }
+  .planCard { padding: var(--space-5); }
 }

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import Icon from '../components/Icon';
 import { maskCPF, maskCNPJ, maskPhone, maskCEP } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import styles from './DadosRecebimento.module.css';
 
 // Aplica máscara na chave PIX conforme o tipo escolhido.
 function maskPix(value: string, type: string): string {
@@ -25,12 +29,12 @@ type Status = {
 };
 
 const PIX_TYPES = [
-  { v: '', label: 'Detectar automaticamente' },
-  { v: 'CPF', label: 'CPF' },
-  { v: 'CNPJ', label: 'CNPJ' },
-  { v: 'EMAIL', label: 'E-mail' },
-  { v: 'PHONE', label: 'Telefone' },
-  { v: 'EVP', label: 'Chave aleatória' },
+  { value: '', label: 'Detectar automaticamente' },
+  { value: 'CPF', label: 'CPF' },
+  { value: 'CNPJ', label: 'CNPJ' },
+  { value: 'EMAIL', label: 'E-mail' },
+  { value: 'PHONE', label: 'Telefone' },
+  { value: 'EVP', label: 'Chave aleatória' },
 ];
 
 export default function DadosRecebimento() {
@@ -93,97 +97,151 @@ export default function DadosRecebimento() {
     }
   };
 
-  if (loading || authLoading) return <div style={wrap}><p>Carregando...</p></div>;
-  if (!isReceiver) return <div style={wrap}><div style={card}><p>Esta página é para lojistas e motoboys.</p></div></div>;
+  if (loading || authLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.loadingText}>Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+  if (!isReceiver) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.errorText}>Esta página é para lojistas e motoboys.</p>
+        </div>
+      </div>
+    );
+  }
 
   const active = status?.accountStatus === 'active';
+  const needsAddress = !!status && !status.hasAddress;
 
   return (
-    <div style={wrap}>
-      <OnboardingProgress />
-      <div style={{ maxWidth: 520, width: '100%' }}>
-        <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Dados de Recebimento</h1>
-        <p style={{ color: 'rgba(255,255,255,0.6)' }}>
+    <div className={styles.page}>
+      <div className={styles.container}>
+        <OnboardingProgress />
+
+        <h1 className={styles.pageTitle}>Dados de recebimento</h1>
+        <p className={styles.pageSubtitle}>
           Configure sua chave PIX (e endereço) para receber seus pagamentos e poder sacar.
         </p>
 
         {active && (
-          <div style={{ ...banner, borderColor: '#22C55E', background: 'rgba(34,197,94,0.12)' }}>
-            <Icon name="check-circle" size={16} /> Conta de recebimento <b>ativa</b>. Chave PIX: {status?.pixKey}
+          <div className={`${styles.banner} ${styles.bannerSuccess}`}>
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <div className={styles.bannerBody}>
+              Conta de recebimento <strong>ativa</strong>. Chave PIX: {status?.pixKey}
+            </div>
           </div>
         )}
 
         {/* Subconta com problema: avisa e deixa reenviar (não dá pra sacar assim) */}
         {!active && status?.accountStatus === 'error' && (
-          <div style={{ ...banner, borderColor: '#EF4444', background: 'rgba(239,68,68,0.12)' }}>
-            <Icon name="alert-triangle" size={16} /> Sua conta de recebimento <b>não está ativa</b>
-            {status?.lastError ? `: ${status.lastError}` : '.'} Você não conseguirá sacar até ativá-la.
-            <button style={{ ...btn, marginTop: 10 }} onClick={() => { setEditing(true); setMsg(null); }}>
-              Revisar dados e tentar novamente
-            </button>
+          <div className={`${styles.banner} ${styles.bannerError}`}>
+            <AlertTriangle size={16} aria-hidden="true" />
+            <div className={styles.bannerBody}>
+              Sua conta de recebimento <strong>não está ativa</strong>
+              {status?.lastError ? `: ${status.lastError}` : '.'} Você não conseguirá sacar até ativá-la.
+              <div className={styles.bannerAction}>
+                <Button variant="primary" size="sm" onClick={() => { setEditing(true); setMsg(null); }}>
+                  Revisar dados e tentar novamente
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Subconta em processamento */}
         {!active && status?.accountStatus === 'pending' && (
-          <div style={{ ...banner, borderColor: '#F59E0B', background: 'rgba(245,158,11,0.12)' }}>
-            <Icon name="clock" size={16} /> Conta de recebimento <b>em processamento</b>. Aguarde a ativação para sacar.
+          <div className={`${styles.banner} ${styles.bannerWarning}`}>
+            <Clock size={16} aria-hidden="true" />
+            <div className={styles.bannerBody}>
+              Conta de recebimento <strong>em processamento</strong>. Aguarde a ativação para sacar.
+            </div>
           </div>
         )}
 
         {msg && (
-          <div style={{ ...banner, borderColor: msg.type === 'ok' ? '#22C55E' : '#EF4444', background: msg.type === 'ok' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)' }}>
-            {msg.text}
+          <div className={`${styles.banner} ${msg.type === 'ok' ? styles.bannerSuccess : styles.bannerError}`}>
+            <div className={styles.bannerBody}>{msg.text}</div>
           </div>
         )}
 
-        {status?.hasPixKey && !editing ? (
-          <div style={card}>
-            <label style={label}>Chave PIX cadastrada</label>
-            <div style={{ ...input, marginBottom: 12 }}>{status.pixKey || '••••••'}</div>
-            <button style={btn} onClick={() => setEditing(true)}>Alterar chave PIX</button>
-          </div>
-        ) : (
-        <form onSubmit={submit} style={card}>
-          <label style={label}>Tipo da chave</label>
-          <select style={input} value={pixKeyType} onChange={(e) => { setPixKeyType(e.target.value); setPixKey(maskPix(pixKey, e.target.value)); }}>
-            {PIX_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-          </select>
-
-          <label style={label}>Chave PIX (para onde seu dinheiro vai)</label>
-          <input style={input} value={pixKey} onChange={(e) => setPixKey(maskPix(e.target.value, pixKeyType))} maxLength={80} placeholder="CPF, e-mail, telefone ou chave aleatória" />
-          <p style={{ ...label, marginTop: 0, fontSize: 12 }}>Escolha o tipo acima para validar o formato da chave.</p>
-
-          {status && !status.hasAddress && (
+        <section className={styles.section}>
+          {status?.hasPixKey && !editing ? (
             <>
-              <p style={{ ...label, marginTop: 16, color: '#F59E0B' }}>Endereço (obrigatório para o recebimento)</p>
-              <input style={input} placeholder="Rua" maxLength={120} value={addr.street} onChange={(e) => setAddr({ ...addr, street: e.target.value })} />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input style={input} placeholder="Número" maxLength={10} value={addr.number} onChange={(e) => setAddr({ ...addr, number: e.target.value })} />
-                <input style={input} placeholder="CEP" maxLength={9} inputMode="numeric" value={addr.zip} onChange={(e) => setAddr({ ...addr, zip: maskCEP(e.target.value) })} />
+              <label className={styles.fieldLabel}>Chave PIX cadastrada</label>
+              <div className={styles.numberField}>
+                <Input value={status.pixKey || '••••••'} onChange={() => {}} disabled aria-label="Chave PIX cadastrada" />
               </div>
-              <input style={input} placeholder="Bairro" maxLength={80} value={addr.neighborhood} onChange={(e) => setAddr({ ...addr, neighborhood: e.target.value })} />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input style={input} placeholder="Cidade" maxLength={80} value={addr.city} onChange={(e) => setAddr({ ...addr, city: e.target.value })} />
-                <input style={{ ...input, maxWidth: 90 }} placeholder="UF" maxLength={2} value={addr.state} onChange={(e) => setAddr({ ...addr, state: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
-              </div>
+              <Button variant="primary" onClick={() => setEditing(true)} className={styles.submitBtn}>
+                Alterar chave PIX
+              </Button>
             </>
-          )}
+          ) : (
+            <form onSubmit={submit}>
+              <label className={styles.fieldLabel}>Tipo da chave</label>
+              <div className={styles.fieldGroup}>
+                <Select
+                  value={pixKeyType}
+                  onChange={(v) => { setPixKeyType(v); setPixKey(maskPix(pixKey, v)); }}
+                  options={PIX_TYPES}
+                />
+              </div>
 
-          <button type="submit" style={btn} disabled={saving}>
-            {saving ? 'Salvando...' : active ? 'Atualizar dados' : 'Ativar recebimento'}
-          </button>
-        </form>
-        )}
+              <label className={styles.fieldLabel}>Chave PIX (para onde seu dinheiro vai)</label>
+              <div className={styles.fieldGroup}>
+                <Input
+                  value={pixKey}
+                  onChange={(v) => setPixKey(maskPix(v, pixKeyType))}
+                  maxLength={80}
+                  placeholder="CPF, e-mail, telefone ou chave aleatória"
+                />
+              </div>
+              <p className={styles.hintSmall}>Escolha o tipo acima para validar o formato da chave.</p>
+
+              {needsAddress && (
+                <>
+                  <p className={styles.addressWarning}>Endereço (obrigatório para o recebimento)</p>
+                  <div className={styles.fieldGroup}>
+                    <Input value={addr.street} onChange={(v) => setAddr({ ...addr, street: v })} placeholder="Rua" maxLength={120} />
+                  </div>
+                  <div className={styles.row}>
+                    <Input value={addr.number} onChange={(v) => setAddr({ ...addr, number: v })} placeholder="Número" maxLength={10} />
+                    <Input
+                      value={addr.zip}
+                      onChange={(v) => setAddr({ ...addr, zip: maskCEP(v) })}
+                      placeholder="CEP"
+                      maxLength={9}
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className={styles.fieldGroup}>
+                    <Input value={addr.neighborhood} onChange={(v) => setAddr({ ...addr, neighborhood: v })} placeholder="Bairro" maxLength={80} />
+                  </div>
+                  <div className={styles.rowCityState}>
+                    <Input value={addr.city} onChange={(v) => setAddr({ ...addr, city: v })} placeholder="Cidade" maxLength={80} />
+                    <Input
+                      value={addr.state}
+                      onChange={(v) => setAddr({ ...addr, state: v.toUpperCase().replace(/[^A-Z]/g, '') })}
+                      placeholder="UF"
+                      maxLength={2}
+                    />
+                  </div>
+                </>
+              )}
+
+              <Button type="submit" variant="primary" loading={saving} disabled={saving} className={styles.submitBtn}>
+                {saving ? 'Salvando...' : active ? 'Atualizar dados' : 'Ativar recebimento'}
+              </Button>
+            </form>
+          )}
+        </section>
       </div>
       <OnboardingFooter />
     </div>
   );
 }
-
-const wrap: React.CSSProperties = { minHeight: '100vh', background: '#0A0A0A', color: 'rgba(255,255,255,0.92)', display: 'flex', justifyContent: 'center', padding: 24 };
-const card: React.CSSProperties = { background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, marginTop: 16 };
-const banner: React.CSSProperties = { border: '1px solid', borderRadius: 10, padding: '10px 14px', marginTop: 12, fontSize: 14 };
-const label: React.CSSProperties = { color: 'rgba(255,255,255,0.6)', fontSize: 13, display: 'block', margin: '10px 0 6px' };
-const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 12px', marginBottom: 8 };
-const btn: React.CSSProperties = { width: '100%', background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 16px', fontWeight: 600, cursor: 'pointer', marginTop: 12 };

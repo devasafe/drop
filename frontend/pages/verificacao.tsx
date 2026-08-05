@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ChangeEvent } from 'react';
 import { useRouter } from 'next/router';
+import { CheckCircle2, Clock, Upload } from 'lucide-react';
 import api from '../lib/api';
 import { maskCPF, maskRG } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Chip } from '../components/ui/Chip';
+import styles from './Verificacao.module.css';
 
 type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Verification {
@@ -69,8 +74,24 @@ export default function VerificacaoPage() {
     await api.post('/verification/document', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   }, 'Documento enviado para análise.');
 
-  if (loading) return <div style={wrap}><p>Carregando...</p></div>;
-  if (err) return <div style={wrap}><div style={card}><p>{err}</p></div></div>;
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.loadingText}>Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.container}>
+          <p className={styles.errorText}>{err}</p>
+        </div>
+      </div>
+    );
+  }
 
   const emailOk = v?.email?.status === 'verified';
   const docStatus = v?.document?.status || 'none';
@@ -83,30 +104,43 @@ export default function VerificacaoPage() {
   const maskedNumber = docType === 'cpf' ? maskCPF(selectedNumber) : maskRG(selectedNumber);
 
   return (
-    <div style={wrap}>
-      <div style={{ maxWidth: 560, width: '100%' }}>
+    <div className={styles.page}>
+      <div className={styles.container}>
         <OnboardingProgress />
-        <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Verificação da conta</h1>
-        {!onboarding && (
-          <a href="/" style={{ color: '#8B5CF6', fontSize: 13, textDecoration: 'none' }}>Verificar depois →</a>
-        )}
-        <p style={{ color: 'rgba(255,255,255,0.6)' }}>
-          {allOk ? '✅ Sua conta está totalmente verificada — você já pode comprar.'
-                 : 'Conclua os passos abaixo para liberar suas compras.'}
+
+        <div className={styles.header}>
+          <h1 className={styles.title}>Verificação da conta</h1>
+          {!onboarding && <a href="/" className={styles.laterLink}>Verificar depois →</a>}
+        </div>
+        <p className={`${styles.subtitle} ${allOk ? styles.subtitleOk : ''}`}>
+          {allOk && <CheckCircle2 size={16} aria-hidden="true" />}
+          {allOk
+            ? 'Sua conta está totalmente verificada — você já pode comprar.'
+            : 'Conclua os passos abaixo para liberar suas compras.'}
         </p>
-        {msg && <div style={banner}>{msg}</div>}
+        {msg && <div className={styles.banner}>{msg}</div>}
 
         {/* Email */}
-        <section style={card}>
-          <Header title="Email" ok={emailOk} />
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Email</h2>
+            <StatusBadge ok={emailOk} />
+          </div>
           {!emailOk && (
             <>
-              <p style={hint}>Enviaremos um código de 6 dígitos para o seu email.</p>
-              <button style={btn} onClick={resendEmail}>Enviar código</button>
+              <p className={styles.hint}>Enviaremos um código de 6 dígitos para o seu email.</p>
+              <Button variant="primary" size="sm" onClick={resendEmail}>Enviar código</Button>
               {emailSent && (
-                <div style={{ marginTop: 12 }}>
-                  <input style={input} placeholder="Código de 6 dígitos" value={emailCode} onChange={e => setEmailCode(e.target.value)} inputMode="numeric" maxLength={6} />
-                  <button style={btn} onClick={verifyEmailCode}>Verificar código</button>
+                <div className={styles.codeRow}>
+                  <Input
+                    value={emailCode}
+                    onChange={setEmailCode}
+                    placeholder="Código de 6 dígitos"
+                    inputMode="numeric"
+                    maxLength={6}
+                    aria-label="Código de verificação"
+                  />
+                  <Button variant="primary" size="sm" onClick={verifyEmailCode}>Verificar código</Button>
                 </div>
               )}
             </>
@@ -114,71 +148,82 @@ export default function VerificacaoPage() {
         </section>
 
         {/* Documento */}
-        <section style={card}>
-          <Header title="Documento (CPF ou RG)" ok={docStatus === 'approved'} pending={docStatus === 'pending'} />
-          {docStatus === 'pending' && <p style={hint}>📋 Em análise pela nossa equipe.</p>}
-          {docStatus === 'rejected' && <p style={{ ...hint, color: '#EF4444' }}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>}
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Documento (CPF ou RG)</h2>
+            <StatusBadge ok={docStatus === 'approved'} pending={docStatus === 'pending'} />
+          </div>
+          {docStatus === 'pending' && (
+            <p className={styles.hint}><Clock size={14} aria-hidden="true" /> Em análise pela nossa equipe.</p>
+          )}
+          {docStatus === 'rejected' && (
+            <p className={styles.hintDanger}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>
+          )}
           {(docStatus === 'none' || docStatus === 'rejected') && (
             !hasAnyDoc ? (
-              <p style={hint}>
-                Cadastre seu CPF ou RG em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a> antes de enviar o documento. O número verificado é sempre o mesmo do seu cadastro.
+              <p className={styles.hint}>
+                Cadastre seu CPF ou RG em <a href="/editar-conta" className={styles.link}>Editar meus dados</a> antes de enviar o documento. O número verificado é sempre o mesmo do seu cadastro.
               </p>
             ) : (
               <>
-                <label style={hint}>Qual documento você vai enviar?</label>
-                <select style={input} value={docType} onChange={e => setDocType(e.target.value as any)}>
-                  {hasCpf && <option value="cpf">CPF</option>}
-                  {hasRg && <option value="rg">RG</option>}
-                </select>
-                <label style={hint}>Número (cadastrado em Editar meus dados)</label>
-                <input style={{ ...input, opacity: 0.7 }} value={maskedNumber} readOnly />
-                <p style={{ ...hint, fontSize: 12 }}>
-                  Para alterar este número, edite em <a href="/editar-conta" style={{ color: '#8B5CF6' }}>Editar meus dados</a>.
+                {hasCpf && hasRg && (
+                  <div className={styles.chipRow}>
+                    <Chip label="CPF" active={docType === 'cpf'} onClick={() => setDocType('cpf')} />
+                    <Chip label="RG" active={docType === 'rg'} onClick={() => setDocType('rg')} />
+                  </div>
+                )}
+                <label className={styles.fieldLabel}>Número (cadastrado em Editar meus dados)</label>
+                <div className={styles.numberField}>
+                  <Input value={maskedNumber} onChange={() => {}} disabled aria-label="Número do documento" />
+                </div>
+                <p className={styles.hintSmall}>
+                  Para alterar este número, edite em <a href="/editar-conta" className={styles.link}>Editar meus dados</a>.
                 </p>
-                <label style={hint}>Frente</label>
-                <input type="file" accept="image/*" onChange={e => setFront(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
-                <label style={hint}>Verso</label>
-                <input type="file" accept="image/*" onChange={e => setBack(e.target.files?.[0] || null)} style={{ color: '#fff', marginBottom: 8 }} />
-                <button style={btn} onClick={submitDoc}>Enviar documento</button>
+
+                <div className={styles.uploadRow}>
+                  <DropzoneField label="Frente" file={front} onChange={setFront} />
+                  <DropzoneField label="Verso" file={back} onChange={setBack} />
+                </div>
+
+                <Button variant="primary" onClick={submitDoc} className={styles.submitBtn}>Enviar documento</Button>
               </>
             )
           )}
         </section>
-        <OnboardingFooter />
       </div>
+      <OnboardingFooter />
     </div>
   );
 }
 
-function Header({ title, ok, pending }: { title: string; ok?: boolean; pending?: boolean }) {
+function StatusBadge({ ok, pending }: { ok?: boolean; pending?: boolean }) {
   const label = ok ? 'Verificado' : pending ? 'Em análise' : 'Pendente';
-  const color = ok ? '#22C55E' : pending ? '#F59E0B' : 'rgba(255,255,255,0.5)';
+  const cls = ok ? styles.badgeDone : pending ? styles.badgePending : styles.badgeTodo;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-      <strong style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{title}</strong>
-      <span style={{ color, fontSize: 13, fontWeight: 600 }}>{ok ? '✅ ' : ''}{label}</span>
-    </div>
+    <span className={`${styles.badge} ${cls}`}>
+      {ok && <CheckCircle2 size={12} aria-hidden="true" />}
+      {label}
+    </span>
   );
 }
 
-const wrap: React.CSSProperties = {
-  minHeight: '100vh', background: '#0A0A0A', color: 'rgba(255,255,255,0.92)',
-  display: 'flex', justifyContent: 'center', padding: 24,
-};
-const card: React.CSSProperties = {
-  background: '#161616', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
-  padding: 20, marginTop: 16,
-};
-const banner: React.CSSProperties = {
-  background: 'rgba(108,43,217,0.15)', border: '1px solid #6C2BD9', borderRadius: 10,
-  padding: '10px 14px', marginTop: 12, fontSize: 14,
-};
-const hint: React.CSSProperties = { color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'block', margin: '6px 0' };
-const input: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: '#0A0A0A', color: '#fff',
-  border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 12px', marginBottom: 10,
-};
-const btn: React.CSSProperties = {
-  background: '#6C2BD9', color: '#fff', border: 'none', borderRadius: 10,
-  padding: '10px 16px', fontWeight: 600, cursor: 'pointer',
-};
+function DropzoneField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => onChange(e.target.files?.[0] || null);
+  return (
+    <label className={`${styles.dropzone} ${file ? styles.dropzoneFilled : ''}`}>
+      {file ? (
+        <CheckCircle2 size={20} className={styles.dropIconFilled} aria-hidden="true" />
+      ) : (
+        <Upload size={20} className={styles.dropIcon} aria-hidden="true" />
+      )}
+      <span className={styles.dropText}>{file ? file.name : label}</span>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleChange}
+        className={styles.hiddenInput}
+        aria-label={`Foto — ${label.toLowerCase()} do documento`}
+      />
+    </label>
+  );
+}

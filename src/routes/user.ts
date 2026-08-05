@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { getMe, updateMe, getBankInfo, setBankInfo } from '../controllers/userController';
+import { getMe, updateMe, updatePhoto, getBankInfo, setBankInfo } from '../controllers/userController';
 import { addAddress, listAddresses, removeAddress, editAddress, setDefaultAddress } from '../controllers/addressController';
 import { authenticate } from '../middleware/auth';
+import upload, { handleUploadError } from '../middleware/upload';
 import userRepository from '../repositories/user.repository';
 
 const router = Router();
@@ -9,6 +10,7 @@ const router = Router();
 // Dados do usuário autenticado
 router.get('/me', authenticate, getMe);
 router.patch('/me', authenticate, updateMe);
+router.post('/me/photo', authenticate, upload.single('photo'), handleUploadError, updatePhoto);
 
 // Dados bancários do usuário
 router.get('/bank-info', authenticate, getBankInfo);

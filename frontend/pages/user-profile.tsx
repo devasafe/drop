@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { User, ShieldCheck, Bell, MapPin, LogOut, ChevronRight } from 'lucide-react';
 import api from '../lib/api';
+import { imageUrl } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import StoreRatingsBlock from '../components/StoreRatingsBlock';
@@ -80,7 +81,13 @@ export default function UserProfile() {
     <div className={styles.page}>
       <div className={styles.container}>
         <header className={styles.header}>
-          <div className={styles.avatar}>{user.name.charAt(0).toUpperCase()}</div>
+          <div className={styles.avatar}>
+            {user.photo ? (
+              <img src={imageUrl(user.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+            ) : (
+              user.name.charAt(0).toUpperCase()
+            )}
+          </div>
           <div className={styles.headInfo}>
             <h1 className={styles.userName}>{user.name}</h1>
             <p className={styles.userEmail}>{user.email}</p>

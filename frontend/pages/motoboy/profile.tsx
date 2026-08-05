@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../lib/api';
+import { imageUrl } from '../../lib/config';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import MotoboyRatingsBlock from '../../components/MotoboyRatingsBlock';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -60,7 +61,13 @@ export default function MotoboyProfile() {
           <h1 className={styles.title}>Perfil do motoboy</h1>
 
           <div className={styles.profileHead}>
-            <div className={styles.avatar}>{initials}</div>
+            <div className={styles.avatar}>
+              {user.photo ? (
+                <img src={imageUrl(user.photo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+              ) : (
+                initials
+              )}
+            </div>
             <div className={styles.identity}>
               <div className={styles.name}>{user.name}</div>
               <div className={styles.email}>{user.email}</div>

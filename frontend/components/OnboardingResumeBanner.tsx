@@ -1,9 +1,13 @@
 // frontend/components/OnboardingResumeBanner.tsx
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { ListChecks } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { getFlow } from '../lib/onboardingFlow';
+import { Button } from './ui/Button';
+import { ICON_STROKE_WIDTH } from './ui/Icon';
+import styles from './OnboardingResumeBanner.module.css';
 
 // Retorna o path da 1ª etapa pendente do papel, ou null se nada pendente.
 async function firstPendingPath(role?: string): Promise<string | null> {
@@ -85,34 +89,14 @@ export default function OnboardingResumeBanner() {
   if (!path) return null;
 
   return (
-    <div style={wrap}>
-      <span style={{ fontSize: 14 }}>Sua conta ainda tem etapas pendentes.</span>
-      <button style={btn} onClick={() => router.push(`${path}?onboarding=1`)}>
+    <div className={styles.banner} role="status">
+      <div className={styles.text}>
+        <ListChecks className={styles.icon} size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+        <span>Sua conta ainda tem etapas pendentes.</span>
+      </div>
+      <Button variant="primary" size="sm" onClick={() => router.push(`${path}?onboarding=1`)}>
         Continuar configuração →
-      </button>
+      </Button>
     </div>
   );
 }
-
-const wrap: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  background: 'rgba(108,43,217,0.15)',
-  border: '1px solid #6C2BD9',
-  borderRadius: 12,
-  padding: '12px 16px',
-  margin: '0 0 16px',
-  color: 'rgba(255,255,255,0.92)',
-};
-const btn: React.CSSProperties = {
-  background: '#6C2BD9',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: '8px 16px',
-  fontWeight: 600,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-};
