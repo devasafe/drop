@@ -9,7 +9,6 @@ import walletService from '../services/wallet.prisma.service';
 import userRepository from '../repositories/user.repository';
 import { AuthenticatedRequest } from '../types';
 import { getDefaultAddress } from '../utils/userHelpers';
-import { uploadToCloudinary } from '../utils/cloudinary';
 import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
 import { recordConsent } from '../services/consent.service';
@@ -24,8 +23,6 @@ const registerSchema = z.object({
   password: z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(128, 'Senha muito longa'),
   role: z.string().trim().max(20).optional(),
   telefone: optionalShort,
-  cpf: optionalShort,
-  rg: optionalShort,
   dataNascimento: optionalShort,
   sexo: optionalShort,
   acceptedTermsVersion: z.string().min(1, 'É necessário aceitar os Termos de Uso'),
@@ -36,46 +33,19 @@ const registerSchema = z.object({
 const JWT_SECRET = env.JWT_SECRET;
 
 
-// Validar magic bytes para detectar fake images (usando buffer em memória)
-const isValidImageBuffer = (buffer: Buffer): boolean => {
-  if (buffer.length < 12) return false;
-  const hex = buffer.slice(0, 12).toString('hex').toLowerCase();
-  return (
-    hex.startsWith('89504e47') || // PNG
-    hex.startsWith('ffd8ff') ||   // JPEG
-    hex.startsWith('47494638') || // GIF
-    hex.startsWith('52494646')    // WebP (RIFF)
-  );
-};
-
 export const register = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
     }
-    const { name, email, password, role, telefone, cpf, rg, dataNascimento, sexo, acceptedTermsVersion, acceptedPrivacyVersion } = parsed.data as any;
-
-    // Validar foto obrigatória para motoboy e lojista
-    if ((role === 'motoboy' || role === 'lojista') && !req.file) {
-      return res.status(400).json({ error: `Photo is required for ${role}` });
-    }
-
-    // Validar integridade da imagem
-    if (req.file) {
-      if (!isValidImageBuffer(req.file.buffer)) {
-        return res.status(400).json({ error: 'Invalid image file' });
-      }
-    }
+    const { name, email, password, role, telefone, dataNascimento, sexo, acceptedTermsVersion, acceptedPrivacyVersion } = parsed.data as any;
 
     const existing = await userRepository.findByEmail(email);
     if (existing) return res.status(409).json({ error: 'User already exists' });
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-
-    // Upload foto para Cloudinary se existir
-    const photoPath = req.file ? await uploadToCloudinary(req.file.buffer, 'drop/users') : undefined;
 
     // Todos os usuários podem ser cliente + seu role específico
     const roles = (role && role !== 'cliente' ? [role, 'cliente'] : ['cliente']) as Role[];
@@ -88,11 +58,8 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
       roles, // Novo - agora inclui 'cliente' para todos
       activeRole: (role as Role) || 'cliente', // Novo
       telefone,
-      cpf,
-      rg,
       dataNascimento,
       sexo,
-      photo: photoPath,
     });
 
     // ✨ CRIAR CARTEIRA AUTOMATICAMENTE. Falha aqui não impede o cadastro — a
