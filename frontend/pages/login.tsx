@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import AuthLayout from '../components/auth/AuthLayout';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 import styles from './Login.module.css';
 
 export default function LoginPage() {
@@ -39,74 +42,38 @@ export default function LoginPage() {
   };
 
   return (
-    <div className={styles.page}>
-      <div className={styles.glow} />
+    <AuthLayout title="Bem-vindo de volta" subtitle="Acesse sua conta para continuar">
+      <form onSubmit={submit} className={styles.form}>
+        {notice && !error && <div className={`${styles.notice} ${styles.noticeWarning}`}>{notice}</div>}
+        {error && <div className={styles.notice}>{error}</div>}
 
-      <div className={styles.card}>
+        <Input
+          value={email}
+          onChange={setEmail}
+          type="email"
+          placeholder="seu@email.com"
+          required
+          aria-label="Email"
+        />
+        <Input
+          value={password}
+          onChange={setPassword}
+          type="password"
+          placeholder="••••••••"
+          required
+          aria-label="Senha"
+        />
 
-        {/* Logo */}
-        <div className={styles.logoWrapper}>
-          <div className={styles.logoimg}>
-            <img src="/images/logog_png.png" alt="DROP" />
-          </div>
-          <p className={styles.logoSubtitle}>Acesse sua conta para continuar</p>
-        </div>
+        <Button type="submit" loading={loading} className={styles.submitBtn}>
+          Entrar
+        </Button>
 
-        {/* Form */}
-        <form onSubmit={submit} className={styles.form}>
+        <a href="/esqueci-senha" className={styles.link}>Esqueceu a senha?</a>
+      </form>
 
-          {notice && !error && (
-            <div className={styles.errorBox} style={{ background: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)', color: '#f59e0b' }}>
-              {notice}
-            </div>
-          )}
-          {error && (
-            <div className={styles.errorBox}>{error}</div>
-          )}
-
-          <div className={styles.field}>
-            <label className={styles.label}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="seu@email.com"
-              className={styles.input}
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label}>Senha</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className={styles.input}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} className={styles.submitBtn}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-
-          <a href="/esqueci-senha" className={styles.forgotLink}>Esqueceu a senha?</a>
-        </form>
-
-        <div className={styles.divider}>
-          <div className={styles.dividerLine} />
-          <span className={styles.dividerLabel}>ou</span>
-          <div className={styles.dividerLine} />
-        </div>
-
-        <div className={styles.cta}>
-          <p className={styles.ctaText}>Não tem uma conta?</p>
-          <a href="/register" className={styles.ctaLink}>Criar Conta</a>
-        </div>
-
-      </div>
-    </div>
+      <p className={styles.switchLine}>
+        Não tem conta? <a href="/register" className={styles.link}>Criar conta</a>
+      </p>
+    </AuthLayout>
   );
 }
