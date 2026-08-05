@@ -350,8 +350,6 @@ export default function StoreDashboard() {
   const pollingRef = useRef<any>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
-  const [notifColor, setNotifColor] = useState<string>('#ff9800');
-  const [orderColors, setOrderColors] = useState<{[id:string]:string}>({});
   const [detalhesPedido, setDetalhesPedido] = useState<any>(null);
   const [rejectModalOrderId, setRejectModalOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('store_closed');
@@ -412,9 +410,6 @@ export default function StoreDashboard() {
       setOrders(incoming);
       if (incoming.length > 0) {
         const newest = incoming[0];
-        const color = getRandomColor();
-        setNotifColor(color);
-        setOrderColors(prev => ({ ...prev, [newest._id]: color }));
         setShowNotif(true);
         setNewOrderIds(prev => [...prev, newest._id]);
       }
@@ -479,11 +474,6 @@ export default function StoreDashboard() {
       console.error('[SOCKET] ❌ Data inválida - faltam deliveryId ou orderId', data);
     }
   }, []));
-
-  function getRandomColor() {
-    const colors = ['#ff9800', '#2196f3', '#4caf50', '#e91e63', '#9c27b0', '#f44336', '#00bcd4', '#8bc34a', '#ffc107', '#ff5722'];
-    return colors[Math.floor(Math.random() * colors.length)];
-  }
 
   function getStatusBadgeInfo(status: string) {
     // Cada status mapeia para uma classe modificadora do badge (tokens
