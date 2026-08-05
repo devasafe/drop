@@ -101,15 +101,14 @@
 
 /* Balance hero card */
 .balanceCard {
-  background: linear-gradient(135deg, var(--drop-purple) 0%, var(--drop-purple-2) 50%, #A78BFA 100%);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 40px;
   margin-bottom: 24px;
   text-align: center;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(108, 43, 217, 0.3);
-  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.05s both;
 }
 
 .balanceCardOrb1 {

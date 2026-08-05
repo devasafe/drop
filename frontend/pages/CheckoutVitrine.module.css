@@ -203,7 +203,7 @@
   width: 100%;
   margin-top: 16px;
   padding: 14px;
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  background: var(--rating);
   border: none;
   border-radius: 12px;
   color: #000;

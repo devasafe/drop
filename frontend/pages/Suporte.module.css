@@ -140,8 +140,7 @@
 }
 
 .btnNew:hover {
-  background: var(--drop-purple-2);
-  box-shadow: 0 0 12px rgba(108, 43, 217, 0.35);
+  background: var(--brand-2);
 }
 
 /* form de novo ticket */

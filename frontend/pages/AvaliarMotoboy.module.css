@@ -46,7 +46,7 @@
 .headerIcon {
   width: 60px;
   height: 60px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -199,7 +199,7 @@
 .btnSubmit {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   color: var(--drop-white);
   border: none;
   border-radius: var(--drop-radius-lg);

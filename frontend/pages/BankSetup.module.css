@@ -201,7 +201,7 @@
 .btnSubmit {
   flex: 1;
   padding: 12px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   color: var(--drop-white);
   border: none;
   border-radius: var(--drop-radius-md);
