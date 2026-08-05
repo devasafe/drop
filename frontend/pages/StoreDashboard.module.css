@@ -666,74 +666,8 @@
   letter-spacing: -0.02em;
 }
 
-.historyFinancial {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--divider);
-  border-bottom: 1px solid var(--divider);
-  margin-bottom: var(--space-4);
-}
-
-.historyFinancialCell { text-align: center; }
-
-.historyFinancialLabel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
-  font-weight: 700;
-  margin-bottom: var(--space-2);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.historyFinancialValue { font-weight: 700; font-size: var(--fs-body); font-family: var(--font-display); }
-.historyFinancialSub { font-size: var(--fs-xs); color: var(--text-subtle); }
-
-.historyFinancialSuccess { color: var(--success); }
-.historyFinancialDanger { color: var(--danger); }
-.historyFinancialMuted { color: var(--text-muted); }
-.historyFinancialWarn { color: var(--rating); }
-.historyFinancialInfo { color: var(--info); }
-
-.historyProducts {
-  padding-bottom: var(--space-4);
-  margin-bottom: var(--space-4);
-  border-bottom: 1px solid var(--divider);
-}
-
-.historyProductsTitle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 700;
-  color: var(--text-subtle);
-  margin-bottom: var(--space-3);
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
-
-.historyProductsGrid { display: grid; gap: var(--space-2); }
-
-.historyProductItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--divider);
-}
-
-.historyProductItem:last-child { border-bottom: none; padding-bottom: 0; }
-
-.historyProductQty { font-weight: 700; color: var(--text-strong); }
-.historyProductPrice { font-weight: 700; color: var(--success); }
+/* Detalhamento financeiro + itens do pedido migraram para o modal
+   "Mais Detalhes" (DetalhesPedidoModal); a linha do histórico é só resumo. */
 
 .historyRowFooter { display: flex; justify-content: flex-end; }
 
@@ -990,17 +924,12 @@
 
 /* ---- RESPONSIVE ---- */
 
-@media (max-width: 1024px) {
-  .historyFinancial { grid-template-columns: repeat(3, 1fr); }
-}
-
 @media (max-width: 640px) {
   .tabContent { padding: 20px 16px 64px; }
   .orderCard { padding: var(--space-5) 0; }
   .orderCardTop { flex-wrap: wrap; gap: 8px; }
   .orderActions3 { grid-template-columns: 1fr; }
   .orderActions2 { grid-template-columns: 1fr; }
-  .historyFinancial { grid-template-columns: repeat(2, 1fr); }
   .historyRowTop { grid-template-columns: 1fr; gap: 12px; }
   .historyRowAmountRight { text-align: left; }
   .historyRowStatusCenter { text-align: left; }

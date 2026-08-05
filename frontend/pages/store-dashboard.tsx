@@ -1234,66 +1234,8 @@ export default function StoreDashboard() {
                         </div>
                       </div>
 
-                      {/* SECÇÃO: Detalhes de Pagamento (5 valores) */}
-                      <div className={styles.historyFinancial}>
-                        <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}>VOCÊ RECEBE</div>
-                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialSuccess}`}>
-                            R$ {(order.walletDistribution?.storeAmount ||
-                              (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
-                          </div>
-                          <div className={styles.historyFinancialSub}>(produto - taxa)</div>
-                        </div>
-                        <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}><Icon name="building" size={12} /> TAXA APP</div>
-                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialDanger}`}>
-                            R$ {(order.walletDistribution?.appCommission ||
-                              (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
-                          </div>
-                          <div className={styles.historyFinancialSub}>(comissão)</div>
-                        </div>
-                        <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}><Icon name="package" size={12} /> SUBTOTAL</div>
-                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialMuted}`}>
-                            R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
-                          </div>
-                          <div className={styles.historyFinancialSub}>(produtos)</div>
-                        </div>
-                        <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}><Icon name="truck" size={12} /> ENTREGA</div>
-                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialWarn}`}>
-                            R$ {(order.deliveryFee || 0).toFixed(2)}
-                          </div>
-                          <div className={styles.historyFinancialSub}>(taxa)</div>
-                        </div>
-                        <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}>CLIENTE PAGOU</div>
-                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialInfo}`}>
-                            R$ {order.totalValue?.toFixed(2) || '0.00'}
-                          </div>
-                          <div className={styles.historyFinancialSub}>(total)</div>
-                        </div>
-                      </div>
-
-                      {/* PRODUTOS */}
-                      {order.products && order.products.length > 0 && (
-                        <div className={styles.historyProducts}>
-                          <div className={styles.historyProductsTitle}><Icon name="package" size={12} /> Produtos ({order.products.length}):</div>
-                          <div className={styles.historyProductsGrid}>
-                            {order.products.map((product: any, idx: number) => (
-                              <div key={idx} className={styles.historyProductItem}>
-                                <div>
-                                  <span className={styles.historyProductQty}>{product.quantity}x</span>{' '}
-                                  <span>{product.productName || 'Produto'}</span>
-                                </div>
-                                <div className={styles.historyProductPrice}>
-                                  R$ {(product.price * product.quantity).toFixed(2)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Detalhamento financeiro + itens ficam no modal "Mais Detalhes"
+                          (DetalhesPedidoModal) — a linha do histórico é só o resumo. */}
 
                       {/* BOTÃO */}
                       <div className={styles.historyRowFooter}>
