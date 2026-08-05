@@ -246,7 +246,7 @@ export default function SelectPlan() {
                   <p className={styles.featuresTitle}>Recursos:</p>
                   {plan.features.map((feature, idx) => (
                     <p key={idx} className={styles.planFeature}>
-                      <Icon name={feature.included ? 'check-circle' : 'x-circle'} size={14} color={feature.included ? '#3ddc84' : '#ff5a5f'} /> {feature.text}
+                      <Icon name={feature.included ? 'check-circle' : 'x-circle'} size={14} color={feature.included ? 'var(--success)' : 'var(--danger)'} /> {feature.text}
                     </p>
                   ))}
                 </div>
