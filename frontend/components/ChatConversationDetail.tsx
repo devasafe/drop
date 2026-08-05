@@ -206,16 +206,16 @@ export default function ChatConversationDetail({
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        background: '#0A0A0A',
+        background: 'var(--bg)',
         gap: 10,
-        color: 'rgba(255,255,255,0.4)',
+        color: 'var(--text-muted)',
         fontSize: 14,
-        fontFamily: "'Inter', sans-serif",
+        fontFamily: 'var(--font-body)',
       }}>
         <div style={{
           width: 20, height: 20,
-          border: '2px solid rgba(255,255,255,0.1)',
-          borderTopColor: '#6C2BD9',
+          border: '2px solid var(--line)',
+          borderTopColor: 'var(--brand)',
           borderRadius: '50%',
           animation: 'spin 0.7s linear infinite',
         }} />
@@ -230,36 +230,36 @@ export default function ChatConversationDetail({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      background: '#0A0A0A',
-      fontFamily: "'Inter', sans-serif",
+      background: 'var(--bg)',
+      fontFamily: 'var(--font-body)',
     }}>
 
       {/* ── Header ── */}
       <div style={{
         padding: '12px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        background: '#111111',
+        background: 'var(--surface)',
         flexShrink: 0,
       }}>
         {onBack && (
           <button
             onClick={onBack}
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.07)',
-              color: 'rgba(255,255,255,0.7)',
+              background: 'var(--surface-chip)',
+              border: '1px solid var(--line)',
+              color: 'var(--text-muted)',
               fontSize: 16,
               cursor: 'pointer',
               padding: '4px 10px',
               borderRadius: 6,
               lineHeight: 1,
-              transition: 'all 0.2s ease',
+              transition: 'all var(--dur-fast) var(--ease)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(108,43,217,0.12)'; e.currentTarget.style.color = '#8B5CF6'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brand) 14%, transparent)'; e.currentTarget.style.color = 'var(--brand-2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-chip)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
           >
             ←
           </button>
@@ -269,12 +269,12 @@ export default function ChatConversationDetail({
           <div style={{
             fontWeight: 700,
             fontSize: 15,
-            color: 'rgba(255,255,255,0.92)',
-            fontFamily: "'Space Grotesk', sans-serif",
+            color: 'var(--text-strong)',
+            fontFamily: 'var(--font-display)',
           }}>
             {otherParticipant?.name || 'Conversa'}
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
             {conversation?.conversationType === 'product' ? 'Conversa de produto' : 'Conversa de usuário'}
           </div>
         </div>
@@ -287,32 +287,31 @@ export default function ChatConversationDetail({
           }}
           style={{
             position: 'relative',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.07)',
-            color: 'rgba(255,255,255,0.6)',
+            background: 'var(--surface-chip)',
+            border: '1px solid var(--line)',
+            color: 'var(--text-muted)',
             width: 30, height: 30,
             borderRadius: 6,
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13,
-            transition: 'all 0.2s ease',
+            transition: 'all var(--dur-fast) var(--ease)',
           }}
           title={isMinimized ? 'Restaurar' : 'Minimizar'}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(108,43,217,0.12)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brand) 14%, transparent)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-chip)'; }}
         >
           {isMinimized ? '▲' : '▼'}
           {unreadCount > 0 && (
             <span style={{
               position: 'absolute',
               top: -6, right: -6,
-              background: '#6C2BD9',
-              color: '#fff',
+              background: 'var(--brand)',
+              color: 'var(--on-brand)',
               borderRadius: '50%',
               width: 18, height: 18,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 10, fontWeight: 700,
-              boxShadow: '0 0 8px rgba(108,43,217,0.5)',
             }}>
               {unreadCount}
             </span>
@@ -338,11 +337,11 @@ export default function ChatConversationDetail({
               height: '100%',
               flexDirection: 'column',
               gap: 10,
-              color: 'rgba(255,255,255,0.3)',
+              color: 'var(--text-subtle)',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: 36, opacity: 0.4 }}><Icon name="chat" size={36} /></div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+              <div style={{ opacity: 0.4 }}><Icon name="chat" size={36} /></div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>
                 Nenhuma mensagem ainda
               </div>
               <div style={{ fontSize: 12 }}>Comece a conversa agora!</div>
@@ -364,12 +363,9 @@ export default function ChatConversationDetail({
                     borderRadius: 14,
                     borderBottomRightRadius: isOwn ? 4 : 14,
                     borderBottomLeftRadius: isOwn ? 14 : 4,
-                    background: isOwn ? '#6C2BD9' : '#1A1A1A',
-                    color: isOwn ? '#fff' : 'rgba(255,255,255,0.92)',
-                    border: isOwn ? 'none' : '1px solid rgba(255,255,255,0.07)',
-                    boxShadow: isOwn
-                      ? '0 2px 10px rgba(108,43,217,0.3)'
-                      : '0 1px 4px rgba(0,0,0,0.3)',
+                    background: isOwn ? 'var(--brand)' : 'var(--surface-2)',
+                    color: isOwn ? 'var(--on-brand)' : 'var(--text-strong)',
+                    border: isOwn ? 'none' : '1px solid var(--line)',
                     fontSize: 14,
                     lineHeight: 1.5,
                     wordBreak: 'break-word',
@@ -379,7 +375,7 @@ export default function ChatConversationDetail({
                         fontSize: 11,
                         fontWeight: 600,
                         marginBottom: 4,
-                        color: '#8B5CF6',
+                        color: 'var(--brand-2)',
                         letterSpacing: '0.01em',
                       }}>
                         {message.senderName}
@@ -398,9 +394,9 @@ export default function ChatConversationDetail({
                       <span>{formatTime(message.createdAt)}</span>
                       {isOwn && (
                         <span style={{
-                          color: message.status === 'read' ? '#8B5CF6' : 'rgba(255,255,255,0.4)',
+                          color: message.status === 'read' ? 'var(--brand-2)' : 'var(--text-muted)',
                           fontWeight: message.status === 'read' ? 700 : 400,
-                          transition: 'color 0.3s ease',
+                          transition: 'color var(--dur-base) var(--ease)',
                         }}
                           title={message.status}
                         >
@@ -419,22 +415,22 @@ export default function ChatConversationDetail({
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <div style={{
                 padding: '8px 12px',
-                background: '#1A1A1A',
-                border: '1px solid rgba(255,255,255,0.07)',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--line)',
                 borderRadius: 14,
                 borderBottomLeftRadius: 4,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
               }}>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>digitando</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>digitando</span>
                 {[0, 200, 400].map(delay => (
                   <div
                     key={delay}
                     style={{
                       width: 4, height: 4,
                       borderRadius: '50%',
-                      background: 'rgba(108,43,217,0.7)',
+                      background: 'color-mix(in srgb, var(--brand) 70%, transparent)',
                       animation: `typing 1.4s ${delay}ms infinite`,
                     }}
                   />
@@ -451,10 +447,10 @@ export default function ChatConversationDetail({
       {!isMinimized && (
         <div style={{
           padding: '10px 14px',
-          borderTop: '1px solid rgba(255,255,255,0.07)',
+          borderTop: '1px solid var(--line)',
           display: 'flex',
           gap: 8,
-          background: '#111111',
+          background: 'var(--surface)',
           flexShrink: 0,
         }}>
           <input
@@ -472,22 +468,22 @@ export default function ChatConversationDetail({
             style={{
               flex: 1,
               padding: '9px 13px',
-              background: '#161616',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: 'var(--surface-field)',
+              border: '1px solid var(--line)',
               borderRadius: 8,
               fontSize: 13,
-              color: 'rgba(255,255,255,0.92)',
+              color: 'var(--text)',
               outline: 'none',
               fontFamily: 'inherit',
-              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              transition: 'border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease)',
               opacity: sending ? 0.5 : 1,
             }}
             onFocus={e => {
-              e.currentTarget.style.borderColor = '#6C2BD9';
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(108,43,217,0.12)';
+              e.currentTarget.style.borderColor = 'var(--brand)';
+              e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent)';
             }}
             onBlur={e => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+              e.currentTarget.style.borderColor = 'var(--line)';
               e.currentTarget.style.boxShadow = 'none';
             }}
           />
@@ -496,8 +492,8 @@ export default function ChatConversationDetail({
             disabled={sending || !messageText.trim()}
             style={{
               padding: '9px 14px',
-              background: messageText.trim() && !sending ? '#6C2BD9' : 'rgba(108,43,217,0.3)',
-              color: '#fff',
+              background: messageText.trim() && !sending ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 30%, transparent)',
+              color: 'var(--on-brand)',
               border: 'none',
               borderRadius: 8,
               cursor: sending || !messageText.trim() ? 'not-allowed' : 'pointer',
@@ -505,10 +501,10 @@ export default function ChatConversationDetail({
               fontSize: 13,
               fontFamily: 'inherit',
               flexShrink: 0,
-              transition: 'all 0.2s ease',
+              transition: 'all var(--dur-fast) var(--ease)',
             }}
-            onMouseEnter={e => { if (!sending && messageText.trim()) e.currentTarget.style.background = '#8B5CF6'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = messageText.trim() && !sending ? '#6C2BD9' : 'rgba(108,43,217,0.3)'; }}
+            onMouseEnter={e => { if (!sending && messageText.trim()) e.currentTarget.style.background = 'var(--brand-2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = messageText.trim() && !sending ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 30%, transparent)'; }}
           >
             {sending ? '...' : 'Enviar'}
           </button>

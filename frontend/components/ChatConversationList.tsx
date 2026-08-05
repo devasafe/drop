@@ -86,14 +86,14 @@ export default function ChatConversationList({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      backgroundColor: '#111111',
-      fontFamily: "'Inter', sans-serif",
+      background: 'var(--surface)',
+      fontFamily: 'var(--font-body)',
     }}>
 
       {/* ── Header ── */}
       <div style={{
         padding: '14px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
@@ -106,21 +106,21 @@ export default function ChatConversationList({
           style={{
             width: '100%',
             padding: '9px 12px',
-            background: '#161616',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: 'var(--surface-field)',
+            border: '1px solid var(--line)',
             borderRadius: 8,
             fontSize: 13,
-            color: 'rgba(255,255,255,0.92)',
+            color: 'var(--text)',
             outline: 'none',
             boxSizing: 'border-box',
             fontFamily: 'inherit',
           }}
           onFocus={e => {
-            e.currentTarget.style.borderColor = '#6C2BD9';
-            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(108,43,217,0.12)';
+            e.currentTarget.style.borderColor = 'var(--brand)';
+            e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent)';
           }}
           onBlur={e => {
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+            e.currentTarget.style.borderColor = 'var(--line)';
             e.currentTarget.style.boxShadow = 'none';
           }}
         />
@@ -133,15 +133,15 @@ export default function ChatConversationList({
               onClick={() => setSearchTerm('')}
               style={{
                 padding: '5px 12px',
-                background: filter === btn.key ? '#6C2BD9' : 'rgba(255,255,255,0.05)',
-                color: filter === btn.key ? '#fff' : 'rgba(255,255,255,0.45)',
-                border: `1px solid ${filter === btn.key ? '#6C2BD9' : 'rgba(255,255,255,0.07)'}`,
+                background: filter === btn.key ? 'var(--brand)' : 'var(--surface-chip)',
+                color: filter === btn.key ? 'var(--on-brand)' : 'var(--text-muted)',
+                border: `1px solid ${filter === btn.key ? 'var(--brand)' : 'var(--line)'}`,
                 borderRadius: 6,
                 cursor: 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
                 fontFamily: 'inherit',
-                transition: 'all 0.2s ease',
+                transition: 'all var(--dur-fast) var(--ease)',
               }}
             >
               {btn.label}
@@ -153,13 +153,13 @@ export default function ChatConversationList({
       {/* ── Lista ── */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-subtle)', fontSize: 14 }}>
             Carregando conversas...
           </div>
         ) : filteredConversations.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.35)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.4 }}></div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-subtle)' }}>
+            <div style={{ marginBottom: 12, opacity: 0.4 }}><Icon name="chat" size={32} /></div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
               Nenhuma conversa
             </div>
             <div style={{ fontSize: 12 }}>
@@ -175,23 +175,23 @@ export default function ChatConversationList({
                 onClick={() => onSelectConversation(conv._id)}
                 style={{
                   padding: '12px 16px',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  borderBottom: '1px solid var(--divider)',
                   cursor: 'pointer',
                   background: isSelected
-                    ? 'rgba(108,43,217,0.12)'
+                    ? 'color-mix(in srgb, var(--brand) 12%, transparent)'
                     : 'transparent',
                   borderLeft: isSelected
-                    ? '2px solid #6C2BD9'
+                    ? '2px solid var(--brand)'
                     : '2px solid transparent',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   gap: 12,
-                  transition: 'all 0.15s ease',
+                  transition: 'background var(--dur-fast) var(--ease)',
                 }}
                 onMouseEnter={e => {
                   if (!isSelected) {
-                    (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)';
+                    (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-chip)';
                   }
                 }}
                 onMouseLeave={e => {
@@ -206,7 +206,7 @@ export default function ChatConversationList({
                     <span style={{
                       fontWeight: 600,
                       fontSize: 14,
-                      color: 'rgba(255,255,255,0.92)',
+                      color: 'var(--text-strong)',
                       flex: 1,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -219,10 +219,10 @@ export default function ChatConversationList({
                       padding: '2px 6px',
                       borderRadius: 999,
                       background: conv.conversationType === 'product'
-                        ? 'rgba(245,158,11,0.12)'
-                        : 'rgba(56,189,248,0.12)',
-                      color: conv.conversationType === 'product' ? '#F59E0B' : '#38BDF8',
-                      border: `1px solid ${conv.conversationType === 'product' ? 'rgba(245,158,11,0.2)' : 'rgba(56,189,248,0.2)'}`,
+                        ? 'color-mix(in srgb, var(--rating) 14%, transparent)'
+                        : 'color-mix(in srgb, var(--info) 14%, transparent)',
+                      color: conv.conversationType === 'product' ? 'var(--rating)' : 'var(--info)',
+                      border: `1px solid ${conv.conversationType === 'product' ? 'color-mix(in srgb, var(--rating) 25%, transparent)' : 'color-mix(in srgb, var(--info) 25%, transparent)'}`,
                       fontWeight: 600,
                       letterSpacing: '0.03em',
                       flexShrink: 0,
@@ -233,14 +233,14 @@ export default function ChatConversationList({
 
                   <div style={{
                     fontSize: 12,
-                    color: 'rgba(255,255,255,0.4)',
+                    color: 'var(--text-muted)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}>
                     {conv.lastMessage ? (
                       <>
-                        <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
                           {conv.lastMessage.senderName}:
                         </span>{' '}
                         {conv.lastMessage.text}
@@ -253,14 +253,14 @@ export default function ChatConversationList({
 
                 {/* Hora + unread */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-subtle)' }}>
                     {conv.lastMessageAt ? formatTime(conv.lastMessageAt) : ''}
                   </span>
 
                   {conv.unreadCount > 0 && (
                     <div style={{
-                      background: '#6C2BD9',
-                      color: '#fff',
+                      background: 'var(--brand)',
+                      color: 'var(--on-brand)',
                       borderRadius: '50%',
                       width: 20,
                       height: 20,
@@ -269,7 +269,6 @@ export default function ChatConversationList({
                       justifyContent: 'center',
                       fontSize: 10,
                       fontWeight: 700,
-                      boxShadow: '0 0 8px rgba(108,43,217,0.5)',
                     }}>
                       {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                     </div>
