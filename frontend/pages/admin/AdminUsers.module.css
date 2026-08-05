@@ -493,7 +493,7 @@
 .btnConfirm {
   flex: 2;
   padding: 11px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   color: var(--drop-white);
   border: none;
   border-radius: var(--drop-radius-sm);
@@ -521,7 +521,7 @@
 .btnDanger {
   flex: 2;
   padding: 11px;
-  background: linear-gradient(135deg, #dc2626, #ef4444);
+  background: var(--danger);
   color: var(--drop-white);
   border: none;
   border-radius: var(--drop-radius-sm);

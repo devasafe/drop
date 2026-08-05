@@ -60,7 +60,7 @@
 }
 
 .btnWithdraw {
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   color: var(--drop-white);
   border: none;
   padding: 10px 20px;
@@ -641,7 +641,7 @@
 
 .btnSubmitBlue {
   flex: 1;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   color: var(--drop-white);
   border: none;
   padding: 10px;

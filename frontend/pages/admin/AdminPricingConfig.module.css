@@ -175,7 +175,7 @@
 .btnSave {
   flex: 1;
   padding: 12px 24px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   border: none;
   color: var(--drop-white);
   font-weight: 700;

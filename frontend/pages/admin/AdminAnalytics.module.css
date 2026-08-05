@@ -77,7 +77,7 @@
 
 /* ---- Insights ---- */
 .insightsBox {
-  background: linear-gradient(135deg, rgba(108, 43, 217, 0.15), rgba(139, 92, 246, 0.05));
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
   border: 1px solid rgba(139, 92, 246, 0.3);
   border-radius: 16px;
   padding: 20px 24px;
