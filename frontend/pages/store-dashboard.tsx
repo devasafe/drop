@@ -341,9 +341,13 @@ export default function StoreDashboard() {
 
   // Deep-link da AppSidebar (?tab=orders) — sincroniza a aba ativa com a querystring.
   useEffect(() => {
+    // Espera a query hidratar (evita flash na carga direta de ?tab=X). Sem tab na
+    // URL = volta pra 'overview' — senão a view ficava travada na última aba ao
+    // clicar em "Visão geral" (URL muda, mas o conteúdo não acompanhava).
+    if (!router.isReady) return;
     const t = router.query.tab;
-    if (typeof t === 'string') setActiveTab(t);
-  }, [router.query.tab]);
+    setActiveTab(typeof t === 'string' ? t : 'overview');
+  }, [router.isReady, router.query.tab]);
 
   const [pinInputs, setPinInputs] = useState<{[id:string]:string}>({});
   const [pinStatuses, setPinStatuses] = useState<{[id:string]:string}>({});
@@ -469,7 +473,7 @@ export default function StoreDashboard() {
         if (exists) return prev.map(r => r.deliveryId === data.deliveryId ? data : r);
         return [data, ...prev];
       });
-      setActiveTab('returns');
+      router.push('/seller/dashboard?tab=returns');
     } else {
       console.error('[SOCKET] ❌ Data inválida - faltam deliveryId ou orderId', data);
     }
@@ -654,7 +658,7 @@ export default function StoreDashboard() {
         });
       if (pendingReturns.length > 0) {
         setReturnRequests(pendingReturns);
-        setActiveTab('returns');
+        router.replace('/seller/dashboard?tab=returns');
       }
       if (r.data.store && r.data.store._id) {
         setStoreId(r.data.store._id);
@@ -719,7 +723,7 @@ export default function StoreDashboard() {
       });
 
       // Voltar para pedidos automaticamente
-      setActiveTab('orders');
+      router.push('/seller/dashboard?tab=orders');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Erro ao confirmar devolução';
       console.error('❌ Erro:', errorMsg);
@@ -789,7 +793,7 @@ export default function StoreDashboard() {
                 revenue: 0, // não usado nos tiles (faturamento é calculado por "hoje" no componente)
               }}
               returnRequests={returnRequests}
-              onGoToTab={setActiveTab}
+              onGoToTab={(tab) => router.push(tab === 'overview' ? '/seller/dashboard' : `/seller/dashboard?tab=${tab}`)}
               onToggleOpen={handleToggleOpen}
               onQuickAction={(href) => router.push(href)}
             />
