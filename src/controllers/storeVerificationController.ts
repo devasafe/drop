@@ -207,7 +207,16 @@ async function decideUserFacial(req: AuthenticatedRequest, res: Response, approv
   user.verification!.facial!.reviewedBy = req.user?.id;
   user.verification!.facial!.reviewedAt = new Date();
   user.verification!.facial!.rejectionReason = approved ? undefined : (req.body?.reason || 'Selfie não aprovada');
-  await userRepository.update(user.id, { verification: user.verification });
+
+  // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (foto do rosto,
+  // verificada). Cliente não usa a facial como avatar (a foto de perfil dele é livre).
+  const roles: string[] = user.roles || (user.role ? [user.role] : []);
+  const facialViraAvatar = approved
+    && (roles.includes('motoboy') || roles.includes('lojista'))
+    && !!user.verification!.facial!.selfieUrl;
+  const updateData: any = { verification: user.verification };
+  if (facialViraAvatar) updateData.photo = user.verification!.facial!.selfieUrl;
+  await userRepository.update(user.id, updateData);
   await recomputeStoresForOwner(userId);
   logger.info(`[verification][AUDIT] facial ${approved ? 'aprovada' : 'rejeitada'}`, { userId, by: req.user?.id });
   return res.json({ message: approved ? 'Facial aprovada' : 'Facial rejeitada' });
