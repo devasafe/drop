@@ -170,7 +170,7 @@ export default function SellerOrderDetailPage() {
               {/* CARD: CONFIRMAR DEVOLUÇÃO DO MOTOBOY */}
               {showReturnCard && !returnSuccess && (
                 <div className={styles.returnCard}>
-                  <div className={styles.returnCardIcon}>[Pacote]</div>
+                  <div className={styles.returnCardIcon}><Icon name="package" size={24} /></div>
                   <h3 className={styles.returnCardTitle}>Devolução Solicitada</h3>
                   <p className={styles.returnCardMsg}>
                     O motoboy está retornando o produto à sua loja. Quando ele chegar com o PIN, confirme o recebimento para liberar o próximo passo.
@@ -216,7 +216,7 @@ export default function SellerOrderDetailPage() {
                 <div className={styles.infoCardHeader}>
                   <p className={styles.infoCardTitle}><Icon name="package" size={14} /> Itens do Pedido</p>
                 </div>
-                <div style={{ padding: '16px 20px' }}>
+                <div className={styles.cardBody}>
                   {order.products && order.products.length > 0 ? (
                     <div className={styles.productsGrid}>
                       {order.products.map((p: any, idx: number) => (
