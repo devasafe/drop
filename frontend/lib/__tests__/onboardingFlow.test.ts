@@ -3,7 +3,7 @@ import { getFlow, getStepIndexByPath, getNextStep, getFinalDestination } from '.
 describe('onboardingFlow', () => {
   test('tamanho do fluxo por papel', () => {
     expect(getFlow('cliente')).toHaveLength(1);
-    expect(getFlow('motoboy')).toHaveLength(3);
+    expect(getFlow('motoboy')).toHaveLength(4);
     expect(getFlow('lojista')).toHaveLength(4);
     expect(getFlow(undefined)).toEqual([]);
     expect(getFlow('admin')).toEqual([]);
@@ -12,7 +12,8 @@ describe('onboardingFlow', () => {
   test('motoboy começa pela verificação usual de conta', () => {
     expect(getFlow('motoboy')[0].path).toBe('/verificacao');
     expect(getNextStep('motoboy', '/verificacao')?.path).toBe('/verificacao-motoboy');
-    expect(getNextStep('motoboy', '/verificacao-motoboy')?.path).toBe('/dados-recebimento');
+    expect(getNextStep('motoboy', '/verificacao-motoboy')?.path).toBe('/foto-perfil');
+    expect(getNextStep('motoboy', '/foto-perfil')?.path).toBe('/dados-recebimento');
   });
 
   test('getNextStep retorna null na última etapa', () => {
