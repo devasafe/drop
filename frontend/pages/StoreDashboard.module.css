@@ -756,21 +756,10 @@
 
 .chatTabGrid { display: grid; grid-template-rows: auto 1fr; gap: var(--space-4); }
 
-.chatListCard {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  height: 300px;
-}
-
-.chatDetailCard {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  height: 400px;
-}
+/* Contêineres = componente Card (ui/Card): superfície/borda/raio vêm dele;
+   aqui só o recorte e a altura de cada painel de chat. */
+.chatListCard { overflow: hidden; height: 300px; }
+.chatDetailCard { overflow: hidden; height: 400px; }
 
 .chatEmpty {
   display: flex;

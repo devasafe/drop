@@ -23,6 +23,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Sheet } from '../components/ui/Sheet';
 import { Section } from '../components/ui/Section';
 import { List, Row } from '../components/ui/List';
+import { Card } from '../components/ui/Card';
 import Modal from '../components/common/Modal';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
@@ -1353,18 +1354,18 @@ export default function StoreDashboard() {
           {/* 🆕 ABA: CHAT PRÉ-COMPRA */}
           {activeTab === 'chat' && (
             <div className={styles.chatTabGrid}>
-              {/* LISTA DE CONVERSAS - CARD SUPERIOR */}
-              <div className={styles.chatListCard}>
+              {/* LISTA DE CONVERSAS */}
+              <Card className={styles.chatListCard}>
                 <ChatConversationList
                   filter={chatFilter as 'all' | 'product' | 'user'}
                   onSelectConversation={setSelectedConversationId}
                   selectedConversationId={selectedConversationId || undefined}
                   storeId={user?._id}
                 />
-              </div>
+              </Card>
 
-              {/* DETALHE DA CONVERSA - DIV SEPARADA EM BAIXO, 100% LARGURA */}
-              <div className={styles.chatDetailCard}>
+              {/* DETALHE DA CONVERSA */}
+              <Card className={styles.chatDetailCard}>
                 {selectedConversationId ? (
                   <ChatConversationDetail
                     conversationId={selectedConversationId}
@@ -1380,7 +1381,7 @@ export default function StoreDashboard() {
                     </div>
                   </div>
                 )}
-              </div>
+              </Card>
             </div>
           )}
 
