@@ -770,16 +770,6 @@ export default function StoreDashboard() {
             <div className={styles.topBarTitle}>
               <h1 className={styles.pageTitle}>Painel do Lojista</h1>
             </div>
-            <div className={styles.topBarActions}>
-              <button className={styles.topBarIcon} onClick={() => setActiveTab('orders')} aria-label="Ver pedidos">
-                <Icon name="bell" size={18} />
-                {orders.length > 0 && <span className={styles.topBarBadge}>{orders.length}</span>}
-              </button>
-              <div className={styles.topBarProfile}>
-                <div className={styles.profileAvatar}>{store?.name?.charAt(0)?.toUpperCase() || 'L'}</div>
-                <span className={styles.profileName}>{store?.name || 'Loja'}</span>
-              </div>
-            </div>
           </div>
 
           {/* Notificação */}
