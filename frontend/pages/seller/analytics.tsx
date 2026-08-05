@@ -279,13 +279,13 @@ function SellerAnalyticsInner() {
               <XAxis dataKey="date" stroke="rgba(255,255,255,0.4)" fontSize={11} tickFormatter={d => d.slice(5)} />
               <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} />
               <Tooltip
-                contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}
+                contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 10 }}
                 labelStyle={{ color: 'rgba(255,255,255,0.9)' }}
                 formatter={(v: any, key: any) => (key === 'revenue' ? BRL(v) : v)}
               />
               <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} />
-              <Line type="monotone" dataKey="revenue" name="Receita" stroke="#6C2BD9" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="orders" name="Pedidos" stroke="#38BDF8" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="revenue" name="Receita" stroke="var(--brand)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="orders" name="Pedidos" stroke="var(--info)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -346,7 +346,7 @@ function SellerAnalyticsInner() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}
+                    contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 10 }}
                     formatter={(v: any) => BRL(v)}
                   />
                   <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} />

@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  background: var(--drop-bg, #0A0A0A);
+  background: var(--bg);
   padding: 32px 24px 80px;
   max-width: 1400px;
   margin: 0 auto;
@@ -20,7 +20,7 @@
 
 .title {
   margin: 0;
-  font-family: var(--drop-font-display, 'Space Grotesk', sans-serif);
+  font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.96);
@@ -61,13 +61,13 @@
 }
 
 .error {
-  color: #EF4444;
+  color: var(--danger);
 }
 
 /* ---- Insights box ---- */
 .insightsBox {
-  background: linear-gradient(135deg, rgba(108, 43, 217, 0.15), rgba(139, 92, 246, 0.05));
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-2) 30%, transparent);
   border-radius: 16px;
   padding: 20px 24px;
 }
@@ -160,7 +160,7 @@
 
 .productBarFill {
   height: 100%;
-  background: linear-gradient(90deg, #6C2BD9, #8B5CF6);
+  background: var(--brand);
   border-radius: 999px;
   transition: width 0.5s cubic-bezier(0.4, 0, 0, 1);
 }
@@ -288,6 +288,6 @@
 
 .customerRevenue {
   font-weight: 600;
-  color: #22C55E;
+  color: var(--success);
   font-size: 12px;
 }
