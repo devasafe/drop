@@ -1,0 +1,48 @@
+/* List / Row — lista achatada do DS: linhas separadas por divisória, sem caixa.
+ * `.list > .row + .row` desenha a régua ENTRE linhas (a primeira não tem topo,
+ * a última não tem base) — resolve o :first-child sem depender de ordem de
+ * cascata entre módulos. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  padding: var(--space-4) 0;
+}
+
+.list > .row:first-child {
+  padding-top: 0;
+}
+
+.list > .row + .row {
+  border-top: 1px solid var(--line);
+}
+
+/* Acento --brand à esquerda (item novo/destacado). */
+.accent {
+  border-left: 3px solid var(--brand);
+  padding-left: var(--space-4);
+}
+
+/* Linha inteira clicável. */
+.interactive {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.interactive:hover {
+  background: var(--surface-2);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive {
+    transition: none;
+  }
+}

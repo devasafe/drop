@@ -1,0 +1,37 @@
+/* KpiBand / Kpi — banda flat de indicadores com divisória vertical entre eles.
+ * No lugar de uma fileira de mini-cards. */
+
+.band {
+  display: flex;
+}
+
+.kpi {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  text-align: center;
+}
+
+.band > .kpi + .kpi {
+  border-left: 1px solid var(--line);
+}
+
+.value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+
+.label {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: var(--space-1);
+}
+
+.success { color: var(--success); }
+.danger { color: var(--danger); }
+.warn { color: var(--rating); }
+.info { color: var(--info); }
