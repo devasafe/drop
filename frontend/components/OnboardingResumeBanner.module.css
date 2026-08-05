@@ -1,0 +1,32 @@
+/* OnboardingResumeBanner — aviso de "retome de onde parou".
+ * Superfície própria (--surface-2) com acento de marca na borda esquerda,
+ * sem roxo empilhado em fundo+borda+sombra (mesma regra do Button/Card).
+ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--brand-2);
+}
