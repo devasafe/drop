@@ -801,7 +801,7 @@ export default function StoreDashboard() {
           )}
 
           {/* Configurações */}
-          {activeTab === 'metrics' && (
+          {activeTab === 'config' && (
             <div>
               {store?.plan === 3 && (
                 <StoreBannerUpload
