@@ -19,12 +19,7 @@
 .btnWithdraw:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Stats flat com divisórias verticais */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); padding: var(--space-1) 0; }
-.stat { text-align: center; padding: 0 var(--space-2); }
-.stat + .stat { border-left: 1px solid var(--line); }
-.statValue { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--text-strong); font-weight: 700; line-height: 1.2; }
-.statValuePending { color: var(--rating); }
-.statLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
+/* KPIs da carteira usam o primitivo KpiBand/Kpi (ui/KpiBand). */
 
 /* Banner PIX (CTA) */
 .pixBanner { display: flex; align-items: center; gap: var(--space-2); width: 100%; text-align: left; background: color-mix(in srgb, var(--brand) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--line)); border-radius: var(--r-lg); padding: var(--space-3) var(--space-4); color: var(--brand-2); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; text-decoration: none; }

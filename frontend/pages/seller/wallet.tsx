@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
 import { Chip } from '../../components/ui/Chip';
+import { KpiBand, Kpi } from '../../components/ui/KpiBand';
 import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './SellerWallet.module.css';
 
@@ -199,20 +200,11 @@ export default function SellerWalletPage() {
 
           {/* Stats */}
           {wallet && (
-            <div className={styles.stats}>
-              <div className={styles.stat}>
-                <div className={`${styles.statValue} ${styles.statValuePending}`}>{formatBRL(wallet.pendingBalance ?? 0)}</div>
-                <div className={styles.statLabel}>Pendente</div>
-              </div>
-              <div className={styles.stat}>
-                <div className={styles.statValue}>{formatBRL(wallet.totalIncome)}</div>
-                <div className={styles.statLabel}>Total ganho</div>
-              </div>
-              <div className={styles.stat}>
-                <div className={styles.statValue}>{100 - (wallet.feePercent || 15)}%</div>
-                <div className={styles.statLabel}>Você retém</div>
-              </div>
-            </div>
+            <KpiBand>
+              <Kpi label="Pendente" value={formatBRL(wallet.pendingBalance ?? 0)} tone="warn" />
+              <Kpi label="Total ganho" value={formatBRL(wallet.totalIncome)} />
+              <Kpi label="Você retém" value={`${100 - (wallet.feePercent || 15)}%`} />
+            </KpiBand>
           )}
 
           {/* Banner PIX */}

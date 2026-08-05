@@ -7,6 +7,7 @@ import { imageUrl } from '../../lib/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProducts } from '../../hooks/useSync';
 import { useStores } from '../../hooks/useSync';
+import { List, Row } from '../../components/ui/List';
 import styles from './SellerProducts.module.css';
 
 export default function SellerProducts() {
@@ -103,11 +104,11 @@ export default function SellerProducts() {
               </button>
             </div>
           ) : (
-            <div className={styles.productsList}>
+            <List>
               {products.map((product: any) => (
-                <div
+                <Row
                   key={product._id}
-                  className={styles.productCard}
+                  className={styles.productRow}
                 >
                   {/* Image */}
                   <div className={styles.productThumb}>
@@ -156,9 +157,9 @@ export default function SellerProducts() {
                       Remover
                     </button>
                   </div>
-                </div>
+                </Row>
               ))}
-            </div>
+            </List>
           )}
         </div>
       </div>
