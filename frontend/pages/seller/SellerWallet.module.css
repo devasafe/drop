@@ -32,10 +32,8 @@
 
 /* Extrato = linhas flat com divisória (sangram até as bordas do container) */
 .section { display: flex; flex-direction: column; }
-.extractList { display: flex; flex-direction: column; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: calc(100% + var(--space-4) * 2); margin: 0 calc(var(--space-4) * -1); text-align: left; background: none; border: none; border-bottom: 1px solid var(--line); padding: var(--space-3) var(--space-4); cursor: pointer; transition: background-color var(--dur-fast) var(--ease); }
-.row:last-child { border-bottom: none; }
-.row:hover { background: var(--surface); }
+/* Extrato usa o primitivo List/Row (ui/List); aqui só o layout interno da linha. */
+.txRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); text-align: left; }
 .rowInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rowTitle { font-weight: 600; color: var(--text-strong); font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rowDate { font-size: var(--fs-xs); color: var(--text-subtle); }
@@ -53,13 +51,8 @@
 
 /* Análises flat */
 .analises { display: flex; flex-direction: column; gap: var(--space-5); }
-.analisesStats { display: grid; grid-template-columns: repeat(3, 1fr); padding: var(--space-1) 0 var(--space-4); border-bottom: 1px solid var(--line); }
-.analiseStat { text-align: center; padding: 0 var(--space-2); }
-.analiseStat + .analiseStat { border-left: 1px solid var(--line); }
-.analiseValue { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); line-height: 1.2; }
-.analiseValueSuccess { color: var(--success); }
-.analiseValueWarning { color: var(--rating); }
-.analiseLabel { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
+/* Banda de análises usa KpiBand/Kpi; a régua separa dos detalhes do plano. */
+.analisesBand { border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
 .planBlock { display: flex; flex-direction: column; gap: var(--space-2); }
 .planLabel { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; margin: 0; }
 .planName { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--brand-2); margin: 0; }

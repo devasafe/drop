@@ -8,6 +8,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
 import { Chip } from '../../components/ui/Chip';
 import { KpiBand, Kpi } from '../../components/ui/KpiBand';
+import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './SellerWallet.module.css';
 
@@ -231,9 +232,9 @@ export default function SellerWalletPage() {
               {historyEntries.length === 0 ? (
                 <p className={styles.emptyMsg}>Nenhuma transação ainda</p>
               ) : (
-                <div className={styles.extractList}>
+                <List>
                   {historyEntries.map((e) => (
-                    <button key={e.key} className={styles.row} onClick={e.onClick}>
+                    <Row key={e.key} interactive onClick={e.onClick} className={styles.txRow}>
                       <div className={styles.rowInfo}>
                         <span className={styles.rowTitle}>{e.title}</span>
                         <span className={styles.rowDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
@@ -242,9 +243,9 @@ export default function SellerWalletPage() {
                         <span className={`${styles.rowAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>{e.sign} {formatBRL(e.amount)}</span>
                         <span className={`${styles.pill} ${styles[e.statusClass] || ''}`}>{e.statusLabel}</span>
                       </div>
-                    </button>
+                    </Row>
                   ))}
-                </div>
+                </List>
               )}
             </section>
           )}
@@ -255,9 +256,9 @@ export default function SellerWalletPage() {
               {payouts.length === 0 ? (
                 <p className={styles.emptyMsg}>Nenhum payout encontrado</p>
               ) : (
-                <div className={styles.extractList}>
+                <List>
                   {payouts.map((p) => (
-                    <button key={p._id} className={styles.row} onClick={() => handlePayoutClick(p)}>
+                    <Row key={p._id} interactive onClick={() => handlePayoutClick(p)} className={styles.txRow}>
                       <div className={styles.rowInfo}>
                         <span className={styles.rowTitle}>Pedido #{p.orderId?.slice(-6) || '—'}</span>
                         <span className={styles.rowDate}>{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span>
@@ -266,9 +267,9 @@ export default function SellerWalletPage() {
                         <span className={`${styles.rowAmount} ${styles.credit}`}>+ {formatBRL(p.amount)}</span>
                         <span className={`${styles.pill} ${styles[p.status] || ''}`}>{payoutStatusLabel(p.status)}</span>
                       </div>
-                    </button>
+                    </Row>
                   ))}
-                </div>
+                </List>
               )}
             </section>
           )}
@@ -276,20 +277,11 @@ export default function SellerWalletPage() {
           {/* Análises */}
           {activeTab === 'analises' && wallet && (
             <div className={styles.analises}>
-              <div className={styles.analisesStats}>
-                <div className={styles.analiseStat}>
-                  <div className={`${styles.analiseValue} ${styles.analiseValueSuccess}`}>{formatBRL(wallet.totalIncome / 30)}</div>
-                  <div className={styles.analiseLabel}>Média/dia</div>
-                </div>
-                <div className={styles.analiseStat}>
-                  <div className={`${styles.analiseValue} ${styles.analiseValueWarning}`}>{wallet.feePercent}%</div>
-                  <div className={styles.analiseLabel}>Comissão</div>
-                </div>
-                <div className={styles.analiseStat}>
-                  <div className={`${styles.analiseValue} ${styles.analiseValueSuccess}`}>{100 - (wallet.feePercent || 15)}%</div>
-                  <div className={styles.analiseLabel}>Você retém</div>
-                </div>
-              </div>
+              <KpiBand className={styles.analisesBand}>
+                <Kpi label="Média/dia" value={formatBRL(wallet.totalIncome / 30)} tone="success" />
+                <Kpi label="Comissão" value={`${wallet.feePercent}%`} tone="warn" />
+                <Kpi label="Você retém" value={`${100 - (wallet.feePercent || 15)}%`} tone="success" />
+              </KpiBand>
               <div className={styles.planBlock}>
                 <p className={styles.planLabel}>Plano ativo</p>
                 <h3 className={styles.planName}>{planNames[wallet.plan || 1]}</h3>
