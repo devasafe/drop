@@ -536,8 +536,9 @@ model Wallet {
 
   entries WalletEntry[]
 
+  // @@unique já provê o índice de [owner, ownerType]; sem @@index duplicado
+  // (evita custo de escrita à toa nesta tabela quente).
   @@unique([owner, ownerType])
-  @@index([owner, ownerType])
 }
 
 model WalletEntry {
@@ -586,7 +587,9 @@ model Delivery {
 
   @@index([orderId])
   @@index([motoboyId])
-  @@index([status])
+  // Composto p/ a query mais quente: pool de disponíveis
+  // (status='pending' AND motoboyId IS NULL). Cobre status-só via prefixo.
+  @@index([status, motoboyId])
 }
 
 model Transaction {
