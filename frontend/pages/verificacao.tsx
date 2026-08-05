@@ -2,7 +2,7 @@ import { useEffect, useState, ChangeEvent } from 'react';
 import { useRouter } from 'next/router';
 import { CheckCircle2, Clock, Upload } from 'lucide-react';
 import api from '../lib/api';
-import { maskCPF, maskRG } from '../lib/masks';
+import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,8 @@ export default function VerificacaoPage() {
   // documento — o número vem do cadastro (editar-conta), não é digitado aqui
   const [docType, setDocType] = useState<'cpf' | 'rg'>('cpf');
   const [account, setAccount] = useState<{ cpf: string; rg: string }>({ cpf: '', rg: '' });
+  // Número digitado aqui quando ainda não há CPF/RG no cadastro (cadastro mínimo).
+  const [docNumber, setDocNumber] = useState('');
   const [front, setFront] = useState<File | null>(null);
   const [back, setBack] = useState<File | null>(null);
 
@@ -67,6 +69,13 @@ export default function VerificacaoPage() {
   const verifyEmailCode = () => action(() => api.post('/verification/email/verify', { code: emailCode }), 'Email verificado!');
   const submitDoc = () => action(async () => {
     if (!front || !back) throw { response: { data: { error: 'Envie frente e verso.' } } };
+    // Se o número ainda não está no cadastro, salva agora (PATCH /user/me) antes do envio.
+    const alreadyHas = docType === 'cpf' ? !!account.cpf : !!account.rg;
+    if (!alreadyHas) {
+      const digits = docType === 'cpf' ? onlyDigits(docNumber) : cleanRG(docNumber);
+      if (!digits) throw { response: { data: { error: `Informe o número do ${docType.toUpperCase()}.` } } };
+      await api.patch('/user/me', { [docType]: digits });
+    }
     const fd = new FormData();
     fd.append('type', docType);
     fd.append('front', front);
@@ -99,7 +108,7 @@ export default function VerificacaoPage() {
 
   const hasCpf = !!account.cpf;
   const hasRg = !!account.rg;
-  const hasAnyDoc = hasCpf || hasRg;
+  const hasSelectedNumber = docType === 'cpf' ? hasCpf : hasRg;
   const selectedNumber = docType === 'cpf' ? account.cpf : account.rg;
   const maskedNumber = docType === 'cpf' ? maskCPF(selectedNumber) : maskRG(selectedNumber);
 
@@ -160,34 +169,40 @@ export default function VerificacaoPage() {
             <p className={styles.hintDanger}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>
           )}
           {(docStatus === 'none' || docStatus === 'rejected') && (
-            !hasAnyDoc ? (
-              <p className={styles.hint}>
-                Cadastre seu CPF ou RG em <a href="/editar-conta" className={styles.link}>Editar meus dados</a> antes de enviar o documento. O número verificado é sempre o mesmo do seu cadastro.
-              </p>
-            ) : (
-              <>
-                {hasCpf && hasRg && (
-                  <div className={styles.chipRow}>
-                    <Chip label="CPF" active={docType === 'cpf'} onClick={() => setDocType('cpf')} />
-                    <Chip label="RG" active={docType === 'rg'} onClick={() => setDocType('rg')} />
-                  </div>
-                )}
-                <label className={styles.fieldLabel}>Número (cadastrado em Editar meus dados)</label>
-                <div className={styles.numberField}>
+            <>
+              <p className={styles.hint}>Escolha o tipo de documento, informe o número e envie as fotos da frente e do verso.</p>
+              <div className={styles.chipRow}>
+                <Chip label="CPF" active={docType === 'cpf'} onClick={() => setDocType('cpf')} />
+                <Chip label="RG" active={docType === 'rg'} onClick={() => setDocType('rg')} />
+              </div>
+              <label className={styles.fieldLabel}>Número do {docType.toUpperCase()}</label>
+              <div className={styles.numberField}>
+                {hasSelectedNumber ? (
                   <Input value={maskedNumber} onChange={() => {}} disabled aria-label="Número do documento" />
-                </div>
+                ) : (
+                  <Input
+                    value={docNumber}
+                    onChange={(val) => setDocNumber(docType === 'cpf' ? maskCPF(val) : maskRG(val))}
+                    placeholder={docType === 'cpf' ? '000.000.000-00' : '00.000.000-0'}
+                    inputMode={docType === 'cpf' ? 'numeric' : 'text'}
+                    maxLength={docType === 'cpf' ? 14 : 12}
+                    aria-label="Número do documento"
+                  />
+                )}
+              </div>
+              {hasSelectedNumber && (
                 <p className={styles.hintSmall}>
                   Para alterar este número, edite em <a href="/editar-conta" className={styles.link}>Editar meus dados</a>.
                 </p>
+              )}
 
-                <div className={styles.uploadRow}>
-                  <DropzoneField label="Frente" file={front} onChange={setFront} />
-                  <DropzoneField label="Verso" file={back} onChange={setBack} />
-                </div>
+              <div className={styles.uploadRow}>
+                <DropzoneField label="Frente" file={front} onChange={setFront} />
+                <DropzoneField label="Verso" file={back} onChange={setBack} />
+              </div>
 
-                <Button variant="primary" onClick={submitDoc} className={styles.submitBtn}>Enviar documento</Button>
-              </>
-            )
+              <Button variant="primary" onClick={submitDoc} className={styles.submitBtn}>Enviar documento</Button>
+            </>
           )}
         </section>
       </div>
