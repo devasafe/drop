@@ -332,17 +332,17 @@ export default function EditProduct() {
                       style={{ width: '100%', borderRadius: 10, aspectRatio: '1', objectFit: 'cover', marginBottom: 12 }}
                     />
                   ) : (
-                    <div style={{ width: '100%', aspectRatio: '1', borderRadius: 10, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <div style={{ width: '100%', aspectRatio: '1', borderRadius: 10, background: 'var(--surface-field)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                       <span style={{ fontSize: 40, opacity: 0.15 }}>📦</span>
                     </div>
                   )}
-                  <div style={{ fontWeight: 700, fontSize: 16, color: 'rgba(255,255,255,0.92)', marginBottom: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-strong)', marginBottom: 4 }}>
                     {name || 'Nome do produto'}
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#a78bfa', marginBottom: 8 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--brand-2)', marginBottom: 8 }}>
                     R$ {Number(price || 0).toFixed(2)}
                   </div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     {totalImages} foto{totalImages !== 1 ? 's' : ''} · {quantity} em estoque
                     {currentVideo ? ' · 📹 vídeo' : ''}
                   </div>
