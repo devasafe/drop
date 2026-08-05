@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
+import { isDeliveryWithinRadius } from '../services/dispatch';
+import { isMotoboyVerified } from '../utils/courierVerification';
+import userRepository from '../repositories/user.repository';
 
 
 
@@ -59,11 +62,25 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
       }
     }
 
-    // Entregas disponíveis no pool (mesma query do listAvailableDeliveries).
+    // Entregas disponíveis PARA ESTE MOTOBOY. Espelha os mesmos gates da lista
+    // (listAvailableDeliveries): KYC + online + raio. Um count cru do pool global
+    // mostrava "1" mesmo com o motoboy offline ou a entrega fora do raio dele —
+    // badge aceso sem nada acionável na tela.
     if (role === 'motoboy') {
-      out.deliveries = await prisma.delivery.count({
-        where: { status: 'pending', motoboyId: null },
-      });
+      const me = await userRepository.findById(userId) as any;
+      const kycOk = process.env.KYC_ENFORCED !== 'true' || isMotoboyVerified(me);
+      if (kycOk && me?.isOnline) {
+        const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
+          ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
+          : null;
+        const pendingAll = await prisma.delivery.findMany({
+          where: { status: 'pending', motoboyId: null },
+          select: { storeLatitude: true, storeLongitude: true, createdAt: true },
+          take: 200,
+        });
+        const now = Date.now();
+        out.deliveries = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now)).length;
+      }
     }
 
     return res.json(out);
