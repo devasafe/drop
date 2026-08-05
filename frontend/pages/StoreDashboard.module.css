@@ -266,28 +266,28 @@
 .emptyStateIcon { margin-bottom: 12px; opacity: 0.3; }
 .emptyStateText { font-weight: 600; color: var(--text-muted); font-size: 14px; }
 
+/* Lista de pedidos achatada (DS flat): sem caixa por item — só uma divisória
+ * separando cada pedido, como as demais listas do painel. */
 .ordersList {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
+  display: flex;
+  flex-direction: column;
 }
 
 .orderCard {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--space-5);
-  transition: border-color var(--dur-fast) var(--ease);
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--line);
 }
 
-.orderCard:hover { border-color: var(--brand-2); }
+.ordersList > .orderCard:first-child {
+  border-top: none;
+  padding-top: 0;
+}
 
-/* Realce de pedido novo (newOrderIds) — mesmo idioma de "light highlight"
- * usado em OnboardingResumeBanner/OverviewTab .activeOrder (superfície +1,
- * acento --brand na borda esquerda), no lugar da cor hex aleatória por pedido. */
+/* Realce de pedido novo (newOrderIds): barra de acento --brand à esquerda —
+ * a pill "NOVO" já sinaliza; sem preenchimento p/ manter o idioma flat. */
 .orderCardNew {
-  background: var(--surface-2);
   border-left: 3px solid var(--brand);
+  padding-left: var(--space-4);
 }
 
 .orderCardTop {
@@ -996,7 +996,7 @@
 
 @media (max-width: 640px) {
   .tabContent { padding: 20px 16px 64px; }
-  .orderCard { padding: 16px; }
+  .orderCard { padding: var(--space-5) 0; }
   .orderCardTop { flex-wrap: wrap; gap: 8px; }
   .orderActions3 { grid-template-columns: 1fr; }
   .orderActions2 { grid-template-columns: 1fr; }
