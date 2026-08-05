@@ -1,6 +1,6 @@
 .page {
   min-height: calc(100vh - 64px);
-  background: var(--drop-bg);
+  background: var(--bg);
   padding: 32px 20px;
 }
 
@@ -12,7 +12,7 @@
 .backBtn {
   background: none;
   border: none;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 14px;
   padding: 6px 0;
@@ -23,13 +23,13 @@
 }
 
 .backBtn:hover {
-  color: var(--drop-purple-2, var(--drop-white));
+  color: var(--drop-purple-2, var(--text-strong));
 }
 
 .profileCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 32px 28px;
   display: flex;
   flex-direction: column;
@@ -45,24 +45,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-size: 36px;
   font-weight: 700;
   margin-bottom: 18px;
-  border: 2px solid var(--drop-border-md);
+  border: 2px solid var(--line);
 }
 
 .name {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-size: 26px;
   font-weight: 700;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 0 0 6px 0;
 }
 
 .email {
   font-size: 14px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   margin-bottom: 24px;
 }
 
@@ -75,7 +75,7 @@
 .sectionLabel {
   font-size: 11px;
   font-weight: 700;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.6px;
   margin-bottom: 10px;
@@ -94,24 +94,24 @@
   font-size: 13px;
   font-weight: 600;
   background: var(--drop-bg-3, rgba(255, 255, 255, 0.04));
-  color: var(--drop-text-muted);
-  border: 1px solid var(--drop-border);
+  color: var(--text-muted);
+  border: 1px solid var(--line);
 }
 
 .roleChipActive {
   background: var(--drop-purple-bg, rgba(108, 43, 217, 0.15));
   color: var(--drop-purple-2, #c4b5fd);
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
 }
 
 .memberSince {
   width: 100%;
   background: var(--drop-bg-2, rgba(0, 0, 0, 0.2));
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 14px 18px;
   font-size: 13px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   text-align: left;
 }
 
@@ -121,33 +121,28 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
-  color: var(--drop-text-dim, var(--drop-text-muted));
+  color: var(--drop-text-dim, var(--text-muted));
 }
 
 .memberSinceValue {
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-size: 14px;
 }
 
 .loadingScreen,
 .errorScreen {
   min-height: calc(100vh - 64px);
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
 }
 
-.loadingText {
-  color: var(--drop-text-muted);
-  font-size: 16px;
-}
-
 .errorBox {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 36px 28px;
   text-align: center;
   max-width: 400px;

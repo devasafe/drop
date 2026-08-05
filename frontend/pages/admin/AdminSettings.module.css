@@ -4,8 +4,8 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
-  font-family: var(--drop-font-body);
-  background: var(--drop-bg);
+  font-family: var(--font-body);
+  background: var(--bg);
   min-height: 100vh;
 }
 
@@ -13,14 +13,14 @@
   margin-bottom: 8px;
   font-size: 28px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  color: var(--drop-white);
+  color: var(--text-strong);
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
 }
 
 .pageSub {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin-bottom: 30px;
   font-size: 14px;
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.04s both;
@@ -30,11 +30,11 @@
   padding: 40px;
   text-align: center;
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 18px;
 }
 
@@ -42,9 +42,9 @@
 .messageSuccess {
   background: rgba(34,197,94,0.1);
   border: 1px solid rgba(34,197,94,0.3);
-  color: var(--drop-success);
+  color: var(--success);
   padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -52,18 +52,18 @@
 .messageError {
   background: rgba(239,68,68,0.1);
   border: 1px solid rgba(239,68,68,0.3);
-  color: var(--drop-danger);
+  color: var(--danger);
   padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   margin-bottom: 20px;
   font-size: 14px;
 }
 
 /* Sections */
 .section {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 24px;
   margin-bottom: 24px;
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.08s both;
@@ -72,8 +72,8 @@
 .sectionTitle {
   margin-top: 0;
   margin-bottom: 20px;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
 }
@@ -87,13 +87,13 @@
 .fieldCard {
   padding: 16px;
   background: rgba(255,255,255,0.02);
-  border-radius: var(--drop-radius-sm);
-  border: 1px solid var(--drop-border);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
 }
 
 .fieldCardTitle {
   margin-top: 0;
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-size: 14px;
   font-weight: 600;
 }
@@ -107,58 +107,58 @@
   margin-bottom: 8px;
   font-weight: 600;
   font-size: 14px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .fieldInput {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--drop-border-md);
+  border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
-  font-family: var(--drop-font-body);
+  color: var(--text-strong);
+  font-family: var(--font-body);
   outline: none;
   transition: var(--drop-transition);
   box-sizing: border-box;
 }
 
 .fieldInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
 }
 
 .fieldInputFlex {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--drop-border-md);
+  border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
-  font-family: var(--drop-font-body);
+  color: var(--text-strong);
+  font-family: var(--font-body);
   outline: none;
   transition: var(--drop-transition);
 }
 
 .fieldInputFlex:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
 }
 
 .fieldHint {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 14px;
   margin: 0;
 }
 
 .fieldHintSmall {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 12px;
   margin: 8px 0 0 0;
 }
 
 .fieldHintBlue {
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   font-size: 12px;
   margin: 4px 0 0 0;
 }
@@ -172,13 +172,13 @@
 .inputPrefix {
   font-size: 16px;
   font-weight: 600;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .inputSuffix {
   font-size: 14px;
   font-weight: 500;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 /* Buttons */
@@ -190,7 +190,7 @@
 
 .btnCancel {
   background: rgba(255,255,255,0.07);
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   border: none;
   padding: 10px 24px;
   border-radius: 8px;
@@ -198,7 +198,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnCancel:hover {
@@ -207,7 +207,7 @@
 
 .btnSave {
   background: var(--brand);
-  color: var(--drop-white);
+  color: var(--text-strong);
   border: none;
   padding: 10px 24px;
   border-radius: 8px;
@@ -215,7 +215,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnSave:disabled {

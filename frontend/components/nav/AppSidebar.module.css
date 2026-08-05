@@ -38,10 +38,10 @@
 }
 
 .sidebarLogo {
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   font-weight: 900;
   font-size: 18px;
-  color: var(--drop-white);
+  color: var(--text-strong);
   text-transform: uppercase;
   letter-spacing: -0.02em;
 }
@@ -52,34 +52,6 @@
   text-transform: uppercase;
   letter-spacing: 0.2em;
   margin: 0;
-}
-
-.sidebarStoreInfo {
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(74, 68, 85, 0.1);
-}
-
-.sidebarStoreName {
-  font-family: var(--drop-font-display);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--drop-white);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  margin-bottom: 6px;
-}
-
-.sidebarPlanBadge {
-  display: inline-block;
-  padding: 3px 10px;
-  background: rgba(108, 43, 217, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: 6px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--drop-purple-2);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .sidebarNav {
@@ -110,7 +82,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   letter-spacing: 0.02em;
   transition: all 0.2s;
   text-align: left;
@@ -118,21 +90,13 @@
 
 .sidebarNavItem:hover {
   background: rgba(28, 27, 27, 0.5);
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .sidebarNavItemActive {
   border-left-color: var(--brand-2);
   color: var(--brand-2);
   background: color-mix(in srgb, var(--brand) 8%, transparent);
-}
-
-.sidebarActions {
-  padding: 16px 16px 24px;
-  border-top: 1px solid rgba(74, 68, 85, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .sidebarOverlay {

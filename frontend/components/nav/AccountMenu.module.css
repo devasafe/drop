@@ -34,7 +34,7 @@
   font-size: 14px;
   font-weight: 700;
   color: #fff;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .rolePill {
@@ -85,7 +85,7 @@
   transition: background 0.2s cubic-bezier(0.4, 0, 0, 1),
               color 0.2s cubic-bezier(0.4, 0, 0, 1),
               transform 0.2s cubic-bezier(0.4, 0, 0, 1);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .item:hover {
@@ -117,7 +117,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: background 0.2s cubic-bezier(0.4, 0, 0, 1),
               border-color 0.2s cubic-bezier(0.4, 0, 0, 1);
 }

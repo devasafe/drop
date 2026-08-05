@@ -4,8 +4,8 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
-  font-family: var(--drop-font-body);
-  background: var(--drop-bg);
+  font-family: var(--font-body);
+  background: var(--bg);
   min-height: 100vh;
 }
 
@@ -13,14 +13,14 @@
   margin-bottom: 8px;
   font-size: 28px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  color: var(--drop-white);
+  color: var(--text-strong);
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) both;
 }
 
 .pageSub {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin-bottom: 30px;
   font-size: 14px;
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.04s both;
@@ -31,9 +31,9 @@
   margin: 0 auto;
   padding: 40px 20px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -43,9 +43,9 @@
 .messageSuccess {
   background: rgba(34,197,94,0.1);
   border: 1px solid rgba(34,197,94,0.3);
-  color: var(--drop-success);
+  color: var(--success);
   padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -53,9 +53,9 @@
 .messageError {
   background: rgba(239,68,68,0.1);
   border: 1px solid rgba(239,68,68,0.3);
-  color: var(--drop-danger);
+  color: var(--danger);
   padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -65,46 +65,46 @@
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.06s both;
 }
 
 .tabBtn {
   background: transparent;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   border: none;
   padding: 10px 16px;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   font-size: 14px;
   font-weight: 600;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 
 .tabBtnActive {
   background: transparent;
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   border: none;
   padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 3px solid var(--drop-purple-2);
+  border-bottom: 3px solid var(--brand-2);
   font-size: 14px;
   font-weight: 600;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 /* Empty */
 .emptyCard {
-  background: var(--drop-surface);
+  background: var(--surface);
   padding: 40px;
   text-align: center;
-  border-radius: var(--drop-radius-sm);
-  border: 1px solid var(--drop-border);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
 }
 
 .emptyText {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 16px;
   margin: 0;
 }
@@ -118,16 +118,16 @@
 }
 
 .subCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   padding: 16px;
 }
 
 .subCardPending {
-  background: var(--drop-surface);
+  background: var(--surface);
   border: 2px solid rgba(245,158,11,0.4);
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   padding: 16px;
 }
 
@@ -145,22 +145,22 @@
 .storeName {
   margin: 0 0 8px 0;
   font-size: 16px;
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-weight: 600;
 }
 
 .planInfoPending {
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .planInfoRejected {
-  color: var(--drop-danger);
+  color: var(--danger);
   font-size: 14px;
 }
 
 .planInfoDefault {
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -171,13 +171,13 @@
 .planRequested {
   margin: 4px 0;
   font-weight: 600;
-  color: var(--drop-warning);
+  color: var(--rating);
 }
 
 .planMeta {
   margin: 8px 0 0 0;
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 /* Action Buttons */
@@ -190,7 +190,7 @@
 
 .btnApprove {
   background: rgba(34,197,94,0.15);
-  color: var(--drop-success);
+  color: var(--success);
   border: 1px solid rgba(34,197,94,0.3);
   padding: 8px 12px;
   border-radius: 6px;
@@ -198,7 +198,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnApprove:hover:not(:disabled) {
@@ -212,7 +212,7 @@
 
 .btnReject {
   background: transparent;
-  color: var(--drop-danger);
+  color: var(--danger);
   border: 1px solid rgba(239,68,68,0.4);
   padding: 8px 12px;
   border-radius: 6px;
@@ -220,7 +220,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnReject:hover {
@@ -241,7 +241,7 @@
   margin-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .rejectTextarea {
@@ -250,18 +250,18 @@
   border: 1px solid rgba(239,68,68,0.3);
   border-radius: 6px;
   font-size: 13px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   resize: vertical;
   min-height: 60px;
   margin-bottom: 8px;
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
+  color: var(--text-strong);
   outline: none;
   box-sizing: border-box;
 }
 
 .rejectTextarea:focus {
-  border-color: var(--drop-danger);
+  border-color: var(--danger);
 }
 
 .rejectActions {
@@ -270,15 +270,15 @@
 }
 
 .btnConfirmReject {
-  background: var(--drop-danger);
-  color: var(--drop-white);
+  background: var(--danger);
+  color: var(--text-strong);
   border: none;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 
@@ -289,13 +289,13 @@
 
 .btnCancelReject {
   background: rgba(255,255,255,0.07);
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   border: none;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 

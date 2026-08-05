@@ -5,10 +5,10 @@
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
-  color: var(--drop-white);
+  font-family: var(--font-body);
+  color: var(--text-strong);
 }
 
 .container {
@@ -21,9 +21,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--drop-text-dim);
-  font-family: var(--drop-font-body);
-  background: var(--drop-bg);
+  color: var(--text-subtle);
+  font-family: var(--font-body);
+  background: var(--bg);
 }
 
 .pageHeader {
@@ -34,15 +34,15 @@
 .pageTitle {
   font-size: 28px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 0 0 8px 0;
 }
 
 .pageSubtitle {
   font-size: 14px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 0;
 }
 
@@ -58,22 +58,22 @@
   width: 100%;
   padding: 11px 14px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-strong);
   font-size: 14px;
   outline: none;
   transition: var(--drop-transition);
   box-sizing: border-box;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .searchInput::placeholder {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .searchInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
 }
 
@@ -81,27 +81,27 @@
   width: 100%;
   padding: 11px 14px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-strong);
   font-size: 14px;
   outline: none;
   transition: var(--drop-transition);
   box-sizing: border-box;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   cursor: pointer;
 }
 
 .filterSelect:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
 }
 
 /* ── Table ───────────────────────────────────── */
 .tableCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
   overflow-x: auto;
   margin-bottom: 24px;
@@ -117,18 +117,18 @@
   padding: 12px 16px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   text-align: left;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.02);
 }
 
 .td {
   padding: 14px 16px;
   font-size: 13px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
@@ -142,7 +142,7 @@
 
 .tdName {
   font-weight: 600;
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 /* ── Role badge ──────────────────────────────── */
@@ -152,8 +152,8 @@
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--drop-white);
-  background: var(--drop-purple);
+  color: var(--text-strong);
+  background: var(--brand);
 }
 
 /* ── Status badge ────────────────────────────── */
@@ -168,13 +168,13 @@
 
 .statusActive {
   background: rgba(34, 197, 94, 0.15);
-  color: var(--drop-success);
+  color: var(--success);
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .statusBlocked {
   background: rgba(239, 68, 68, 0.15);
-  color: var(--drop-danger);
+  color: var(--danger);
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -185,80 +185,34 @@
   align-items: center;
 }
 
-.roleSelect {
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: 6px;
-  color: var(--drop-white);
-  font-size: 12px;
-  font-family: var(--drop-font-body);
-  outline: none;
-  cursor: pointer;
-}
-
 .btnEdit {
   padding: 6px 12px;
   background: rgba(108, 43, 217, 0.2);
   border: 1px solid rgba(108, 43, 217, 0.4);
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnEdit:hover {
   background: rgba(108, 43, 217, 0.3);
 }
 
-.btnSave {
-  padding: 6px 12px;
-  background: rgba(34, 197, 94, 0.15);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: var(--drop-success);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
-}
-
-.btnSave:hover {
-  background: rgba(34, 197, 94, 0.25);
-}
-
-.btnCancel {
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--drop-border);
-  color: var(--drop-text-muted);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
-}
-
-.btnCancel:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .btnBlock {
   padding: 6px 12px;
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--drop-danger);
+  color: var(--danger);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnBlock:hover {
@@ -269,13 +223,13 @@
   padding: 6px 12px;
   background: rgba(245, 158, 11, 0.15);
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: var(--drop-warning);
+  color: var(--rating);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnUnblock:hover {
@@ -285,19 +239,19 @@
 .btnDisconnect {
   padding: 6px 12px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--drop-border-md);
-  color: var(--drop-text-muted);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnDisconnect:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .btnDisconnect:disabled {
@@ -309,7 +263,7 @@
 .emptyState {
   padding: 48px 24px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 /* ── YOU tag ─────────────────────────────────── */
@@ -321,7 +275,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   background: rgba(108, 43, 217, 0.25);
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   border: 1px solid rgba(139, 92, 246, 0.4);
   border-radius: 6px;
 }
@@ -330,7 +284,7 @@
 .blockReasonText {
   margin-top: 6px;
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-style: italic;
   max-width: 280px;
   line-height: 1.4;
@@ -339,7 +293,7 @@
 /* ── Flash ───────────────────────────────────── */
 .flash {
   padding: 12px 16px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   margin-bottom: 20px;
   font-size: 13px;
   font-weight: 600;
@@ -349,13 +303,13 @@
 .flashSuccess {
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  color: var(--drop-success);
+  color: var(--success);
 }
 
 .flashError {
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--drop-danger);
+  color: var(--danger);
 }
 
 /* ── Disabled buttons ────────────────────────── */
@@ -380,9 +334,9 @@
 }
 
 .modalCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 28px;
   width: 100%;
   max-width: 460px;
@@ -394,14 +348,14 @@
 .modalTitle {
   font-size: 20px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
-  color: var(--drop-white);
+  font-family: var(--font-display);
+  color: var(--text-strong);
   margin: 0 0 4px 0;
 }
 
 .modalSubtitle {
   font-size: 13px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 0 0 20px 0;
 }
 
@@ -411,7 +365,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 12px 0 6px 0;
 }
 
@@ -420,11 +374,11 @@
   width: 100%;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-strong);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   outline: none;
   box-sizing: border-box;
   transition: var(--drop-transition);
@@ -432,7 +386,7 @@
 
 .modalInput:focus,
 .modalTextarea:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
 }
 
@@ -443,7 +397,7 @@
 
 .modalBody {
   font-size: 14px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   line-height: 1.5;
   margin: 12px 0;
 }
@@ -451,17 +405,17 @@
 .modalNote {
   padding: 10px 12px;
   background: rgba(245, 158, 11, 0.08);
-  border-left: 3px solid var(--drop-warning);
-  border-radius: var(--drop-radius-sm);
+  border-left: 3px solid var(--rating);
+  border-radius: var(--r-sm);
   font-size: 12px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   margin: 12px 0 0 0;
   line-height: 1.5;
 }
 
 .modalWarning {
   font-size: 12px;
-  color: var(--drop-warning);
+  color: var(--rating);
   margin: 10px 0 0 0;
   line-height: 1.4;
 }
@@ -476,13 +430,13 @@
   flex: 1;
   padding: 11px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--drop-border);
-  color: var(--drop-text-muted);
-  border-radius: var(--drop-radius-sm);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 
@@ -494,13 +448,13 @@
   flex: 2;
   padding: 11px;
   background: var(--brand);
-  color: var(--drop-white);
+  color: var(--text-strong);
   border: none;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
   box-shadow: var(--drop-shadow-purple);
 }
@@ -522,13 +476,13 @@
   flex: 2;
   padding: 11px;
   background: var(--danger);
-  color: var(--drop-white);
+  color: var(--text-strong);
   border: none;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 
@@ -542,21 +496,21 @@
   margin-top: 32px;
   padding: 20px;
   background: rgba(108, 43, 217, 0.08);
-  border-left: 3px solid var(--drop-purple);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-text-muted);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
 }
 
 .infoBoxTitle {
   margin: 0 0 8px 0;
   font-weight: 600;
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
 }
 
 .infoBoxText {
   margin: 0;
   font-size: 13px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 @media (max-width: 1024px) {

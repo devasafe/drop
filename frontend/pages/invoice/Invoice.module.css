@@ -1,8 +1,8 @@
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   padding: 40px 16px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .container {
@@ -15,7 +15,7 @@
 
 .loadingScreen {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -28,9 +28,9 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 24px 28px;
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
 }
 
 .headerLeft {
@@ -43,7 +43,7 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   text-transform: uppercase;
 }
 
@@ -51,8 +51,8 @@
   margin: 0;
   font-size: 26px;
   font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
 
@@ -96,8 +96,8 @@
 .printBtn {
   padding: 8px 16px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   color: rgba(255, 255, 255, 0.75);
   font-size: 12px;
   font-weight: 600;
@@ -107,14 +107,14 @@
 
 .printBtn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 /* Cards */
 .card {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
 }
 
@@ -125,7 +125,7 @@
   color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .row {
@@ -189,7 +189,7 @@
 .totalLabel {
   font-size: 13px;
   font-weight: 800;
-  color: var(--drop-white);
+  color: var(--text-strong);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -198,7 +198,7 @@
   font-size: 22px;
   font-weight: 800;
   color: #22c55e;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .footerNote {

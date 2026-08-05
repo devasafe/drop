@@ -121,9 +121,13 @@
 }
 
 .funnelRow:nth-child(1) { animation-delay: 0.05s; }
+
 .funnelRow:nth-child(2) { animation-delay: 0.1s; }
+
 .funnelRow:nth-child(3) { animation-delay: 0.15s; }
+
 .funnelRow:nth-child(4) { animation-delay: 0.2s; }
+
 .funnelRow:nth-child(5) { animation-delay: 0.25s; }
 
 .funnelLabel {
@@ -227,9 +231,13 @@
 }
 
 .cohortRow:nth-child(2) { animation-delay: 0.04s; }
+
 .cohortRow:nth-child(3) { animation-delay: 0.08s; }
+
 .cohortRow:nth-child(4) { animation-delay: 0.12s; }
+
 .cohortRow:nth-child(5) { animation-delay: 0.16s; }
+
 .cohortRow:nth-child(6) { animation-delay: 0.2s; }
 
 .cohortHeader > div,
@@ -274,14 +282,23 @@
 }
 
 .storeRow:nth-child(1)  { animation-delay: 0.03s; }
+
 .storeRow:nth-child(2)  { animation-delay: 0.06s; }
+
 .storeRow:nth-child(3)  { animation-delay: 0.09s; }
+
 .storeRow:nth-child(4)  { animation-delay: 0.12s; }
+
 .storeRow:nth-child(5)  { animation-delay: 0.15s; }
+
 .storeRow:nth-child(6)  { animation-delay: 0.18s; }
+
 .storeRow:nth-child(7)  { animation-delay: 0.21s; }
+
 .storeRow:nth-child(8)  { animation-delay: 0.24s; }
+
 .storeRow:nth-child(9)  { animation-delay: 0.27s; }
+
 .storeRow:nth-child(10) { animation-delay: 0.3s; }
 
 .storeRank {

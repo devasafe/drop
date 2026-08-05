@@ -5,10 +5,10 @@
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
-  color: var(--drop-white);
+  font-family: var(--font-body);
+  color: var(--text-strong);
 }
 
 .container {
@@ -21,9 +21,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--drop-text-dim);
-  font-family: var(--drop-font-body);
-  background: var(--drop-bg);
+  color: var(--text-subtle);
+  font-family: var(--font-body);
+  background: var(--bg);
 }
 
 .pageHeader {
@@ -34,15 +34,15 @@
 .pageTitle {
   font-size: 28px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  color: var(--drop-white);
+  color: var(--text-strong);
   margin: 0 0 6px 0;
 }
 
 .pageSubtitle {
   font-size: 14px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -54,9 +54,9 @@
 }
 
 .planCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 28px;
 }
 
@@ -87,8 +87,8 @@
 .planName {
   font-size: 20px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
-  color: var(--drop-white);
+  font-family: var(--font-display);
+  color: var(--text-strong);
   margin: 0 0 24px 0;
 }
 
@@ -101,7 +101,7 @@
   display: block;
   font-size: 12px;
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 8px;
@@ -110,20 +110,20 @@
 .fieldValue {
   font-size: 22px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
-  color: var(--drop-purple-2);
+  font-family: var(--font-display);
+  color: var(--brand-2);
 }
 
 .fieldValueNeutral {
   font-size: 18px;
   font-weight: 700;
-  font-family: var(--drop-font-display);
-  color: var(--drop-white);
+  font-family: var(--font-display);
+  color: var(--text-strong);
 }
 
 .fieldNote {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin-top: 4px;
 }
 
@@ -135,25 +135,25 @@
 
 .inputPrefix {
   font-size: 14px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-weight: 600;
 }
 
 .formInput {
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-strong);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   outline: none;
   transition: var(--drop-transition);
   box-sizing: border-box;
 }
 
 .formInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
 }
 
@@ -177,13 +177,13 @@
   padding: 12px 24px;
   background: var(--brand);
   border: none;
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-weight: 700;
   cursor: pointer;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   transition: var(--drop-transition);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnSave:hover:not(:disabled) {
@@ -200,14 +200,14 @@
   flex: 1;
   padding: 12px 24px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--drop-border);
-  color: var(--drop-text-muted);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
   font-weight: 700;
   cursor: pointer;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   transition: var(--drop-transition);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnCancel:hover {
@@ -219,13 +219,13 @@
   padding: 12px 24px;
   background: rgba(108, 43, 217, 0.15);
   border: 1px solid rgba(108, 43, 217, 0.35);
-  color: var(--drop-purple-2);
+  color: var(--brand-2);
   font-weight: 700;
   cursor: pointer;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   transition: var(--drop-transition);
   font-size: 14px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnEdit:hover {
@@ -235,15 +235,15 @@
 /* ── Distribution example panel ─────────────── */
 .examplePanel {
   background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-md);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 20px;
 }
 
 .exampleTitle {
   font-size: 14px;
   font-weight: 700;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin: 0 0 20px 0;
@@ -256,37 +256,37 @@
 }
 
 .exampleItem {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   padding: 14px;
 }
 
 .exampleItemLabel {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 0 0 4px 0;
 }
 
 .exampleItemValueRed {
   font-size: 24px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
-  color: var(--drop-danger);
+  font-family: var(--font-display);
+  color: var(--danger);
   margin: 0 0 2px 0;
 }
 
 .exampleItemValueGreen {
   font-size: 24px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
-  color: var(--drop-success);
+  font-family: var(--font-display);
+  color: var(--success);
   margin: 0 0 2px 0;
 }
 
 .exampleItemNote {
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 0;
 }
 
@@ -295,9 +295,9 @@
   padding: 12px 14px;
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   font-size: 12px;
-  color: var(--drop-warning);
+  color: var(--rating);
   line-height: 1.5;
 }
 

@@ -32,6 +32,7 @@
   border-radius: 8px;
   transition: background 0.15s;
 }
+
 .btnBack:hover { background: rgba(255,255,255,0.08); }
 
 .title {
@@ -80,7 +81,9 @@
 }
 
 .productName { flex: 1; font-size: 14px; color: rgba(255,255,255,0.85); }
+
 .productQty  { font-size: 13px; color: rgba(255,255,255,0.45); }
+
 .productPrice { font-size: 14px; font-weight: 600; color: #fbbf24; min-width: 70px; text-align: right; }
 
 /* ── Aviso Plano 1 ── */
@@ -124,7 +127,9 @@
   outline: none;
   transition: border-color 0.15s;
 }
+
 .input:focus { border-color: rgba(251,191,36,0.5); }
+
 .input::placeholder { color: rgba(255,255,255,0.25); }
 
 /* ── Pagamento ── */
@@ -142,7 +147,9 @@
   cursor: pointer;
   transition: all 0.15s;
 }
+
 .paymentBtn:hover { background: rgba(255,255,255,0.09); }
+
 .paymentBtnActive {
   background: rgba(251,191,36,0.12);
   border-color: rgba(251,191,36,0.4);
@@ -212,7 +219,9 @@
   cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
 }
+
 .btnSubmit:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+
 .btnSubmit:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Carrinho vazio ── */

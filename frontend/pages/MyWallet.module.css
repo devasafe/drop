@@ -4,9 +4,9 @@
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .container {
@@ -17,19 +17,19 @@
 /* Loading / Error */
 .loadingScreen {
   min-height: 100vh;
-  background: var(--drop-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .loadingText {
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 15px;
 }
 
 .errorText {
-  color: var(--drop-danger);
+  color: var(--danger);
   font-size: 15px;
 }
 
@@ -43,22 +43,22 @@
   margin: 0 0 6px;
   font-size: 32px;
   font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
 .pageSubtitle {
   margin: 0;
   font-size: 14px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 /* Bank warning */
 .bankWarning {
   background: rgba(251, 191, 36, 0.08);
   border: 1px solid rgba(251, 191, 36, 0.25);
-  border-radius: var(--drop-radius-md);
+  border-radius: var(--r-md);
   padding: 16px 20px;
   margin-bottom: 28px;
   display: flex;
@@ -72,7 +72,7 @@
   margin: 0 0 3px;
   font-weight: 700;
   font-size: 14px;
-  color: var(--drop-warning);
+  color: var(--rating);
 }
 
 .bankWarningDesc {
@@ -86,12 +86,12 @@
   background: rgba(251, 191, 36, 0.2);
   border: 1px solid rgba(251, 191, 36, 0.4);
   border-radius: 8px;
-  color: var(--drop-warning);
+  color: var(--rating);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   transition: var(--drop-transition);
 }
 
@@ -145,8 +145,8 @@
   margin: 0;
   font-size: 52px;
   font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   position: relative;
 }
@@ -168,9 +168,9 @@
 }
 
 .statCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 18px;
   text-align: center;
 }
@@ -178,7 +178,7 @@
 .statLabel {
   margin: 0 0 6px;
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -188,7 +188,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 /* Action buttons */
@@ -204,13 +204,13 @@
   padding: 12px;
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.25);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-success);
+  border-radius: var(--r-sm);
+  color: var(--success);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnDeposit:hover {
@@ -227,13 +227,13 @@
   padding: 12px;
   background: rgba(108, 43, 217, 0.15);
   border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   color: #A78BFA;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnTransfer:hover {
@@ -250,13 +250,13 @@
   padding: 12px;
   background: rgba(251, 146, 60, 0.12);
   border: 1px solid rgba(251, 146, 60, 0.25);
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   color: #FB923C;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnWithdraw:hover {
@@ -273,13 +273,13 @@
   padding: 12px;
   background: rgba(108, 43, 217, 0.15);
   border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   color: #A78BFA;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .btnStoreWithdrawActive {
@@ -289,8 +289,8 @@
 
 /* Action forms */
 .actionForm {
-  background: var(--drop-surface);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border-radius: var(--r-lg);
   padding: 24px;
   margin-bottom: 20px;
   animation: drop-slide-down 0.2s ease both;
@@ -312,14 +312,14 @@
   margin: 0 0 6px;
   font-size: 16px;
   font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
 }
 
 .actionFormSubtitle {
   margin: 0 0 16px;
   font-size: 13px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .formField {
@@ -328,7 +328,7 @@
 
 .formLabel {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-weight: 600;
   display: block;
   margin-bottom: 8px;
@@ -340,44 +340,44 @@
   width: 100%;
   padding: 12px 14px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-strong);
   font-size: 15px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   outline: none;
   transition: var(--drop-transition);
   box-sizing: border-box;
 }
 
 .formInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.12);
 }
 
 .confirmBtn {
   width: 100%;
   padding: 13px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   border: none;
 }
 
 .confirmBtn:disabled {
   background: rgba(255, 255, 255, 0.08) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: var(--drop-text-dim) !important;
+  color: var(--text-subtle) !important;
   cursor: not-allowed;
 }
 
 .confirmBtnGreen {
   background: rgba(34, 197, 94, 0.2);
   border: 1px solid rgba(34, 197, 94, 0.3) !important;
-  color: var(--drop-success);
+  color: var(--success);
 }
 
 .confirmBtnOrange {
@@ -401,35 +401,35 @@
 .btnCancelForm {
   padding: 12px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border-md);
-  border-radius: var(--drop-radius-sm);
-  color: var(--drop-text-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 /* History */
 .historyCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
   animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) 0.2s both;
 }
 
 .historyHeader {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .historyTitle {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -442,7 +442,7 @@
 .historyEmptyText {
   margin: 0;
   font-size: 15px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .historyList {
@@ -477,7 +477,7 @@
 .txIcon {
   width: 36px;
   height: 36px;
-  border-radius: var(--drop-radius-sm);
+  border-radius: var(--r-sm);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -504,7 +504,7 @@
 .txDate {
   margin: 0;
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -512,16 +512,16 @@
 .txAmount {
   font-weight: 800;
   font-size: 15px;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   margin-left: 16px;
 }
 
 .txAmountCredit {
-  color: var(--drop-success);
+  color: var(--success);
 }
 
 .txAmountDebit {
-  color: var(--drop-danger);
+  color: var(--danger);
 }
 
 /* ── Tablet ────────────────────────────────────────────── */

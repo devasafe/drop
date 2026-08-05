@@ -4,9 +4,9 @@
   max-width: 1600px;
   margin: 0 auto;
   padding: 40px 20px;
-  background: var(--drop-bg);
+  background: var(--bg);
   min-height: 100vh;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
 }
 
 .header {
@@ -18,21 +18,21 @@
   margin: 0;
   font-size: 28px;
   font-weight: 800;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .headerSub {
   margin: 8px 0 0 0;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 14px;
 }
 
 .loadingScreen {
   padding: 40px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .grid {
@@ -52,46 +52,46 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 20px;
-  background: var(--drop-surface);
+  background: var(--surface);
   padding: 16px;
-  border-radius: var(--drop-radius-md);
-  border: 1px solid var(--drop-border);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
   animation: drop-fade-in 0.5s cubic-bezier(0.4, 0, 0, 1) 0.06s both;
 }
 
 .filterInput {
   padding: 10px 12px;
-  border: 1px solid var(--drop-border-md);
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 13px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
+  color: var(--text-strong);
   outline: none;
   transition: var(--drop-transition);
 }
 
 .filterInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
 }
 
 .filterSelect {
   padding: 10px 12px;
-  border: 1px solid var(--drop-border-md);
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 13px;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
+  color: var(--text-strong);
   outline: none;
   cursor: pointer;
 }
 
 /* Table */
 .tableWrapper {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   overflow: hidden;
   max-height: 650px;
   overflow-y: auto;
@@ -101,7 +101,7 @@
 .emptyState {
   padding: 40px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .emptyIcon {
@@ -129,10 +129,10 @@
   text-align: left;
   font-size: 11px;
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .thRight {
@@ -140,10 +140,10 @@
   text-align: right;
   font-size: 11px;
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .thCenter {
@@ -151,10 +151,10 @@
   text-align: center;
   font-size: 11px;
   font-weight: 700;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--line);
 }
 
 .tr {
@@ -177,14 +177,14 @@
 .td {
   padding: 12px 16px;
   font-size: 13px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .tdRight {
   padding: 12px 16px;
   text-align: right;
   font-size: 13px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .tdCenter {
@@ -195,24 +195,24 @@
 
 .userName {
   font-weight: 500;
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .userEmail {
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .balanceCell {
   font-weight: 600;
-  color: var(--drop-success);
+  color: var(--success);
 }
 
 .btnView {
   padding: 5px 12px;
   background: rgba(255,255,255,0.07);
-  color: var(--drop-text-muted);
-  border: 1px solid var(--drop-border);
+  color: var(--text-muted);
+  border: 1px solid var(--line);
   border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
@@ -226,8 +226,8 @@
 
 .btnViewActive {
   padding: 5px 12px;
-  background: var(--drop-purple);
-  color: var(--drop-white);
+  background: var(--brand);
+  color: var(--text-strong);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -292,8 +292,8 @@
 .btnAddBalance {
   width: 100%;
   padding: 12px;
-  background: var(--drop-success);
-  color: var(--drop-white);
+  background: var(--success);
+  color: var(--text-strong);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -309,9 +309,9 @@
 
 /* Add Balance Form */
 .addBalanceForm {
-  background: var(--drop-surface);
+  background: var(--surface);
   padding: 20px;
-  border-radius: var(--drop-radius-md);
+  border-radius: var(--r-md);
   margin-bottom: 24px;
   border: 2px solid rgba(34,197,94,0.3);
 }
@@ -320,7 +320,7 @@
   margin: 0 0 16px 0;
   font-size: 16px;
   font-weight: bold;
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .formField {
@@ -329,7 +329,7 @@
 
 .formLabel {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-weight: 600;
   display: block;
   margin-bottom: 6px;
@@ -338,26 +338,26 @@
 .formInput {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--drop-border-md);
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 13px;
   box-sizing: border-box;
-  font-family: var(--drop-font-body);
+  font-family: var(--font-body);
   background: rgba(255,255,255,0.04);
-  color: var(--drop-white);
+  color: var(--text-strong);
   outline: none;
   transition: var(--drop-transition);
 }
 
 .formInput:focus {
-  border-color: var(--drop-purple);
+  border-color: var(--brand);
 }
 
 .btnConfirm {
   width: 100%;
   padding: 10px;
-  background: var(--drop-success);
-  color: var(--drop-white);
+  background: var(--success);
+  color: var(--text-strong);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -380,15 +380,15 @@
 }
 
 .statCard {
-  background: var(--drop-surface);
+  background: var(--surface);
   padding: 16px;
   border-radius: 10px;
-  border: 1px solid var(--drop-border);
+  border: 1px solid var(--line);
 }
 
 .statLabel {
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin: 0 0 8px 0;
   font-weight: 600;
 }
@@ -397,21 +397,21 @@
   font-size: 22px;
   font-weight: bold;
   margin: 0;
-  color: var(--drop-danger);
+  color: var(--danger);
 }
 
 .statValueWarning {
   font-size: 22px;
   font-weight: bold;
   margin: 0;
-  color: var(--drop-warning);
+  color: var(--rating);
 }
 
 /* Transactions */
 .txCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: var(--drop-radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 20px;
 }
 
@@ -419,19 +419,19 @@
   font-size: 14px;
   font-weight: bold;
   margin: 0 0 16px 0;
-  color: var(--drop-white);
+  color: var(--text-strong);
 }
 
 .txLoading {
   padding: 24px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .txEmpty {
   padding: 24px;
   text-align: center;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   font-size: 13px;
 }
 
@@ -462,14 +462,14 @@
 .txLabel {
   margin: 0;
   font-weight: 500;
-  color: var(--drop-white);
+  color: var(--text-strong);
   font-size: 13px;
 }
 
 .txMeta {
   margin: 4px 0 0 0;
   font-size: 11px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .txAmountRight {
@@ -481,20 +481,20 @@
   margin: 0;
   font-weight: 700;
   font-size: 14px;
-  color: var(--drop-success);
+  color: var(--success);
 }
 
 .txAmountDebit {
   margin: 0;
   font-weight: 700;
   font-size: 14px;
-  color: var(--drop-danger);
+  color: var(--danger);
 }
 
 .txStatus {
   margin: 2px 0 0 0;
   font-size: 10px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 @media (max-width: 1024px) {

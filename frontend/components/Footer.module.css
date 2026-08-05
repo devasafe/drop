@@ -3,9 +3,9 @@
    ============================================= */
 
 .footer {
-  background: var(--drop-bg-2);
-  border-top: 1px solid var(--drop-border);
-  font-family: var(--drop-font-body);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-body);
 }
 
 .container {
@@ -33,7 +33,7 @@
 
 .tagline {
   font-size: 13px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   line-height: 1.6;
   margin: 0;
 }
@@ -56,14 +56,14 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   margin-bottom: 4px;
-  font-family: var(--drop-font-display);
+  font-family: var(--font-display);
 }
 
 .link {
   font-size: 13px;
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
   text-decoration: none;
   transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
               transform 0.2s cubic-bezier(0.4, 0, 0, 1);
@@ -71,13 +71,13 @@
 }
 
 .link:hover {
-  color: var(--drop-white);
+  color: var(--text-strong);
   transform: translateX(2px);
 }
 
 /* Bottom bar */
 .bottom {
-  border-top: 1px solid var(--drop-border);
+  border-top: 1px solid var(--line);
 }
 
 .bottomInner {
@@ -93,7 +93,7 @@
 
 .copy {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
 }
 
 .bottomLinks {
@@ -104,18 +104,18 @@
 
 .bottomLink {
   font-size: 12px;
-  color: var(--drop-text-dim);
+  color: var(--text-subtle);
   cursor: default;
   transition: color 0.2s cubic-bezier(0.4, 0, 0, 1);
 }
 
 .bottomLink:hover {
-  color: var(--drop-text-muted);
+  color: var(--text-muted);
 }
 
 .dot {
   font-size: 12px;
-  color: var(--drop-border-md);
+  color: var(--line);
 }
 
 /* ── Tablet ────────────────────────────────────────────── */
