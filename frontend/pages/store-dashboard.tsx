@@ -21,6 +21,8 @@ import { Select } from '../components/ui/Select';
 import { Chip } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Sheet } from '../components/ui/Sheet';
+import { Section } from '../components/ui/Section';
+import { List, Row } from '../components/ui/List';
 import Modal from '../components/common/Modal';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
@@ -828,21 +830,18 @@ export default function StoreDashboard() {
 
           {/* Pedidos em Andamento */}
           {activeTab === 'orders' && (
-            <div>
-              <h2 className={styles.ordersTitle}>Pedidos em Andamento</h2>
+            <Section title="Pedidos em Andamento">
               {orders.length === 0 ? (
                 <EmptyState
                   icon={<Icon name="gift" size={24} />}
                   title="Nenhum pedido em andamento"
                 />
               ) : (
-                <div className={styles.ordersList}>
+                <List>
                   {orders.map(order => (
-                    <div
+                    <Row
                       key={order._id}
-                      className={[styles.orderCard, newOrderIds.includes(order._id) && styles.orderCardNew]
-                        .filter(Boolean)
-                        .join(' ')}
+                      accent={newOrderIds.includes(order._id)}
                     >
                       <div className={styles.orderCardTop}>
                         <div className={styles.orderCardLeft}>
@@ -1023,17 +1022,16 @@ export default function StoreDashboard() {
                         </div>
                       )}
 
-                    </div>
+                    </Row>
                   ))}
-                </div>
+                </List>
               )}
-            </div>
+            </Section>
           )}
 
           {/* Histórico */}
           {activeTab === 'history' && (
-            <div>
-              <h2 className={styles.historyTitle}>Histórico de Pedidos</h2>
+            <Section title="Histórico de Pedidos">
 
               {/* 🔍 SEÇÃO DE FILTROS — recolhível, colapsada por padrão (Task 6) */}
               <div className={styles.filtersPanel}>
@@ -1204,12 +1202,12 @@ export default function StoreDashboard() {
                 />
               ) : (
                 <>
-                <div className={styles.historyList}>
+                <List>
                   {[...getFilteredHistoryOrders()]
                     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                     .slice(0, historyLimit)
                     .map(order => (
-                    <div key={order._id} className={styles.historyRow}>
+                    <Row key={order._id}>
                       {/* TOPO: Info básica + Status + Total */}
                       <div className={styles.historyRowTop}>
                         <div>
@@ -1248,9 +1246,9 @@ export default function StoreDashboard() {
                           Mais Detalhes
                         </Button>
                       </div>
-                    </div>
+                    </Row>
                   ))}
-                </div>
+                </List>
                 {getFilteredHistoryOrders().length > historyLimit && (
                   <div className={styles.historyLoadMoreWrap}>
                     <Button
@@ -1265,13 +1263,12 @@ export default function StoreDashboard() {
                 )}
                 </>
               )}
-            </div>
+            </Section>
           )}
 
           {/* ✅ FIX #6: Tab de Devoluções Pendentes — lista achatada no DS (Task 8) */}
           {activeTab === 'returns' && (
-            <div>
-              <h2 className={styles.returnsTitle}><Icon name="package" size={16} /> Devoluções Pendentes</h2>
+            <Section title={<><Icon name="package" size={16} /> Devoluções Pendentes</>}>
               {returnRequests.length === 0 ? (
                 <EmptyState
                   icon={<Icon name="check-circle" size={24} />}
@@ -1288,12 +1285,9 @@ export default function StoreDashboard() {
                     <li>Insira o PIN fornecido e clique em confirmar</li>
                   </ul>
                 </div>
-                <div className={styles.returnsList}>
+                <List>
                   {returnRequests.map((request) => (
-                    <div
-                      key={request.deliveryId}
-                      className={styles.returnRow}
-                    >
+                    <Row key={request.deliveryId}>
                       <div className={styles.returnRowTop}>
                         <div>
                           <div className={styles.returnRowTitle}><Icon name="truck" size={14} /> Devolução Solicitada</div>
@@ -1348,12 +1342,12 @@ export default function StoreDashboard() {
                       >
                         Confirmar Devolução
                       </Button>
-                    </div>
+                    </Row>
                   ))}
-                </div>
+                </List>
                 </>
               )}
-            </div>
+            </Section>
           )}
 
           {/* 🆕 ABA: CHAT PRÉ-COMPRA */}
