@@ -6,5 +6,5 @@ import { useRouter } from 'next/router';
 export default function TransferWalletRedirect() {
   const router = useRouter();
   useEffect(() => { router.replace('/seller/wallet'); }, [router]);
-  return <div style={{ minHeight: '100vh', background: '#0A0A0A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Redirecionando…</div>;
+  return <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Redirecionando…</div>;
 }
