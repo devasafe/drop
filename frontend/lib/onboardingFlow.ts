@@ -12,8 +12,9 @@ const FLOWS: Record<'cliente' | 'motoboy' | 'lojista', OnboardingStep[]> = {
     { key: 'pix', label: 'Recebimento (PIX)', path: '/dados-recebimento' },
   ],
   lojista: [
+    { key: 'loja', label: 'Criar loja', path: '/seller/create-store' },
     { key: 'identidade', label: 'Sua identidade', path: '/verificacao' },
-    { key: 'loja', label: 'Sua loja', path: '/verificacao-loja' },
+    { key: 'lojaVerif', label: 'Verificar loja', path: '/verificacao-loja' },
     { key: 'pix', label: 'Recebimento (PIX)', path: '/dados-recebimento' },
     { key: 'plano', label: 'Plano', path: '/seller/select-plan' },
   ],

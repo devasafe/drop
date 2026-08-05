@@ -5,6 +5,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import { maskCNPJ, maskCEP } from '../../lib/masks';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import OnboardingProgress from '../../components/OnboardingProgress';
 import styles from './CreateStore.module.css';
 
 export default function CreateStore() {
@@ -208,6 +209,7 @@ export default function CreateStore() {
     <ProtectedRoute required_role="lojista">
       <div className={styles.page}>
         <div className={styles.container}>
+          <OnboardingProgress />
 
           {/* Header */}
           <div className={styles.header}>

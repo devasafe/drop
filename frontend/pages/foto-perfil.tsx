@@ -23,7 +23,8 @@ const MAX_SIZE = 5 * 1024 * 1024;
  */
 export default function FotoPerfilPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const auth = useAuth();
+  const { user, loading: authLoading } = auth;
   const role = user?.activeRole || user?.role;
   const onboarding = router.query.onboarding === '1';
 
@@ -90,9 +91,10 @@ export default function FotoPerfilPage() {
     try {
       const formData = new FormData();
       formData.append('photo', photo);
-      await api.post('/user/me/photo', formData, {
+      const res = await api.post('/user/me/photo', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      auth.setUser((u) => (u ? { ...u, photo: res.data.photo } : u));
       goNext();
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao enviar a foto. Tente novamente.');

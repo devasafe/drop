@@ -59,7 +59,13 @@ describe('POST /api/auth/register', () => {
   it('deve registrar um novo usuario cliente e retornar id e email', async () => {
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ name: 'Test User', email: 'test@example.com', password: 'Senha123!' });
+      .send({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'Senha123!',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
@@ -78,11 +84,23 @@ describe('POST /api/auth/register', () => {
   it('deve retornar 409 se email ja existe', async () => {
     await request(app)
       .post('/api/auth/register')
-      .send({ name: 'User1', email: 'dup@example.com', password: 'Senha123!' });
+      .send({
+        name: 'User1',
+        email: 'dup@example.com',
+        password: 'Senha123!',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
 
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ name: 'User2', email: 'dup@example.com', password: 'Senha456!' });
+      .send({
+        name: 'User2',
+        email: 'dup@example.com',
+        password: 'Senha456!',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
 
     expect(res.status).toBe(409);
   });
@@ -90,7 +108,13 @@ describe('POST /api/auth/register', () => {
   it('deve criar carteira automaticamente ao registrar', async () => {
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ name: 'Wallet User', email: 'wallet@example.com', password: 'Senha123!' });
+      .send({
+        name: 'Wallet User',
+        email: 'wallet@example.com',
+        password: 'Senha123!',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
 
     expect(res.status).toBe(201);
 
@@ -99,13 +123,21 @@ describe('POST /api/auth/register', () => {
     expect(wallet!.balance).toBe(0);
   });
 
-  it('deve retornar 400 ao registrar motoboy sem foto', async () => {
+  it('deve registrar motoboy sem foto com sucesso (foto e coletada depois no onboarding)', async () => {
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ name: 'Motoboy', email: 'motoboy@example.com', password: 'Senha123!', role: 'motoboy' });
+      .send({
+        name: 'Motoboy',
+        email: 'motoboy@example.com',
+        password: 'Senha123!',
+        role: 'motoboy',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/photo/i);
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('id');
+    expect(res.body.email).toBe('motoboy@example.com');
   });
 
   it('deve registrar motoboy com roles corretos quando criado diretamente', async () => {
@@ -125,7 +157,13 @@ describe('POST /api/auth/login', () => {
   beforeEach(async () => {
     await request(app)
       .post('/api/auth/register')
-      .send({ name: 'Login User', email: 'login@example.com', password: 'Senha123!' });
+      .send({
+        name: 'Login User',
+        email: 'login@example.com',
+        password: 'Senha123!',
+        acceptedTermsVersion: '1.0',
+        acceptedPrivacyVersion: '1.0',
+      });
   });
 
   it('deve retornar token e dados do usuario ao logar', async () => {
