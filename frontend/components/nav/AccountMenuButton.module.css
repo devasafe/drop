@@ -17,7 +17,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6C2BD9, #8B5CF6);
+  background: var(--brand);
   display: inline-flex;
   align-items: center;
   justify-content: center;

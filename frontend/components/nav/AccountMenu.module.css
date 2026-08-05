@@ -21,7 +21,7 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #6C2BD9, #8B5CF6);
+  background: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;

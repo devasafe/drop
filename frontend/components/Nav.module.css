@@ -442,9 +442,7 @@
 }
 
 .registerBtn:hover {
-  background: #7C3AED;
-  box-shadow: 0 0 20px rgba(108, 43, 217, 0.4);
-  transform: translateY(-1px);
+  background: var(--brand-2);
 }
 
 .registerBtn:active {

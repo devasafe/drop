@@ -28,12 +28,12 @@
 .sidebarLogoIcon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+  background: var(--brand);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-brand);
   flex-shrink: 0;
 }
 
@@ -122,9 +122,9 @@
 }
 
 .sidebarNavItemActive {
-  border-left-color: var(--drop-purple-2);
-  color: var(--drop-purple-2);
-  background: linear-gradient(90deg, rgba(108, 43, 217, 0.08), transparent);
+  border-left-color: var(--brand-2);
+  color: var(--brand-2);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
 }
 
 .sidebarActions {
