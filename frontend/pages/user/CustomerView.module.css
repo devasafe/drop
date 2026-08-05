@@ -41,7 +41,7 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--drop-purple) 0%, #4c1d95 100%);
+  background: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;
