@@ -20,7 +20,7 @@ describe('OnboardingProgress', () => {
     mockRouter.query = { onboarding: '1' };
     mockRouter.pathname = '/verificacao';
     render(<OnboardingProgress />);
-    expect(screen.getByText(/Passo 1 de 4/)).toBeInTheDocument();
+    expect(screen.getByText(/Passo 2 de 5/)).toBeInTheDocument();
     expect(screen.getByText(/Sua identidade/)).toBeInTheDocument();
   });
 
