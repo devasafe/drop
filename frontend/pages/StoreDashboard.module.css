@@ -964,243 +964,262 @@
 /* ---- HISTORY ---- */
 
 .historyTitle {
-  margin: 0 0 24px 0;
-  font-size: 24px;
+  margin: 0 0 var(--space-6) 0;
+  font-size: var(--fs-hero);
   font-weight: 700;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  color: var(--text-strong);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   text-transform: uppercase;
 }
 
+/* Painel de filtros — recolhível (Task 6). Box com borda funcional; o corpo
+ * (filtersBody) só existe no DOM quando aberto. */
 .filtersPanel {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
-  padding: 24px;
-  margin-bottom: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
 }
 
 .filtersPanelHeader {
-  font-weight: 700;
-  font-size: 10px;
-  margin-bottom: 20px;
-  color: var(--drop-text-dim);
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.filtersToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.btnClearFilters {
-  margin-left: auto;
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--drop-border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--drop-text-dim);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  transition: all 0.2s;
+.filtersToggle:hover { color: var(--text-strong); }
+
+.filtersChevron,
+.filtersChevronOpen {
+  transition: transform var(--dur-fast) var(--ease);
 }
 
-.btnClearFilters:hover { background: rgba(255, 255, 255, 0.08); color: var(--drop-white); }
+.filtersChevronOpen { transform: rotate(180deg); }
+
+.filtersBody {
+  padding: 0 var(--space-5) var(--space-5);
+  border-top: 1px solid var(--line);
+}
 
 .filtersGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
 }
 
-.filterField { display: flex; flex-direction: column; gap: 6px; }
+.filterField { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .filterLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
-  font-size: 9px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
 }
 
-.filterInput {
-  width: 100%;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--drop-border);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--drop-white);
-  font-family: var(--drop-font-body);
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-  outline: none;
-  cursor: pointer;
+.filtersFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-4);
 }
-
-.filterInput::placeholder { color: var(--drop-text-dim); }
-.filterInput:focus { border-color: var(--drop-purple); }
-.filterInput option { background: #131313; color: var(--drop-white); }
 
 .resultsCount {
-  margin-bottom: 16px;
-  font-size: 11px;
-  color: var(--drop-text-dim);
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
 
-.historyCard {
-  background: rgba(28, 27, 27, 0.7);
-  border: 1px solid var(--drop-border);
-  border-radius: 14px;
-  overflow: hidden;
-  transition: border-color 0.2s;
+/* Lista achatada — sem card por item, só divisória entre pedidos (mesmo
+ * idioma do extrato em SellerWallet .row). */
+.historyList { display: flex; flex-direction: column; }
+
+.historyRow {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.historyCard:hover { border-color: rgba(139, 92, 246, 0.15); }
+.historyRow:first-child { padding-top: 0; }
+.historyRow:last-child { border-bottom: none; }
 
-.historyCardTop {
+.historyRowTop {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.015);
-  border-bottom: 1px solid var(--drop-border);
+  gap: var(--space-4);
   align-items: center;
+  margin-bottom: var(--space-4);
 }
 
-.historyCardTopLabel {
-  font-size: 9px;
-  color: var(--drop-text-dim);
+.historyRowTopLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
   text-transform: uppercase;
   letter-spacing: 0.2em;
 }
 
-.historyCardCustomer {
+.historyRowCustomer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
-  font-size: 15px;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+  font-family: var(--font-display);
 }
 
-.historyCardId {
-  font-size: 10px;
-  color: var(--drop-text-dim);
-  margin-top: 4px;
+.historyRowId {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  margin-top: var(--space-1);
   font-family: monospace;
 }
 
-.historyCardStatusCenter { text-align: center; }
+.historyRowStatusCenter { text-align: center; }
 
-.historyCardStatusBadge {
-  color: white;
-  padding: 6px 16px;
-  border-radius: 8px;
-  font-size: 10px;
+/* Badge base + modificadores semânticos por status (mesma granularidade do
+ * statusMap original — só a cor deixa de ser hex fixo e passa a token). */
+.historyRowStatusBadge {
+  color: var(--on-brand);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
   display: inline-block;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.historyCardDate { font-size: 11px; color: var(--drop-text-dim); }
+.statusInfo { background: var(--info); }
+.statusNeutral { background: var(--text-subtle); }
+.statusWarn { background: var(--rating); }
+.statusSuccess { background: var(--success); }
+.statusDanger { background: var(--danger); }
 
-.historyCardAmountRight { text-align: right; }
+.historyRowDate { font-size: var(--fs-sm); color: var(--text-subtle); }
 
-.historyCardAmountLabel {
-  font-size: 9px;
-  color: var(--drop-text-dim);
+.historyRowAmountRight { text-align: right; }
+
+.historyRowAmountLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.2em;
 }
 
-.historyCardAmount {
+.historyRowAmount {
   font-weight: 700;
   font-size: 22px;
-  color: #22C55E;
-  font-family: var(--drop-font-display);
+  color: var(--success);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
 .historyFinancial {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.01);
-  border-bottom: 1px solid var(--drop-border);
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--space-4);
 }
 
 .historyFinancialCell { text-align: center; }
 
 .historyFinancialLabel {
-  font-size: 9px;
-  color: var(--drop-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
-.historyFinancialValue { font-weight: 700; font-size: 14px; font-family: var(--drop-font-display); }
-.historyFinancialSub { font-size: 9px; color: var(--drop-text-dim); }
+.historyFinancialValue { font-weight: 700; font-size: var(--fs-body); font-family: var(--font-display); }
+.historyFinancialSub { font-size: var(--fs-xs); color: var(--text-subtle); }
+
+.historyFinancialSuccess { color: var(--success); }
+.historyFinancialDanger { color: var(--danger); }
+.historyFinancialMuted { color: var(--text-muted); }
+.historyFinancialWarn { color: var(--rating); }
+.historyFinancialInfo { color: var(--info); }
 
 .historyProducts {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--drop-border);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--divider);
 }
 
 .historyProductsTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
-  color: var(--drop-text-dim);
-  margin-bottom: 10px;
-  font-size: 9px;
+  color: var(--text-subtle);
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
 
-.historyProductsGrid { display: grid; gap: 6px; }
+.historyProductsGrid { display: grid; gap: var(--space-2); }
 
 .historyProductItem {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  color: var(--drop-text-muted);
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.015);
-  border-radius: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--divider);
 }
 
-.historyProductQty { font-weight: 700; color: var(--drop-white); }
-.historyProductPrice { font-weight: 700; color: #22C55E; }
+.historyProductItem:last-child { border-bottom: none; padding-bottom: 0; }
 
-.historyCardFooter { padding: 16px 24px; text-align: right; }
+.historyProductQty { font-weight: 700; color: var(--text-strong); }
+.historyProductPrice { font-weight: 700; color: var(--success); }
 
-.btnMoreDetails {
-  padding: 12px 20px;
-  background: rgba(108, 43, 217, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 11px;
-  color: var(--drop-purple-2);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: all 0.2s;
+.historyRowFooter { display: flex; justify-content: flex-end; }
+
+.historyLoadMoreWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
 }
-
-.btnMoreDetails:hover { background: rgba(108, 43, 217, 0.2); }
 
 /* ---- RETURNS ---- */
 
@@ -1525,8 +1544,8 @@
   .modalDialog { max-width: 100%; border-radius: 14px; }
   .financialGrid5 { grid-template-columns: repeat(2, 1fr); }
   .historyFinancial { grid-template-columns: repeat(2, 1fr); }
-  .historyCardTop { grid-template-columns: 1fr; gap: 12px; }
-  .historyCardAmountRight { text-align: left; }
-  .historyCardStatusCenter { text-align: left; }
+  .historyRowTop { grid-template-columns: 1fr; gap: 12px; }
+  .historyRowAmountRight { text-align: left; }
+  .historyRowStatusCenter { text-align: left; }
   .rejectBtnRow { grid-template-columns: 1fr; }
 }

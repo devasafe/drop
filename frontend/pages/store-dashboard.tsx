@@ -17,6 +17,8 @@ import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Chip } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
 
 function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: () => void, token?: string }) {
@@ -371,6 +373,8 @@ export default function StoreDashboard() {
   const [filterProductName, setFilterProductName] = useState<string>('');
   const [storeCategories, setStoreCategories] = useState<string[]>([]);
   const [historyLimit, setHistoryLimit] = useState(10);
+  // Painel de filtros do histórico recolhido por padrão (Task 6 — DS flat)
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
 
   const { acceptOrder, rejectOrder } = useCancellation();
@@ -477,18 +481,31 @@ export default function StoreDashboard() {
   }
 
   function getStatusBadgeInfo(status: string) {
+    // Cada status mapeia para uma classe modificadora do badge (tokens
+    // semânticos), no lugar da cor hex fixa — mesma granularidade de antes,
+    // só a expressão visual muda (Task 6 — DS flat).
     const statusMap: any = {
-      pago: { label: 'Pago', color: '#007bff', bg: '#007bff' },
-      criado: { label: 'Criado', color: '#6c757d', bg: '#6c757d' },
-      aguardando_motoboy: { label: 'Aguardando Motoboy', color: '#ffc107', bg: '#ffc107' },
-      entregue: { label: '✓ Entregue', color: '#28a745', bg: '#28a745' },
-      delivered: { label: '✓ Entregue', color: '#28a745', bg: '#28a745' },
-      cancelado: { label: 'Cancelado', color: '#dc3545', bg: '#dc3545' },
-      cancelled: { label: 'Cancelado', color: '#dc3545', bg: '#dc3545' },
-      rejeitado: { label: 'Rejeitado', color: '#fd7e14', bg: '#fd7e14' },
+      pago: { label: 'Pago', className: styles.statusInfo },
+      criado: { label: 'Criado', className: styles.statusNeutral },
+      aguardando_motoboy: { label: 'Aguardando Motoboy', className: styles.statusWarn },
+      entregue: { label: '✓ Entregue', className: styles.statusSuccess },
+      delivered: { label: '✓ Entregue', className: styles.statusSuccess },
+      cancelado: { label: 'Cancelado', className: styles.statusDanger },
+      cancelled: { label: 'Cancelado', className: styles.statusDanger },
+      rejeitado: { label: 'Rejeitado', className: styles.statusDanger },
     };
-    return statusMap[status] || { label: status.toUpperCase(), color: '#6c757d', bg: '#6c757d' };
+    return statusMap[status] || { label: status.toUpperCase(), className: styles.statusNeutral };
   }
+
+  // 🔍 Conta quantos dos 8 filtros de histórico estão ativos (mesma condição
+  // usada para exibir "Limpar Filtros"; também alimenta o indicador "N ativos"
+  // do painel recolhido — Task 6, apresentação apenas).
+  const getActiveFilterCount = () => {
+    return [
+      filterStatus, filterCustomer, filterDateFrom, filterDateTo,
+      filterMinValue, filterMaxValue, filterCategory, filterProductName,
+    ].filter(Boolean).length;
+  };
 
   // Volta a exibir 10 ao mudar qualquer filtro do histórico
   useEffect(() => { setHistoryLimit(10); }, [filterStatus, filterCustomer, filterDateFrom, filterDateTo, filterMinValue, filterMaxValue, filterCategory, filterProductName]);
@@ -1036,137 +1053,155 @@ export default function StoreDashboard() {
             <div>
               <h2 className={styles.historyTitle}>Histórico de Pedidos</h2>
 
-              {/* 🔍 SEÇÃO DE FILTROS */}
+              {/* 🔍 SEÇÃO DE FILTROS — recolhível, colapsada por padrão (Task 6) */}
               <div className={styles.filtersPanel}>
                 <div className={styles.filtersPanelHeader}>
-                  <Icon name="search" size={14} /> Filtros de Pesquisa
-                  {(filterStatus || filterCustomer || filterDateFrom || filterDateTo || filterMinValue || filterMaxValue || filterCategory || filterProductName) && (
-                    <button
-                      onClick={() => {
-                        setFilterStatus('');
-                        setFilterCustomer('');
-                        setFilterDateFrom('');
-                        setFilterDateTo('');
-                        setFilterMinValue('');
-                        setFilterMaxValue('');
-                        setFilterCategory('');
-                        setFilterProductName('');
-                      }}
-                      className={styles.btnClearFilters}
-                    >
-                      ✕ Limpar Filtros
-                    </button>
+                  <button
+                    type="button"
+                    className={styles.filtersToggle}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                    aria-expanded={filtersOpen}
+                  >
+                    <Icon name="filter" size={14} /> Filtros
+                    <Icon
+                      name="chevron-down"
+                      size={16}
+                      className={filtersOpen ? styles.filtersChevronOpen : styles.filtersChevron}
+                    />
+                  </button>
+                  {!filtersOpen && getActiveFilterCount() > 0 && (
+                    <Chip
+                      icon={<Icon name="filter" size={12} />}
+                      label={`${getActiveFilterCount()} ativos`}
+                      active
+                    />
                   )}
                 </div>
 
-                <div className={styles.filtersGrid}>
-                  {/* Filtro por Status */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="filter" size={12} /> Status</label>
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className={styles.filterInput}
-                    >
-                      <option value="">Todos os Status</option>
-                      <option value="entregue">✓ Entregue</option>
-                      <option value="pago">Pago</option>
-                      <option value="criado">Criado</option>
-                      <option value="aguardando_motoboy">Aguardando Motoboy</option>
-                      <option value="cancelado">Cancelado</option>
-                      <option value="rejeitado">Rejeitado</option>
-                    </select>
-                  </div>
+                {filtersOpen && (
+                  <div className={styles.filtersBody}>
+                    <div className={styles.filtersGrid}>
+                      {/* Filtro por Status */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="filter" size={12} /> Status</label>
+                        <Select
+                          value={filterStatus}
+                          onChange={setFilterStatus}
+                          options={[
+                            { value: '', label: 'Todos os Status' },
+                            { value: 'entregue', label: '✓ Entregue' },
+                            { value: 'pago', label: 'Pago' },
+                            { value: 'criado', label: 'Criado' },
+                            { value: 'aguardando_motoboy', label: 'Aguardando Motoboy' },
+                            { value: 'cancelado', label: 'Cancelado' },
+                            { value: 'rejeitado', label: 'Rejeitado' },
+                          ]}
+                        />
+                      </div>
 
-                  {/* Filtro por Cliente */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="user" size={12} /> Nome do Cliente</label>
-                    <input
-                      type="text"
-                      placeholder="Digite o nome..."
-                      value={filterCustomer}
-                      onChange={(e) => setFilterCustomer(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Cliente */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="user" size={12} /> Nome do Cliente</label>
+                        <Input
+                          type="text"
+                          placeholder="Digite o nome..."
+                          value={filterCustomer}
+                          onChange={setFilterCustomer}
+                        />
+                      </div>
 
-                  {/* Filtro por Data - De */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📅 Data De</label>
-                    <input
-                      type="date"
-                      value={filterDateFrom}
-                      onChange={(e) => setFilterDateFrom(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Data - De */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="calendar" size={12} /> Data De</label>
+                        <Input
+                          type="date"
+                          value={filterDateFrom}
+                          onChange={setFilterDateFrom}
+                        />
+                      </div>
 
-                  {/* Filtro por Data - Até */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📅 Data Até</label>
-                    <input
-                      type="date"
-                      value={filterDateTo}
-                      onChange={(e) => setFilterDateTo(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Data - Até */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="calendar" size={12} /> Data Até</label>
+                        <Input
+                          type="date"
+                          value={filterDateTo}
+                          onChange={setFilterDateTo}
+                        />
+                      </div>
 
-                  {/* Filtro por Valor Mínimo */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Mínimo (R$)</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={filterMinValue}
-                      onChange={(e) => setFilterMinValue(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Valor Mínimo */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Mínimo (R$)</label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          step="0.01"
+                          value={filterMinValue}
+                          onChange={setFilterMinValue}
+                        />
+                      </div>
 
-                  {/* Filtro por Valor Máximo */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Máximo (R$)</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={filterMaxValue}
-                      onChange={(e) => setFilterMaxValue(e.target.value)}
-                      className={styles.filterInput}
-                    />
-                  </div>
+                      {/* Filtro por Valor Máximo */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="wallet" size={12} /> Valor Máximo (R$)</label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          step="0.01"
+                          value={filterMaxValue}
+                          onChange={setFilterMaxValue}
+                        />
+                      </div>
 
-                  {/* Filtro por Categoria de Produtos */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}>📂 Categoria de Produto</label>
-                    <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className={styles.filterInput}
-                    >
-                      <option value="">Todas as Categorias</option>
-                      {storeCategories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {/* Filtro por Categoria de Produtos */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="tag" size={12} /> Categoria de Produto</label>
+                        <Select
+                          value={filterCategory}
+                          onChange={setFilterCategory}
+                          options={[
+                            { value: '', label: 'Todas as Categorias' },
+                            ...storeCategories.map((cat) => ({ value: cat, label: cat })),
+                          ]}
+                        />
+                      </div>
 
-                  {/* Filtro por Nome de Produto */}
-                  <div className={styles.filterField}>
-                    <label className={styles.filterLabel}><Icon name="package" size={12} /> Nome do Produto</label>
-                    <input
-                      type="text"
-                      placeholder="Digite o nome..."
-                      value={filterProductName}
-                      onChange={(e) => setFilterProductName(e.target.value)}
-                      className={styles.filterInput}
-                    />
+                      {/* Filtro por Nome de Produto */}
+                      <div className={styles.filterField}>
+                        <label className={styles.filterLabel}><Icon name="package" size={12} /> Nome do Produto</label>
+                        <Input
+                          type="text"
+                          placeholder="Digite o nome..."
+                          value={filterProductName}
+                          onChange={setFilterProductName}
+                        />
+                      </div>
+                    </div>
+
+                    {getActiveFilterCount() > 0 && (
+                      <div className={styles.filtersFooter}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Icon name="x" size={12} />}
+                          onClick={() => {
+                            setFilterStatus('');
+                            setFilterCustomer('');
+                            setFilterDateFrom('');
+                            setFilterDateTo('');
+                            setFilterMinValue('');
+                            setFilterMaxValue('');
+                            setFilterCategory('');
+                            setFilterProductName('');
+                          }}
+                        >
+                          Limpar Filtros
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Contador de resultados filtrados */}
@@ -1175,45 +1210,42 @@ export default function StoreDashboard() {
               </div>
 
               {getFilteredHistoryOrders().length === 0 && historyOrders.length > 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="search" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido encontrado</div>
-                  <div style={{ fontSize: 13, marginTop: 8, opacity: 0.7 }}>Tente ajustar os filtros</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="search" size={24} />}
+                  title="Nenhum pedido encontrado"
+                  description="Tente ajustar os filtros"
+                />
               ) : historyOrders.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyStateIcon}><Icon name="clipboard" size={32} /></div>
-                  <div className={styles.emptyStateText}>Nenhum pedido no histórico</div>
-                </div>
+                <EmptyState
+                  icon={<Icon name="clipboard" size={24} />}
+                  title="Nenhum pedido no histórico"
+                />
               ) : (
                 <>
-                <div className={styles.ordersList}>
+                <div className={styles.historyList}>
                   {[...getFilteredHistoryOrders()]
                     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                     .slice(0, historyLimit)
                     .map(order => (
-                    <div key={order._id} className={styles.historyCard}>
+                    <div key={order._id} className={styles.historyRow}>
                       {/* TOPO: Info básica + Status + Total */}
-                      <div className={styles.historyCardTop}>
+                      <div className={styles.historyRowTop}>
                         <div>
-                          <div className={styles.historyCardTopLabel}>CLIENTE</div>
-                          <div className={styles.historyCardCustomer}><Icon name="user" size={12} /> {order.customerName || 'Cliente'}</div>
-                          <div className={styles.historyCardId}>ID: {order._id.slice(0, 8)}...</div>
+                          <div className={styles.historyRowTopLabel}>CLIENTE</div>
+                          <div className={styles.historyRowCustomer}><Icon name="user" size={12} /> {order.customerName || 'Cliente'}</div>
+                          <div className={styles.historyRowId}>ID: {order._id.slice(0, 8)}...</div>
                         </div>
-                        <div className={styles.historyCardStatusCenter}>
-                          <div
-                            className={styles.historyCardStatusBadge}
-                            style={{ backgroundColor: getStatusBadgeInfo(order.status).bg }}
-                          >
+                        <div className={styles.historyRowStatusCenter}>
+                          <div className={`${styles.historyRowStatusBadge} ${getStatusBadgeInfo(order.status).className}`}>
                             {getStatusBadgeInfo(order.status).label}
                           </div>
-                          <div className={styles.historyCardDate}>
+                          <div className={styles.historyRowDate}>
                             {order.createdAt && new Date(order.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </div>
                         </div>
-                        <div className={styles.historyCardAmountRight}>
-                          <div className={styles.historyCardAmountLabel}>VOCÊ RECEBE</div>
-                          <div className={styles.historyCardAmount}>
+                        <div className={styles.historyRowAmountRight}>
+                          <div className={styles.historyRowAmountLabel}>VOCÊ RECEBE</div>
+                          <div className={styles.historyRowAmount}>
                             R$ {(order.walletDistribution?.storeAmount ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
                           </div>
@@ -1224,15 +1256,15 @@ export default function StoreDashboard() {
                       <div className={styles.historyFinancial}>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}>VOCÊ RECEBE</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#10b981' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialSuccess}`}>
                             R$ {(order.walletDistribution?.storeAmount ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.9)).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(produto - taxa)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
-                          <div className={styles.historyFinancialLabel}>🏢 TAXA APP</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#fc5a8d' }}>
+                          <div className={styles.historyFinancialLabel}><Icon name="building" size={12} /> TAXA APP</div>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialDanger}`}>
                             R$ {(order.walletDistribution?.appCommission ||
                               (((order.totalValue || 0) - (order.deliveryFee || 0)) * 0.1)).toFixed(2)}
                           </div>
@@ -1240,21 +1272,21 @@ export default function StoreDashboard() {
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}><Icon name="package" size={12} /> SUBTOTAL</div>
-                          <div className={styles.historyFinancialValue} style={{ color: 'var(--drop-text-muted)' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialMuted}`}>
                             R$ {((order.totalValue || 0) - (order.deliveryFee || 0)).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(produtos)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}><Icon name="truck" size={12} /> ENTREGA</div>
-                          <div className={styles.historyFinancialValue} style={{ color: 'var(--drop-warning)' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialWarn}`}>
                             R$ {(order.deliveryFee || 0).toFixed(2)}
                           </div>
                           <div className={styles.historyFinancialSub}>(taxa)</div>
                         </div>
                         <div className={styles.historyFinancialCell}>
                           <div className={styles.historyFinancialLabel}>CLIENTE PAGOU</div>
-                          <div className={styles.historyFinancialValue} style={{ color: '#60A5FA' }}>
+                          <div className={`${styles.historyFinancialValue} ${styles.historyFinancialInfo}`}>
                             R$ {order.totalValue?.toFixed(2) || '0.00'}
                           </div>
                           <div className={styles.historyFinancialSub}>(total)</div>
@@ -1282,25 +1314,30 @@ export default function StoreDashboard() {
                       )}
 
                       {/* BOTÃO */}
-                      <div className={styles.historyCardFooter}>
-                        <button
+                      <div className={styles.historyRowFooter}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Icon name="clipboard" size={12} />}
                           onClick={() => setDetalhesPedido(order)}
-                          className={styles.btnMoreDetails}
                         >
-                          <Icon name="clipboard" size={12} /> Mais Detalhes
-                        </button>
+                          Mais Detalhes
+                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
                 {getFilteredHistoryOrders().length > historyLimit && (
-                  <button
-                    onClick={() => setHistoryLimit(n => n + 10)}
-                    className={styles.btnMoreDetails}
-                    style={{ margin: '20px auto 0', display: 'flex' }}
-                  >
-                    <Icon name="clipboard" size={12} /> Ver mais ({getFilteredHistoryOrders().length - historyLimit} restantes)
-                  </button>
+                  <div className={styles.historyLoadMoreWrap}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Icon name="clipboard" size={12} />}
+                      onClick={() => setHistoryLimit(n => n + 10)}
+                    >
+                      Ver mais ({getFilteredHistoryOrders().length - historyLimit} restantes)
+                    </Button>
+                  </div>
                 )}
                 </>
               )}
