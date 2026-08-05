@@ -104,11 +104,10 @@ export default function SellerProducts() {
             </div>
           ) : (
             <div className={styles.productsList}>
-              {products.map((product: any, idx: number) => (
+              {products.map((product: any) => (
                 <div
                   key={product._id}
                   className={styles.productCard}
-                  style={{ animationDelay: `${idx * 0.04}s` }}
                 >
                   {/* Image */}
                   <div className={styles.productThumb}>

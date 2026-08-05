@@ -1,10 +1,10 @@
-/* SellerProducts.module.css */
+/* SellerProducts.module.css — DS flat */
 
 .page {
   min-height: 100vh;
-  background: var(--drop-bg);
-  padding: 40px 24px 64px;
-  font-family: var(--drop-font-body);
+  background: var(--bg);
+  padding: var(--space-8) var(--space-6) 64px;
+  font-family: var(--font-body);
 }
 
 .container {
@@ -17,135 +17,99 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 40px;
-  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 .pageTitle {
-  margin: 0 0 6px;
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 .pageSubtitle {
   margin: 0;
-  font-size: 14px;
-  color: var(--drop-text-dim);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
 }
 
-/* ── Primary button (header) ── */
-.btnPrimary {
-  padding: 11px 22px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
+/* ── Primary button (header + empty) — flat brand ── */
+.btnPrimary,
+.btnEmptyAction {
+  padding: 10px 20px;
+  background: var(--brand);
   border: none;
-  border-radius: 12px;
-  color: var(--drop-white);
-  font-size: 14px;
+  border-radius: var(--r-pill);
+  color: var(--on-brand);
+  font-size: var(--fs-body);
   font-weight: 700;
   cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  transition: background var(--dur-fast) var(--ease);
+  font-family: var(--font-body);
 }
 
-.btnPrimary:hover {
-  box-shadow: 0 0 28px rgba(108, 43, 217, 0.5);
-  transform: translateY(-1px);
-}
+.btnPrimary:hover,
+.btnEmptyAction:hover { background: var(--brand-2); }
 
-/* ── Loading state ── */
-.loadingText {
-  text-align: center;
-  padding: 80px;
-  color: rgba(255, 255, 255, 0.3);
-  animation: pulse 1.5s infinite;
-}
-
-/* ── Empty state ── */
+/* ── Empty state — flat ── */
 .emptyState {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  border-radius: var(--drop-radius-lg);
-  padding: 80px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 64px var(--space-6);
   text-align: center;
-  animation: drop-fade-in 0.4s cubic-bezier(0.4, 0, 0, 1) both;
 }
 
-.emptyIcon {
-  margin: 0 auto 20px;
-  display: block;
-}
+.emptyIcon { margin: 0 auto var(--space-5); display: block; opacity: 0.4; }
 
 .emptyTitle {
-  margin: 0 0 6px;
-  font-size: 18px;
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-h2);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
-  font-family: var(--drop-font-display);
+  color: var(--text-muted);
+  font-family: var(--font-display);
 }
 
 .emptySubtitle {
-  margin: 0 0 28px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.25);
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-body);
+  color: var(--text-subtle);
 }
 
-.btnEmptyAction {
-  padding: 12px 28px;
-  background: linear-gradient(135deg, var(--drop-purple), var(--drop-purple-2));
-  border: none;
-  border-radius: 12px;
-  color: var(--drop-white);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: var(--drop-font-body);
-  transition: var(--drop-transition);
-}
-
-.btnEmptyAction:hover {
-  box-shadow: var(--drop-shadow-purple);
-  transform: translateY(-1px);
-}
-
-/* ── Products list ── */
+/* ── Products list — achatado (sem caixa), só divisória entre linhas ── */
 .productsList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-/* ── Product row card ── */
 .productCard {
-  background: var(--drop-surface);
-  border: 1px solid var(--drop-border);
-  border-radius: 16px;
-  padding: 20px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  transition: border-color 0.3s cubic-bezier(0.4, 0, 0, 1), transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s cubic-bezier(0.4, 0, 0, 1);
-  animation: drop-card-enter 0.5s cubic-bezier(0.4, 0, 0, 1) both;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line);
 }
 
-.productCard:hover {
-  border-color: var(--drop-border-md);
+.productsList > .productCard:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
-/* ── Product image thumbnail ── */
+/* ── Thumbnail (imagem, não card) ── */
 .productThumb {
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-md);
   flex-shrink: 0;
-  border: 1px solid var(--drop-border);
+  border: 1px solid var(--line);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(108, 43, 217, 0.15);
+  background: var(--surface-2);
 }
 
 .productThumbImg {
@@ -154,7 +118,7 @@
   object-fit: cover;
 }
 
-/* ── Product info ── */
+/* ── Info ── */
 .productInfo {
   flex: 1;
   min-width: 0;
@@ -162,102 +126,77 @@
 
 .productName {
   font-weight: 700;
-  font-size: 15px;
-  color: var(--drop-white);
-  font-family: var(--drop-font-display);
-  margin-bottom: 4px;
+  font-size: var(--fs-h3);
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  margin-bottom: var(--space-1);
 }
 
 .productMeta {
   display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.45);
+  gap: var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   flex-wrap: wrap;
 }
 
-.productPrice {
-  color: #A78BFA;
-}
-
-.stockPositive {
-  color: #4ADE80;
-}
-
-.stockEmpty {
-  color: #F87171;
-}
+.productPrice { color: var(--brand-2); font-weight: 700; }
+.stockPositive { color: var(--success); font-weight: 700; }
+.stockEmpty { color: var(--danger); font-weight: 700; }
 
 /* ── Tags ── */
 .tagList {
   display: flex;
-  gap: 6px;
-  margin-top: 8px;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
   flex-wrap: wrap;
 }
 
 .tag {
-  background: rgba(108, 43, 217, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  color: #A78BFA;
+  background: var(--surface-chip);
+  border: 1px solid var(--line);
+  color: var(--brand-2);
   padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
   font-weight: 600;
 }
 
-/* ── Row action buttons ── */
+/* ── Row action buttons — ghost tingido ── */
 .productActions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
-.btnEdit {
-  padding: 8px 16px;
-  background: rgba(108, 43, 217, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: 8px;
-  color: #A78BFA;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
-}
-
-.btnEdit:hover {
-  background: rgba(108, 43, 217, 0.25);
-}
-
+.btnEdit,
 .btnDelete {
-  padding: 8px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
-  color: #F87171;
-  font-size: 13px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: var(--drop-transition);
-  font-family: var(--drop-font-body);
+  transition: background var(--dur-fast) var(--ease);
+  font-family: var(--font-body);
 }
 
-.btnDelete:hover {
-  background: rgba(239, 68, 68, 0.18);
-}
+.btnEdit { color: var(--brand-2); }
+.btnEdit:hover { background: color-mix(in srgb, var(--brand) 14%, transparent); }
 
-/* ── Tablet ────────────────────────────────────────────── */
+.btnDelete { color: var(--danger); }
+.btnDelete:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+
+/* ── Tablet ── */
 @media (max-width: 1024px) {
-  .container { padding: 20px 16px; }
+  .page { padding: var(--space-6) var(--space-4) 64px; }
 }
 
-/* ── Mobile ─────────────────────────────────────────────── */
+/* ── Mobile ── */
 @media (max-width: 640px) {
-  .container { padding: 16px; }
-  .pageTitle { font-size: 22px; }
-  .pageHeader { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .page { padding: var(--space-4) var(--space-4) 64px; }
+  .pageHeader { flex-direction: column; align-items: stretch; gap: var(--space-3); }
   .btnPrimary { width: 100%; text-align: center; }
-  .productCard { flex-direction: column; gap: 12px; }
-  .productThumb { width: 100%; height: 160px; }
+  .productMeta { gap: var(--space-3); }
 }
