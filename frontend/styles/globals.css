@@ -4,43 +4,47 @@
 
 @import './tokens.css';
 
+/* Camada de compatibilidade: os tokens legados --drop-* agora são ALIASES dos
+ * tokens canônicos do DS (tokens.css). Assim as telas ainda não migradas herdam
+ * a paleta flat e perdem os glows roxos sem precisar editar cada arquivo. Alvo:
+ * migrar as telas para os tokens diretos e, no fim, remover esta camada. */
 :root {
-  --drop-bg:          #0A0A0A;
-  --drop-bg-2:        #111111;
-  --drop-bg-3:        #161616;
-  --drop-surface:     #1A1A1A;
-  --drop-border:      rgba(255, 255, 255, 0.07);
-  --drop-border-md:   rgba(255, 255, 255, 0.12);
+  --drop-bg:          var(--bg);
+  --drop-bg-2:        var(--surface);
+  --drop-bg-3:        var(--surface-2);
+  --drop-surface:     var(--surface);
+  --drop-border:      var(--line);
+  --drop-border-md:   var(--line);
 
-  --drop-purple:      #6C2BD9;
-  --drop-purple-2:    #8B5CF6;
-  --drop-purple-glow: rgba(108, 43, 217, 0.35);
-  --drop-purple-bg:   rgba(108, 43, 217, 0.12);
+  --drop-purple:      var(--brand);
+  --drop-purple-2:    var(--brand-2);
+  --drop-purple-glow: transparent;                                  /* glow off (flat) */
+  --drop-purple-bg:   color-mix(in srgb, var(--brand) 12%, transparent);
 
-  --drop-white:       #FFFFFF;
-  --drop-text:        rgba(255, 255, 255, 0.92);
-  --drop-text-muted:  rgba(255, 255, 255, 0.5);
-  --drop-text-dim:    rgba(255, 255, 255, 0.28);
+  --drop-white:       var(--text-strong);
+  --drop-text:        var(--text);
+  --drop-text-muted:  var(--text-muted);
+  --drop-text-dim:    var(--text-subtle);
 
-  --drop-success:     #22C55E;
-  --drop-danger:      #EF4444;
-  --drop-warning:     #F59E0B;
-  --drop-info:        #38BDF8;
+  --drop-success:     var(--success);
+  --drop-danger:      var(--danger);
+  --drop-warning:     var(--rating);
+  --drop-info:        var(--info);
 
-  --drop-radius-sm:   8px;
-  --drop-radius:      12px;
-  --drop-radius-lg:   16px;
-  --drop-radius-xl:   24px;
+  --drop-radius-sm:   var(--r-sm);
+  --drop-radius:      var(--r-md);
+  --drop-radius-lg:   var(--r-lg);
+  --drop-radius-xl:   var(--r-xl);
 
-  --drop-font-display: 'Space Grotesk', sans-serif;
-  --drop-font-body:    'Inter', sans-serif;
+  --drop-font-display: var(--font-display);
+  --drop-font-body:    var(--font-body);
 
-  --drop-shadow-sm:   0 1px 3px rgba(0,0,0,0.4);
-  --drop-shadow:      0 4px 16px rgba(0,0,0,0.5);
-  --drop-shadow-lg:   0 8px 32px rgba(0,0,0,0.6);
-  --drop-shadow-purple: 0 0 24px var(--drop-purple-glow);
+  --drop-shadow-sm:   var(--shadow-neutral);
+  --drop-shadow:      var(--shadow-neutral);
+  --drop-shadow-lg:   var(--shadow-neutral);
+  --drop-shadow-purple: none;                                       /* glow roxo off (flat) */
 
-  --drop-transition:  all 0.25s cubic-bezier(0.4, 0, 0, 1);
+  --drop-transition:  all var(--dur-base) var(--ease);
 }
 
 /* ── Reset & Base ─────────────────────────────────────────── */
