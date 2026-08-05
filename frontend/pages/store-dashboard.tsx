@@ -765,13 +765,6 @@ export default function StoreDashboard() {
 
         {/* ═══ MAIN CONTENT ═══ */}
         <main className={styles.mainContent}>
-          {/* Top Bar */}
-          <div className={styles.topBar}>
-            <div className={styles.topBarTitle}>
-              <h1 className={styles.pageTitle}>Painel do Lojista</h1>
-            </div>
-          </div>
-
           {/* Notificação */}
           {showNotif && newOrderIds.length > 0 && (
             <div className={styles.notifBanner}>
