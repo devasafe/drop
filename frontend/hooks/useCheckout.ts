@@ -8,6 +8,7 @@ import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
 import { useDeliveryFee } from './useDeliveryFee';
 import { Address, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
+import type { CardPayload } from '../components/drop/checkout/CardForm';
 
 const DRAFT_KEY = 'checkout_draft';
 
@@ -20,10 +21,14 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => 
   const r = Math.random() * 16 | 0; const v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16);
 });
 
-// Resposta de POST /orders: gateway Asaas retorna { order, pix }; fluxo legado
-// (pedido já pago pela carteira) retorna o pedido puro no corpo.
+// Resposta de POST /orders: gateway Asaas retorna { order, pix } (PIX) ou
+// { order, card:{status,approved} } (cartão, aprovado/pendente — recusado
+// vem como HTTP 402 e cai no catch); fluxo legado (pedido já pago pela
+// carteira) retorna o pedido puro no corpo.
 type OrderLike = { _id: string };
-type PlaceOrderResponse = { order: OrderLike; pix?: Omit<PixInfo, 'orderId'> } | OrderLike;
+type PlaceOrderResponse =
+  | { order: OrderLike; pix?: Omit<PixInfo, 'orderId'>; card?: { status: string; approved: boolean } }
+  | OrderLike;
 
 // GET /settings/platform-config — campos reais confirmados em checkout.tsx:201-203
 // (usados hoje pra calcular a taxa de entrega cobrada do cliente, não só o
@@ -68,6 +73,7 @@ export function useCheckout() {
   const [pendingDebt, setPendingDebt] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
+  const [cardPayload, setCardPayload] = useState<CardPayload | null>(null);
   const [blocked, setBlocked] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -190,6 +196,11 @@ export function useCheckout() {
         longitude: Number(sel.longitude),
         idempotentKey: uuid(),
       };
+      if (paymentMethod === 'credit_card') {
+        if (!cardPayload?.valid) return { ok: false, error: 'Dados do cartão incompletos' };
+        payload.card = cardPayload.card;
+        payload.cardHolder = cardPayload.cardHolder;
+      }
       if (coupon.code.trim()) payload.cupomCode = coupon.code.trim().toUpperCase();
       if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
 
@@ -224,6 +235,6 @@ export function useCheckout() {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
-    address, coupon, isPlan1, blocked,
+    address, coupon, isPlan1, blocked, user, cardPayload, setCardPayload,
   };
 }

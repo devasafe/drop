@@ -17,6 +17,9 @@ import { WalletToggle } from '../components/drop/checkout/WalletToggle';
 import { OrderSummary } from '../components/drop/checkout/OrderSummary';
 import { CheckoutBar } from '../components/drop/checkout/CheckoutBar';
 import { PixPaymentSheet } from '../components/drop/checkout/PixPaymentSheet';
+import { CardForm } from '../components/drop/checkout/CardForm';
+import { onlyDigits } from '../lib/masks';
+import type { CardHolderInfo } from '../types/checkout';
 import styles from './Checkout.module.css';
 
 /**
@@ -31,6 +34,22 @@ export default function CheckoutPage() {
   const { showToast } = useToast();
   const c = useCheckout();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Dados do titular do cartão (Fase 1, à vista): nome/email já vêm do
+  // usuário logado; cpf/telefone não estão tipados em `AuthUser` (o login
+  // não os retorna hoje — ver authController.ts) mas podem estar presentes
+  // no objeto real (ex.: após completar o perfil em /minha-conta), daí o
+  // cast defensivo. CEP/número vêm do endereço de entrega já selecionado no
+  // checkout — sem eles o gateway Asaas recusa a transação de cartão.
+  const userExtra = c.user as unknown as { cpf?: string; telefone?: string } | null;
+  const holderDefaults: CardHolderInfo = {
+    name: c.user?.name || '',
+    email: c.user?.email || '',
+    cpfCnpj: onlyDigits(userExtra?.cpf || ''),
+    postalCode: onlyDigits(c.address.selected?.cep || ''),
+    addressNumber: c.address.selected?.number || '',
+    phone: onlyDigits(userExtra?.telefone || ''),
+  };
 
   return (
     <ProtectedRoute required_role="cliente">
@@ -102,6 +121,11 @@ export default function CheckoutPage() {
                   Forma de pagamento
                 </h2>
                 <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod} />
+                {c.paymentMethod === 'credit_card' && (
+                  <div className={styles.cardFormWrap}>
+                    <CardForm onChange={c.setCardPayload} holderDefaults={holderDefaults} />
+                  </div>
+                )}
               </section>
 
               <section className={styles.section}>
@@ -140,14 +164,21 @@ export default function CheckoutPage() {
 
           <CheckoutBar
             total={c.total}
-            disabled={!c.canPlace || c.placing || c.isWalletInsufficient}
+            disabled={
+              !c.canPlace ||
+              c.placing ||
+              c.isWalletInsufficient ||
+              (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
+            }
             loading={c.placing}
             hint={
               !c.canPlace
                 ? 'Confirme o endereço no mapa'
                 : c.isWalletInsufficient
                   ? 'Saldo insuficiente'
-                  : undefined
+                  : (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
+                    ? 'Preencha os dados do cartão'
+                    : undefined
             }
             onConfirm={async () => {
               const r = await c.placeOrder();

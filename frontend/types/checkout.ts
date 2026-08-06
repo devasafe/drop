@@ -49,6 +49,27 @@ export interface OrderProduct {
   price?: number;
 }
 
+// Cartão à vista (Fase 1) — POST /orders com paymentMethod:'credit_card' exige
+// `card` (dados do próprio cartão) e `cardHolder` (dados do titular exigidos
+// pelo gateway Asaas). `number`/`cpfCnpj`/`postalCode`/`phone` vão só-dígitos;
+// `expiryMonth`='MM', `expiryYear`='YYYY'. Ver task-4-brief.md.
+export interface CardData {
+  holderName: string;
+  number: string;
+  expiryMonth: string;
+  expiryYear: string;
+  ccv: string;
+}
+
+export interface CardHolderInfo {
+  name: string;
+  email: string;
+  cpfCnpj: string;
+  postalCode: string;
+  addressNumber: string;
+  phone: string;
+}
+
 export interface PlaceOrderPayload {
   storeId: string;
   products: OrderProduct[];
@@ -60,4 +81,6 @@ export interface PlaceOrderPayload {
   idempotentKey: string;
   cupomCode?: string;
   useWalletBalance?: boolean;
+  card?: CardData;
+  cardHolder?: CardHolderInfo;
 }
