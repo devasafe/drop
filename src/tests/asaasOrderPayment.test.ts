@@ -97,20 +97,6 @@ describe('createOrder com Asaas (Fase 2)', () => {
     expect(payouts).toBe(0);
   });
 
-  it('recusa cartão por enquanto (só PIX na Fase 2)', async () => {
-    const { token } = await verifiedBuyer();
-    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@aop.test'), name: 'Loja', isOpen: true } });
-    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 50, quantity: 5 } } as any);
-
-    const res = await request(app)
-      .post('/api/orders')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'credit_card', deliveryDistanceKm: 0, address: 'Rua X, 1 - Centro' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/PIX/i);
-  });
-
   it('usa saldo parcial → cobra só o restante no PIX', async () => {
     const { user, token } = await verifiedBuyer();
     await setWalletBalance({ owner: user.id, ownerType: 'user' }, { balance: 30 });
