@@ -109,6 +109,64 @@ test('placeOrder envia payload com idempotentKey e abre pix', async () => {
   expect(result.current.pixData?.orderId).toBe('o1');
 });
 
+// Regressão do bug crítico da revisão: `cardHolder.cpfCnpj`/`phone` vinham
+// SEMPRE vazios porque eram montados a partir de `user` (AuthContext), que
+// não tem esses campos — todo pedido de cartão levava 400 do backend (Zod
+// exige cpfCnpj 11/14 dígitos e phone 10/11 — validation/schemas.ts). O
+// fix busca GET /user/me (que devolve cpf/telefone — userController.ts
+// getMe) e expõe `cardHolderDefaults` já com esses campos preenchidos.
+test('cardHolderDefaults vem preenchido de GET /user/me, e placeOrder envia cardHolder com cpfCnpj/phone não-vazios pro POST /orders quando paymentMethod=credit_card', async () => {
+  (window as unknown as { google: unknown }).google = {
+    maps: {
+      DirectionsService: class {
+        route(_req: unknown, cb: (res: { routes: { legs: { distance: { value: number } }[] }[] }, status: string) => void) {
+          cb({ routes: [{ legs: [{ distance: { value: 1500 } }] }] }, 'OK');
+        }
+      },
+      TravelMode: { DRIVING: 'DRIVING' },
+    },
+  };
+  mockedApi.get.mockImplementation((url: string) => {
+    if (url === '/user/me') {
+      return Promise.resolve({ data: { cpf: '24971563792', telefone: '11999999999' } } as unknown as AxiosResponse);
+    }
+    return Promise.resolve({ data: { balance: 0 } } as unknown as AxiosResponse);
+  });
+  mockedApi.post.mockResolvedValueOnce({
+    data: { order: { _id: 'o2' }, card: { status: 'CONFIRMED', approved: true } },
+  } as unknown as AxiosResponse);
+
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {}); // flush de wallet/config/debt/user-me
+
+  act(() => { result.current.address.selectAddress(0); });
+  await act(async () => {}); // flush do Directions -> distanceKm
+
+  // O que o CardForm receberia como `holderDefaults` já vem certo do hook.
+  expect(result.current.cardHolderDefaults.cpfCnpj).toBe('24971563792');
+  expect(result.current.cardHolderDefaults.phone).toBe('11999999999');
+
+  act(() => { result.current.setPaymentMethod('credit_card'); });
+  act(() => {
+    result.current.setCardPayload({
+      valid: true,
+      card: { holderName: 'Fulano de Tal', number: '4111111111111111', expiryMonth: '12', expiryYear: '2030', ccv: '123' },
+      cardHolder: result.current.cardHolderDefaults,
+    });
+  });
+
+  await act(async () => { await result.current.placeOrder(); });
+
+  const payload = mockedApi.post.mock.calls.find(c => c[0] === '/orders')?.[1] as Record<string, unknown> | undefined;
+  const cardHolder = payload?.cardHolder as { cpfCnpj?: string; phone?: string } | undefined;
+  expect(cardHolder?.cpfCnpj).toBeTruthy();
+  expect(cardHolder?.phone).toBeTruthy();
+  expect(cardHolder?.cpfCnpj).toMatch(/^\d{11}$|^\d{14}$/);
+  expect(cardHolder?.phone).toMatch(/^\d{10,11}$/);
+  // não deve abrir sheet de PIX pro fluxo de cartão
+  expect(result.current.pixData).toBeNull();
+});
+
 test('auto-seleciona o endereço marcado como isDefault assim que a lista carrega', async () => {
   const other = { ...savedAddress, _id: 'a0', isDefault: false };
   const main = { ...savedAddress, _id: 'a1', isDefault: true };

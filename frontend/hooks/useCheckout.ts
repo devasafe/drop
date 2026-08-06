@@ -7,8 +7,9 @@ import { useStores } from './useSync';
 import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
 import { useDeliveryFee } from './useDeliveryFee';
-import { Address, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
+import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
+import { onlyDigits } from '../lib/masks';
 
 const DRAFT_KEY = 'checkout_draft';
 
@@ -45,6 +46,18 @@ interface PendingDebtResponse {
   debt: { amount: number | string } | null;
 }
 
+// GET /user/me — userController.ts:getMe devolve o registro do usuário quase
+// inteiro (`{ ...safe, _id }`, só passwordHash/bankInfoEncrypted removidos),
+// então `cpf`/`telefone` vêm aqui. IMPORTANTE: `AuthContext`/login NÃO tem
+// esses campos (ver authController.ts:154-166) — é por isso que essa busca
+// existe: sem ela, `cardHolder.cpfCnpj`/`phone` ficam sempre vazios e o
+// backend rejeita (400) TODO pedido de cartão (Zod exige
+// `cpfCnpj` 11/14 dígitos e `phone` 10/11 dígitos — ver validation/schemas.ts).
+interface UserProfileResponse {
+  cpf?: string;
+  telefone?: string;
+}
+
 export function useCheckout() {
   const router = useRouter();
   const { cart, clear, updateQuantity, removeItem } = useCart();
@@ -74,6 +87,7 @@ export function useCheckout() {
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
   const [cardPayload, setCardPayload] = useState<CardPayload | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
   const [blocked, setBlocked] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -148,6 +162,19 @@ export function useCheckout() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // Perfil completo (cpf/telefone) pro titular do cartão — ver
+  // `UserProfileResponse` acima. Busca separada da anterior (não é
+  // wallet/config/debt) porque é especificamente o dado que faltava em
+  // `user` (AuthContext) e travava todo pedido de cartão com 400.
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.id) return;
+    api.get<UserProfileResponse>('/user/me')
+      .then(r => { if (!cancelled) setUserProfile({ cpf: r.data.cpf, telefone: r.data.telefone }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   // Auto-seleciona o endereço padrão (isDefault, ver addressController.ts) assim
   // que a lista carrega — sem isso o cliente recorrente tinha que escolher o
   // endereço de novo a cada checkout. Só roda enquanto nada foi selecionado
@@ -177,6 +204,21 @@ export function useCheckout() {
   }, [address.selected, store, isPlan1]);
 
   const canPlace = isPlan1 ? true : distanceKm >= 0.1;
+
+  // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
+  // usuário logado, cpf/telefone de `/user/me` (ver effect acima —
+  // AuthContext não tem esses campos), postalCode/addressNumber do endereço
+  // de entrega já selecionado no checkout. `CardForm` usa isso só como
+  // valor inicial (prefill) — cpf/telefone continuam editáveis lá, como
+  // rede de segurança caso o perfil do usuário esteja incompleto.
+  const cardHolderDefaults: CardHolderInfo = useMemo(() => ({
+    name: user?.name || '',
+    email: user?.email || '',
+    cpfCnpj: onlyDigits(userProfile.cpf || ''),
+    postalCode: onlyDigits(address.selected?.cep || ''),
+    addressNumber: address.selected?.number || '',
+    phone: onlyDigits(userProfile.telefone || ''),
+  }), [user?.name, user?.email, userProfile, address.selected]);
 
   const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
     if (!canPlace) return { ok: false, error: 'Confirme o endereço no mapa' };
@@ -235,6 +277,6 @@ export function useCheckout() {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
-    address, coupon, isPlan1, blocked, user, cardPayload, setCardPayload,
+    address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
   };
 }

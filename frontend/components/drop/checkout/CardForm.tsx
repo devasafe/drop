@@ -20,6 +20,12 @@ function luhnValid(n: string): boolean {
   return n.length >= 13 && sum % 10 === 0;
 }
 
+// Mesmos regexes do backend (validation/schemas.ts:94/97) — validar aqui
+// também evita mandar o usuário pro POST /orders só pra descobrir, via 400,
+// que faltava CPF/telefone.
+const CPF_CNPJ_RE = /^\d{11}$|^\d{14}$/;
+const PHONE_RE = /^\d{10,11}$/;
+
 export interface CardPayload {
   card: CardData;
   cardHolder: CardHolderInfo;
@@ -32,18 +38,39 @@ export interface CardFormProps {
 }
 
 /**
- * Formulário de cartão de crédito (Fase 1, pagamento à vista). Controlado e
- * sem estado próprio de "titular" — `cardHolder` vem inteiro de
- * `holderDefaults` (nome/email/CPF/endereço já coletados no checkout), este
- * componente só cuida dos dados do cartão em si (número, nome impresso,
- * validade, CVV). Emite `{ card, cardHolder, valid }` a cada mudança via
- * `onChange`; `valid` reflete Luhn + validade (MM/AAAA) + CVV (3-4 dígitos).
+ * Formulário de cartão de crédito (Fase 1, pagamento à vista). Controlado.
+ * `name`/`email`/`postalCode`/`addressNumber` do titular vêm prontos de
+ * `holderDefaults` (usuário logado + endereço de entrega já selecionado no
+ * checkout — sempre presentes nesse ponto do fluxo). `cpfCnpj`/`phone` são
+ * DIFERENTES: `holderDefaults` só traz um prefill best-effort (de
+ * `GET /user/me`, que pode não ter esses campos preenchidos no perfil do
+ * usuário) — por isso viram inputs próprios aqui, editáveis, com o prefill
+ * sincronizado assim que `holderDefaults` chega (útil pois a busca de
+ * `/user/me` é assíncrona e normalmente resolve depois do primeiro render).
+ * Sem isso, um perfil sem CPF/telefone cadastrado travaria QUALQUER compra
+ * de cartão com 400 do backend (Zod exige `cpfCnpj` 11/14 dígitos e `phone`
+ * 10/11 dígitos — ver validation/schemas.ts) sem o usuário ter como corrigir.
+ *
+ * Emite `{ card, cardHolder, valid }` a cada mudança via `onChange`; `valid`
+ * exige Luhn + nome + validade (MM/AAAA) + CVV (3-4 dígitos) E cpfCnpj/phone
+ * nos formatos aceitos pelo backend — só assim o botão de confirmar libera.
  */
 export function CardForm({ onChange, holderDefaults }: CardFormProps) {
   const [number, setNumber] = useState('');
   const [holderName, setHolderName] = useState('');
   const [exp, setExp] = useState('');
   const [ccv, setCcv] = useState('');
+  const [cpfCnpj, setCpfCnpj] = useState(holderDefaults.cpfCnpj || '');
+  const [phone, setPhone] = useState(holderDefaults.phone || '');
+
+  // Prefill assíncrono: só preenche se o campo ainda estiver vazio, pra
+  // nunca sobrescrever o que o usuário já digitou.
+  useEffect(() => {
+    if (holderDefaults.cpfCnpj) setCpfCnpj((prev) => prev || holderDefaults.cpfCnpj);
+  }, [holderDefaults.cpfCnpj]);
+  useEffect(() => {
+    if (holderDefaults.phone) setPhone((prev) => prev || holderDefaults.phone);
+  }, [holderDefaults.phone]);
 
   useEffect(() => {
     const num = onlyDigits(number);
@@ -54,15 +81,17 @@ export function CardForm({ onChange, holderDefaults }: CardFormProps) {
       !!holderName.trim() &&
       /^(0[1-9]|1[0-2])$/.test(mm || '') &&
       /^\d{4}$/.test(year) &&
-      /^\d{3,4}$/.test(ccv);
+      /^\d{3,4}$/.test(ccv) &&
+      CPF_CNPJ_RE.test(cpfCnpj) &&
+      PHONE_RE.test(phone);
 
     onChange({
       valid,
       card: { holderName, number: num, expiryMonth: mm || '', expiryYear: year, ccv },
-      cardHolder: holderDefaults,
+      cardHolder: { ...holderDefaults, cpfCnpj, phone },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [number, holderName, exp, ccv, holderDefaults]);
+  }, [number, holderName, exp, ccv, cpfCnpj, phone, holderDefaults]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -96,6 +125,22 @@ export function CardForm({ onChange, holderDefaults }: CardFormProps) {
           inputMode="numeric"
           value={ccv}
           onChange={(v) => setCcv(onlyDigits(v).slice(0, 4))}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Input
+          aria-label="CPF ou CNPJ do titular"
+          placeholder="CPF/CNPJ do titular"
+          inputMode="numeric"
+          value={cpfCnpj}
+          onChange={(v) => setCpfCnpj(onlyDigits(v).slice(0, 14))}
+        />
+        <Input
+          aria-label="Telefone do titular"
+          placeholder="Telefone do titular"
+          inputMode="numeric"
+          value={phone}
+          onChange={(v) => setPhone(onlyDigits(v).slice(0, 11))}
         />
       </div>
     </div>
