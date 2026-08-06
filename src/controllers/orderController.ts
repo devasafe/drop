@@ -507,6 +507,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         const { card, cardHolder } = req.body as any;
         const asaasCustomerId = await ensureAsaasCustomer(String(customerId));
         if (!asaasCustomerId) {
+          logger.error('Falha ao iniciar pagamento com cartão (cliente Asaas indisponível)', undefined, { orderId: order.id });
           await compensateFailedOrder(order.id, items, walletApplied, customerId);
           return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.' });
         }

@@ -207,6 +207,23 @@ test('expõe pendingDebt vindo de GET /debts/my-pending', async () => {
   expect(result.current.pendingDebt).toBe(42.5);
 });
 
+// Regressão do bug crítico da revisão final: cartão de crédito é cobrança
+// externa (Asaas), igual PIX — não deveria depender de saldo de carteira.
+// Antes do fix, `isWalletInsufficient` considerava qualquer método != 'pix'
+// como dependente de saldo, deixando o botão de checkout travado com
+// "Saldo insuficiente" pra todo comprador com carteira zerada usando cartão.
+test('isWalletInsufficient é false para credit_card mesmo com carteira zerada e total positivo', async () => {
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {}); // flush do fetch de carteira (balance: 0, do beforeEach)
+
+  expect(result.current.walletBalance).toBe(0);
+  expect(result.current.total).toBeGreaterThan(0);
+
+  act(() => { result.current.setPaymentMethod('credit_card'); });
+
+  expect(result.current.isWalletInsufficient).toBe(false);
+});
+
 test('pendingDebt fica null quando não há dívida pendente', async () => {
   mockedApi.get.mockImplementation((url: string) => {
     if (url === '/debts/my-pending') {

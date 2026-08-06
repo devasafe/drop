@@ -92,10 +92,9 @@ export function useCheckout() {
   const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
-  // PIX não depende de saldo (cobrança externa Asaas); demais métodos exigem saldo.
-  // TODO: revisitar quando o processamento real de cartão for integrado — cartão
-  // real não deveria exigir saldo de carteira.
-  const isWalletInsufficient = paymentMethod !== 'pix' && walletBalance < total;
+  // PIX e cartão de crédito são cobranças externas (Asaas) — não dependem de
+  // saldo de carteira. Só métodos que efetivamente debitam a carteira exigem saldo.
+  const isWalletInsufficient = paymentMethod !== 'pix' && paymentMethod !== 'credit_card' && walletBalance < total;
 
   // Guard: só 'cliente' pode comprar (motoboy/lojista/etc bloqueados).
   useEffect(() => {
