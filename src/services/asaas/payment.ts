@@ -156,4 +156,41 @@ export async function cancelCharge(asaasPaymentId: string): Promise<boolean> {
   }
 }
 
-export default { ensureAsaasCustomer, createPixCharge, cancelCharge };
+export interface CardChargeInput {
+  customerId: string; value: number; orderId: string; remoteIp: string; description?: string;
+  card: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string };
+  holder: { name: string; email: string; cpfCnpj: string; postalCode: string; addressNumber: string; phone: string };
+}
+export interface CardChargeResult { paymentId: string; status: string; creditCardToken?: string }
+
+/** Cobrança de cartão à vista (backend-relay). NUNCA logar `input.card`. */
+export async function createCardCharge(input: CardChargeInput): Promise<CardChargeResult> {
+  const dueDate = new Date().toISOString().slice(0, 10);
+  const payment = await asaasClient.post<AsaasPayment & { creditCardToken?: string }>('/payments', {
+    customer: input.customerId,
+    billingType: 'CREDIT_CARD',
+    value: Number(input.value.toFixed(2)),
+    dueDate,
+    description: input.description || `Pedido ${input.orderId}`,
+    externalReference: input.orderId,
+    remoteIp: input.remoteIp,
+    creditCard: {
+      holderName: input.card.holderName,
+      number: input.card.number,
+      expiryMonth: input.card.expiryMonth,
+      expiryYear: input.card.expiryYear,
+      ccv: input.card.ccv,
+    },
+    creditCardHolderInfo: {
+      name: input.holder.name,
+      email: input.holder.email,
+      cpfCnpj: input.holder.cpfCnpj,
+      postalCode: input.holder.postalCode,
+      addressNumber: input.holder.addressNumber,
+      phone: input.holder.phone,
+    },
+  });
+  return { paymentId: payment.id, status: payment.status, creditCardToken: (payment as any).creditCardToken };
+}
+
+export default { ensureAsaasCustomer, createPixCharge, cancelCharge, createCardCharge };
