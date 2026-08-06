@@ -33,8 +33,29 @@ import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import { findCouponById, incrementCouponUse } from '../repositories/coupon.repository';
 import env from '../config/env';
-import { ensureAsaasCustomer, createPixCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
+import { ensureAsaasCustomer, createPixCharge, createCardCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
 import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
+
+/**
+ * Compensa um pedido órfão cuja cobrança (PIX ou cartão) falhou: devolve o
+ * estoque decrementado, estorna o saldo de carteira já debitado (se houver) e
+ * apaga o pedido inútil. Reutilizado pelo ramo PIX e pelo ramo cartão (DRY).
+ */
+async function compensateFailedOrder(orderId: string, items: any[], walletApplied: number, customerId: string) {
+  try {
+    for (const it of items) {
+      if (it?.productId && it?.quantity) {
+        await prisma.product.updateMany({ where: { id: String(it.productId) }, data: { quantity: { increment: it.quantity } } });
+      }
+    }
+    if (walletApplied > 0) {
+      await walletService.credit({ owner: customerId, ownerType: 'user', amount: walletApplied, reason: 'Estorno de saldo — cobrança falhou', category: 'refund', relatedId: orderId });
+    }
+    await prisma.order.delete({ where: { id: orderId } });
+  } catch (compErr) {
+    logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId });
+  }
+}
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -246,9 +267,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // dá lugar à cobrança real no Asaas (custódia na conta-mãe).
     const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
 
-    // Por enquanto o Asaas só processa PIX aqui (cartão entra na Fase 6).
-    if (useAsaas && paymentMethod !== 'pix') {
-      return res.status(400).json({ error: 'No momento apenas PIX está disponível. Cartão em breve.' });
+    // Asaas processa PIX e cartão de crédito aqui (demais meios seguem indisponíveis).
+    if (useAsaas && paymentMethod !== 'pix' && paymentMethod !== 'credit_card') {
+      return res.status(400).json({ error: 'No momento apenas PIX ou cartão estão disponíveis.' });
     }
 
     // Cobrar dívida pendente (apenas para pedidos não-COD)
@@ -481,6 +502,35 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         await finalizeWalletPaidOrder(String(order.id));
         order.paymentStatus = 'paid';
         order.asaasChargeStatus = 'none';
+      } else if (paymentMethod === 'credit_card') {
+        // NUNCA logar `req.body.card`/`req.body.cardHolder` — só id do pedido/erro.
+        const { card, cardHolder } = req.body as any;
+        const asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+        if (!asaasCustomerId) {
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.' });
+        }
+        let cardResult;
+        try {
+          cardResult = await createCardCharge({
+            customerId: asaasCustomerId, value: chargeAmount, orderId: String(order.id),
+            remoteIp: req.ip || '', description: `Pedido em ${store.name || 'loja'}`,
+            card, holder: cardHolder,
+          });
+        } catch (cardErr: any) {
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          const detail = cardErr?.errors?.[0]?.description || cardErr?.message || 'cartão recusado';
+          logger.error('Cartão recusado/erro', cardErr as Error, { orderId: order.id }); // NUNCA logar card
+          return res.status(402).json({ error: 'Pagamento com cartão recusado.', detail });
+        }
+        order.asaasPaymentId = cardResult.paymentId;
+        await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: cardResult.paymentId } });
+        const approved = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(cardResult.status);
+        if (approved) {
+          await confirmOrderPaidByPayment(cardResult.paymentId, cardResult.status);
+          order.paymentStatus = 'paid';
+        }
+        return res.status(201).json({ order, card: { status: cardResult.status, approved } });
       } else {
         const buildCharge = (cid: string) => createPixCharge({
           customerId: cid, value: chargeAmount, orderId: String(order.id), description: `Pedido em ${store.name || 'loja'}`,
@@ -509,23 +559,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           logger.error('Falha ao gerar cobrança PIX', chargeErr as Error, { orderId: order.id });
           // Compensação: pedido + baixa de estoque + saldo já foram commitados. Sem cobrança,
           // o pedido é inútil — devolve estoque, devolve o saldo usado e apaga o pedido órfão.
-          try {
-            for (const it of items) {
-              if ((it as any).productId && (it as any).quantity) {
-                await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
-              }
-            }
-            if (walletApplied > 0) {
-              // Devolve o saldo usado (compensação da cobrança que falhou).
-              await walletService.credit({
-                owner: customerId, ownerType: 'user', amount: walletApplied,
-                reason: 'Estorno de saldo — cobrança PIX falhou', category: 'refund', relatedId: order.id,
-              });
-            }
-            await prisma.order.delete({ where: { id: order.id } });
-          } catch (compErr) {
-            logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId: order.id });
-          }
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
           const detail = chargeErr?.errors?.[0]?.description || chargeErr?.message || 'erro desconhecido';
           return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', detail });
         }
