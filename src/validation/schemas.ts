@@ -81,7 +81,25 @@ export const CreateOrderSchema = z.object({
   idempotentKey: z.string().uuid('Idempotent key deve ser um UUID válido').optional(),
   cupomCode: z.string().min(3, 'Cupom muito curto').max(20, 'Cupom muito longo').toUpperCase().optional(),
   useWalletBalance: z.boolean().optional(), // usar saldo da carteira p/ abater o total (Asaas)
-}).strict();
+  card: z.object({
+    holderName: z.string().min(2).max(60),
+    number: z.string().regex(/^\d{13,19}$/, 'Número do cartão inválido'),
+    expiryMonth: z.string().regex(/^(0[1-9]|1[0-2])$/, 'Mês inválido'),
+    expiryYear: z.string().regex(/^\d{4}$/, 'Ano inválido'),
+    ccv: z.string().regex(/^\d{3,4}$/, 'CVV inválido'),
+  }).optional(),
+  cardHolder: z.object({
+    name: z.string().min(2).max(80),
+    email: z.string().email(),
+    cpfCnpj: z.string().regex(/^\d{11}$|^\d{14}$/, 'CPF/CNPJ inválido'),
+    postalCode: z.string().regex(/^\d{8}$/, 'CEP inválido'),
+    addressNumber: z.string().min(1).max(10),
+    phone: z.string().regex(/^\d{10,11}$/, 'Telefone inválido'),
+  }).optional(),
+}).strict().refine(
+  (d) => d.paymentMethod !== 'credit_card' || (!!d.card && !!d.cardHolder),
+  { message: 'Dados do cartão e do titular são obrigatórios para pagamento com cartão', path: ['card'] },
+);
 
 export const UpdateOrderStatusSchema = z.object({
   status: z.enum(['criado', 'pago', 'enviado', 'entregue', 'cancelado', 'rejeitado']),
