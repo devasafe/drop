@@ -23,20 +23,32 @@ import app from '../app';
 import { ownerIdForStore } from './helpers/storeOwner';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
-import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
+import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createWallet, findWallet } from './helpers/financePg';
 import { ensureAsaasCustomer, createCardCharge } from '../services/asaas/payment';
 import { confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
+import { ensurePlatformConfig, updatePlatformConfig } from '../repositories/platformConfig.repository';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 const DOMAIN = '@aocf.test'; // domínio próprio desta suíte (isolamento de paralelismo — ver storeOwner.ts)
 
+let restoreConfig: () => Promise<void>;
+
 beforeAll(async () => {
   env.PAYMENT_GATEWAY = 'asaas';
+  // Fase 2: o gross-up agora roda até em 1x, então todo pedido de cartão depende de
+  // uma PlatformConfig existente. Semeia com os defaults do schema (Task 1).
+  restoreConfig = await snapshotPlatformConfig();
+  await ensurePlatformConfig('system');
+  await updatePlatformConfig(
+    { cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 },
+    'system'
+  );
 }, 60000);
 
 afterAll(async () => {
   env.PAYMENT_GATEWAY = 'none';
+  await restoreConfig();
 });
 
 afterEach(async () => {

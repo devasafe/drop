@@ -153,7 +153,7 @@ describe('createOrder com cartão parcelado (Fase 2)', () => {
     expect(order?.totalValue.toNumber()).toBe(100);
   });
 
-  it('1x (padrão): comportamento idêntico à Fase 1 — cobra o base, sem installmentCount/installmentValue', async () => {
+  it('1x (padrão): também recebe o gross-up (mesmo custo do Asaas do parcelado), sem installmentCount/installmentValue pro Asaas', async () => {
     const { token } = await verifiedBuyer();
     const { store, product } = await makeStoreAndProduct(100);
     (createCardCharge as jest.Mock).mockResolvedValueOnce({ paymentId: 'pay_inst_2', status: 'CONFIRMED' });
@@ -164,13 +164,36 @@ describe('createOrder com cartão parcelado (Fase 2)', () => {
       .send(orderPayload(store.id, product.id)); // sem installmentCount
 
     expect(res.status).toBe(201);
+    // 1x é grosseado igual a qualquer N — o cliente paga o custo exato do Asaas
+    // (decisão do dono do produto: a plataforma nunca absorve a taxa/antecipação).
+    const expected = computeCardTotal(100, 1, CARD_CFG);
     const callArg = (createCardCharge as jest.Mock).mock.calls[0][0];
-    expect(callArg.value).toBe(100);
-    expect(callArg.installmentCount).toBe(1);
+    expect(callArg.value).toBe(expected.total);
+    // 1x não é "parcelamento" pro Asaas: value plano, sem installmentValue — payment.ts
+    // só manda installmentCount/installmentValue quando > 1.
     expect(callArg.installmentValue).toBeUndefined();
 
     const order = await prisma.order.findFirst({ where: { storeId: store.id } });
     expect(order?.installmentCount).toBe(1);
+  });
+
+  it('limite de parcelas: acima do cardInstallmentMaxCount → compensa e responde 400 sem cobrar', async () => {
+    const { token } = await verifiedBuyer();
+    const { store, product } = await makeStoreAndProduct(100);
+
+    const res = await request(app)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send(orderPayload(store.id, product.id, { installmentCount: 13 })); // maxCount da suíte é 12
+
+    expect(res.status).toBe(400);
+    expect(createCardCharge).not.toHaveBeenCalled();
+
+    // Compensação: pedido órfão apagado e estoque devolvido.
+    const orders = await prisma.order.findMany({ where: { storeId: store.id } });
+    expect(orders.length).toBe(0);
+    const refreshedProduct = await prisma.product.findUnique({ where: { id: product.id } });
+    expect(refreshedProduct?.quantity).toBe(10);
   });
 
   it('config de parcelamento inválida (taxas somam ≥100%): compensa o pedido e responde 500 sem cobrar', async () => {

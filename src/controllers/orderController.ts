@@ -514,31 +514,46 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.' });
         }
         // Parcelamento: o total cobrado é SEMPRE recalculado no servidor a partir da
-        // config vigente (gross-up) — nunca confiar em um total vindo do cliente. Em
-        // 1x, `cardValue` continua sendo o base (comportamento da Fase 1, inalterado).
+        // config vigente (gross-up) — nunca confiar em um total vindo do cliente. O
+        // gross-up vale para TODO N, inclusive 1x: o cliente paga o custo exato do
+        // Asaas em qualquer opção, a plataforma fica neutra (decisão do dono do produto —
+        // o front já exibe o 1x grosseado, isso alinha o backend). Só N>1 é "parcelamento"
+        // de fato pro Asaas (installmentCount/installmentValue); 1x manda `value` plano.
         const installmentCount = Number((req.body as any).installmentCount) || 1;
+        const cfg = await getPlatformConfig();
+        if (!cfg) {
+          logger.error('Configuração de parcelamento indisponível', undefined, { orderId: order.id });
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
+        }
+        // Limite de parcelas definido pelo admin (o schema Zod só garante 1..21) —
+        // reforça no servidor pra uma chamada direta à API não driblar o limite.
+        if (installmentCount > Number(cfg.cardInstallmentMaxCount)) {
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          return res.status(400).json({ error: 'Número de parcelas acima do permitido.' });
+        }
         let cardValue = chargeAmount;
         let installmentValue: number | undefined;
-        if (installmentCount > 1) {
-          const cfg = await getPlatformConfig();
-          if (!cfg) {
-            logger.error('Configuração de parcelamento indisponível', undefined, { orderId: order.id });
-            await compensateFailedOrder(order.id, items, walletApplied, customerId);
-            return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
-          }
-          try {
-            const { total, installmentValue: iv } = computeCardTotal(chargeAmount, installmentCount, {
-              cardFeePercent: Number(cfg.cardFeePercent),
-              cardFeeFixed: Number(cfg.cardFeeFixed),
-              cardAnticipationMonthlyRate: Number(cfg.cardAnticipationMonthlyRate),
-            });
-            cardValue = total;
+        try {
+          const { total, installmentValue: iv } = computeCardTotal(chargeAmount, installmentCount, {
+            cardFeePercent: Number(cfg.cardFeePercent),
+            cardFeeFixed: Number(cfg.cardFeeFixed),
+            cardAnticipationMonthlyRate: Number(cfg.cardAnticipationMonthlyRate),
+          });
+          cardValue = total;
+          if (installmentCount > 1) {
+            // Valor mínimo de parcela definido pelo admin — só faz sentido para N>1
+            // (em 1x o "valor da parcela" é o total inteiro).
+            if (iv < Number(cfg.cardInstallmentMinValue)) {
+              await compensateFailedOrder(order.id, items, walletApplied, customerId);
+              return res.status(400).json({ error: 'Valor da parcela abaixo do mínimo.' });
+            }
             installmentValue = iv;
-          } catch (cfgErr) {
-            logger.error('Configuração de parcelamento inválida', cfgErr as Error, { orderId: order.id });
-            await compensateFailedOrder(order.id, items, walletApplied, customerId);
-            return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
           }
+        } catch (cfgErr) {
+          logger.error('Configuração de parcelamento inválida', cfgErr as Error, { orderId: order.id });
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
         }
         let cardResult;
         try {
