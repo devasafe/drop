@@ -282,14 +282,14 @@ export default function MotoboyDeliveryDetail() {
           {delivery.status === 'picked' && (
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}><Icon name="check" size={16} /> Finalizar entrega</h2>
-              <p className={styles.hint}>Informe o PIN fornecido pelo cliente:</p>
+              <p className={styles.hint}>⚠️ Peça o código de 6 dígitos ao cliente e digite aqui. Só entregue o produto depois de finalizar.</p>
               <Input
                 value={pinInput}
                 onChange={(v) => setPinInput(String(v).toUpperCase())}
                 maxLength={6}
                 placeholder="PIN do cliente"
               />
-              <Button onClick={finalizarEntrega} disabled={loadingFinalizar}>
+              <Button onClick={finalizarEntrega} disabled={loadingFinalizar || pinInput.length !== 6}>
                 {loadingFinalizar ? 'Finalizando…' : 'Finalizar entrega'}
               </Button>
             </section>
