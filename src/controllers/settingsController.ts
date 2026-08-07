@@ -42,6 +42,7 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       cancelFeeCustomerPercent, cancelFeeStorePercent, cancelFeeMotoboyPercent,
       storeAcceptTimeoutMin, poolTimeoutMin, customerAbsentWaitMin,
       seasonalTheme,
+      cardFeePercent, cardFeeFixed, cardAnticipationMonthlyRate, cardInstallmentMaxCount, cardInstallmentMinValue,
     } = req.body;
 
     // Só grava os campos enviados (patch parcial), preservando o resto da config.
@@ -62,6 +63,11 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
     if (poolTimeoutMin !== undefined) patch.poolTimeoutMin = poolTimeoutMin;
     if (customerAbsentWaitMin !== undefined) patch.customerAbsentWaitMin = customerAbsentWaitMin;
     if (seasonalTheme !== undefined) patch.seasonalTheme = seasonalTheme;
+    if (cardFeePercent !== undefined) patch.cardFeePercent = cardFeePercent;
+    if (cardFeeFixed !== undefined) patch.cardFeeFixed = cardFeeFixed;
+    if (cardAnticipationMonthlyRate !== undefined) patch.cardAnticipationMonthlyRate = cardAnticipationMonthlyRate;
+    if (cardInstallmentMaxCount !== undefined) patch.cardInstallmentMaxCount = cardInstallmentMaxCount;
+    if (cardInstallmentMinValue !== undefined) patch.cardInstallmentMinValue = cardInstallmentMinValue;
 
     const config = await savePlatformConfig(patch, userId);
 

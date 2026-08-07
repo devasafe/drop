@@ -494,6 +494,7 @@ model Order {
   cancelledAt       DateTime?
   updatedAt         DateTime           @updatedAt
   awaitingCustomerPoolDecision Boolean @default(false)
+  installmentCount  Int?
 
   customer User        @relation("CustomerOrders", fields: [customerId], references: [id])
   store    Store       @relation("StoreOrders", fields: [storeId], references: [id])
@@ -921,6 +922,11 @@ model PlatformConfig {
   autoApprovePayouts          Boolean       @default(false)
   autoApproveWithdrawals      Boolean       @default(false)
   seasonalTheme               SeasonalTheme @default(none)
+  cardFeePercent               Decimal @default(2.99) @db.Decimal(5, 2)
+  cardFeeFixed                 Decimal @default(0.49) @db.Decimal(12, 2)
+  cardAnticipationMonthlyRate  Decimal @default(1.99) @db.Decimal(5, 2)
+  cardInstallmentMaxCount      Int     @default(12)
+  cardInstallmentMinValue      Decimal @default(5) @db.Decimal(12, 2)
   updatedBy                   String
   updatedAt                   DateTime      @updatedAt
 }
