@@ -102,7 +102,6 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Antes do aceite (acceptedAt=null): refund 100%, SEM taxa e SEM compensação de motoboy.
     // Quando há taxa, ela é DESCONTADA do refund (nunca reembolsa 100% + cobra à parte);
     // `motoboyInvolved` controla só a divisão (100% app vs 50/50).
-    const storeAccepted = !!order.acceptedAt;
     const cfg = await getPlatformConfig();
     const feeConfig = {
       cancelFeeCustomerPercent: cfg?.cancelFeeCustomerPercent ?? 10,
@@ -136,16 +135,19 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     }
 
     const motoboyInvolved = !!order.deliveryId && !!compMotoboyId;
-    const fee = storeAccepted
-      ? calculateCancellationFee({
-          actor: 'customer',
-          motoboyInvolved,
-          orderTotal: order.totalValue || 0,
-          deliveryFee: order.deliveryFee || 0,
-          config: feeConfig,
-        })
-      // Sem aceite da loja → refund cheio, sem taxa nem compensação.
-      : { base: 0, totalFee: 0, payer: null, appShare: 0, motoboyShare: 0, refundToCustomer: order.totalValue || 0 };
+    // Política da taxa de cancelamento do CLIENTE: a taxa é o VALOR DA ENTREGA e só vale
+    // quando o motoboy já rodou — pedido 'enviado' (produto retirado / em rota). Antes
+    // disso (criado/pago; motoboy ainda não pegou), MESMO com a loja já tendo aceitado, o
+    // cancelamento é GRÁTIS (reembolso cheio). Quando cobra, a entrega vai inteira pro
+    // motoboy (a volta ele absorve) — ver calculateCancellationFee (actor 'customer').
+    const motoboyEnRoute = order.status === 'enviado' && motoboyInvolved;
+    const fee = calculateCancellationFee({
+      actor: 'customer',
+      motoboyInvolved: motoboyEnRoute,
+      orderTotal: order.totalValue || 0,
+      deliveryFee: order.deliveryFee || 0,
+      config: feeConfig,
+    });
     // Refund DESCONTADO: o cliente recebe o total menos a taxa (o desconto é a "cobrança").
     const refundAmount = fee.refundToCustomer;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';

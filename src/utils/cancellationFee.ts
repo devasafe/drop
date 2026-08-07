@@ -21,10 +21,20 @@ export function calculateCancellationFee(i: CancellationFeeInput): CancellationF
     const totalFee = round2(deliveryFee * config.cancelFeeMotoboyPercent / 100);
     return { base: deliveryFee, totalFee, payer: 'motoboy', motoboyShare: 0, appShare: totalFee, refundToCustomer: orderTotal };
   }
-  // customer | customer_absent → base = total
-  const totalFee = round2(orderTotal * config.cancelFeeCustomerPercent / 100);
-  let motoboyShare = 0;
-  if (actor === 'customer_absent') motoboyShare = round2(deliveryFee);            // entrega cheia
-  else if (motoboyInvolved) motoboyShare = round2(totalFee * config.lateCancellationMotoboyShare / 100);
-  return { base: orderTotal, totalFee, payer: 'customer', motoboyShare, appShare: round2(totalFee - motoboyShare), refundToCustomer: round2(orderTotal - totalFee) };
+  if (actor === 'customer_absent') {
+    // Entrega cheia (cliente ausente pra receber): taxa = % do pedido; o motoboy leva a
+    // entrega inteira (rodou a viagem completa). Política preservada.
+    const totalFee = round2(orderTotal * config.cancelFeeCustomerPercent / 100);
+    const motoboyShare = round2(deliveryFee);
+    return { base: orderTotal, totalFee, payer: 'customer', motoboyShare, appShare: round2(totalFee - motoboyShare), refundToCustomer: round2(orderTotal - totalFee) };
+  }
+  // actor === 'customer': a taxa de cancelamento é o VALOR DA ENTREGA, e SÓ quando o
+  // motoboy já rodou (`motoboyInvolved` = pedido 'enviado', produto retirado / em rota).
+  // A entrega vai INTEIRA pro motoboy (recebe pela ida; a volta ele absorve); o app não
+  // fica com nada. Sem motoboy em rota → cancelamento grátis (reembolso cheio).
+  if (!motoboyInvolved) {
+    return { base: orderTotal, totalFee: 0, payer: null, appShare: 0, motoboyShare: 0, refundToCustomer: round2(orderTotal) };
+  }
+  const totalFee = round2(deliveryFee);
+  return { base: orderTotal, totalFee, payer: 'customer', motoboyShare: round2(deliveryFee), appShare: 0, refundToCustomer: round2(orderTotal - deliveryFee) };
 }

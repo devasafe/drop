@@ -66,14 +66,14 @@ async function createUser(role: string) {
 }
 
 // ============================================================
-// Task 5: cliente cancela usando calculateCancellationFee
-// - taxa só APÓS o aceite da loja (acceptedAt != null) — fix #2
-// - refund DESCONTADO (parcial): cliente recebe orderTotal - totalFee
-// - parte do motoboy vira Payout de compensação released (motoboyShare)
-// - AppCashbox lança a taxa cheia (lastro) → líquido da plataforma = appShare
+// cliente cancela usando calculateCancellationFee — POLÍTICA NOVA:
+// - a taxa é o VALOR DA ENTREGA e só vale quando o motoboy já rodou (pedido 'enviado')
+// - refund DESCONTADO (parcial): cliente recebe orderTotal - deliveryFee
+// - a entrega vai INTEIRA pro motoboy (Payout de compensação released = deliveryFee)
+// - AppCashbox lança a taxa (lastro) → líquido da plataforma = appShare = 0
 // ============================================================
-describe('cliente cancela pós-pickup — divide a taxa com o motoboy (fluxo legado)', () => {
-  it('refund descontado + Payout de compensação do MTB + AppCashbox reflete appShare', async () => {
+describe('cliente cancela pós-pickup — paga o valor da entrega, que vai pro motoboy (fluxo legado)', () => {
+  it('refund descontado (total - entrega) + Payout do MTB = entrega + AppCashbox lastro', async () => {
     const motoboy = await createUser('motoboy');
     const customer = await createUser('cliente');
 
@@ -92,7 +92,7 @@ describe('cliente cancela pós-pickup — divide a taxa com o motoboy (fluxo leg
       storeId: store.id,
       items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
       totalValue: 200,
-      deliveryFee: 0,
+      deliveryFee: 20,
       status: 'enviado',
       paymentMethod: 'pix',
       paymentStatus: 'paid',
@@ -100,7 +100,7 @@ describe('cliente cancela pós-pickup — divide a taxa com o motoboy (fluxo leg
     }, include: { items: true } });
 
     const delivery = await prisma.delivery.create({
-      data: { orderId: order.id, motoboyId: motoboy.id, fee: 0, status: 'picked' },
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 20, status: 'picked' },
     });
     await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
@@ -112,10 +112,10 @@ describe('cliente cancela pós-pickup — divide a taxa com o motoboy (fluxo leg
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('cancelado');
 
-    // Config: 10% de 200 = R$20 de taxa; 50% (R$10) motoboy, 50% (R$10) app.
+    // Política nova: taxa = ENTREGA (R$20); vai INTEIRA pro motoboy (R$20), app fica com R$0.
     // fee.refundToCustomer = 200 - 20 = 180.
 
-    // PROVA 1: refund DESCONTADO — o cliente recebe orderTotal - totalFee (não 100%).
+    // PROVA 1: refund DESCONTADO — o cliente recebe orderTotal - deliveryFee (não 100%).
     expect(res.body.refundAmount).toBeCloseTo(180, 2);
     expect(res.body.refundStatus).toBe('processed');
 
@@ -123,25 +123,25 @@ describe('cliente cancela pós-pickup — divide a taxa com o motoboy (fluxo leg
     const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
     expect(custWallet!.balance).toBeCloseTo(1180, 2); // 1000 + 180 (nunca 1000 + 200)
 
-    // PROVA 2: compensação do motoboy = motoboyShare, como Payout 'released' (sacável).
+    // PROVA 2: compensação do motoboy = a ENTREGA inteira, como Payout 'released' (sacável).
     const compPayout = await findPayout({ recipientType: 'motoboy', recipientId: motoboy.id, status: 'released' });
     expect(compPayout).not.toBeNull();
-    expect(compPayout!.amount).toBeCloseTo(10, 2);
+    expect(compPayout!.amount).toBeCloseTo(20, 2);
 
-    // PROVA 3: AppCashbox recebe a taxa INTEIRA (R$20) como lastro do payout, e o líquido
-    // da plataforma (income - payout do motoboy) é appShare (R$10).
+    // PROVA 3: AppCashbox recebe a taxa (R$20) como lastro do payout, e o líquido da
+    // plataforma (income - payout do motoboy) é appShare = R$0 (plataforma neutra).
     const cashbox = await findAppCashbox();
     const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
     expect(feeEntry).toBeTruthy();
     expect(feeEntry!.amount).toBeCloseTo(20, 2);
-    expect(feeEntry!.amount - compPayout!.amount).toBeCloseTo(10, 2); // = appShare (líquido)
+    expect(feeEntry!.amount - compPayout!.amount).toBeCloseTo(0, 2); // = appShare (líquido = 0)
 
     // Reconciliação por Payout: a compensação aparece como saldo disponível do motoboy.
     const walletRes = await request(app)
       .get(`/api/wallets/motoboy/${motoboy.id}`)
       .set('Authorization', `Bearer ${motoboy.token}`);
     expect(walletRes.status).toBe(200);
-    expect(walletRes.body.availableBalance).toBeCloseTo(10, 2);
+    expect(walletRes.body.availableBalance).toBeCloseTo(20, 2);
   });
 });
 
@@ -199,19 +199,23 @@ describe('cliente cancela — estorno REAL no Asaas (fix #1: value exclui wallet
   beforeAll(() => { env.PAYMENT_GATEWAY = 'asaas'; });
   afterAll(() => { env.PAYMENT_GATEWAY = 'none'; });
 
-  it('sem walletApplied: estorna refundToCustomer (total - taxa) no Asaas', async () => {
+  it('sem walletApplied: estorna refundToCustomer (total - entrega) no Asaas', async () => {
     const customer = await createUser('cliente');
+    const motoboy = await createUser('motoboy');
     await createWallet({ owner: customer.id, ownerType: 'user', balance: 0, totalIncome: 0, totalSpent: 0 });
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0 });
     await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Asaas A' } });
 
-    // Pago via PIX, aceito, sem saldo de carteira aplicado. total=200 → taxa 20 → estorna 180.
+    // Pago via PIX, motoboy em rota ('enviado'), sem saldo de carteira. Taxa = entrega (20) → estorna 180.
     const order = await prisma.order.create({ data: {
       customerId: customer.id, storeId: store.id,
       items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
-      totalValue: 200, deliveryFee: 0, status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid',
+      totalValue: 200, deliveryFee: 20, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid',
       asaasPaymentId: 'pay_cancel_a', asaasChargeStatus: 'received', acceptedAt: new Date(),
     }, include: { items: true } });
+    const delivery = await prisma.delivery.create({ data: { orderId: order.id, motoboyId: motoboy.id, fee: 20, status: 'picked' } });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
     const res = await request(app)
       .post(`/api/orders/${order.id}/cancel`)
@@ -237,15 +241,19 @@ describe('cliente cancela — estorno REAL no Asaas (fix #1: value exclui wallet
     await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
     const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Asaas B' } });
 
-    // total=200, taxa 20 → refundToCustomer=180. walletApplied=50 (cobrança PIX foi 150).
+    // total=200, taxa = entrega 20 → refundToCustomer=180. walletApplied=50 (cobrança PIX foi 150).
     // walletApplied volta pela carteira; estorno PIX = 180 - 50 = 130. Retido do PIX = 150-130 = 20 = taxa.
+    const motoboy = await createUser('motoboy');
+    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0 });
     const order = await prisma.order.create({ data: {
       customerId: customer.id, storeId: store.id,
       items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
-      totalValue: 200, deliveryFee: 0, status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid',
+      totalValue: 200, deliveryFee: 20, status: 'enviado', paymentMethod: 'pix', paymentStatus: 'paid',
       asaasPaymentId: 'pay_cancel_b', asaasChargeStatus: 'received', acceptedAt: new Date(),
       walletApplied: 50,
     }, include: { items: true } });
+    const delivery = await prisma.delivery.create({ data: { orderId: order.id, motoboyId: motoboy.id, fee: 20, status: 'picked' } });
+    await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
     const res = await request(app)
       .post(`/api/orders/${order.id}/cancel`)

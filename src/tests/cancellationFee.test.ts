@@ -6,17 +6,19 @@ const cfg = {
 };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-test('cliente cancela sem MTB: taxa 10% do total, 100% app, refund descontado', () => {
+test('cliente cancela sem motoboy em rota: GRÁTIS (reembolso cheio, sem taxa)', () => {
   const r = calculateCancellationFee({ actor: 'customer', motoboyInvolved: false, orderTotal: 100, deliveryFee: 10, config: cfg });
-  expect(r.totalFee).toBe(10); expect(r.payer).toBe('customer');
-  expect(r.appShare).toBe(10); expect(r.motoboyShare).toBe(0);
-  expect(r.refundToCustomer).toBe(90);
+  expect(r.totalFee).toBe(0); expect(r.payer).toBe(null);
+  expect(r.appShare).toBe(0); expect(r.motoboyShare).toBe(0);
+  expect(r.refundToCustomer).toBe(100);
 });
 
-test('cliente cancela com MTB: taxa dividida 50/50', () => {
-  const r = calculateCancellationFee({ actor: 'customer', motoboyInvolved: true, orderTotal: 100, deliveryFee: 10, config: cfg });
-  expect(r.totalFee).toBe(10); expect(r.motoboyShare).toBe(5); expect(r.appShare).toBe(5);
-  expect(r.refundToCustomer).toBe(90);
+test('cliente cancela com motoboy em rota: taxa = valor da ENTREGA, vai inteira pro motoboy', () => {
+  // números distintos (120/8) pra provar que a taxa é a ENTREGA (8), não 10% do total (12).
+  const r = calculateCancellationFee({ actor: 'customer', motoboyInvolved: true, orderTotal: 120, deliveryFee: 8, config: cfg });
+  expect(r.totalFee).toBe(8); expect(r.payer).toBe('customer');
+  expect(r.motoboyShare).toBe(8); expect(r.appShare).toBe(0);
+  expect(r.refundToCustomer).toBe(112);
 });
 
 test('loja cancela: taxa 10% da ENTREGA, paga pela loja, cliente 100%', () => {
