@@ -160,16 +160,16 @@ export interface CardChargeInput {
   customerId: string; value: number; orderId: string; remoteIp: string; description?: string;
   card: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string };
   holder: { name: string; email: string; cpfCnpj: string; postalCode: string; addressNumber: string; phone: string };
+  installmentCount?: number; installmentValue?: number;
 }
 export interface CardChargeResult { paymentId: string; status: string; creditCardToken?: string }
 
-/** Cobrança de cartão à vista (backend-relay). NUNCA logar `input.card`. */
+/** Cobrança de cartão à vista ou parcelada (backend-relay). NUNCA logar `input.card`. */
 export async function createCardCharge(input: CardChargeInput): Promise<CardChargeResult> {
   const dueDate = new Date().toISOString().slice(0, 10);
-  const payment = await asaasClient.post<AsaasPayment & { creditCardToken?: string }>('/payments', {
+  const body: any = {
     customer: input.customerId,
     billingType: 'CREDIT_CARD',
-    value: Number(input.value.toFixed(2)),
     dueDate,
     description: input.description || `Pedido ${input.orderId}`,
     externalReference: input.orderId,
@@ -189,7 +189,16 @@ export async function createCardCharge(input: CardChargeInput): Promise<CardChar
       addressNumber: input.holder.addressNumber,
       phone: input.holder.phone,
     },
-  });
+  };
+  // Parcelado: o Asaas quer `installmentCount` + `installmentValue` (valor de CADA
+  // parcela), não `value` (total). À vista segue mandando `value` como antes.
+  if (input.installmentCount && input.installmentCount > 1) {
+    body.installmentCount = input.installmentCount;
+    body.installmentValue = Number((input.installmentValue ?? input.value).toFixed(2));
+  } else {
+    body.value = Number(input.value.toFixed(2));
+  }
+  const payment = await asaasClient.post<AsaasPayment & { creditCardToken?: string }>('/payments', body);
   return { paymentId: payment.id, status: payment.status, creditCardToken: (payment as any).creditCardToken };
 }
 

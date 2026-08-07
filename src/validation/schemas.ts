@@ -81,6 +81,7 @@ export const CreateOrderSchema = z.object({
   idempotentKey: z.string().uuid('Idempotent key deve ser um UUID válido').optional(),
   cupomCode: z.string().min(3, 'Cupom muito curto').max(20, 'Cupom muito longo').toUpperCase().optional(),
   useWalletBalance: z.boolean().optional(), // usar saldo da carteira p/ abater o total (Asaas)
+  installmentCount: z.number().int().min(1).max(21).optional(),
   card: z.object({
     holderName: z.string().min(2).max(60),
     number: z.string().regex(/^\d{13,19}$/, 'Número do cartão inválido'),

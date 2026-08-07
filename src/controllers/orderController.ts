@@ -35,6 +35,8 @@ import { findCouponById, incrementCouponUse } from '../repositories/coupon.repos
 import env from '../config/env';
 import { ensureAsaasCustomer, createPixCharge, createCardCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
 import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
+import { computeCardTotal } from '../utils/cardInstallments';
 
 /**
  * Compensa um pedido órfão cuja cobrança (PIX ou cartão) falhou: devolve o
@@ -511,12 +513,40 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           await compensateFailedOrder(order.id, items, walletApplied, customerId);
           return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.' });
         }
+        // Parcelamento: o total cobrado é SEMPRE recalculado no servidor a partir da
+        // config vigente (gross-up) — nunca confiar em um total vindo do cliente. Em
+        // 1x, `cardValue` continua sendo o base (comportamento da Fase 1, inalterado).
+        const installmentCount = Number((req.body as any).installmentCount) || 1;
+        let cardValue = chargeAmount;
+        let installmentValue: number | undefined;
+        if (installmentCount > 1) {
+          const cfg = await getPlatformConfig();
+          if (!cfg) {
+            logger.error('Configuração de parcelamento indisponível', undefined, { orderId: order.id });
+            await compensateFailedOrder(order.id, items, walletApplied, customerId);
+            return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
+          }
+          try {
+            const { total, installmentValue: iv } = computeCardTotal(chargeAmount, installmentCount, {
+              cardFeePercent: Number(cfg.cardFeePercent),
+              cardFeeFixed: Number(cfg.cardFeeFixed),
+              cardAnticipationMonthlyRate: Number(cfg.cardAnticipationMonthlyRate),
+            });
+            cardValue = total;
+            installmentValue = iv;
+          } catch (cfgErr) {
+            logger.error('Configuração de parcelamento inválida', cfgErr as Error, { orderId: order.id });
+            await compensateFailedOrder(order.id, items, walletApplied, customerId);
+            return res.status(500).json({ error: 'Configuração de parcelamento inválida' });
+          }
+        }
         let cardResult;
         try {
           cardResult = await createCardCharge({
-            customerId: asaasCustomerId, value: chargeAmount, orderId: String(order.id),
+            customerId: asaasCustomerId, value: cardValue, orderId: String(order.id),
             remoteIp: req.ip || '', description: `Pedido em ${store.name || 'loja'}`,
             card, holder: cardHolder,
+            installmentCount, installmentValue,
           });
         } catch (cardErr: any) {
           await compensateFailedOrder(order.id, items, walletApplied, customerId);
@@ -525,7 +555,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           return res.status(402).json({ error: 'Pagamento com cartão recusado.', detail });
         }
         order.asaasPaymentId = cardResult.paymentId;
-        await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: cardResult.paymentId } });
+        order.installmentCount = installmentCount;
+        await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: cardResult.paymentId, installmentCount } });
         const approved = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(cardResult.status);
         if (approved) {
           await confirmOrderPaidByPayment(cardResult.paymentId, cardResult.status);

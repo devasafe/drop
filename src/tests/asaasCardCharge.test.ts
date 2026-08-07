@@ -32,3 +32,23 @@ test('propaga erro do Asaas (recusa) sem engolir', async () => {
   post.mockRejectedValueOnce(new Error('invalid card'));
   await expect(createCardCharge(input)).rejects.toThrow('invalid card');
 });
+
+// Fase 2 (parcelamento): com installmentCount > 1, o Asaas espera installmentCount +
+// installmentValue (valor de CADA parcela) em vez de `value` (total à vista).
+test('parcelado: envia installmentCount + installmentValue, sem `value`', async () => {
+  post.mockResolvedValueOnce({ id: 'pay_2', status: 'CONFIRMED' });
+  await createCardCharge({ ...input, value: 106.62, installmentCount: 3, installmentValue: 35.54 });
+  const [, body] = post.mock.calls[post.mock.calls.length - 1];
+  expect(body.installmentCount).toBe(3);
+  expect(body.installmentValue).toBe(35.54);
+  expect(body.value).toBeUndefined();
+});
+
+test('1x explícito: continua enviando `value`, sem installmentCount/installmentValue', async () => {
+  post.mockResolvedValueOnce({ id: 'pay_3', status: 'CONFIRMED' });
+  await createCardCharge({ ...input, installmentCount: 1 });
+  const [, body] = post.mock.calls[post.mock.calls.length - 1];
+  expect(body.value).toBe(100.5);
+  expect(body.installmentCount).toBeUndefined();
+  expect(body.installmentValue).toBeUndefined();
+});
