@@ -18,6 +18,9 @@ import { OrderSummary } from '../components/drop/checkout/OrderSummary';
 import { CheckoutBar } from '../components/drop/checkout/CheckoutBar';
 import { PixPaymentSheet } from '../components/drop/checkout/PixPaymentSheet';
 import { CardForm } from '../components/drop/checkout/CardForm';
+import { Select } from '../components/ui/Select';
+import { formatBRL } from '../components/ui/PriceTag';
+import { installmentOptions } from '../lib/cardInstallments';
 import styles from './Checkout.module.css';
 
 /**
@@ -106,6 +109,30 @@ export default function CheckoutPage() {
                 {c.paymentMethod === 'credit_card' && (
                   <div className={styles.cardFormWrap}>
                     <CardForm onChange={c.setCardPayload} holderDefaults={c.cardHolderDefaults} />
+                    {c.config && (
+                      <div className={styles.installmentWrap}>
+                        <Select
+                          value={String(c.installmentCount)}
+                          onChange={(v) => c.setInstallmentCount(Number(v))}
+                          options={installmentOptions(c.total, {
+                            // Espelha (front, exibição) o cálculo do backend —
+                            // que recalcula o total real na cobrança. Fallbacks
+                            // batem com os defaults do schema Prisma, iguais
+                            // aos usados em useCheckout ao mapear o GET.
+                            cardFeePercent: c.config.cardFeePercent ?? 2.99,
+                            cardFeeFixed: c.config.cardFeeFixed ?? 0.49,
+                            cardAnticipationMonthlyRate: c.config.cardAnticipationMonthlyRate ?? 1.99,
+                            cardInstallmentMaxCount: c.config.cardInstallmentMaxCount ?? 12,
+                            cardInstallmentMinValue: c.config.cardInstallmentMinValue ?? 5,
+                          }).map((o) => ({
+                            value: String(o.count),
+                            label: o.count === 1
+                              ? `1x de ${formatBRL(o.installmentValue)} — à vista`
+                              : `${o.count}x de ${formatBRL(o.installmentValue)} — total ${formatBRL(o.total)}`,
+                          }))}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

@@ -54,6 +54,10 @@
   margin-top: var(--space-3);
 }
 
+.installmentWrap {
+  margin-top: var(--space-3);
+}
+
 /* ---- estados de página inteira (bloqueado / vazio / carregando) ---- */
 .blockedScreen,
 .emptyWrap {

@@ -37,6 +37,14 @@ type PlaceOrderResponse =
 interface PlatformConfigResponse {
   motoboyCutPerDelivery?: number;
   motoboyCutPerKm?: number;
+  // Cartão parcelado (Fase 2) — confirmado em platformConfig.repository.ts
+  // `toApiConfig` (spreada a config inteira, Decimal->number), sem whitelist
+  // no controller: já vêm nesse GET, sem mudança de backend necessária.
+  cardFeePercent?: number;
+  cardFeeFixed?: number;
+  cardAnticipationMonthlyRate?: number;
+  cardInstallmentMaxCount?: number;
+  cardInstallmentMinValue?: number;
 }
 
 // GET /debts/my-pending — ver debtController.ts: `{ debt: CustomerDebt | null }`.
@@ -87,6 +95,7 @@ export function useCheckout() {
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
   const [cardPayload, setCardPayload] = useState<CardPayload | null>(null);
+  const [installmentCount, setInstallmentCount] = useState(1);
   const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
   const [blocked, setBlocked] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -152,6 +161,14 @@ export function useCheckout() {
         setConfig({
           base: r.data.motoboyCutPerDelivery ?? 7,
           perKm: r.data.motoboyCutPerKm ?? 1,
+          // Fallbacks batem com os defaults do schema Prisma (platformConfig,
+          // ver schema.prisma:925-929) — só entram em jogo se o GET falhar
+          // em trazer o campo (config nunca criada ainda, por ex.).
+          cardFeePercent: r.data.cardFeePercent ?? 2.99,
+          cardFeeFixed: r.data.cardFeeFixed ?? 0.49,
+          cardAnticipationMonthlyRate: r.data.cardAnticipationMonthlyRate ?? 1.99,
+          cardInstallmentMaxCount: r.data.cardInstallmentMaxCount ?? 12,
+          cardInstallmentMinValue: r.data.cardInstallmentMinValue ?? 5,
         });
       })
       .catch(() => {});
@@ -241,6 +258,7 @@ export function useCheckout() {
         if (!cardPayload?.valid) return { ok: false, error: 'Dados do cartão incompletos' };
         payload.card = cardPayload.card;
         payload.cardHolder = cardPayload.cardHolder;
+        payload.installmentCount = installmentCount;
       }
       if (coupon.code.trim()) payload.cupomCode = coupon.code.trim().toUpperCase();
       if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
@@ -277,5 +295,6 @@ export function useCheckout() {
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
+    installmentCount, setInstallmentCount, config,
   };
 }

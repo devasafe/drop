@@ -34,6 +34,15 @@ export interface Address {
 export interface PlatformFeeConfig {
   base: number;
   perKm: number;
+  // Cartão de crédito parcelado (Fase 2) — usados só pra ESPELHAR o cálculo
+  // do backend (`src/utils/cardInstallments.ts`) e exibir as opções de
+  // parcela no checkout; o backend recalcula o total real na cobrança.
+  // Opcionais pra não quebrar os usos existentes (taxa de entrega).
+  cardFeePercent?: number;
+  cardFeeFixed?: number;
+  cardAnticipationMonthlyRate?: number;
+  cardInstallmentMaxCount?: number;
+  cardInstallmentMinValue?: number;
 }
 
 export interface PixInfo {
@@ -83,4 +92,5 @@ export interface PlaceOrderPayload {
   useWalletBalance?: boolean;
   card?: CardData;
   cardHolder?: CardHolderInfo;
+  installmentCount?: number;
 }

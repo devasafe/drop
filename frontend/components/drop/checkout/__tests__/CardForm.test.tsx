@@ -1,5 +1,15 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CardForm } from '../CardForm';
+import { installmentOptions } from '../../../../lib/cardInstallments';
+
+// Espelha o teste do util no backend (src/utils/cardInstallments.ts) — front
+// e backend precisam permanecer byte-idênticos pro total exibido no seletor
+// bater com o que o backend efetivamente cobra.
+test('lista 1x e filtra parcela < mínimo', () => {
+  const opts = installmentOptions(300, { cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 });
+  expect(opts[0].count).toBe(1);
+  expect(opts.every((o) => o.installmentValue >= 5)).toBe(true);
+});
 
 test('emite valid=false com número curto e valid=true quando completo', () => {
   const onChange = jest.fn();
