@@ -1,4 +1,5 @@
 import { formatBRL } from '../../ui/PriceTag';
+import { paymentMethodLabel } from '../../../lib/paymentLabel';
 import styles from './OrderItemsSummary.module.css';
 
 export interface OrderItemsSummaryItem {
@@ -13,6 +14,12 @@ interface OrderItemsSummaryProps {
   deliveryFee: number;
   discount: number;
   total: number;
+  /** Forma de pagamento (enum do backend). Quando informada, renderiza o
+   *  bloco "Pagamento": rótulo humano + parcelas (Nx) + saldo da carteira
+   *  usado. Opcional para manter compatibilidade com usos que não têm o dado. */
+  paymentMethod?: string | null;
+  installmentCount?: number | null;
+  walletApplied?: number;
 }
 
 /**
@@ -22,7 +29,13 @@ interface OrderItemsSummaryProps {
  * seguidas do bloco subtotal/frete/desconto/total (Regra de-cardify: sem
  * cards aninhados, fronteiras só via divisor/espaçamento).
  */
-export function OrderItemsSummary({ items, subtotal, deliveryFee, discount, total }: OrderItemsSummaryProps) {
+export function OrderItemsSummary({
+  items, subtotal, deliveryFee, discount, total,
+  paymentMethod, installmentCount, walletApplied,
+}: OrderItemsSummaryProps) {
+  const installments = installmentCount && installmentCount > 1 ? installmentCount : null;
+  const walletUsed = walletApplied && walletApplied > 0 ? walletApplied : 0;
+  const paymentText = paymentMethodLabel(paymentMethod) + (installments ? ` · ${installments}x` : '');
   return (
     <div className={styles.wrap}>
       <ul className={styles.list}>
@@ -57,6 +70,21 @@ export function OrderItemsSummary({ items, subtotal, deliveryFee, discount, tota
           <span>{formatBRL(total)}</span>
         </div>
       </div>
+      {paymentMethod && (
+        <div className={styles.summary}>
+          <div className={styles.divider} />
+          <div className={styles.summaryRow}>
+            <span>Forma de pagamento</span>
+            <span>{paymentText}</span>
+          </div>
+          {walletUsed > 0 && (
+            <div className={styles.summaryRow}>
+              <span>Saldo da carteira usado</span>
+              <span>-{formatBRL(walletUsed)}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

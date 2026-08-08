@@ -301,8 +301,13 @@ export default function StoreOrderStatus() {
                 }))}
                 subtotal={order.subtotal ?? 0}
                 deliveryFee={order.deliveryFee ?? 0}
-                discount={0}
+                // Cupom/desconto não é campo próprio do Order; é derivado do que
+                // sobrou entre (subtotal + entrega) e o total do pedido.
+                discount={Math.max(0, Math.round(((Number(order.subtotal) || 0) + (Number(order.deliveryFee) || 0) - (Number(order.totalValue) || 0)) * 100) / 100)}
                 total={order.totalValue ?? 0}
+                paymentMethod={order.paymentMethod}
+                installmentCount={order.installmentCount}
+                walletApplied={order.walletApplied ? Number(order.walletApplied) : 0}
               />
             </section>
 
