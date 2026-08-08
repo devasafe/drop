@@ -289,7 +289,7 @@ export default function MotoboyDeliveryDetail() {
                 maxLength={6}
                 placeholder="PIN do cliente"
               />
-              <Button onClick={finalizarEntrega} disabled={loadingFinalizar || pinInput.length !== 6}>
+              <Button onClick={finalizarEntrega} disabled={loadingFinalizar || pinInput.trim().length < 5}>
                 {loadingFinalizar ? 'Finalizando…' : 'Finalizar entrega'}
               </Button>
             </section>
