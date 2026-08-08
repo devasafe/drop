@@ -48,6 +48,15 @@ export const ROLE_AREAS: RoleArea[] = [
     description: 'Painel administrativo e operação da plataforma.' },
 ];
 
+/** Bottom-nav do cliente quando NÃO logado: só Início, Buscar e Entrar.
+ *  As rotas são a fonte da verdade; os ícones (lucide) são atribuídos no
+ *  CustomerAppChrome. "Entrar" leva pro login. */
+export const GUEST_BOTTOM_NAV: { key: 'inicio' | 'buscar' | 'entrar'; label: string; route: string }[] = [
+  { key: 'inicio', label: 'Início', route: '/inicio' },
+  { key: 'buscar', label: 'Buscar', route: '/' },
+  { key: 'entrar', label: 'Entrar', route: '/login' },
+];
+
 // --- Config por role (cliente/lojista/motoboy). CEO deriva do ADMIN_MENU. ---
 const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   cliente: [

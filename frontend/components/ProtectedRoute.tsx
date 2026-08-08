@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import { ROLE_HOME, Role } from '../lib/navConfig';
 
 interface ProtectedRouteProps {
   required_role?: string | string[];
@@ -44,9 +45,20 @@ export default function ProtectedRoute({ required_role, required_permission, chi
       return;
     }
     if (hasRequirement && !granted) {
-      router.push('/access-denied');
+      // Em vez da tela "Acesso Negado", manda o usuário pra HOME da role ativa
+      // (motoboy → /motoboy, lojista → /seller/dashboard, etc.). Cada role só
+      // acessa suas páginas; se cair em outra área, volta pra própria home.
+      const home = ROLE_HOME[activeRole as Role] ?? '/inicio';
+      // Guarda anti-loop: se JÁ está na própria home e mesmo assim foi barrado
+      // (ex.: negação por permissão específica dentro da própria área, como um
+      // gerente sem `payout:view` em /admin/*), cai no /access-denied.
+      if (router.pathname === home.split('?')[0]) {
+        router.push('/access-denied');
+      } else {
+        router.push(home);
+      }
     }
-  }, [user, loading, waitingPermissions, hasRequirement, granted, router]);
+  }, [user, loading, waitingPermissions, hasRequirement, granted, router, activeRole]);
 
   if (loading || waitingPermissions) {
     return (

@@ -137,10 +137,15 @@ export default function UserDashboard() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Envolve o loading no ProtectedRoute também: deslogado, o ProtectedRoute
+  // redireciona pro /login em vez de ficar preso no skeleton pra sempre (o
+  // fetch de dados falha/pende e `loading` nunca zeraria).
   if (loading || ordersLoading) return (
-    <div className={styles.loadingScreen}>
-      <LoadingSkeleton variant="dashboard" />
-    </div>
+    <ProtectedRoute required_role="cliente">
+      <div className={styles.loadingScreen}>
+        <LoadingSkeleton variant="dashboard" />
+      </div>
+    </ProtectedRoute>
   );
 
   // Helper function to get status badge info

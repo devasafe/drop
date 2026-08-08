@@ -1,9 +1,12 @@
+import { ComponentType } from 'react';
 import { useRouter } from 'next/router';
+import { Home, Search, LogIn, LucideProps } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { spaceGrotesk, inter } from '../../lib/fonts';
-import { getNavItems, isItemActive } from '../../lib/navConfig';
+import { getNavItems, isItemActive, GUEST_BOTTOM_NAV } from '../../lib/navConfig';
 import { StickyCart } from './StickyCart';
-import { TabBar, TabKey } from './TabBar';
+import { TabBar, TabKey, TabItem } from './TabBar';
 import styles from './CustomerAppChrome.module.css';
 
 interface CartItem {
@@ -16,6 +19,11 @@ const CLIENTE_ITEMS = getNavItems('cliente', () => true, false).filter((i) => i.
 const KEY_BY_LABEL: Record<string, TabKey> = {
   'Início': 'inicio', 'Buscar': 'buscar', 'Pedidos': 'pedidos', 'Carteira': 'carteira', 'Perfil': 'perfil',
 };
+
+// Abas de convidado (deslogado): só Início, Buscar e Entrar. Rotas vêm da
+// navConfig (GUEST_BOTTOM_NAV); os ícones lucide são atribuídos por key aqui.
+const GUEST_ICON: Record<string, ComponentType<LucideProps>> = { inicio: Home, buscar: Search, entrar: LogIn };
+const GUEST_TAB_ITEMS: TabItem[] = GUEST_BOTTOM_NAV.map((g) => ({ key: g.key as TabKey, label: g.label, icon: GUEST_ICON[g.key] }));
 
 /** Aba ativa derivada da rota do app-shell do cliente, via navConfig (rota +
  * activeMatch de cada item). As telas de vitrine (/stores, /stores/[id],
@@ -35,13 +43,20 @@ function activeTab(pathname: string): TabKey {
  */
 export function CustomerAppChrome() {
   const router = useRouter();
+  const { user } = useAuth();
   const { cart } = useCart();
+  const loggedOut = !user;
 
   const items = (cart || []) as CartItem[];
   const cartCount = items.reduce((sum, c) => sum + (c.quantity || 0), 0);
   const cartTotal = items.reduce((sum, c) => sum + (c.price || 0) * (c.quantity || 0), 0);
 
   const handleTabNavigate = (key: TabKey) => {
+    if (loggedOut) {
+      const g = GUEST_BOTTOM_NAV.find((i) => i.key === key);
+      if (g) router.push(g.route);
+      return;
+    }
     const item = CLIENTE_ITEMS.find((i) => KEY_BY_LABEL[i.label] === key);
     if (item) router.push(item.route);
   };
@@ -52,7 +67,11 @@ export function CustomerAppChrome() {
         <StickyCart count={cartCount} total={cartTotal} onOpen={() => router.push('/checkout')} />
       )}
       <div className={styles.tabBarWrap}>
-        <TabBar active={activeTab(router.pathname)} onNavigate={handleTabNavigate} />
+        <TabBar
+          active={activeTab(router.pathname)}
+          onNavigate={handleTabNavigate}
+          items={loggedOut ? GUEST_TAB_ITEMS : undefined}
+        />
       </div>
     </div>
   );
