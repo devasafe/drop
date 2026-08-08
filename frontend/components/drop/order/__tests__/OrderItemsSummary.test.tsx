@@ -28,6 +28,19 @@ test('1x não mostra sufixo de parcelas e exibe saldo da carteira usado', () => 
   expect(screen.getByText('Saldo da carteira usado')).toBeInTheDocument();
 });
 
+test('parcelado: mostra valor da parcela e total cobrado no cartão (com juros)', () => {
+  render(<OrderItemsSummary items={[{ name: 'Fone', quantity: 1, price: 100 }]} subtotal={100} deliveryFee={0} discount={0} total={100} paymentMethod="credit_card" installmentCount={3} installmentValue={35.25} cardChargedTotal={105.76} />);
+  expect(screen.getByText('Valor da parcela')).toBeInTheDocument();
+  expect(screen.getByText(/35,25/)).toBeInTheDocument();
+  expect(screen.getByText('Total no cartão (com juros)')).toBeInTheDocument();
+  expect(screen.getByText(/105,76/)).toBeInTheDocument();
+});
+
+test('cartão sem juros (total cobrado = base) não mostra a linha de total no cartão', () => {
+  render(<OrderItemsSummary items={[{ name: 'Fone', quantity: 1, price: 100 }]} subtotal={100} deliveryFee={0} discount={0} total={100} paymentMethod="credit_card" installmentCount={1} cardChargedTotal={100} />);
+  expect(screen.queryByText('Total no cartão (com juros)')).toBeNull();
+});
+
 test('sem paymentMethod não renderiza o bloco de pagamento (compat)', () => {
   render(<OrderItemsSummary items={[{ name: 'Fone', quantity: 1, price: 100 }]} subtotal={100} deliveryFee={0} discount={0} total={100} />);
   expect(screen.queryByText('Forma de pagamento')).toBeNull();

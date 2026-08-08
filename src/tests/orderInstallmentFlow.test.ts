@@ -151,6 +151,10 @@ describe('createOrder com cartão parcelado (Fase 2)', () => {
     // Distribuição/valor do pedido continuam sobre o BASE (à vista) — o gross-up do
     // cartão nunca vaza para o que a loja recebe.
     expect(order?.totalValue.toNumber()).toBe(100);
+    // Persiste o que foi cobrado no cartão (grosseado) + valor da parcela, pra exibição
+    // fiel no histórico (sem recalcular depois com config que pode ter mudado).
+    expect(order?.cardChargedTotal?.toNumber()).toBe(expected.total);
+    expect(order?.installmentValue?.toNumber()).toBe(expected.installmentValue);
   });
 
   it('1x (padrão): também recebe o gross-up (mesmo custo do Asaas do parcelado), sem installmentCount/installmentValue pro Asaas', async () => {
@@ -175,6 +179,9 @@ describe('createOrder com cartão parcelado (Fase 2)', () => {
 
     const order = await prisma.order.findFirst({ where: { storeId: store.id } });
     expect(order?.installmentCount).toBe(1);
+    // 1x também persiste o total cobrado (grosseado); installmentValue fica nulo (não é parcelamento).
+    expect(order?.cardChargedTotal?.toNumber()).toBe(expected.total);
+    expect(order?.installmentValue).toBeNull();
   });
 
   it('limite de parcelas: acima do cardInstallmentMaxCount → compensa e responde 400 sem cobrar', async () => {

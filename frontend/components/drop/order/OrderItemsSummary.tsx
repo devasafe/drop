@@ -20,6 +20,11 @@ interface OrderItemsSummaryProps {
   paymentMethod?: string | null;
   installmentCount?: number | null;
   walletApplied?: number;
+  /** Total REALMENTE cobrado no cartão (grosseado, com juros) e o valor da
+   *  parcela — persistidos no pedido. `total` (acima) é o valor BASE do pedido;
+   *  estes mostram o que o cliente pagou de fato no cartão. */
+  cardChargedTotal?: number | null;
+  installmentValue?: number | null;
 }
 
 /**
@@ -32,9 +37,12 @@ interface OrderItemsSummaryProps {
 export function OrderItemsSummary({
   items, subtotal, deliveryFee, discount, total,
   paymentMethod, installmentCount, walletApplied,
+  cardChargedTotal, installmentValue,
 }: OrderItemsSummaryProps) {
   const installments = installmentCount && installmentCount > 1 ? installmentCount : null;
   const walletUsed = walletApplied && walletApplied > 0 ? walletApplied : 0;
+  const parcela = installmentValue && installmentValue > 0 ? installmentValue : null;
+  const charged = cardChargedTotal && cardChargedTotal > 0 ? cardChargedTotal : null;
   const paymentText = paymentMethodLabel(paymentMethod) + (installments ? ` · ${installments}x` : '');
   return (
     <div className={styles.wrap}>
@@ -77,6 +85,18 @@ export function OrderItemsSummary({
             <span>Forma de pagamento</span>
             <span>{paymentText}</span>
           </div>
+          {installments && parcela && (
+            <div className={styles.summaryRow}>
+              <span>Valor da parcela</span>
+              <span>{installments}× {formatBRL(parcela)}</span>
+            </div>
+          )}
+          {charged && charged > total && (
+            <div className={styles.summaryRow}>
+              <span>Total no cartão (com juros)</span>
+              <span>{formatBRL(charged)}</span>
+            </div>
+          )}
           {walletUsed > 0 && (
             <div className={styles.summaryRow}>
               <span>Saldo da carteira usado</span>

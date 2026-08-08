@@ -571,7 +571,22 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         }
         order.asaasPaymentId = cardResult.paymentId;
         order.installmentCount = installmentCount;
-        await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: cardResult.paymentId, installmentCount } });
+        // Persiste o total REALMENTE cobrado no cartão (grosseado, com juros) e o
+        // valor da parcela (N>1). O `totalValue` do pedido continua sendo o BASE
+        // (à vista, base da distribuição); estes campos preservam o que o cliente
+        // pagou pra exibição fiel no histórico — sem recalcular depois com uma
+        // config que pode ter mudado.
+        order.cardChargedTotal = cardValue as any;
+        order.installmentValue = (installmentValue ?? null) as any;
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            asaasPaymentId: cardResult.paymentId,
+            installmentCount,
+            cardChargedTotal: cardValue,
+            installmentValue: installmentValue ?? null,
+          },
+        });
         const approved = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(cardResult.status);
         if (approved) {
           await confirmOrderPaidByPayment(cardResult.paymentId, cardResult.status);

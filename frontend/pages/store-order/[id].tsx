@@ -308,6 +308,8 @@ export default function StoreOrderStatus() {
                 paymentMethod={order.paymentMethod}
                 installmentCount={order.installmentCount}
                 walletApplied={order.walletApplied ? Number(order.walletApplied) : 0}
+                cardChargedTotal={order.cardChargedTotal ? Number(order.cardChargedTotal) : undefined}
+                installmentValue={order.installmentValue ? Number(order.installmentValue) : undefined}
               />
             </section>
 
