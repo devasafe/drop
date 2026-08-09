@@ -71,6 +71,10 @@ export default function CheckoutPage() {
             <div className={styles.container}>
               <h1 className={styles.title}>Checkout</h1>
 
+              {/* Desktop: 2 colunas (campos | resumo sticky); mobile: coluna
+                  única via display:contents (idêntico ao anterior). */}
+              <div className={styles.grid}>
+              <div className={styles.colMain}>
               <section className={styles.section}>
                 <AddressSelector
                   selected={c.address.selected}
@@ -146,7 +150,9 @@ export default function CheckoutPage() {
                   pendingDebt={c.pendingDebt ?? undefined}
                 />
               </section>
+              </div>
 
+              <div className={styles.colSide}>
               <section className={styles.section}>
                 <OrderSummary
                   subtotal={c.subtotal}
@@ -156,6 +162,8 @@ export default function CheckoutPage() {
                   isPlan1={c.isPlan1}
                 />
               </section>
+              </div>
+              </div>
             </div>
           </div>
 

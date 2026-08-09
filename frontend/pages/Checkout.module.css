@@ -39,6 +39,38 @@
   border-bottom: none;
 }
 
+/* ---- composição desktop (2 colunas) ----
+ * Mobile: wrappers em display:contents ("somem") — seções fluem em coluna
+ * única como antes. Desktop (>=900px): campos à esquerda, resumo sticky à
+ * direita; o CheckoutBar fixo segue sendo o confirmar. */
+.grid,
+.colMain,
+.colSide {
+  display: contents;
+}
+
+@media (min-width: 900px) {
+  .container {
+    max-width: 1040px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    gap: 0 var(--space-6);
+    align-items: start;
+  }
+  .colMain,
+  .colSide {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .colSide {
+    position: sticky;
+    top: var(--space-5);
+  }
+}
+
 .sectionTitle {
   display: flex;
   align-items: center;
