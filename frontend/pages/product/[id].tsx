@@ -231,6 +231,10 @@ export default function ProductPage() {
 
   return (
     <div className={styles.page}>
+      {/* Desktop: galeria (sticky) | info em 2 colunas; mobile: coluna única
+          via display:contents (idêntico ao anterior). */}
+      <div className={styles.top}>
+      <div className={styles.media}>
       {/* Galeria */}
       <section className={styles.hero} aria-label={`Foto de ${product.name}`}>
         <span
@@ -275,6 +279,9 @@ export default function ProductPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={styles.detail}>
       {/* Breadcrumb */}
       <nav className={styles.breadcrumb} aria-label="Navegação estrutural">
         <Link href="/" className={styles.breadcrumbLink}>Produtos</Link>
@@ -390,6 +397,8 @@ export default function ProductPage() {
           </div>
         )}
       </section>
+      </div>
+      </div>
 
       {/* Vídeo */}
       {product.video && (

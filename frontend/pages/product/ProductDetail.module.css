@@ -437,6 +437,47 @@
   }
 }
 
+/* ---- composição desktop: galeria (sticky) | info em 2 colunas ----
+ * Mobile: os wrappers usam display:contents e "somem" — os elementos fluem
+ * em coluna única como antes. Desktop (>=900px): .top vira grade centralizada
+ * (galeria à esquerda sticky, info à direita); vídeo/avaliações/relacionados
+ * acompanham a mesma largura centralizada. */
+.top,
+.media,
+.detail {
+  display: contents;
+}
+
+@media (min-width: 900px) {
+  .top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+    gap: 0 var(--space-6);
+    align-items: start;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .media {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: var(--space-5);
+    min-width: 0;
+  }
+  .detail {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .videoSection,
+  .reviewsSection,
+  .relatedSection {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 /* ── Avaliações ─────────────────────────────────────────── */
 .ratingRow {
   display: flex;
