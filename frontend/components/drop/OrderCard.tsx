@@ -2,6 +2,7 @@ import { ChevronRight, Package } from 'lucide-react';
 import { StatusPill } from '../ui/StatusPill';
 import { PriceTag } from '../ui/PriceTag';
 import { orderStatusPill } from '../../lib/orderStatus';
+import { paymentMethodLabel } from '../../lib/paymentLabel';
 import styles from './OrderCard.module.css';
 
 export interface OrderCardData {
@@ -17,6 +18,10 @@ export interface OrderCardData {
   imageUrl?: string;
   /** Data legível (usada no histórico). */
   date?: string;
+  /** Forma de pagamento + parcelas — pra distinguir na lista um pedido no
+   *  cartão 3x de um à vista/PIX. */
+  paymentMethod?: string | null;
+  installmentCount?: number | null;
 }
 
 interface OrderCardProps {
@@ -31,6 +36,10 @@ interface OrderCardProps {
  */
 export function OrderCard({ order, onClick }: OrderCardProps) {
   const sub = [order.code ? `#${order.code}` : null, order.itemsLabel].filter(Boolean).join(' · ');
+  const installments = order.installmentCount && order.installmentCount > 1 ? order.installmentCount : null;
+  const payLabel = order.paymentMethod
+    ? paymentMethodLabel(order.paymentMethod) + (installments ? ` · ${installments}x` : '')
+    : null;
   const Wrapper: any = onClick ? 'button' : 'div';
 
   return (
@@ -50,6 +59,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
             <StatusPill status={orderStatusPill(order.status)} />
           </div>
           {sub && <div className={styles.sub}>{sub}</div>}
+          {payLabel && <div className={styles.sub}>{payLabel}</div>}
           <div className={styles.foot}>
             <PriceTag price={order.total} size="sm" />
             {order.date && <span className={styles.date}>{order.date}</span>}

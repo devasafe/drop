@@ -46,6 +46,8 @@ function toOrderCard(order: any, withDate: boolean): OrderCardData {
       withDate && order.createdAt
         ? new Date(order.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
         : undefined,
+    paymentMethod: order.paymentMethod,
+    installmentCount: order.installmentCount,
   };
 }
 

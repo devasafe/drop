@@ -26,4 +26,14 @@ describe('OrderCard', () => {
     fireEvent.click(screen.getByText('Pizza Place'));
     expect(onClick).toHaveBeenCalled();
   });
+
+  it('mostra forma de pagamento e parcelas quando informado', () => {
+    render(<OrderCard order={{ ...base, paymentMethod: 'credit_card', installmentCount: 3 }} />);
+    expect(screen.getByText('Cartão de crédito · 3x')).toBeInTheDocument();
+  });
+
+  it('sem paymentMethod não mostra linha de pagamento (compat)', () => {
+    render(<OrderCard order={base} />);
+    expect(screen.queryByText(/Cartão|PIX/)).toBeNull();
+  });
 });
