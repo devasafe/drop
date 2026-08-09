@@ -241,6 +241,11 @@ export default function StoreOrderStatus() {
               <p className={styles.orderId}>Pedido #{order._id}</p>
             </div>
 
+            {/* Desktop: 2 colunas (rastreio | resumo+ações sticky). Mobile: os
+                wrappers usam display:contents e as seções fluem em coluna única
+                (layout idêntico ao anterior). */}
+            <div className={styles.grid}>
+            <div className={styles.colMain}>
             <section className={styles.section}>
               <OrderStatusHero
                 statusLabel={currentStepLabel(t.steps)}
@@ -291,7 +296,9 @@ export default function StoreOrderStatus() {
                 <CancellationStatus cancellation={cancellation} />
               </section>
             )}
+            </div>
 
+            <div className={styles.colSide}>
             <section className={styles.section}>
               <OrderItemsSummary
                 items={(order.products || []).map((p: any) => ({
@@ -357,6 +364,9 @@ export default function StoreOrderStatus() {
                 </section>
               );
             })}
+
+            </div>
+            </div>
 
             <CancelOrderSheet
               open={cancelOpen}

@@ -47,6 +47,39 @@
   border-bottom: none;
 }
 
+/* ---- composição desktop (2 colunas) ----
+ * Mobile: os wrappers usam display:contents e "desaparecem" — as seções
+ * fluem em coluna única no .container, layout idêntico ao anterior.
+ * Desktop (>=900px): .grid vira grade de 2 colunas (rastreio | resumo/ações),
+ * o container alarga e a coluna lateral fica sticky. */
+.grid,
+.colMain,
+.colSide {
+  display: contents;
+}
+
+@media (min-width: 900px) {
+  .container {
+    max-width: 1040px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    gap: 0 var(--space-6);
+    align-items: start;
+  }
+  .colMain,
+  .colSide {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .colSide {
+    position: sticky;
+    top: var(--space-5);
+  }
+}
+
 /* ---- estados de página inteira (carregando / não encontrado) ---- */
 .emptyWrap {
   min-height: 100vh;
