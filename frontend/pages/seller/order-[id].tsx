@@ -8,6 +8,7 @@ import { useOrder } from '../../hooks/useSync';
 import { useSocket } from '../../contexts/SocketContext';
 import { OrderActionsCard } from '../../components/order/OrderActionsCard';
 import { CancellationStatusDisplay } from '../../components/order/CancellationStatusDisplay';
+import { paymentMethodLabel } from '../../lib/paymentLabel';
 import styles from './SellerOrder.module.css';
 
 interface ReturnRequest {
@@ -255,6 +256,15 @@ export default function SellerOrderDetailPage() {
                     <span>Total:</span>
                     <span>R$ {(order.totalValue || 0).toFixed(2)}</span>
                   </div>
+                  {order.paymentMethod && (
+                    <div className={styles.totalsRow}>
+                      <span className={styles.totalsLabel}>Pagamento:</span>
+                      <span className={styles.totalsValue}>
+                        {paymentMethodLabel(order.paymentMethod)}
+                        {order.installmentCount > 1 ? ` · ${order.installmentCount}x` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -7,6 +7,7 @@ import LoadingSkeleton from '../../components/LoadingSkeleton';
 import AuthContext from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import api from '../../lib/api';
+import { paymentMethodLabel } from '../../lib/paymentLabel';
 import styles from '../OrderDetail.module.css';
 
 interface PayoutInfo {
@@ -190,7 +191,10 @@ export default function OrderDetailPage() {
           )}
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Pagamento</span>
-            <span className={styles.infoValue}>{order.paymentMethod || '-'}</span>
+            <span className={styles.infoValue}>
+              {order.paymentMethod ? paymentMethodLabel(order.paymentMethod) : '-'}
+              {order.installmentCount > 1 ? ` · ${order.installmentCount}x` : ''}
+            </span>
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Status Pgto</span>
@@ -356,7 +360,7 @@ export default function OrderDetailPage() {
                     <div className={styles.flowIcon} style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>$</div>
                     <div className={styles.flowInfo}>
                       <div className={styles.flowName}>{customerName}</div>
-                      <div className={styles.flowDesc}>Pagou {fmtMoney(order.totalValue)} via {order.paymentMethod || 'carteira'}</div>
+                      <div className={styles.flowDesc}>Pagou {fmtMoney(order.totalValue)} via {order.paymentMethod ? paymentMethodLabel(order.paymentMethod) : 'carteira'}{order.installmentCount > 1 ? ` (${order.installmentCount}x)` : ''}</div>
                     </div>
                   </div>
                 </div>
