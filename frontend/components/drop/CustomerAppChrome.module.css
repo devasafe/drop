@@ -21,3 +21,11 @@
   bottom: 0;
   z-index: 30;
 }
+
+/* Desktop: a navegação principal migra pra Nav do topo (padrão web). A bottom
+   bar é um padrão mobile e some; o StickyCart (acesso ao carrinho) permanece. */
+@media (min-width: 900px) {
+  .tabBarWrap {
+    display: none;
+  }
+}

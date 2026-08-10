@@ -987,3 +987,13 @@ body.theme-halloween {
 @media (min-width: 1025px) {
   .panelContentOffset { margin-left: 256px; }
 }
+
+/* ── Nav global só no desktop ───────────────────────────────
+   Produto/loja usam header próprio no mobile (hideChrome), mas no desktop
+   devem mostrar a navbar do topo (padrão web; a bottom bar some no desktop).
+   Envolve <Nav /> nessas páginas. display:contents preserva o position:sticky
+   da Nav (um wrapper com box quebraria o sticky). */
+.navDesktopOnly { display: contents; }
+@media (max-width: 899px) {
+  .navDesktopOnly { display: none; }
+}

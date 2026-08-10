@@ -476,7 +476,8 @@
     display: flex;
     flex-direction: column;
     position: sticky;
-    top: var(--space-5);
+    /* limpa a Nav sticky do topo (60px) pra a galeria não ficar atrás dela. */
+    top: calc(60px + var(--space-4));
     min-width: 0;
   }
   .detail {

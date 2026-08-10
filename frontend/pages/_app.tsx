@@ -95,6 +95,14 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <ToastProvider>
         <SeasonalThemeProvider>
         {!hideChrome && <Nav />}
+        {/* Páginas com header próprio no mobile (produto/loja) ainda mostram a
+            Nav global no DESKTOP — a bottom bar é escondida no desktop, então
+            sem isso elas ficariam sem navegação em telas grandes. */}
+        {hideChrome && (
+          <div className="navDesktopOnly">
+            <Nav />
+          </div>
+        )}
         {user && isDashboard && <AppSidebar />}
         {user && isDashboard && <PanelBottomNav />}
         <VerificationBanner />
