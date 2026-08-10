@@ -456,6 +456,9 @@
     align-items: start;
     max-width: 1100px;
     margin: 0 auto;
+    /* respiro no topo (e nas laterais) — no desktop a galeria não é mais
+       full-bleed como no mobile, então não deve encostar no header. */
+    padding: var(--space-6) var(--space-4) 0;
   }
   .media {
     display: flex;
