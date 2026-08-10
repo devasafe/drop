@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
 import AccountMenuButton from './nav/AccountMenuButton';
@@ -28,8 +29,11 @@ export default function Nav() {
   const { user, can } = useAuth() || {};
   const overlay = useOverlay();
   const router = useRouter();
+  const { cart } = useCart();
   const { unreadCount: unread } = useNotifications();
   const badges = useBadgeCounts();
+
+  const cartCount = (cart || []).reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
 
   const activeRole = (user?.activeRole || user?.role || 'cliente') as Role;
   const isAdmin = can ? getNavItems('ceo', can, false).length > 0 : false;
@@ -87,6 +91,14 @@ export default function Nav() {
 
         {/* Right Section */}
         <div className={styles.right}>
+          {/* Carrinho — contexto de compra (cliente/deslogado). Badge com a
+              quantidade; leva ao checkout (mesmo destino do StickyCart). */}
+          {showCustomerLinks && (
+            <Link href="/checkout" className={styles.iconBtn} title="Carrinho" aria-label="Carrinho">
+              <Icon name="shopping-cart" size={17} />
+              {cartCount > 0 && <span className={styles.badge}>{cartCount > 9 ? '9+' : cartCount}</span>}
+            </Link>
+          )}
           {user ? (
             <>
               {/* Menu do painel (só admin/ceo — lojista/motoboy abrem pela aba "Mais" do bottom nav) */}
