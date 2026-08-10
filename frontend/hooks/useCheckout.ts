@@ -202,22 +202,27 @@ export function useCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address.loading, address.selected, address.addresses]);
 
-  // Distância real de rota (loja -> endereço selecionado) via Google Directions.
-  // Defensivo: sem Google Maps carregado ou sem endereço/loja com coordenadas, não faz nada.
+  // Distância real de rota (loja -> endereço selecionado) vinda do BACKEND (/orders/quote),
+  // que é a MESMA fonte da cobrança final (RouteService). Antes isto era calculado no
+  // browser via Google Directions enquanto o backend cobrava por haversine — os valores
+  // divergiam. Agora o preview e a cobrança usam exatamente a mesma distância de rota.
   useEffect(() => {
     const sel = address.selected;
-    const g = (window as { google?: { maps?: { DirectionsService: new () => { route: (req: unknown, cb: (res: { routes: { legs: { distance: { value: number } }[] }[] }, status: string) => void) => void }; TravelMode: { DRIVING: string } } } }).google;
-    if (isPlan1 || !sel?.latitude || !store?.latitude || !g?.maps) return;
-    const svc = new g.maps.DirectionsService();
-    svc.route({
-      origin: { lat: parseFloat(store.latitude), lng: parseFloat(store.longitude || '0') },
-      destination: { lat: parseFloat(sel.latitude), lng: parseFloat(sel.longitude) },
-      travelMode: g.maps.TravelMode.DRIVING,
-    }, (res, status) => {
-      if (status === 'OK') setDistanceKm(Number((res.routes[0].legs[0].distance.value / 1000).toFixed(2)));
-      else setDistanceKm(0);
-    });
-  }, [address.selected, store, isPlan1]);
+    if (isPlan1 || !sel?.latitude || !store?.latitude) return;
+    let cancelled = false;
+    api.post('/orders/quote', {
+      storeId,
+      latitude: Number(sel.latitude),
+      longitude: Number(sel.longitude),
+    })
+      .then((res) => {
+        if (cancelled) return;
+        const km = Number((res.data as { distanceKm?: number })?.distanceKm);
+        setDistanceKm(Number.isFinite(km) ? km : 0);
+      })
+      .catch(() => { if (!cancelled) setDistanceKm(0); });
+    return () => { cancelled = true; };
+  }, [address.selected, store, isPlan1, storeId]);
 
   const canPlace = isPlan1 ? true : distanceKm >= 0.1;
 

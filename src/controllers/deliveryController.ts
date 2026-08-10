@@ -18,6 +18,7 @@ import { addCommissionToAppCashbox } from './appCashboxController';
 import { emitDeliveryStatusChanged, emitDeliveryUpdated, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged, emitDeliveryAssigned } from '../utils/socketEmitter';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { isDeliveryWithinRadius } from '../services/dispatch';
+import { geoVisiblePendingIds } from '../services/dispatchGeo';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
@@ -736,14 +737,25 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
       ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
       : null;
 
-    const pendingAll = (await prisma.delivery.findMany({
-      where: { status: 'pending', motoboyId: null },
-      orderBy: { createdAt: 'asc' },
-      take: 200,
-    })).map(toApiDelivery);
+    // Caminho PostGIS (flag GEO_DISPATCH='postgis'): filtra por raio no BANCO via
+    // ST_DWithin + índice GiST. Retorna null se desligado/sem GPS/erro → cai no
+    // filtro JS (haversine) legado abaixo, com comportamento idêntico.
+    const geoIds = await geoVisiblePendingIds(motoboyLoc);
 
-    const now = Date.now();
-    const visible = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now));
+    let visible: any[];
+    if (geoIds) {
+      const rows = (await prisma.delivery.findMany({ where: { id: { in: geoIds } } })).map(toApiDelivery);
+      const byId = new Map(rows.map((r: any) => [String(r._id ?? r.id), r]));
+      visible = geoIds.map((id) => byId.get(id)).filter(Boolean); // preserva a ordem do SQL (createdAt asc)
+    } else {
+      const pendingAll = (await prisma.delivery.findMany({
+        where: { status: 'pending', motoboyId: null },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      })).map(toApiDelivery);
+      const now = Date.now();
+      visible = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now));
+    }
 
     const total = visible.length;
     const deliveries = visible.slice(skip, skip + limit);

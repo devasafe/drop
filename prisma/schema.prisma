@@ -357,6 +357,8 @@ model Address {
   cep          String
   latitude     String
   longitude    String
+  // PostGIS: coluna `geom` criada pelo script manual prisma/manual/postgis_geo.sql
+  // (fora do schema de propósito). Ver Store.geom acima.
   isDefault    Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -378,6 +380,9 @@ model Store {
   cnpj                 String?
   latitude             String?
   longitude            String?
+  // PostGIS: coluna `geom geography(Point,4326)` existe no banco APÓS rodar o script
+  // manual prisma/manual/postgis_geo.sql — NÃO fica no schema de propósito (evita que
+  // migrate dev/deploy tente criá-la sem PostGIS). Lida via SQL bruto (dispatchGeo).
   stockType            StockType @default(internal)
   apiConfig            Json?
   plan                 Int?      @default(1)
@@ -467,6 +472,7 @@ model Order {
   subtotal          Decimal?           @db.Decimal(12, 2)
   deliveryFee       Decimal            @db.Decimal(12, 2)
   deliveryDistance  Float?             @default(0)
+  deliveryDuration  Int?               // segundos, da rota (RouteService)
   status            OrderStatus        @default(criado)
   paymentMethod     PaymentMethod?
   debtCollected     Decimal?           @db.Decimal(12, 2)
@@ -580,6 +586,8 @@ model Delivery {
   storeAddress              String?
   storeLatitude             Float?
   storeLongitude            Float?
+  // PostGIS: coluna `storeGeom` (ponto da loja p/ ST_DWithin do dispatch) criada pelo
+  // script manual prisma/manual/postgis_geo.sql — fora do schema. Ver Store.geom.
   customerAddress           String?
   customerLatitude          Float?
   customerLongitude         Float?

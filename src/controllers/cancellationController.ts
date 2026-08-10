@@ -1237,10 +1237,15 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // Plano 2/3: cria delivery se não existir
     let delivery: any = toApiDelivery(await prisma.delivery.findFirst({ where: { orderId: order.id } }));
     if (!delivery) {
-      // ✅ CORRIGIDO: Usar deliveryDistance armazenada no Order + fallback para req.body.distance
-      const distance = req.body?.distance || order.deliveryDistance || 0;
-      const fee = await calculateDeliveryFeeWithConfig(Number(distance || 0));
-      
+      // ✅ FONTE ÚNICA: a taxa e a distância da entrega HERDAM do Order (calculados
+      // por rota no createOrder via RouteService). NÃO confiar em req.body.distance —
+      // era um vetor de divergência/manipulação (mudava a taxa do motoboy no aceite).
+      // Só recalcula se, por algum motivo, o Order não tiver a taxa gravada.
+      const distance = order.deliveryDistance || 0;
+      const fee = order.deliveryFee != null
+        ? Number(order.deliveryFee)
+        : await calculateDeliveryFeeWithConfig(Number(distance || 0));
+
       delivery = toApiDelivery(await prisma.delivery.create({
         data: {
           orderId: order.id,
