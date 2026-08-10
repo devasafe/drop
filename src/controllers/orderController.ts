@@ -379,6 +379,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
             price: it.price,
           })),
         },
+        subtotal, // persistido p/ o resumo financeiro (antes ficava nulo → R$0,00 na tela)
         totalValue,
         deliveryFee,
         deliveryDistance: serverDistanceKm,

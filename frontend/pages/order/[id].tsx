@@ -227,7 +227,14 @@ export default function OrderDetailPage() {
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Subtotal</span>
-            <span className={styles.infoValue}>{fmtMoney(order.subtotal)}</span>
+            {/* order.subtotal não é persistido no pedido (fica nulo → exibia R$0,00).
+                Deriva da soma dos produtos; fallback = total − taxa. Cobre pedidos antigos. */}
+            <span className={styles.infoValue}>{fmtMoney(
+              (order.subtotal != null && Number(order.subtotal) > 0)
+                ? Number(order.subtotal)
+                : (order.products?.reduce((s: number, p: any) => s + (Number(p.price) || 0) * (Number(p.quantity) || 0), 0)
+                    || Math.max(0, Number(order.totalValue || 0) - Number(order.deliveryFee || 0)))
+            )}</span>
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Taxa de Entrega</span>
