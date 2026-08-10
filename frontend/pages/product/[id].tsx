@@ -281,8 +281,8 @@ export default function ProductPage() {
 
       </div>
 
-      <div className={styles.detail}>
-      {/* Breadcrumb */}
+      {/* Breadcrumb — no desktop vira faixa full-width no topo (acima das 2
+          colunas); no mobile segue logo abaixo da galeria, como antes. */}
       <nav className={styles.breadcrumb} aria-label="Navegação estrutural">
         <Link href="/" className={styles.breadcrumbLink}>Produtos</Link>
         {store && (
@@ -297,6 +297,7 @@ export default function ProductPage() {
         <span className={styles.breadcrumbCurrent}>{product.name}</span>
       </nav>
 
+      <div className={styles.detail}>
       {/* Informações */}
       <section className={styles.info}>
         {product.categoryName && <Tag>{product.categoryName}</Tag>}
