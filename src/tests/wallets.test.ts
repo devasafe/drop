@@ -64,6 +64,9 @@ async function createUserAndLogin(
     name: 'Wallet User',
     email: `wallet-${Date.now()}-${Math.random().toString(36).slice(2)}@wal.test`,
     password: 'Senha123!',
+    // Consentimento LGPD — registerSchema exige estes campos (ver authController).
+    acceptedTermsVersion: '1.0',
+    acceptedPrivacyVersion: '1.0',
     ...overrides,
   };
 

@@ -48,7 +48,12 @@ async function createUser(role: string) {
 // Antes do fix: creditava motoboyWallet.balance cru, que era sobrescrito
 // pela reconciliação (Payout) em getMotoboyWallet → compensação sumia.
 // Depois do fix: vira um Payout 'released' (reconciliável e sacável) e a
-// multa inteira entra no AppCashbox p/ dar lastro.
+// taxa inteira entra no AppCashbox p/ dar lastro.
+//
+// POLÍTICA ATUAL (calculateCancellationFee, ator 'customer' com motoboy em rota):
+// a taxa do cancelamento tardio do cliente É o VALOR DA ENTREGA e vai INTEIRA pro
+// motoboy (ele rodou a ida; a volta absorve). O app não fica com nada (appShare=0).
+// O cliente é reembolsado do total menos a taxa. (Antes: 10% do total, split 50/50.)
 // ============================================================
 describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)', () => {
   it('cria a compensação como Payout released e financia o AppCashbox com a multa inteira', async () => {
@@ -70,7 +75,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
       storeId: store.id,
       items: { create: [{ productId: await productIdForItem('@late.test', 200), quantity: 1, price: 200 }] },
       totalValue: 200,
-      deliveryFee: 0,
+      deliveryFee: 20, // política atual: a multa do cancelamento tardio do cliente É a entrega
       status: 'enviado',
       paymentMethod: 'pix',
       paymentStatus: 'paid',
@@ -78,7 +83,7 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     }, include: { items: true } });
 
     const delivery = await prisma.delivery.create({
-      data: { orderId: order.id, motoboyId: motoboy.id, fee: 0, status: 'picked' },
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 20, status: 'picked' },
     });
     await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
@@ -91,17 +96,21 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
     expect(res.body.status).toBe('cancelado');
     expect(res.body.isLateCancellation).toBe(true);
 
-    // Config padrão: 10% do total = R$20 de multa; 50% (R$10) p/ o motoboy, 50% (R$10) app.
-    // PROVA #1: existe um Payout 'released' do motoboy com a compensação.
+    // Política atual: taxa = ENTREGA (R$20), 100% pro motoboy, app zero.
+    // Refund ao cliente = total − taxa = 200 − 20 = 180.
+    expect(res.body.refundAmount).toBeCloseTo(180, 2);
+
+    // PROVA #1: existe um Payout 'released' do motoboy com a compensação = entrega cheia (R$20).
     const compPayout = await findPayout({
       recipientType: 'motoboy',
       recipientId: motoboy.id,
       status: 'released',
     });
     expect(compPayout).not.toBeNull();
-    expect(compPayout!.amount).toBeCloseTo(10, 2);
+    expect(compPayout!.amount).toBeCloseTo(20, 2);
 
-    // PROVA #1 (lastro): o AppCashbox recebeu a multa INTEIRA (R$20), não só o appShare (R$10).
+    // PROVA #1 (lastro): o AppCashbox recebeu a taxa INTEIRA (R$20) como income — dá lastro
+    // ao Payout do motoboy; o líquido da plataforma é zero (appShare = 0).
     const cashbox = await findAppCashbox();
     const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
     expect(feeEntry).toBeTruthy();
@@ -112,6 +121,6 @@ describe('Cancelamento tardio pelo cliente — compensação do motoboy (bug #1)
       .get(`/api/wallets/motoboy/${motoboy.id}`)
       .set('Authorization', `Bearer ${motoboy.token}`);
     expect(walletRes.status).toBe(200);
-    expect(walletRes.body.availableBalance).toBeCloseTo(10, 2);
+    expect(walletRes.body.availableBalance).toBeCloseTo(20, 2);
   });
 });

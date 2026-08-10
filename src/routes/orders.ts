@@ -1,7 +1,7 @@
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order } from '../controllers/orderController';
+import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order, quoteDelivery } from '../controllers/orderController';
 import {
   cancelOrderByCustomer,
   acceptOrderByStore,
@@ -35,6 +35,8 @@ const createOrderLimiter = rateLimit({
 // ✅ NOVO: Adicionar validação Zod antes de processar
 // requireActiveUser: bloquear compra de user com conta bloqueada (check no DB)
 router.post('/', authenticate, requireActiveUser, createOrderLimiter, validate(CreateOrderSchema), createOrder);
+// Orçamento da entrega (preview do checkout) — mesma fonte da cobrança final.
+router.post('/quote', authenticate, quoteDelivery);
 router.get('/', authenticate, listOrders);
 
 // ========== ANALYTICS ==========

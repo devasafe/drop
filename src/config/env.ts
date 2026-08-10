@@ -33,6 +33,13 @@ const envSchema = z.object({
   // Redis (optional)
   REDIS_URL: z.string().optional(),
 
+  // 🗺️ Geo / Rotas
+  GOOGLE_MAPS_API_KEY: z.string().optional(), // usada pelo RouteService (Routes API)
+  ROUTE_TRAVEL_MODE: z.string().default('DRIVE'), // DRIVE | TWO_WHEELER
+  // Motor de despacho por proximidade: 'haversine' (JS, padrão) ou 'postgis'
+  // (ST_DWithin no banco — requer o script manual prisma/manual/postgis_geo.sql).
+  GEO_DISPATCH: z.enum(['haversine', 'postgis']).default('haversine'),
+
   // Payout Gateway (SAÍDA — saque pra conta do recebedor)
   PAYOUT_GATEWAY: z.enum(['manual', 'asaas', 'pagarme', 'efi']).default('manual'),
 
@@ -121,6 +128,9 @@ export const env = (() => {
         AUTH_LIMITER_MAX: 5,
         AUTH_LIMITER_WINDOW_MS: 900000,
         REDIS_URL: undefined,
+        GOOGLE_MAPS_API_KEY: undefined,
+        ROUTE_TRAVEL_MODE: 'DRIVE',
+        GEO_DISPATCH: 'haversine' as const,
         PAYOUT_GATEWAY: 'manual' as const,
         PAYMENT_GATEWAY: 'none' as const,
         ASAAS_API_KEY: undefined,
