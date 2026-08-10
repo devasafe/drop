@@ -34,6 +34,38 @@
   object-fit: contain;
 }
 
+/* ── Center: navegação principal do cliente (desktop) ──── */
+.center {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .center {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+}
+
+.navLink {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-subtle);
+  text-decoration: none;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.navLink:hover {
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--text-strong) 8%, transparent);
+}
+
+.navLinkActive {
+  color: var(--brand-2);
+}
+
 /* ── Right ─────────────────────────────────────────────── */
 .right {
   display: flex;

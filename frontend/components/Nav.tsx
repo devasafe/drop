@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
 import AccountMenuButton from './nav/AccountMenuButton';
-import { getNavItems, ROLE_HOME, Role } from '../lib/navConfig';
+import { getNavItems, ROLE_HOME, Role, GUEST_BOTTOM_NAV, isItemActive } from '../lib/navConfig';
 import Icon from './Icon';
 import styles from './Nav.module.css';
 
@@ -26,6 +27,7 @@ function CountPill({ count }: { count: number }) {
 export default function Nav() {
   const { user, can } = useAuth() || {};
   const overlay = useOverlay();
+  const router = useRouter();
   const { unreadCount: unread } = useNotifications();
   const badges = useBadgeCounts();
 
@@ -34,6 +36,12 @@ export default function Nav() {
   // A logo leva cada role à SUA Home (lojista/motoboy → painel; cliente → /inicio;
   // admin/ceo e admins delegados → painel admin).
   const homeHref = ROLE_HOME[activeRole] ?? (isAdmin ? ROLE_HOME.ceo : ROLE_HOME.cliente);
+
+  // Miolo da navbar (desktop): os destinos principais do cliente — que no mobile
+  // vivem na bottom bar. Só aparece pra cliente logado ou deslogado (lojista/
+  // motoboy/admin navegam pela AppSidebar). Some no mobile (a bottom bar cobre).
+  const showCustomerLinks = !user || activeRole === 'cliente';
+  const clienteNavItems = getNavItems('cliente', () => true, false).filter((i) => i.placement.includes('bottomNav'));
 
   return (
     <>
@@ -44,6 +52,38 @@ export default function Nav() {
         <Link href={homeHref} className={styles.logo}>
           <img src="/images/logog_png.png" alt="DROP" />
         </Link>
+
+        {/* Miolo: navegação principal do cliente (desktop). No mobile some — a
+            bottom bar cobre esses destinos. */}
+        {showCustomerLinks && (
+          <div className={styles.center}>
+            {user
+              ? clienteNavItems.map((item) => {
+                  const active = isItemActive(item, router.pathname, router.query as any);
+                  return (
+                    <Link
+                      key={item.route}
+                      href={item.route}
+                      className={[styles.navLink, active && styles.navLinkActive].filter(Boolean).join(' ')}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })
+              : GUEST_BOTTOM_NAV.filter((g) => g.key !== 'entrar').map((g) => {
+                  const active = router.pathname === g.route;
+                  return (
+                    <Link
+                      key={g.route}
+                      href={g.route}
+                      className={[styles.navLink, active && styles.navLinkActive].filter(Boolean).join(' ')}
+                    >
+                      {g.label}
+                    </Link>
+                  );
+                })}
+          </div>
+        )}
 
         {/* Right Section */}
         <div className={styles.right}>
