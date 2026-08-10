@@ -1,0 +1,55 @@
+.wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #0a0a0e; /* fundo Drop enquanto os tiles carregam */
+  overflow: hidden;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Atribuição (OSM/MapTiler) discreta, no tom da marca — obrigatória por ToS. */
+.canvas :global(.maplibregl-ctrl-attrib) {
+  background: rgba(10, 10, 14, 0.55);
+  color: #6c6c77;
+  font-size: 10px;
+  border-radius: 6px 0 0 0;
+}
+.canvas :global(.maplibregl-ctrl-attrib a) {
+  color: #8b8b96;
+}
+.canvas :global(.maplibregl-canvas) {
+  outline: none;
+}
+
+.notice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: #c9c9d2;
+}
+.notice strong {
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+.notice span {
+  max-width: 360px;
+  color: #8b8b96;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notice code {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
