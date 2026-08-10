@@ -34,6 +34,18 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   await prisma.wallet.deleteMany({ where: { owner: { in: [...ids, ...storeIds] } } });
   await prisma.payout.deleteMany({ where: { recipientId: { in: [...ids, ...storeIds] } } });
 
+  // Delivery e Cancellation referenciam orderId/motoboyId por String (sem FK cascade):
+  // se apagarmos só o Order, viram ÓRFÃS e poluem o banco de dev entre rodadas — o job
+  // de pool timeout (varre Delivery status='pending') passava a topar lixo antigo e
+  // saturava o `take:100` antes de chegar na entrega do teste. Removê-las ANTES do Order.
+  const suiteOrders = await prisma.order.findMany({
+    where: { OR: [{ customerId: { in: ids } }, { storeId: { in: storeIds } }] },
+    select: { id: true },
+  });
+  const orderIds = suiteOrders.map((o) => o.id);
+  await prisma.cancellation.deleteMany({ where: { orderId: { in: orderIds } } });
+  await prisma.delivery.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { motoboyId: { in: ids } }] } });
+
   await prisma.order.deleteMany({
     where: { OR: [{ customerId: { in: ids } }, { storeId: { in: storeIds } }] },
   });
