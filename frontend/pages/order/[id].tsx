@@ -8,7 +8,14 @@ import AuthContext from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import api from '../../lib/api';
 import { paymentMethodLabel } from '../../lib/paymentLabel';
+import dynamic from 'next/dynamic';
 import styles from '../OrderDetail.module.css';
+
+// Drop Maps (MapLibre/WebGL) só no client.
+const ClienteTrackingMap = dynamic(
+  () => import('../../components/map/presets/ClienteTrackingMap').then((m) => m.ClienteTrackingMap),
+  { ssr: false }
+);
 
 interface PayoutInfo {
   _id: string;
@@ -31,6 +38,7 @@ export default function OrderDetailPage() {
   const { user } = useContext(AuthContext);
   const { on } = useSocket();
   const [returnInitiated, setReturnInitiated] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [payouts, setPayouts] = useState<PayoutInfo[]>([]);
   const [payoutsLoading, setPayoutsLoading] = useState(false);
 
@@ -161,6 +169,29 @@ export default function OrderDetailPage() {
           </span>
           <span className={styles.dateCreated}>Criado em {fmt(order.createdAt)}</span>
         </div>
+
+        {/* Drop Maps — acompanhar entrega no mapa (só com entrega ativa) */}
+        {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
+          <button
+            type="button"
+            onClick={() => setMapOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              width: '100%', margin: '4px 0 16px', padding: '14px 16px',
+              borderRadius: 14, border: '1px solid rgba(139,92,246,0.35)',
+              background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#fff',
+              fontSize: 15, fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+              <path d="M9 20l-6 2V6l6-2 6 2 6-2v16l-6 2-6-2zM9 4v16M15 6v16" />
+            </svg>
+            Acompanhar no mapa
+          </button>
+        )}
+
+        {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
 
         {/* ─── Informacoes gerais ─── */}
         <div className={styles.infoCard}>

@@ -1,0 +1,92 @@
+.card {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(14, 14, 18, 0.82);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  color: #e7e7ee;
+  z-index: 5;
+}
+
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(168, 85, 247, 0.6);
+  background: #26262b;
+  flex-shrink: 0;
+}
+.avatarFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #c4b5fd;
+  font-size: 20px;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.name {
+  font-size: 15px;
+  color: #fff;
+}
+.name strong {
+  font-weight: 700;
+}
+.meta {
+  font-size: 12px;
+  color: #8b8b96;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rating {
+  color: #fbbf24;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 4px;
+}
+.action {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e7e7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-decoration: none;
+}
+.action:hover {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+}
+
+@media (max-width: 560px) {
+  .card {
+    right: 12px;
+    left: 12px;
+    bottom: 168px; /* acima do TrackingCard no mobile */
+  }
+}

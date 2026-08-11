@@ -1,0 +1,77 @@
+.marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7C3AED, #A855F7);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+}
+
+.pin {
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: linear-gradient(135deg, #7C3AED, #A855F7);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pin::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Motoboy: círculo branco com ícone + anel pulsante */
+.moto {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  border: 2px solid #A855F7;
+}
+.moto::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(168, 85, 247, 0.5);
+  animation: dropPulse 1.8s ease-out infinite;
+}
+
+@keyframes dropPulse {
+  0% { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e7e7ee;
+  background: rgba(10, 10, 14, 0.72);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
