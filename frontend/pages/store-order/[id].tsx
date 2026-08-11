@@ -248,7 +248,13 @@ export default function StoreOrderStatus() {
             <div className={styles.colMain}>
             <section className={styles.section}>
               <OrderStatusHero
-                statusLabel={currentStepLabel(t.steps)}
+                statusLabel={
+                  order.status === 'cancelado'
+                    ? 'Cancelado'
+                    : order.status === 'rejeitado'
+                      ? 'Rejeitado'
+                      : currentStepLabel(t.steps)
+                }
                 statusTone={t.statusTone}
                 message={t.statusLabel}
               />
