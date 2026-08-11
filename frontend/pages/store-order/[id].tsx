@@ -22,6 +22,13 @@ import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet'
 import { CancelOrderSheet } from '../../components/drop/order/CancelOrderSheet';
 import { CancellationStatus, type CancellationInfo } from '../../components/drop/order/CancellationStatus';
 import styles from './StoreOrderStatus.module.css';
+import dynamic from 'next/dynamic';
+
+// Drop Maps (MapLibre/WebGL) só no client.
+const ClienteTrackingMap = dynamic(
+  () => import('../../components/map/presets/ClienteTrackingMap').then((m) => m.ClienteTrackingMap),
+  { ssr: false }
+);
 
 // Status em que o cliente ainda pode pedir cancelamento — mesma regra do
 // `CancelOrderModal`, mantida aqui só pra decidir se o botão aparece.
@@ -47,6 +54,7 @@ export default function StoreOrderStatus() {
   const { showToast } = useToast();
   const t = useOrderTracking(id);
   const { cancelOrder, getCancellationHistory } = useCancellation();
+  const [mapOpen, setMapOpen] = useState(false);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -266,16 +274,28 @@ export default function StoreOrderStatus() {
               />
             </section>
 
-            {t.showMap && (
+            {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
               <section className={styles.section}>
-                <MotoboyMap
-                  motoboy={t.motoboyPos ?? undefined}
-                  store={storeCoords}
-                  customer={customerCoords}
-                  height={280}
-                />
+                <button
+                  type="button"
+                  onClick={() => setMapOpen(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', padding: '14px 16px', borderRadius: 14,
+                    border: '1px solid rgba(139,92,246,0.35)',
+                    background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#fff',
+                    fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                    <path d="M9 20l-6 2V6l6-2 6 2 6-2v16l-6 2-6-2zM9 4v16M15 6v16" />
+                  </svg>
+                  Acompanhar no mapa
+                </button>
               </section>
             )}
+            {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
 
             {showPixButton && (
               <section className={styles.section}>
