@@ -45,6 +45,10 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
     map.on('load', () => {
       setReady(true);
       onReady?.(map);
+      // Segurança: força um resize após o layout assentar (evita canvas com
+      // dimensão errada quando o container ainda estava medindo no init).
+      requestAnimationFrame(() => map.resize());
+      setTimeout(() => map.resize(), 250);
     });
 
     const ro = new ResizeObserver(() => map.resize());
