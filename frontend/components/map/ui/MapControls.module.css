@@ -1,0 +1,56 @@
+.controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 5;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(18, 18, 22, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #e7e7ee;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.btn + .btn {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.locate {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(18, 18, 22, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #a855f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.locate:hover {
+  background: rgba(168, 85, 247, 0.14);
+}

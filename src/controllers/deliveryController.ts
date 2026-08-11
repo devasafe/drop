@@ -642,7 +642,27 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
 
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
-    
+
+    // Dados públicos do motoboy p/ o card do entregador (Drop Maps). Só o essencial:
+    // nome, foto, placa (verification.courier) e nota média (das entregas avaliadas).
+    let motoboyObj: any = null;
+    if (delivery.motoboyId) {
+      const mb = await userRepository.findById(String(delivery.motoboyId)) as any;
+      if (mb) {
+        const agg = await prisma.delivery.aggregate({
+          where: { motoboyId: String(delivery.motoboyId), rating: { not: null } },
+          _avg: { rating: true },
+        });
+        motoboyObj = {
+          _id: mb.id,
+          name: mb.name,
+          photo: mb.photo || null,
+          plate: mb.verification?.courier?.plate || null,
+          rating: agg._avg.rating != null ? Math.round(Number(agg._avg.rating) * 10) / 10 : null,
+        };
+      }
+    }
+
     // ✅ NOVO: Obter endereço padrão para fallback
     const defaultAddress = customerObj ? getDefaultAddress(customerObj) : null;
 
@@ -668,6 +688,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
         mainAddress: defaultAddress,
         addresses: customerObj.addresses
       } : null,
+      motoboyObj,
       // Campos para frontend
       pickupAddress: storeObj ? `${storeObj.name || ''} - ${storeObj.address || ''}` : '-',
       pickupLat: storeObj?.latitude ? parseFloat(storeObj.latitude) : null,
