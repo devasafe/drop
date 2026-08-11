@@ -155,16 +155,17 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
         <span className={styles.legendItem}><span className={styles.swDot} /> Você / Loja</span>
       </div>
 
-      <TrackingCard
-        etaText={etaText(order?.deliveryDuration)}
-        statusBadge={statusBadge(order?.status, delivery?.status)}
-        steps={deriveSteps(order?.status, delivery?.status, !!delivery)}
-        storeName={order?.store?.name || delivery?.storeObj?.name}
-        orderCode={orderCode}
-        distanceText={distanceText}
-      />
-
-      {hasCourier && <CourierCard courier={mb} />}
+      <div className={styles.dock}>
+        <TrackingCard
+          etaText={etaText(order?.deliveryDuration)}
+          statusBadge={statusBadge(order?.status, delivery?.status)}
+          steps={deriveSteps(order?.status, delivery?.status, !!delivery)}
+          storeName={order?.store?.name || delivery?.storeObj?.name}
+          orderCode={orderCode}
+          distanceText={distanceText}
+        />
+        {hasCourier && <CourierCard courier={mb} />}
+      </div>
     </div>
   );
 
