@@ -1,9 +1,6 @@
 .card {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
   width: 420px;
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
   padding: 20px;
   border-radius: 20px;
   background: rgba(14, 14, 18, 0.82);
@@ -11,7 +8,6 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   color: #e7e7ee;
-  z-index: 5;
 }
 
 .head {
@@ -117,12 +113,9 @@
   color: #8b8b96;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 760px) {
   .card {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: auto;
+    width: 100%;
     padding: 16px;
   }
   .eta {

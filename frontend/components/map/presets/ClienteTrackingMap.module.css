@@ -72,6 +72,35 @@
   border: 2px solid #A855F7;
 }
 
+/* Dock dos cards de baixo: no desktop lado a lado (ETA à esq., motoboy à dir.);
+   no mobile empilhados (motoboy em cima, ETA embaixo) — sem sobreposição. */
+.dock {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+.dock > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 760px) {
+  .dock {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
+
 .placeholder {
   position: absolute;
   inset: 0;
