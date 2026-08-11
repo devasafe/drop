@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import 'maplibre-gl/dist/maplibre-gl.css'; // base do Drop Maps (canvas/controles/atribuição)
 import Head from 'next/head';
 import type { AppProps } from 'next/app';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
