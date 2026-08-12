@@ -17,9 +17,11 @@ import { mapConfig } from '../../../lib/mapConfig';
 const C = {
   bg: '#0a0a0e',
   water: '#0c1226',
-  wood: '#122318',
-  grass: '#12211a',
-  park: '#14291d',
+  // Verde discreto: em Cabo Frio/restinga há polígonos de mata/proteção que cobrem
+  // bairros inteiros — mantê-los como tom sutil (não cobertor verde). Ver opacidades abaixo.
+  wood: '#0f1d15',
+  grass: '#0f1b14',
+  park: '#15271b',
   building: '#131319',
   // vias (hierarquia: motorway/trunk mais claro → local mais escuro).
   // Contraste aumentado (aprovado): avenidas/marginais mais claras p/ a malha "saltar".
@@ -58,12 +60,12 @@ export function buildDropDarkStyle(key: string): StyleSpecification {
       // ── Verde (vegetação/parques) — desenhado ANTES da água ──
       { id: 'wood', type: 'fill', source, 'source-layer': 'landcover',
         filter: ['==', ['get', 'class'], 'wood'],
-        paint: { 'fill-color': C.wood, 'fill-opacity': 0.7 } },
+        paint: { 'fill-color': C.wood, 'fill-opacity': 0.4 } },
       { id: 'grass', type: 'fill', source, 'source-layer': 'landcover',
         filter: ['in', ['get', 'class'], ['literal', ['grass', 'scrub']]],
-        paint: { 'fill-color': C.grass, 'fill-opacity': 0.6 } },
+        paint: { 'fill-color': C.grass, 'fill-opacity': 0.3 } },
       { id: 'park', type: 'fill', source, 'source-layer': 'park',
-        paint: { 'fill-color': C.park, 'fill-opacity': 0.8 } },
+        paint: { 'fill-color': C.park, 'fill-opacity': 0.5 } },
 
       // ── Água POR CIMA do verde: cobre polígonos de parque/reserva marinha que
       //    se estendem sobre o mar (senão apareciam como "quadrados verdes" no mar). ──
