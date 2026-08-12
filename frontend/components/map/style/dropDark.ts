@@ -16,17 +16,18 @@ import { mapConfig } from '../../../lib/mapConfig';
 // Paleta Drop (dark)
 const C = {
   bg: '#0a0a0e',
-  water: '#0b1020',
-  wood: '#0f1e17',
-  grass: '#101d16',
-  park: '#12241a',
+  water: '#0c1226',
+  wood: '#122318',
+  grass: '#12211a',
+  park: '#14291d',
   building: '#131319',
-  // vias (hierarquia: motorway/trunk mais claro → local mais escuro)
-  roadMotorway: '#3c3c46',
-  roadPrimary: '#33333c',
-  roadSecondary: '#2b2b31',
-  roadTertiary: '#232329',
-  roadMinor: '#1c1c21',
+  // vias (hierarquia: motorway/trunk mais claro → local mais escuro).
+  // Contraste aumentado (aprovado): avenidas/marginais mais claras p/ a malha "saltar".
+  roadMotorway: '#565663',
+  roadPrimary: '#45454f',
+  roadSecondary: '#34343c',
+  roadTertiary: '#28282f',
+  roadMinor: '#1e1e24',
   roadCasing: '#0e0e12',
   rail: '#1a1a1f',
   boundary: '#2a2a34',
@@ -118,7 +119,7 @@ export function buildDropDarkStyle(key: string): StyleSpecification {
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-color': C.roadMotorway,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 14, 7, 18, 22],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 14, 8, 18, 24],
         } },
       { id: 'rail', type: 'line', source, 'source-layer': 'transportation',
         filter: ['==', ['get', 'class'], 'rail'], minzoom: 12,
