@@ -55,11 +55,7 @@ export function buildDropDarkStyle(key: string): StyleSpecification {
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': C.bg } },
 
-      // ── Água / verde ──
-      { id: 'water', type: 'fill', source, 'source-layer': 'water',
-        paint: { 'fill-color': C.water } },
-      { id: 'waterway', type: 'line', source, 'source-layer': 'waterway',
-        paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 16, 2] } },
+      // ── Verde (vegetação/parques) — desenhado ANTES da água ──
       { id: 'wood', type: 'fill', source, 'source-layer': 'landcover',
         filter: ['==', ['get', 'class'], 'wood'],
         paint: { 'fill-color': C.wood, 'fill-opacity': 0.7 } },
@@ -68,6 +64,13 @@ export function buildDropDarkStyle(key: string): StyleSpecification {
         paint: { 'fill-color': C.grass, 'fill-opacity': 0.6 } },
       { id: 'park', type: 'fill', source, 'source-layer': 'park',
         paint: { 'fill-color': C.park, 'fill-opacity': 0.8 } },
+
+      // ── Água POR CIMA do verde: cobre polígonos de parque/reserva marinha que
+      //    se estendem sobre o mar (senão apareciam como "quadrados verdes" no mar). ──
+      { id: 'water', type: 'fill', source, 'source-layer': 'water',
+        paint: { 'fill-color': C.water } },
+      { id: 'waterway', type: 'line', source, 'source-layer': 'waterway',
+        paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 16, 2] } },
 
       // ── Prédios (sutis, só em zoom alto) ──
       { id: 'building', type: 'fill', source, 'source-layer': 'building',
