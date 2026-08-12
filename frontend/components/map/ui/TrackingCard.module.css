@@ -10,6 +10,12 @@
   color: #e7e7ee;
 }
 
+/* Variante p/ dentro do bottom-sheet: o sheet já provê fundo/borda/padding. */
+.bare {
+  width: 100%;
+  color: #e7e7ee;
+}
+
 .head {
   display: flex;
   align-items: flex-start;
