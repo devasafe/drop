@@ -12,6 +12,8 @@ interface Props {
   store?: LatLng | null;
   customer?: LatLng | null;
   motoboy?: LatLng | null;
+  storeLabel?: string;
+  customerLabel?: string;
 }
 
 const ICON_STORE =
@@ -31,7 +33,7 @@ function makeEl(inner: string): HTMLDivElement {
  * (DOM, sem sprite). O motoboy MOVE com tween (requestAnimationFrame) entre a
  * última e a nova posição — não recria o marcador nem re-renderiza o mapa.
  */
-export function MarkersLayer({ store, customer, motoboy }: Props) {
+export function MarkersLayer({ store, customer, motoboy, storeLabel = 'Loja', customerLabel = 'Você' }: Props) {
   const map = useDropMap();
   const storeRef = useRef<Marker | null>(null);
   const custRef = useRef<Marker | null>(null);
@@ -44,7 +46,7 @@ export function MarkersLayer({ store, customer, motoboy }: Props) {
     if (!map || !store) return;
     if (!storeRef.current) {
       storeRef.current = new Marker({
-        element: makeEl(`<div class="${styles.badge}">${ICON_STORE}</div><span class="${styles.label}">Loja</span>`),
+        element: makeEl(`<div class="${styles.badge}">${ICON_STORE}</div><span class="${styles.label}">${storeLabel}</span>`),
         anchor: 'bottom',
       })
         .setLngLat([store.lng, store.lat])
@@ -59,7 +61,7 @@ export function MarkersLayer({ store, customer, motoboy }: Props) {
     if (!map || !customer) return;
     if (!custRef.current) {
       custRef.current = new Marker({
-        element: makeEl(`<div class="${styles.pin}"></div><span class="${styles.label}">Você</span>`),
+        element: makeEl(`<div class="${styles.pin}"></div><span class="${styles.label}">${customerLabel}</span>`),
         anchor: 'bottom',
       })
         .setLngLat([customer.lng, customer.lat])

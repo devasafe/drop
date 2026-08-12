@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -67,6 +67,7 @@ router.get('/history', authenticate, authorizeRoles('motoboy'), listHistoryDeliv
 
 // ========== DETAILS ==========
 // get delivery
+router.get('/:id/route', authenticate, authorizeRoles('motoboy'), getDeliveryNavRoute);
 router.get('/:id', authenticate, getDelivery);
 
 export default router;
