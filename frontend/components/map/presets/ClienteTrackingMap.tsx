@@ -6,9 +6,11 @@ import DropMap from '../DropMap';
 import { RouteLayer } from '../layers/RouteLayer';
 import { MarkersLayer, LatLng } from '../layers/MarkersLayer';
 import { MapControls } from '../ui/MapControls';
+import { MapSheet } from '../ui/MapSheet';
 import { TrackingCard, TrackingStep } from '../ui/TrackingCard';
 import { CourierCard, CourierInfo } from '../ui/CourierCard';
 import { useSocket } from '../../../contexts/SocketContext';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { parseCoords } from '../../../lib/geo';
 import api from '../../../lib/api';
 import styles from './ClienteTrackingMap.module.css';
@@ -56,6 +58,7 @@ function etaText(durationSeconds?: number): string {
  */
 export function ClienteTrackingMap({ order, onClose }: Props) {
   const { on } = useSocket();
+  const isMobile = useIsMobile();
   const [mounted, setMounted] = useState(false);
   const [delivery, setDelivery] = useState<any>(null);
   const [motoboy, setMotoboy] = useState<LatLng | null>(null);
@@ -122,6 +125,15 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
   const orderCode = order?._id ? `#${String(order._id).slice(-6).toUpperCase()}` : undefined;
   const distanceText = order?.deliveryDistance ? `${Number(order.deliveryDistance).toFixed(1).replace('.', ',')} km` : undefined;
 
+  const trackingProps = {
+    etaText: etaText(order?.deliveryDuration),
+    statusBadge: statusBadge(order?.status, delivery?.status),
+    steps: deriveSteps(order?.status, delivery?.status, !!delivery),
+    storeName: order?.store?.name || delivery?.storeObj?.name,
+    orderCode,
+    distanceText,
+  };
+
   const center = store || customer || undefined;
 
   const overlay = (
@@ -155,17 +167,23 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
         <span className={styles.legendItem}><span className={styles.swDot} /> Você / Loja</span>
       </div>
 
-      <div className={styles.dock}>
-        <TrackingCard
-          etaText={etaText(order?.deliveryDuration)}
-          statusBadge={statusBadge(order?.status, delivery?.status)}
-          steps={deriveSteps(order?.status, delivery?.status, !!delivery)}
-          storeName={order?.store?.name || delivery?.storeObj?.name}
-          orderCode={orderCode}
-          distanceText={distanceText}
-        />
-        {hasCourier && <CourierCard courier={mb} />}
-      </div>
+      {isMobile ? (
+        <>
+          {hasCourier && (
+            <div className={styles.courierMobile}>
+              <CourierCard courier={mb} />
+            </div>
+          )}
+          <MapSheet>
+            <TrackingCard {...trackingProps} bare />
+          </MapSheet>
+        </>
+      ) : (
+        <div className={styles.dock}>
+          <TrackingCard {...trackingProps} />
+          {hasCourier && <CourierCard courier={mb} />}
+        </div>
+      )}
     </div>
   );
 

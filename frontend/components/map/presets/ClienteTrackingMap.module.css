@@ -111,7 +111,16 @@
   font-size: 14px;
 }
 
-@media (max-width: 560px) {
+/* Card do motoboy flutuando acima do peek do bottom-sheet (mobile). */
+.courierMobile {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 128px;
+  z-index: 5;
+}
+
+@media (max-width: 760px) {
   .legend {
     display: none;
   }

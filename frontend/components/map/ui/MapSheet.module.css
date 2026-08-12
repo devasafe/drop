@@ -1,0 +1,35 @@
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  background: rgba(14, 14, 18, 0.92);
+  backdrop-filter: blur(20px);
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55);
+  padding: 0 16px 20px;
+  color: #e7e7ee;
+  touch-action: none;
+  will-change: transform;
+}
+
+.handleArea {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0 8px;
+  cursor: grab;
+  touch-action: none;
+}
+.handleArea:active {
+  cursor: grabbing;
+}
+.handle {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
