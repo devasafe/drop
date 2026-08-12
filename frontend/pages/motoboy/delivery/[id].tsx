@@ -15,7 +15,14 @@ import { formatBRL } from '../../../components/ui/PriceTag';
 import { useDelivery } from '../../../hooks/useSync';
 import { RejectDeliveryModal } from '../../../components/delivery/RejectDeliveryModal';
 import { useSocket } from '../../../contexts/SocketContext';
+import dynamic from 'next/dynamic';
 import styles from './MotoboyDelivery.module.css';
+
+// Drop Maps (MapLibre/WebGL) só no client.
+const MotoboyNavMap = dynamic(
+  () => import('../../../components/map/presets/MotoboyNavMap').then((m) => m.MotoboyNavMap),
+  { ssr: false }
+);
 
 const STATUS_VIEW: Record<string, { label: string; cls: string }> = {
   assigned: { label: 'Aguardando retirada', cls: 'stWaiting' },
@@ -26,6 +33,7 @@ const STATUS_VIEW: Record<string, { label: string; cls: string }> = {
 
 export default function MotoboyDeliveryDetail() {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [cancelledNotification, setCancelledNotification] = useState(false);
@@ -248,25 +256,40 @@ export default function MotoboyDeliveryDetail() {
 
             {currentLocation && storeLat !== null && storeLng !== null && customerLat !== null && customerLng !== null ? (
               <>
-                <MotoboyRouteMap
-                  pointA={{ lat: currentLocation.lat, lng: currentLocation.lng, label: 'Você (A)', color: '#ff5a5f' }}
-                  pointB={{ lat: storeLat, lng: storeLng, label: 'Loja (B)', color: '#ffb020' }}
-                  pointC={{ lat: customerLat, lng: customerLng, label: 'Cliente (C)', color: '#3ddc84' }}
-                  height={360}
-                />
+                <button
+                  type="button"
+                  onClick={() => setNavOpen(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    width: '100%', padding: '16px', borderRadius: 14,
+                    border: '1px solid rgba(139,92,246,0.35)',
+                    background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#fff',
+                    fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                    <path d="M3 11l19-9-9 19-2-8-8-2z" />
+                  </svg>
+                  Abrir navegação
+                </button>
                 <div className={styles.routeHint}>
-                  {delivery.status === 'assigned' && 'Vá até a Loja (B) para retirar o pedido.'}
-                  {delivery.status === 'picked' && 'Vá até o Cliente (C) para entregar o pedido.'}
+                  {delivery.status === 'assigned' && 'Vá até a Loja para retirar o pedido.'}
+                  {delivery.status === 'picked' && 'Vá até o Cliente para entregar o pedido.'}
                 </div>
               </>
             ) : (
               <div className={styles.mapEmpty}>
-                {!currentLocation && 'Não foi possível obter sua localização (A).'}
-                {currentLocation && (storeLat === null || storeLng === null) && 'Sem coordenadas da loja (B).'}
-                {currentLocation && storeLat !== null && storeLng !== null && (customerLat === null || customerLng === null) && 'Sem coordenadas do cliente (C).'}
+                {!currentLocation && 'Não foi possível obter sua localização.'}
+                {currentLocation && (storeLat === null || storeLng === null) && 'Sem coordenadas da loja.'}
+                {currentLocation && storeLat !== null && storeLng !== null && (customerLat === null || customerLng === null) && 'Sem coordenadas do cliente.'}
               </div>
             )}
           </section>
+          )}
+
+          {navOpen && (
+            <MotoboyNavMap delivery={delivery} self={currentLocation} onClose={() => setNavOpen(false)} />
           )}
 
           {/* PIN de retirada */}

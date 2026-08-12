@@ -1,0 +1,102 @@
+.card {
+  width: 460px;
+  max-width: 100%;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(14, 14, 18, 0.9);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  color: #e7e7ee;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.instruction {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+.eta {
+  flex-shrink: 0;
+  text-align: right;
+}
+.etaTime {
+  font-size: 20px;
+  font-weight: 700;
+  color: #c4b5fd;
+  line-height: 1.1;
+}
+.etaDist {
+  font-size: 12px;
+  color: #8b8b96;
+}
+.address {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #8b8b96;
+}
+
+.pinRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.28);
+}
+.pinLabel {
+  font-size: 12px;
+  color: #c4b5fd;
+  font-weight: 600;
+}
+.pinValue {
+  margin-left: auto;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+.navBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e7e7ee;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.navBtn:hover {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+}
+.navBtn.primary {
+  background: linear-gradient(135deg, #7C3AED, #A855F7);
+  border-color: transparent;
+  color: #fff;
+}
+.navBtn.primary:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}

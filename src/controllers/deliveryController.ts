@@ -19,6 +19,7 @@ import { emitDeliveryStatusChanged, emitDeliveryUpdated, emitGamificationPointsE
 import { getDefaultAddress } from '../utils/userHelpers';
 import { isDeliveryWithinRadius } from '../services/dispatch';
 import { geoVisiblePendingIds } from '../services/dispatchGeo';
+import { getRoute } from '../services/routeService';
 import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courierVerification';
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
@@ -796,6 +797,44 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     // eslint-disable-next-line no-console
     console.error('[listAvailableDeliveries] error:', err);
     return res.status(500).json({ error: 'Failed to list available deliveries' });
+  }
+};
+
+// Rota de NAVEGAÇÃO do motoboy: da posição atual dele até o alvo da perna atual
+// (loja se 'assigned', cliente se 'picked'). Reusa o RouteService. O front chama
+// isto ao trocar de perna ou quando o motoboy anda bastante (throttle no client).
+export const getDeliveryNavRoute = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params as any;
+    const userId = req.user?.id;
+    const fromLat = Number((req.query as any).fromLat);
+    const fromLng = Number((req.query as any).fromLng);
+
+    const delivery = await prisma.delivery.findUnique({ where: { id: String(id) } });
+    if (!delivery) return res.status(404).json({ error: 'Entrega não encontrada' });
+    if (String(delivery.motoboyId) !== String(userId)) return res.status(403).json({ error: 'Não é a sua entrega' });
+
+    // Perna atual: antes de retirar vai à LOJA; depois de retirar vai ao CLIENTE.
+    const target = delivery.status === 'picked' ? 'customer' : 'store';
+    const tLat = target === 'store' ? delivery.storeLatitude : delivery.customerLatitude;
+    const tLng = target === 'store' ? delivery.storeLongitude : delivery.customerLongitude;
+
+    const nums = [fromLat, fromLng, Number(tLat), Number(tLng)];
+    if (!nums.every((n) => Number.isFinite(n) && n !== 0)) {
+      return res.json({ target, polyline: null, distanceMeters: 0, durationSeconds: 0, source: null });
+    }
+
+    const route = await getRoute({ origin: { lat: fromLat, lng: fromLng }, destination: { lat: Number(tLat), lng: Number(tLng) } });
+    return res.json({
+      target,
+      polyline: route?.polyline || null,
+      distanceMeters: route?.distanceMeters || 0,
+      durationSeconds: route?.durationSeconds || 0,
+      source: route?.source || null,
+    });
+  } catch (err) {
+    console.error('[getDeliveryNavRoute] error:', err);
+    return res.status(500).json({ error: 'Falha ao calcular rota de navegação' });
   }
 };
 
