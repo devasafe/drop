@@ -2,8 +2,8 @@
   min-height: 100vh;
   background: var(--drop-bg, #0A0A0A);
   padding-bottom: 170px; /* espaço p/ StickyCart + bottom-nav */
-  /* Desktop: coluna centralizada (não afeta o mobile). */
-  max-width: 760px;
+  /* Desktop (padrão iFood): container largo + listas em grid. */
+  max-width: 1200px;
   margin-inline: auto;
 }
 
@@ -34,14 +34,14 @@
 }
 
 .storeList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 12px;
 }
 
 .productList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 10px;
 }
 
