@@ -10,9 +10,9 @@
   /* espaço suficiente p/ o conteúdo não ficar atrás do StickyCart (52px,
      bottom:90px) + TabBar (64px) fixos no fim da tela */
   padding-bottom: 170px;
-  /* Desktop: prende o conteúdo numa coluna centralizada (mobile não é afetado,
-     pois a viewport é menor que a largura máxima). */
-  max-width: 760px;
+  /* Desktop (padrão iFood): container largo centralizado; as listas viram grid
+     multi-coluna (ver .storeRows). Mobile não é afetado (viewport < max-width). */
+  max-width: 1200px;
   margin-inline: auto;
 }
 
@@ -68,8 +68,11 @@
 }
 
 .storeRows {
-  display: flex;
-  flex-direction: column;
+  /* Grid responsivo (padrão iFood): 1 coluna no mobile, várias no desktop.
+     auto-fill + minmax faz o nº de colunas se ajustar à largura sozinho. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-3);
 }
 
 .offersRow {
