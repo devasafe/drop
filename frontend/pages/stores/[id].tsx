@@ -14,6 +14,7 @@ import {
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
+import { StoreCartPanel } from '../../components/drop/StoreCartPanel';
 import { useProducts, useStores } from '../../hooks/useSync';
 import { imageUrl } from '../../lib/config';
 
@@ -384,7 +385,8 @@ export default function StorePage() {
         </div>
       </div>
 
-      {/* Produtos */}
+      {/* Produtos + carrinho (desktop 2-col estilo iFood) */}
+      <div className={styles.contentGrid}>
       <section className={styles.productsSection}>
         <div className={styles.sortRow}>
           <span className={styles.countText}>
@@ -439,6 +441,8 @@ export default function StorePage() {
           </div>
         )}
       </section>
+        <StoreCartPanel storeId={store._id} />
+      </div>
 
     </div>
   );
