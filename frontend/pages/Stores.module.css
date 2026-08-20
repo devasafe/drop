@@ -10,6 +10,9 @@
   /* espaço p/ o conteúdo não ficar atrás do StickyCart (52px, bottom:90px)
      + TabBar (64px) do chrome global fixo */
   padding-bottom: 170px;
+  /* Desktop: coluna centralizada (não afeta o mobile). */
+  max-width: 760px;
+  margin-inline: auto;
 }
 
 .top {

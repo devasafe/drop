@@ -10,6 +10,9 @@
   /* espaço suficiente p/ o conteúdo não ficar atrás do StickyCart (52px,
      bottom:90px) + TabBar (64px) fixos no fim da tela */
   padding-bottom: 170px;
+  /* Desktop: coluna centralizada (não afeta o mobile). */
+  max-width: 760px;
+  margin-inline: auto;
 }
 
 /* ---- loading ---- */
