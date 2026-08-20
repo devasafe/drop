@@ -10,8 +10,8 @@
   /* espaço p/ o conteúdo não ficar atrás do StickyCart (52px, bottom:90px)
      + TabBar (64px) do chrome global fixo */
   padding-bottom: 170px;
-  /* Desktop: coluna centralizada (não afeta o mobile). */
-  max-width: 760px;
+  /* Desktop (padrão iFood): container largo + lista em grid (ver .rows). */
+  max-width: 1200px;
   margin-inline: auto;
 }
 
@@ -81,8 +81,10 @@
 }
 
 .rows {
-  display: flex;
-  flex-direction: column;
+  /* Grid responsivo (padrão iFood): 1 coluna no mobile, várias no desktop. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-3);
   margin-top: var(--space-2);
 }
 
