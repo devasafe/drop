@@ -36,6 +36,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   mockedApi.get.mockResolvedValue({ data: { balance: 0 } } as unknown as AxiosResponse);
+  // A distância agora vem do servidor via POST /orders/quote (antes era Google
+  // Directions no browser). Default ciente da URL: quote devolve distância;
+  // demais POST (ex.: /orders) devolvem {} — os testes que precisam sobrescrevem.
+  mockedApi.post.mockImplementation(((url: string) =>
+    Promise.resolve({ data: url === '/orders/quote' ? { distanceKm: 0 } : {} })) as any);
   mockUseAddresses.mockReturnValue({ addresses: [savedAddress], loading: false, setAddresses: jest.fn() });
 });
 
@@ -83,21 +88,17 @@ test('ignora rascunho corrompido sem quebrar e não sobrescreve com estado vazio
 test('placeOrder envia payload com idempotentKey e abre pix', async () => {
   // Loja é Plano 2 (entrega integrada) -> canPlace exige distanceKm >= 0.1,
   // que só é calculado via Google Directions após um endereço ser selecionado.
-  (window as unknown as { google: unknown }).google = {
-    maps: {
-      DirectionsService: class {
-        route(_req: unknown, cb: (res: { routes: { legs: { distance: { value: number } }[] }[] }, status: string) => void) {
-          cb({ routes: [{ legs: [{ distance: { value: 1500 } }] }] }, 'OK');
-        }
-      },
-      TravelMode: { DRIVING: 'DRIVING' },
-    },
-  };
-  mockedApi.post.mockResolvedValueOnce({ data: { order: { _id: 'o1' }, pix: { qrCodePayload: 'x', orderId: 'o1' } } } as unknown as AxiosResponse);
+  // Distância vem do servidor (/orders/quote → 1.5km); placeOrder → /orders com pix.
+  mockedApi.post.mockImplementation(((url: string) => {
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders') return Promise.resolve({ data: { order: { _id: 'o1' }, pix: { qrCodePayload: 'x', orderId: 'o1' } } });
+    return Promise.resolve({ data: {} });
+  }) as any);
   const { result } = renderHook(() => useCheckout());
   await act(async () => {}); // flush do fetch de carteira/config
 
   act(() => { result.current.address.selectAddress(0); });
+  await act(async () => {}); // flush do quote (/orders/quote) -> distanceKm
   expect(result.current.distanceKm).toBe(1.5);
   expect(result.current.canPlace).toBe(true);
 
@@ -116,25 +117,18 @@ test('placeOrder envia payload com idempotentKey e abre pix', async () => {
 // fix busca GET /user/me (que devolve cpf/telefone — userController.ts
 // getMe) e expõe `cardHolderDefaults` já com esses campos preenchidos.
 test('cardHolderDefaults vem preenchido de GET /user/me, e placeOrder envia cardHolder com cpfCnpj/phone não-vazios pro POST /orders quando paymentMethod=credit_card', async () => {
-  (window as unknown as { google: unknown }).google = {
-    maps: {
-      DirectionsService: class {
-        route(_req: unknown, cb: (res: { routes: { legs: { distance: { value: number } }[] }[] }, status: string) => void) {
-          cb({ routes: [{ legs: [{ distance: { value: 1500 } }] }] }, 'OK');
-        }
-      },
-      TravelMode: { DRIVING: 'DRIVING' },
-    },
-  };
   mockedApi.get.mockImplementation((url: string) => {
     if (url === '/user/me') {
       return Promise.resolve({ data: { cpf: '24971563792', telefone: '11999999999' } } as unknown as AxiosResponse);
     }
     return Promise.resolve({ data: { balance: 0 } } as unknown as AxiosResponse);
   });
-  mockedApi.post.mockResolvedValueOnce({
-    data: { order: { _id: 'o2' }, card: { status: 'CONFIRMED', approved: true } },
-  } as unknown as AxiosResponse);
+  // /orders/quote → distância; /orders → confirmação do cartão.
+  mockedApi.post.mockImplementation(((url: string) => {
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders') return Promise.resolve({ data: { order: { _id: 'o2' }, card: { status: 'CONFIRMED', approved: true } } });
+    return Promise.resolve({ data: {} });
+  }) as any);
 
   const { result } = renderHook(() => useCheckout());
   await act(async () => {}); // flush de wallet/config/debt/user-me

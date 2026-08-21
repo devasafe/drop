@@ -4,7 +4,9 @@ import Nav from '../Nav';
 let mockUser: any = { name: 'X', activeRole: 'cliente', roles: ['cliente'] };
 let mockCan: (p: string) => boolean = () => false;
 
-jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+// pathname é usado pelo Nav p/ marcar o link ativo (isItemActive) — sem ele,
+// router.pathname.startsWith(...) quebra.
+jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), pathname: '/' }) }));
 jest.mock('../../hooks/useSync', () => ({
   useNotifications: () => ({ unreadCount: 0 }),
   useBadgeCounts: () => ({ verifications: 0, storeOrders: 0, deliveries: 0 }),
@@ -14,6 +16,11 @@ jest.mock('../../contexts/OverlayContext', () => ({
 }));
 jest.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: mockUser, can: mockCan }),
+}));
+// Nav mostra o botão de carrinho (badge de quantidade) via useCart — em produção
+// sempre dentro do CartProvider (no _app). No teste, provê um carrinho vazio.
+jest.mock('../../contexts/CartContext', () => ({
+  useCart: () => ({ cart: [] }),
 }));
 jest.mock('../nav/AccountMenu', () => () => null);
 

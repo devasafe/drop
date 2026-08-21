@@ -51,7 +51,9 @@ jest.mock('../lib/api', () => ({
 
 let mockQuery: Record<string, string> = {};
 jest.mock('next/router', () => ({
-  useRouter: () => ({ query: mockQuery, push: jest.fn() }),
+  // isReady:true — o effect de deep-link (?tab=) espera a query hidratar
+  // (if (!router.isReady) return). Sem isso, a aba nunca é lida da URL.
+  useRouter: () => ({ query: mockQuery, push: jest.fn(), isReady: true }),
 }));
 
 import AuthContext from '../contexts/AuthContext';
