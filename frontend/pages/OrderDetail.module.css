@@ -10,6 +10,36 @@
 
 .leftPanel { max-width: 640px; margin: 0 auto; padding: var(--space-4); }
 
+/* ---- composição desktop (2 colunas), mesmo padrão de checkout/rastreio ----
+ * Mobile: wrappers em display:contents ("somem") — seções fluem em coluna
+ * única. Desktop (>=900px): conteúdo/histórico à esquerda, dados do pedido +
+ * financeiro sticky à direita. */
+.grid,
+.colMain,
+.colSide {
+  display: contents;
+}
+
+@media (min-width: 900px) {
+  .leftPanel { max-width: 1040px; }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    gap: 0 var(--space-6);
+    align-items: start;
+  }
+  .colMain,
+  .colSide {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .colSide {
+    position: sticky;
+    top: var(--space-5);
+  }
+}
+
 .pageTitleRow { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
 .pageTitle {
   margin: 0; font-family: var(--font-display); font-size: var(--fs-hero);
