@@ -5,12 +5,15 @@ import MeusDadosForm from '../components/MeusDadosForm';
 export default function EditarContaPage() {
   return (
     <div style={wrap}>
-      <div style={{ maxWidth: 520, width: '100%' }}>
-        <h1 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Editar meus dados</h1>
+      <div style={{ maxWidth: 560, width: '100%' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', color: 'var(--text-strong)', fontWeight: 700, letterSpacing: '-0.02em', margin: '0 0 20px' }}>
+          Editar meus dados
+        </h1>
         <MeusDadosForm />
       </div>
     </div>
   );
 }
 
-const wrap: React.CSSProperties = { minHeight: '100vh', background: '#0A0A0A', color: 'rgba(255,255,255,0.92)', display: 'flex', justifyContent: 'center', padding: 24 };
+// Formulário: coluna legível centralizada (campos largos são ruins de usar).
+const wrap: React.CSSProperties = { minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', display: 'flex', justifyContent: 'center', padding: 'var(--space-6) var(--space-4) 80px' };
