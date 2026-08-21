@@ -11,7 +11,7 @@
      bottom:90px) + TabBar (64px) fixos no fim da tela */
   padding-bottom: 170px;
   /* Desktop (padrão iFood): container largo; cardápio + carrinho em 2 colunas (.contentGrid). */
-  max-width: 1200px;
+  max-width: var(--app-max);
   margin-inline: auto;
 }
 

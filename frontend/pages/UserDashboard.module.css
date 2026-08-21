@@ -10,7 +10,7 @@
 }
 
 .container {
-  max-width: 640px;
+  max-width: var(--app-max);
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -59,6 +59,9 @@
   border-radius: var(--r-lg);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
+  /* formulário/endereços são conteúdo de leitura: largura legível, alinhada à
+     esquerda do frame (não esticam até --app-max) */
+  max-width: 640px;
 }
 
 .addressFormTitle {
@@ -112,6 +115,7 @@
 .addressList {
   display: flex;
   flex-direction: column;
+  max-width: 640px;
 }
 
 .addressLabel {
@@ -132,9 +136,16 @@
   gap: 8px;
 }
 
-.orderList { display: flex; flex-direction: column; }
+/* Lista de pedidos: 1 coluna no mobile, grid multi-coluna no desktop (padrão
+   iFood) — assim a tela não fica com uma coluna fininha centralizada. */
+.orderList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  column-gap: var(--space-8);
+  row-gap: 0;
+}
 
-.addressHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); }
+.addressHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); max-width: 640px; }
 
 .addressTitle { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-strong); font-family: var(--font-display); }
 

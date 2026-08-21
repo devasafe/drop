@@ -1,9 +1,9 @@
-/* Linha flat clicável (sem card): sangra até as bordas do container; o padding
- * interno realinha o conteúdo. Divisória separa os itens da lista. */
+/* Linha flat clicável (sem card): ocupa toda a largura da célula/coluna em que
+ * está (funciona tanto em lista de 1 coluna quanto em grid multi-coluna). A
+ * divisória inferior separa os itens. */
 .row {
   display: block;
-  width: calc(100% + var(--space-4) * 2);
-  margin: 0 calc(var(--space-4) * -1);
+  width: 100%;
   padding: var(--space-3) var(--space-4);
   text-align: left;
   background: none;

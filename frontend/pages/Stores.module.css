@@ -11,7 +11,7 @@
      + TabBar (64px) do chrome global fixo */
   padding-bottom: 170px;
   /* Desktop (padrão iFood): container largo + lista em grid (ver .rows). */
-  max-width: 1200px;
+  max-width: var(--app-max);
   margin-inline: auto;
 }
 
