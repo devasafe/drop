@@ -6,7 +6,7 @@ import type { StoreCardData } from '../components/drop/StoreCard';
 export function mapStore(store: any): StoreCardData {
   return {
     name: store.name,
-    imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl) || undefined,
+    imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl, { w: 1000 }) || undefined,
     status: store.isOpen ? 'aberta' : 'fechada',
     category:
       [store.neighborhood, store.city].filter(Boolean).join(' • ') ||

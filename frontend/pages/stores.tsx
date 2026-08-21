@@ -36,7 +36,7 @@ const LOAD_MORE_STEP = 6;
 function mapStore(store: Store): StoreCardData {
   return {
     name: store.name,
-    imageUrl: imageUrl(store.coverBannerUrl || store.featuredBannerUrl) || undefined,
+    imageUrl: imageUrl(store.coverBannerUrl || store.featuredBannerUrl, { w: 1000 }) || undefined,
     status: store.isOpen ? 'aberta' : 'fechada',
     category: store.categories?.[0]?.name || store.address || 'Loja DROP',
   };

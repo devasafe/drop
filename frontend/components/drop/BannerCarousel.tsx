@@ -47,7 +47,7 @@ export function BannerCarousel({ banners, onSelect, intervalMs = 5000 }: BannerC
               aria-label={b.title || 'Aviso'}
               tabIndex={b.linkUrl ? 0 : -1}
             >
-              <img className={styles.image} src={imageUrl(b.imageUrl)} alt={b.title || ''} draggable={false} />
+              <img className={styles.image} src={imageUrl(b.imageUrl, { w: 1600 })} alt={b.title || ''} draggable={false} />
             </button>
           ))}
         </div>
