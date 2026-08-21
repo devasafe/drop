@@ -158,6 +158,9 @@ export default function OrderDetailPage() {
           <span className={styles.orderId}>#{order._id?.slice(-8)}</span>
         </div>
 
+        <div className={styles.grid}>
+        <div className={styles.colMain}>
+
         {/* Status + Dates header */}
         <div className={styles.statusHeader}>
           <span className={styles.statusBadgeLg} style={{
@@ -193,46 +196,6 @@ export default function OrderDetailPage() {
 
         {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
 
-        {/* ─── Informacoes gerais ─── */}
-        <div className={styles.infoCard}>
-          <div className={styles.infoCardHeader}>
-            <h3 className={styles.infoCardTitle}>Informacoes</h3>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Loja</span>
-            <span className={styles.infoValue}>{storeName}</span>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Endereco da Loja</span>
-            <span className={styles.infoValue}>{storeAddr}</span>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Cliente</span>
-            <span className={styles.infoValue}>{customerName}</span>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Endereco Entrega</span>
-            <span className={styles.infoValue}>{customerAddr}</span>
-          </div>
-          {order.deliveryDistance && (
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>Distancia</span>
-              <span className={styles.infoValue}>{order.deliveryDistance.toFixed(1)} km</span>
-            </div>
-          )}
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Pagamento</span>
-            <span className={styles.infoValue}>
-              {order.paymentMethod ? paymentMethodLabel(order.paymentMethod) : '-'}
-              {order.installmentCount > 1 ? ` · ${order.installmentCount}x` : ''}
-            </span>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Status Pgto</span>
-            <span className={styles.infoValue}>{order.paymentStatus || '-'}</span>
-          </div>
-        </div>
-
         {/* ─── Produtos ─── */}
         <div className={styles.infoCard}>
           <div className={styles.infoCardHeader}>
@@ -249,67 +212,6 @@ export default function OrderDetailPage() {
               </li>
             ))}
           </ul>
-        </div>
-
-        {/* ─── Resumo Financeiro ─── */}
-        <div className={styles.infoCard}>
-          <div className={styles.infoCardHeader}>
-            <h3 className={styles.infoCardTitle}>Resumo Financeiro</h3>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Subtotal</span>
-            {/* order.subtotal não é persistido no pedido (fica nulo → exibia R$0,00).
-                Deriva da soma dos produtos; fallback = total − taxa. Cobre pedidos antigos. */}
-            <span className={styles.infoValue}>{fmtMoney(
-              (order.subtotal != null && Number(order.subtotal) > 0)
-                ? Number(order.subtotal)
-                : (order.products?.reduce((s: number, p: any) => s + (Number(p.price) || 0) * (Number(p.quantity) || 0), 0)
-                    || Math.max(0, Number(order.totalValue || 0) - Number(order.deliveryFee || 0)))
-            )}</span>
-          </div>
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Taxa de Entrega</span>
-            <span className={styles.infoValue}>{fmtMoney(delivery?.fee ?? order.deliveryFee)}</span>
-          </div>
-          <div className={styles.finTotalRow}>
-            <span className={styles.finTotalLabel}>Total</span>
-            <span className={styles.finTotalValue}>{fmtMoney(order.totalValue)}</span>
-          </div>
-          {wd && (
-            <>
-              <div className={styles.infoCardHeader} style={{ marginTop: 4 }}>
-                <h3 className={styles.infoCardTitle}>Distribuicao</h3>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Loja recebe</span>
-                <span className={styles.infoValue}>{fmtMoney(wd.storeAmount)}</span>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Comissao App (venda)</span>
-                <span className={styles.infoValue}>
-                  {fmtMoney(wd.appCommission)} ({wd.commissionPercent}%)
-                </span>
-              </div>
-              {wd.delivery && (
-                <>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Motoboy recebe</span>
-                    <span className={styles.infoValue}>{fmtMoney(wd.delivery.motoboyAmount)}</span>
-                  </div>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Comissao App (entrega)</span>
-                    <span className={styles.infoValue}>
-                      {fmtMoney(wd.delivery.appCommission)} ({wd.delivery.commissionPercent}%)
-                    </span>
-                  </div>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Total Entrega</span>
-                    <span className={styles.infoValue}>{fmtMoney(wd.delivery.total)}</span>
-                  </div>
-                </>
-              )}
-            </>
-          )}
         </div>
 
         {/* ─── Timeline da Entrega ─── */}
@@ -501,6 +403,113 @@ export default function OrderDetailPage() {
             <CancellationStatusDisplay orderId={order._id} />
           </div>
         )}
+
+        </div>{/* colMain */}
+
+        {/* ─── Coluna lateral (sticky no desktop): dados + financeiro ─── */}
+        <div className={styles.colSide}>
+          {/* ─── Informacoes gerais ─── */}
+          <div className={styles.infoCard}>
+            <div className={styles.infoCardHeader}>
+              <h3 className={styles.infoCardTitle}>Informacoes</h3>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Loja</span>
+              <span className={styles.infoValue}>{storeName}</span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Endereco da Loja</span>
+              <span className={styles.infoValue}>{storeAddr}</span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Cliente</span>
+              <span className={styles.infoValue}>{customerName}</span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Endereco Entrega</span>
+              <span className={styles.infoValue}>{customerAddr}</span>
+            </div>
+            {order.deliveryDistance && (
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Distancia</span>
+                <span className={styles.infoValue}>{order.deliveryDistance.toFixed(1)} km</span>
+              </div>
+            )}
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Pagamento</span>
+              <span className={styles.infoValue}>
+                {order.paymentMethod ? paymentMethodLabel(order.paymentMethod) : '-'}
+                {order.installmentCount > 1 ? ` · ${order.installmentCount}x` : ''}
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Status Pgto</span>
+              <span className={styles.infoValue}>{order.paymentStatus || '-'}</span>
+            </div>
+          </div>
+
+          {/* ─── Resumo Financeiro ─── */}
+          <div className={styles.infoCard}>
+            <div className={styles.infoCardHeader}>
+              <h3 className={styles.infoCardTitle}>Resumo Financeiro</h3>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Subtotal</span>
+              {/* order.subtotal não é persistido no pedido (fica nulo → exibia R$0,00).
+                  Deriva da soma dos produtos; fallback = total − taxa. Cobre pedidos antigos. */}
+              <span className={styles.infoValue}>{fmtMoney(
+                (order.subtotal != null && Number(order.subtotal) > 0)
+                  ? Number(order.subtotal)
+                  : (order.products?.reduce((s: number, p: any) => s + (Number(p.price) || 0) * (Number(p.quantity) || 0), 0)
+                      || Math.max(0, Number(order.totalValue || 0) - Number(order.deliveryFee || 0)))
+              )}</span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Taxa de Entrega</span>
+              <span className={styles.infoValue}>{fmtMoney(delivery?.fee ?? order.deliveryFee)}</span>
+            </div>
+            <div className={styles.finTotalRow}>
+              <span className={styles.finTotalLabel}>Total</span>
+              <span className={styles.finTotalValue}>{fmtMoney(order.totalValue)}</span>
+            </div>
+            {wd && (
+              <>
+                <div className={styles.infoCardHeader} style={{ marginTop: 4 }}>
+                  <h3 className={styles.infoCardTitle}>Distribuicao</h3>
+                </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Loja recebe</span>
+                  <span className={styles.infoValue}>{fmtMoney(wd.storeAmount)}</span>
+                </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Comissao App (venda)</span>
+                  <span className={styles.infoValue}>
+                    {fmtMoney(wd.appCommission)} ({wd.commissionPercent}%)
+                  </span>
+                </div>
+                {wd.delivery && (
+                  <>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Motoboy recebe</span>
+                      <span className={styles.infoValue}>{fmtMoney(wd.delivery.motoboyAmount)}</span>
+                    </div>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Comissao App (entrega)</span>
+                      <span className={styles.infoValue}>
+                        {fmtMoney(wd.delivery.appCommission)} ({wd.delivery.commissionPercent}%)
+                      </span>
+                    </div>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Total Entrega</span>
+                      <span className={styles.infoValue}>{fmtMoney(wd.delivery.total)}</span>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>{/* colSide */}
+        </div>{/* grid */}
 
       </div>
 
