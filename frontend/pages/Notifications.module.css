@@ -10,7 +10,7 @@
 }
 
 .container {
-  max-width: 780px;
+  max-width: var(--app-max);
   margin: 0 auto;
 }
 
@@ -86,11 +86,13 @@
   color: var(--text-subtle);
 }
 
-/* Notifications list */
+/* Notifications list — grade que preenche o frame no desktop (cards de aviso
+   são independentes); 1 coluna no mobile. */
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 10px;
+  align-items: start;
 }
 
 .item {
