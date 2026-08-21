@@ -26,12 +26,25 @@ export const API_URL = getApiUrl();
 export const API_BASE = `${API_URL}/api`;
 
 /**
- * Converte um path de upload (ex: /uploads/foto.jpg) para URL absoluta.
- * Se já for URL completa, retorna sem alteração.
+ * Converte um path de upload (ex: /uploads/foto.jpg) para URL absoluta e, quando a
+ * imagem está no Cloudinary, injeta otimização de entrega:
+ *   - f_auto  → formato moderno (webp/avif) automático
+ *   - q_auto  → qualidade automática (menor peso, sem borrão perceptível)
+ *   - w_<w>,c_limit → serve na largura pedida SEM upscale (c_limit nunca amplia
+ *     além do original, evitando borrão de imagens pequenas)
+ *
+ * Passe `{ w }` com a largura de exibição (ex.: banner 1600, card 500) pra o
+ * desktop receber a imagem nítida no tamanho certo, em vez de esticar a original.
  */
-export function imageUrl(path: string | null | undefined): string {
+export function imageUrl(path: string | null | undefined, opts?: { w?: number }): string {
   if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  if (path.startsWith('/uploads/')) return `${API_URL}${path}`;
-  return path;
+  let url = path;
+  if (!(path.startsWith('http://') || path.startsWith('https://'))) {
+    url = path.startsWith('/uploads/') ? `${API_URL}${path}` : path;
+  }
+  if (url.includes('res.cloudinary.com') && url.includes('/upload/') && !/\/upload\/[^/]*(f_auto|q_auto|w_\d|c_)/.test(url)) {
+    const t = opts?.w ? `f_auto,q_auto,c_limit,w_${opts.w}` : 'f_auto,q_auto';
+    url = url.replace('/upload/', `/upload/${t}/`);
+  }
+  return url;
 }

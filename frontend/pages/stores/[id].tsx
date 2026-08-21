@@ -219,7 +219,7 @@ export default function StorePage() {
 
   const isOwner = !!user && (user.id === store.ownerId || user._id === store.ownerId);
   const status = getStoreOpenStatus(store);
-  const bannerUrl = imageUrl(store.coverBannerUrl || store.featuredBannerUrl);
+  const bannerUrl = imageUrl(store.coverBannerUrl || store.featuredBannerUrl, { w: 1600 });
   const hasLocation = !!store.latitude && !!store.longitude;
 
   const categoryChips: CategoryChip[] = [
