@@ -53,89 +53,6 @@
   margin-bottom: 28px;
 }
 
-.addressForm {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
-  /* formulário/endereços são conteúdo de leitura: largura legível, alinhada à
-     esquerda do frame (não esticam até --app-max) */
-  max-width: 640px;
-}
-
-.addressFormTitle {
-  margin: 0 0 var(--space-4);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-strong);
-  font-family: var(--font-display);
-}
-
-.formGrid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.formGrid21 {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.formGrid3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 80px;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.checkboxRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  background: rgba(108, 43, 217, 0.08);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: var(--r-sm);
-}
-
-.checkboxLabel {
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--brand-2);
-  font-weight: 600;
-}
-
-/* Address list */
-.addressList {
-  display: flex;
-  flex-direction: column;
-  max-width: 640px;
-}
-
-.addressLabel {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--text-strong);
-  font-family: var(--font-display);
-  margin-bottom: 4px;
-}
-
-.addressNoLabel {
-  color: var(--text-subtle);
-  font-weight: 400;
-}
-
-.addressActions {
-  display: flex;
-  gap: 8px;
-}
-
 /* Lista de pedidos: 1 coluna no mobile, grid multi-coluna no desktop (padrão
    iFood) — assim a tela não fica com uma coluna fininha centralizada. */
 .orderList {
@@ -144,29 +61,6 @@
   column-gap: var(--space-8);
   row-gap: 0;
 }
-
-.addressHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); max-width: 640px; }
-
-.addressTitle { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-strong); font-family: var(--font-display); }
-
-.checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand); }
-
-.mapWrapper { margin-bottom: 16px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line); }
-
-.formError { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); border-radius: var(--r-sm); padding: 12px 16px; color: var(--danger); font-size: 13px; margin-bottom: 16px; }
-
-.formButtons { display: flex; gap: 10px; }
-
-/* Endereço = linha flat com divisória (sem card); destaque de "padrão" fica na Tag */
-.addressCard { display: flex; flex-direction: column; gap: var(--space-3); width: calc(100% + var(--space-4) * 2); margin: 0 calc(var(--space-4) * -1); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
-
-.addressCard:last-child { border-bottom: none; }
-
-.addressCardDefault { background: color-mix(in srgb, var(--success) 6%, transparent); }
-
-.addressCardTop { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
-
-.addressText { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 4px; }
 
 /* Responsive */
 @media (max-width: 768px) {
