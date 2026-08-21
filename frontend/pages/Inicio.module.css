@@ -12,7 +12,7 @@
   padding-bottom: 170px;
   /* Desktop (padrão iFood): container largo centralizado; as listas viram grid
      multi-coluna (ver .storeRows). Mobile não é afetado (viewport < max-width). */
-  max-width: 1200px;
+  max-width: var(--app-max);
   margin-inline: auto;
 }
 

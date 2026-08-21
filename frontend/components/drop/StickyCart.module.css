@@ -50,3 +50,18 @@
   font-family: var(--font-display);
   font-weight: 700;
 }
+
+/* Desktop: a faixa de ponta a ponta é padrão mobile. Aqui vira um "pill"
+   flutuante compacto, centralizado acima da borda inferior — não uma banda
+   roxa atravessando o monitor inteiro. */
+@media (min-width: 900px) {
+  .cart {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    bottom: var(--space-6);
+    width: min(440px, calc(100vw - var(--space-10)));
+    height: 56px;
+    border-radius: var(--r-pill);
+  }
+}

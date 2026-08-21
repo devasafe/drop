@@ -5,9 +5,29 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  /* Desktop: coluna centralizada (não afeta o mobile). */
-  max-width: 760px;
+  /* Frame padrão do app (mesma largura das demais telas do cliente). */
+  max-width: var(--app-max);
   margin-inline: auto;
+}
+
+/* Desktop: em vez de uma coluna estreita centralizada, duas colunas —
+   saldo + ações à esquerda, extrato à direita — preenchendo o frame. */
+@media (min-width: 900px) {
+  .page {
+    display: grid;
+    grid-template-columns: minmax(360px, 440px) 1fr;
+    grid-template-areas:
+      "header  header"
+      "balance extrato"
+      "actions extrato";
+    align-items: start;
+    column-gap: var(--space-8);
+    row-gap: var(--space-5);
+  }
+  .header { grid-area: header; }
+  .balanceCard { grid-area: balance; }
+  .actions { grid-area: actions; }
+  .extrato { grid-area: extrato; }
 }
 
 /* ── Cabeçalho ─────────────────────────────────────────── */

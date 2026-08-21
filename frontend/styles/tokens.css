@@ -17,6 +17,9 @@
   --fs-hero:22px; --fs-h2:16px; --fs-h3:14.5px; --fs-body:13.5px; --fs-sm:12px; --fs-xs:10.5px; --fs-price:14px;
   /* Espaçamento (base 4) */
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-10:40px;
+  /* Layout — largura máxima do conteúdo no app do cliente (mesma coluna em
+     todas as telas: Início, Lojas, Buscar, Loja, Pedidos, Carteira…). */
+  --app-max:1200px;
   /* Raio (variável por função) */
   --r-sm:9px; --r-md:13px; --r-lg:16px; --r-xl:20px; --r-2xl:24px; --r-pill:999px;
   /* Elevação */
