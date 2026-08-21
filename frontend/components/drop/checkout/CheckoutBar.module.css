@@ -40,3 +40,15 @@
   font-size: var(--fs-h3);
   color: var(--text-strong);
 }
+
+/* Desktop: o fundo da barra segue de ponta a ponta (rodapé), mas o conteúdo
+   (total + Confirmar) acompanha a mesma coluna de 1040px do checkout — não
+   fica esticado nas pontas do monitor. */
+@media (min-width: 900px) {
+  .hint,
+  .row {
+    width: 100%;
+    max-width: 1040px;
+    margin-inline: auto;
+  }
+}
