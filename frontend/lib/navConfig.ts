@@ -78,6 +78,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro' },
     { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja' },
     { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
+    { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
   ],
   motoboy: [
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },

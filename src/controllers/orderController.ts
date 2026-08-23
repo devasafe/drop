@@ -5,6 +5,7 @@ import { toApiDelivery } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
 import { prisma } from '../lib/prisma';
+import { emitStockChanged } from '../services/storeIntegration';
 import userRepository from '../repositories/user.repository';
 
 
@@ -405,6 +406,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       },
       include: orderInclude,
     });
+
+    // Estoque baixou (venda) → avisa os webhooks de integração da loja.
+    void emitStockChanged(storeIdStr, items.map((it) => String(it.productId)));
 
     try {
       // Criar Payout pending para a loja (será released na entrega).

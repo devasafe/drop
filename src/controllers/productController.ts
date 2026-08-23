@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
+import { emitStockChanged } from '../services/storeIntegration';
 
 import {
   emitProductCreated,
@@ -285,6 +286,7 @@ export const updateStock = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const updated = await prisma.product.update({ where: { id }, data: { quantity } });
+    void emitStockChanged(String(productDoc.storeId), [String(id)]); // webhook (best-effort)
     return res.json(toApiProduct(updated));
   } catch (err) {
     // eslint-disable-next-line no-console
