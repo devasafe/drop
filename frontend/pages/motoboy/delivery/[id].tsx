@@ -126,6 +126,16 @@ export default function MotoboyDeliveryDetail() {
   deliveryIdRef.current = delivery?._id ?? null;
   activeRef.current = !!delivery && ['assigned', 'picked'].includes(delivery.status);
 
+  // Vindo do aceite (?nav=1): abre a navegação automaticamente, uma única vez.
+  const autoNavRef = useRef(false);
+  useEffect(() => {
+    if (autoNavRef.current) return;
+    if (router.query.nav === '1' && delivery) {
+      autoNavRef.current = true;
+      setNavOpen(true);
+    }
+  }, [router.query.nav, delivery]);
+
   const [loadingFinalizar, setLoadingFinalizar] = useState(false);
   const finalizarEntrega = async () => {
     setLoadingFinalizar(true);
