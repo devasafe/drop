@@ -52,7 +52,14 @@ export function RejectDeliveryModal({
         setError('Por favor, especifique um motivo.');
         return;
       }
-      setStep('action');
+      // Só faz sentido escolher entre devolver/cancelar DEPOIS de retirar o
+      // produto. Antes disso (assigned) a única ação possível é devolver ao pool.
+      if (requiresReturnPin) {
+        setStep('action');
+      } else {
+        setSelectedAction('reassign');
+        setStep('confirm');
+      }
     } else if (step === 'action') {
       setStep('confirm');
     }
@@ -61,7 +68,7 @@ export function RejectDeliveryModal({
   const handleBack = () => {
     clearError();
     if (step === 'action') setStep('reason');
-    else if (step === 'confirm') setStep('action');
+    else if (step === 'confirm') setStep(requiresReturnPin ? 'action' : 'reason');
   };
 
   const handleConfirm = async () => {
