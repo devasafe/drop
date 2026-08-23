@@ -79,7 +79,8 @@ export default function MotoboyPage() {
     setAccepting(id);
     try {
       const res = await api.post(`/deliveries/${id}/claim`);
-      router.push(`/motoboy/delivery/${res.data._id}`);
+      // ?nav=1 → a página da entrega abre a navegação automaticamente.
+      router.push(`/motoboy/delivery/${res.data._id}?nav=1`);
     } catch (err: any) {
       if (err?.response?.status === 409) {
         showToast('Essa corrida já foi aceita por outro motoboy.', 'error');
