@@ -3,26 +3,26 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface-2);
+  border-radius: var(--r-md);
+  background: transparent;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .row:hover {
-  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+  background: var(--surface-2);
 }
 
 .active {
   border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
 }
 
 .activeDanger {
   border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
 }
 
 .disabled {
