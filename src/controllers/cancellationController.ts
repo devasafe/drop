@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
+import { emitStockChanged } from '../services/storeIntegration';
 
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
@@ -175,6 +176,8 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
+    // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
+    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {
@@ -1386,6 +1389,8 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
+    // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
+    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     if (!isCashOnDelivery) {

@@ -38,6 +38,7 @@ import payoutsRoutes from './routes/payouts'; // ✅ NOVO - Payout management
 import deliveryInvoicesRoutes from './routes/deliveryInvoices';
 import verificationRoutes from './routes/verification'; // ✅ NOVO - KYC/verificação de conta
 import webhooksRoutes from './routes/webhooks'; // ✅ NOVO - Webhooks de gateways (Asaas)
+import integrationsRoutes from './routes/integrations'; // Integração de estoque do lojista (API key + webhooks)
 import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
 import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
 
@@ -157,6 +158,7 @@ app.use('/api/badges', badgesRoutes);
 // Webhooks de gateways (server-to-server) — fora de /api para escapar do rate
 // limiter; a origem é validada por token dentro do controller.
 app.use('/webhooks', webhooksRoutes);
+app.use('/integrations', integrationsRoutes);
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/uploads', uploadsRoutes);

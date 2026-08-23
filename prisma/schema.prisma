@@ -403,10 +403,46 @@ model Store {
   products   Product[]
   categories Category[]
   orders     Order[]    @relation("StoreOrders")
+  apiKeys    StoreApiKey[]
+  webhooks   StoreWebhook[]
 
   @@index([ownerId])
   @@index([plan])
   @@index([isVerified])
+}
+
+/// Chave de API de máquina por loja (integração de estoque). Guarda só o HASH;
+/// a chave inteira é mostrada uma única vez na criação. `prefix` = parte visível.
+model StoreApiKey {
+  id         String    @id @default(cuid())
+  storeId    String
+  name       String
+  prefix     String    @unique
+  keyHash    String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
+
+/// Webhook do lojista: recebe eventos de mudança de estoque (POST assinado HMAC).
+model StoreWebhook {
+  id             String    @id @default(cuid())
+  storeId        String
+  url            String
+  secret         String
+  active         Boolean   @default(true)
+  failureCount   Int       @default(0)
+  lastStatus     Int?
+  lastDeliveryAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
 }
 
 model Category {

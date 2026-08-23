@@ -1,0 +1,60 @@
+.page { min-height: 100vh; background: var(--bg); padding-bottom: 120px; }
+.container { max-width: var(--app-max); margin: 0 auto; padding: var(--space-5) var(--space-4) 0; display: flex; flex-direction: column; gap: var(--space-5); }
+
+.header { }
+.title { margin: 0; font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 700; color: var(--text-strong); letter-spacing: -0.02em; }
+.subtitle { margin: var(--space-2) 0 0; font-size: var(--fs-sm); color: var(--text-muted); max-width: 640px; }
+
+.hint { margin: 0 0 var(--space-3); font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.5; max-width: 720px; }
+.hint code, .itemMeta code, .itemName code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; color: var(--brand-2); }
+
+.formRow { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); max-width: 640px; }
+.formRow > :first-child { flex: 1; }
+
+/* Caixa de segredo (chave/secret exibido uma vez) */
+.secretBox {
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-2) 30%, var(--line));
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.secretLabel { font-size: var(--fs-xs); color: var(--brand-2); font-weight: 700; margin-bottom: var(--space-2); }
+.secretRow { display: flex; align-items: center; gap: var(--space-2); }
+.code {
+  flex: 1; min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-sm); color: var(--text-strong);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 8px 10px; overflow-x: auto; white-space: nowrap;
+}
+.dismiss { margin-top: var(--space-2); background: none; border: none; color: var(--text-muted); font-size: var(--fs-xs); cursor: pointer; padding: 0; text-decoration: underline; }
+
+/* Listas */
+.list { display: flex; flex-direction: column; }
+.empty { font-size: var(--fs-sm); color: var(--text-subtle); padding: var(--space-3) 0; }
+.item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--line);
+}
+.item:last-child { border-bottom: none; }
+.itemMain { min-width: 0; }
+.itemName { font-size: var(--fs-body); font-weight: 600; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemMeta { margin-top: 2px; font-size: var(--fs-xs); color: var(--text-subtle); }
+.itemActions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.revoked { font-size: var(--fs-xs); color: var(--danger); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px; }
+
+/* Docs */
+.docsRow { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.endpoint {
+  flex: 1; min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); color: var(--text-strong);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px;
+  overflow-x: auto; white-space: nowrap;
+}
+.pre {
+  margin: 0; padding: var(--space-4);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); color: var(--text);
+  overflow-x: auto; line-height: 1.5;
+}
