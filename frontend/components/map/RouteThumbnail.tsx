@@ -52,7 +52,7 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
 
   return (
     <div className={styles.wrap} style={{ height }}>
-      <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice" className={styles.svg} aria-label="Rota da entrega">
+      <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" className={styles.svg} aria-label="Rota da entrega">
         {d && <path d={d} fill="none" stroke="var(--brand-2)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
         {pins.map((m, i) => (
           <g key={i}>
@@ -69,18 +69,26 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
  * estática (MapTiler); se falhar (plano sem Static Maps, rede) ou não houver
  * chave, cai no croqui SVG — nunca mostra imagem quebrada.
  */
+// A Static Maps API da MapTiler é recurso de plano pago e HOJE volta 403 na
+// nossa chave (validado). Então, por padrão, renderizamos o croqui SVG. Quando
+// o Static Maps for habilitado, basta setar NEXT_PUBLIC_MAPTILER_STATIC=true
+// (build var) que o mapa raster volta — com fallback pro SVG se a imagem falhar.
+const STATIC_ENABLED = process.env.NEXT_PUBLIC_MAPTILER_STATIC === 'true';
+
 export function RouteThumbnail({ store, customer, motoboy, polyline, height = 150 }: Props) {
   const [imgFailed, setImgFailed] = useState(false);
 
-  const url = buildRouteThumbnailUrl({
-    store,
-    customer,
-    motoboy,
-    polyline,
-    width: 640,
-    height: Math.round(height * 1.2),
-    key: MAPTILER_KEY,
-  });
+  const url = STATIC_ENABLED
+    ? buildRouteThumbnailUrl({
+        store,
+        customer,
+        motoboy,
+        polyline,
+        width: 640,
+        height: Math.round(height * 1.2),
+        key: MAPTILER_KEY,
+      })
+    : null;
 
   if (!url || imgFailed) {
     return <RouteSketch store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />;
