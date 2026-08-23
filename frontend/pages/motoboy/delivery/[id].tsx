@@ -3,7 +3,7 @@ import ContactInfo from '../../../components/delivery/ContactInfo';
 import * as logger from '../../../lib/logger';
 
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../../lib/api';
 import useRequireAuth from '../../../hooks/useRequireAuth';
 import ProtectedRoute from '../../../components/ProtectedRoute';
@@ -39,6 +39,15 @@ export default function MotoboyDeliveryDetail() {
   const [cancelledNotification, setCancelledNotification] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
 
+  // Refs p/ retransmitir a posição do motoboy ao cliente/loja (via relay do
+  // notifier) sem recriar o watcher de GPS: o watchPosition roda com deps [],
+  // então lê sempre o valor atual por ref (evita closure velha do delivery/emit).
+  const emitRef = useRef<((e: string, d: unknown) => void) | null>(null);
+  const deliveryIdRef = useRef<string | null>(null);
+  const activeRef = useRef(false);
+  const lastEmitRef = useRef(0);
+  const lastEmitPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
   // Monitorar localização em tempo real com alta precisão
   useEffect(() => {
     if (!window.navigator.geolocation) {
@@ -55,6 +64,31 @@ export default function MotoboyDeliveryDetail() {
 
         setCurrentLocation(newLocation);
         setLocationAccuracy(accuracy);
+
+        // Retransmite a posição ao cliente/loja durante a entrega ativa. O
+        // backend (notifier) relaya `delivery:location_updated` p/ user:cliente
+        // e store:loja. Throttle 10s + só se moveu ~>10m (mesma política do
+        // useLocationTracking), pra não floodar o socket.
+        const did = deliveryIdRef.current;
+        if (did && activeRef.current && emitRef.current) {
+          const now = Date.now();
+          const last = lastEmitPosRef.current;
+          const moved =
+            !last ||
+            Math.abs(newLocation.lat - last.lat) >= 0.0001 ||
+            Math.abs(newLocation.lng - last.lng) >= 0.0001;
+          if (now - lastEmitRef.current >= 10000 && moved) {
+            lastEmitRef.current = now;
+            lastEmitPosRef.current = newLocation;
+            emitRef.current('delivery:location_updated', {
+              deliveryId: did,
+              latitude: newLocation.lat,
+              longitude: newLocation.lng,
+              accuracy,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
 
         logger.log('[Localização] Atualizado:', {
           lat: newLocation.lat.toFixed(6),
@@ -84,7 +118,13 @@ export default function MotoboyDeliveryDetail() {
   const { delivery, loading } = useDelivery(id);
   const [msg, setMsg] = useState('');
   const [pinInput, setPinInput] = useState('');
-  const { on } = useSocket();
+  const { on, emit } = useSocket();
+
+  // Mantém os refs do emitter de localização atualizados (o watcher de GPS os lê
+  // por ref). Só emite durante a entrega ativa (a caminho da loja ou do cliente).
+  emitRef.current = emit;
+  deliveryIdRef.current = delivery?._id ?? null;
+  activeRef.current = !!delivery && ['assigned', 'picked'].includes(delivery.status);
 
   const [loadingFinalizar, setLoadingFinalizar] = useState(false);
   const finalizarEntrega = async () => {
