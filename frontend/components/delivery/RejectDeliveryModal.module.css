@@ -1,0 +1,103 @@
+/* Conteúdo do modal de rejeitar entrega (dentro do Sheet do DS). */
+.intro {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.textareaWrap { margin-bottom: var(--space-4); }
+.textarea {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-field);
+  color: var(--text-strong);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+.textarea:focus-visible { border-color: var(--brand-2); }
+.charCount { margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--text-subtle); text-align: right; }
+
+.error {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.actions > * { flex: 1; }
+
+/* ── Resumo (confirmação) ───────────────────────────────── */
+.summary {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.summaryTitle { margin: 0 0 var(--space-3); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+.summaryRow { display: flex; gap: var(--space-2); font-size: var(--fs-sm); color: var(--text); padding: 2px 0; }
+.summaryKey { color: var(--text-muted); }
+
+.info {
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 28%, var(--line));
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ── Aguardando confirmação (PIN de devolução) ──────────── */
+.waiting { text-align: center; padding: var(--space-4) 0 0; }
+.spinner {
+  width: 52px; height: 52px; margin: 0 auto var(--space-4);
+  border: 4px solid var(--surface-chip);
+  border-top-color: var(--brand);
+  border-radius: var(--r-pill);
+  animation: reject-spin 0.85s linear infinite;
+}
+.waitingTitle { margin: 0 0 var(--space-4); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+
+.pinBox {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-2) 35%, var(--line));
+  border-radius: var(--r-lg);
+  padding: var(--space-5) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.pinLabel { margin: 0 0 var(--space-2); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand-2); }
+.pinValue { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 800; letter-spacing: 6px; color: var(--text-strong); }
+.pinHint { margin: var(--space-2) 0 0; font-size: var(--fs-xs); color: var(--text-muted); }
+
+.steps {
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.stepsTitle { margin: 0 0 var(--space-2); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); }
+.stepsList { margin: 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
+
+@keyframes reject-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.8s; } }

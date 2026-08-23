@@ -1,0 +1,90 @@
+/* RadioRow — opção de rádio legível (círculo + título/descrição). */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.row:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+}
+
+.active {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.activeDanger {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* input nativo escondido (mantém semântica/acessibilidade). */
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: var(--r-pill);
+  border: 2px solid var(--text-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.active .dot { border-color: var(--brand); }
+.activeDanger .dot { border-color: var(--danger); }
+
+.dotInner {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--brand);
+}
+
+.activeDanger .dotInner { background: var(--danger); }
+
+/* foco por teclado no input escondido → anel no círculo */
+.input:focus-visible + .dot {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 2px;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.45;
+}

@@ -1,7 +1,7 @@
-/* Sheet — bottom sheet dark (modal).
- * Backdrop com --scrim-strong; painel --surface + --r-2xl só no topo.
- * Transições de entrada usam --dur-slow/--ease (overlay), como definido no
- * spec de movimento.
+/* Sheet — modal padrão do app.
+ * Mobile: bottom-sheet (desliza do rodapé, cantos só no topo, com "grabber").
+ * Desktop (>=640px): dialog CENTRALIZADO com fade + leve zoom (não sobe de
+ * baixo). API igual — todas as telas herdam. Fecha no backdrop ou Esc.
  */
 
 .wrapper {
@@ -9,7 +9,7 @@
   inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-end;        /* mobile: cola no rodapé */
   justify-content: center;
 }
 
@@ -17,20 +17,33 @@
   position: absolute;
   inset: 0;
   background: var(--scrim-strong);
-  animation: sheet-backdrop-in var(--dur-slow) var(--ease);
+  backdrop-filter: blur(2px);
+  animation: backdrop-in var(--dur-base) var(--ease);
 }
 
 .sheet {
   position: relative;
   width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
+  max-width: 520px;
+  max-height: 88vh;
   overflow-y: auto;
   background: var(--surface);
-  border-top: 1px solid var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--r-2xl) var(--r-2xl) 0 0;
   padding: var(--space-5);
-  animation: sheet-slide-up var(--dur-slow) var(--ease);
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.5);
+  animation: sheet-up var(--dur-base) var(--ease);
+}
+
+/* "grabber" (só no bottom-sheet mobile) */
+.sheet::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 0 auto var(--space-4);
+  border-radius: var(--r-pill);
+  background: var(--line);
 }
 
 .header {
@@ -52,15 +65,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  width: 32px;
+  height: 32px;
   color: var(--text-muted);
   cursor: pointer;
-  padding: var(--space-1);
+  flex-shrink: 0;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .close:hover {
   color: var(--text-strong);
+  background: var(--surface-chip);
 }
 
 .content {
@@ -68,22 +86,37 @@
   color: var(--text);
 }
 
-@keyframes sheet-slide-up {
-  from {
-    transform: translateY(100%);
+/* ── Desktop: dialog centralizado ───────────────────────── */
+@media (min-width: 640px) {
+  .wrapper {
+    align-items: center;
+    padding: var(--space-5);
   }
-  to {
-    transform: translateY(0);
+  .sheet {
+    max-width: 480px;
+    max-height: 86vh;
+    border-radius: var(--r-2xl);
+    box-shadow: var(--shadow-neutral);
+    animation: dialog-in var(--dur-base) var(--ease);
+  }
+  .sheet::before {
+    display: none; /* sem grabber no dialog */
   }
 }
 
-@keyframes sheet-backdrop-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
