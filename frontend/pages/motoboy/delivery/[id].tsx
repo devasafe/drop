@@ -67,8 +67,7 @@ export default function MotoboyDeliveryDetail() {
 
         // Retransmite a posição ao cliente/loja durante a entrega ativa. O
         // backend (notifier) relaya `delivery:location_updated` p/ user:cliente
-        // e store:loja. Throttle 10s + só se moveu ~>10m (mesma política do
-        // useLocationTracking), pra não floodar o socket.
+        // e store:loja. Throttle 5s + só se moveu ~>10m, pra não floodar o socket.
         const did = deliveryIdRef.current;
         if (did && activeRef.current && emitRef.current) {
           const now = Date.now();
@@ -77,7 +76,7 @@ export default function MotoboyDeliveryDetail() {
             !last ||
             Math.abs(newLocation.lat - last.lat) >= 0.0001 ||
             Math.abs(newLocation.lng - last.lng) >= 0.0001;
-          if (now - lastEmitRef.current >= 10000 && moved) {
+          if (now - lastEmitRef.current >= 5000 && moved) {
             lastEmitRef.current = now;
             lastEmitPosRef.current = newLocation;
             emitRef.current('delivery:location_updated', {

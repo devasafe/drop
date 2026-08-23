@@ -23,7 +23,8 @@ import NotificationToaster from '../components/NotificationToaster';
 import CookieBanner from '../components/CookieBanner';
 import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { ROLE_HOME } from '../lib/navConfig';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
 
@@ -45,6 +46,20 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       setIsSeller(user.role === 'lojista' || user.role === 'seller');
     }
   }, [user]);
+
+  // Trocar de role → redireciona pra Home daquela role, por QUALQUER caminho de
+  // switch. Guarda o role anterior num ref: não redireciona no primeiro load
+  // (só quando muda de verdade), evitando mexer em quem já está na área certa.
+  const prevRoleRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const r = user?.activeRole || user?.role;
+    if (!r) return;
+    if (prevRoleRef.current === undefined) { prevRoleRef.current = r; return; }
+    if (prevRoleRef.current !== r) {
+      prevRoleRef.current = r;
+      router.replace((ROLE_HOME as Record<string, string>)[r] || '/inicio');
+    }
+  }, [user?.activeRole, user?.role, router]);
 
   // Não mostrar chat em páginas específicas
   const isSellerPage = router.pathname.startsWith('/seller/') || router.pathname.startsWith('/store/');
