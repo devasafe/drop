@@ -51,18 +51,35 @@ export function buildRouteThumbnailUrl(opts: ThumbOpts): string | null {
   // Precisa de ao menos a polyline OU 2 pontos pra desenhar algo útil.
   if (!hasPolyline && markers.length < 2) return null;
 
-  // Rota: usa a polyline real quando existe; senão, liga loja→cliente em linha.
-  let path: string | null = null;
-  if (hasPolyline) {
-    path = `stroke:${STROKE}|width:5|enc:${encodeURIComponent(polyline as string)}`;
-  } else if (isPoint(store) && isPoint(customer)) {
-    path = `stroke:${STROKE}|width:5|${lngLat(store)}|${lngLat(customer)}`;
+  // Linha loja→cliente (fallback e usado no guard de tamanho). `fill:none` evita
+  // que a MapTiler preencha a área entre os pontos (ela fecha o polígono senão).
+  const lineFromPoints =
+    isPoint(store) && isPoint(customer)
+      ? `stroke:${STROKE}|fill:none|width:5|${lngLat(store)}|${lngLat(customer)}`
+      : null;
+
+  // Rota: usa a polyline real quando existe; senão, a linha loja→cliente.
+  let path: string | null = hasPolyline
+    ? `stroke:${STROKE}|fill:none|width:5|enc:${encodeURIComponent(polyline as string)}`
+    : lineFromPoints;
+
+  // Marcadores: `lon,lat,LABEL` (a Static Maps não tem cor simples de pino).
+  const LABELS = ['L', 'C', 'M']; // Loja, Cliente, Motoboy — na ordem do filter
+  const markersParam = markers.map((p, i) => `${lngLat(p)},${LABELS[i] ?? ''}`.replace(/,$/, '')).join('|');
+
+  const build = (p: string | null) => {
+    const params: string[] = [`key=${encodeURIComponent(key)}`];
+    if (p) params.push(`path=${p}`);
+    if (markersParam) params.push(`markers=${markersParam}`);
+    // `auto` enquadra a imagem na rota + marcadores automaticamente.
+    return `https://api.maptiler.com/maps/${style}/static/auto/${width}x${height}@2x.png?${params.join('&')}`;
+  };
+
+  let url = build(path);
+  // Limite da MapTiler = 8192 bytes na URL. Polyline longa pode estourar —
+  // cai pra linha reta (bem mais curta) com folga de segurança.
+  if (url.length > 7800 && lineFromPoints && path !== lineFromPoints) {
+    url = build(lineFromPoints);
   }
-
-  const params: string[] = [`key=${encodeURIComponent(key)}`];
-  if (path) params.push(`path=${path}`);
-  if (markers.length) params.push(`markers=${markers.map(lngLat).join('|')}`);
-
-  // `auto` enquadra a imagem na rota + marcadores automaticamente.
-  return `https://api.maptiler.com/maps/${style}/static/auto/${width}x${height}@2x.png?${params.join('&')}`;
+  return url;
 }
