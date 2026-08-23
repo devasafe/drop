@@ -14,6 +14,8 @@ interface Props {
   delivery: any;
   self?: LatLng | null;
   onClose: () => void;
+  /** Confirma a entrega com o PIN digitado (do cliente). Só na perna de entrega. */
+  onFinalize?: (pin: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface NavRoute {
@@ -32,7 +34,7 @@ const fmtDist = (m: number) => (m <= 0 ? '' : m < 1000 ? `${Math.round(m)} m` : 
  * alvo (RouteService, via /deliveries/:id/route) e o NavCard com PIN + atalho pro
  * Google Maps/Waze. Fullscreen via portal (fora do PageTransition).
  */
-export function MotoboyNavMap({ delivery, self, onClose }: Props) {
+export function MotoboyNavMap({ delivery, self, onClose, onFinalize }: Props) {
   const [mounted, setMounted] = useState(false);
   const [route, setRoute] = useState<NavRoute | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -81,7 +83,9 @@ export function MotoboyNavMap({ delivery, self, onClose }: Props) {
   const instruction = goingToCustomer ? 'Vá até o cliente' : 'Vá até a loja';
   const address = goingToCustomer ? delivery?.customerAddress : delivery?.storeAddress;
   const pinLabel = goingToCustomer ? 'PIN de entrega' : 'PIN de retirada';
-  const pin = goingToCustomer ? delivery?.pin : delivery?.pinRetirada;
+  // Na retirada, o motoboy MOSTRA o pinRetirada pra loja (exibe). Na entrega, ele
+  // DIGITA o PIN do cliente (input) — nunca exibir delivery.pin pro motoboy.
+  const pin = goingToCustomer ? undefined : delivery?.pinRetirada;
 
   const overlay = (
     <div className={styles.overlay}>
@@ -114,6 +118,7 @@ export function MotoboyNavMap({ delivery, self, onClose }: Props) {
           address={address}
           pinLabel={pinLabel}
           pin={pin}
+          onConfirm={goingToCustomer ? onFinalize : undefined}
           target={target}
         />
       </div>
