@@ -4,7 +4,9 @@
 
 .window {
   position: fixed;
-  bottom: 20px;
+  /* Mobile: sobe acima das barras inferiores (TabBar do cliente / PanelBottomNav
+     do painel) pra não ficar cortada. Desktop volta pro rodapé. */
+  bottom: 90px;
   right: 20px;
   z-index: 50;
   font-family: var(--font-body);
@@ -17,4 +19,11 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Desktop: sem barra inferior (usa Nav/sidebar) — janela volta pro rodapé. */
+@media (min-width: 900px) {
+  .window {
+    bottom: 20px;
+  }
 }
