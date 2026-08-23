@@ -1,6 +1,8 @@
 import { useEffect, useState, useContext, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
+import { RouteThumbnail } from '../components/map/RouteThumbnail';
+import { parseCoords } from '../lib/geo';
 import AuthContext from '../contexts/AuthContext';
 import { connectSocket, getSocket } from '../lib/socket';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -949,6 +951,18 @@ export default function StoreDashboard() {
                           className={`${styles.pinStatus} ${pinStatuses[order._id].includes('sucesso') ? styles.pinStatusOk : styles.pinStatusErr}`}
                         >
                           {pinStatuses[order._id]}
+                        </div>
+                      )}
+
+                      {/* Rota loja→cliente no card de aceitar (thumbnail estático) */}
+                      {order.status === 'criado' && (
+                        <div style={{ marginBottom: 'var(--space-3)' }}>
+                          <RouteThumbnail
+                            store={parseCoords(order.storeLatitude, order.storeLongitude)}
+                            customer={parseCoords(order.customerLatitude, order.customerLongitude)}
+                            polyline={order.routePolyline}
+                            height={140}
+                          />
                         </div>
                       )}
 

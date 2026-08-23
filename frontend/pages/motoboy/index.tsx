@@ -15,6 +15,7 @@ import { useDeliveries, useOngoingDeliveries, useDeliveryHistory } from '../../h
 import { earningsToday, deliveriesToday, avgRating } from '../../lib/motoboyOverview';
 import { DeliveryOfferCard } from '../../components/motoboy/DeliveryOfferCard';
 import OnboardingResumeBanner from '../../components/OnboardingResumeBanner';
+import { RoutePoint } from '../../lib/staticMap';
 import styles from './MotoboyCockpit.module.css';
 
 const POOL_POLL_MS = 25000;
@@ -35,6 +36,19 @@ export default function MotoboyPage() {
   const { deliveries: history } = useDeliveryHistory();
   const [accepting, setAccepting] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [self, setSelf] = useState<RoutePoint | null>(null);
+
+  // Posição atual do motoboy p/ o pino nos thumbnails de rota das ofertas.
+  // Só quando online (é quando as ofertas aparecem). Baixa frequência basta.
+  useEffect(() => {
+    if (!online || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      (p) => setSelf({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [online]);
 
   // Polling do pool só quando online. Refetch imediato ao ficar online evita
   // esperar até 25s (POOL_POLL_MS) pra ver o pool atualizado.
@@ -142,7 +156,7 @@ export default function MotoboyPage() {
               <div className={styles.list}>
                 {pool.map((d: any) => (
                   <DeliveryOfferCard key={d._id} delivery={d} accepting={accepting === d._id}
-                    onAccept={() => claim(d._id)} onReject={() => reject(d._id)} />
+                    self={self} onAccept={() => claim(d._id)} onReject={() => reject(d._id)} />
                 ))}
               </div>
             )}
