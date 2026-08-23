@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { buildRouteThumbnailUrl, RoutePoint } from '../../lib/staticMap';
+import dynamic from 'next/dynamic';
+import { RoutePoint } from '../../lib/staticMap';
 import { MAPTILER_KEY } from '../../lib/mapConfig';
 import { decodePolyline } from '../../lib/polyline';
 import styles from './RouteThumbnail.module.css';
+
+// Mapa real (WebGL) só no client.
+const RouteMiniMap = dynamic(() => import('./presets/RouteMiniMap').then((m) => m.RouteMiniMap), { ssr: false });
 
 interface Props {
   store?: RoutePoint | null;
@@ -69,42 +72,23 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
  * estática (MapTiler); se falhar (plano sem Static Maps, rede) ou não houver
  * chave, cai no croqui SVG — nunca mostra imagem quebrada.
  */
-// A Static Maps API da MapTiler é recurso de plano pago e HOJE volta 403 na
-// nossa chave (validado). Então, por padrão, renderizamos o croqui SVG. Quando
-// o Static Maps for habilitado, basta setar NEXT_PUBLIC_MAPTILER_STATIC=true
-// (build var) que o mapa raster volta — com fallback pro SVG se a imagem falhar.
-const STATIC_ENABLED = process.env.NEXT_PUBLIC_MAPTILER_STATIC === 'true';
-
+/**
+ * Thumbnail da rota loja→cliente nos cards de aceitar. Mostra o MAPA REAL (dark,
+ * tiles vetoriais que funcionam no plano atual) via mini-DropMap travado. Sem
+ * chave do MapTiler, cai no croqui SVG. (A Static Maps API raster é paga e volta
+ * 403 na chave atual, por isso não é usada.)
+ */
 export function RouteThumbnail({ store, customer, motoboy, polyline, height = 150 }: Props) {
-  const [imgFailed, setImgFailed] = useState(false);
+  const hasLine = typeof polyline === 'string' && polyline.length > 0;
+  const nPts = [store, customer, motoboy].filter(isPoint).length;
+  // Precisa de polyline OU 2 pontos pra valer um thumbnail.
+  if (!hasLine && nPts < 2) return null;
 
-  const url = STATIC_ENABLED
-    ? buildRouteThumbnailUrl({
-        store,
-        customer,
-        motoboy,
-        polyline,
-        width: 640,
-        height: Math.round(height * 1.2),
-        key: MAPTILER_KEY,
-      })
-    : null;
-
-  if (!url || imgFailed) {
+  if (!MAPTILER_KEY) {
     return <RouteSketch store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />;
   }
 
-  return (
-    <div className={styles.wrap} style={{ height }}>
-      <img
-        className={styles.img}
-        src={url}
-        alt="Rota da entrega"
-        loading="lazy"
-        onError={() => setImgFailed(true)}
-      />
-    </div>
-  );
+  return <RouteMiniMap store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />;
 }
 
 export default RouteThumbnail;
