@@ -77,8 +77,10 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Validações
     const order = await validateOrderOwnership(orderId, customerId);
 
-    // Apenas pedidos em estados 'criado', 'pago' ou 'enviado' podem ser cancelados
-    const cancellableStatuses = ['criado', 'pago', 'enviado'];
+    // Estados canceláveis pelo cliente. Inclui 'aguardando_motoboy' (loja já
+    // aceitou, motoboy ainda não retirou) — reembolso é GRÁTIS/total nesse caso
+    // (ver motoboyEnRoute/fee abaixo: taxa só vale em 'enviado').
+    const cancellableStatuses = ['criado', 'pago', 'aguardando_motoboy', 'enviado'];
     if (!cancellableStatuses.includes(order.status)) {
       return res.status(400).json({
         error: `Pedido não pode ser cancelado no estado: ${order.status}`,

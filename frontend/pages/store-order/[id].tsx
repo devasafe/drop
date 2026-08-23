@@ -32,7 +32,7 @@ const ClienteTrackingMap = dynamic(
 
 // Status em que o cliente ainda pode pedir cancelamento — mesma regra do
 // `CancelOrderModal`, mantida aqui só pra decidir se o botão aparece.
-const CANCELABLE_STATUSES = ['criado', 'pago', 'enviado'];
+const CANCELABLE_STATUSES = ['criado', 'pago', 'aguardando_motoboy', 'enviado'];
 
 /** Rótulo curto do passo atual (mesmo fallback que `OrderTracker` usa
  * quando `statusLabel` não é informado), pra `OrderStatusHero` e
