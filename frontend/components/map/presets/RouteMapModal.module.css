@@ -1,0 +1,57 @@
+/* Rota em tela cheia (aberta a partir do thumbnail do card de aceitar). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg);
+}
+
+.close {
+  position: fixed;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--text-strong);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.legend {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.swRoute { width: 14px; height: 3px; border-radius: 2px; background: var(--brand-2); }
+.swStore { width: 10px; height: 10px; border-radius: var(--r-pill); background: var(--brand); }
+.swCustomer { width: 10px; height: 10px; border-radius: var(--r-pill); background: var(--text-strong); }
+.swMoto { width: 10px; height: 10px; border-radius: var(--r-pill); background: var(--success); }

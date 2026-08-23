@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { RoutePoint } from '../../lib/staticMap';
 import { MAPTILER_KEY } from '../../lib/mapConfig';
@@ -6,6 +7,7 @@ import styles from './RouteThumbnail.module.css';
 
 // Mapa real (WebGL) só no client.
 const RouteMiniMap = dynamic(() => import('./presets/RouteMiniMap').then((m) => m.RouteMiniMap), { ssr: false });
+const RouteMapModal = dynamic(() => import('./presets/RouteMapModal').then((m) => m.RouteMapModal), { ssr: false });
 
 interface Props {
   store?: RoutePoint | null;
@@ -79,16 +81,33 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
  * 403 na chave atual, por isso não é usada.)
  */
 export function RouteThumbnail({ store, customer, motoboy, polyline, height = 150 }: Props) {
+  const [open, setOpen] = useState(false);
   const hasLine = typeof polyline === 'string' && polyline.length > 0;
   const nPts = [store, customer, motoboy].filter(isPoint).length;
   // Precisa de polyline OU 2 pontos pra valer um thumbnail.
   if (!hasLine && nPts < 2) return null;
 
-  if (!MAPTILER_KEY) {
-    return <RouteSketch store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />;
-  }
+  const inner = !MAPTILER_KEY ? (
+    <RouteSketch store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />
+  ) : (
+    <RouteMiniMap store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />
+  );
 
-  return <RouteMiniMap store={store} customer={customer} motoboy={motoboy} polyline={polyline} height={height} />;
+  return (
+    <>
+      <button type="button" className={styles.btn} onClick={() => setOpen(true)} title="Ver rota no mapa" aria-label="Ver rota no mapa">
+        {inner}
+        <span className={styles.expand} aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <RouteMapModal store={store} customer={customer} motoboy={motoboy} polyline={polyline} onClose={() => setOpen(false)} />
+      )}
+    </>
+  );
 }
 
 export default RouteThumbnail;
