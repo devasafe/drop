@@ -136,18 +136,22 @@ export default function MotoboyDeliveryDetail() {
   }, [router.query.nav, delivery]);
 
   const [loadingFinalizar, setLoadingFinalizar] = useState(false);
-  const finalizarEntrega = async () => {
+  const finalizarEntrega = async (pin: string): Promise<{ ok: boolean; error?: string }> => {
     setLoadingFinalizar(true);
     try {
-      await api.post(`/deliveries/${id}/finalizar`, { pin: pinInput });
+      await api.post(`/deliveries/${id}/finalizar`, { pin });
       setMsg('Entrega finalizada com sucesso!');
       setTimeout(() => {
         router.push('/motoboy');
       }, 1000);
+      return { ok: true };
     } catch (err: any) {
-      setMsg(err?.response?.data?.error || 'Erro ao finalizar entrega');
+      const error = err?.response?.data?.error || 'Erro ao finalizar entrega';
+      setMsg(error);
+      return { ok: false, error };
+    } finally {
+      setLoadingFinalizar(false);
     }
-    setLoadingFinalizar(false);
   };
 
   // Listener para cancelamento de entrega em tempo real
@@ -338,7 +342,7 @@ export default function MotoboyDeliveryDetail() {
           )}
 
           {navOpen && (
-            <MotoboyNavMap delivery={delivery} self={currentLocation} onClose={() => setNavOpen(false)} />
+            <MotoboyNavMap delivery={delivery} self={currentLocation} onFinalize={finalizarEntrega} onClose={() => setNavOpen(false)} />
           )}
 
           {/* PIN de retirada */}
@@ -361,7 +365,7 @@ export default function MotoboyDeliveryDetail() {
                 maxLength={6}
                 placeholder="PIN do cliente"
               />
-              <Button onClick={finalizarEntrega} disabled={loadingFinalizar || pinInput.trim().length < 5}>
+              <Button onClick={() => finalizarEntrega(pinInput)} disabled={loadingFinalizar || pinInput.trim().length < 5}>
                 {loadingFinalizar ? 'Finalizando…' : 'Finalizar entrega'}
               </Button>
             </section>
