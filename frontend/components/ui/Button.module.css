@@ -67,6 +67,14 @@
   color: var(--text-strong);
 }
 
+.danger {
+  background: var(--danger);
+  color: var(--on-brand);
+}
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 88%, #000);
+}
+
 .onImage {
   background: var(--text-strong);
   color: var(--brand);
