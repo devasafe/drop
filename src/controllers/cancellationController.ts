@@ -1259,6 +1259,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
           storeAddress: order.storeAddress,
           storeLatitude: order.storeLatitude,
           storeLongitude: order.storeLongitude,
+          routePolyline: order.routePolyline, // rota loja→cliente (p/ mapa do motoboy/cliente)
         },
       }));
 

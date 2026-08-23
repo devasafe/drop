@@ -1,10 +1,77 @@
-.card { display: flex; flex-direction: column; gap: var(--space-2); }
-.header { display: flex; align-items: center; justify-content: space-between; }
-.order { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--text-muted); }
-.value { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--success); font-weight: 700; }
-.feeNote { font-size: var(--fs-xs); color: var(--text-subtle); }
-.rows { display: flex; flex-direction: column; gap: var(--space-1); }
-.row { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--text-muted); }
-.row strong { color: var(--text); font-weight: 600; }
-.actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+/* Card de oferta de corrida (motoboy). */
+.card { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.order {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.earn {
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  color: var(--success);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.feeNote {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  margin-top: 3px;
+}
+
+.distPill {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+}
+.distPill svg { color: var(--brand-2); }
+
+/* Retirada → entrega */
+.route { display: flex; flex-direction: column; }
+
+.point { display: flex; align-items: flex-start; gap: var(--space-3); }
+
+.rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 12px; }
+.dot { width: 10px; height: 10px; border-radius: var(--r-pill); margin-top: 4px; }
+.dotStore { background: var(--brand); }
+.dotCustomer { background: var(--success); }
+.leg { width: 2px; flex: 1; min-height: 14px; background: var(--line); margin: 2px 0; }
+
+.pointText { min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-bottom: var(--space-2); }
+.pointLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pointAddr {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.actions { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
 .actions > * { flex: 1; }
