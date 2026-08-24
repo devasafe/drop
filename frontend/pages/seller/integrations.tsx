@@ -22,7 +22,10 @@ export default function SellerIntegrations() {
   const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const apiBase = (api.defaults.baseURL || '').replace(/\/$/, '');
+  // Só depois de montar: a base do api depende de window.location (client-only).
+  // Renderizar isso no SSR causaria mismatch de hidratação (crash na página).
+  const [apiBase, setApiBase] = useState('');
+  useEffect(() => { setApiBase((api.defaults.baseURL || '').replace(/\/$/, '')); }, []);
 
   const load = useCallback(async () => {
     try {

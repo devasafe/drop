@@ -158,7 +158,7 @@ app.use('/api/badges', badgesRoutes);
 // Webhooks de gateways (server-to-server) — fora de /api para escapar do rate
 // limiter; a origem é validada por token dentro do controller.
 app.use('/webhooks', webhooksRoutes);
-app.use('/integrations', integrationsRoutes);
+app.use('/api/integrations', integrationsRoutes);
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/uploads', uploadsRoutes);
