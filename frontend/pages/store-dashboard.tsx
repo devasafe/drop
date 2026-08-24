@@ -15,6 +15,7 @@ import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
 import OperatingHoursEditor from '../components/OperatingHoursEditor';
 import StoreQRCode from '../components/StoreQRCode';
+import PushEnableBanner from '../components/PushEnableBanner';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
@@ -808,6 +809,13 @@ export default function StoreDashboard() {
           {/* Configurações */}
           {activeTab === 'config' && (
             <div className={styles.configWrap}>
+              <section className={styles.configSection}>
+                <h2 className={styles.configSectionTitle}>Notificações</h2>
+                <PushEnableBanner
+                  title="Receba avisos de novos pedidos"
+                  description="Ative pra ser avisado de pedidos, cancelamentos e avaliações mesmo com o app fechado."
+                />
+              </section>
               {store?.plan === 3 && (
                 <section className={styles.configSection}>
                   <h2 className={styles.configSectionTitle}>Banner da loja</h2>

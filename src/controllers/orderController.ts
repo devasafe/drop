@@ -17,6 +17,7 @@ import {
   emitDeliveryCreated,
   emitToRoom,
 } from '../utils/socketEmitter';
+import { notifyStoreOwner } from '../services/pushService';
 import {
   calculateOrderDistribution,
   calculateDeliveryFeeWithConfig,
@@ -81,6 +82,14 @@ export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(409).json({ error: 'Pedido já avaliado' });
 
     await prisma.order.update({ where: { id }, data: { storeRating, storeComment } });
+
+    // 📲 Push pro dono da loja: recebeu uma avaliação nova.
+    notifyStoreOwner(order.storeId, {
+      title: 'Nova avaliação ⭐',
+      body: `Sua loja recebeu uma avaliação de ${storeRating} estrela${storeRating > 1 ? 's' : ''}.`,
+      url: '/store-dashboard',
+      tag: 'nova-avaliacao',
+    });
 
     return res.json({ success: true });
   } catch (err) {

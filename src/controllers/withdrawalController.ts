@@ -15,6 +15,9 @@ import userRepository from '../repositories/user.repository';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
+import { emitAdminNotification } from '../utils/socketEmitter';
+
+const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
 
 /**
  * Verifica se o recebedor (motoboy/loja) está pronto para sacar via Asaas:
@@ -143,6 +146,15 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));
     const refreshed = await findWRById(withdrawal._id);
+    // Notifica o admin só quando NÃO foi aprovado no automático (fica pendente).
+    if ((refreshed?.status || withdrawal.status) === 'pending') {
+      emitAdminNotification({
+        title: 'Saque pendente 💸',
+        body: `${user.name} solicitou um saque de ${brl(actualAmount)} — precisa de aprovação.`,
+        url: '/admin/withdrawals',
+        tag: 'withdrawal',
+      });
+    }
     return res.json({
       message: 'Saque solicitado com sucesso',
       withdrawal: refreshed || withdrawal,
@@ -408,6 +420,14 @@ export const requestUserWithdrawal = async (req: Request & { user?: any }, res: 
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));
     const refreshed = await findWRById(withdrawal._id);
+    if ((refreshed?.status || withdrawal.status) === 'pending') {
+      emitAdminNotification({
+        title: 'Saque pendente 💸',
+        body: `${user.name} solicitou um saque de ${brl(amount)} — precisa de aprovação.`,
+        url: '/admin/withdrawals',
+        tag: 'withdrawal',
+      });
+    }
     return res.json({
       message: 'Saque solicitado com sucesso',
       withdrawal: refreshed || withdrawal,

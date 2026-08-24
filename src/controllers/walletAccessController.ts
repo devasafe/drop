@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 import { emitToRoom } from '../utils/socketEmitter';
+import { sendPushToUser } from '../services/pushService';
 import logger from '../config/logger';
 
 const ACCESS_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
@@ -89,6 +90,14 @@ export const requestWalletAccess = async (req: AuthenticatedRequest, res: Respon
     // Notifica o cliente alvo (com o requester populado)
     const [populated] = await populateUsers([request], 'requestedBy');
     emitToRoom(`user:${targetUserId}`, 'wallet:access_requested', populated);
+
+    // 📲 Push pro alvo (é quem aprova) — chega mesmo com o app fechado.
+    void sendPushToUser(String(targetUserId), {
+      title: 'Pedido de acesso à carteira 🔐',
+      body: `${(populated as any)?.requestedBy?.name || 'Alguém'} pediu acesso à sua carteira. Toque para revisar.`,
+      url: '/wallet',
+      tag: 'wallet-access',
+    });
 
     return res.status(201).json({ request: populated });
   } catch (err) {

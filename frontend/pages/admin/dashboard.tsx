@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import PushEnableBanner from '../../components/PushEnableBanner';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { visibleAdminMenu } from '../../lib/adminMenu';
@@ -79,6 +80,13 @@ export default function CeoDashboard() {
               <option value="year">Este Ano</option>
               <option value="all">Tudo</option>
             </select>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <PushEnableBanner
+              title="Receba avisos de ações pendentes"
+              description="Ative pra ser notificado de verificações, saques e suporte mesmo com o painel fechado."
+            />
           </div>
 
           {/* Acesso Rápido — só mostra o que este usuário pode acessar */}
