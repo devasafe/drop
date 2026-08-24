@@ -41,7 +41,7 @@ export function DeliveryOfferCard({ delivery: d, onAccept, onReject, accepting, 
   const drop = splitAddressLines(d.customerAddress || d.destination);
 
   return (
-    <Card className={styles.card}>
+    <Card className={styles.card} style={{ background: 'color-mix(in srgb, var(--surface) 34%, var(--bg))' }}>
       {/* Cabeçalho: pedido + remuneração */}
       <div className={styles.head}>
         <span className={styles.orderPill}>PEDIDO #{code}</span>
