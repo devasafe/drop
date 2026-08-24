@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MessageCircle, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import DropMap from '../DropMap';
 import { RouteLayer } from '../layers/RouteLayer';
@@ -16,6 +17,8 @@ interface Props {
   onClose: () => void;
   /** Confirma a entrega com o PIN digitado (do cliente). Só na perna de entrega. */
   onFinalize?: (pin: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Abre o chat com a loja (perna de retirada) ou o cliente (perna de entrega). */
+  onChat?: (kind: 'store' | 'customer') => void;
 }
 
 interface NavRoute {
@@ -34,8 +37,9 @@ const fmtDist = (m: number) => (m <= 0 ? '' : m < 1000 ? `${Math.round(m)} m` : 
  * alvo (RouteService, via /deliveries/:id/route) e o NavCard com PIN + atalho pro
  * Google Maps/Waze. Fullscreen via portal (fora do PageTransition).
  */
-export function MotoboyNavMap({ delivery, self, onClose, onFinalize }: Props) {
+export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const [route, setRoute] = useState<NavRoute | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const followRef = useRef(true);
@@ -103,25 +107,55 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize }: Props) {
         <MapControls onRecenter={recenter} />
       </DropMap>
 
-      <button type="button" className={styles.close} onClick={onClose}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        Voltar
-      </button>
-
-      <div className={styles.navDock}>
-        <NavCard
-          instruction={instruction}
-          etaText={fmtEta(route?.durationSeconds || 0)}
-          distanceText={fmtDist(route?.distanceMeters || 0)}
-          address={address}
-          pinLabel={pinLabel}
-          pin={pin}
-          onConfirm={goingToCustomer ? onFinalize : undefined}
-          target={target}
-        />
+      {/* Barra de ações (topo esquerdo). Minimizar deixa só o mapa. */}
+      <div className={styles.tools}>
+        <button
+          type="button"
+          className={styles.toolBtn}
+          onClick={() => setMinimized((m) => !m)}
+          title={minimized ? 'Mostrar detalhes' : 'Só o mapa'}
+          aria-label={minimized ? 'Expandir detalhes' : 'Minimizar (só o mapa)'}
+        >
+          {minimized ? <ChevronUp size={20} aria-hidden="true" /> : <ChevronDown size={20} aria-hidden="true" />}
+        </button>
+        {!minimized && onChat && (
+          <button
+            type="button"
+            className={styles.toolBtn}
+            onClick={() => onChat(goingToCustomer ? 'customer' : 'store')}
+            title={goingToCustomer ? 'Falar com o cliente' : 'Falar com a loja'}
+            aria-label={goingToCustomer ? 'Falar com o cliente' : 'Falar com a loja'}
+          >
+            <MessageCircle size={20} aria-hidden="true" />
+          </button>
+        )}
+        {!minimized && (
+          <button
+            type="button"
+            className={styles.toolBtn}
+            onClick={onClose}
+            title="Página da entrega"
+            aria-label="Ir para a página da entrega"
+          >
+            <ClipboardList size={20} aria-hidden="true" />
+          </button>
+        )}
       </div>
+
+      {!minimized && (
+        <div className={styles.navDock}>
+          <NavCard
+            instruction={instruction}
+            etaText={fmtEta(route?.durationSeconds || 0)}
+            distanceText={fmtDist(route?.distanceMeters || 0)}
+            address={address}
+            pinLabel={pinLabel}
+            pin={pin}
+            onConfirm={goingToCustomer ? onFinalize : undefined}
+            target={target}
+          />
+        </div>
+      )}
     </div>
   );
 
