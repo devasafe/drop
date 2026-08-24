@@ -34,9 +34,9 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
   }
 
   const pins = [
-    isPoint(store) ? { p: store, c: 'var(--brand)' } : null,
-    isPoint(customer) ? { p: customer, c: 'var(--text-strong)' } : null,
-    isPoint(motoboy) ? { p: motoboy, c: 'var(--success)' } : null,
+    isPoint(store) ? { p: store, c: 'var(--brand-2)' } : null,
+    isPoint(customer) ? { p: customer, c: 'var(--success)' } : null,
+    isPoint(motoboy) ? { p: motoboy, c: 'var(--text-strong)' } : null,
   ].filter(Boolean) as { p: RoutePoint; c: string }[];
 
   if (line.length < 2 && pins.length < 2) return null;
