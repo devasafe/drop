@@ -14,6 +14,7 @@ import ChatConversationList from '../components/ChatConversationList';
 import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
 import OperatingHoursEditor from '../components/OperatingHoursEditor';
+import StoreQRCode from '../components/StoreQRCode';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
@@ -826,6 +827,12 @@ export default function StoreDashboard() {
                     initialIsOpen={store.isOpen !== false}
                     onSaved={fetchDashboard}
                   />
+                </section>
+              )}
+              {store?._id && (
+                <section className={styles.configSection}>
+                  <h2 className={styles.configSectionTitle}>QR Code da loja</h2>
+                  <StoreQRCode storeRef={store.slug || store._id} storeName={store.name} />
                 </section>
               )}
             </div>
