@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert } from 'lucide-react';
+import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert, Bell, BellRing } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AuthContext from '../../contexts/AuthContext';
@@ -11,6 +11,7 @@ import { ICON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { formatBRL } from '../../components/ui/PriceTag';
 import { useToast } from '../../components/ui/Toast';
 import { useMotoboyStatus } from '../../hooks/useMotoboyStatus';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useDeliveries, useOngoingDeliveries, useDeliveryHistory } from '../../hooks/useSync';
 import { earningsToday, deliveriesToday, avgRating } from '../../lib/motoboyOverview';
 import { DeliveryOfferCard } from '../../components/motoboy/DeliveryOfferCard';
@@ -31,6 +32,14 @@ export default function MotoboyPage() {
   const { user } = useContext(AuthContext);
   const { showToast } = useToast();
   const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
+  const push = usePushNotifications();
+
+  const enablePush = async () => {
+    const ok = await push.enable();
+    if (ok) { showToast('Notificações ativadas! Você recebe as corridas mesmo com o app fechado.', 'success'); push.sendTest(); }
+    else if (push.permission === 'denied') showToast('Notificações bloqueadas. Libere nas configurações do navegador.', 'error');
+    else showToast('Não foi possível ativar as notificações agora.', 'error');
+  };
   const { deliveries: pool, loading: poolLoading, setDeliveries: setPool, refetch } = useDeliveries();
   const { deliveries: ongoing } = useOngoingDeliveries();
   const { deliveries: history } = useDeliveryHistory();
@@ -115,6 +124,33 @@ export default function MotoboyPage() {
           </header>
 
           <OnboardingResumeBanner />
+
+          {/* Notificações de corrida (Web Push) — só oferece se o navegador suporta e ainda não ativou */}
+          {push.supported && !push.subscribed && push.permission !== 'denied' && (
+            <div className={styles.pushBanner}>
+              <Bell size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <div className={styles.pushText}>
+                <strong>Receba corridas com o celular bloqueado</strong>
+                <span>Ative as notificações para ser avisado mesmo com o app fechado.</span>
+              </div>
+              <Button onClick={enablePush} size="sm" disabled={push.busy}>
+                {push.busy ? 'Ativando…' : 'Ativar'}
+              </Button>
+            </div>
+          )}
+          {push.supported && !push.subscribed && push.permission === 'denied' && (
+            <div className={`${styles.gpsBanner} ${styles.gpsWarn}`}>
+              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>Notificações bloqueadas neste navegador. Libere a permissão de notificações nas configurações do site para receber corridas com o celular bloqueado.</span>
+            </div>
+          )}
+          {push.subscribed && (
+            <div className={styles.pushOk}>
+              <BellRing size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>Notificações ativas</span>
+              <button className={styles.pushTest} onClick={() => push.sendTest()}>enviar teste</button>
+            </div>
+          )}
 
           {/* Saúde do GPS — só faz sentido quando online */}
           {online && gps === 'active' && (

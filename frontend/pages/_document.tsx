@@ -8,7 +8,14 @@ export default function Document() {
       <Head>
         {/* Favicon (ícone da aba) */}
         <link rel="icon" type="image/png" href="/images/drop_png.png" />
-        <link rel="apple-touch-icon" href="/images/drop_png.png" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* PWA / Web Push — permite instalar na tela inicial (necessário p/ push no iOS) */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#6C2BD9" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="DROP" />
         {/* Fontes (Space Grotesk + Inter) são carregadas e self-hospedadas pelo
             next/font (lib/fonts, aplicado no <Html> acima) — sem <link> externo. */}
         <Script

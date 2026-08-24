@@ -340,9 +340,26 @@ model User {
   ownedStores  Store[]   @relation("StoreOwner")
   orders       Order[]   @relation("CustomerOrders")
   consentLogs  ConsentLog[]
+  pushSubscriptions PushSubscription[]
 
   @@index([status])
   @@index([storeId])
+}
+
+/// Inscrição de Web Push (um device do usuário). Um usuário pode ter várias
+/// (celular + navegador). O `endpoint` é único por device/navegador.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Address {
