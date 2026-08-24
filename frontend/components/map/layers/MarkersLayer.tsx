@@ -14,6 +14,8 @@ interface Props {
   motoboy?: LatLng | null;
   storeLabel?: string;
   customerLabel?: string;
+  /** Cor do pino do cliente (hex). Default: roxo do CSS. Usado p/ diferenciar entrega (verde). */
+  customerColor?: string;
 }
 
 const ICON_STORE =
@@ -33,7 +35,7 @@ function makeEl(inner: string): HTMLDivElement {
  * (DOM, sem sprite). O motoboy MOVE com tween (requestAnimationFrame) entre a
  * última e a nova posição — não recria o marcador nem re-renderiza o mapa.
  */
-export function MarkersLayer({ store, customer, motoboy, storeLabel = 'Loja', customerLabel = 'Você' }: Props) {
+export function MarkersLayer({ store, customer, motoboy, storeLabel = 'Loja', customerLabel = 'Você', customerColor }: Props) {
   const map = useDropMap();
   const storeRef = useRef<Marker | null>(null);
   const custRef = useRef<Marker | null>(null);
@@ -60,8 +62,12 @@ export function MarkersLayer({ store, customer, motoboy, storeLabel = 'Loja', cu
   useEffect(() => {
     if (!map || !customer) return;
     if (!custRef.current) {
+      // Cor custom (ex.: verde p/ entrega nos cards) sobrescreve o roxo do CSS.
+      const pinStyle = customerColor
+        ? ` style="background:${customerColor};box-shadow:0 6px 16px ${customerColor}73"`
+        : '';
       custRef.current = new Marker({
-        element: makeEl(`<div class="${styles.pin}"></div><span class="${styles.label}">${customerLabel}</span>`),
+        element: makeEl(`<div class="${styles.pin}"${pinStyle}></div><span class="${styles.label}">${customerLabel}</span>`),
         anchor: 'bottom',
       })
         .setLngLat([customer.lng, customer.lat])

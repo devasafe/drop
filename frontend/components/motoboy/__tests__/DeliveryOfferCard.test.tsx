@@ -8,7 +8,8 @@ test('mostra valor do motoboy (80% da taxa) e dispara callbacks', () => {
   const onReject = jest.fn();
   render(<DeliveryOfferCard delivery={delivery} onAccept={onAccept} onReject={onReject} />);
 
-  expect(screen.getByText(/R\$\s?8,00/)).toBeInTheDocument(); // 10 * 0.8
+  // 10 * 0.8 = R$ 8,00 — aparece no destaque "Você recebe" e no botão "Aceitar por R$ 8,00"
+  expect(screen.getAllByText(/R\$\s?8,00/).length).toBeGreaterThanOrEqual(1);
 
   fireEvent.click(screen.getByRole('button', { name: /aceitar/i }));
   expect(onAccept).toHaveBeenCalled();

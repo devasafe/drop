@@ -56,7 +56,7 @@ export function RouteMiniMap({ store, customer, motoboy, polyline, height = 150 
         }}
       >
         <RouteLayer polyline={polyline} />
-        <MarkersLayer store={store} customer={customer} motoboy={motoboy} storeLabel="Loja" customerLabel="Cliente" />
+        <MarkersLayer store={store} customer={customer} motoboy={motoboy} storeLabel="Loja" customerLabel="Cliente" customerColor="#3ddc84" />
       </DropMap>
     </div>
   );
