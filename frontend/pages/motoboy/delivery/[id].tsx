@@ -337,7 +337,7 @@ export default function MotoboyDeliveryDetail() {
           )}
 
           {navOpen && (
-            <MotoboyNavMap delivery={delivery} self={currentLocation} onFinalize={finalizarEntrega} onClose={() => setNavOpen(false)} />
+            <MotoboyNavMap delivery={delivery} self={currentLocation} onFinalize={finalizarEntrega} onChat={openChatWith} onClose={() => setNavOpen(false)} />
           )}
 
           {/* PIN de retirada */}
