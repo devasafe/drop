@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
 import styles from './Integrations.module.css';
 
-interface ApiKey { id: string; name: string; prefix: string; lastUsedAt?: string; revokedAt?: string; createdAt: string }
+interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; lastUsedAt?: string; revokedAt?: string; createdAt: string }
 interface Webhook { id: string; url: string; active: boolean; failureCount: number; lastStatus?: number; lastDeliveryAt?: string; createdAt: string }
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
@@ -17,6 +17,7 @@ export default function SellerIntegrations() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [keyName, setKeyName] = useState('');
+  const [readOnly, setReadOnly] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [hookUrl, setHookUrl] = useState('');
   const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null);
@@ -41,7 +42,7 @@ export default function SellerIntegrations() {
   const createKey = async () => {
     setBusy(true);
     try {
-      const r = await api.post('/integrations/keys', { name: keyName || 'Integração' });
+      const r = await api.post('/integrations/keys', { name: keyName || 'Integração', readOnly });
       setNewKey(r.data.key);
       setKeyName('');
       await load();
@@ -97,6 +98,10 @@ export default function SellerIntegrations() {
               <Input value={keyName} onChange={setKeyName} placeholder="Nome (ex.: Meu ERP)" />
               <Button variant="primary" onClick={createKey} loading={busy}>Gerar chave</Button>
             </div>
+            <label className={styles.checkRow}>
+              <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} />
+              Somente leitura (só puxa o estoque; não deixa dar baixa)
+            </label>
 
             {newKey && (
               <div className={styles.secretBox}>
@@ -114,7 +119,10 @@ export default function SellerIntegrations() {
               {keys.map((k) => (
                 <div key={k.id} className={styles.item}>
                   <div className={styles.itemMain}>
-                    <div className={styles.itemName}>{k.name} {k.revokedAt && <span className={styles.revoked}>revogada</span>}</div>
+                    <div className={styles.itemName}>{k.name}
+                      <span className={styles.scope}>{k.scopes?.includes('write') ? 'leitura + escrita' : 'somente leitura'}</span>
+                      {k.revokedAt && <span className={styles.revoked}>revogada</span>}
+                    </div>
                     <div className={styles.itemMeta}><code>{k.prefix}…</code> · criada {fmtDate(k.createdAt)} · último uso {fmtDate(k.lastUsedAt)}</div>
                   </div>
                   {!k.revokedAt && <Button size="sm" variant="danger" onClick={() => revokeKey(k.id)}>Revogar</Button>}

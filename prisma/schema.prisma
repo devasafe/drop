@@ -419,6 +419,7 @@ model StoreApiKey {
   name       String
   prefix     String    @unique
   keyHash    String
+  scopes     String[]  @default(["read", "write"]) // 'read' e/ou 'write'
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())

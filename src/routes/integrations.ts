@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorizeRoles } from '../middleware/auth';
-import { authenticateStoreApiKey } from '../middleware/storeApiKey';
+import { authenticateStoreApiKey, requireScope } from '../middleware/storeApiKey';
 import {
   listProductsForIntegration, setProductStock, bulkSetProductStock,
   createApiKey, listApiKeys, revokeApiKey,
@@ -9,10 +9,10 @@ import {
 
 const router = Router();
 
-/* API pública de máquina (autenticada por API key da loja). */
-router.get('/v1/products', authenticateStoreApiKey, listProductsForIntegration);
-router.patch('/v1/products/stock', authenticateStoreApiKey, bulkSetProductStock); // lote (antes da rota com :id)
-router.patch('/v1/products/:id/stock', authenticateStoreApiKey, setProductStock);
+/* API pública de máquina (autenticada por API key da loja + escopo). */
+router.get('/v1/products', authenticateStoreApiKey, requireScope('read'), listProductsForIntegration);
+router.patch('/v1/products/stock', authenticateStoreApiKey, requireScope('write'), bulkSetProductStock); // lote (antes da rota com :id)
+router.patch('/v1/products/:id/stock', authenticateStoreApiKey, requireScope('write'), setProductStock);
 
 /* Gestão de chaves/webhooks pelo lojista logado (JWT). */
 const seller = [authenticate, authorizeRoles('lojista')];
