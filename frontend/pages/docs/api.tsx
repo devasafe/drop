@@ -82,6 +82,7 @@ export default function ApiDocs() {
               <tr><td><code>updated_at</code></td><td>ISO 8601</td><td>Última atualização do produto</td></tr>
             </tbody>
           </table>
+          <p><strong>Paginação e sync incremental:</strong> use <code>?limit</code> (padrão 200, máx 1000) e <code>?after=&lt;id&gt;</code> (o campo <code>next</code> da resposta traz o próximo cursor; <code>null</code> = acabou). Pra puxar só o que mudou, use <code>?updated_since=2026-08-24T00:00:00Z</code>.</p>
         </section>
 
         {/* Atualizar estoque (write) */}
@@ -112,7 +113,8 @@ export default function ApiDocs() {
           <Code lang="HTTP">{`POST https://seu-sistema.com/webhooks/drop
 Content-Type: application/json
 X-Drop-Event: stock.updated
-X-Drop-Signature: sha256=<hmac_do_corpo>
+X-Drop-Timestamp: 1756036800
+X-Drop-Signature: sha256=<hmac_de "timestamp.corpo">
 
 {
   "event": "stock.updated",
@@ -120,7 +122,7 @@ X-Drop-Signature: sha256=<hmac_do_corpo>
   "products": [{ "id": "p1", "name": "iPhone 16", "quantity": 3, "price": 4000 }],
   "occurred_at": "2026-08-24T12:00:00.000Z"
 }`}</Code>
-          <p><strong>Sempre valide a assinatura</strong>: calcule o HMAC-SHA256 do <em>corpo cru</em> usando o seu secret e compare com o header <code>X-Drop-Signature</code>. Responda <code>2xx</code> rápido (reentregamos em falha e desativamos o webhook após muitas falhas seguidas).</p>
+          <p><strong>Sempre valide a assinatura:</strong> calcule o HMAC-SHA256 de <code>{'`${X-Drop-Timestamp}.${corpo_cru}`'}</code> com o seu secret e compare (constante) com o header <code>X-Drop-Signature</code>. Rejeite se o <code>X-Drop-Timestamp</code> tiver mais de ~5 min (anti-replay). Responda <code>2xx</code> rápido — reentregamos em falha e desativamos o webhook após muitas falhas seguidas. Só aceitamos URLs <strong>https</strong> públicas (IPs internos/localhost são bloqueados).</p>
           <p className={styles.note}>Dica: trate o webhook como um "aviso" e, na dúvida, puxe o estado atual pelo endpoint de estoque (fonte da verdade). Assim você nunca fica dessincronizado se perder um evento.</p>
         </section>
 
@@ -157,9 +159,13 @@ app.use("/webhooks/drop", express.raw({ type: "application/json" }));
 
 app.post("/webhooks/drop", (req, res) => {
   const signature = req.header("X-Drop-Signature") || "";
+  const ts = req.header("X-Drop-Timestamp") || "";
+  // anti-replay: rejeita eventos com mais de 5 min
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return res.status(401).send("expirado");
+
   const expected = "sha256=" + crypto
     .createHmac("sha256", process.env.DROP_WEBHOOK_SECRET)
-    .update(req.body) // Buffer cru
+    .update(ts + "." + req.body.toString()) // "timestamp.corpo_cru"
     .digest("hex");
 
   const ok = signature.length === expected.length &&
@@ -174,8 +180,9 @@ app.post("/webhooks/drop", (req, res) => {
           <h3 className={styles.h3}>Python — validar o webhook</h3>
           <Code lang="Python">{`import hmac, hashlib
 
-def valido(corpo_cru: bytes, header_assinatura: str, secret: str) -> bool:
-    esperado = "sha256=" + hmac.new(secret.encode(), corpo_cru, hashlib.sha256).hexdigest()
+def valido(corpo_cru: bytes, timestamp: str, header_assinatura: str, secret: str) -> bool:
+    msg = (timestamp + ".").encode() + corpo_cru  # "timestamp.corpo_cru"
+    esperado = "sha256=" + hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
     return hmac.compare_digest(esperado, header_assinatura or "")`}</Code>
         </section>
 

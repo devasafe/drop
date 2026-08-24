@@ -4,7 +4,16 @@ import { parseApiKey, verifySecret } from '../services/storeIntegration';
 
 export interface ApiKeyRequest extends Request {
   integrationStoreId?: string;
+  integrationScopes?: string[];
 }
+
+/** Exige que a chave tenha o escopo dado (ex.: 'write' nos endpoints de escrita). */
+export const requireScope = (scope: string) => (req: ApiKeyRequest, res: Response, next: NextFunction) => {
+  if (!req.integrationScopes?.includes(scope)) {
+    return res.status(403).json({ error: `Esta chave não tem permissão de ${scope}` });
+  }
+  next();
+};
 
 /**
  * Autentica requisições de máquina por `Authorization: Bearer dk_...`. Resolve a
@@ -22,8 +31,12 @@ export const authenticateStoreApiKey = async (req: ApiKeyRequest, res: Response,
   if (!record || record.revokedAt) return res.status(401).json({ error: 'API key inválida ou revogada' });
   if (!verifySecret(parsed.secret, record.keyHash)) return res.status(401).json({ error: 'API key inválida' });
 
-  // lastUsedAt best-effort (não bloqueia a request).
-  prisma.storeApiKey.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  // lastUsedAt best-effort + throttle (evita 1 write por request sob polling):
+  // só atualiza se passou > 60s desde o último uso registrado.
+  if (!record.lastUsedAt || Date.now() - new Date(record.lastUsedAt).getTime() > 60_000) {
+    prisma.storeApiKey.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  }
   req.integrationStoreId = record.storeId;
+  req.integrationScopes = record.scopes;
   next();
 };

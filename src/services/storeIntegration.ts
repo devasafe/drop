@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import axios from 'axios';
 import { prisma } from '../lib/prisma';
+import { checkWebhookUrl } from '../utils/ssrfGuard';
 
 /**
  * Integração de estoque da loja: geração/validação de API keys e entrega de
@@ -44,16 +45,30 @@ export function generateWebhookSecret(): string {
 const MAX_FAILURES = 15; // desativa o webhook após muitas falhas seguidas
 
 async function deliverWebhook(webhook: { id: string; url: string; secret: string; failureCount: number }, payload: unknown): Promise<boolean> {
+  // Anti-SSRF: revalida a URL a CADA entrega (o DNS pode ter mudado — rebinding).
+  const safe = await checkWebhookUrl(webhook.url);
+  if (!safe.ok) {
+    await prisma.storeWebhook.update({
+      where: { id: webhook.id },
+      data: { lastStatus: 0, lastDeliveryAt: new Date(), failureCount: { increment: 1 }, active: webhook.failureCount + 1 >= MAX_FAILURES ? false : undefined },
+    }).catch(() => {});
+    return false;
+  }
+
   const body = JSON.stringify(payload);
-  const signature = crypto.createHmac('sha256', webhook.secret).update(body).digest('hex');
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  // Assina `${timestamp}.${body}` → o receiver confere a assinatura E a idade (anti-replay).
+  const signature = crypto.createHmac('sha256', webhook.secret).update(`${timestamp}.${body}`).digest('hex');
   try {
     const res = await axios.post(webhook.url, body, {
       headers: {
         'Content-Type': 'application/json',
         'X-Drop-Event': (payload as any)?.event ?? 'event',
+        'X-Drop-Timestamp': timestamp,
         'X-Drop-Signature': `sha256=${signature}`,
       },
       timeout: 6000,
+      maxRedirects: 0, // não seguir redirect (evita bypass do SSRF via 3xx)
       validateStatus: () => true,
     });
     const ok = res.status >= 200 && res.status < 300;
