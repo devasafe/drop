@@ -86,6 +86,9 @@ export default function SellerIntegrations() {
           <header className={styles.header}>
             <h1 className={styles.title}>Integrações (API)</h1>
             <p className={styles.subtitle}>Exporte seu estoque em tempo real: puxe via API ou receba webhooks quando o estoque muda.</p>
+            <a className={styles.docsLink} href="/docs/api" target="_blank" rel="noopener noreferrer">
+              📖 Ver documentação (como usar e integrar)
+            </a>
           </header>
 
           {/* ── Chaves de API ── */}
