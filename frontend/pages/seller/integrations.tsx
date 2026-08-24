@@ -39,6 +39,20 @@ export default function SellerIntegrations() {
 
   const copy = (t: string) => { navigator.clipboard?.writeText(t).then(() => showToast('Copiado!', 'success')).catch(() => {}); };
 
+  const [downloading, setDownloading] = useState(false);
+  const downloadCsv = async () => {
+    setDownloading(true);
+    try {
+      const r = await api.get('/integrations/export/products.csv', { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data as Blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'estoque.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { showToast('Não foi possível baixar o estoque', 'error'); }
+    setDownloading(false);
+  };
+
   const createKey = async () => {
     setBusy(true);
     try {
@@ -91,6 +105,19 @@ export default function SellerIntegrations() {
               📖 Ver documentação (como usar e integrar)
             </a>
           </header>
+
+          {/* ── Baixar estoque (1 clique, sem chave) ── */}
+          <div className={styles.quickExport}>
+            <div className={styles.quickText}>
+              <div className={styles.quickTitle}>Baixar meu estoque agora</div>
+              <div className={styles.quickDesc}>Um clique e você baixa a lista atual (abre no Excel). Sem chave, sem código.</div>
+            </div>
+            <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque (CSV)</Button>
+          </div>
+
+          <div className={styles.advancedDivider}>
+            <span>Integração automática (avançado — para conectar um sistema/ERP)</span>
+          </div>
 
           {/* ── Chaves de API ── */}
           <Section title="Chaves de API">

@@ -134,6 +134,26 @@ export const bulkSetProductStock = async (req: ApiKeyRequest, res: Response) => 
   return res.json({ results });
 };
 
+/* ────────────  Export 1-clique (lojista logado / JWT — sem chave)  ─────── */
+
+/** GET /integrations/export/products.csv — baixa o estoque em CSV (pro lojista
+ *  comum, direto do painel; não precisa de API key nem curl). */
+export const exportProductsCsv = async (req: AuthenticatedRequest, res: Response) => {
+  const store = await resolveStore(req.user?.id);
+  if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
+  const products = await prisma.product.findMany({
+    where: { storeId: store.id },
+    select: { id: true, name: true, quantity: true, price: true, updatedAt: true },
+    orderBy: { name: 'asc' },
+  });
+  const header = 'id,name,quantity,price,available,updated_at';
+  const lines = products.map((p) => [p.id, p.name, p.quantity, Number(p.price), p.quantity > 0, p.updatedAt.toISOString()].map(csvEscape).join(','));
+  const csv = '﻿' + [header, ...lines].join('\n'); // BOM p/ o Excel ler acentos
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="estoque.csv"');
+  return res.send(csv);
+};
+
 /* ────────────────────  Gestão (lojista logado / JWT)  ──────────────────── */
 
 // ── API keys ──

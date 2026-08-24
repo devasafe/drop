@@ -14,6 +14,23 @@
 }
 .docsLink:hover { background: color-mix(in srgb, var(--brand) 15%, transparent); }
 
+/* Baixar estoque (1 clique) */
+.quickExport {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--brand-2) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border-radius: var(--r-lg);
+}
+.quickText { min-width: 0; }
+.quickTitle { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+.quickDesc { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* Divisor "avançado" */
+.advancedDivider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0; }
+.advancedDivider::before, .advancedDivider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.advancedDivider span { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+
 .hint { margin: 0 0 var(--space-3); font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.5; max-width: 720px; }
 .hint code, .itemMeta code, .itemName code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; color: var(--brand-2); }
 
