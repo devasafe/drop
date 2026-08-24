@@ -309,23 +309,18 @@ export default function MotoboyDeliveryDetail() {
 
             {currentLocation && storeLat !== null && storeLng !== null && customerLat !== null && customerLng !== null ? (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="accent"
+                  className={styles.navBtn}
                   onClick={() => setNavOpen(true)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    width: '100%', padding: '16px', borderRadius: 14,
-                    border: '1px solid rgba(139,92,246,0.35)',
-                    background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#fff',
-                    fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
-                  }}
+                  leftIcon={
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                      <path d="M3 11l19-9-9 19-2-8-8-2z" />
+                    </svg>
+                  }
                 >
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
-                    <path d="M3 11l19-9-9 19-2-8-8-2z" />
-                  </svg>
                   Abrir navegação
-                </button>
+                </Button>
                 <div className={styles.routeHint}>
                   {delivery.status === 'assigned' && 'Vá até a Loja para retirar o pedido.'}
                   {delivery.status === 'picked' && 'Vá até o Cliente para entregar o pedido.'}

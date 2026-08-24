@@ -31,11 +31,16 @@
 .gpsErr { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
   background: color-mix(in srgb, var(--danger) 8%, transparent); }
 
-.activeCard { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 100%;
-  background: var(--brand-grad); border: none; border-radius: var(--r-lg); padding: var(--space-4); cursor: pointer; color: var(--on-brand); }
-.activeLabel { font-size: var(--fs-xs); opacity: .85; }
-.activeOrder { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; }
-.activeCta { font-size: var(--fs-xs); margin-top: var(--space-2); }
+.activeCard { position: relative; overflow: hidden; display: flex; align-items: center; gap: var(--space-3); text-align: left; width: 100%;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4) var(--space-5); cursor: pointer; color: var(--text); }
+/* linha roxa no topo = sinal de entrega ativa */
+.activeCard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--brand), var(--brand-2)); }
+.activeIcon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 50%;
+  background: var(--panel-2); border: 1px solid var(--accent-line); color: var(--brand-2); flex-shrink: 0; }
+.activeText { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.activeLabel { font-size: var(--fs-xs); color: var(--text-muted); }
+.activeOrder { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--text-strong); }
+.activeCta { font-size: var(--fs-xs); color: var(--brand-2); font-weight: 600; margin-top: var(--space-1); }
 /* KPIs = grade 2x2 flat com divisórias em cruz, sem card por item */
 .kpis { display: grid; grid-template-columns: 1fr 1fr; }
 .kpi { padding: var(--space-3) var(--space-2); text-align: center; }

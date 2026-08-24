@@ -151,9 +151,12 @@ export default function MototboyWalletPage() {
           {/* Card de saldo */}
           <div className={styles.balanceCard}>
             <span className={styles.balanceGlow} aria-hidden="true" />
-            <span className={styles.balanceLabel}>Disponível para saque</span>
+            <div className={styles.balanceTop}>
+              <span className={styles.balanceLabel}>Disponível para saque</span>
+              <span className={styles.balanceBadge}><ArrowUpRight size={17} aria-hidden="true" /></span>
+            </div>
             <span className={styles.balanceValue}>{formatBRL(available)}</span>
-            <Button variant="onImage" onClick={() => setSacarOpen(true)} disabled={available <= 0}>
+            <Button variant="accent" className={styles.sacarBtn} onClick={() => setSacarOpen(true)} disabled={available <= 0}>
               <ArrowUpRight size={17} aria-hidden="true" /> Sacar para meu PIX
             </Button>
           </div>

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert, Bell, BellRing } from 'lucide-react';
+import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert, Bell, BellRing, Package } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AuthContext from '../../contexts/AuthContext';
@@ -181,9 +181,12 @@ export default function MotoboyPage() {
           {/* Entrega ativa */}
           {active && (
             <button className={styles.activeCard} onClick={() => router.push('/motoboy/ongoing')}>
-              <span className={styles.activeLabel}>Entrega em andamento</span>
-              <span className={styles.activeOrder}>Pedido #{(active.orderId || active._id)?.slice(-6)}</span>
-              <span className={styles.activeCta}>Ver detalhes →</span>
+              <span className={styles.activeIcon}><Package size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /></span>
+              <span className={styles.activeText}>
+                <span className={styles.activeLabel}>Entrega em andamento</span>
+                <span className={styles.activeOrder}>Pedido #{(active.orderId || active._id)?.slice(-6)}</span>
+                <span className={styles.activeCta}>Ver detalhes →</span>
+              </span>
             </button>
           )}
 
