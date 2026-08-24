@@ -39,7 +39,7 @@ export function RouteMiniMap({ store, customer, motoboy, polyline, height = 150 
     if (pts.length < 2) return;
     const b = new LngLatBounds();
     pts.forEach((p) => b.extend([p.lng, p.lat]));
-    m.fitBounds(b, { padding: 34, maxZoom: 15, duration: 0 });
+    m.fitBounds(b, { padding: 40, maxZoom: 15, duration: 0 });
   };
 
   return (
