@@ -3,7 +3,7 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authenticateStoreApiKey, requireScope } from '../middleware/storeApiKey';
 import {
   listProductsForIntegration, setProductStock, bulkSetProductStock,
-  exportProductsCsv, importProductsStock,
+  exportProductsCsv, importProductsStock, listProductsForOwner,
   createApiKey, listApiKeys, revokeApiKey,
   createWebhook, listWebhooks, deleteWebhook, testWebhook,
 } from '../controllers/integrationsController';
@@ -19,6 +19,7 @@ router.patch('/v1/products/:id/stock', authenticateStoreApiKey, requireScope('wr
 const seller = [authenticate, authorizeRoles('lojista')];
 
 /* Export/import 1-clique (baixa/atualiza CSV direto do painel, sem chave). */
+router.get('/products', ...seller, listProductsForOwner); // prévia em tabela
 router.get('/export/products.csv', ...seller, exportProductsCsv);
 router.post('/import/products', ...seller, importProductsStock);
 

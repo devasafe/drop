@@ -5,10 +5,12 @@ import { Section } from '../../components/ui/Section';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
+import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './Integrations.module.css';
 
 interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; lastUsedAt?: string; revokedAt?: string; createdAt: string }
 interface Webhook { id: string; url: string; active: boolean; failureCount: number; lastStatus?: number; lastDeliveryAt?: string; createdAt: string }
+interface Product { id: string; name: string; quantity: number; price: number; available: boolean }
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
@@ -51,6 +53,8 @@ export default function SellerIntegrations() {
   const { showToast } = useToast();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [query, setQuery] = useState('');
   const [keyName, setKeyName] = useState('');
   const [readOnly, setReadOnly] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
@@ -65,9 +69,14 @@ export default function SellerIntegrations() {
 
   const load = useCallback(async () => {
     try {
-      const [k, w] = await Promise.all([api.get('/integrations/keys'), api.get('/integrations/webhooks')]);
+      const [k, w, p] = await Promise.all([
+        api.get('/integrations/keys'),
+        api.get('/integrations/webhooks'),
+        api.get('/integrations/products'),
+      ]);
       setKeys(k.data.keys || []);
       setWebhooks(w.data.webhooks || []);
+      setProducts(p.data.products || []);
     } catch { /* silencioso */ }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -175,6 +184,35 @@ export default function SellerIntegrations() {
               <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportFile} />
             </div>
           </div>
+
+          {/* ── Prévia do estoque ── */}
+          <Section title={`Meu estoque (${products.length})`}>
+            {products.length > 8 && (
+              <div className={styles.previewSearch}>
+                <Input value={query} onChange={setQuery} placeholder="Buscar produto..." />
+              </div>
+            )}
+            {products.length === 0 ? (
+              <div className={styles.empty}>Nenhum produto cadastrado ainda.</div>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.stockTable}>
+                  <thead><tr><th>Produto</th><th className={styles.num}>Estoque</th><th className={styles.num}>Preço</th></tr></thead>
+                  <tbody>
+                    {products
+                      .filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
+                      .map((p) => (
+                        <tr key={p.id}>
+                          <td>{p.name}</td>
+                          <td className={`${styles.num} ${p.quantity === 0 ? styles.out : ''}`}>{p.quantity === 0 ? 'esgotado' : p.quantity}</td>
+                          <td className={styles.num}>{formatBRL(p.price)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Section>
 
           <div className={styles.advancedDivider}>
             <span>Integração automática (avançado — para conectar um sistema/ERP)</span>

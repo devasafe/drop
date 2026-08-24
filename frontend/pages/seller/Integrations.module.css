@@ -28,6 +28,16 @@
 .quickDesc strong { color: var(--text-strong); }
 .quickBtns { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
+/* Prévia do estoque (tabela) */
+.previewSearch { max-width: 340px; margin-bottom: var(--space-3); }
+.tableWrap { overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r-md); }
+.stockTable { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.stockTable thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; text-align: left; padding: 10px 14px; color: var(--text-subtle); font-weight: 700; text-transform: uppercase; font-size: var(--fs-xs); letter-spacing: 0.04em; border-bottom: 1px solid var(--line); }
+.stockTable td { padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--text); }
+.stockTable tr:last-child td { border-bottom: none; }
+.stockTable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.stockTable .out { color: var(--danger); font-weight: 700; }
+
 /* Divisor "avançado" */
 .advancedDivider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0; }
 .advancedDivider::before, .advancedDivider::after { content: ''; flex: 1; height: 1px; background: var(--line); }

@@ -154,6 +154,22 @@ export const exportProductsCsv = async (req: AuthenticatedRequest, res: Response
   return res.send(csv);
 };
 
+/** GET /integrations/products — estoque da loja (JSON, lojista logado) p/ a
+ *  prévia em tabela no painel. */
+export const listProductsForOwner = async (req: AuthenticatedRequest, res: Response) => {
+  const store = await resolveStore(req.user?.id);
+  if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
+  const products = await prisma.product.findMany({
+    where: { storeId: store.id },
+    select: { id: true, name: true, quantity: true, price: true, updatedAt: true },
+    orderBy: { name: 'asc' },
+  });
+  return res.json({
+    count: products.length,
+    products: products.map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, price: Number(p.price), available: p.quantity > 0, updated_at: p.updatedAt.toISOString() })),
+  });
+};
+
 /** POST /integrations/import/products — atualiza o estoque em massa a partir da
  *  planilha editada (lojista logado). `updates: [{ id, quantity }]` (absoluto). */
 export const importProductsStock = async (req: AuthenticatedRequest, res: Response) => {
