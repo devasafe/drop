@@ -1,0 +1,37 @@
+.page { min-height: 100vh; background: var(--bg); padding: 0 0 80px; }
+.container { max-width: 820px; margin: 0 auto; padding: var(--space-6) var(--space-4) 0; }
+
+.header { padding: var(--space-5) 0 var(--space-6); border-bottom: 1px solid var(--line); margin-bottom: var(--space-6); }
+.logo { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: var(--text-strong); }
+.o { color: var(--brand-2); }
+.title { margin: var(--space-4) 0 var(--space-2); font-family: var(--font-display); font-size: 32px; font-weight: 800; color: var(--text-strong); letter-spacing: -0.02em; }
+.subtitle { margin: 0; font-size: var(--fs-body); color: var(--text-muted); line-height: 1.6; max-width: 640px; }
+
+.section { margin-bottom: var(--space-8); }
+.h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--text-strong); margin: 0 0 var(--space-3); }
+.h3 { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--text-strong); margin: var(--space-5) 0 var(--space-2); }
+.section p { color: var(--text); font-size: var(--fs-body); line-height: 1.7; margin: 0 0 var(--space-3); }
+.section p code, .list code, .table code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; color: var(--brand-2); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
+.list { margin: 0 0 var(--space-3) var(--space-5); color: var(--text); font-size: var(--fs-body); line-height: 1.7; display: flex; flex-direction: column; gap: var(--space-2); }
+.list strong { color: var(--text-strong); }
+.note { background: color-mix(in srgb, var(--brand) 7%, transparent); border: 1px solid color-mix(in srgb, var(--brand-2) 25%, var(--line)); border-radius: var(--r-md); padding: var(--space-3) var(--space-4); font-size: var(--fs-sm) !important; color: var(--text-muted) !important; }
+
+/* Code blocks */
+.codeWrap { position: relative; margin: 0 0 var(--space-4); }
+.codeLang { position: absolute; top: 8px; left: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
+.copyBtn { position: absolute; top: 6px; right: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600; padding: 4px 10px; cursor: pointer; }
+.copyBtn:hover { color: var(--text-strong); }
+.pre {
+  margin: 0; padding: var(--space-6) var(--space-4) var(--space-4);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  overflow-x: auto; line-height: 1.55;
+}
+.pre code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); color: var(--text); white-space: pre; }
+
+/* Tabela de campos */
+.table { width: 100%; border-collapse: collapse; margin: var(--space-3) 0; font-size: var(--fs-sm); }
+.table th, .table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.table th { color: var(--text-subtle); font-weight: 700; text-transform: uppercase; font-size: var(--fs-xs); letter-spacing: 0.04em; }
+.table td { color: var(--text); }
+
+.footer { margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--line); color: var(--text-subtle); font-size: var(--fs-sm); }
