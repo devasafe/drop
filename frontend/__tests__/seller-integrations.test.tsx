@@ -22,5 +22,5 @@ test('renderiza a página de integrações sem quebrar', () => {
       <SellerIntegrations />
     </ToastProvider>,
   );
-  expect(getByText('Integrações (API)')).toBeInTheDocument();
+  expect(getByText('Meu estoque')).toBeInTheDocument();
 });

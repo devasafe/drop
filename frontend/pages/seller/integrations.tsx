@@ -61,6 +61,7 @@ export default function SellerIntegrations() {
   const [hookUrl, setHookUrl] = useState('');
   const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Só depois de montar: a base do api depende de window.location (client-only).
   // Renderizar isso no SSR causaria mismatch de hidratação (crash na página).
@@ -165,18 +166,15 @@ export default function SellerIntegrations() {
       <div className={styles.page}>
         <div className={styles.container}>
           <header className={styles.header}>
-            <h1 className={styles.title}>Integrações (API)</h1>
-            <p className={styles.subtitle}>Exporte seu estoque em tempo real: puxe via API ou receba webhooks quando o estoque muda.</p>
-            <a className={styles.docsLink} href="/docs/api" target="_blank" rel="noopener noreferrer">
-              📖 Ver documentação (como usar e integrar)
-            </a>
+            <h1 className={styles.title}>Meu estoque</h1>
+            <p className={styles.subtitle}>Veja, baixe e atualize o estoque da sua loja aqui — direto, sem complicação. Tem um sistema/ERP e quer sincronizar sozinho? Isso fica na parte <strong>avançada</strong>, no fim da página.</p>
           </header>
 
-          {/* ── Estoque em 1 clique (puxar/empurrar, sem chave) ── */}
+          {/* ── Ver / baixar / atualizar (pra todo mundo, sem código) ── */}
           <div className={styles.quickExport}>
             <div className={styles.quickText}>
-              <div className={styles.quickTitle}>Estoque em 1 clique</div>
-              <div className={styles.quickDesc}>Baixe a planilha, edite a coluna <strong>quantity</strong> no Excel e envie de volta pra atualizar tudo. Sem chave, sem código.</div>
+              <div className={styles.quickTitle}>Ver, baixar ou atualizar o estoque</div>
+              <div className={styles.quickDesc}>Veja a lista aqui embaixo. Pra mudar tudo de uma vez: <strong>baixe</strong> a planilha (Excel), edite a coluna de estoque (<em>quantity</em>) e <strong>envie</strong> de volta.</div>
             </div>
             <div className={styles.quickBtns}>
               <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque</Button>
@@ -214,12 +212,22 @@ export default function SellerIntegrations() {
             )}
           </Section>
 
-          <div className={styles.advancedDivider}>
-            <span>Integração automática (avançado — para conectar um sistema/ERP)</span>
-          </div>
+          {/* ── Avançado: conectar um sistema/ERP (colapsável) ── */}
+          <button type="button" className={styles.advancedToggle} onClick={() => setAdvancedOpen((v) => !v)} aria-expanded={advancedOpen}>
+            <span>🔌 Conectar um sistema/ERP automaticamente <em>(avançado)</em></span>
+            <span className={styles.chev}>{advancedOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {advancedOpen && (
+          <div className={styles.advancedBody}>
+            <div className={styles.advancedIntro}>
+              Esta parte é só pra quem vai <strong>conectar um sistema/ERP</strong> ao DROP (normalmente com ajuda de um programador). Se você só quer ver, baixar ou atualizar o estoque, use os botões e a tabela lá em cima — <strong>não precisa mexer aqui</strong>.
+              <a className={styles.docsLinkInline} href="/docs/api" target="_blank" rel="noopener noreferrer">📖 Ver documentação completa</a>
+            </div>
 
           {/* ── Chaves de API ── */}
           <Section title="Chaves de API">
+            <p className={styles.hint}>Uma "senha" que o sistema/ERP usa pra acessar seu estoque pela API. Gere uma e entregue ao seu programador — ela aparece <strong>só uma vez</strong>.</p>
             <div className={styles.formRow}>
               <Input value={keyName} onChange={setKeyName} placeholder="Nome (ex.: Meu ERP)" />
               <Button variant="primary" onClick={createKey} loading={busy}>Gerar chave</Button>
@@ -258,8 +266,8 @@ export default function SellerIntegrations() {
           </Section>
 
           {/* ── Webhooks ── */}
-          <Section title="Webhooks (estoque em tempo real)">
-            <p className={styles.hint}>Quando o estoque muda (venda, cancelamento, ajuste), enviamos um POST com o evento <code>stock.updated</code> pra sua URL, assinado em <code>X-Drop-Signature</code> (HMAC-SHA256 do corpo com o secret).</p>
+          <Section title="Webhooks (avisar seu sistema quando o estoque muda)">
+            <p className={styles.hint}>Avise seu sistema <strong>automaticamente</strong> quando o estoque mudar (venda, cancelamento, ajuste). Coloque a URL <code>https</code> que vai receber os avisos — mandamos um <code>POST</code> assinado (seu programador valida com o secret).</p>
             <div className={styles.formRow}>
               <Input value={hookUrl} onChange={setHookUrl} placeholder="https://seu-sistema.com/webhooks/drop" />
               <Button variant="primary" onClick={createWebhook} loading={busy}>Adicionar</Button>
@@ -302,6 +310,8 @@ export default function SellerIntegrations() {
             </div>
             <pre className={styles.pre}>{curl}</pre>
           </Section>
+          </div>
+          )}
         </div>
       </div>
     </ProtectedRoute>
