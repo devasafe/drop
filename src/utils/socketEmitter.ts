@@ -1,6 +1,6 @@
 import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
-import { notifyOnlineMotoboysNewDelivery } from '../services/pushService';
+import { notifyOnlineMotoboysNewDelivery, notifyStoreOwner, notifyAdmins } from '../services/pushService';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -45,6 +45,8 @@ export const emitToRoom = (room: string, event: string, data: any) => {
  */
 export const emitAdminNotification = (payload: { title: string; body?: string; url?: string; tag?: string }) => {
   emitToRoom('admin', 'admin:notification', payload);
+  // 📲 Push pra equipe/admin — chega mesmo com o painel fechado.
+  notifyAdmins({ title: payload.title, body: payload.body || '', url: payload.url, tag: payload.tag });
 };
 
 /**
@@ -116,9 +118,19 @@ export const emitOrderCreated = (order: any) => {
     
     console.log('[SOCKET][emitOrderCreated] Enviando new_order para loja:', order.storeId, storePayload);
     emitToRoom(`store:${order.storeId}`, 'new_order', storePayload);
-    
+
     // Também emitir order:created para consistency
     emitToRoom(`store:${order.storeId}`, 'order:created', payload);
+
+    // 📲 Push pro dono da loja — chega mesmo com o app fechado.
+    const totalTxt = Number.isFinite(Number(order.totalValue)) && Number(order.totalValue) > 0
+      ? ` • R$ ${Number(order.totalValue).toFixed(2).replace('.', ',')}` : '';
+    notifyStoreOwner(order.storeId, {
+      title: 'Novo pedido! 🛍️',
+      body: `Você recebeu um pedido novo${totalTxt}. Toque para ver.`,
+      url: '/store-dashboard',
+      tag: 'novo-pedido',
+    });
   }
   
   // 👤 Notificar o cliente - seu pedido foi criado

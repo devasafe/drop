@@ -28,6 +28,7 @@ import payoutService from '../services/payout.service';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
+import { notifyStoreOwner } from '../services/pushService';
 import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
@@ -374,6 +375,14 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // Emite evento de cancelamento
     emitOrderCancelled(order, cancellation);
+
+    // 📲 Push pro dono da loja: o cliente cancelou o pedido.
+    notifyStoreOwner(order.storeId, {
+      title: 'Pedido cancelado',
+      body: 'Um cliente cancelou um pedido da sua loja. Toque para ver.',
+      url: '/store-dashboard',
+      tag: 'pedido-cancelado',
+    });
 
     return res.json({
       success: true,

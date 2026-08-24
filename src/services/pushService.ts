@@ -88,6 +88,32 @@ async function deliver(
   }
 }
 
+// Roles de usuário final — quem NÃO é staff/admin. Usado para mirar os admins
+// sem depender do nome exato de cada cargo interno (ceo, financeiro, etc.).
+const END_USER_ROLES = ['cliente', 'lojista', 'motoboy'];
+
+/** Notifica o DONO de uma loja (ex.: novo pedido, cancelamento, avaliação). */
+export function notifyStoreOwner(storeId: string | undefined | null, payload: PushPayload): void {
+  if (!enabled || !storeId) return;
+  (async () => {
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) }, select: { ownerId: true } });
+    if (store?.ownerId) await sendPushToUser(store.ownerId, payload);
+  })().catch((err) => console.warn('[push] notifyStoreOwner erro:', err?.message));
+}
+
+/** Notifica a equipe/admin (todo usuário cujo cargo não é de usuário final). */
+export function notifyAdmins(payload: PushPayload): void {
+  if (!enabled) return;
+  (async () => {
+    const admins = await prisma.user.findMany({
+      where: { role: { notIn: END_USER_ROLES as any } },
+      select: { id: true },
+    });
+    if (admins.length === 0) return;
+    await sendPushToUsers(admins.map((a) => a.id), payload);
+  })().catch((err) => console.warn('[push] notifyAdmins erro:', err?.message));
+}
+
 /**
  * Notifica os motoboys ONLINE sobre uma nova corrida. Chamado ao criar a entrega,
  * junto do socket. Fire-and-forget: nunca bloqueia nem lança pro fluxo do pedido.
