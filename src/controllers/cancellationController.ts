@@ -898,6 +898,7 @@ export async function cancelOrderWithFullRefund(
       await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
     }
   }
+  void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
   if (!isCashOnDelivery) {
     try {
@@ -1389,6 +1390,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
       }
     }
+    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
     // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
     void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
