@@ -47,7 +47,6 @@ export function DeliveryOfferCard({ delivery: d, onAccept, onReject, accepting, 
         <span className={styles.orderPill}>PEDIDO #{code}</span>
         <span className={styles.earnLabel}>Você recebe</span>
         <div className={styles.earn}>{formatBRL(earn)}</div>
-        {fee > 0 && <div className={styles.feeNote}>Taxa {formatBRL(fee)}</div>}
       </div>
 
       {/* Resumo rápido: total · até retirada · ETA */}

@@ -15,8 +15,6 @@
   font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 800;
   color: var(--success); line-height: 1.02; letter-spacing: -0.02em;
 }
-.feeNote { margin-top: 4px; font-size: var(--fs-sm); color: var(--text-subtle); }
-
 /* ---- Resumo rápido: 3 pills lado a lado ---- */
 .pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
 .pill {
