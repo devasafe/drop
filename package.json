@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/nodemailer": "^8.0.1",
     "axios": "^1.13.6",
@@ -42,10 +41,12 @@
     "multer": "^1.4.4",
     "next": "^16.1.6",
     "nodemailer": "^9.0.1",
+    "prisma": "^5.22.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "socket.io": "^4.8.0",
     "socket.io-client": "^4.8.0",
+    "web-push": "^3.6.7",
     "winston": "^3.19.0",
     "zod": "^3.25.76"
   },
@@ -59,6 +60,7 @@
     "@types/node": "^18.19.130",
     "@types/react-input-mask": "^3.0.6",
     "@types/supertest": "^2.0.16",
+    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",
     "eslint": "^8.0.0",

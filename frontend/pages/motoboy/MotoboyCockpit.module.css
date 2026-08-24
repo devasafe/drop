@@ -7,6 +7,18 @@
 .dotOn { background: var(--success); }
 .dotOff { background: var(--text-subtle); }
 .statusText { font-size: var(--fs-xs); color: var(--text-muted); }
+/* Banner de ativar notificações (call to action da marca) */
+.pushBanner { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--brand-2) 35%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.pushBanner > svg { flex-shrink: 0; color: var(--brand-2); }
+.pushText { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.pushText strong { font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); }
+.pushText span { font-size: var(--fs-xs); color: var(--text-muted); }
+.pushOk { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--success); }
+.pushTest { background: none; border: none; color: var(--text-subtle); font-size: var(--fs-xs);
+  text-decoration: underline; cursor: pointer; padding: 0; margin-left: auto; }
+
 /* Banner de saúde do GPS */
 .gpsBanner { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-3);
   border-radius: var(--r-md); font-size: var(--fs-sm); line-height: 1.45; border: 1px solid; }

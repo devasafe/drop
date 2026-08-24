@@ -41,6 +41,7 @@ import webhooksRoutes from './routes/webhooks'; // ✅ NOVO - Webhooks de gatewa
 import integrationsRoutes from './routes/integrations'; // Integração de estoque do lojista (API key + webhooks)
 import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
 import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
+import pushRoutes from './routes/push'; // Web Push (notificações com o app fechado)
 
 const app = express();
 
@@ -153,6 +154,7 @@ app.use('/api/invoices', deliveryInvoicesRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/badges', badgesRoutes);
+app.use('/api/push', pushRoutes);
 
 
 // Webhooks de gateways (server-to-server) — fora de /api para escapar do rate

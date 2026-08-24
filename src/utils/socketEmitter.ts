@@ -1,5 +1,6 @@
 import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
+import { notifyOnlineMotoboysNewDelivery } from '../services/pushService';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -174,6 +175,10 @@ export const emitDeliveryCreated = (delivery: any) => {
     fee: delivery.fee,
     createdAt: delivery.createdAt
   });
+
+  // 📲 Web Push: acorda os motoboys online mesmo com o app fechado / celular
+  // bloqueado (o socket acima só chega em quem está com o app aberto).
+  notifyOnlineMotoboysNewDelivery(delivery);
 };
 
 export const emitDeliveryUpdated = (delivery: any) => {
