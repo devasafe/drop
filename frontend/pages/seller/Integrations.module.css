@@ -38,10 +38,31 @@
 .stockTable .num { text-align: right; font-variant-numeric: tabular-nums; }
 .stockTable .out { color: var(--danger); font-weight: 700; }
 
-/* Divisor "avançado" */
-.advancedDivider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0; }
-.advancedDivider::before, .advancedDivider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-.advancedDivider span { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+/* Toggle "avançado" (colapsável) */
+.advancedToggle {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  width: 100%; margin-top: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface-2); color: var(--text-strong);
+  font-family: var(--font-body); font-size: var(--fs-body); font-weight: 600;
+  cursor: pointer; transition: border-color var(--dur-fast) var(--ease);
+  text-align: left;
+}
+.advancedToggle:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); }
+.advancedToggle em { font-style: normal; color: var(--text-subtle); font-weight: 500; font-size: var(--fs-sm); }
+.chev { color: var(--text-subtle); font-size: 11px; flex-shrink: 0; }
+
+.advancedBody { display: flex; flex-direction: column; gap: var(--space-5); margin-top: var(--space-4); }
+.advancedIntro {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--line); border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.6;
+}
+.advancedIntro strong { color: var(--text); }
+.docsLinkInline { display: inline-block; margin-top: var(--space-2); color: var(--brand-2); font-weight: 600; text-decoration: none; }
+.docsLinkInline:hover { text-decoration: underline; }
 
 .hint { margin: 0 0 var(--space-3); font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.5; max-width: 720px; }
 .hint code, .itemMeta code, .itemName code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; color: var(--brand-2); }
