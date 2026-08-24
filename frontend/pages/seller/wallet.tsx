@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
 import { Chip } from '../../components/ui/Chip';
+import { Button } from '../../components/ui/Button';
 import { KpiBand, Kpi } from '../../components/ui/KpiBand';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -192,11 +193,14 @@ export default function SellerWalletPage() {
           {/* Hero de saldo */}
           <div className={styles.balanceCard}>
             <span className={styles.balanceGlow} aria-hidden="true" />
-            <span className={styles.balanceLabel}>Disponível para saque</span>
+            <div className={styles.balanceTop}>
+              <span className={styles.balanceLabel}>Disponível para saque</span>
+              <span className={styles.balanceBadge}><ArrowUpRight size={17} aria-hidden="true" /></span>
+            </div>
             <span className={styles.balanceValue}>{formatBRL(available)}</span>
-            <button className={styles.btnWithdraw} onClick={handleSacar} disabled={available <= 0 || transferring}>
+            <Button variant="accent" className={styles.sacarBtn} onClick={handleSacar} disabled={available <= 0 || transferring}>
               <ArrowUpRight size={17} aria-hidden="true" /> {transferring ? 'Sacando…' : 'Sacar para meu PIX'}
-            </button>
+            </Button>
           </div>
 
           {/* Stats */}
