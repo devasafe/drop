@@ -26,15 +26,17 @@ export function DeliveryOfferCard({ delivery: d, onAccept, onReject, accepting, 
   const store = parseCoords(d.storeLatitude, d.storeLongitude);
   const customer = parseCoords(d.customerLatitude, d.customerLongitude);
 
-  // Distâncias: total (loja→cliente, do backend) e até a retirada (motoboy→loja).
-  const totalKm = typeof d.distance === 'number' && d.distance > 0
+  // Trecho da entrega (loja→cliente, do backend) e até a retirada (motoboy→loja).
+  const deliveryKm = typeof d.distance === 'number' && d.distance > 0
     ? d.distance
     : (store && customer ? haversineKm(store, customer) : null);
   const toPickupKm = self && store ? haversineKm(self, store) : null;
 
-  // ETA estimado: percurso total (ir até a loja + entregar) na média urbana.
-  const travelKm = (toPickupKm || 0) + (totalKm || 0);
-  const etaMin = travelKm > 0 ? Math.max(1, Math.round((travelKm / MOTO_AVG_KMH) * 60)) : null;
+  // "Total" = o trajeto inteiro que o motoboy percorre: até a loja + até o cliente.
+  const totalKm = deliveryKm != null || toPickupKm != null ? (toPickupKm || 0) + (deliveryKm || 0) : null;
+
+  // ETA estimado na média urbana, sobre o trajeto total.
+  const etaMin = totalKm && totalKm > 0 ? Math.max(1, Math.round((totalKm / MOTO_AVG_KMH) * 60)) : null;
 
   const code = (d.orderId || d._id)?.slice(-6)?.toUpperCase() || '—';
   const pickup = splitAddressLines(d.storeAddress || d.pickupLocation);
