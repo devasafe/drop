@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight } from 'lucide-react';
+import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AuthContext from '../../contexts/AuthContext';
@@ -30,7 +30,7 @@ export default function MotoboyPage() {
   const router = useRouter();
   const { user } = useContext(AuthContext);
   const { showToast } = useToast();
-  const { online, loading: statusLoading, setOnline } = useMotoboyStatus();
+  const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
   const { deliveries: pool, loading: poolLoading, setDeliveries: setPool, refetch } = useDeliveries();
   const { deliveries: ongoing } = useOngoingDeliveries();
   const { deliveries: history } = useDeliveryHistory();
@@ -115,6 +115,32 @@ export default function MotoboyPage() {
           </header>
 
           <OnboardingResumeBanner />
+
+          {/* Saúde do GPS — só faz sentido quando online */}
+          {online && gps === 'active' && (
+            <div className={`${styles.gpsBanner} ${styles.gpsOk}`}>
+              <MapPin size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>Localização ativa — você está recebendo corridas perto de você.</span>
+            </div>
+          )}
+          {online && gps === 'stale' && (
+            <div className={`${styles.gpsBanner} ${styles.gpsWarn}`} role="alert">
+              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>
+                <strong>Localização parada.</strong> Mantenha o app aberto e a tela ligada — com o
+                celular bloqueado ou fora do app, as corridas param de chegar.
+              </span>
+            </div>
+          )}
+          {online && gps === 'denied' && (
+            <div className={`${styles.gpsBanner} ${styles.gpsErr}`} role="alert">
+              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>
+                <strong>Localização desativada.</strong> Ative a localização do navegador para este
+                site para receber corridas perto de você.
+              </span>
+            </div>
+          )}
 
           {/* Entrega ativa */}
           {active && (

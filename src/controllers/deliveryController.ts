@@ -859,6 +859,8 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
       },
     });
 
+    // Log de verificação: confirma que o GPS do motoboy está pingando (Coolify logs).
+    console.log(`[gps] motoboy=${req.user.id} lat=${lat.toFixed(5)} lng=${lng.toFixed(5)}`);
     return res.json({ ok: true });
   } catch (err) {
     console.error('[updateMotoboyLocation] error:', err);
