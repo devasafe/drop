@@ -39,7 +39,8 @@ export default function ApiDocs() {
           <p>Há duas formas de integrar (pode usar as duas juntas):</p>
           <ul className={styles.list}>
             <li><strong>Pull (você puxa):</strong> seu sistema chama a API quando quiser e recebe o estoque atual. Simples e à prova de falhas.</li>
-            <li><strong>Webhook (a gente avisa):</strong> quando o estoque muda (venda, cancelamento, ajuste), enviamos um <code>POST</code> assinado pra uma URL sua.</li>
+            <li><strong>Webhook (a gente avisa):</strong> quando o estoque muda no DROP (venda, cancelamento, ajuste), enviamos um <code>POST</code> assinado pra uma URL sua.</li>
+            <li><strong>Write (você atualiza):</strong> vendeu fora do DROP? Mande a baixa pra cá pela API. É a integração <strong>bidirecional</strong> — os dois lados sempre batem.</li>
           </ul>
           <p className={styles.note}>Recomendação: comece pelo <strong>pull</strong> (faz a sincronização inicial e a reconciliação). Ligue o <strong>webhook</strong> depois pra reagir na hora às mudanças.</p>
         </section>
@@ -83,6 +84,27 @@ export default function ApiDocs() {
           </table>
         </section>
 
+        {/* Atualizar estoque (write) */}
+        <section className={styles.section}>
+          <h2 className={styles.h2}>Atualizar o estoque (write)</h2>
+          <p>Vendeu na loja física ou em outro canal? Avise o DROP pra não vender a mais. Duas formas:</p>
+          <ul className={styles.list}>
+            <li><strong>Delta (recomendado):</strong> <code>{'{ "adjust": -2 }'}</code> — "saíram 2" (piso em 0). Compõe certinho com as vendas do próprio DROP.</li>
+            <li><strong>Absoluto:</strong> <code>{'{ "quantity": 5 }'}</code> — "o estoque agora é 5" (use quando o seu sistema é o dono da verdade).</li>
+          </ul>
+          <p>Um produto:</p>
+          <Code lang="cURL">{`curl -X PATCH -H "Authorization: Bearer dk_suachave..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"adjust": -2}' \\
+  ${base}/integrations/v1/products/PRODUCT_ID/stock`}</Code>
+          <p>Vários de uma vez (sync em lote, até 500):</p>
+          <Code lang="cURL">{`curl -X PATCH -H "Authorization: Bearer dk_suachave..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"updates":[{"id":"p1","adjust":-2},{"id":"p2","quantity":10}]}' \\
+  ${base}/integrations/v1/products/stock`}</Code>
+          <p className={styles.note}>Ciclo completo: venda no DROP → você recebe o webhook e baixa no seu sistema; venda fora do DROP → você manda o delta pra cá. Os dois lados sempre batem. As atualizações vindas pela API <strong>não</strong> geram webhook de volta (evita eco).</p>
+        </section>
+
         {/* Webhooks */}
         <section className={styles.section}>
           <h2 className={styles.h2}>Webhooks (push)</h2>
@@ -113,6 +135,17 @@ X-Drop-Signature: sha256=<hmac_do_corpo>
 if (!res.ok) throw new Error("HTTP " + res.status);
 const { products } = await res.json();
 console.log(products);`}</Code>
+
+          <h3 className={styles.h3}>Node.js — dar baixa no estoque (venda fora do DROP)</h3>
+          <Code lang="Node.js">{`// vendeu 2 unidades do produto na loja física:
+await fetch("${base}/integrations/v1/products/PRODUCT_ID/stock", {
+  method: "PATCH",
+  headers: {
+    Authorization: "Bearer " + process.env.DROP_API_KEY,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ adjust: -2 }),
+});`}</Code>
 
           <h3 className={styles.h3}>Node.js (Express) — receber e validar o webhook</h3>
           <Code lang="Node.js">{`import express from "express";

@@ -47,6 +47,63 @@ export const listProductsForIntegration = async (req: ApiKeyRequest, res: Respon
   return res.json({ store_id: storeId, count: rows.length, products: rows });
 };
 
+/** Calcula o novo estoque a partir de `{ quantity }` (absoluto) ou `{ adjust }`
+ *  (delta, piso 0). Retorna número, ou uma string de erro. */
+function computeNewQty(body: any, current: number): number | { error: string } {
+  const hasQty = body?.quantity !== undefined;
+  const hasAdj = body?.adjust !== undefined;
+  if (hasQty === hasAdj) return { error: 'Envie "quantity" (absoluto) OU "adjust" (delta) — um dos dois.' };
+  if (hasQty) {
+    const q = Number(body.quantity);
+    if (!Number.isInteger(q) || q < 0) return { error: '"quantity" deve ser inteiro >= 0' };
+    return q;
+  }
+  const a = Number(body.adjust);
+  if (!Number.isInteger(a)) return { error: '"adjust" deve ser inteiro (ex.: -2 vendeu 2)' };
+  return Math.max(0, current + a);
+}
+
+/** PATCH /v1/products/:id/stock — atualiza o estoque de UM produto (write). */
+export const setProductStock = async (req: ApiKeyRequest, res: Response) => {
+  const storeId = req.integrationStoreId;
+  if (!storeId) return res.status(401).json({ error: 'Não autenticado' });
+  const { id } = req.params as { id: string };
+
+  const product = await prisma.product.findFirst({ where: { id: String(id), storeId }, select: { id: true, quantity: true } });
+  if (!product) return res.status(404).json({ error: 'Produto não encontrado nesta loja' });
+
+  const computed = computeNewQty(req.body, product.quantity);
+  if (typeof computed !== 'number') return res.status(400).json({ error: computed.error });
+
+  const updated = await prisma.product.update({
+    where: { id: product.id },
+    data: { quantity: computed },
+    select: { id: true, name: true, quantity: true, price: true },
+  });
+  // NÃO dispara webhook: a mudança veio do próprio integrador (evita eco/loop).
+  return res.json({ id: updated.id, name: updated.name, quantity: updated.quantity, price: Number(updated.price), available: updated.quantity > 0 });
+};
+
+/** PATCH /v1/products/stock — atualiza VÁRIOS de uma vez (sync em lote). */
+export const bulkSetProductStock = async (req: ApiKeyRequest, res: Response) => {
+  const storeId = req.integrationStoreId;
+  if (!storeId) return res.status(401).json({ error: 'Não autenticado' });
+  const updates = Array.isArray(req.body?.updates) ? req.body.updates : null;
+  if (!updates || updates.length === 0) return res.status(400).json({ error: 'Envie "updates": [{ id, quantity } | { id, adjust }]' });
+  if (updates.length > 500) return res.status(400).json({ error: 'Máximo de 500 itens por chamada' });
+
+  const results: Array<{ id: string; ok: boolean; quantity?: number; error?: string }> = [];
+  for (const u of updates) {
+    const product = await prisma.product.findFirst({ where: { id: String(u?.id), storeId }, select: { id: true, quantity: true } });
+    if (!product) { results.push({ id: String(u?.id), ok: false, error: 'not_found' }); continue; }
+    const computed = computeNewQty(u, product.quantity);
+    if (typeof computed !== 'number') { results.push({ id: product.id, ok: false, error: computed.error }); continue; }
+    const updated = await prisma.product.update({ where: { id: product.id }, data: { quantity: computed }, select: { quantity: true } });
+    results.push({ id: product.id, ok: true, quantity: updated.quantity });
+  }
+  return res.json({ results });
+};
+
 /* ────────────────────  Gestão (lojista logado / JWT)  ──────────────────── */
 
 // ── API keys ──
