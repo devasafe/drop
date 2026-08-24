@@ -3,6 +3,7 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authenticateStoreApiKey, requireScope } from '../middleware/storeApiKey';
 import {
   listProductsForIntegration, setProductStock, bulkSetProductStock,
+  exportProductsCsv,
   createApiKey, listApiKeys, revokeApiKey,
   createWebhook, listWebhooks, deleteWebhook, testWebhook,
 } from '../controllers/integrationsController';
@@ -16,6 +17,9 @@ router.patch('/v1/products/:id/stock', authenticateStoreApiKey, requireScope('wr
 
 /* Gestão de chaves/webhooks pelo lojista logado (JWT). */
 const seller = [authenticate, authorizeRoles('lojista')];
+
+/* Export 1-clique (baixa CSV direto do painel, sem chave). */
+router.get('/export/products.csv', ...seller, exportProductsCsv);
 
 router.post('/keys', ...seller, createApiKey);
 router.get('/keys', ...seller, listApiKeys);
