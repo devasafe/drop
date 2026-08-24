@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Section } from '../../components/ui/Section';
@@ -11,6 +11,41 @@ interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; 
 interface Webhook { id: string; url: string; active: boolean; failureCount: number; lastStatus?: number; lastDeliveryAt?: string; createdAt: string }
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+
+/** Parser simples de uma linha CSV (respeita aspas e vírgulas dentro de aspas). */
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** Extrai `{ id, quantity }` do CSV (precisa das colunas id e quantity). */
+function parseStockCsv(text: string): { id: string; quantity: number }[] {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idIdx = header.indexOf('id');
+  const qtyIdx = header.indexOf('quantity');
+  if (idIdx === -1 || qtyIdx === -1) return [];
+  const updates: { id: string; quantity: number }[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i]);
+    const id = (cols[idIdx] || '').trim();
+    const q = Number((cols[qtyIdx] || '').trim());
+    if (id && Number.isInteger(q) && q >= 0) updates.push({ id, quantity: q });
+  }
+  return updates;
+}
 
 export default function SellerIntegrations() {
   const { showToast } = useToast();
@@ -40,6 +75,28 @@ export default function SellerIntegrations() {
   const copy = (t: string) => { navigator.clipboard?.writeText(t).then(() => showToast('Copiado!', 'success')).catch(() => {}); };
 
   const [downloading, setDownloading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    try {
+      const updates = parseStockCsv(await file.text());
+      if (updates.length === 0) {
+        showToast('CSV sem colunas "id" e "quantity" válidas', 'error');
+      } else {
+        const r = await api.post('/integrations/import/products', { updates });
+        const { updated, errorCount } = r.data;
+        showToast(`${updated} produto(s) atualizado(s)${errorCount ? ` · ${errorCount} com erro` : ''}`, errorCount ? 'error' : 'success');
+        await load();
+      }
+    } catch { showToast('Não foi possível ler o arquivo', 'error'); }
+    setImporting(false);
+  };
+
   const downloadCsv = async () => {
     setDownloading(true);
     try {
@@ -106,13 +163,17 @@ export default function SellerIntegrations() {
             </a>
           </header>
 
-          {/* ── Baixar estoque (1 clique, sem chave) ── */}
+          {/* ── Estoque em 1 clique (puxar/empurrar, sem chave) ── */}
           <div className={styles.quickExport}>
             <div className={styles.quickText}>
-              <div className={styles.quickTitle}>Baixar meu estoque agora</div>
-              <div className={styles.quickDesc}>Um clique e você baixa a lista atual (abre no Excel). Sem chave, sem código.</div>
+              <div className={styles.quickTitle}>Estoque em 1 clique</div>
+              <div className={styles.quickDesc}>Baixe a planilha, edite a coluna <strong>quantity</strong> no Excel e envie de volta pra atualizar tudo. Sem chave, sem código.</div>
             </div>
-            <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque (CSV)</Button>
+            <div className={styles.quickBtns}>
+              <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque</Button>
+              <Button variant="ghost" onClick={() => fileRef.current?.click()} loading={importing}>📤 Atualizar (enviar CSV)</Button>
+              <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportFile} />
+            </div>
           </div>
 
           <div className={styles.advancedDivider}>

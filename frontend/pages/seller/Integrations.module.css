@@ -22,9 +22,11 @@
   background: color-mix(in srgb, var(--brand) 8%, transparent);
   border-radius: var(--r-lg);
 }
-.quickText { min-width: 0; }
+.quickText { min-width: 0; flex: 1; }
 .quickTitle { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
 .quickDesc { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-muted); }
+.quickDesc strong { color: var(--text-strong); }
+.quickBtns { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 /* Divisor "avançado" */
 .advancedDivider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2) 0; }

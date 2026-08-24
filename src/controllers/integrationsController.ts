@@ -154,6 +154,27 @@ export const exportProductsCsv = async (req: AuthenticatedRequest, res: Response
   return res.send(csv);
 };
 
+/** POST /integrations/import/products — atualiza o estoque em massa a partir da
+ *  planilha editada (lojista logado). `updates: [{ id, quantity }]` (absoluto). */
+export const importProductsStock = async (req: AuthenticatedRequest, res: Response) => {
+  const store = await resolveStore(req.user?.id);
+  if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
+  const updates = Array.isArray(req.body?.updates) ? req.body.updates : null;
+  if (!updates || updates.length === 0) return res.status(400).json({ error: 'Nenhuma linha pra atualizar' });
+  if (updates.length > 2000) return res.status(400).json({ error: 'Máximo de 2000 itens por envio' });
+
+  let updated = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+  for (const u of updates) {
+    const q = Number(u?.quantity);
+    if (!Number.isInteger(q) || q < 0) { errors.push({ id: String(u?.id), error: 'quantidade inválida' }); continue; }
+    const r = await prisma.product.updateMany({ where: { id: String(u?.id), storeId: store.id }, data: { quantity: q } });
+    if (r.count === 0) errors.push({ id: String(u?.id), error: 'produto não encontrado' });
+    else updated++;
+  }
+  return res.json({ updated, errorCount: errors.length, errors: errors.slice(0, 50) });
+};
+
 /* ────────────────────  Gestão (lojista logado / JWT)  ──────────────────── */
 
 // ── API keys ──
