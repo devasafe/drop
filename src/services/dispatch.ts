@@ -16,10 +16,13 @@ const num = (v: string | undefined, d: number) => {
   return Number.isFinite(n) && n > 0 ? n : d;
 };
 
-export const DISPATCH_BASE_KM = num(process.env.DISPATCH_BASE_KM, 1);
-export const DISPATCH_STEP_KM = num(process.env.DISPATCH_STEP_KM, 2);
-export const DISPATCH_STEP_MS = num(process.env.DISPATCH_STEP_SECONDS, 20) * 1000;
-export const DISPATCH_MAX_KM = num(process.env.DISPATCH_MAX_KM, 15);
+// Defaults ajustados p/ fase de lançamento (pouca densidade): começa 3km,
+// +4km a cada 10s, teto 12km → visível a TODOS em ~30s. Env sobrescreve.
+// 0–10s: 3km · 10–20s: 7km · 20–30s: 11km · 30s+: todos.
+export const DISPATCH_BASE_KM = num(process.env.DISPATCH_BASE_KM, 3);
+export const DISPATCH_STEP_KM = num(process.env.DISPATCH_STEP_KM, 4);
+export const DISPATCH_STEP_MS = num(process.env.DISPATCH_STEP_SECONDS, 10) * 1000;
+export const DISPATCH_MAX_KM = num(process.env.DISPATCH_MAX_KM, 12);
 
 /**
  * Raio permitido (km) para uma entrega com a idade informada.

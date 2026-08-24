@@ -5,7 +5,7 @@ import { DISPATCH_BASE_KM, DISPATCH_STEP_KM, DISPATCH_STEP_MS, DISPATCH_MAX_KM }
  * Dispatch geográfico via PostGIS (ST_DWithin) — versão em BANCO do motor de raio
  * crescente de `dispatch.ts`. O comportamento é IDÊNTICO ao haversine em JS:
  *
- *   idade 0–20s → 1 km ; 20–40s → 3 km ; ... ; >= 15 km → visível a todos.
+ *   idade 0–10s → 3 km ; 10–20s → 7 km ; 20–30s → 11 km ; 30s+ → visível a todos.
  *
  * A diferença é que a filtragem acontece no Postgres, usando o índice GiST em
  * Delivery.storeGeom — escala muito melhor que buscar 200 linhas e filtrar em JS.
