@@ -83,6 +83,20 @@
   box-shadow: var(--shadow-float);
 }
 
+/* CTA escuro premium: preto/grafite + borda roxa fina + glow discreto + ícone roxo.
+   O roxo assina o botão sem virar uma parede roxa (linguagem "premium dark"). */
+.accent {
+  background: var(--panel-2);
+  color: var(--text-strong);
+  border: 1px solid var(--accent-line);
+  box-shadow: var(--accent-glow);
+}
+.accent:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--brand-2);
+}
+.accent .icon { color: var(--brand-2); }
+
 .icon {
   display: inline-flex;
   flex-shrink: 0;

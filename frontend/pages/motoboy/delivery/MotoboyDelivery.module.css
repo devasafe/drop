@@ -35,7 +35,8 @@
 .accMed { background: color-mix(in srgb, var(--rating) 12%, transparent); color: var(--rating); }
 .accBad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
 
-.routeHint { font-size: var(--fs-sm); color: var(--text-muted); }
+.navBtn { width: 100%; height: 54px; font-size: 16px; font-weight: 700; border-radius: var(--r-md); }
+.routeHint { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--space-2); }
 .mapEmpty { font-size: var(--fs-sm); color: var(--text-subtle); padding: var(--space-4); text-align: center; background: var(--surface-2); border-radius: var(--r-md); }
 
 .pinCard { display: flex; flex-direction: column; gap: var(--space-2); align-items: center; text-align: center; background: var(--surface); border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--line)); border-radius: var(--r-lg); padding: var(--space-5); }

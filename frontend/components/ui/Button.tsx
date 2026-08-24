@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import styles from './Button.module.css';
 import { ICON_STROKE_WIDTH } from './Icon';
 
-export type ButtonVariant = 'primary' | 'ghost' | 'onImage' | 'danger';
+export type ButtonVariant = 'primary' | 'ghost' | 'onImage' | 'danger' | 'accent';
 export type ButtonSize = 'sm' | 'md';
 
 export interface ButtonProps
