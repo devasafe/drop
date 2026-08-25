@@ -20,6 +20,44 @@ export default function WithdrawalApprovals() {
   const [tab, setTab] = useState<'pending' | 'all' | 'wallet'>('pending');
   const [autoApprove, setAutoApprove] = useState(false);
 
+  // Ferramentas Asaas (teste)
+  const [asaasBalance, setAsaasBalance] = useState<number | null>(null);
+  const [asaasApiUrl, setAsaasApiUrl] = useState<string>('');
+  const [fundType, setFundType] = useState<'store' | 'motoboy'>('motoboy');
+  const [fundId, setFundId] = useState('');
+  const [fundAmount, setFundAmount] = useState('');
+  const [fundBusy, setFundBusy] = useState(false);
+
+  const loadAsaasBalance = async () => {
+    try {
+      const r = await api.get('/admin/asaas/balance');
+      setAsaasBalance(Number(r.data?.balance ?? 0));
+      setAsaasApiUrl(r.data?.apiUrl || '');
+    } catch (err: any) {
+      setAsaasBalance(null);
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao consultar saldo Asaas' });
+    }
+  };
+
+  const handleFund = async () => {
+    const amount = Number(String(fundAmount).replace(',', '.'));
+    if (!fundId.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setMessage({ type: 'error', text: 'Informe o ID do recebedor e um valor válido.' });
+      return;
+    }
+    setFundBusy(true);
+    try {
+      const r = await api.post('/admin/asaas/fund-subaccount', { recipientType: fundType, recipientId: fundId.trim(), amount });
+      setMessage({ type: 'success', text: r.data?.message || 'Subconta abastecida!' });
+      setFundAmount('');
+      loadAsaasBalance();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao abastecer subconta' });
+    } finally {
+      setFundBusy(false);
+    }
+  };
+
   // Verificar permissão
   useEffect(() => {
     if (!authLoading && !permissionsLoading && user && !can('withdrawal:view')) {
@@ -162,6 +200,30 @@ export default function WithdrawalApprovals() {
             {message.text}
           </div>
         )}
+
+        {/* Ferramentas Asaas (teste) — abastecer subconta */}
+        <div className={styles.asaasTools}>
+          <div className={styles.asaasHead}>
+            <div>
+              <p className={styles.configTitle}><Icon name="wallet" size={14} /> Ferramentas Asaas (teste)</p>
+              <p className={styles.configDesc}>
+                Saldo da conta-mãe: {asaasBalance == null ? '—' : <strong>R$ {asaasBalance.toFixed(2)}</strong>}
+                {asaasApiUrl.includes('sandbox') && <span className={styles.sandboxTag}> sandbox</span>}
+              </p>
+            </div>
+            <button className={styles.asaasRefresh} onClick={loadAsaasBalance}>Ver saldo</button>
+          </div>
+          <div className={styles.fundRow}>
+            <select className={styles.fundSelect} value={fundType} onChange={(e) => setFundType(e.target.value as any)}>
+              <option value="motoboy">Motoboy</option>
+              <option value="store">Loja</option>
+            </select>
+            <input className={styles.fundInput} placeholder="ID do recebedor" value={fundId} onChange={(e) => setFundId(e.target.value)} />
+            <input className={styles.fundInput} placeholder="Valor" inputMode="decimal" value={fundAmount} onChange={(e) => setFundAmount(e.target.value.replace(/[^\d.,]/g, ''))} />
+            <button className={styles.fundBtn} onClick={handleFund} disabled={fundBusy}>{fundBusy ? '...' : 'Abastecer subconta'}</button>
+          </div>
+          <p className={styles.fundHint}>Transfere da conta-mãe para a subconta do recebedor. Requer saldo na conta-mãe (credite no painel do sandbox).</p>
+        </div>
 
         {/* Auto-approve Toggle */}
         <div className={styles.configPanel}>

@@ -540,3 +540,15 @@
   .container { padding: 16px; }
   .pageTitle { font-size: 22px; }
 }
+
+/* Ferramentas Asaas (teste) */
+.asaasTools { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.asaasHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.sandboxTag { font-size: var(--fs-xs); color: var(--rating); font-weight: 700; text-transform: uppercase; }
+.asaasRefresh { padding: 6px 12px; border-radius: var(--r-sm); border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--brand-2); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.fundRow { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.fundSelect, .fundInput { padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel-2); color: var(--text-strong); font-size: var(--fs-sm); }
+.fundInput { flex: 1; min-width: 120px; }
+.fundBtn { padding: 9px 16px; border-radius: var(--r-sm); border: 1px solid var(--accent-line); background: var(--brand); color: var(--on-brand); font-size: var(--fs-sm); font-weight: 700; cursor: pointer; }
+.fundBtn:disabled { opacity: .5; cursor: default; }
+.fundHint { margin: 0; font-size: var(--fs-xs); color: var(--text-muted); }
