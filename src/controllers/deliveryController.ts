@@ -672,7 +672,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
       ...delivery,
       order,
       storeObj: storeObj ? {
-        _id: storeObj._id,
+        _id: storeObj.id ?? storeObj._id,
         name: storeObj.name,
         address: storeObj.address,
         latitude: storeObj.latitude,
@@ -682,7 +682,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
         telefone: storeOwner?.telefone || '-'
       } : null,
       customerObj: customerObj ? {
-        _id: customerObj._id,
+        _id: customerObj.id ?? customerObj._id,
         name: customerObj.name,
         email: customerObj.email,
         telefone: customerObj.telefone,
