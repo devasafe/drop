@@ -15,9 +15,23 @@ import userRepository from '../repositories/user.repository';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
-import { emitAdminNotification } from '../utils/socketEmitter';
+import { emitAdminNotification, emitToRoom } from '../utils/socketEmitter';
+import { insertNotifications } from '../repositories/notification.repository';
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
+
+/** Cria a notificação (sino) do usuário + emite via socket (tempo real). Best-effort. */
+async function notifyMotoboy(userId: string, title: string, message: string) {
+  try {
+    await insertNotifications([{ userId: String(userId), title, message, type: 'system', read: false }]);
+    emitToRoom(`user:${userId}`, 'notification:received', {
+      _id: `wd_${Date.now()}_${userId}`, userId: String(userId), title, message,
+      type: 'system', read: false, createdAt: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    console.warn('[notifyMotoboy] falhou:', e?.message);
+  }
+}
 
 /**
  * Verifica se o recebedor (motoboy/loja) está pronto para sacar via Asaas:
@@ -244,6 +258,13 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
     processedAt: new Date(),
     rejectionReason: null, // limpa erro de tentativa anterior, se houve
   });
+
+  // 🔔 Avisa o motoboy que o saque foi aprovado/enviado.
+  await notifyMotoboy(
+    withdrawal.motoboyId,
+    'Saque aprovado ✅',
+    `Seu saque de ${brl(Number(withdrawal.amount))} foi aprovado e enviado para a sua chave PIX.`,
+  );
   return transferResult;
 }
 
@@ -339,8 +360,14 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
     const rejectionReason = reason || 'Rejeitado pelo CEO';
     const updatedWithdrawal = await updateWR(withdrawal._id, { status: 'rejected', rejectionReason });
 
-    // Saque do user balance: devolve o saldo bloqueado pra disponível
-    if (!withdrawal.payoutIds?.length) {
+    if (withdrawal.payoutIds?.length) {
+      // Saque de repasses (motoboy/loja): devolve os payouts para 'released' —
+      // o dinheiro volta a ficar disponível para saque (antes ficava preso em requested).
+      await prisma.$transaction(async (tx) => {
+        await payoutService.revertPayoutsToReleased(withdrawal.payoutIds, tx);
+      });
+    } else {
+      // Saque do user balance: devolve o saldo bloqueado pra disponível
       const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user');
       const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
       await prisma.$transaction(async (tx) => {
@@ -349,11 +376,14 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       });
     }
 
-    console.log('✅ Saque rejeitado:', {
-      withdrawalId,
-      motoboyId: withdrawal.motoboyId,
-      reason,
-    });
+    // 🔔 Avisa o motoboy que o saque foi rejeitado + motivo escrito pelo admin.
+    await notifyMotoboy(
+      withdrawal.motoboyId,
+      'Saque rejeitado',
+      `Seu saque de ${brl(Number(withdrawal.amount))} foi rejeitado. Motivo: ${rejectionReason}. O valor voltou a ficar disponível para saque.`,
+    );
+
+    console.log('✅ Saque rejeitado:', { withdrawalId, motoboyId: withdrawal.motoboyId, reason });
 
     return res.json({
       message: 'Saque rejeitado',

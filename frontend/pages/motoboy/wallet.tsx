@@ -30,6 +30,16 @@ interface HistoryItem {
   date: string; type: 'credit' | 'debit'; amount: number; reason: string; relatedId?: string;
 }
 
+type PillTone = 'pending' | 'available' | 'requested' | 'paid' | 'cancelled';
+function withdrawalStatusView(status: string): { label: string; tone: PillTone } {
+  switch (status) {
+    case 'processed': return { label: 'Pago', tone: 'paid' };
+    case 'rejected': return { label: 'Rejeitado', tone: 'cancelled' };
+    case 'approved': return { label: 'Aprovado', tone: 'available' };
+    default: return { label: 'Solicitado', tone: 'pending' };
+  }
+}
+
 export default function MototboyWalletPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -40,6 +50,7 @@ export default function MototboyWalletPage() {
   const [summary, setSummary] = useState<EarningsSummary | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'ganhos' | 'saques'>('todos');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -80,6 +91,10 @@ export default function MototboyWalletPage() {
           const sumRes = await api.get('/payouts/my/summary');
           setSummary(sumRes.data);
         } catch { /* resumo opcional */ }
+        try {
+          const wdRes = await api.get('/withdrawals/my-withdrawals');
+          setWithdrawals(Array.isArray(wdRes.data) ? wdRes.data : (wdRes.data?.withdrawals || []));
+        } catch { /* saques opcional */ }
       } catch (err: any) {
         const status = err?.response?.status;
         const msg = err?.response?.data?.error || err?.message || 'Erro desconhecido';
@@ -132,11 +147,15 @@ export default function MototboyWalletPage() {
       // Repasse leva ao detalhe da entrega (com tudo). Sem deliveryId, cai no modal.
       onClick: () => p.deliveryId ? router.push(`/motoboy/delivery/${p.deliveryId}`) : handlePayoutClick(p),
     })),
-    ...history.filter((h) => h.type === 'debit').map((h, i) => ({
-      key: `h-${i}`, date: h.date, sign: '-' as const, amount: h.amount,
-      title: 'Saque', statusView: { label: 'Saque', tone: 'requested' as const },
-      onClick: () => setSelectedTx({ kind: 'history', data: h }),
-    })),
+    ...withdrawals.map((w: any, i: number) => {
+      const wv = withdrawalStatusView(w.status);
+      return {
+        key: `w-${w._id || w.id || i}`, date: w.requestedAt || w.createdAt, sign: '-' as const, amount: Number(w.amount),
+        title: 'Saque via PIX', statusView: wv,
+        note: w.status === 'rejected' && w.rejectionReason ? `Motivo: ${w.rejectionReason}` : undefined,
+        onClick: undefined as undefined | (() => void),
+      };
+    }),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (loading) {
@@ -214,6 +233,7 @@ export default function MototboyWalletPage() {
                     <div className={styles.rowInfo}>
                       <span className={styles.rowTitle}>{e.title}</span>
                       <span className={styles.rowDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
+                      {(e as any).note && <span className={styles.rowNote}>{(e as any).note}</span>}
                     </div>
                     <div className={styles.rowRight}>
                       <span className={`${styles.rowAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>
