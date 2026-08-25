@@ -46,10 +46,25 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
       setIsReconnecting(true);
     });
 
+    // Ao voltar pro app (fechou o Waze/Google Maps, desbloqueou a tela), o socket
+    // pode ter caído e o backoff estar agendado pra daqui a até 30s. Reconecta JÁ,
+    // senão os emits (ex.: GPS do motoboy) são descartados até reconectar.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!socket.connected) {
+        console.log('👀 [Socket] App voltou ao foco — reconectando imediatamente');
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        reconnectAttemptsRef.current = 0;
+        socket.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled]);
 
