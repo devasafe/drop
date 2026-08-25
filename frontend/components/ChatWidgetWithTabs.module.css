@@ -8,7 +8,8 @@
      do painel) pra não ficar cortada. Desktop volta pro rodapé. */
   bottom: 90px;
   right: 20px;
-  z-index: 50;
+  /* Acima do mapa de navegação do motoboy (overlay 500), abaixo de toasts/modais. */
+  z-index: 900;
   font-family: var(--font-body);
   background: var(--bg);
   border-radius: var(--r-lg);
