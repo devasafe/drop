@@ -15,6 +15,9 @@ interface Props {
   motoboy?: RoutePoint | null;
   polyline?: string | null;
   height?: number;
+  /** Se passado, o clique chama isto em vez de abrir o visualizador estático
+   *  (ex.: abrir a navegação do motoboy). */
+  onExpand?: () => void;
 }
 
 const isPoint = (p?: RoutePoint | null): p is RoutePoint =>
@@ -80,7 +83,7 @@ function RouteSketch({ store, customer, motoboy, polyline, height }: Props) {
  * chave do MapTiler, cai no croqui SVG. (A Static Maps API raster é paga e volta
  * 403 na chave atual, por isso não é usada.)
  */
-export function RouteThumbnail({ store, customer, motoboy, polyline, height = 150 }: Props) {
+export function RouteThumbnail({ store, customer, motoboy, polyline, height = 150, onExpand }: Props) {
   const [open, setOpen] = useState(false);
   const hasLine = typeof polyline === 'string' && polyline.length > 0;
   const nPts = [store, customer, motoboy].filter(isPoint).length;
@@ -95,7 +98,7 @@ export function RouteThumbnail({ store, customer, motoboy, polyline, height = 15
 
   return (
     <>
-      <button type="button" className={styles.btn} onClick={() => setOpen(true)} title="Ver rota no mapa" aria-label="Ver rota no mapa">
+      <button type="button" className={styles.btn} onClick={() => (onExpand ? onExpand() : setOpen(true))} title="Ver rota no mapa" aria-label="Ver rota no mapa">
         {inner}
         <span className={styles.expand} aria-hidden="true">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -103,7 +106,7 @@ export function RouteThumbnail({ store, customer, motoboy, polyline, height = 15
           </svg>
         </span>
       </button>
-      {open && (
+      {!onExpand && open && (
         <RouteMapModal store={store} customer={customer} motoboy={motoboy} polyline={polyline} onClose={() => setOpen(false)} />
       )}
     </>

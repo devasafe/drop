@@ -292,6 +292,11 @@ export default function MotoboyDeliveryDetail() {
                 motoboy={currentLocation}
                 polyline={delivery.routePolyline}
                 height={150}
+                onExpand={
+                  currentLocation && storeLat !== null && storeLng !== null && customerLat !== null && customerLng !== null
+                    ? () => setNavOpen(true)
+                    : undefined
+                }
               />
             )}
 
