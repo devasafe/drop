@@ -107,23 +107,17 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
 
     // amount === 'all' (ou >= totalAvailable) → saca tudo
-    let selectedPayouts = availablePayouts;
+    let selectedPayoutIds = availablePayouts.map((p) => p.id);
     let actualAmount = totalAvailable;
 
     if (amount !== 'all' && Number(amount) < totalAvailable) {
-      // Saque parcial: pega o maior conjunto FIFO de payouts que cabe ABAIXO do
-      // valor pedido (respeita teto diário sem fracionar repasse).
-      const selection = await payoutService.selectPayoutsUpTo(recipientType as any, recipientId, Number(amount));
-      if (selection.payouts.length === 0) {
-        // Nenhum repasse cabe abaixo do valor pedido (repasse não pode ser fracionado).
-        return res.status(400).json({
-          error: `O menor saque possível é ${brl(selection.minPayout)} — um repasse não pode ser dividido. Ajuste o valor para pelo menos isso.`,
-          code: 'AMOUNT_TOO_LOW',
-          minWithdrawable: selection.minPayout,
-          totalAvailable,
-        });
+      // Saque parcial: soma EXATA do valor pedido, dividindo o repasse da fronteira
+      // (fracionamento). Como amount < totalAvailable, sempre fecha exato.
+      const selection = await payoutService.selectAndSplitForAmount(recipientType as any, recipientId, Number(amount));
+      if (selection.payoutIds.length === 0) {
+        return res.status(400).json({ error: 'Nenhum repasse disponível para saque.', totalAvailable });
       }
-      selectedPayouts = selection.payouts;
+      selectedPayoutIds = selection.payoutIds;
       actualAmount = selection.total;
     }
 
@@ -140,11 +134,11 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
       bankAccount: bankAccount || undefined,
       status: 'pending',
       requestedAt: new Date(),
-      payoutIds: selectedPayouts.map(p => p.id),
+      payoutIds: selectedPayoutIds,
     });
 
     await prisma.$transaction(async (tx) => {
-      await payoutService.markPayoutsRequested(selectedPayouts.map(p => p.id), String(withdrawal._id), tx);
+      await payoutService.markPayoutsRequested(selectedPayoutIds, String(withdrawal._id), tx);
     });
 
     await maybeAutoApproveWithdrawal(String(withdrawal._id));

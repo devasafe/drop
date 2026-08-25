@@ -69,8 +69,8 @@ export default function AjudaGanhos() {
               <li className={styles.item}>
                 <span className={styles.itemIcon}><Package size={16} aria-hidden="true" /></span>
                 <div>
-                  <strong>O saque usa repasses inteiros</strong>
-                  <p>Cada entrega gera um repasse. Se o valor escolhido não fechar exato com os repasses, o saque cai no maior valor possível abaixo do que você pediu.</p>
+                  <strong>Saque o valor que quiser</strong>
+                  <p>Você pode sacar qualquer valor até o disponível — inclusive um valor abaixo do limite diário do PIX. O sistema separa o valor do saldo automaticamente.</p>
                 </div>
               </li>
               <li className={styles.item}>
