@@ -7,6 +7,7 @@ import userRepository from '../repositories/user.repository';
 import { emitForceLogout } from '../utils/socketEmitter';
 import asaasClient from '../services/asaas/client';
 import env from '../config/env';
+import { decryptSensitiveData } from '../utils/encryption';
 
 const router = Router();
 
@@ -675,6 +676,26 @@ async function resolveSubaccountWalletId(recipientType: 'store' | 'motoboy', rec
   return user?.asaas?.walletId || null;
 }
 
+// Lê o saldo DISPONÍVEL da subconta (com a apiKey dela) — é o que o saque usa.
+async function readSubaccountBalance(recipientType: 'store' | 'motoboy', recipientId: string): Promise<number | null> {
+  try {
+    let apiKeyEnc: string | undefined;
+    if (recipientType === 'store') {
+      const store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any;
+      apiKeyEnc = store?.asaas?.apiKeyEncrypted;
+    } else {
+      const user = await userRepository.findById(String(recipientId)) as any;
+      apiKeyEnc = user?.asaas?.apiKeyEncrypted;
+    }
+    if (!apiKeyEnc) return null;
+    const apiKey = decryptSensitiveData(apiKeyEnc);
+    const bal = await asaasClient.getAs<{ balance: number }>(apiKey, '/finance/balance');
+    return typeof bal?.balance === 'number' ? bal.balance : Number(bal?.balance);
+  } catch {
+    return null;
+  }
+}
+
 // POST /admin/asaas/fund-subaccount — transfere conta-mãe → subconta (DEV/teste)
 // body: { recipientType: 'store'|'motoboy', recipientId, amount }
 router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
@@ -721,7 +742,13 @@ router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wal
 
     const value = Number(Number(wr.amount).toFixed(2));
     const transfer = await asaasClient.post<any>('/transfers', { value, walletId });
-    return res.json({ success: true, message: `Subconta abastecida com R$ ${value.toFixed(2)}. Agora dá pra aprovar o saque.`, transferId: transfer?.id, status: transfer?.status });
+    // Confere o saldo REAL/disponível da subconta após a transferência.
+    const subBal = await readSubaccountBalance(recipientType, String(recipientId));
+    const settled = subBal != null && subBal >= value - 0.01;
+    const msg = settled
+      ? `Subconta abastecida (saldo disponível: R$ ${(subBal as number).toFixed(2)}). Já dá pra aprovar.`
+      : `Transferência enviada (status ${transfer?.status || '—'}), mas o saldo DISPONÍVEL da subconta ainda é R$ ${subBal == null ? '?' : (subBal as number).toFixed(2)}. No sandbox a liquidação pode levar alguns instantes — aguarde e tente aprovar de novo.`;
+    return res.json({ success: true, message: msg, transferId: transfer?.id, status: transfer?.status, subaccountBalance: subBal });
   } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'Falha ao abastecer subconta (a conta-mãe tem saldo?)' });
   }
