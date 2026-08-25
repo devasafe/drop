@@ -91,6 +91,19 @@ export const useOrders = () => {
     prevConnectedRef.current = isConnected;
   }, [isConnected, fetchOrders]);
 
+  // Auto-cura: refetcha ao voltar/focar a aba. Cobre o caso de ter perdido um
+  // evento em tempo real (ex.: order:cancelled) com a aba em background/socket
+  // caído — o card de pedido ativo some sozinho ao retomar.
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === 'visible') fetchOrders(); };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchOrders]);
+
   useEffect(() => {
     fetchOrders();
 
