@@ -61,12 +61,21 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
   const { on } = useSocket();
   const isMobile = useIsMobile();
   const [mounted, setMounted] = useState(false);
+  const [chatActive, setChatActive] = useState(false);
   const [delivery, setDelivery] = useState<any>(null);
   const [motoboy, setMotoboy] = useState<LatLng | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const fittedRef = useRef(false);
 
   useEffect(() => setMounted(true), []);
+
+  // Mantém os botões de chat em sync com o estado real do widget (aberto/minimizado).
+  useEffect(() => {
+    const onState = (e: Event) => setChatActive(!!(e as CustomEvent).detail?.open);
+    window.addEventListener('chatStateChanged', onState);
+    window.dispatchEvent(new CustomEvent('queryChatState'));
+    return () => window.removeEventListener('chatStateChanged', onState);
+  }, []);
 
   const deliveryId = order?.deliveryId;
 
@@ -137,7 +146,9 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
 
   const center = store || customer || undefined;
 
+  // Toggle: se o chat já está aberto, clicar de novo minimiza (igual ao mapa do motoboy).
   const openStoreChat = () => {
+    if (chatActive) { window.dispatchEvent(new CustomEvent('closeChat')); setChatActive(false); return; }
     const storeId = order?.storeId || delivery?.storeObj?._id || order?.store?._id;
     const storeName = order?.store?.name || delivery?.storeObj?.name || 'Loja';
     if (!storeId) return;
@@ -147,6 +158,7 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
   };
 
   const openMotoboyChat = () => {
+    if (chatActive) { window.dispatchEvent(new CustomEvent('closeChat')); setChatActive(false); return; }
     const motoboyId = delivery?.motoboyObj?._id;
     if (!motoboyId) return;
     window.dispatchEvent(new CustomEvent('openChat', {
@@ -179,11 +191,11 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
           </svg>
           Voltar ao pedido
         </button>
-        <button type="button" className={styles.chatBtn} onClick={openStoreChat} title="Falar com a loja" aria-label="Falar com a loja">
+        <button type="button" className={`${styles.chatBtn} ${chatActive ? styles.chatBtnActive : ''}`} onClick={openStoreChat} title={chatActive ? 'Minimizar chat' : 'Falar com a loja'} aria-label={chatActive ? 'Minimizar chat' : 'Falar com a loja'}>
           <Store size={19} aria-hidden="true" />
         </button>
         {hasCourier && (
-          <button type="button" className={styles.chatBtn} onClick={openMotoboyChat} title="Falar com o motoboy" aria-label="Falar com o motoboy">
+          <button type="button" className={`${styles.chatBtn} ${chatActive ? styles.chatBtnActive : ''}`} onClick={openMotoboyChat} title={chatActive ? 'Minimizar chat' : 'Falar com o motoboy'} aria-label={chatActive ? 'Minimizar chat' : 'Falar com o motoboy'}>
             <Bike size={19} aria-hidden="true" />
           </button>
         )}

@@ -51,6 +51,7 @@
 }
 .chatBtn:hover { border-color: rgba(139, 92, 246, 0.5); background: rgba(139, 92, 246, 0.12); }
 .chatBtn svg { color: #a855f7; }
+.chatBtnActive { border-color: #a855f7; background: rgba(139, 92, 246, 0.18); }
 
 .legend {
   position: absolute;
