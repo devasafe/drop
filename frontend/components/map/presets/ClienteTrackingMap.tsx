@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MessageCircle } from 'lucide-react';
 import { LngLatBounds } from 'maplibre-gl';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import DropMap from '../DropMap';
@@ -136,6 +137,15 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
 
   const center = store || customer || undefined;
 
+  const openStoreChat = () => {
+    const storeId = order?.storeId || delivery?.storeObj?._id || order?.store?._id;
+    const storeName = order?.store?.name || delivery?.storeObj?.name || 'Loja';
+    if (!storeId) return;
+    window.dispatchEvent(new CustomEvent('openChat', {
+      detail: { storeId, storeName, role: 'lojista', type: 'store' },
+    }));
+  };
+
   const overlay = (
     <div className={styles.overlay}>
       <DropMap
@@ -154,12 +164,17 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
         <MapControls onRecenter={fit} />
       </DropMap>
 
-      <button type="button" className={styles.close} onClick={onClose}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        Voltar
-      </button>
+      <div className={styles.tools}>
+        <button type="button" className={styles.close} onClick={onClose} aria-label="Voltar para o pedido">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Voltar ao pedido
+        </button>
+        <button type="button" className={styles.chatBtn} onClick={openStoreChat} title="Falar com a loja" aria-label="Falar com a loja">
+          <MessageCircle size={20} aria-hidden="true" />
+        </button>
+      </div>
 
       <div className={styles.legend}>
         <span className={styles.legendItem}><span className={styles.swRoute} /> Rota</span>
