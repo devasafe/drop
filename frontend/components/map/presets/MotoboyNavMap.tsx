@@ -118,8 +118,18 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
         <MapControls onRecenter={recenter} />
       </DropMap>
 
-      {/* Barra de ações (topo esquerdo). Minimizar deixa só o mapa. */}
+      {/* Barra de ações (topo esquerdo). Voltar ao pedido fica SEMPRE visível;
+          o toggle minimiza/expande as informações; o chat só quando expandido. */}
       <div className={styles.tools}>
+        <button
+          type="button"
+          className={styles.toolBtn}
+          onClick={onClose}
+          title="Voltar ao pedido"
+          aria-label="Voltar para a página do pedido"
+        >
+          <ClipboardList size={20} aria-hidden="true" />
+        </button>
         <button
           type="button"
           className={styles.toolBtn}
@@ -160,17 +170,6 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
               </div>
             )}
           </div>
-        )}
-        {!minimized && (
-          <button
-            type="button"
-            className={styles.toolBtn}
-            onClick={onClose}
-            title="Página da entrega"
-            aria-label="Ir para a página da entrega"
-          >
-            <ClipboardList size={20} aria-hidden="true" />
-          </button>
         )}
       </div>
 
