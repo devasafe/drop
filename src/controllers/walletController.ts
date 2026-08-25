@@ -163,15 +163,18 @@ export const getStoreFinancialSummary = async (req: Request, res: Response) => {
       const agg = await prisma.order.aggregate({ where, _sum: { totalValue: true, deliveryFee: true } });
       return Math.max(0, Number(agg._sum.totalValue || 0) - Number(agg._sum.deliveryFee || 0));
     };
-    const [grossSales, grossThisMonth, grossToday, cancelledValue] = await Promise.all([
+    const [grossSales, grossThisMonth, grossToday, cancelledValue, billableCount, cancelledCount] = await Promise.all([
       grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES } }),
       grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES }, createdAt: { gte: startMonth } }),
       grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES }, createdAt: { gte: startDay } }),
       grossOf({ storeId: String(storeId), status: { in: ['cancelado', 'rejeitado'] as any } }),
+      prisma.order.count({ where: { storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES } } }),
+      prisma.order.count({ where: { storeId: String(storeId), status: { in: ['cancelado', 'rejeitado'] as any } } }),
     ]);
 
     const commissionPercent = await getStorePlanFee(String(storeId)); // % que a Drop retém
     const commission = Math.max(0, Math.round((grossSales - net.totalEarned) * 100) / 100);
+    const ticketMedio = billableCount > 0 ? Math.round((grossSales / billableCount) * 100) / 100 : 0;
 
     return res.json({
       pending: net.pending,
@@ -189,6 +192,9 @@ export const getStoreFinancialSummary = async (req: Request, res: Response) => {
       commissionPercent,
       retainPercent: Math.round((100 - commissionPercent) * 100) / 100,
       plan: store.plan || 1,
+      billableCount,
+      cancelledCount,
+      ticketMedio,
     });
   } catch (err: any) {
     console.error('[STORE FINANCIAL SUMMARY ERROR]', err);

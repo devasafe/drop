@@ -10,7 +10,6 @@ import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
 import StoreWalletMetrics, { StoreFinancialSummary } from '../../components/wallet/StoreWalletMetrics';
-import { KpiBand, Kpi } from '../../components/ui/KpiBand';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './SellerWallet.module.css';
@@ -59,6 +58,7 @@ export default function SellerWalletPage() {
   const [resolvedStoreId, setResolvedStoreId] = useState<string>('');
   const [summary, setSummary] = useState<StoreFinancialSummary | null>(null);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [extractFilter, setExtractFilter] = useState<'todos' | 'vendas' | 'saques'>('todos');
   const [selectedTx, setSelectedTx] = useState<
     | { kind: 'payout'; data: PayoutItem; orderInfo?: any; invoice?: any }
     | { kind: 'history'; data: HistoryItem }
@@ -265,14 +265,25 @@ export default function SellerWalletPage() {
             <Chip label="Análises" active={activeTab === 'analises'} onClick={() => setActiveTab('analises')} />
           </div>
 
-          {/* Histórico (repasses + saques) */}
+          {/* Histórico (vendas + saques) */}
           {activeTab === 'historico' && (
             <section className={styles.section}>
-              {historyEntries.length === 0 ? (
+              <div className={styles.extractFilters}>
+                {(['todos', 'vendas', 'saques'] as const).map((f) => (
+                  <button key={f} className={`${styles.filterChip} ${extractFilter === f ? styles.filterChipActive : ''}`} onClick={() => setExtractFilter(f)}>
+                    {f === 'todos' ? 'Todos' : f === 'vendas' ? 'Vendas' : 'Saques'}
+                  </button>
+                ))}
+              </div>
+              {(() => {
+                const filtered = historyEntries.filter((e) =>
+                  extractFilter === 'todos' ? true : extractFilter === 'vendas' ? e.key.startsWith('p-') : e.key.startsWith('w-'),
+                );
+                return filtered.length === 0 ? (
                 <p className={styles.emptyMsg}>Nenhuma transação ainda</p>
               ) : (
                 <List>
-                  {historyEntries.map((e) => (
+                  {filtered.map((e) => (
                     <Row key={e.key} interactive onClick={e.onClick} className={styles.txRow}>
                       <div className={styles.rowInfo}>
                         <span className={styles.rowTitle}>{e.title}</span>
@@ -288,7 +299,8 @@ export default function SellerWalletPage() {
                     </Row>
                   ))}
                 </List>
-              )}
+              );
+              })()}
             </section>
           )}
 
@@ -317,20 +329,34 @@ export default function SellerWalletPage() {
           )}
 
           {/* Análises */}
-          {activeTab === 'analises' && wallet && (
+          {activeTab === 'analises' && summary && (
             <div className={styles.analises}>
-              <KpiBand className={styles.analisesBand}>
-                <Kpi label="Média/dia" value={formatBRL(wallet.totalIncome / 30)} tone="success" />
-                <Kpi label="Comissão" value={`${wallet.feePercent}%`} tone="warn" />
-                <Kpi label="Você retém" value={`${100 - (wallet.feePercent || 15)}%`} tone="success" />
-              </KpiBand>
-              <div className={styles.planBlock}>
-                <p className={styles.planLabel}>Plano ativo</p>
-                <h3 className={styles.planName}>{planNames[wallet.plan || 1]}</h3>
-                <p className={styles.planDescription}>
-                  Seu plano determina o percentual que você retém de cada venda. Quanto maior o plano, menores as comissões.
-                </p>
+              <div className={styles.analiticsGrid}>
+                {[
+                  { label: 'Vendas hoje', value: formatBRL(summary.grossToday), tone: 'brand' },
+                  { label: 'Vendas no mês', value: formatBRL(summary.grossThisMonth), tone: 'brand' },
+                  { label: 'Líquido no mês', value: formatBRL(summary.netThisMonth), tone: 'success' },
+                  { label: 'Ticket médio', value: formatBRL(summary.ticketMedio), tone: 'brand' },
+                  { label: 'Taxas pagas', value: formatBRL(summary.commission), tone: 'warn' },
+                  { label: 'Cancelado', value: formatBRL(summary.cancelledValue), tone: 'warn' },
+                  { label: 'Pedidos concluídos', value: String(summary.billableCount), tone: 'success' },
+                  { label: 'Pedidos cancelados', value: String(summary.cancelledCount), tone: 'warn' },
+                ].map((m) => (
+                  <div key={m.label} className={`${styles.analiticCard} ${styles[`tone_${m.tone}`]}`}>
+                    <span className={styles.analiticLabel}>{m.label}</span>
+                    <span className={styles.analiticValue}>{m.value}</span>
+                  </div>
+                ))}
               </div>
+              {wallet && (
+                <div className={styles.planBlock}>
+                  <p className={styles.planLabel}>Plano ativo</p>
+                  <h3 className={styles.planName}>{planNames[wallet.plan || 1]}</h3>
+                  <p className={styles.planDescription}>
+                    Você retém <strong>{summary.retainPercent}%</strong> de cada venda; a Drop retém {summary.commissionPercent}% de comissão.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -382,7 +408,15 @@ export default function SellerWalletPage() {
           details.push({ label: 'Produtos', value: prodList });
         }
         if (oi?.totalValue != null) {
-          details.push({ label: 'Total do Pedido', value: `R$ ${oi.totalValue.toFixed(2)}` });
+          details.push({ label: 'Total do pedido (cliente)', value: `R$ ${Number(oi.totalValue).toFixed(2)}` });
+          // Detalhamento financeiro da loja: bruto (produtos) → comissão → líquido.
+          const deliveryFee = Number(oi.deliveryFee || 0);
+          const gross = Math.max(0, Number(oi.totalValue) - deliveryFee); // venda de produtos (bruto da loja)
+          const net = Number(p.amount); // payout já é o líquido da loja
+          const commission = Math.max(0, Math.round((gross - net) * 100) / 100);
+          details.push({ label: 'Venda (produtos)', value: `R$ ${gross.toFixed(2)}` });
+          if (commission > 0) details.push({ label: 'Comissão Drop', value: `- R$ ${commission.toFixed(2)}`, highlight: 'warning' as const });
+          details.push({ label: 'Líquido da loja', value: `R$ ${net.toFixed(2)}`, highlight: 'success' as const });
         }
         // Payout info
         details.push({ label: 'ID Payout', value: p._id, mono: true });
