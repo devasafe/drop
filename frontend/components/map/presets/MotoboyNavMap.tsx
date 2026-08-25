@@ -50,6 +50,15 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
 
   useEffect(() => setMounted(true), []);
 
+  // Mantém o botão de chat em sync com o estado real do widget (aberto/minimizado),
+  // não importa por onde o motoboy fecha (setinha do widget ou botão do mapa).
+  useEffect(() => {
+    const onState = (e: Event) => setChatActive(!!(e as CustomEvent).detail?.open);
+    window.addEventListener('chatStateChanged', onState);
+    window.dispatchEvent(new CustomEvent('queryChatState')); // pega o estado atual ao abrir o mapa
+    return () => window.removeEventListener('chatStateChanged', onState);
+  }, []);
+
   const deliveryId = delivery?._id || delivery?.id;
   const goingToCustomer = delivery?.status === 'picked';
 
@@ -105,7 +114,7 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
         }}
       >
         {route?.polyline && <RouteLayer polyline={route.polyline} />}
-        <MarkersLayer store={store} customer={customer} motoboy={self} storeLabel="Loja" customerLabel="Cliente" />
+        <MarkersLayer store={store} customer={customer} motoboy={self} storeLabel="Loja" customerLabel="Cliente" customerColor="#3ddc84" />
         <MapControls onRecenter={recenter} />
       </DropMap>
 
