@@ -1030,7 +1030,8 @@ export default function StoreDashboard() {
                           </Button>
                         </div>
                       ) : (
-                        // [Plano 2/3] Pedido aceito com delivery — mostrar Detalhes e Cancelar
+                        // [Plano 2/3] Pedido aceito com delivery — Detalhes.
+                        // Cancelar SÓ enquanto nenhum motoboy aceitou a corrida.
                         <div className={styles.orderActions2}>
                           <Button
                             variant="ghost"
@@ -1041,14 +1042,20 @@ export default function StoreDashboard() {
                           >
                             Detalhes
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnReject}
-                            onClick={() => setRejectModalOrderId(order._id)}
-                          >
-                            Cancelar Pedido
-                          </Button>
+                          {!order.delivery?.motoboyId ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={styles.btnReject}
+                              onClick={() => setRejectModalOrderId(order._id)}
+                            >
+                              Cancelar Pedido
+                            </Button>
+                          ) : (
+                            <span className={styles.plan1WaitingLabel}>
+                              <Icon name="motorcycle" size={12} /> Motoboy a caminho
+                            </span>
+                          )}
                         </div>
                       )}
 
