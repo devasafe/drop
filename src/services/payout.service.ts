@@ -261,6 +261,29 @@ class PayoutService {
     return { payouts: selected, total: sum };
   }
 
+  /**
+   * Seleciona o maior conjunto FIFO de payouts cuja soma NÃO ultrapassa `amount`
+   * (saque "até X" — respeita o teto diário sem fracionar um repasse). Para no
+   * primeiro payout que estouraria o teto. Retorna vazio se nem o payout mais
+   * antigo couber (o chamador avisa o valor mínimo).
+   */
+  async selectPayoutsUpTo(
+    recipientType: PayoutRecipientType,
+    recipientId: string,
+    amount: number,
+  ): Promise<{ payouts: Payout[]; total: number }> {
+    const available = await this.listAvailablePayouts(recipientType, recipientId);
+    const selected: Payout[] = [];
+    let sum = 0;
+    for (const p of available) {
+      const v = num(p.amount);
+      if (sum + v > amount + 0.01) break;
+      selected.push(p);
+      sum += v;
+    }
+    return { payouts: selected, total: sum };
+  }
+
   async getPendingObligations(): Promise<number> {
     const result = await prisma.payout.aggregate({
       where: { status: { in: ['pending', 'released', 'requested'] } },

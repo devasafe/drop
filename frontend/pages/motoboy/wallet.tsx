@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Button } from '../../components/ui/Button';
-import { Sheet } from '../../components/ui/Sheet';
+import WithdrawSheet from '../../components/wallet/WithdrawSheet';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -97,13 +97,17 @@ export default function MototboyWalletPage() {
 
   const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
 
-  const confirmarSaque = async () => {
+  const confirmarSaque = async (amount: number | 'all') => {
     const motoboyId = user?._id || user?.id;
     if (!motoboyId || available <= 0) return;
     setTransferring(true);
     try {
-      await api.post('/withdrawals/request', { amount: 'all' });
-      showToast('Saque solicitado! O valor cai na sua chave PIX cadastrada.', 'success');
+      const res = await api.post('/withdrawals/request', { amount });
+      const done = res.data?.withdrawal?.amount;
+      showToast(
+        done ? `Saque de ${formatBRL(done)} solicitado! Cai na sua chave PIX.` : 'Saque solicitado! O valor cai na sua chave PIX cadastrada.',
+        'success',
+      );
       setSacarOpen(false);
       await refetchWallet(motoboyId);
     } catch (err: any) {
@@ -211,17 +215,14 @@ export default function MototboyWalletPage() {
         </div>
       </div>
 
-      {/* Sheet de confirmação de saque */}
-      <Sheet open={sacarOpen} onClose={() => setSacarOpen(false)} title="Sacar para meu PIX">
-        <div className={styles.sheetBody}>
-          <p className={styles.sheetText}>
-            Vamos transferir <strong>{formatBRL(available)}</strong> para a sua chave PIX cadastrada em Dados de recebimento.
-          </p>
-          <Button onClick={confirmarSaque} disabled={transferring || available <= 0}>
-            {transferring ? 'Solicitando…' : `Sacar ${formatBRL(available)}`}
-          </Button>
-        </div>
-      </Sheet>
+      {/* Saque com valor editável (respeita limite diário) */}
+      <WithdrawSheet
+        open={sacarOpen}
+        onClose={() => setSacarOpen(false)}
+        available={available}
+        submitting={transferring}
+        onConfirm={confirmarSaque}
+      />
 
       {selectedTx?.kind === 'payout' && (() => {
         const p = selectedTx.data;
