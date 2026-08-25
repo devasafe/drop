@@ -288,6 +288,63 @@ class PayoutService {
   }
 
   /**
+   * Seleciona repasses released que somem EXATAMENTE `amount`, dividindo o repasse
+   * da fronteira em dois quando necessário (fracionamento de saque). A divisão
+   * mantém o invariante "um payout = um status": o pedaço a sacar vira um novo
+   * payout 'released' (herda order/delivery/recebedor); o original fica com o
+   * restante, também 'released'. Total released inalterado → reconciliação intacta.
+   *
+   * Roda em transação: reduzir o original + criar o pedaço são atômicos.
+   * Retorna os IDs de payout a marcar como 'requested' e o total (== amount se
+   * amount ≤ disponível). Idempotência do saque é garantida pelo chamador.
+   */
+  async selectAndSplitForAmount(
+    recipientType: PayoutRecipientType,
+    recipientId: string,
+    amount: number,
+  ): Promise<{ payoutIds: string[]; total: number }> {
+    return prisma.$transaction(async (tx) => {
+      const available = await tx.payout.findMany({
+        where: { recipientType, recipientId, status: 'released', blocked: false },
+        orderBy: { createdAt: 'asc' },
+      });
+      const ids: string[] = [];
+      let sum = 0;
+      for (const p of available) {
+        const remainingTarget = Math.round((amount - sum) * 100) / 100;
+        if (remainingTarget <= 0.01) break;
+        const v = num(p.amount);
+        if (v <= remainingTarget + 0.01) {
+          ids.push(p.id);
+          sum = Math.round((sum + v) * 100) / 100;
+        } else {
+          // Divide: retira exatamente `remainingTarget` deste repasse.
+          const take = remainingTarget;
+          const rest = Math.round((v - take) * 100) / 100;
+          await tx.payout.update({ where: { id: p.id }, data: { amount: rest } });
+          const split = await tx.payout.create({
+            data: {
+              recipientType: p.recipientType,
+              recipientId: p.recipientId,
+              orderId: p.orderId,
+              deliveryId: p.deliveryId,
+              amount: take,
+              currency: p.currency,
+              status: 'released',
+              releasedAt: p.releasedAt ?? new Date(),
+              gatewayProvider: p.gatewayProvider,
+            },
+          });
+          ids.push(split.id);
+          sum = Math.round((sum + take) * 100) / 100;
+          break;
+        }
+      }
+      return { payoutIds: ids, total: sum };
+    });
+  }
+
+  /**
    * Resumo financeiro agregado do recebedor (motoboy/loja), direto dos Payouts
    * (fonte da verdade). Cada payout está em UM status por vez → somar buckets
    * não duplica. `cancelled` NÃO conta como ganho.

@@ -77,8 +77,8 @@ export default function WithdrawSheet({ open, onClose, available, submitting, on
         </div>
 
         <p className={styles.hint}>
-          O limite diário do PIX costuma ser {formatBRL(SUGGESTED_DAILY_LIMIT)}. Para valores maiores, saque em partes.
-          O saque usa repasses inteiros: se o valor não fechar exato, cai no maior valor possível abaixo do escolhido.
+          O limite diário do PIX costuma ser {formatBRL(SUGGESTED_DAILY_LIMIT)}. Para valores maiores, saque em partes —
+          você pode sacar qualquer valor até o disponível.
         </p>
 
         <Button onClick={submit} disabled={!valid || submitting}>
