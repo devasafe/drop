@@ -5,6 +5,8 @@ import { authorizePermission } from '../middleware/authorize';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 import { emitForceLogout } from '../utils/socketEmitter';
+import asaasClient from '../services/asaas/client';
+import env from '../config/env';
 
 const router = Router();
 
@@ -643,6 +645,53 @@ router.post('/asaas/conta-mae/pix', authenticate, authorizePermission('gateway:m
     return res.json({ message: 'Chave PIX criada na conta-mãe', created });
   } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'Erro ao criar chave PIX' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// 🧪 FERRAMENTAS ASAAS (teste): saldo da conta-mãe + abastecer subconta
+// ═══════════════════════════════════════════════════════════
+
+// GET /admin/asaas/balance — saldo da conta-mãe (útil pra ver se está zerada)
+router.get('/asaas/balance', authenticate, authorizePermission('cashbox:view'), async (_req: any, res: Response) => {
+  try {
+    if (!asaasClient.isConfigured()) return res.status(400).json({ error: 'Asaas não configurado (ASAAS_API_KEY ausente)' });
+    const bal = await asaasClient.getBalance();
+    return res.json({ balance: Number(bal?.balance || 0), apiUrl: env.ASAAS_API_URL });
+  } catch (err: any) {
+    return res.status(502).json({ error: err?.message || 'Falha ao consultar saldo Asaas' });
+  }
+});
+
+// POST /admin/asaas/fund-subaccount — transfere conta-mãe → subconta (DEV/teste)
+// body: { recipientType: 'store'|'motoboy', recipientId, amount }
+router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
+  try {
+    const { recipientType, recipientId, amount } = req.body || {};
+    if (!['store', 'motoboy'].includes(recipientType)) return res.status(400).json({ error: 'recipientType deve ser store ou motoboy' });
+    if (!recipientId) return res.status(400).json({ error: 'recipientId obrigatório' });
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ error: 'amount inválido' });
+    if (!asaasClient.isConfigured()) return res.status(400).json({ error: 'Asaas não configurado' });
+
+    // Resolve o walletId da subconta (auto-cria se faltar).
+    let walletId: string | null = null;
+    if (recipientType === 'store') {
+      let store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any;
+      if (!store?.asaas?.walletId) { await ensureStoreSubaccount(String(recipientId)); store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any; }
+      walletId = store?.asaas?.walletId || null;
+    } else {
+      let user = await userRepository.findById(String(recipientId)) as any;
+      if (!user?.asaas?.walletId) { await ensureMotoboySubaccount(String(recipientId)); user = await userRepository.findById(String(recipientId)) as any; }
+      walletId = user?.asaas?.walletId || null;
+    }
+    if (!walletId) return res.status(400).json({ error: 'Recebedor sem subconta Asaas (não foi possível criar).' });
+
+    const transfer = await asaasClient.post<any>('/transfers', { value: Number(value.toFixed(2)), walletId });
+    return res.json({ success: true, message: `Transferido R$ ${value.toFixed(2)} para a subconta.`, transferId: transfer?.id, status: transfer?.status });
+  } catch (err: any) {
+    // Erro típico: conta-mãe sem saldo → oriente a creditar no painel do sandbox.
+    return res.status(502).json({ error: err?.message || 'Falha ao abastecer subconta (a conta-mãe tem saldo?)' });
   }
 });
 
