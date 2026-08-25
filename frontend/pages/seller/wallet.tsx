@@ -8,6 +8,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
+import WithdrawSheet from '../../components/wallet/WithdrawSheet';
 import { KpiBand, Kpi } from '../../components/ui/KpiBand';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -53,6 +54,7 @@ export default function SellerWalletPage() {
   const [activeTab, setActiveTab] = useState<'historico' | 'payouts' | 'analises'>('historico');
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [transferring, setTransferring] = useState(false);
+  const [sacarOpen, setSacarOpen] = useState(false);
   const [resolvedStoreId, setResolvedStoreId] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<
     | { kind: 'payout'; data: PayoutItem; orderInfo?: any; invoice?: any }
@@ -96,16 +98,21 @@ export default function SellerWalletPage() {
   };
 
   // Saque direto: cai na chave PIX da loja (subconta Asaas). Sem dança de carteira.
-  const handleSacar = async () => {
-    const storeId = resolvedStoreId || user?.storeId || user?._id;
-    if (!storeId) return;
+  const handleSacar = () => {
     const available = wallet?.availableBalance ?? 0;
     if (available <= 0) { alert('Nenhum saldo disponível para saque.'); return; }
-    if (!confirm(`Sacar R$ ${available.toFixed(2)} para a chave PIX da loja?`)) return;
+    setSacarOpen(true);
+  };
+
+  const confirmSacar = async (amount: number | 'all') => {
+    const storeId = resolvedStoreId || user?.storeId || user?._id;
+    if (!storeId) return;
     setTransferring(true);
     try {
-      await api.post('/withdrawals/request', { amount: 'all', storeId });
-      alert('Saque solicitado! O valor cai na chave PIX cadastrada da loja.');
+      const res = await api.post('/withdrawals/request', { amount, storeId });
+      const done = res.data?.withdrawal?.amount;
+      alert(done ? `Saque de R$ ${Number(done).toFixed(2)} solicitado! Cai na chave PIX da loja.` : 'Saque solicitado! O valor cai na chave PIX cadastrada da loja.');
+      setSacarOpen(false);
       await reload();
     } catch (err: any) {
       alert(err?.response?.data?.error || 'Erro ao solicitar saque. Confira se você cadastrou sua chave PIX em Dados de Recebimento.');
@@ -385,6 +392,14 @@ export default function SellerWalletPage() {
           ]}
         />
       )}
+
+      <WithdrawSheet
+        open={sacarOpen}
+        onClose={() => setSacarOpen(false)}
+        available={available}
+        submitting={transferring}
+        onConfirm={confirmSacar}
+      />
     </ProtectedRoute>
   );
 }

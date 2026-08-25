@@ -111,12 +111,13 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     let actualAmount = totalAvailable;
 
     if (amount !== 'all' && Number(amount) < totalAvailable) {
-      // Saque parcial: tenta selecionar payouts inteiros FIFO que somem exatamente o amount
-      const selection = await payoutService.selectPayoutsForAmount(recipientType as any, recipientId, Number(amount));
-      if ('error' in selection) {
+      // Saque parcial: pega o maior conjunto FIFO de payouts que cabe ABAIXO do
+      // valor pedido (respeita teto diário sem fracionar repasse).
+      const selection = await payoutService.selectPayoutsUpTo(recipientType as any, recipientId, Number(amount));
+      if (selection.payouts.length === 0) {
         return res.status(400).json({
-          error: 'Saque parcial só funciona com soma exata de payouts. Use "Sacar tudo" ou ajuste o valor.',
-          code: selection.error,
+          error: `O valor pedido é menor que o menor repasse disponível. Aumente o valor do saque.`,
+          code: 'AMOUNT_TOO_LOW',
           totalAvailable,
         });
       }
