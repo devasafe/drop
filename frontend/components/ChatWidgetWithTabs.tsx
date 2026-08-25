@@ -584,20 +584,34 @@ export default function ChatWidgetWithTabs({
 
     // Minimiza o chat por evento externo (ex.: toggle do botão de chat no mapa de navegação).
     const handleCloseChatEvent = () => { setIsMinimized(true); };
+    // Responde a quem pergunta o estado atual (ex.: nav map ao montar) → reemite chatStateChanged.
+    const handleQueryChatState = () => {
+      window.dispatchEvent(new CustomEvent('chatStateChanged', { detail: { open: isOpen && !isMinimized } }));
+    };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('openChat', handleOpenChatEvent);
       window.addEventListener('closeChat', handleCloseChatEvent);
+      window.addEventListener('queryChatState', handleQueryChatState);
       console.log('✅ [ChatWidgetWithTabs] Listener registrado com sucesso');
     }
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('openChat', handleOpenChatEvent);
         window.removeEventListener('closeChat', handleCloseChatEvent);
+        window.removeEventListener('queryChatState', handleQueryChatState);
         console.log('🧹 [ChatWidgetWithTabs] Listener removido');
       }
     };
   }, [user, openChatWithStore, isOpen, isMinimized]);
+
+  // Anuncia o estado do chat (aberto de fato = isOpen && !isMinimized) sempre que
+  // muda — quem abriu pelo mapa de navegação usa isso pra manter o botão em sync.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chatStateChanged', { detail: { open: isOpen && !isMinimized } }));
+    }
+  }, [isOpen, isMinimized]);
 
   // 🔵 Função para marcar mensagens como lidas (apenas atualiza estado local)
   const markMessagesAsRead = async (conversationId: string) => {
