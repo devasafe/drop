@@ -1357,21 +1357,25 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       return res.status(403).json({ error: 'Permissão negada' });
     }
 
-    // Pedidos 'criado', 'pago' ou 'enviado' podem ser rejeitados pela loja
-    if (!['criado', 'pago', 'enviado'].includes(order.status)) {
+    // Regra: a loja pode cancelar SÓ até um motoboy aceitar a corrida. Estados
+    // válidos antes do aceite: 'criado', 'pago' e 'aguardando_motoboy' (buscando
+    // entregador). 'enviado' (já retirado) fica de fora.
+    const CANCELLABLE_BEFORE_MOTOBOY = ['criado', 'pago', 'aguardando_motoboy'];
+    if (!CANCELLABLE_BEFORE_MOTOBOY.includes(order.status)) {
       return res.status(400).json({
-        error: `Pedido não pode ser rejeitado no estado: ${order.status}`,
+        error: `Pedido não pode ser cancelado no estado: ${order.status}`,
       });
     }
 
-    // ✅ Carrega a entrega CEDO (antes da trava atômica) para poder BLOQUEAR o
-    // cancelamento após o motoboy pegar o pedido (spec §3.2: "MTB já pegou" → 🚫).
-    // Este caminho NÃO reivindica/rejeita o pedido — retorna 400 e o status fica intacto.
+    // ✅ Carrega a entrega CEDO (antes da trava atômica) para BLOQUEAR o cancelamento
+    // assim que um motoboy ACEITA a corrida (delivery ganha motoboyId / sai de 'pending').
+    // O order.status continua 'aguardando_motoboy' mesmo após o aceite, então a checagem
+    // tem que ser pelo motoboyId da entrega, não só pelo status do pedido.
     const delivery = order.deliveryId
       ? await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { id: true, status: true, motoboyId: true } })
       : null;
-    if (delivery?.status === 'picked') {
-      return res.status(400).json({ error: 'Motoboy já retirou o pedido; cancelamento bloqueado', code: 'PICKED_UP_CANNOT_CANCEL' });
+    if (delivery?.motoboyId) {
+      return res.status(400).json({ error: 'Um motoboy já aceitou a corrida; cancelamento bloqueado', code: 'MOTOBOY_ACCEPTED_CANNOT_CANCEL' });
     }
 
     // Aceite da loja: divisor entre REJEITAR (antes do aceite, sem taxa) e CANCELAR
@@ -1386,7 +1390,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // ✅ IDEMPOTÊNCIA/ATÔMICO: só UM request consegue mover para 'rejeitado'.
     // UPDATE condicional por status — bloqueia duplo-reembolso concorrente.
     const claim = await prisma.order.updateMany({
-      where: { id: orderId, status: { in: ['criado', 'pago', 'enviado'] as any } },
+      where: { id: orderId, status: { in: CANCELLABLE_BEFORE_MOTOBOY as any } },
       data: { status: 'rejeitado', cancelledAt: new Date() },
     });
     if (claim.count === 0) {
