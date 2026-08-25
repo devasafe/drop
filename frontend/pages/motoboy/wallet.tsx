@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { ArrowUpRight, KeyRound, Receipt } from 'lucide-react';
+import { ArrowUpRight, KeyRound, Receipt, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -227,6 +227,13 @@ export default function MototboyWalletPage() {
             );
             })()}
           </section>
+
+          {/* Ajuda */}
+          <button className={styles.helpLink} onClick={() => router.push('/motoboy/ajuda-ganhos')}>
+            <HelpCircle size={15} aria-hidden="true" />
+            <span>Entenda como funcionam os ganhos e saques</span>
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
