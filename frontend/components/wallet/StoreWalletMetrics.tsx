@@ -17,6 +17,9 @@ export interface StoreFinancialSummary {
   commissionPercent: number;
   retainPercent: number;
   plan: number;
+  billableCount: number;
+  cancelledCount: number;
+  ticketMedio: number;
 }
 
 type Tone = 'brand' | 'warn' | 'success';
