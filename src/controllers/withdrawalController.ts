@@ -115,9 +115,11 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
       // valor pedido (respeita teto diário sem fracionar repasse).
       const selection = await payoutService.selectPayoutsUpTo(recipientType as any, recipientId, Number(amount));
       if (selection.payouts.length === 0) {
+        // Nenhum repasse cabe abaixo do valor pedido (repasse não pode ser fracionado).
         return res.status(400).json({
-          error: `O valor pedido é menor que o menor repasse disponível. Aumente o valor do saque.`,
+          error: `O menor saque possível é ${brl(selection.minPayout)} — um repasse não pode ser dividido. Ajuste o valor para pelo menos isso.`,
           code: 'AMOUNT_TOO_LOW',
+          minWithdrawable: selection.minPayout,
           totalAvailable,
         });
       }
