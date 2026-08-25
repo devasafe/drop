@@ -19,6 +19,7 @@ import PushEnableBanner from '../components/PushEnableBanner';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
+import OrderCard from '../components/seller/OrderCard';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -848,222 +849,37 @@ export default function StoreDashboard() {
 
           {/* Pedidos em Andamento */}
           {activeTab === 'orders' && (
-            <Section title="Pedidos em Andamento">
+            <section className={styles.ordersSection}>
+              <div className={styles.ordersHeader}>
+                <h2 className={styles.ordersTitle}>
+                  Pedidos em Andamento
+                  {orders.length > 0 && <span className={styles.ordersCount}>{orders.length}</span>}
+                </h2>
+              </div>
               {orders.length === 0 ? (
                 <EmptyState
                   icon={<Icon name="gift" size={24} />}
                   title="Nenhum pedido em andamento"
                 />
               ) : (
-                <List>
+                <div className={styles.ordersList}>
                   {orders.map(order => (
-                    <Row
+                    <OrderCard
                       key={order._id}
-                      accent={newOrderIds.includes(order._id)}
-                    >
-                      <div className={styles.orderCardTop}>
-                        <div className={styles.orderCardLeft}>
-                          <div className={styles.orderCardId}>ID: {order._id}</div>
-                          <div className={styles.orderCardCustomer}><Icon name="user" size={12} /> {order.customerName || 'Cliente'}</div>
-                        </div>
-                        <div className={styles.orderCardBadges}>
-                          {newOrderIds.includes(order._id) && (
-                            <span className={styles.badgeNew}>NOVO</span>
-                          )}
-                          <span className={styles.badgeStatus}>
-                            {(() => {
-                              const statusMap: Record<string, string> = {
-                                criado: 'Criado',
-                                created: 'Criado',
-                                pago: 'Pago',
-                                paid: 'Pago',
-                                aguardando_motoboy: 'Aguardando Motoboy',
-                                enviado: 'Enviado',
-                                shipped: 'Enviado',
-                                assigned: 'Motoboy',
-                                picked: 'Retirado'
-                              };
-                              return statusMap[order.status] || order.status;
-                            })()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className={styles.orderCardMeta}>
-                        {(!order.deliveryFee || order.deliveryFee === 0) ? null : (
-                          <div>
-                            <span className={styles.orderMetaKey}>Motoboy:</span>{' '}
-                            {order.delivery?.motoboyName || 'Aguardando'}
-                          </div>
-                        )}
-                        <div>
-                          <span className={styles.orderMetaKey}>Total:</span>{' '}
-                          R$ {
-                            typeof order.totalValue === 'number' && order.totalValue > 0
-                              ? order.totalValue.toFixed(2)
-                              : order.totalValue?.toFixed(2) || '0.00'
-                          }
-                          {order.totalValue === 0 && (
-                            <span className={styles.orderMetaWarn}>
-                              <Icon name="alert-triangle" size={12} /> (Sem informações)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Produtos do Pedido — achatado, com divisória por item */}
-                      {order.products && order.products.length > 0 && (
-                        <div className={styles.orderProducts}>
-                          <div className={styles.orderProductsTitle}><Icon name="package" size={12} /> Itens do Pedido:</div>
-                          <div className={styles.orderProductsGrid}>
-                            {order.products.map((product: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className={styles.orderProductItem}
-                              >
-                                <div>
-                                  <span className={styles.orderProductQty}>{product.quantity}x</span>{' '}
-                                  {product.productName || 'Produto'}
-                                </div>
-                                <div className={styles.orderProductPrice}>
-                                  R$ {(product.price * product.quantity).toFixed(2)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* [Plano 1] Endereço do cliente para entrega — achatado, divisória no topo */}
-                      {(!order.deliveryFee || order.deliveryFee === 0) && order.customerAddress && (
-                        <div className={styles.plan1AddressBox}>
-                          <div className={styles.plan1AddressTitle}><Icon name="map-pin" size={12} /> Endereço de Entrega:</div>
-                          <div className={styles.plan1AddressText}>{order.customerAddress}</div>
-                        </div>
-                      )}
-
-                      {order.delivery && order.delivery.status === 'assigned' && (
-                        <div className={styles.pinRow}>
-                          <Input
-                            value={pinInputs[order._id] || ''}
-                            onChange={value => handlePinInput(order._id, value)}
-                            placeholder="PIN"
-                            className={styles.pinInputWrap}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnPinValidate}
-                            onClick={() => handlePinValidate(order)}
-                            disabled={!pinInputs[order._id]}
-                          >
-                            Validar PIN
-                          </Button>
-                        </div>
-                      )}
-                      {pinStatuses[order._id] && (
-                        <div
-                          className={`${styles.pinStatus} ${pinStatuses[order._id].includes('sucesso') ? styles.pinStatusOk : styles.pinStatusErr}`}
-                        >
-                          {pinStatuses[order._id]}
-                        </div>
-                      )}
-
-                      {/* Rota loja→cliente no card de aceitar (thumbnail estático) */}
-                      {order.status === 'criado' && (
-                        <div style={{ marginBottom: 'var(--space-3)' }}>
-                          <RouteThumbnail
-                            store={parseCoords(order.storeLatitude, order.storeLongitude)}
-                            customer={parseCoords(order.customerLatitude, order.customerLongitude)}
-                            polyline={order.routePolyline}
-                            height={140}
-                          />
-                        </div>
-                      )}
-
-                      {/* Botões condicionais baseados no status do pedido */}
-                      {order.status === 'criado' ? (
-                        // Pedido ainda não aceito — mostrar Aceitar / Rejeitar / Detalhes
-                        <div className={styles.orderActions3}>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className={styles.btnAccept}
-                            leftIcon={<Icon name="check" size={12} />}
-                            onClick={() => handleAcceptOrder(order._id)}
-                          >
-                            Aceitar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnReject}
-                            leftIcon={<Icon name="x" size={12} />}
-                            onClick={() => setRejectModalOrderId(order._id)}
-                          >
-                            Rejeitar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnDetails}
-                            leftIcon={<Icon name="clipboard" size={12} />}
-                            onClick={() => setDetalhesPedido(order)}
-                          >
-                            Detalhes
-                          </Button>
-                        </div>
-                      ) : !order.delivery && order.status === 'pago' && (!order.deliveryFee || order.deliveryFee === 0) ? (
-                        // [Plano 1] Aceito — aguardando cliente confirmar recebimento
-                        <div className={styles.plan1ActionsWrap}>
-                          <div className={styles.plan1WaitingLabel}>
-                            <Icon name="clock" size={12} /> Aguardando cliente confirmar recebimento
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnDetails}
-                            leftIcon={<Icon name="clipboard" size={12} />}
-                            onClick={() => setDetalhesPedido(order)}
-                          >
-                            Detalhes
-                          </Button>
-                        </div>
-                      ) : (
-                        // [Plano 2/3] Pedido aceito com delivery — Detalhes.
-                        // Cancelar SÓ enquanto nenhum motoboy aceitou a corrida.
-                        <div className={styles.orderActions2}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.btnDetails}
-                            leftIcon={<Icon name="clipboard" size={12} />}
-                            onClick={() => setDetalhesPedido(order)}
-                          >
-                            Detalhes
-                          </Button>
-                          {!order.delivery?.motoboyId ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={styles.btnReject}
-                              onClick={() => setRejectModalOrderId(order._id)}
-                            >
-                              Cancelar Pedido
-                            </Button>
-                          ) : (
-                            <span className={styles.plan1WaitingLabel}>
-                              <Icon name="motorcycle" size={12} /> Motoboy a caminho
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                    </Row>
+                      order={order}
+                      isNew={newOrderIds.includes(order._id)}
+                      pinInput={pinInputs[order._id] || ''}
+                      pinStatus={pinStatuses[order._id]}
+                      onPinInput={(v) => handlePinInput(order._id, v)}
+                      onPinValidate={() => handlePinValidate(order)}
+                      onAccept={() => handleAcceptOrder(order._id)}
+                      onReject={() => setRejectModalOrderId(order._id)}
+                      onDetails={() => setDetalhesPedido(order)}
+                    />
                   ))}
-                </List>
+                </div>
               )}
-            </Section>
+            </section>
           )}
 
           {/* Histórico */}

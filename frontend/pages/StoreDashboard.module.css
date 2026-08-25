@@ -852,3 +852,13 @@
   .historyRowStatusCenter { text-align: left; }
   .rejectActions { grid-template-columns: 1fr; }
 }
+
+/* Seção "Pedidos em Andamento" (cards premium) */
+.ordersSection { display: flex; flex-direction: column; gap: var(--space-4); }
+.ordersHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.ordersTitle { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0;
+  font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; color: var(--text-strong); }
+.ordersCount { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
+  padding: 0 7px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border: 1px solid var(--accent-line); color: var(--brand-2); font-size: var(--fs-xs); font-weight: 800; }
+.ordersList { display: flex; flex-direction: column; gap: var(--space-4); }

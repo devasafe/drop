@@ -1,0 +1,105 @@
+/* Card de pedido (loja) — linguagem premium dark: preto constrói, roxo assina.
+   Accent lateral fino diferencia o status; nada de card inteiro roxo. */
+.card {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* accent lateral por status */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 3px;
+  background: var(--accentColor, var(--line));
+}
+.toneNew       { --accentColor: var(--brand-2); }
+.toneWaiting   { --accentColor: var(--rating); }
+.toneEnroute   { --accentColor: var(--success); }
+.toneDanger    { --accentColor: var(--danger); }
+.toneDone      { --accentColor: var(--text-subtle); }
+
+/* ---- Header ---- */
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.headLeft { min-width: 0; }
+.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.02em;
+  color: var(--text-subtle); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.customer { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px;
+  font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+.customer svg { color: var(--brand-2); flex-shrink: 0; }
+
+.badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.badge { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; padding: 4px 9px; border-radius: var(--r-pill);
+  border: 1px solid transparent; white-space: nowrap; }
+.badgeNew { color: var(--brand-2); background: color-mix(in srgb, var(--brand) 14%, transparent); border-color: var(--accent-line); }
+.badgeStatus {
+  color: var(--accentColor, var(--text-muted));
+  background: color-mix(in srgb, var(--accentColor, var(--line)) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accentColor, var(--line)) 35%, var(--line));
+}
+
+/* ---- Corpo ---- */
+.body { display: flex; gap: var(--space-4); align-items: flex-start; }
+.info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.metaGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+.metaCell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.metaKey { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-subtle);
+  display: inline-flex; align-items: center; gap: 4px; }
+.metaVal { font-size: var(--fs-body); font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; }
+.metaVal svg { color: var(--text-subtle); flex-shrink: 0; }
+.metaValOk { color: var(--success); }
+.metaValWait { color: var(--rating); }
+.metaValMuted { font-size: var(--fs-sm); color: var(--text-muted); }
+.total { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 800; color: var(--text-strong); }
+.itemsToggle { align-self: flex-start; background: none; border: none; padding: 0; margin-top: 2px;
+  color: var(--brand-2); font-size: var(--fs-xs); font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+.itemsList { list-style: none; margin: 0; padding: var(--space-2) 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+.itemRow { display: flex; justify-content: space-between; gap: var(--space-3); padding: 6px 0; font-size: var(--fs-sm); color: var(--text); }
+.itemQty { color: var(--brand-2); font-weight: 700; }
+.itemPrice { color: var(--text-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.addrBox { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3); border: 1px dashed var(--line); border-radius: var(--r-md); background: var(--panel-2); }
+.addrText { font-size: var(--fs-sm); color: var(--text); }
+
+.pinRow { display: flex; gap: var(--space-2); align-items: center; }
+.pinInput { flex: 1; max-width: 200px; }
+.pinStatus { font-size: var(--fs-sm); font-weight: 600; }
+.pinOk { color: var(--success); }
+.pinErr { color: var(--danger); }
+
+/* ---- Mapa ---- */
+.mapWrap { width: 300px; flex-shrink: 0; }
+
+/* ---- Rodapé ---- */
+.foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding-top: var(--space-3); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.detailsLink { display: inline-flex; align-items: center; gap: 2px; background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--brand-2); font-family: var(--font-body); font-size: var(--fs-body); font-weight: 600; }
+.detailsLink:hover { color: var(--brand); }
+
+.actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+.accept { --tw: 0; }
+.statusPill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r-md);
+  font-size: var(--fs-sm); font-weight: 600; border: 1px solid; }
+.pillWaiting { color: var(--rating); border-color: color-mix(in srgb, var(--rating) 35%, var(--line)); background: color-mix(in srgb, var(--rating) 10%, transparent); }
+.pillEnroute { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--line)); background: color-mix(in srgb, var(--success) 10%, transparent); }
+
+/* ---- Mobile: empilha, mapa abaixo ---- */
+@media (max-width: 720px) {
+  .card { padding: var(--space-4); }
+  .body { flex-direction: column; }
+  .mapWrap { width: 100%; }
+  .metaGrid { grid-template-columns: 1fr 1fr; }
+  .foot { flex-direction: column-reverse; align-items: stretch; }
+  .actions { justify-content: stretch; }
+  .actions > * { flex: 1; }
+  .detailsLink { justify-content: center; padding: var(--space-2) 0; }
+}
