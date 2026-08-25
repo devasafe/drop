@@ -1,7 +1,9 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Takeover de tela cheia: acima de todas as navbars (60/200/300),
+     abaixo do chat widget (9999) para o chat abrir por cima do mapa. */
+  z-index: 2000;
   background: #0a0a0e;
 }
 
