@@ -6,6 +6,7 @@ import {
   getWallet,
   getMyWallet,
   getStoreWallet,
+  getStoreFinancialSummary,
   creditWallet,
   transferWallet,
   transferBetweenWallets,
@@ -84,6 +85,7 @@ router.post(
 
 // Carteira da loja
 router.get('/store/:storeId', authenticate, getStoreWallet);
+router.get('/store/:storeId/summary', authenticate, getStoreFinancialSummary);
 
 // Métricas da plataforma
 router.get('/platform/metrics', authenticate, authorizePermission('analytics:view_platform'), getPlatformMetrics);
