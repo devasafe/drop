@@ -66,3 +66,11 @@
   .headerTitle { font-size: var(--fs-hero); }
   .balanceValue { font-size: 30px; }
 }
+
+/* Linha "você retém" + extrato: neutro (cancelado) e nota */
+.retainLine { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); font-size: var(--fs-sm); color: var(--text-muted); }
+.retainLine strong { color: var(--text-strong); font-size: var(--fs-body); }
+.retainPlan { font-size: var(--fs-xs); color: var(--text-subtle); }
+.neutral { color: var(--text-subtle); }
+.rowNote { font-size: var(--fs-xs); color: var(--danger); margin-top: 2px; }

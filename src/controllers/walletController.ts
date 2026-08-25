@@ -126,6 +126,76 @@ export const getStoreWallet = async (req: Request, res: Response) => {
   }
 };
 
+// Estados de pedido que reconhecem receita (não cancelados/rejeitados).
+const STORE_BILLABLE_STATUSES: any[] = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
+
+/**
+ * GET /wallets/store/:storeId/summary — central financeira da loja.
+ *
+ * Buckets LÍQUIDOS (após comissão) vêm dos Payouts da loja (fonte da verdade,
+ * cada payout em um status por vez → sem dupla contagem):
+ *   netEarned = pending + released(available) + requested + paid
+ * Buckets BRUTOS vêm dos Orders billable (produto, sem entrega):
+ *   grossSales = Σ (totalValue - deliveryFee) dos pedidos billable
+ *   commission = grossSales - netEarned  (única dedução da loja = comissão do plano)
+ * Cancelado = Σ (totalValue - deliveryFee) dos pedidos cancelados/rejeitados.
+ */
+export const getStoreFinancialSummary = async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.params;
+    const requesterId = (req as any).user?.id;
+    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
+    const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_lojistas'];
+    const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
+    if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
+    if (String(store.ownerId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Buckets líquidos (payouts) — mesma agregação do resumo do motoboy.
+    const net = await payoutService.getEarningsSummary('store', String(storeId));
+
+    // Vendas brutas (produto = totalValue - deliveryFee) por período, só billable.
+    const now = new Date();
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const grossOf = async (where: any) => {
+      const agg = await prisma.order.aggregate({ where, _sum: { totalValue: true, deliveryFee: true } });
+      return Math.max(0, Number(agg._sum.totalValue || 0) - Number(agg._sum.deliveryFee || 0));
+    };
+    const [grossSales, grossThisMonth, grossToday, cancelledValue] = await Promise.all([
+      grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES } }),
+      grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES }, createdAt: { gte: startMonth } }),
+      grossOf({ storeId: String(storeId), status: { in: STORE_BILLABLE_STATUSES }, createdAt: { gte: startDay } }),
+      grossOf({ storeId: String(storeId), status: { in: ['cancelado', 'rejeitado'] as any } }),
+    ]);
+
+    const commissionPercent = await getStorePlanFee(String(storeId)); // % que a Drop retém
+    const commission = Math.max(0, Math.round((grossSales - net.totalEarned) * 100) / 100);
+
+    return res.json({
+      pending: net.pending,
+      available: net.available,
+      requested: net.requested,
+      paid: net.paid,
+      netEarned: net.totalEarned,
+      netThisMonth: net.earnedThisMonth,
+      netToday: net.earnedToday,
+      grossSales,
+      grossThisMonth,
+      grossToday,
+      cancelledValue,
+      commission,
+      commissionPercent,
+      retainPercent: Math.round((100 - commissionPercent) * 100) / 100,
+      plan: store.plan || 1,
+    });
+  } catch (err: any) {
+    console.error('[STORE FINANCIAL SUMMARY ERROR]', err);
+    return res.status(500).json({ error: 'Erro ao carregar resumo financeiro' });
+  }
+};
+
 /**
  * POST /wallets/store/:storeId/transfer-to-owner
  * Lojista transfere o saldo disponível (payouts released) para a carteira de usuário

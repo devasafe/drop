@@ -9,6 +9,7 @@ import TransactionDetailsModal, { DetailRow } from '../../components/Transaction
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
+import StoreWalletMetrics, { StoreFinancialSummary } from '../../components/wallet/StoreWalletMetrics';
 import { KpiBand, Kpi } from '../../components/ui/KpiBand';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -56,6 +57,8 @@ export default function SellerWalletPage() {
   const [transferring, setTransferring] = useState(false);
   const [sacarOpen, setSacarOpen] = useState(false);
   const [resolvedStoreId, setResolvedStoreId] = useState<string>('');
+  const [summary, setSummary] = useState<StoreFinancialSummary | null>(null);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [selectedTx, setSelectedTx] = useState<
     | { kind: 'payout'; data: PayoutItem; orderInfo?: any; invoice?: any }
     | { kind: 'history'; data: HistoryItem }
@@ -143,6 +146,16 @@ export default function SellerWalletPage() {
           const payoutsRes = await api.get(`/payouts/my?storeId=${storeId}`);
           setPayouts(payoutsRes.data.payouts || []);
         } catch { /* ignore */ }
+        // Resumo financeiro (buckets agregados no backend)
+        try {
+          const sumRes = await api.get(`/wallets/store/${storeId}/summary`);
+          setSummary(sumRes.data);
+        } catch { /* resumo opcional */ }
+        // Saques da loja (status real)
+        try {
+          const wdRes = await api.get(`/withdrawals/my-withdrawals?storeId=${storeId}`);
+          setWithdrawals(Array.isArray(wdRes.data) ? wdRes.data : (wdRes.data?.withdrawals || []));
+        } catch { /* saques opcional */ }
       } catch (err: any) {
         console.error('Erro ao buscar carteira da loja:', err);
       } finally {
@@ -171,19 +184,34 @@ export default function SellerWalletPage() {
 
   const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
 
-  // Extrato unificado: repasses (crédito) + saques (débito), mais recente primeiro.
+  const wdStatus = (s: string) => (
+    s === 'processed' ? { label: 'Pago', cls: 'paid' } :
+    s === 'rejected' ? { label: 'Rejeitado', cls: 'cancelled' } :
+    s === 'approved' ? { label: 'Aprovado', cls: 'available' } :
+    { label: 'Solicitado', cls: 'pending' }
+  );
+
+  // Extrato unificado: vendas (crédito líquido) + saques (débito), mais recente primeiro.
   const historyEntries = [
-    ...payouts.map((p) => ({
-      key: `p-${p._id}`, date: p.createdAt, sign: '+' as const, amount: p.amount,
-      title: `Pedido #${p.orderId?.slice(-6) || '—'}`,
-      statusLabel: payoutStatusLabel(p.status), statusClass: p.status as string,
-      onClick: () => handlePayoutClick(p),
-    })),
-    ...history.filter((h) => h.type === 'debit').map((h, i) => ({
-      key: `h-${i}`, date: h.date, sign: '-' as const, amount: h.amount,
-      title: 'Saque', statusLabel: 'Saque', statusClass: 'requested',
-      onClick: () => setSelectedTx({ kind: 'history', data: h }),
-    })),
+    ...payouts.map((p) => {
+      const cancelled = p.status === 'cancelled';
+      return {
+        key: `p-${p._id}`, date: p.createdAt, sign: cancelled ? '' : ('+' as const), neutral: cancelled, amount: p.amount,
+        title: `Venda · Pedido #${p.orderId?.slice(-6) || '—'}`,
+        statusLabel: payoutStatusLabel(p.status), statusClass: p.status as string,
+        note: undefined as string | undefined,
+        onClick: () => handlePayoutClick(p),
+      };
+    }),
+    ...withdrawals.map((w: any, i: number) => {
+      const wv = wdStatus(w.status);
+      return {
+        key: `w-${w._id || w.id || i}`, date: w.requestedAt || w.createdAt, sign: '-' as const, neutral: false, amount: Number(w.amount),
+        title: 'Saque via PIX', statusLabel: wv.label, statusClass: wv.cls,
+        note: w.status === 'rejected' && w.rejectionReason ? `Motivo: ${w.rejectionReason}` : undefined,
+        onClick: () => setSelectedTx({ kind: 'history', data: { amount: Number(w.amount), date: w.requestedAt, type: 'debit', reason: w.rejectionReason || 'Saque via PIX' } }),
+      };
+    }),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -210,13 +238,13 @@ export default function SellerWalletPage() {
             </Button>
           </div>
 
-          {/* Stats */}
-          {wallet && (
-            <KpiBand>
-              <Kpi label="Pendente" value={formatBRL(wallet.pendingBalance ?? 0)} tone="warn" />
-              <Kpi label="Total ganho" value={formatBRL(wallet.totalIncome)} />
-              <Kpi label="Você retém" value={`${100 - (wallet.feePercent || 15)}%`} />
-            </KpiBand>
+          {/* Resumo financeiro (líquido + bruto + taxas, agregado no backend) */}
+          {summary && <StoreWalletMetrics summary={summary} />}
+          {summary && (
+            <div className={styles.retainLine}>
+              <span><strong>{summary.retainPercent}%</strong> você retém por venda</span>
+              <span className={styles.retainPlan}>Plano {summary.plan} · Drop retém {summary.commissionPercent}%</span>
+            </div>
           )}
 
           {/* Banner PIX */}
@@ -249,9 +277,12 @@ export default function SellerWalletPage() {
                       <div className={styles.rowInfo}>
                         <span className={styles.rowTitle}>{e.title}</span>
                         <span className={styles.rowDate}>{new Date(e.date).toLocaleDateString('pt-BR')}</span>
+                        {(e as any).note && <span className={styles.rowNote}>{(e as any).note}</span>}
                       </div>
                       <div className={styles.rowRight}>
-                        <span className={`${styles.rowAmount} ${e.sign === '+' ? styles.credit : styles.debit}`}>{e.sign} {formatBRL(e.amount)}</span>
+                        <span className={`${styles.rowAmount} ${(e as any).neutral ? styles.neutral : e.sign === '+' ? styles.credit : styles.debit}`}>
+                          {e.sign} {formatBRL(e.amount)}
+                        </span>
                         <span className={`${styles.pill} ${styles[e.statusClass] || ''}`}>{e.statusLabel}</span>
                       </div>
                     </Row>
