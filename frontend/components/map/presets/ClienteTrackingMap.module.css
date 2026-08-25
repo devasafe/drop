@@ -1,18 +1,25 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Acima das navbars (60/200/300), abaixo do chat (900) e toasts/modais. */
+  z-index: 500;
   background: #0a0a0e;
 }
 
-.close {
+/* Barra de ações (voltar pro pedido / chat com a loja) */
+.tools {
   position: absolute;
-  top: 16px;
+  top: max(16px, env(safe-area-inset-top));
   left: 16px;
   z-index: 6;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.close {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 14px 8px 10px;
   border-radius: 999px;
   background: rgba(18, 18, 22, 0.72);
@@ -29,6 +36,21 @@
 .close svg {
   color: #a855f7;
 }
+.chatBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(18, 18, 22, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e7e7ee;
+  cursor: pointer;
+}
+.chatBtn:hover { border-color: rgba(139, 92, 246, 0.5); background: rgba(139, 92, 246, 0.12); }
+.chatBtn svg { color: #a855f7; }
 
 .legend {
   position: absolute;
