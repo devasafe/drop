@@ -3,6 +3,7 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import {
   getMyPayouts,
+  getMyPayoutSummary,
   getAdminPayouts,
   releasePayoutManually,
   markPayoutsPaid,
@@ -17,6 +18,9 @@ const router = Router();
 
 // Lojista/Motoboy - Ver meus payouts (papel-base, segue por papel)
 router.get('/my', authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyPayouts);
+
+// Lojista/Motoboy - Resumo financeiro agregado (Disponível/Pendente/Solicitado/Pago/Total/mês/hoje)
+router.get('/my/summary', authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyPayoutSummary);
 
 // Admin - Ver todos os payouts
 router.get('/admin', authenticate, authorizePermission('payout:view'), getAdminPayouts);

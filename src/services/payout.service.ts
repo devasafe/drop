@@ -284,6 +284,44 @@ class PayoutService {
     return { payouts: selected, total: sum };
   }
 
+  /**
+   * Resumo financeiro agregado do recebedor (motoboy/loja), direto dos Payouts
+   * (fonte da verdade). Cada payout está em UM status por vez → somar buckets
+   * não duplica. `cancelled` NÃO conta como ganho.
+   *
+   *   totalEarned = pending + available + requested + paid
+   *   earnedThisMonth / earnedToday = payouts não-cancelados no período (createdAt)
+   */
+  async getEarningsSummary(recipientType: PayoutRecipientType, recipientId: string) {
+    const grouped = await prisma.payout.groupBy({
+      by: ['status'],
+      where: { recipientType, recipientId },
+      _sum: { amount: true },
+    });
+    const s: Record<string, number> = {};
+    for (const g of grouped) s[g.status] = g._sum.amount ? num(g._sum.amount) : 0;
+
+    const pending = s['pending'] || 0;
+    const available = s['released'] || 0;
+    const requested = s['requested'] || 0;
+    const paid = s['paid'] || 0;
+    const totalEarned = pending + available + requested + paid; // cancelled fora
+
+    const now = new Date();
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const [monthAgg, dayAgg] = await Promise.all([
+      prisma.payout.aggregate({ where: { recipientType, recipientId, status: { not: 'cancelled' }, createdAt: { gte: startMonth } }, _sum: { amount: true } }),
+      prisma.payout.aggregate({ where: { recipientType, recipientId, status: { not: 'cancelled' }, createdAt: { gte: startDay } }, _sum: { amount: true } }),
+    ]);
+
+    return {
+      pending, available, requested, paid, totalEarned,
+      earnedThisMonth: monthAgg._sum.amount ? num(monthAgg._sum.amount) : 0,
+      earnedToday: dayAgg._sum.amount ? num(dayAgg._sum.amount) : 0,
+    };
+  }
+
   async getPendingObligations(): Promise<number> {
     const result = await prisma.payout.aggregate({
       where: { status: { in: ['pending', 'released', 'requested'] } },

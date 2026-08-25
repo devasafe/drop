@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
+import WalletMetrics, { EarningsSummary } from '../../components/wallet/WalletMetrics';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -36,8 +37,10 @@ export default function MototboyWalletPage() {
   const [transferring, setTransferring] = useState(false);
   const [sacarOpen, setSacarOpen] = useState(false);
   const [wallet, setWallet] = useState<MototboyWallet | null>(null);
+  const [summary, setSummary] = useState<EarningsSummary | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
+  const [extractFilter, setExtractFilter] = useState<'todos' | 'ganhos' | 'saques'>('todos');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<
@@ -73,6 +76,10 @@ export default function MototboyWalletPage() {
           const payoutsRes = await api.get('/payouts/my');
           setPayouts(payoutsRes.data.payouts || []);
         } catch { /* ignore */ }
+        try {
+          const sumRes = await api.get('/payouts/my/summary');
+          setSummary(sumRes.data);
+        } catch { /* resumo opcional */ }
       } catch (err: any) {
         const status = err?.response?.status;
         const msg = err?.response?.data?.error || err?.message || 'Erro desconhecido';
@@ -165,37 +172,44 @@ export default function MototboyWalletPage() {
             </Button>
           </div>
 
-          {/* Stats */}
-          <div className={styles.stats}>
-            <div className={styles.stat}>
-              <div className={styles.statValue}>{formatBRL(wallet?.pendingBalance ?? 0)}</div>
-              <div className={styles.statLabel}>Pendente</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statValue}>{formatBRL(wallet?.totalIncome ?? 0)}</div>
-              <div className={styles.statLabel}>Total ganho</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statValue}>{wallet?.freeDeliveriesAvailable || 0}x</div>
-              <div className={styles.statLabel}>Entregas grátis</div>
-            </div>
-          </div>
+          {/* Resumo financeiro (buckets agregados no backend) */}
+          {summary && <WalletMetrics summary={summary} />}
 
-          {/* Banner PIX */}
-          <button className={styles.pixBanner} onClick={() => router.push('/dados-recebimento')}>
-            <KeyRound size={16} aria-hidden="true" />
-            <span>Dados de recebimento (chave PIX) — configure para receber e sacar</span>
-            <ArrowUpRight size={16} aria-hidden="true" />
+          {/* Dados de recebimento (item configurável discreto) */}
+          <button className={styles.pixRow} onClick={() => router.push('/dados-recebimento')}>
+            <span className={styles.pixIcon}><KeyRound size={16} aria-hidden="true" /></span>
+            <span className={styles.pixText}>
+              <span className={styles.pixTitle}>Dados de recebimento</span>
+              <span className={styles.pixDesc}>Configure sua chave PIX para receber seus saques.</span>
+            </span>
+            <ArrowUpRight size={16} aria-hidden="true" className={styles.pixChevron} />
           </button>
 
           {/* Extrato */}
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Extrato</h2>
-            {entries.length === 0 ? (
+            <div className={styles.extractHead}>
+              <h2 className={styles.sectionTitle}>Extrato</h2>
+              <div className={styles.extractFilters}>
+                {(['todos', 'ganhos', 'saques'] as const).map((f) => (
+                  <button
+                    key={f}
+                    className={`${styles.filterChip} ${extractFilter === f ? styles.filterChipActive : ''}`}
+                    onClick={() => setExtractFilter(f)}
+                  >
+                    {f === 'todos' ? 'Todos' : f === 'ganhos' ? 'Ganhos' : 'Saques'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {(() => {
+              const filtered = entries.filter((e) =>
+                extractFilter === 'todos' ? true : extractFilter === 'ganhos' ? e.sign === '+' : e.sign === '-',
+              );
+              return filtered.length === 0 ? (
               <EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Nenhuma movimentação" description="Seus repasses e saques aparecem aqui." />
             ) : (
               <div className={styles.extractList}>
-                {entries.map((e) => (
+                {filtered.map((e) => (
                   <button key={e.key} onClick={e.onClick} className={styles.row}>
                     <div className={styles.rowInfo}>
                       <span className={styles.rowTitle}>{e.title}</span>
@@ -210,7 +224,8 @@ export default function MototboyWalletPage() {
                   </button>
                 ))}
               </div>
-            )}
+            );
+            })()}
           </section>
         </div>
       </div>

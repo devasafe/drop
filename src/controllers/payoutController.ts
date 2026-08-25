@@ -37,6 +37,33 @@ export const getMyPayouts = async (req: Request & { user?: any }, res: Response)
   }
 };
 
+// Lojista/Motoboy - Resumo financeiro agregado (buckets + mês/hoje)
+export const getMyPayoutSummary = async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.activeRole || req.user?.role;
+    const { storeId } = req.query;
+
+    let recipientType: 'store' | 'motoboy';
+    let recipientId: string;
+    if (role === 'lojista' || role === 'seller') {
+      recipientType = 'store';
+      recipientId = (storeId as string) || userId;
+    } else if (role === 'motoboy') {
+      recipientType = 'motoboy';
+      recipientId = userId;
+    } else {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const summary = await payoutService.getEarningsSummary(recipientType, recipientId);
+    return res.json(summary);
+  } catch (err) {
+    console.error('Erro ao buscar resumo de payouts:', err);
+    return res.status(500).json({ error: 'Erro ao buscar resumo financeiro' });
+  }
+};
+
 // Admin/CEO - Ver todos os payouts
 export const getAdminPayouts = async (req: Request & { user?: any }, res: Response) => {
   try {
