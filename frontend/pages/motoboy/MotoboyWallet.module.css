@@ -50,3 +50,23 @@
 .sheetBody { display: flex; flex-direction: column; gap: var(--space-4); }
 .sheetText { font-size: var(--fs-body); color: var(--text-muted); margin: 0; }
 .txLink { color: var(--brand-2); text-decoration: underline; cursor: pointer; }
+
+/* Dados de recebimento — item configurável discreto */
+.pixRow { display: flex; align-items: center; gap: var(--space-3); width: 100%; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-4); cursor: pointer; transition: border-color var(--dur-fast) var(--ease); }
+.pixRow:hover { border-color: var(--accent-line); }
+.pixIcon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: var(--r-md); background: var(--panel-2); border: 1px solid var(--accent-line); color: var(--brand-2); }
+.pixText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pixTitle { font-size: var(--fs-body); font-weight: 600; color: var(--text-strong); }
+.pixDesc { font-size: var(--fs-xs); color: var(--text-muted); }
+.pixChevron { color: var(--text-subtle); flex-shrink: 0; }
+
+/* Extrato — cabeçalho + filtros */
+.extractHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.extractFilters { display: flex; gap: 6px; }
+.filterChip { padding: 5px 12px; border-radius: var(--r-pill); border: 1px solid var(--line);
+  background: transparent; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.filterChip:hover { color: var(--text); }
+.filterChipActive { color: var(--brand-2); border-color: var(--accent-line); background: var(--accent-soft); }
