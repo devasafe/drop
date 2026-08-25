@@ -39,14 +39,18 @@ async function firstPendingPath(role?: string): Promise<string | null> {
     } catch {}
   }
 
-  let lojaOk = false;
+  // 'loja' (Criar loja) = a loja existe; 'lojaVerif' (Verificar loja) = verificação enviada.
+  // São ETAPAS DIFERENTES no fluxo do lojista — não podem cair na mesma chave.
+  let storeExists = false;
+  let storeVerifOk = false;
   if (role === 'lojista') {
     try {
       const dash = await api.get('/stores/dashboard').then((r) => r.data);
       const storeId = dash?.store?._id || dash?._id || dash?.storeId;
+      storeExists = !!storeId;
       if (storeId) {
         const sv = await api.get(`/verification/store/${storeId}`).then((r) => r.data);
-        lojaOk =
+        storeVerifOk =
           submitted(sv?.facial?.status) &&
           submitted(sv?.cnpj?.status) &&
           submitted(sv?.address?.status);
@@ -64,7 +68,8 @@ async function firstPendingPath(role?: string): Promise<string | null> {
 
   const done: Record<string, boolean> = {
     identidade: identidadeOk,
-    loja: lojaOk,
+    loja: storeExists,       // "Criar loja"
+    lojaVerif: storeVerifOk, // "Verificar loja" (antes faltava esta chave → sempre pendente)
     motoboy: motoboyOk,
     pix: pixOk,
     plano: true, // plano é escolha, não bloqueia o banner
