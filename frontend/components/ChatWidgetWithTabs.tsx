@@ -582,13 +582,18 @@ export default function ChatWidgetWithTabs({
       }, 100);
     };
 
+    // Minimiza o chat por evento externo (ex.: toggle do botão de chat no mapa de navegação).
+    const handleCloseChatEvent = () => { setIsMinimized(true); };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('openChat', handleOpenChatEvent);
+      window.addEventListener('closeChat', handleCloseChatEvent);
       console.log('✅ [ChatWidgetWithTabs] Listener registrado com sucesso');
     }
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('openChat', handleOpenChatEvent);
+        window.removeEventListener('closeChat', handleCloseChatEvent);
         console.log('🧹 [ChatWidgetWithTabs] Listener removido');
       }
     };

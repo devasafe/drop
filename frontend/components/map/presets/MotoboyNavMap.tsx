@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageCircle, ClipboardList, ChevronDown, ChevronUp, Store, User } from 'lucide-react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import DropMap from '../DropMap';
 import { RouteLayer } from '../layers/RouteLayer';
@@ -40,6 +40,8 @@ const fmtDist = (m: number) => (m <= 0 ? '' : m < 1000 ? `${Math.round(m)} m` : 
 export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: Props) {
   const [mounted, setMounted] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [chatMenu, setChatMenu] = useState(false);
+  const [chatActive, setChatActive] = useState(false);
   const [route, setRoute] = useState<NavRoute | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const followRef = useRef(true);
@@ -119,15 +121,36 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
           {minimized ? <ChevronUp size={20} aria-hidden="true" /> : <ChevronDown size={20} aria-hidden="true" />}
         </button>
         {!minimized && onChat && (
-          <button
-            type="button"
-            className={styles.toolBtn}
-            onClick={() => onChat(goingToCustomer ? 'customer' : 'store')}
-            title={goingToCustomer ? 'Falar com o cliente' : 'Falar com a loja'}
-            aria-label={goingToCustomer ? 'Falar com o cliente' : 'Falar com a loja'}
-          >
-            <MessageCircle size={20} aria-hidden="true" />
-          </button>
+          <div className={styles.chatWrap}>
+            <button
+              type="button"
+              className={`${styles.toolBtn} ${chatActive ? styles.toolBtnActive : ''}`}
+              onClick={() => {
+                if (chatActive) {
+                  // toggle: minimiza o chat aberto
+                  window.dispatchEvent(new CustomEvent('closeChat'));
+                  setChatActive(false);
+                  setChatMenu(false);
+                } else {
+                  setChatMenu((v) => !v);
+                }
+              }}
+              title="Chat"
+              aria-label="Chat com a loja ou o cliente"
+            >
+              <MessageCircle size={20} aria-hidden="true" />
+            </button>
+            {chatMenu && !chatActive && (
+              <div className={styles.chatMenu}>
+                <button type="button" className={styles.chatOpt} onClick={() => { onChat('store'); setChatActive(true); setChatMenu(false); }}>
+                  <Store size={16} aria-hidden="true" /> Loja
+                </button>
+                <button type="button" className={styles.chatOpt} onClick={() => { onChat('customer'); setChatActive(true); setChatMenu(false); }}>
+                  <User size={16} aria-hidden="true" /> Cliente
+                </button>
+              </div>
+            )}
+          </div>
         )}
         {!minimized && (
           <button
