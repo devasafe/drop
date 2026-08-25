@@ -10,6 +10,7 @@ import { pickActiveOrders } from '../lib/activeOrder';
 const DELIVERY_EVENTS = [
   'delivery:assigned', 'delivery:picked', 'delivery:completed',
   'delivery:status_changed', 'delivery:updated', 'motoboy:assigned',
+  'delivery:cancelled', 'order:cancelled',
 ];
 
 export function useActiveOrders(): { activeOrders: any[]; orders: any[]; loading: boolean } {
