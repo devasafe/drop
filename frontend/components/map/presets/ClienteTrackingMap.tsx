@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle } from 'lucide-react';
+import { Store, Bike } from 'lucide-react';
 import { LngLatBounds } from 'maplibre-gl';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import DropMap from '../DropMap';
@@ -146,6 +146,14 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
     }));
   };
 
+  const openMotoboyChat = () => {
+    const motoboyId = delivery?.motoboyObj?._id;
+    if (!motoboyId) return;
+    window.dispatchEvent(new CustomEvent('openChat', {
+      detail: { participantId: motoboyId, participantName: delivery?.motoboyObj?.name || 'Motoboy', role: 'motoboy', type: 'motoboy' },
+    }));
+  };
+
   const overlay = (
     <div className={styles.overlay}>
       <DropMap
@@ -172,8 +180,13 @@ export function ClienteTrackingMap({ order, onClose }: Props) {
           Voltar ao pedido
         </button>
         <button type="button" className={styles.chatBtn} onClick={openStoreChat} title="Falar com a loja" aria-label="Falar com a loja">
-          <MessageCircle size={20} aria-hidden="true" />
+          <Store size={19} aria-hidden="true" />
         </button>
+        {hasCourier && (
+          <button type="button" className={styles.chatBtn} onClick={openMotoboyChat} title="Falar com o motoboy" aria-label="Falar com o motoboy">
+            <Bike size={19} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div className={styles.legend}>

@@ -475,10 +475,12 @@ export default function ChatWidgetWithTabs({
           otherParticipantId: participantId,
         });
       } else if (participantType === 'motoboy') {
-        // Chat lojista → motoboy (participante é userId do motoboy)
-        console.log('📡 Fazendo POST para /chat/conversations (lojista→motoboy)');
+        // Participante é o userId do motoboy. O tipo depende de quem inicia:
+        // cliente → motoboy_cliente ; lojista → loja_motoboy.
+        const t = currentRole === 'cliente' ? 'motoboy_cliente' : 'loja_motoboy';
+        console.log(`📡 Fazendo POST para /chat/conversations (${currentRole}→motoboy, ${t})`);
         response = await api.post('/chat/conversations', {
-          type: 'loja_motoboy',
+          type: t,
           otherParticipantId: participantId,
         });
       } else {
