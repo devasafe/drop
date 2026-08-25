@@ -1193,8 +1193,11 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       // o que efetivamente move o pedido de um estado cancelável → 'cancelado'. Se o pedido já
       // foi cancelado/reembolsado por outro caminho (ex.: `pos-devolucao` reembolso), o
       // `count === 0` transforma o refund num no-op. Mesmo padrão de `cancelOrderByCustomer`.
+      // Inclui 'aguardando_motoboy': o pedido pode estar nesse estado no momento da
+      // devolução (ex.: entrega voltou ao pool). Sem ele, o claim casa 0 linhas e o
+      // status NÃO persiste como 'cancelado' — o cliente segue vendo "Buscando entregador".
       const cancelClaim = await prisma.order.updateMany({
-        where: { id: order.id, status: { in: ['criado', 'pago', 'enviado'] as any } },
+        where: { id: order.id, status: { in: ['criado', 'pago', 'aguardando_motoboy', 'enviado'] as any } },
         data: { status: 'cancelado', cancelledAt: new Date() },
       });
       order.status = 'cancelado';
