@@ -205,22 +205,15 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
     recipientName: withdrawal.motoboyName,
   });
 
-  // ✅ Se a transferência FALHOU, NÃO marca como pago: reverte o saldo e marca o saque
-  // como rejeitado. (Antes, qualquer resultado marcava pago — dinheiro "sumia" sem PIX.)
+  // ✅ Se a transferência FALHOU: NÃO marca como pago e NÃO cancela a solicitação.
+  // Mantém o saque 'pending' e os payouts 'requested' (reservados), apenas anota o
+  // motivo — assim o admin corrige a causa (ex.: subconta sem saldo) e tenta aprovar
+  // de novo, sem perder a solicitação do motoboy. (Rejeição definitiva é manual, via
+  // "rejeitar saque".) NÃO reverte o saldo: o dinheiro segue reservado para este saque.
   if (transferResult.status === 'failed') {
-    await prisma.$transaction(async (tx) => {
-      if (withdrawal.payoutIds?.length) {
-        await payoutService.revertPayoutsToReleased(withdrawal.payoutIds, tx);
-      } else {
-        // saque de user wallet: devolve blockedBalance → balance
-        const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user', tx);
-        const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
-        await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
-      }
-    });
-    const rejectionReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
-    await updateWR(withdrawal._id, { status: 'rejected', rejectionReason });
-    throw Object.assign(new Error(rejectionReason), { transferFailed: true });
+    const failureReason = transferResult.errorMessage || 'Falha na transferência (gateway)';
+    await updateWR(withdrawal._id, { rejectionReason: failureReason }); // status permanece 'pending'
+    throw Object.assign(new Error(failureReason), { transferFailed: true });
   }
 
   await prisma.$transaction(async (tx) => {
@@ -249,6 +242,7 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
     transactionId: transferResult.gatewayTransferId,
     status: 'processed',
     processedAt: new Date(),
+    rejectionReason: null, // limpa erro de tentativa anterior, se houve
   });
   return transferResult;
 }
