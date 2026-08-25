@@ -39,6 +39,19 @@ export default function WithdrawalApprovals() {
     }
   };
 
+  const handleFundForWithdrawal = async (withdrawalId: string) => {
+    setFundBusy(true);
+    try {
+      const r = await api.post('/admin/asaas/fund-for-withdrawal', { withdrawalId });
+      setMessage({ type: 'success', text: r.data?.message || 'Subconta abastecida!' });
+      loadAsaasBalance();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao abastecer subconta' });
+    } finally {
+      setFundBusy(false);
+    }
+  };
+
   const handleFund = async () => {
     const amount = Number(String(fundAmount).replace(',', '.'));
     if (!fundId.trim() || !Number.isFinite(amount) || amount <= 0) {
@@ -310,6 +323,15 @@ export default function WithdrawalApprovals() {
                           className={styles.btnReject}
                         >
                           <Icon name="x" size={14} /> Rejeitar
+                        </button>
+
+                        <button
+                          onClick={() => handleFundForWithdrawal(w._id)}
+                          disabled={fundBusy}
+                          className={styles.asaasRefresh}
+                          title="Transfere da conta-mãe para a subconta deste motoboy (teste)"
+                        >
+                          <Icon name="wallet" size={13} /> Abastecer subconta
                         </button>
                       </div>
                     </div>

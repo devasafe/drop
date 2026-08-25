@@ -663,6 +663,18 @@ router.get('/asaas/balance', authenticate, authorizePermission('cashbox:view'), 
   }
 });
 
+// Resolve o walletId da subconta do recebedor (auto-cria se faltar).
+async function resolveSubaccountWalletId(recipientType: 'store' | 'motoboy', recipientId: string): Promise<string | null> {
+  if (recipientType === 'store') {
+    let store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any;
+    if (!store?.asaas?.walletId) { await ensureStoreSubaccount(String(recipientId)); store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any; }
+    return store?.asaas?.walletId || null;
+  }
+  let user = await userRepository.findById(String(recipientId)) as any;
+  if (!user?.asaas?.walletId) { await ensureMotoboySubaccount(String(recipientId)); user = await userRepository.findById(String(recipientId)) as any; }
+  return user?.asaas?.walletId || null;
+}
+
 // POST /admin/asaas/fund-subaccount — transfere conta-mãe → subconta (DEV/teste)
 // body: { recipientType: 'store'|'motoboy', recipientId, amount }
 router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
@@ -674,23 +686,43 @@ router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:
     if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ error: 'amount inválido' });
     if (!asaasClient.isConfigured()) return res.status(400).json({ error: 'Asaas não configurado' });
 
-    // Resolve o walletId da subconta (auto-cria se faltar).
-    let walletId: string | null = null;
-    if (recipientType === 'store') {
-      let store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any;
-      if (!store?.asaas?.walletId) { await ensureStoreSubaccount(String(recipientId)); store = await prisma.store.findUnique({ where: { id: String(recipientId) } }) as any; }
-      walletId = store?.asaas?.walletId || null;
-    } else {
-      let user = await userRepository.findById(String(recipientId)) as any;
-      if (!user?.asaas?.walletId) { await ensureMotoboySubaccount(String(recipientId)); user = await userRepository.findById(String(recipientId)) as any; }
-      walletId = user?.asaas?.walletId || null;
-    }
-    if (!walletId) return res.status(400).json({ error: 'Recebedor sem subconta Asaas (não foi possível criar).' });
+    const walletId = await resolveSubaccountWalletId(recipientType, String(recipientId));
+    if (!walletId) return res.status(400).json({ error: 'Recebedor sem subconta Asaas (não foi possível criar). Confira se o recebedor concluiu a verificação.' });
 
     const transfer = await asaasClient.post<any>('/transfers', { value: Number(value.toFixed(2)), walletId });
     return res.json({ success: true, message: `Transferido R$ ${value.toFixed(2)} para a subconta.`, transferId: transfer?.id, status: transfer?.status });
   } catch (err: any) {
-    // Erro típico: conta-mãe sem saldo → oriente a creditar no painel do sandbox.
+    return res.status(502).json({ error: err?.message || 'Falha ao abastecer subconta (a conta-mãe tem saldo?)' });
+  }
+});
+
+// POST /admin/asaas/fund-for-withdrawal — abastece a subconta do recebedor de UM saque
+// pendente (deriva recebedor pelos payouts do saque). body: { withdrawalId }
+router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
+  try {
+    const { withdrawalId } = req.body || {};
+    if (!withdrawalId) return res.status(400).json({ error: 'withdrawalId obrigatório' });
+    if (!asaasClient.isConfigured()) return res.status(400).json({ error: 'Asaas não configurado' });
+
+    const wr = await prisma.withdrawalRequest.findUnique({ where: { id: String(withdrawalId) } }) as any;
+    if (!wr) return res.status(404).json({ error: 'Saque não encontrado' });
+
+    // Deriva recebedor: pelos payouts (fonte da verdade) ou fallback pro motoboyId do WR.
+    let recipientType: 'store' | 'motoboy' = 'motoboy';
+    let recipientId: string = wr.motoboyId;
+    const firstPayoutId = (wr.payoutIds || [])[0];
+    if (firstPayoutId) {
+      const p = await prisma.payout.findUnique({ where: { id: String(firstPayoutId) } }) as any;
+      if (p) { recipientType = p.recipientType; recipientId = p.recipientId; }
+    }
+
+    const walletId = await resolveSubaccountWalletId(recipientType, String(recipientId));
+    if (!walletId) return res.status(400).json({ error: 'Recebedor sem subconta Asaas (não foi possível criar). Confira se o recebedor concluiu a verificação.' });
+
+    const value = Number(Number(wr.amount).toFixed(2));
+    const transfer = await asaasClient.post<any>('/transfers', { value, walletId });
+    return res.json({ success: true, message: `Subconta abastecida com R$ ${value.toFixed(2)}. Agora dá pra aprovar o saque.`, transferId: transfer?.id, status: transfer?.status });
+  } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'Falha ao abastecer subconta (a conta-mãe tem saldo?)' });
   }
 });
