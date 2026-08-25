@@ -262,26 +262,29 @@ class PayoutService {
   }
 
   /**
-   * Seleciona o maior conjunto FIFO de payouts cuja soma NÃO ultrapassa `amount`
-   * (saque "até X" — respeita o teto diário sem fracionar um repasse). Para no
-   * primeiro payout que estouraria o teto. Retorna vazio se nem o payout mais
-   * antigo couber (o chamador avisa o valor mínimo).
+   * Seleciona o maior conjunto de payouts (mais antigos primeiro) cuja soma NÃO
+   * ultrapassa `amount` — saque "até X" sem fracionar um repasse. PULA os repasses
+   * que não caberiam no teto e segue tentando os próximos (não para no primeiro
+   * grande). `minPayout` = menor repasse disponível, para o chamador informar o
+   * valor mínimo sacável quando nada couber.
    */
   async selectPayoutsUpTo(
     recipientType: PayoutRecipientType,
     recipientId: string,
     amount: number,
-  ): Promise<{ payouts: Payout[]; total: number }> {
+  ): Promise<{ payouts: Payout[]; total: number; minPayout: number }> {
     const available = await this.listAvailablePayouts(recipientType, recipientId);
     const selected: Payout[] = [];
     let sum = 0;
+    let minPayout = Infinity;
     for (const p of available) {
       const v = num(p.amount);
-      if (sum + v > amount + 0.01) break;
+      if (v < minPayout) minPayout = v;
+      if (sum + v > amount + 0.01) continue; // pula os que estourariam; tenta os menores
       selected.push(p);
       sum += v;
     }
-    return { payouts: selected, total: sum };
+    return { payouts: selected, total: sum, minPayout: Number.isFinite(minPayout) ? minPayout : 0 };
   }
 
   /**
