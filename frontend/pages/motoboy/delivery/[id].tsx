@@ -14,6 +14,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { formatBRL } from '../../../components/ui/PriceTag';
 import { useDelivery } from '../../../hooks/useSync';
 import { RejectDeliveryModal } from '../../../components/delivery/RejectDeliveryModal';
+import { RouteThumbnail } from '../../../components/map/RouteThumbnail';
 import { useSocket } from '../../../contexts/SocketContext';
 import dynamic from 'next/dynamic';
 import styles from './MotoboyDelivery.module.css';
@@ -209,6 +210,9 @@ export default function MotoboyDeliveryDetail() {
   const storeLng = delivery.storeLongitude !== undefined ? parseFloat(String(delivery.storeLongitude)) : (store.longitude ? parseFloat(String(store.longitude)) : null);
   const customerLat = delivery.customerLatitude !== undefined ? parseFloat(String(delivery.customerLatitude)) : (customer.mainAddress?.latitude ? parseFloat(String(customer.mainAddress.latitude)) : null);
   const customerLng = delivery.customerLongitude !== undefined ? parseFloat(String(delivery.customerLongitude)) : (customer.mainAddress?.longitude ? parseFloat(String(customer.mainAddress.longitude)) : null);
+  // Pontos p/ o mini-mapa da rota (mesmo componente do card de oferta).
+  const storePt = storeLat !== null && storeLng !== null && Number.isFinite(storeLat) && Number.isFinite(storeLng) ? { lat: storeLat, lng: storeLng } : null;
+  const customerPt = customerLat !== null && customerLng !== null && Number.isFinite(customerLat) && Number.isFinite(customerLng) ? { lat: customerLat, lng: customerLng } : null;
 
   const st = STATUS_VIEW[delivery.status] || { label: delivery.status, cls: 'stTransit' };
   const code = (order._id || delivery.orderId)?.slice(-8) || 'N/A';
@@ -276,29 +280,20 @@ export default function MotoboyDeliveryDetail() {
             </div>
           )}
 
-          {/* Retirada na loja */}
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Retirada na loja</h2>
-            <div className={styles.addr}>{pickupAddress}</div>
-            <ContactInfo name={store.name || 'Loja'} email={store.email} phone={store.telefone} onChatClick={() => openChatWith('store')} />
-          </section>
-
-          {/* Entrega no cliente */}
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}><Icon name="truck" size={16} /> Entrega no cliente</h2>
-            <div className={styles.addr}>{deliveryAddress}</div>
-            <ContactInfo name={customer.name || 'Cliente'} email={customer.email} phone={customer.telefone} onChatClick={() => openChatWith('customer')} />
-          </section>
-
-          {/* Rota — só faz sentido em entrega ativa */}
+          {/* Rota de entrega — no topo. Mini-mapa (como no card) + abrir navegação. */}
           {['assigned', 'picked'].includes(delivery.status) && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Rota de entrega</h2>
-            <div className={styles.legend}>
-              <span className={styles.legendItem}><span className={`${styles.dot} ${styles.dotA}`} /> Você</span>
-              <span className={styles.legendItem}><span className={`${styles.dot} ${styles.dotB}`} /> Loja</span>
-              <span className={styles.legendItem}><span className={`${styles.dot} ${styles.dotC}`} /> Cliente</span>
-            </div>
+
+            {(storePt || customerPt) && (
+              <RouteThumbnail
+                store={storePt}
+                customer={customerPt}
+                motoboy={currentLocation}
+                polyline={delivery.routePolyline}
+                height={150}
+              />
+            )}
 
             {currentLocation && locationAccuracy && (
               <div className={`${styles.accuracy} ${accuracyClass}`}>
@@ -335,6 +330,20 @@ export default function MotoboyDeliveryDetail() {
             )}
           </section>
           )}
+
+          {/* Retirada na loja */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}><Icon name="map-pin" size={16} /> Retirada na loja</h2>
+            <div className={styles.addr}>{pickupAddress}</div>
+            <ContactInfo name={store.name || 'Loja'} email={store.email} phone={store.telefone} onChatClick={() => openChatWith('store')} />
+          </section>
+
+          {/* Entrega no cliente */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}><Icon name="truck" size={16} /> Entrega no cliente</h2>
+            <div className={styles.addr}>{deliveryAddress}</div>
+            <ContactInfo name={customer.name || 'Cliente'} email={customer.email} phone={customer.telefone} onChatClick={() => openChatWith('customer')} />
+          </section>
 
           {navOpen && (
             <MotoboyNavMap delivery={delivery} self={currentLocation} onFinalize={finalizarEntrega} onChat={openChatWith} onClose={() => setNavOpen(false)} />
