@@ -32,6 +32,7 @@ import { notifyStoreOwner } from '../services/pushService';
 import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
+import { getPaymentProvider } from '../services/paymentProvider';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -224,7 +225,13 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
           const asaasRefundValue = round2(refundAmount - (order.walletApplied || 0));
           if (order.paymentStatus === 'paid' && order.asaasPaymentId && asaasRefundValue > 0) {
             try {
-              await refundOrderCharge(order.asaasPaymentId, asaasRefundValue);
+              const refundRes = await getPaymentProvider(order.paymentProvider)
+                .refund(order.id, order.asaasPaymentId!, asaasRefundValue);
+              if (refundRes.status !== 'done') {
+                // mantém o escalonamento existente: cai no catch abaixo, que seta
+                // refundStatus 'pending' p/ o admin resolver.
+                throw new Error(refundRes.errorMessage || 'estorno não concluído');
+              }
               order.asaasChargeStatus = 'refunded';
               order.paymentStatus = 'refunded';
               await prisma.order.update({ where: { id: order.id }, data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' } });
