@@ -87,11 +87,45 @@ export const setPrizes = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+// GET /ranking-prizes/config-status — estado do freio (prêmios ligados/pausados)
+export const getRankingPrizesEnabled = async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const platform = await getPlatformConfig();
+    return res.json({ rankingPrizesEnabled: !!platform?.rankingPrizesEnabled });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro ao ler configuração' });
+  }
+};
+
+// PUT /ranking-prizes/config-status — CEO liga/pausa os prêmios do ranking
+export const setRankingPrizesEnabled = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled deve ser boolean' });
+    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
+    const cfg = await updatePlatformConfig({ rankingPrizesEnabled: enabled }, req.user?.id || 'system');
+    return res.json({ rankingPrizesEnabled: !!cfg?.rankingPrizesEnabled });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro ao salvar configuração' });
+  }
+};
+
 // POST /ranking-prizes/distribute — CEO distribui prêmios do mês encerrado
 export const distributePrizes = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { month, year } = req.body;
+
+    // 🔒 Freio de custo: prêmios de ranking pausados (ex.: fase grátis de lançamento).
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const platform = await getPlatformConfig();
+    if (!platform?.rankingPrizesEnabled) {
+      return res.status(403).json({
+        error: 'Os prêmios do ranking estão PAUSADOS. Ative em Configurações para poder distribuir.',
+        code: 'RANKING_PRIZES_PAUSED',
+      });
+    }
 
     const targetMonth = month ?? dayjs().subtract(1, 'month').month() + 1;
     const targetYear = year ?? (month === 1 ? dayjs().year() - 1 : dayjs().year());
