@@ -247,6 +247,17 @@ export const addPoints = async (req: Request, res: Response) => {
   const { action = 'corrida', points = 20 } = req.body;
   const gam: GamRecord = (await findGamByUser(user_id)) ?? defaultGam(user_id);
 
+  // 🔒 Freio: gamificação de PONTOS pausada. Não acumula pontos, mas os BADGES
+  // (conquistas/"gadgets") continuam sendo avaliados normalmente.
+  const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+  const platform = await getPlatformConfig();
+  if (!platform?.gamificationPointsEnabled) {
+    const newBadges = await checkAndAwardBadges(user_id, gam);
+    newBadges.forEach(b => emitGamificationBadgeUnlocked(user_id, b));
+    const saved = await persistGam(gam);
+    return res.json(saved);
+  }
+
   gam.points += points;
   gam.totalPoints += Math.max(0, points);
   gam.history.push({ date: new Date().toISOString().slice(0, 10), action, points });
@@ -281,6 +292,13 @@ export const getBenefits = (_req: Request, res: Response) => {
 };
 
 export const redeem = async (req: AuthenticatedRequest, res: Response) => {
+  // 🔒 Freio de custo: resgate de benefícios pausado (ex.: fase grátis).
+  const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+  const platform = await getPlatformConfig();
+  if (!platform?.benefitsRedeemEnabled) {
+    return res.status(403).json({ error: 'O resgate de benefícios está pausado no momento.', code: 'BENEFITS_REDEEM_PAUSED' });
+  }
+
   const { user_id, benefit: benefitId } = req.body;
   const benefitDef = BENEFITS.find(b => b.id === benefitId);
   if (!benefitDef) return res.status(400).json({ error: 'Benefício inválido' });
