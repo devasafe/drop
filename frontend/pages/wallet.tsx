@@ -11,6 +11,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Chip } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
+import ClientWalletMetrics, { ClientWalletSummary } from '../components/wallet/ClientWalletMetrics';
+import { Sparkles } from 'lucide-react';
 import styles from './Wallet.module.css';
 
 interface WalletData {
@@ -24,10 +26,12 @@ interface WalletData {
 
 interface HistoryItem {
   date: string;
-  type: 'credit' | 'debit';
+  type: 'credit' | 'debit' | 'refund';
+  category?: string;
   amount: number;
   reason: string;
   relatedId?: string;
+  paymentMethod?: string;
 }
 
 type CreditMethod = 'pix' | 'credit_card' | 'debit_card';
@@ -37,11 +41,26 @@ const METHODS: { id: CreditMethod; label: string }[] = [
   { id: 'debit_card', label: 'Débito' },
 ];
 
+// Classifica a movimentação pela categoria real (deposit/withdrawal/payment/refund/transfer/penalty).
+function movementView(tx: { category?: string; type: string }): { typeLabel: string; dotClass: string } {
+  switch (tx.category) {
+    case 'payment': return { typeLabel: 'Compra', dotClass: 'txDebit' };
+    case 'deposit': return { typeLabel: 'Recarga', dotClass: 'txCredit' };
+    case 'refund': return { typeLabel: 'Reembolso', dotClass: 'txCredit' };
+    case 'withdrawal': return { typeLabel: 'Saque', dotClass: 'txDebit' };
+    case 'transfer': return { typeLabel: 'Transferência', dotClass: tx.type === 'debit' ? 'txDebit' : 'txCredit' };
+    case 'penalty': return { typeLabel: 'Ajuste', dotClass: 'txDebit' };
+    default: return { typeLabel: tx.type === 'debit' ? 'Saída' : 'Entrada', dotClass: tx.type === 'debit' ? 'txDebit' : 'txCredit' };
+  }
+}
+
 export default function WalletPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [summary, setSummary] = useState<ClientWalletSummary | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [extractFilter, setExtractFilter] = useState<'todos' | 'compras' | 'recargas' | 'reembolsos'>('todos');
   const [loading, setLoading] = useState(true);
   const [loadingAction, setLoadingAction] = useState(false);
 
@@ -60,8 +79,12 @@ export default function WalletPage() {
       if (!user?._id) return;
       const walletRes = await api.get(`/wallets/${user._id}`);
       setWallet(walletRes.data);
-      const historyRes = await api.get(`/wallets/${user._id}/history?limit=20`);
+      const historyRes = await api.get(`/wallets/${user._id}/history?limit=30`);
       setHistory(historyRes.data.history || []);
+      try {
+        const sumRes = await api.get(`/wallets/${user._id}/client-summary`);
+        setSummary(sumRes.data);
+      } catch { /* resumo opcional */ }
     } catch (err) {
       console.error('Erro ao buscar carteira:', err);
     } finally {
@@ -139,6 +162,7 @@ export default function WalletPage() {
       <div className={styles.page}>
         <header className={styles.header}>
           <h1 className={styles.title}>Carteira</h1>
+          <p className={styles.subtitle}>Gerencie seu saldo, créditos e acompanhe suas movimentações.</p>
         </header>
 
         {/* Card de saldo */}
@@ -149,60 +173,87 @@ export default function WalletPage() {
             <span className={styles.walletBadge}><Wallet size={18} aria-hidden="true" /></span>
           </div>
           <span className={styles.balanceValue}>{loading ? '—' : formatBRL(wallet?.balance ?? 0)}</span>
-          <div className={styles.stats}>
-            <div className={styles.stat}>
-              <span className={styles.statIcon}><ArrowDownLeft size={14} aria-hidden="true" /></span>
-              <div className={styles.statText}>
-                <span className={styles.statLabel}>Entradas</span>
-                <span className={styles.statValue}>{formatBRL(wallet?.totalIncome ?? 0)}</span>
-              </div>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statIcon}><ArrowUpRight size={14} aria-hidden="true" /></span>
-              <div className={styles.statText}>
-                <span className={styles.statLabel}>Saídas</span>
-                <span className={styles.statValue}>{formatBRL(wallet?.totalSpent ?? 0)}</span>
-              </div>
-            </div>
+          <span className={styles.balanceHint}>Use seu saldo para pagamentos na Drop.</span>
+          <div className={styles.actionsInline}>
+            <button type="button" className={`${styles.actionBtn} ${styles.actionPrimary}`} onClick={() => setCreditOpen(true)}>
+              <Plus size={17} aria-hidden="true" /> Carregar saldo
+            </button>
+            <button type="button" className={`${styles.actionBtn} ${styles.actionSecondary}`} onClick={() => setWithdrawOpen(true)}>
+              <ArrowUpRight size={17} aria-hidden="true" /> Sacar saldo
+            </button>
           </div>
         </div>
 
-        {/* Ações */}
-        <div className={styles.actions}>
-          <button type="button" className={`${styles.actionBtn} ${styles.actionPrimary}`} onClick={() => setCreditOpen(true)}>
-            <Plus size={17} aria-hidden="true" /> Carregar
-          </button>
-          <button type="button" className={`${styles.actionBtn} ${styles.actionSecondary}`} onClick={() => setWithdrawOpen(true)}>
-            <ArrowUpRight size={17} aria-hidden="true" /> Sacar
-          </button>
-        </div>
+        {/* Resumo (benefício/economia — nunca "quanto gastou") */}
+        {summary && (
+          <section className={styles.resumo}>
+            <h2 className={styles.resumoTitle}>Resumo da sua carteira</h2>
+            <ClientWalletMetrics summary={summary} />
+            <div className={styles.benefit}>
+              <span className={styles.benefitIcon}><Sparkles size={18} aria-hidden="true" /></span>
+              <div className={styles.benefitText}>
+                {summary.totalSaved > 0 ? (
+                  <>
+                    <strong>Você já economizou {formatBRL(summary.totalSaved)} usando a Drop.</strong>
+                    <span>Continue usando cupons para economizar ainda mais.</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Seus benefícios aparecerão aqui.</strong>
+                    <span>Use cupons e promoções nos seus pedidos para começar a economizar.</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Extrato */}
         <section className={styles.extrato}>
-          <h2 className={styles.extratoTitle}>Extrato</h2>
+          <div className={styles.extratoHead}>
+            <h2 className={styles.extratoTitle}>Extrato</h2>
+            <div className={styles.filters}>
+              {(['todos', 'compras', 'recargas', 'reembolsos'] as const).map((f) => (
+                <button key={f} className={`${styles.filterChip} ${extractFilter === f ? styles.filterChipActive : ''}`} onClick={() => setExtractFilter(f)}>
+                  {f === 'todos' ? 'Todos' : f === 'compras' ? 'Compras' : f === 'recargas' ? 'Recargas' : 'Reembolsos'}
+                </button>
+              ))}
+            </div>
+          </div>
           {loading ? (
             <p className={styles.muted}>Carregando…</p>
-          ) : history.length === 0 ? (
-            <EmptyState icon={<Receipt />} title="Sem movimentações ainda" description="Suas entradas e saídas aparecem aqui." />
+          ) : (() => {
+            const filtered = history.filter((tx) =>
+              extractFilter === 'todos' ? true
+              : extractFilter === 'compras' ? tx.category === 'payment'
+              : extractFilter === 'recargas' ? tx.category === 'deposit'
+              : tx.category === 'refund',
+            );
+            return filtered.length === 0 ? (
+            <EmptyState icon={<Receipt />} title="Sem movimentações" description="Suas movimentações aparecem aqui." />
           ) : (
             <ul className={styles.txList}>
-              {history.map((tx, i) => (
+              {filtered.map((tx, i) => {
+                const mv = movementView(tx);
+                return (
                 <li key={i}>
                   <button type="button" className={styles.txRow} onClick={() => setSelectedTx(tx)}>
-                    <span className={`${styles.txDot} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`} />
+                    <span className={`${styles.txDot} ${styles[mv.dotClass]}`} />
                     <span className={styles.txInfo}>
                       <span className={styles.txReason}>{tx.reason}</span>
-                      <span className={styles.txDate}>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                      <span className={styles.txDate}>{new Date(tx.date).toLocaleDateString('pt-BR')} · {mv.typeLabel}</span>
                     </span>
-                    <span className={`${styles.txAmount} ${tx.type === 'credit' ? styles.txCredit : styles.txDebit}`}>
-                      {tx.type === 'credit' ? '+' : '−'} {formatBRL(tx.amount)}
+                    <span className={`${styles.txAmount} ${tx.type === 'debit' ? styles.txDebit : styles.txCredit}`}>
+                      {tx.type === 'debit' ? '−' : '+'} {formatBRL(tx.amount)}
                     </span>
                     <ChevronRight size={16} className={styles.txChevron} aria-hidden="true" />
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
-          )}
+          );
+          })()}
         </section>
       </div>
 

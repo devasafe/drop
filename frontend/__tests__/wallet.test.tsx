@@ -5,7 +5,9 @@ const showToast = jest.fn();
 const post = jest.fn().mockResolvedValue({ data: { wallet: { balance: 130, totalIncome: 200, totalSpent: 70 } } });
 const get = jest.fn().mockImplementation((url: string) =>
   url.includes('/history')
-    ? Promise.resolve({ data: { history: [{ date: '2026-08-01T10:00:00', type: 'credit', amount: 50, reason: 'Reembolso' }] } })
+    ? Promise.resolve({ data: { history: [{ date: '2026-08-01T10:00:00', type: 'credit', category: 'refund', amount: 50, reason: 'Reembolso' }] } })
+    : url.includes('/client-summary')
+    ? Promise.resolve({ data: { available: 150, refundPending: 0, refundReceived: 50, totalSaved: 0 } })
     : Promise.resolve({ data: { balance: 150, totalIncome: 200, totalSpent: 50 } }),
 );
 
@@ -27,7 +29,7 @@ describe('Carteira (/wallet)', () => {
   it('Sacar sem dados bancários → toast de erro e não chama a API', async () => {
     render(<WalletPage />);
     await waitFor(() => screen.getByText(/150,00/));
-    fireEvent.click(screen.getByText('Sacar'));
+    fireEvent.click(screen.getByText('Sacar saldo'));
     fireEvent.change(screen.getByLabelText(/valor/i), { target: { value: '50' } });
     fireEvent.click(screen.getByText(/solicitar saque/i));
     expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/banc/i), 'error');
@@ -43,7 +45,7 @@ describe('Carteira (/wallet)', () => {
   it('Carregar com valor válido → API de crédito + toast de sucesso', async () => {
     render(<WalletPage />);
     await waitFor(() => screen.getByText(/150,00/));
-    fireEvent.click(screen.getByText('Carregar'));
+    fireEvent.click(screen.getByText('Carregar saldo'));
     fireEvent.change(screen.getByLabelText(/valor/i), { target: { value: '30' } });
     fireEvent.click(screen.getByText(/confirmar carregamento/i));
     await waitFor(() =>
