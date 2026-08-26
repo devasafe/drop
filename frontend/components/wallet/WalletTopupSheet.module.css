@@ -1,0 +1,28 @@
+.form { display: flex; flex-direction: column; gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.fieldLabel { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-subtle); }
+
+.amountWrap { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); }
+.amountWrap:focus-within { border-color: var(--accent-line); }
+.currency { color: var(--text-muted); font-weight: 700; }
+.amountInput { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text-strong); font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; }
+.amountInput::placeholder { color: var(--text-subtle); }
+
+.methods { display: flex; gap: var(--space-2); }
+.methodChip { flex: 1; padding: 10px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--panel-2); color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.methodChip:hover { color: var(--text); }
+.methodActive { color: var(--brand-2); border-color: var(--accent-line); background: var(--accent-soft); }
+
+.cardWrap { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+
+/* PIX */
+.pixBody { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.hint { font-size: var(--fs-sm); color: var(--text-muted); text-align: center; margin: 0; }
+.qr { width: 200px; height: 200px; border-radius: var(--r-md); background: #fff; padding: 8px; }
+.code { width: 100%; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-xs); color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; }
+.copyBtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--r-md); border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--brand-2); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.waiting { font-size: var(--fs-sm); color: var(--text-subtle); }
+
+/* Confirmado */
+.done { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding: var(--space-4) 0; color: var(--success); text-align: center; }
+.done p { color: var(--text); margin: 0; }

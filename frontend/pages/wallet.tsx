@@ -12,6 +12,7 @@ import { Input } from '../components/ui/Input';
 import { Chip } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
 import ClientWalletMetrics, { ClientWalletSummary } from '../components/wallet/ClientWalletMetrics';
+import WalletTopupSheet from '../components/wallet/WalletTopupSheet';
 import { Sparkles } from 'lucide-react';
 import styles from './Wallet.module.css';
 
@@ -34,12 +35,6 @@ interface HistoryItem {
   paymentMethod?: string;
 }
 
-type CreditMethod = 'pix' | 'credit_card' | 'debit_card';
-const METHODS: { id: CreditMethod; label: string }[] = [
-  { id: 'pix', label: 'PIX' },
-  { id: 'credit_card', label: 'Crédito' },
-  { id: 'debit_card', label: 'Débito' },
-];
 
 // Classifica a movimentação pela categoria real (deposit/withdrawal/payment/refund/transfer/penalty).
 function movementView(tx: { category?: string; type: string }): { typeLabel: string; dotClass: string } {
@@ -65,8 +60,6 @@ export default function WalletPage() {
   const [loadingAction, setLoadingAction] = useState(false);
 
   const [creditOpen, setCreditOpen] = useState(false);
-  const [creditAmount, setCreditAmount] = useState('');
-  const [creditMethod, setCreditMethod] = useState<CreditMethod>('pix');
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -102,30 +95,6 @@ export default function WalletPage() {
   const refetchHistory = async () => {
     const res = await api.get(`/wallets/${user?._id}/history?limit=20`);
     setHistory(res.data.history || []);
-  };
-
-  const handleCredit = async () => {
-    if (!creditAmount || isNaN(Number(creditAmount))) {
-      showToast('Insira um valor válido', 'error');
-      return;
-    }
-    setLoadingAction(true);
-    try {
-      const res = await api.post(`/wallets/${user?._id}/credit`, {
-        amount: Number(creditAmount),
-        paymentMethod: creditMethod,
-        reference: `Carregamento ${new Date().toLocaleDateString('pt-BR')}`,
-      });
-      setWallet(res.data.wallet);
-      setCreditAmount('');
-      setCreditOpen(false);
-      showToast('Saldo carregado com sucesso!', 'success');
-      await refetchHistory();
-    } catch (err: any) {
-      showToast(err?.response?.data?.error || 'Erro ao carregar saldo', 'error');
-    } finally {
-      setLoadingAction(false);
-    }
   };
 
   const handleWithdraw = async () => {
@@ -257,21 +226,14 @@ export default function WalletPage() {
         </section>
       </div>
 
-      {/* Sheet Carregar */}
-      <Sheet open={creditOpen} onClose={() => setCreditOpen(false)} title="Carregar saldo">
-        <div className={styles.form}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Valor</span>
-            <Input value={creditAmount} onChange={setCreditAmount} placeholder="0,00" type="number" inputMode="decimal" aria-label="Valor" />
-          </label>
-          <div className={styles.methodRow}>
-            {METHODS.map((m) => (
-              <Chip key={m.id} label={m.label} active={creditMethod === m.id} onClick={() => setCreditMethod(m.id)} />
-            ))}
-          </div>
-          <Button variant="primary" loading={loadingAction} onClick={handleCredit}>Confirmar carregamento</Button>
-        </div>
-      </Sheet>
+      {/* Carregar saldo — pagamento REAL via Asaas (PIX/cartão) */}
+      <WalletTopupSheet
+        open={creditOpen}
+        onClose={() => setCreditOpen(false)}
+        userId={user?._id || ''}
+        onPaid={fetchWallet}
+        holderDefaults={{ name: (user as any)?.name, cpfCnpj: (user as any)?.cpf, email: (user as any)?.email, phone: (user as any)?.telefone }}
+      />
 
       {/* Sheet Sacar */}
       <Sheet open={withdrawOpen} onClose={() => setWithdrawOpen(false)} title="Sacar para conta bancária">

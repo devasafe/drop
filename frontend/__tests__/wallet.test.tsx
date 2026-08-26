@@ -42,15 +42,11 @@ describe('Carteira (/wallet)', () => {
     expect(await screen.findByText('Detalhes da entrada')).toBeInTheDocument();
     expect(screen.getByText('Entrada')).toBeInTheDocument();
   });
-  it('Carregar com valor válido → API de crédito + toast de sucesso', async () => {
+  it('Carregar saldo → abre a recarga com formas de pagamento', async () => {
     render(<WalletPage />);
     await waitFor(() => screen.getByText(/150,00/));
     fireEvent.click(screen.getByText('Carregar saldo'));
-    fireEvent.change(screen.getByLabelText(/valor/i), { target: { value: '30' } });
-    fireEvent.click(screen.getByText(/confirmar carregamento/i));
-    await waitFor(() =>
-      expect(post).toHaveBeenCalledWith(expect.stringContaining('/credit'), expect.objectContaining({ amount: 30 })),
-    );
-    expect(showToast).toHaveBeenCalledWith(expect.any(String), 'success');
+    expect(await screen.findByText('Forma de pagamento')).toBeInTheDocument();
+    expect(screen.getByText('PIX')).toBeInTheDocument();
   });
 });
