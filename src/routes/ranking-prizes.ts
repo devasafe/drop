@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import { getCurrentPrizes, getPrizeHistory, setPrizes, distributePrizes } from '../controllers/rankingPrizeController';
+import { getCurrentPrizes, getPrizeHistory, setPrizes, distributePrizes, getRankingPrizesEnabled, setRankingPrizesEnabled } from '../controllers/rankingPrizeController';
 
 const router = Router();
 
@@ -12,5 +12,7 @@ router.get('/', authenticate, getCurrentPrizes);
 router.get('/history', authenticate, authorizePermission('ranking:manage'), getPrizeHistory);
 router.put('/', authenticate, authorizePermission('ranking:manage'), setPrizes);
 router.post('/distribute', authenticate, authorizePermission('ranking:manage'), distributePrizes);
+router.get('/config-status', authenticate, authorizePermission('ranking:manage'), getRankingPrizesEnabled);
+router.put('/config-status', authenticate, authorizePermission('ranking:manage'), setRankingPrizesEnabled);
 
 export default router;

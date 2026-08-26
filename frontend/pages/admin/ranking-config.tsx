@@ -30,16 +30,33 @@ export default function AdminRankingConfig() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [toggling, setToggling] = useState(false);
+
   const fetchData = async () => {
     try {
-      const [curr, hist] = await Promise.all([
+      const [curr, hist, status] = await Promise.all([
         api.get('/ranking-prizes'),
         api.get('/ranking-prizes/history'),
+        api.get('/ranking-prizes/config-status').catch(() => ({ data: { rankingPrizesEnabled: false } })),
       ]);
       setCurrent(curr.data);
       setPrizes(curr.data.prizes?.length ? curr.data.prizes : DEFAULT_PRIZES);
       setHistory(hist.data);
+      setEnabled(!!status.data?.rankingPrizesEnabled);
     } catch { /* silencioso */ }
+  };
+
+  const toggleEnabled = async () => {
+    setToggling(true);
+    try {
+      const res = await api.put('/ranking-prizes/config-status', { enabled: !enabled });
+      setEnabled(!!res.data?.rankingPrizesEnabled);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Erro ao alterar');
+    } finally {
+      setToggling(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -95,6 +112,28 @@ export default function AdminRankingConfig() {
             <p style={{ fontSize: 14, color: 'var(--drop-text-muted)', margin: 0 }}>
               Configure os prêmios mensais para os motoboys — {current ? `${MONTH_NAMES[current.month]} ${current.year}` : ''}
             </p>
+          </div>
+
+          {/* Freio de custo: pausar/ativar prêmios */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+            background: 'var(--panel, #0e0c13)', border: `1px solid ${enabled ? 'rgba(74,222,128,0.3)' : 'rgba(245,158,11,0.4)'}`,
+            borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--drop-text, #fff)', fontSize: 15 }}>
+                {enabled === null ? 'Prêmios do ranking' : enabled ? '🟢 Prêmios ATIVOS' : '⏸️ Prêmios PAUSADOS'}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--drop-text-muted, #8f8aa0)', marginTop: 2 }}>
+                {enabled
+                  ? 'Você pode distribuir os prêmios mensais (dinheiro real na carteira dos motoboys).'
+                  : 'A distribuição está bloqueada — nada é pago. Ideal na fase grátis de lançamento.'}
+              </div>
+            </div>
+            <button onClick={toggleEnabled} disabled={toggling || enabled === null}
+              style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid var(--accent-line, rgba(139,92,246,.38))',
+                background: enabled ? 'rgba(245,158,11,0.12)' : 'rgba(74,222,128,0.12)',
+                color: enabled ? '#f59e0b' : '#4ade80', fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}>
+              {toggling ? '...' : enabled ? 'Pausar prêmios' : 'Ativar prêmios'}
+            </button>
           </div>
 
           {/* Status atual */}
