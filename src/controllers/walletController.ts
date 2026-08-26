@@ -9,6 +9,7 @@ import { calculateOrderDistribution, getStorePlanFee } from '../utils/walletCalc
 import { findWRByMotoboy } from '../repositories/withdrawalRequest.repository';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
+import env from '../config/env';
 
 /**
  * Reconcilia os buckets de saldo de um recebedor (store/motoboy) a partir dos
@@ -123,6 +124,75 @@ export const getStoreWallet = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * POST /wallets/:userId/topup — recarrega o saldo com pagamento REAL via Asaas.
+ * body: { amount, method: 'pix'|'credit_card'|'debit_card', card?, holder? }
+ * Cria a cobrança e um WalletTopup 'pending'. O saldo SÓ é creditado quando o
+ * webhook confirmar o pagamento (creditWalletTopupByPayment) — nada de crédito fake.
+ */
+export const createWalletTopup = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    if (String((req as any).user?.id) !== String(userId)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    const { amount, method, card, holder } = req.body || {};
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ error: 'Valor inválido' });
+    if (!['pix', 'credit_card', 'debit_card'].includes(method)) return res.status(400).json({ error: 'Forma de pagamento inválida' });
+    if (env.PAYMENT_GATEWAY !== 'asaas') return res.status(400).json({ error: 'Pagamento online não está configurado' });
+
+    const { ensureAsaasCustomer, createPixCharge, createCardCharge } = await import('../services/asaas/payment');
+    const customerId = await ensureAsaasCustomer(String(userId)); // lança msg clara se faltar CPF
+    if (!customerId) return res.status(400).json({ error: 'Não foi possível iniciar o pagamento (cliente Asaas).' });
+
+    const topup = await prisma.walletTopup.create({ data: { userId: String(userId), amount: value, method, status: 'pending' } });
+
+    try {
+      if (method === 'pix') {
+        const charge = await createPixCharge({ customerId, value, orderId: topup.id, description: 'Recarga de saldo Drop' });
+        await prisma.walletTopup.update({ where: { id: topup.id }, data: { asaasPaymentId: charge.paymentId } });
+        return res.json({
+          topupId: topup.id, method, status: charge.status, asaasPaymentId: charge.paymentId,
+          pix: { qrCodeImage: charge.qrCodeImage, qrCodePayload: charge.qrCodePayload, expiresAt: charge.expiresAt },
+        });
+      }
+      // Cartão (crédito/débito) — mesma cobrança de cartão do checkout.
+      if (!card || !holder) return res.status(400).json({ error: 'Dados do cartão incompletos' });
+      const remoteIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
+      const result = await createCardCharge({ customerId, value, orderId: topup.id, description: 'Recarga de saldo Drop', remoteIp, card, holder });
+      await prisma.walletTopup.update({ where: { id: topup.id }, data: { asaasPaymentId: result.paymentId } });
+      // Cartão costuma confirmar na hora (CONFIRMED/RECEIVED) → credita já.
+      const paidNow = ['CONFIRMED', 'RECEIVED'].includes(String(result.status));
+      if (paidNow) {
+        const { creditWalletTopupByPayment } = await import('../services/asaas/walletTopup');
+        await creditWalletTopupByPayment(result.paymentId);
+      }
+      return res.json({ topupId: topup.id, method, status: result.status, asaasPaymentId: result.paymentId, paid: paidNow });
+    } catch (err: any) {
+      await prisma.walletTopup.update({ where: { id: topup.id }, data: { status: 'failed' } }).catch(() => {});
+      const msg = err?.errors?.[0]?.description || err?.message || 'Falha ao processar o pagamento';
+      return res.status(400).json({ error: msg });
+    }
+  } catch (err: any) {
+    console.error('[WALLET TOPUP ERROR]', err);
+    return res.status(500).json({ error: err?.message || 'Erro ao iniciar recarga' });
+  }
+};
+
+/** GET /wallets/topup/:topupId/status — polling do status da recarga (PIX). */
+export const getWalletTopupStatus = async (req: Request, res: Response) => {
+  try {
+    const { topupId } = req.params;
+    const topup = await prisma.walletTopup.findUnique({ where: { id: String(topupId) } });
+    if (!topup) return res.status(404).json({ error: 'Recarga não encontrada' });
+    if (String((req as any).user?.id) !== String(topup.userId)) return res.status(403).json({ error: 'Acesso negado' });
+    return res.json({ status: topup.status, amount: Number(topup.amount), method: topup.method });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao consultar recarga' });
   }
 };
 

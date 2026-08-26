@@ -346,6 +346,22 @@ model User {
   @@index([storeId])
 }
 
+/// Recarga de saldo da carteira via Asaas (PIX/cartão). Fica 'pending' até o
+/// webhook de pagamento confirmar — só então o saldo é creditado (via WalletEntry).
+/// Evita crédito "fake": o dinheiro só entra na carteira após pagamento real.
+model WalletTopup {
+  id             String   @id @default(cuid())
+  userId         String
+  amount         Decimal  @db.Decimal(12, 2)
+  method         String   // pix | credit_card | debit_card
+  asaasPaymentId String?  @unique
+  status         String   @default("pending") // pending | paid | failed | cancelled
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
 /// Inscrição de Web Push (um device do usuário). Um usuário pode ter várias
 /// (celular + navegador). O `endpoint` é único por device/navegador.
 model PushSubscription {

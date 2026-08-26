@@ -3,6 +3,7 @@ import env from '../config/env';
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
 import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/orderPayment';
+import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -90,7 +91,12 @@ async function dispatchAsaasEvent(eventId: string, body: any): Promise<void> {
     switch (event) {
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_CONFIRMED':
-        if (payment.id) await confirmOrderPaidByPayment(payment.id, payment.status);
+        // O payment.id pode ser de um PEDIDO ou de uma RECARGA de carteira.
+        // Cada handler é no-op se não corresponder ao seu tipo.
+        if (payment.id) {
+          await confirmOrderPaidByPayment(payment.id, payment.status);
+          await creditWalletTopupByPayment(payment.id);
+        }
         break;
       case 'PAYMENT_REFUNDED':
         if (payment.id) await markOrderRefunded(payment.id);
