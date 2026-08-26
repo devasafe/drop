@@ -32,6 +32,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   { href: '/admin/suporte',        label: 'Suporte',      icon: 'headphones',   permission: 'support:attend' },
   { href: '/admin/ranking-config', label: 'Ranking',      icon: 'trophy',       permission: 'ranking:manage' },
   { href: '/admin/settings',       label: 'Config.',      icon: 'settings',     permission: 'settings:manage' },
+  { href: '/admin/freios',         label: 'Freios',       icon: 'pause',        permission: 'settings:manage' },
   { href: '/admin/seasonal-theme', label: 'Tema',         icon: 'palette',      permission: 'theme:edit' },
   // Não delegáveis por permissão (apenas CEO):
   { href: '/admin/coupons',        label: 'Cupons',       icon: 'tag',          ceoOnly: true },

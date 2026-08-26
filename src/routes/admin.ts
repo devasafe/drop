@@ -754,4 +754,38 @@ router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wal
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// 🛑 FREIOS / KILL SWITCHES (pausar funções que custam dinheiro)
+// ═══════════════════════════════════════════════════════════
+const SWITCH_KEYS = ['rankingPrizesEnabled', 'benefitsRedeemEnabled', 'gamificationPointsEnabled'] as const;
+
+router.get('/switches', authenticate, authorizePermission('settings:manage'), async (_req: any, res: Response) => {
+  try {
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const cfg = await getPlatformConfig();
+    const out: Record<string, boolean> = {};
+    for (const k of SWITCH_KEYS) out[k] = !!cfg?.[k];
+    return res.json(out);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao ler os freios' });
+  }
+});
+
+router.put('/switches', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
+  try {
+    const patch: Record<string, boolean> = {};
+    for (const k of SWITCH_KEYS) {
+      if (typeof req.body?.[k] === 'boolean') patch[k] = req.body[k];
+    }
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
+    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
+    const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
+    const out: Record<string, boolean> = {};
+    for (const k of SWITCH_KEYS) out[k] = !!cfg?.[k];
+    return res.json(out);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao salvar os freios' });
+  }
+});
+
 export default router;

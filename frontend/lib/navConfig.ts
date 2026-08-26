@@ -107,6 +107,7 @@ const ADMIN_GROUP: Record<string, string> = {
   '/admin/ranking-config': 'Crescimento',
   '/admin/coupons': 'Crescimento',
   '/admin/settings': 'Plataforma',
+  '/admin/freios': 'Plataforma',
   '/admin/seasonal-theme': 'Plataforma',
   '/admin/permissoes': 'Plataforma',
 };
