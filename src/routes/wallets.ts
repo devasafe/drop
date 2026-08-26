@@ -7,6 +7,7 @@ import {
   getMyWallet,
   getStoreWallet,
   getStoreFinancialSummary,
+  getClientWalletSummary,
   creditWallet,
   transferWallet,
   transferBetweenWallets,
@@ -50,6 +51,7 @@ router.post('/transfer-to-motoboy', authenticate, requireActiveUser, transferToM
 // Carteira do usuário (cliente, motoboy, etc)
 router.get('/:userId', authenticate, authorizeWalletOwner, getWallet);
 router.get('/:userId/history', authenticate, authorizeWalletOwner, getWalletHistory);
+router.get('/:userId/client-summary', authenticate, authorizeWalletOwner, getClientWalletSummary);
 router.post(
   '/:userId/credit',
   authenticate,

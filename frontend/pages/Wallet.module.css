@@ -208,3 +208,27 @@
 .field { display: flex; flex-direction: column; gap: 6px; }
 .fieldLabel { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .methodRow { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* Cliente: subtítulo, saldo, ações inline, resumo, benefício, filtros */
+.subtitle { margin: var(--space-2) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.balanceHint { position: relative; z-index: 1; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 4px; }
+.actionsInline { position: relative; z-index: 1; display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+.actionsInline > * { flex: 1; }
+
+.resumo { display: flex; flex-direction: column; gap: var(--space-3); }
+.resumoTitle { margin: 0; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+
+.benefit { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line); border-left: 3px solid var(--brand-2); border-radius: var(--r-md); background: var(--panel); }
+.benefitIcon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: var(--r-md); background: var(--panel-2); border: 1px solid var(--accent-line); color: var(--brand-2); }
+.benefitText { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.benefitText strong { font-size: var(--fs-body); color: var(--text-strong); }
+.benefitText span { font-size: var(--fs-sm); color: var(--text-muted); }
+
+.extratoHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filterChip { padding: 5px 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: transparent;
+  color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.filterChip:hover { color: var(--text); }
+.filterChipActive { color: var(--brand-2); border-color: var(--accent-line); background: var(--accent-soft); }

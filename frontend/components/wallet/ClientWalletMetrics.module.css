@@ -1,0 +1,19 @@
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+@media (min-width: 720px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 3px;
+  padding: var(--space-4); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md); }
+.card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px; background: var(--tone); }
+.brand   { --tone: var(--brand-2); }
+.warn    { --tone: var(--rating); }
+.success { --tone: var(--success); }
+
+.top { display: flex; align-items: center; gap: 8px; }
+.iconBox { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0;
+  border-radius: var(--r-sm); background: var(--panel-2); color: var(--tone); }
+.label { font-size: var(--fs-xs); font-weight: 700; color: var(--text-subtle); }
+.value { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 800; color: var(--text-strong); line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.warn .value { color: var(--rating); }
+.success .value { color: var(--success); }
+.desc { font-size: var(--fs-xs); color: var(--text-muted); }

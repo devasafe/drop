@@ -126,6 +126,52 @@ export const getStoreWallet = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * GET /wallets/:userId/client-summary — resumo POSITIVO da carteira do cliente.
+ * Só métricas com base real (nada inventado):
+ *   available       = saldo em dinheiro (wallet.balance)
+ *   refundPending   = reembolsos ainda em processamento (Cancellation refundStatus='pending')
+ *   refundReceived  = total que já voltou pra carteira (WalletEntry category='refund')
+ *   totalSaved      = economia com cupons = Σ max(0, subtotal + deliveryFee - totalValue)
+ *                     dos pedidos válidos (o desconto do cupom é embutido no totalValue).
+ * NÃO expõe gasto total (decisão de produto). Cashback e crédito promocional NÃO
+ * existem no backend → não são incluídos.
+ */
+export const getClientWalletSummary = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    if (String((req as any).user?.id) !== String(userId)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    const wallet = await walletService.getOrCreate(String(userId), 'user');
+
+    const [pendingRow] = await prisma.$queryRaw<Array<{ v: number }>>`
+      SELECT COALESCE(SUM(c."refundAmount"), 0)::float8 AS v
+      FROM "Cancellation" c JOIN "Order" o ON o.id = c."orderId"
+      WHERE o."customerId" = ${String(userId)} AND c."refundStatus" = 'pending'`;
+    const [savedRow] = await prisma.$queryRaw<Array<{ v: number }>>`
+      SELECT COALESCE(SUM(GREATEST(0, "subtotal" + "deliveryFee" - "totalValue")), 0)::float8 AS v
+      FROM "Order"
+      WHERE "customerId" = ${String(userId)}
+        AND "status" NOT IN ('cancelado', 'rejeitado')
+        AND "subtotal" IS NOT NULL`;
+    const refundAgg = await prisma.walletEntry.aggregate({
+      where: { walletId: wallet.id, category: 'refund' },
+      _sum: { amount: true },
+    });
+
+    return res.json({
+      available: Number(wallet.balance),
+      refundPending: Number(pendingRow?.v || 0),
+      refundReceived: refundAgg._sum.amount ? Number(refundAgg._sum.amount) : 0,
+      totalSaved: Number(savedRow?.v || 0),
+    });
+  } catch (err: any) {
+    console.error('[CLIENT WALLET SUMMARY ERROR]', err);
+    return res.status(500).json({ error: 'Erro ao carregar resumo da carteira' });
+  }
+};
+
 // Estados de pedido que reconhecem receita (não cancelados/rejeitados).
 const STORE_BILLABLE_STATUSES: any[] = ['pago', 'aguardando_motoboy', 'enviado', 'entregue'];
 
