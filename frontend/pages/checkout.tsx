@@ -109,7 +109,11 @@ export default function CheckoutPage() {
                   <CreditCard size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
                   Forma de pagamento
                 </h2>
-                <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod} />
+                <PaymentSelector
+                  value={c.paymentMethod}
+                  onChange={c.setPaymentMethod}
+                  methods={c.walletBalance >= c.total && c.total > 0 ? ['pix', 'credit_card', 'wallet'] : ['pix', 'credit_card']}
+                />
                 {c.paymentMethod === 'credit_card' && (
                   <div className={styles.cardFormWrap}>
                     <CardForm onChange={c.setCardPayload} holderDefaults={c.cardHolderDefaults} />

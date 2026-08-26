@@ -1,4 +1,4 @@
-import { Zap, CreditCard, Banknote } from 'lucide-react';
+import { Zap, CreditCard, Banknote, Wallet } from 'lucide-react';
 import { Chip } from '../../ui/Chip';
 import { ICON_STROKE_WIDTH } from '../../ui/Icon';
 import type { PaymentMethod } from '../../../types/checkout';
@@ -13,6 +13,7 @@ const CATALOG: Record<PaymentMethod, { label: string; icon: typeof Zap }> = {
   pix: { label: 'PIX', icon: Zap },
   credit_card: { label: 'Cartão', icon: CreditCard },
   money: { label: 'Dinheiro', icon: Banknote },
+  wallet: { label: 'Crédito na carteira', icon: Wallet },
 };
 
 export interface PaymentSelectorProps {

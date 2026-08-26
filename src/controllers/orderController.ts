@@ -358,9 +358,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // ✅ Saldo da carteira abatendo o total (só no fluxo Asaas). Debita o saldo e o
     // restante vai pra cobrança PIX. O dinheiro do saldo (cashback/recarga) já está
     // na conta-mãe, então cobre o repasse na entrega.
+    // paymentMethod 'wallet' = pagar 100% com saldo (exige saldo suficiente).
+    const payFullyWithWallet = paymentMethod === 'wallet';
     let walletApplied = 0;
     const clientBalance = Number(clientWallet.balance);
-    if (useAsaas && useWalletBalance && clientBalance > 0) {
+    if (payFullyWithWallet && clientBalance < totalValue) {
+      return res.status(400).json({ error: 'Saldo insuficiente na carteira para pagar o pedido.', code: 'WALLET_INSUFFICIENT' });
+    }
+    if (useAsaas && (useWalletBalance || payFullyWithWallet) && clientBalance > 0) {
       walletApplied = round2(Math.min(clientBalance, totalValue));
       await walletService.debit({
         owner: customerId, ownerType: 'user', amount: walletApplied,
