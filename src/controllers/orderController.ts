@@ -38,6 +38,7 @@ import env from '../config/env';
 import { ensureAsaasCustomer, createPixCharge, createCardCharge, getPixQrCode, getPaymentStatus, PixCharge } from '../services/asaas/payment';
 import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/asaas/orderPayment';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
+import { getActivePaymentProviderName } from '../services/paymentProvider';
 import { computeCardTotal } from '../utils/cardInstallments';
 
 /**
@@ -383,6 +384,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // transação. Se o restante do lado Mongo (Payout/dívida/commit) falhar, o Order
     // é apagado como compensação (mesmo padrão do estoque, Fatia 2). `products[]`
     // virou a tabela relacionada `OrderItem` (nested create).
+    const activeProvider = await getActivePaymentProviderName();
     const createdOrder = await prisma.order.create({
       data: {
         customerId,
@@ -416,6 +418,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           commissionPercent: distribution.product.commissionPercent,
         },
         asaasChargeStatus: useAsaas ? 'pending' : 'none',
+        paymentProvider: activeProvider,
         walletApplied,
       },
       include: orderInclude,
