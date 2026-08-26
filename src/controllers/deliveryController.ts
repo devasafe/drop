@@ -24,7 +24,7 @@ import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courier
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import env from '../config/env';
-import { releaseOrderViaAsaas } from '../services/asaas/release';
+import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 
 // Loja valida PIN de retirada informado pelo motoboy
@@ -328,7 +328,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         }
         const cfg = await getPlatformConfig();
         if (cfg?.autoApprovePayouts === true) {
-          await releaseOrderViaAsaas(order._id.toString());
+          await getPaymentProvider(order.paymentProvider).onDeliveryConfirmed(order._id.toString());
         } else {
           console.log(`⏸️ [finalizarEntrega] autoApprovePayouts OFF — payouts do pedido ${order._id} ficam PENDING para liberação manual do admin`);
         }
