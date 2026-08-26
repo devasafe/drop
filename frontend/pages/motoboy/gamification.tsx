@@ -63,7 +63,7 @@ export default function MotoboyGamification() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
-  const { features } = useGamificationFeatures();
+  const { features, loading: featuresLoading } = useGamificationFeatures();
   const { showToast } = useToast();
   const { gam, loading } = useGamification(user?.id || user?._id);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -121,7 +121,9 @@ export default function MotoboyGamification() {
             <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Sem dados" description="Não foi possível carregar seu desempenho agora." />
           ) : (
             <>
-              {!features.gamificationPointsEnabled ? (
+              {featuresLoading ? (
+                <Skeleton height={120} radius="var(--r-lg)" />
+              ) : !features.gamificationPointsEnabled ? (
                 <ComingSoon
                   title="Em breve"
                   description="Pontos, níveis e histórico ainda não estão valendo. Suas conquistas continuam liberadas — os pontos chegam em breve!"

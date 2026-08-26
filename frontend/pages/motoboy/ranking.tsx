@@ -22,7 +22,7 @@ export default function MotoboyMonthlyRanking() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
-  const { features } = useGamificationFeatures();
+  const { features, loading: featuresLoading } = useGamificationFeatures();
   const { ranking, loading } = useRanking();
   const [prizes, setPrizes] = useState<PrizesData | null>(null);
 
@@ -48,7 +48,12 @@ export default function MotoboyMonthlyRanking() {
             <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
-          {!features.rankingPrizesEnabled ? (
+          {featuresLoading ? (
+            <>
+              <Skeleton height={72} radius="var(--r-lg)" />
+              <Skeleton height={280} radius="var(--r-lg)" />
+            </>
+          ) : !features.rankingPrizesEnabled ? (
             <ComingSoon
               title="Em breve"
               description="A disputa por prêmios do ranking ainda não começou. Continue entregando — logo o ranking valendo prêmios chega aqui!"

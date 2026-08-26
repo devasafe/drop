@@ -28,7 +28,7 @@ export default function MotoboyBeneficios() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
-  const { features } = useGamificationFeatures();
+  const { features, loading: featuresLoading } = useGamificationFeatures();
   const { showToast } = useToast();
   const { gam } = useGamification(user?.id || user?._id);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -65,7 +65,12 @@ export default function MotoboyBeneficios() {
             <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
-          {!features.benefitsRedeemEnabled ? (
+          {featuresLoading ? (
+            <>
+              <Skeleton height={72} radius="var(--r-lg)" />
+              <Skeleton height={140} radius="var(--r-lg)" />
+            </>
+          ) : !features.benefitsRedeemEnabled ? (
             <ComingSoon
               title="Em breve"
               description="O resgate de benefícios ainda não está disponível. Fique de olho — logo você vai poder trocar seus pontos por recompensas!"
