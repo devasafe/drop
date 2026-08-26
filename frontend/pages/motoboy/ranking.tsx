@@ -8,6 +8,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useRanking } from '../../hooks/useSync';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGamificationFeatures } from '../../hooks/useGamificationFeatures';
+import ComingSoon from '../../components/motoboy/ComingSoon';
 import api from '../../lib/api';
 import styles from './MotoboyRanking.module.css';
 
@@ -20,6 +22,7 @@ export default function MotoboyMonthlyRanking() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
+  const { features } = useGamificationFeatures();
   const { ranking, loading } = useRanking();
   const [prizes, setPrizes] = useState<PrizesData | null>(null);
 
@@ -45,7 +48,12 @@ export default function MotoboyMonthlyRanking() {
             <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
-          {loading ? (
+          {!features.rankingPrizesEnabled ? (
+            <ComingSoon
+              title="Em breve"
+              description="A disputa por prêmios do ranking ainda não começou. Continue entregando — logo o ranking valendo prêmios chega aqui!"
+            />
+          ) : loading ? (
             <>
               <Skeleton height={72} radius="var(--r-lg)" />
               <Skeleton height={280} radius="var(--r-lg)" />

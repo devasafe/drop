@@ -11,6 +11,8 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { useGamification } from '../../hooks/useSync';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGamificationFeatures } from '../../hooks/useGamificationFeatures';
+import ComingSoon from '../../components/motoboy/ComingSoon';
 import styles from './MotoboyGamification.module.css';
 
 const LEVEL_ORDER = ['Bronze', 'Prata', 'Ouro', 'Platina', 'Diamante', 'Lendário'];
@@ -61,6 +63,7 @@ export default function MotoboyGamification() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
+  const { features } = useGamificationFeatures();
   const { showToast } = useToast();
   const { gam, loading } = useGamification(user?.id || user?._id);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -118,6 +121,13 @@ export default function MotoboyGamification() {
             <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Sem dados" description="Não foi possível carregar seu desempenho agora." />
           ) : (
             <>
+              {!features.gamificationPointsEnabled ? (
+                <ComingSoon
+                  title="Em breve"
+                  description="Pontos, níveis e histórico ainda não estão valendo. Suas conquistas continuam liberadas — os pontos chegam em breve!"
+                />
+              ) : (
+              <>
               {/* Nível (combina nível + pontos + progresso + badges num card só) */}
               <div className={styles.levelCard}>
                 <div className={styles.levelHead}>
@@ -142,6 +152,8 @@ export default function MotoboyGamification() {
                     : 'Nível máximo atingido'}
                 </div>
               </div>
+              </>
+              )}
 
               {/* Conquistas — grid de ícones leves (sem card por badge) */}
               <section className={styles.section}>
@@ -168,6 +180,7 @@ export default function MotoboyGamification() {
               </section>
 
               {/* Histórico */}
+              {features.gamificationPointsEnabled && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Histórico recente</h2>
                 {gam.history && gam.history.length > 0 ? (
@@ -188,6 +201,7 @@ export default function MotoboyGamification() {
                   <EmptyState icon={<Trophy size={22} aria-hidden="true" />} title="Nada ainda" description="Suas conquistas de pontos aparecem aqui." />
                 )}
               </section>
+              )}
             </>
           )}
         </div>

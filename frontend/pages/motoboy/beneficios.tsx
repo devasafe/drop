@@ -10,6 +10,8 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { useGamification } from '../../hooks/useSync';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGamificationFeatures } from '../../hooks/useGamificationFeatures';
+import ComingSoon from '../../components/motoboy/ComingSoon';
 import api from '../../lib/api';
 import styles from './MotoboyBeneficios.module.css';
 
@@ -26,6 +28,7 @@ export default function MotoboyBeneficios() {
   useRequireAuth(['motoboy']);
   const router = useRouter();
   const { user } = useAuth();
+  const { features } = useGamificationFeatures();
   const { showToast } = useToast();
   const { gam } = useGamification(user?.id || user?._id);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -62,6 +65,13 @@ export default function MotoboyBeneficios() {
             <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
+          {!features.benefitsRedeemEnabled ? (
+            <ComingSoon
+              title="Em breve"
+              description="O resgate de benefícios ainda não está disponível. Fique de olho — logo você vai poder trocar seus pontos por recompensas!"
+            />
+          ) : (
+          <>
           <div className={styles.pointsCard}>
             <span className={styles.pointsGlow} aria-hidden="true" />
             <span className={styles.pointsIcon}><Zap size={24} aria-hidden="true" /></span>
@@ -104,6 +114,8 @@ export default function MotoboyBeneficios() {
                 );
               })}
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

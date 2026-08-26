@@ -291,6 +291,22 @@ export const getBenefits = (_req: Request, res: Response) => {
   return res.json(BENEFITS);
 };
 
+// Estado dos freios visível ao app (motoboy) — pra mostrar "Em breve" quando pausado.
+export const getGamificationFeatures = async (_req: Request, res: Response) => {
+  try {
+    const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+    const cfg = await getPlatformConfig();
+    return res.json({
+      gamificationPointsEnabled: !!cfg?.gamificationPointsEnabled,
+      benefitsRedeemEnabled: !!cfg?.benefitsRedeemEnabled,
+      rankingPrizesEnabled: !!cfg?.rankingPrizesEnabled,
+    });
+  } catch {
+    // Falha → assume tudo pausado (mostra "Em breve", mais seguro).
+    return res.json({ gamificationPointsEnabled: false, benefitsRedeemEnabled: false, rankingPrizesEnabled: false });
+  }
+};
+
 export const redeem = async (req: AuthenticatedRequest, res: Response) => {
   // 🔒 Freio de custo: resgate de benefícios pausado (ex.: fase grátis).
   const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
