@@ -51,6 +51,7 @@ function movementView(tx: { category?: string; type: string }): { typeLabel: str
 
 export default function WalletPage() {
   const { user } = useAuth();
+  const uid = user?._id || (user as any)?.id || ''; // AuthUser tem `id`; `_id` é opcional
   const { showToast } = useToast();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [summary, setSummary] = useState<ClientWalletSummary | null>(null);
@@ -69,13 +70,13 @@ export default function WalletPage() {
 
   const fetchWallet = useCallback(async () => {
     try {
-      if (!user?._id) return;
-      const walletRes = await api.get(`/wallets/${user._id}`);
+      if (!uid) return;
+      const walletRes = await api.get(`/wallets/${uid}`);
       setWallet(walletRes.data);
-      const historyRes = await api.get(`/wallets/${user._id}/history?limit=30`);
+      const historyRes = await api.get(`/wallets/${uid}/history?limit=30`);
       setHistory(historyRes.data.history || []);
       try {
-        const sumRes = await api.get(`/wallets/${user._id}/client-summary`);
+        const sumRes = await api.get(`/wallets/${uid}/client-summary`);
         setSummary(sumRes.data);
       } catch { /* resumo opcional */ }
     } catch (err) {
@@ -83,17 +84,17 @@ export default function WalletPage() {
     } finally {
       setLoading(false);
     }
-  }, [user?._id]);
+  }, [uid]);
 
   useAutoRefetch(
     ['wallet:updated', 'wallet:refund', 'wallet:transfer_completed', 'wallet:transfer_received'],
     fetchWallet,
   );
 
-  useEffect(() => { fetchWallet(); }, [user?._id, fetchWallet]);
+  useEffect(() => { fetchWallet(); }, [uid, fetchWallet]);
 
   const refetchHistory = async () => {
-    const res = await api.get(`/wallets/${user?._id}/history?limit=20`);
+    const res = await api.get(`/wallets/${uid}/history?limit=20`);
     setHistory(res.data.history || []);
   };
 
@@ -108,7 +109,7 @@ export default function WalletPage() {
     }
     setLoadingAction(true);
     try {
-      const res = await api.post(`/wallets/${user?._id}/transfer`, {
+      const res = await api.post(`/wallets/${uid}/transfer`, {
         amount: Number(withdrawAmount),
         bankAccount: bankData,
         reason: `Saque solicitado em ${new Date().toLocaleDateString('pt-BR')}`,
@@ -230,7 +231,7 @@ export default function WalletPage() {
       <WalletTopupSheet
         open={creditOpen}
         onClose={() => setCreditOpen(false)}
-        userId={user?._id || ''}
+        userId={uid}
         onPaid={fetchWallet}
         holderDefaults={{ name: (user as any)?.name, cpfCnpj: (user as any)?.cpf, email: (user as any)?.email, phone: (user as any)?.telefone }}
       />
