@@ -7,7 +7,7 @@
 // `z.enum(['credit_card', 'pix', 'money'])`) e `src/controllers/orderController.ts`,
 // que bloqueia `cash_on_delivery` com 400 (COD descontinuado, decisão de
 // design 2026-06-18).
-export type PaymentMethod = 'pix' | 'credit_card' | 'money';
+export type PaymentMethod = 'pix' | 'credit_card' | 'money' | 'wallet';
 
 export interface CartItem {
   productId: string;

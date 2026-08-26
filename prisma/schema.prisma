@@ -68,6 +68,7 @@ enum PaymentMethod {
   pix
   money
   cash_on_delivery
+  wallet
 }
 
 enum PaymentStatus {
