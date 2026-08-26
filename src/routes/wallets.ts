@@ -8,6 +8,7 @@ import {
   getStoreWallet,
   getStoreFinancialSummary,
   getClientWalletSummary,
+  getClientExtract,
   creditWallet,
   transferWallet,
   transferBetweenWallets,
@@ -52,6 +53,7 @@ router.post('/transfer-to-motoboy', authenticate, requireActiveUser, transferToM
 router.get('/:userId', authenticate, authorizeWalletOwner, getWallet);
 router.get('/:userId/history', authenticate, authorizeWalletOwner, getWalletHistory);
 router.get('/:userId/client-summary', authenticate, authorizeWalletOwner, getClientWalletSummary);
+router.get('/:userId/extract', authenticate, authorizeWalletOwner, getClientExtract);
 router.post(
   '/:userId/credit',
   authenticate,

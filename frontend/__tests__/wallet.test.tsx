@@ -8,6 +8,8 @@ const get = jest.fn().mockImplementation((url: string) =>
     ? Promise.resolve({ data: { history: [{ date: '2026-08-01T10:00:00', type: 'credit', category: 'refund', amount: 50, reason: 'Reembolso' }] } })
     : url.includes('/client-summary')
     ? Promise.resolve({ data: { available: 150, refundPending: 0, refundReceived: 50, totalSaved: 0 } })
+    : url.includes('/extract')
+    ? Promise.resolve({ data: { extract: [{ date: '2026-08-01T10:00:00', type: 'credit', category: 'refund', amount: 50, title: 'Reembolso', relatedId: 'r1' }] } })
     : Promise.resolve({ data: { balance: 150, totalIncome: 200, totalSpent: 50 } }),
 );
 
@@ -38,9 +40,9 @@ describe('Carteira (/wallet)', () => {
   it('tocar numa movimentação abre os detalhes', async () => {
     render(<WalletPage />);
     await waitFor(() => screen.getByText(/150,00/));
-    fireEvent.click(screen.getByText('Reembolso'));
+    fireEvent.click(screen.getAllByText('Reembolso')[0]);
     expect(await screen.findByText('Detalhes da entrada')).toBeInTheDocument();
-    expect(screen.getByText('Entrada')).toBeInTheDocument();
+    expect(screen.getAllByText('Reembolso', { selector: 'dd' }).length).toBeGreaterThan(0);
   });
   it('Carregar com valor válido → API de crédito + toast de sucesso', async () => {
     render(<WalletPage />);
