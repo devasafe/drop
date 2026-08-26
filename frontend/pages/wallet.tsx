@@ -41,6 +41,10 @@ const METHODS: { id: CreditMethod; label: string }[] = [
   { id: 'debit_card', label: 'Débito' },
 ];
 
+const PAY_LABEL: Record<string, string> = {
+  pix: 'PIX', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', money: 'Dinheiro', cash_on_delivery: 'Na entrega',
+};
+
 // Classifica a movimentação pela categoria real (deposit/withdrawal/payment/refund/transfer/penalty).
 function movementView(tx: { category?: string; type: string }): { typeLabel: string; dotClass: string } {
   switch (tx.category) {
@@ -60,6 +64,7 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [summary, setSummary] = useState<ClientWalletSummary | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [extract, setExtract] = useState<any[]>([]);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'compras' | 'recargas' | 'reembolsos'>('todos');
   const [loading, setLoading] = useState(true);
   const [loadingAction, setLoadingAction] = useState(false);
@@ -72,7 +77,7 @@ export default function WalletPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [bankData, setBankData] = useState({ banco: '', agencia: '', conta: '', cpf: '' });
 
-  const [selectedTx, setSelectedTx] = useState<HistoryItem | null>(null);
+  const [selectedTx, setSelectedTx] = useState<any | null>(null);
 
   const fetchWallet = useCallback(async () => {
     try {
@@ -85,6 +90,10 @@ export default function WalletPage() {
         const sumRes = await api.get(`/wallets/${user._id}/client-summary`);
         setSummary(sumRes.data);
       } catch { /* resumo opcional */ }
+      try {
+        const exRes = await api.get(`/wallets/${user._id}/extract?limit=40`);
+        setExtract(exRes.data.extract || []);
+      } catch { /* extrato unificado opcional */ }
     } catch (err) {
       console.error('Erro ao buscar carteira:', err);
     } finally {
@@ -223,14 +232,14 @@ export default function WalletPage() {
           {loading ? (
             <p className={styles.muted}>Carregando…</p>
           ) : (() => {
-            const filtered = history.filter((tx) =>
+            const filtered = extract.filter((tx) =>
               extractFilter === 'todos' ? true
               : extractFilter === 'compras' ? tx.category === 'payment'
               : extractFilter === 'recargas' ? tx.category === 'deposit'
               : tx.category === 'refund',
             );
             return filtered.length === 0 ? (
-            <EmptyState icon={<Receipt />} title="Sem movimentações" description="Suas movimentações aparecem aqui." />
+            <EmptyState icon={<Receipt />} title="Sem movimentações" description="Suas compras, recargas e reembolsos aparecem aqui." />
           ) : (
             <ul className={styles.txList}>
               {filtered.map((tx, i) => {
@@ -240,8 +249,11 @@ export default function WalletPage() {
                   <button type="button" className={styles.txRow} onClick={() => setSelectedTx(tx)}>
                     <span className={`${styles.txDot} ${styles[mv.dotClass]}`} />
                     <span className={styles.txInfo}>
-                      <span className={styles.txReason}>{tx.reason}</span>
-                      <span className={styles.txDate}>{new Date(tx.date).toLocaleDateString('pt-BR')} · {mv.typeLabel}</span>
+                      <span className={styles.txReason}>{tx.title}</span>
+                      <span className={styles.txDate}>
+                        {new Date(tx.date).toLocaleDateString('pt-BR')} · {mv.typeLabel}
+                        {tx.subtitle ? ` · ${tx.subtitle}` : ''}
+                      </span>
                     </span>
                     <span className={`${styles.txAmount} ${tx.type === 'debit' ? styles.txDebit : styles.txCredit}`}>
                       {tx.type === 'debit' ? '−' : '+'} {formatBRL(tx.amount)}
@@ -312,9 +324,15 @@ export default function WalletPage() {
               {selectedTx.type === 'credit' ? '+' : '−'} {formatBRL(selectedTx.amount)}
             </div>
             <dl className={styles.txDetailList}>
-              <div className={styles.txDetailRow}><dt>Motivo</dt><dd>{selectedTx.reason}</dd></div>
+              <div className={styles.txDetailRow}><dt>Descrição</dt><dd>{selectedTx.title || selectedTx.reason}</dd></div>
+              {selectedTx.storeName && (
+                <div className={styles.txDetailRow}><dt>Loja</dt><dd>{selectedTx.storeName}</dd></div>
+              )}
+              {selectedTx.paymentMethod && (
+                <div className={styles.txDetailRow}><dt>Forma de pagamento</dt><dd>{PAY_LABEL[selectedTx.paymentMethod] || selectedTx.paymentMethod}</dd></div>
+              )}
               <div className={styles.txDetailRow}><dt>Data</dt><dd>{new Date(selectedTx.date).toLocaleString('pt-BR')}</dd></div>
-              <div className={styles.txDetailRow}><dt>Tipo</dt><dd>{selectedTx.type === 'credit' ? 'Entrada' : 'Saída'}</dd></div>
+              <div className={styles.txDetailRow}><dt>Tipo</dt><dd>{movementView(selectedTx).typeLabel}</dd></div>
               {selectedTx.relatedId && (
                 <div className={styles.txDetailRow}><dt>Referência</dt><dd className={styles.mono}>{selectedTx.relatedId}</dd></div>
               )}
