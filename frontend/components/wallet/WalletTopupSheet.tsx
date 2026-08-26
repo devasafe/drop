@@ -54,6 +54,7 @@ export default function WalletTopupSheet({ open, onClose, userId, onPaid, holder
   };
 
   const submit = async () => {
+    if (!userId) { showToast('Sessão expirada. Recarregue a página e tente de novo.', 'error'); return; }
     if (!validAmount) { showToast('Informe um valor válido.', 'error'); return; }
     setBusy(true);
     try {
@@ -74,7 +75,8 @@ export default function WalletTopupSheet({ open, onClose, userId, onPaid, holder
         else showToast('Pagamento em processamento. O saldo entra assim que confirmar.', 'info');
       }
     } catch (err: any) {
-      showToast(err?.response?.data?.error || 'Não foi possível iniciar a recarga.', 'error');
+      const e = err?.response?.data?.error;
+      showToast(typeof e === 'string' ? e : 'Não foi possível iniciar a recarga.', 'error');
     } finally {
       setBusy(false);
     }
