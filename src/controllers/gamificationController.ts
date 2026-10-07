@@ -14,7 +14,7 @@ import {
 import userRepository from '../repositories/user.repository';
 import walletService from '../services/wallet.prisma.service';
 import { BENEFITS } from '../config/benefits';
-import { emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitRankingUpdated } from '../utils/socketEmitter';
+import { emitRankingUpdated } from '../utils/socketEmitter';
 import { AuthenticatedRequest } from '../types';
 
 // Thresholds de nível
@@ -237,43 +237,11 @@ export const getGamification = async (req: Request, res: Response) => {
   }
   let gam = await findGamByUser(user_id);
   if (!gam) {
-    gam = await persistGam(defaultGam(user_id));
+    // Só cria o registro para o próprio usuário; para terceiros devolve o default sem persistir.
+    const isSelf = String((req as AuthenticatedRequest).user?.id) === String(user_id);
+    gam = isSelf ? await persistGam(defaultGam(user_id)) : defaultGam(user_id);
   }
   return res.json(gam);
-};
-
-export const addPoints = async (req: Request, res: Response) => {
-  const { user_id } = req.params;
-  const { action = 'corrida', points = 20 } = req.body;
-  const gam: GamRecord = (await findGamByUser(user_id)) ?? defaultGam(user_id);
-
-  // 🔒 Freio: gamificação de PONTOS pausada. Não acumula pontos, mas os BADGES
-  // (conquistas/"gadgets") continuam sendo avaliados normalmente.
-  const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
-  const platform = await getPlatformConfig();
-  if (!platform?.gamificationPointsEnabled) {
-    const newBadges = await checkAndAwardBadges(user_id, gam);
-    newBadges.forEach(b => emitGamificationBadgeUnlocked(user_id, b));
-    const saved = await persistGam(gam);
-    return res.json(saved);
-  }
-
-  gam.points += points;
-  gam.totalPoints += Math.max(0, points);
-  gam.history.push({ date: new Date().toISOString().slice(0, 10), action, points });
-  const newLevel = getLevel(gam.totalPoints);
-  const levelChanged = newLevel !== gam.level;
-  gam.level = newLevel;
-
-  if (levelChanged) {
-    const newBadges = await checkAndAwardBadges(user_id, gam);
-    newBadges.forEach(b => emitGamificationBadgeUnlocked(user_id, b));
-  }
-
-  const saved = await persistGam(gam);
-  emitGamificationPointsEarned(user_id, { points, totalPoints: saved.totalPoints, level: saved.level });
-  emitRankingUpdated({ user_id, points: saved.points, level: saved.level });
-  return res.json(saved);
 };
 
 export const getRanking = async (_req: Request, res: Response) => {
@@ -315,7 +283,10 @@ export const redeem = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(403).json({ error: 'O resgate de benefícios está pausado no momento.', code: 'BENEFITS_REDEEM_PAUSED' });
   }
 
-  const { user_id, benefit: benefitId } = req.body;
+  // Sempre o usuário do token — `user_id` no corpo é ignorado (antes permitia gastar
+  // os pontos e creditar a carteira de outro motoboy).
+  const user_id = String(req.user?.id);
+  const { benefit: benefitId } = req.body;
   const benefitDef = BENEFITS.find(b => b.id === benefitId);
   if (!benefitDef) return res.status(400).json({ error: 'Benefício inválido' });
 

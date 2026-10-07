@@ -46,7 +46,7 @@ export default function MotoboyBeneficios() {
     if (!confirmB) return;
     setRedeeming(true);
     try {
-      await api.post('/gamification/redeem', { user_id: user?.id || user?._id, benefit: confirmB.id });
+      await api.post('/gamification/redeem', { benefit: confirmB.id });
       showToast(`"${confirmB.name}" resgatado com sucesso!`, 'success');
       setConfirmB(null);
     } catch (err: any) {
