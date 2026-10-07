@@ -62,7 +62,8 @@ connectDB().then(() => {
     console.warn('⚠️ Delivery timeout job failed to start', e);
   }
 
-  // ✅ Expiração de pedidos PIX não pagos (devolve estoque) — só em modo Asaas
+  // ✅ Expiração de pedidos PIX não pagos (devolve estoque): custódia (PAYMENT_GATEWAY=asaas)
+  // e modo SaaS direto (cobrança na conta da loja) — ver expirePixOrdersTick.
   try {
     startExpirePixOrdersJob();
   } catch (e) {
