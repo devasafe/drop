@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types';
 
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
+import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
@@ -133,7 +134,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     if (store.plan !== planFromSub) {
       await prisma.store.update({ where: { id: store.id }, data: { plan: planFromSub } });
     }
-    const storeWithPlan = { ...store, _id: store.id, plan: planFromSub };
+    const storeWithPlan = toOwnerStore({ ...store, _id: store.id, plan: planFromSub });
 
     return res.json({
       metrics: { totalSales, delivered, ongoing, revenue },
@@ -325,8 +326,8 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 
     // Broadcast store creation
     emitStoreCreated(store);
-    
-    return res.status(201).json(store);
+
+    return res.status(201).json(toOwnerStore({ ...store, _id: store.id }));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -406,8 +407,8 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     
     // Broadcast store update
     emitStoreUpdated(saved);
-    
-    return res.json(store);
+
+    return res.json(toOwnerStore({ ...saved, _id: saved.id }));
   } catch (err) {
     console.error('[updateStore] error:', err);
     return res.status(500).json({ error: 'Failed to update store' });
@@ -420,8 +421,8 @@ export const listStores = async (_req: Request, res: Response) => {
     const filter: any = {};
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
     const found = await prisma.store.findMany({ where: filter });
-    // `_id` junto de `id`: o frontend ainda lê `_id`.
-    return res.json(found.map((st) => ({ ...st, _id: st.id })));
+    // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
+    return res.json(found.map(toPublicStore));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -570,7 +571,7 @@ export const getTopStores = async (req: Request, res: Response) => {
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
     const stores = await prisma.store.findMany({ where: filter });
     const out = stores
-      .map((s) => ({ ...s, _id: s.id, salesCount: counts.get(s.id) ?? 0 }))
+      .map((s) => ({ ...toPublicStore(s), salesCount: counts.get(s.id) ?? 0 }))
       .sort((a, b) => b.salesCount - a.salesCount)
       .slice(0, limit);
     return res.json(out);
@@ -626,7 +627,7 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
       return res.status(404).json({ error: 'Store not found' });
     }
-    return res.json(store);
+    return res.json(toPublicStore(store));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to get store' });
