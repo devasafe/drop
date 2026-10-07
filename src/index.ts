@@ -8,6 +8,7 @@ try { (dns as any).setDefaultResultOrder?.('ipv4first'); } catch { /* Node < 16.
 
 // ✅ VALIDAR ENV NO STARTUP (falha rápido com mensagens claras)
 import env from './config/env';
+import logger from './config/logger';
 
 import http from 'http';
 import app from './app';
@@ -35,6 +36,11 @@ connectDB().then(() => {
     console.error('❌ [CLIENT ERROR]', err.message);
     socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
   });
+
+  // Webhook do Asaas é fail-closed: sem o token, nenhum pagamento é confirmado por webhook.
+  if (env.PAYMENT_GATEWAY === 'asaas' && !env.ASAAS_WEBHOOK_TOKEN) {
+    logger.error('ASAAS_WEBHOOK_TOKEN não configurado: o webhook /webhooks/asaas vai recusar todas as chamadas (configure o mesmo token no painel do Asaas).');
+  }
 
   // initialize Socket.IO on the HTTP server (notifier handles initialization)
   try {

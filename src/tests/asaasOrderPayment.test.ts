@@ -17,6 +17,7 @@ jest.mock('../services/asaas/payment', () => ({
 import app from '../app';
 import { ownerIdForStore, productIdForItem } from './helpers/storeOwner';
 import env from '../config/env';
+const WEBHOOK_TOKEN = 'test-webhook-token'; // webhook é fail-closed (auditoria 2026-10-07)
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
@@ -28,6 +29,7 @@ import { ensureAsaasCustomer, createPixCharge } from '../services/asaas/payment'
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
 beforeAll(async () => {
+  env.ASAAS_WEBHOOK_TOKEN = WEBHOOK_TOKEN;
   env.PAYMENT_GATEWAY = 'asaas'; // ativa o fluxo de gateway neste arquivo
 }, 60000);
 
@@ -161,7 +163,7 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     }, include: { items: true } });
 
     const res = await request(app)
-      .post('/webhooks/asaas')
+      .post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN)
       .send({
         id: 'evt_pay_1',
         event: 'PAYMENT_RECEIVED',
@@ -192,8 +194,8 @@ describe('Webhook confirma pagamento (Fase 2)', () => {
     }, include: { items: true } });
 
     const body = { id: 'evt_pay_2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_hook_2', status: 'RECEIVED', externalReference: String(order.id) } };
-    await request(app).post('/webhooks/asaas').send(body);
-    await request(app).post('/webhooks/asaas').send(body); // duplicado
+    await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send(body);
+    await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send(body); // duplicado
 
     const payouts = await countPayouts({ orderId: order.id, recipientType: 'store' });
     expect(payouts).toBe(1);

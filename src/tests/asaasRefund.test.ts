@@ -10,6 +10,7 @@ jest.mock('../services/asaas/refund', () => ({
 import app from '../app';
 import { ownerIdForStore, customerIdForOrder, productIdForItem } from './helpers/storeOwner';
 import env from '../config/env';
+const WEBHOOK_TOKEN = 'test-webhook-token'; // webhook é fail-closed (auditoria 2026-10-07)
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 
@@ -21,6 +22,7 @@ const refundMock = refundOrderCharge as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
 beforeAll(async () => {
+  env.ASAAS_WEBHOOK_TOKEN = WEBHOOK_TOKEN;
   env.PAYMENT_GATEWAY = 'asaas';
 }, 60000);
 
@@ -88,7 +90,7 @@ describe('Webhook PAYMENT_REFUNDED (Fase 5)', () => {
       paymentStatus: 'paid', asaasPaymentId: 'pay_refund_2', asaasChargeStatus: 'received',
     }, include: { items: true } });
 
-    const res = await request(app).post('/webhooks/asaas').send({
+    const res = await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send({
       id: 'evt_refund_1', event: 'PAYMENT_REFUNDED',
       payment: { id: 'pay_refund_2', status: 'REFUNDED', externalReference: String(order.id) },
     });

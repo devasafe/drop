@@ -3,8 +3,14 @@ import app from '../app';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 
+const WEBHOOK_TOKEN = 'test-webhook-token'; // webhook é fail-closed (auditoria 2026-10-07)
+
 
 afterAll(async () => {
+});
+
+beforeEach(() => {
+  env.ASAAS_WEBHOOK_TOKEN = WEBHOOK_TOKEN;
 });
 
 afterEach(async () => {
@@ -23,7 +29,7 @@ const sampleEvent = (id = 'evt_test_1') => ({
 
 describe('POST /webhooks/asaas (Fase 0)', () => {
   it('persiste o evento e responde 200', async () => {
-    const res = await request(app).post('/webhooks/asaas').send(sampleEvent());
+    const res = await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send(sampleEvent());
 
     expect(res.status).toBe(200);
     expect(res.body.received).toBe(true);
@@ -33,8 +39,8 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
   });
 
   it('é idempotente: evento duplicado não é reprocessado', async () => {
-    await request(app).post('/webhooks/asaas').send(sampleEvent());
-    const res2 = await request(app).post('/webhooks/asaas').send(sampleEvent());
+    await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send(sampleEvent());
+    const res2 = await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send(sampleEvent());
 
     expect(res2.status).toBe(200);
     expect(res2.body.duplicate).toBe(true);
@@ -44,7 +50,7 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
   });
 
   it('rejeita payload inválido (sem event/id)', async () => {
-    const res = await request(app).post('/webhooks/asaas').send({ foo: 'bar' });
+    const res = await request(app).post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN).send({ foo: 'bar' });
     expect(res.status).toBe(400);
   });
 
@@ -69,7 +75,7 @@ describe('POST /webhooks/asaas (Fase 0)', () => {
 
   it('deriva eventId quando o corpo não traz id', async () => {
     const res = await request(app)
-      .post('/webhooks/asaas')
+      .post('/webhooks/asaas').set('asaas-access-token', WEBHOOK_TOKEN)
       .send({ event: 'PAYMENT_RECEIVED', payment: { id: 'pay_999', status: 'RECEIVED' } });
 
     expect(res.status).toBe(200);

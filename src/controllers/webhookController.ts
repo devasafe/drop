@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import env from '../config/env';
 import logger from '../config/logger';
@@ -18,6 +19,14 @@ import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
  * registra o evento de forma confiável.
  */
 
+// Comparação em tempo constante (não vaza, por tempo de resposta, quantos caracteres
+// do token conferem). Comprimentos diferentes → false sem comparar.
+export function webhookTokenMatches(received: string | undefined, expected: string): boolean {
+  const a = Buffer.from(String(received ?? ''), 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // Deriva uma chave de idempotência estável mesmo que o corpo não traga `id`.
 function deriveEventId(body: any): string | null {
   if (body?.id) return String(body.id);
@@ -30,13 +39,17 @@ function deriveEventId(body: any): string | null {
 
 export const handleAsaasWebhook = async (req: Request, res: Response) => {
   try {
-    // 1. Validação de origem (se o token estiver configurado).
-    if (env.ASAAS_WEBHOOK_TOKEN) {
-      const token = req.header('asaas-access-token');
-      if (token !== env.ASAAS_WEBHOOK_TOKEN) {
-        logger.warn('Webhook Asaas rejeitado: token inválido');
-        return res.status(401).json({ error: 'invalid webhook token' });
-      }
+    // 1. Validação de origem — FAIL CLOSED. Sem token configurado não há como provar
+    //    que a chamada veio do Asaas: recusa tudo (antes aceitava qualquer requisição e
+    //    permitia marcar pedido como pago sem pagamento). 503 → o Asaas re-tenta depois.
+    const expected = env.ASAAS_WEBHOOK_TOKEN;
+    if (!expected) {
+      logger.error('Webhook Asaas recusado: ASAAS_WEBHOOK_TOKEN não configurado');
+      return res.status(503).json({ error: 'webhook not configured' });
+    }
+    if (!webhookTokenMatches(req.header('asaas-access-token'), expected)) {
+      logger.warn('Webhook Asaas rejeitado: token inválido');
+      return res.status(401).json({ error: 'invalid webhook token' });
     }
 
     const body = req.body || {};
