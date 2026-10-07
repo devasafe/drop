@@ -9,7 +9,6 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
-    "seed:roles": "ts-node src/scripts/seedRoles.ts",
     "seed:test": "ts-node src/scripts/seedTestUsers.ts",
     "seed:stores": "ts-node src/scripts/seedDemoStores.ts",
     "seed:stores:prod": "node dist/scripts/seedDemoStores.js",
