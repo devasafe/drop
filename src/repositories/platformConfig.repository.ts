@@ -22,6 +22,7 @@ const DECIMAL_FIELDS = [
   'cardFeeFixed',
   'cardAnticipationMonthlyRate',
   'cardInstallmentMinValue',
+  'motoboyShareDirect',
 ] as const;
 
 export function toApiConfig(c: any): any {

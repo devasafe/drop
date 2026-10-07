@@ -1,0 +1,18 @@
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
+
+export type SettlementMode = 'custodia' | 'direto';
+
+export async function getSaasConfig() {
+  const c = await getPlatformConfig();
+  return {
+    settlementMode: (c?.settlementMode ?? 'custodia') as SettlementMode,
+    billingModel: (c?.billingModel ?? 'mensalidade') as 'mensalidade' | 'comissao' | 'ambos',
+    motoboyShareDirect: Number(c?.motoboyShareDirect ?? 100),
+    directCardEnabled: !!c?.directCardEnabled,
+    transferBlockHours: Number(c?.transferBlockHours ?? 24),
+  };
+}
+
+export async function isDirectMode(): Promise<boolean> {
+  return (await getSaasConfig()).settlementMode === 'direto';
+}

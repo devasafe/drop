@@ -818,13 +818,37 @@ router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wal
 // ═══════════════════════════════════════════════════════════
 const SWITCH_KEYS = ['rankingPrizesEnabled', 'benefitsRedeemEnabled', 'gamificationPointsEnabled'] as const;
 
+// Configurações do modo SaaS, editadas pelo mesmo endpoint dos freios.
+const switchesSchema = z
+  .object({
+    rankingPrizesEnabled: z.boolean(),
+    benefitsRedeemEnabled: z.boolean(),
+    gamificationPointsEnabled: z.boolean(),
+    settlementMode: z.enum(['custodia', 'direto']),
+    billingModel: z.enum(['mensalidade', 'comissao', 'ambos']),
+    motoboyShareDirect: z.number().min(0).max(100),
+    directCardEnabled: z.boolean(),
+    transferBlockHours: z.number().int().min(1).max(720),
+  })
+  .partial()
+  .strict();
+
+function switchesView(cfg: any) {
+  const out: Record<string, any> = {};
+  for (const k of SWITCH_KEYS) out[k] = !!cfg?.[k];
+  out.settlementMode = cfg?.settlementMode ?? 'custodia';
+  out.billingModel = cfg?.billingModel ?? 'mensalidade';
+  out.motoboyShareDirect = Number(cfg?.motoboyShareDirect ?? 100);
+  out.directCardEnabled = !!cfg?.directCardEnabled;
+  out.transferBlockHours = Number(cfg?.transferBlockHours ?? 24);
+  return out;
+}
+
 router.get('/switches', authenticate, authorizePermission('settings:manage'), async (_req: any, res: Response) => {
   try {
     const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await getPlatformConfig();
-    const out: Record<string, boolean> = {};
-    for (const k of SWITCH_KEYS) out[k] = !!cfg?.[k];
-    return res.json(out);
+    return res.json(switchesView(cfg));
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao ler os freios' });
   }
@@ -832,16 +856,13 @@ router.get('/switches', authenticate, authorizePermission('settings:manage'), as
 
 router.put('/switches', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
   try {
-    const patch: Record<string, boolean> = {};
-    for (const k of SWITCH_KEYS) {
-      if (typeof req.body?.[k] === 'boolean') patch[k] = req.body[k];
-    }
+    const parsed = switchesSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'Configuração inválida' });
+    const patch: Record<string, any> = parsed.data;
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
     const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
-    const out: Record<string, boolean> = {};
-    for (const k of SWITCH_KEYS) out[k] = !!cfg?.[k];
-    return res.json(out);
+    return res.json(switchesView(cfg));
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao salvar os freios' });
   }

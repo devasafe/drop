@@ -407,6 +407,8 @@ model Address {
 
 model Store {
   id                   String    @id @default(cuid())
+  deliveryMode         StoreDeliveryMode @default(pool_drop)
+  showInMarketplace    Boolean           @default(true)
   ownerId              String
   name                 String
   address              String?
@@ -994,6 +996,11 @@ model RolePermissions {
 
 model PlatformConfig {
   id                          String        @id @default(cuid())
+  settlementMode              SettlementMode @default(custodia)
+  billingModel                BillingModel   @default(mensalidade)
+  motoboyShareDirect          Decimal        @default(100) @db.Decimal(5, 2)
+  directCardEnabled           Boolean        @default(false)
+  transferBlockHours          Int            @default(24)
   commissionPlan1             Decimal       @default(10) @db.Decimal(5, 2)
   commissionPlan2             Decimal       @default(15) @db.Decimal(5, 2)
   commissionPlan3             Decimal       @default(5) @db.Decimal(5, 2)
@@ -1173,4 +1180,20 @@ model ConsentLog {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+enum SettlementMode {
+  custodia
+  direto
+}
+
+enum BillingModel {
+  mensalidade
+  comissao
+  ambos
+}
+
+enum StoreDeliveryMode {
+  propria
+  pool_drop
 }

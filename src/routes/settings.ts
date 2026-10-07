@@ -13,7 +13,19 @@ import {
   updateStorePlan,
 } from '../controllers/settingsController';
 
+import { getSaasConfig } from '../utils/settlement';
+
 const router = Router();
+
+// Public - flags do modo SaaS
+router.get('/saas', async (_req, res) => {
+  try {
+    const { settlementMode, billingModel, directCardEnabled } = await getSaasConfig();
+    return res.json({ settlementMode, billingModel, directCardEnabled });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro ao ler as configurações' });
+  }
+});
 
 // Public - Get current config
 router.get('/platform-config', getPlatformConfig);
