@@ -4,6 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { AppError as AppErrorClass } from '../utils/AppError';
 
 interface AppError extends Error {
   statusCode?: number;
@@ -64,7 +65,8 @@ export const errorHandler = (
     error: {
       message: err.message,
       statusCode: err.statusCode,
-      ...(err.code && { code: err.code }),
+      // só AppError tem `code` estável e seguro; Prisma P2002, multer, ECONNREFUSED etc. não vazam
+      ...(err instanceof AppErrorClass && err.code && { code: err.code }),
       ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
     }
   });

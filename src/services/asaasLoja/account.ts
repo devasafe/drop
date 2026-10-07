@@ -3,6 +3,7 @@ import env from '../../config/env';
 import asaasClient, { AsaasApiError } from '../asaas/client';
 import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encryption';
 import { AppError } from '../../utils/AppError';
+import logger from '../../config/logger';
 
 /**
  * Conta Asaas própria da loja (modo SaaS "direto").
@@ -72,6 +73,8 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string): Pro
     if (err instanceof AsaasApiError && err.status === 401) {
       throw new AppError('Chave de API do Asaas recusada', 400, true, 'ASAAS_KEY_INVALID');
     }
+    // sem a chave: só o tipo do erro e o status HTTP
+    logger.warn('[asaasLoja] validação da chave indisponível', { storeId, errName: err?.name, status: err instanceof AsaasApiError ? err.status : undefined });
     throw new AppError('Não foi possível validar a chave no Asaas agora. Tente novamente.', 503, true, 'ASAAS_UNAVAILABLE');
   }
 
