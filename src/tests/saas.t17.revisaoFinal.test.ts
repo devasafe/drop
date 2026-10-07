@@ -181,3 +181,136 @@ describe('I1 — expiração do Pix com trava condicional', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ orderBy: { createdAt: 'asc' } }));
   });
 });
+
+// ───────────────────────────── I2 ─────────────────────────────
+describe('I2 — cancelamentos de pedido asaas_loja não encostam na custódia', () => {
+  type Scenario = {
+    status: 'criado' | 'pago' | 'aguardando_motoboy' | 'enviado';
+    paymentStatus: 'paid' | 'pending';
+    delivery?: 'pending' | 'picked';
+    acceptedAt?: boolean;
+  };
+
+  async function scenario(sc: Scenario) {
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const lojista = await createTestUser('lojista', DOMAIN);
+    const motoboy = await createTestUser('motoboy', DOMAIN);
+    const { store, product } = await storeWithAccount({ ownerId: lojista.userId });
+    const order = await prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId: store.id,
+        items: { create: [{ productId: product.id, quantity: 2, price: 20 }] },
+        subtotal: 40, totalValue: 52, deliveryFee: 12, status: sc.status, paymentMethod: 'pix',
+        paymentStatus: sc.paymentStatus, asaasChargeStatus: sc.paymentStatus === 'paid' ? 'received' : 'pending',
+        asaasPaymentId: `pay_17_i2_${Math.random().toString(36).slice(2, 8)}`, paymentProvider: 'asaas_loja',
+        acceptedAt: sc.acceptedAt ? new Date() : null,
+        walletDistribution: { storeAmount: 52, appCommission: 0, commissionPercent: 0 },
+      } as any,
+    });
+    let delivery: any = null;
+    if (sc.delivery) {
+      delivery = await prisma.delivery.create({
+        data: {
+          orderId: order.id, status: sc.delivery, fee: 12, distance: 4, pin: '12345', pinRetirada: '54321',
+          motoboyId: sc.delivery === 'picked' ? motoboy.userId : null,
+        },
+      });
+      await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
+    }
+    return { cliente, lojista, motoboy, store, product, order, delivery };
+  }
+
+  async function expectNoCustody(orderId: string, owners: string[]) {
+    expect(await prisma.payout.count({ where: { orderId } })).toBe(0);
+    expect(await prisma.appCashboxEntry.count({ where: { orderId } })).toBe(0);
+    expect(await prisma.walletEntry.count({ where: { OR: [{ relatedId: orderId }, { reference: { contains: orderId } }] } })).toBe(0);
+    expect(await prisma.wallet.count({ where: { owner: { in: owners } } })).toBe(0);
+    // Nenhuma chamada à conta-mãe (estorno, consulta ou exclusão).
+    expect(post).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+  }
+
+  const lastCancellation = (orderId: string) => prisma.cancellation.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' } });
+  const owners = (s: any) => [s.cliente.userId, s.store.id, s.motoboy.userId];
+  const statusOf = async (id: string) => (await prisma.order.findUnique({ where: { id } }))!.status;
+
+  beforeEach(async () => {
+    post.mockResolvedValue({ id: 'refund_mae', status: 'REFUNDED' });
+    await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
+  });
+
+  for (const gateway of ['none', 'asaas'] as const) {
+    describe(`PAYMENT_GATEWAY=${gateway}`, () => {
+      beforeEach(() => { (env as any).PAYMENT_GATEWAY = gateway; });
+
+      it('cliente cancela pedido PAGO (motoboy em rota): sem carteira/AppCashbox/Payout/conta-mãe; refund pending', async () => {
+        const s = await scenario({ status: 'enviado', paymentStatus: 'paid', delivery: 'picked', acceptedAt: true });
+        const res = await request(app).post(`/api/orders/${s.order.id}/cancel`).set('Authorization', bearer(s.cliente)).send({});
+        expect(res.status).toBe(200);
+        expect(res.body.refundStatus).toBe('pending');
+        expect(await statusOf(s.order.id)).toBe('cancelado');
+        expect((await lastCancellation(s.order.id))!.refundStatus).toBe('pending');
+        expect(await qty(s.product.id)).toBe(12);
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('cliente cancela pedido NÃO pago: só status, nada de dinheiro', async () => {
+        const s = await scenario({ status: 'criado', paymentStatus: 'pending' });
+        const res = await request(app).post(`/api/orders/${s.order.id}/cancel`).set('Authorization', bearer(s.cliente)).send({});
+        expect(res.status).toBe(200);
+        expect(res.body.refundStatus).toBe('processed');
+        expect(await statusOf(s.order.id)).toBe('cancelado');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('loja rejeita pedido pago (já aceito): sem taxa da loja, sem estorno pela conta-mãe; refund pending', async () => {
+        const s = await scenario({ status: 'pago', paymentStatus: 'paid', acceptedAt: true });
+        const res = await request(app).post(`/api/orders/${s.order.id}/reject`).set('Authorization', bearer(s.lojista)).send({ reason: 'sem estoque' });
+        expect(res.status).toBe(200);
+        expect(res.body.refundStatus).toBe('pending');
+        expect(await statusOf(s.order.id)).toBe('rejeitado');
+        expect((await lastCancellation(s.order.id))!.refundStatus).toBe('pending');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('motoboy marca cliente ausente: sem compensação pela custódia nem estorno pela conta-mãe; refund pending', async () => {
+        const s = await scenario({ status: 'enviado', paymentStatus: 'paid', delivery: 'picked', acceptedAt: true });
+        const res = await request(app).post(`/api/deliveries/${s.delivery.id}/cliente-ausente`).set('Authorization', bearer(s.motoboy)).send({});
+        expect(res.status).toBe(200);
+        expect(res.body.refundStatus).toBe('pending');
+        expect(await statusOf(s.order.id)).toBe('cancelado');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('cancelOrderWithFullRefund (timeout): sem carteira/estorno pela conta-mãe; refund pending', async () => {
+        const { cancelOrderWithFullRefund } = await import('../controllers/cancellationController');
+        const { toApiOrder, orderInclude } = await import('../repositories/order.repository');
+        const s = await scenario({ status: 'aguardando_motoboy', paymentStatus: 'paid', delivery: 'pending', acceptedAt: true });
+        const order = toApiOrder(await prisma.order.findUnique({ where: { id: s.order.id }, include: orderInclude }));
+        const r = await cancelOrderWithFullRefund(order, { reason: 'timeout', reasonCode: 'store_rejected', cancelledBy: 'store' });
+        expect(r.ok).toBe(true);
+        expect(r.refundStatus).toBe('pending');
+        expect(await statusOf(s.order.id)).toBe('cancelado');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('motoboy desiste após retirar: taxa do motoboy NÃO é debitada de carteira nem lançada no AppCashbox', async () => {
+        const s = await scenario({ status: 'enviado', paymentStatus: 'paid', delivery: 'picked', acceptedAt: true });
+        const res = await request(app).post(`/api/deliveries/${s.delivery.id}/reject`).set('Authorization', bearer(s.motoboy)).send({});
+        expect(res.status).toBe(202);
+        expect(res.body.feeStatus).toBe('none');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+
+      it('loja confirma a devolução: pedido cancelado sem crédito em carteira', async () => {
+        const s = await scenario({ status: 'enviado', paymentStatus: 'paid', delivery: 'picked', acceptedAt: true });
+        await prisma.delivery.update({ where: { id: s.delivery.id }, data: { statusDevolucao: 'aguardando_confirmacao', pinDevolucao: '777777' } });
+        const res = await request(app).post(`/api/deliveries/${s.delivery.id}/confirm-return`).set('Authorization', bearer(s.lojista)).send({ pinDevolucao: '777777' });
+        expect(res.status).toBe(200);
+        expect(await statusOf(s.order.id)).toBe('cancelado');
+        await expectNoCustody(s.order.id, owners(s));
+      });
+    });
+  }
+});

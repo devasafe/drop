@@ -16,3 +16,11 @@ export async function getSaasConfig() {
 export async function isDirectMode(): Promise<boolean> {
   return (await getSaasConfig()).settlementMode === 'direto';
 }
+
+/**
+ * Pedido cobrado na conta Asaas DA LOJA (modo direto, provider 'asaas_loja').
+ * O dinheiro nunca passou pela custódia: nada de carteira, AppCashbox, Payout ou conta-mãe.
+ */
+export function isDirectOrder(order: { paymentProvider?: string | null } | null | undefined): boolean {
+  return order?.paymentProvider === 'asaas_loja';
+}

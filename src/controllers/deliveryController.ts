@@ -25,6 +25,7 @@ import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import env from '../config/env';
 import logger from '../config/logger';
+import { isDirectOrder } from '../utils/settlement';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
@@ -1187,9 +1188,20 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       const newlyCancelled = cancelClaim.count === 1;
       console.log(`✅ [confirmReturn] Order ${order._id} — newlyCancelled=${newlyCancelled}`);
 
+      // Modo direto (asaas_loja): o dinheiro está na conta da loja — nada de carteira,
+      // Payout ou AppCashbox. Pago → o estorno pela chave da loja fica pendente pro admin
+      // (Fase 3), mesmo escalonamento de quando o estorno da custódia falha.
+      const directOrder = isDirectOrder(order);
+      const directRefundPending = directOrder && order.paymentStatus === 'paid';
+      if (newlyCancelled && directRefundPending) {
+        logger.error('Pedido do modo direto cancelado já pago — estorno pela conta da loja pendente, escala pro admin', 'DIRECT_REFUND_PENDING', {
+          orderId: order.id, flow: 'devolução confirmada pela loja',
+        });
+      }
+
       // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox.
       // SÓ quando este request reivindicou o cancelamento (evita reembolso duplicado).
-      if (newlyCancelled) {
+      if (newlyCancelled && !directOrder) {
         try {
           await prisma.$transaction(async (tx) => {
             await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
@@ -1210,7 +1222,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
         } catch (refundErr) {
           console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);
         }
-      } else {
+      } else if (!newlyCancelled) {
         console.log(`⏭️ [confirmReturn] Pedido ${order._id} já estava cancelado — refund pulado (anti-duplo-reembolso)`);
       }
 
@@ -1224,8 +1236,10 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
         orderId: order._id,
         deliveryId: delivery._id,
         reason: 'Produto devolvido à loja',
-        message: 'Seu pedido foi cancelado e o reembolso foi processado.',
-        refundStatus: 'processed',
+        message: directRefundPending
+          ? 'Seu pedido foi cancelado. O reembolso será feito pela loja.'
+          : 'Seu pedido foi cancelado e o reembolso foi processado.',
+        refundStatus: directRefundPending ? 'pending' : 'processed',
         cancelledAt: order.cancelledAt,
       });
 

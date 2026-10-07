@@ -34,8 +34,26 @@ import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
+import { isDirectOrder } from '../utils/settlement';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Cancelamento de pedido do modo direto (asaas_loja): o dinheiro está na conta Asaas DA
+ * LOJA, então nenhum ramo financeiro da custódia roda (carteira, AppCashbox, Payout,
+ * estorno pela conta-mãe). Pago → refundStatus 'pending' e escala pro admin, o mesmo
+ * caminho de quando o estorno da custódia falha (o estorno pela chave da loja é a Fase 3).
+ * Não pago → nada a devolver.
+ */
+function directRefundStatus(order: any, flow: string): 'pending' | 'processed' {
+  if (order?.paymentStatus === 'paid') {
+    logger.error('Pedido do modo direto cancelado já pago — estorno pela conta da loja pendente, escala pro admin', 'DIRECT_REFUND_PENDING', {
+      orderId: String(order.id ?? order._id), flow,
+    });
+    return 'pending';
+  }
+  return 'processed';
+}
 
 // Validações de permissão
 const validateOrderOwnership = async (orderId: string, userId: string) => {
@@ -182,8 +200,11 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
     void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
-    // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
-    if (!isCashOnDelivery) {
+    const direct = isDirectOrder(order);
+    if (direct) {
+      refundStatus = directRefundStatus(order, 'cancelamento pelo cliente');
+    } else if (!isCashOnDelivery) {
+      // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
       try {
         // Tudo no Postgres numa única transação (Payout+Wallet+AppCashbox).
         await prisma.$transaction(async (tx) => {
@@ -272,7 +293,9 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     //   e só quando o cancelamento é tardio (antes do pickup COD não cobra taxa).
     let cancellationFeeCharged = 0;
     try {
-      if (isCashOnDelivery) {
+      if (direct) {
+        // Modo direto: sem compensação de motoboy nem AppCashbox pela custódia (Fase 2).
+      } else if (isCashOnDelivery) {
         if (isLate && fee.totalFee > 0) {
           cancellationFeeCharged = fee.totalFee;
           // CustomerDebt é criado após a transação (best-effort, mesmo padrão de antes).
@@ -496,8 +519,10 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
         }
 
         // Vencemos a reivindicação → somos o ÚNICO a cobrar a taxa (idempotência garantida).
-        let feeStatus: 'charged' | 'pending' | 'none' = fee.totalFee > 0 ? 'pending' : 'none';
-        if (fee.totalFee > 0) {
+        // Modo direto: sem carteira/AppCashbox — a taxa do motoboy não é cobrada aqui (Fase 2).
+        const directReturn = isDirectOrder(orderForReturn);
+        let feeStatus: 'charged' | 'pending' | 'none' = fee.totalFee > 0 && !directReturn ? 'pending' : 'none';
+        if (fee.totalFee > 0 && !directReturn) {
           try {
             await prisma.$transaction(async (tx) => {
               // Debita a taxa da carteira do MOTOBOY (mesmo padrão de penalty da loja).
@@ -729,7 +754,10 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     }
 
     // --- Refund PARCIAL ao cliente (mesmo padrão de cancelOrderByCustomer) ---
-    if (!isCashOnDelivery) {
+    const direct = isDirectOrder(order);
+    if (direct) {
+      refundStatus = directRefundStatus(order, 'cliente ausente');
+    } else if (!isCashOnDelivery) {
       try {
         await prisma.$transaction(async (tx) => {
           const result = await payoutService.cancelPayoutsForOrder(order.id, 'customer_absent', tx);
@@ -789,8 +817,9 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // --- Compensação do motoboy (entrega CHEIA) + AppCashbox (taxa cheia = lastro) ---
     let cancellationFeeCharged = 0;
+    // Modo direto: sem Payout/AppCashbox da custódia (a compensação do motoboy é a Fase 2).
     try {
-      await prisma.$transaction(async (tx) => {
+      if (!direct) await prisma.$transaction(async (tx) => {
         if (fee.motoboyShare > 0) {
           const compPayout = await payoutService.createPendingPayout({
             recipientType: 'motoboy', recipientId: motoboyId,
@@ -918,7 +947,9 @@ export async function cancelOrderWithFullRefund(
   }
   void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
-  if (!isCashOnDelivery) {
+  if (isDirectOrder(order)) {
+    refundStatus = directRefundStatus(order, opts.reasonCode);
+  } else if (!isCashOnDelivery) {
     try {
       await prisma.$transaction(async (tx) => {
         const result = await payoutService.cancelPayoutsForOrder(order.id, 'motoboy_returned_customer_refund', tx);
@@ -1417,7 +1448,10 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
-    if (!isCashOnDelivery) {
+    const direct = isDirectOrder(order);
+    if (direct) {
+      refundStatus = directRefundStatus(order, 'rejeição pela loja');
+    } else if (!isCashOnDelivery) {
       try {
         await prisma.$transaction(async (tx) => {
           const result = await payoutService.cancelPayoutsForOrder(orderId, 'order_rejected_by_store', tx);
@@ -1484,7 +1518,8 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // adiante) permaneçam MUTUAMENTE EXCLUSIVOS como antes. Sem isso, um COD aceito-não-
     // enviado rodaria os DOIS, drenando o `blockedBalance` (pool compartilhado de reservas
     // de outros pedidos) em dobro.
-    const chargeStoreFee = storeAccepted && (!isCashOnDelivery || isLate);
+    // Modo direto: sem carteira da loja/AppCashbox — a taxa da loja não é cobrada aqui (Fase 2).
+    const chargeStoreFee = !direct && storeAccepted && (!isCashOnDelivery || isLate);
     let cancellationFeeCharged = 0;
     if (chargeStoreFee) {
       try {
