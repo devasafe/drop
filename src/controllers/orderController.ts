@@ -84,6 +84,13 @@ export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/** Devolve o estoque baixado por este pedido (Product fora de transação: compensação explícita). */
+async function restoreStock(items: Array<{ productId: unknown; quantity: number }>): Promise<void> {
+  for (const item of items) {
+    await prisma.product.updateMany({ where: { id: String(item.productId) }, data: { quantity: { increment: item.quantity } } });
+  }
+}
+
 export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
   try {
@@ -185,12 +192,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     for (const p of products) {
       if (!p.productId || !p.quantity) {
+        await restoreStock(items); // itens anteriores deste pedido já baixaram estoque
         return res.status(400).json({ error: `Produto inválido: ${JSON.stringify(p)}` });
       }
 
       // Sem `.session(session)`: Product vive no Postgres e não entra na transação Mongo.
       const prod = await prisma.product.findUnique({ where: { id: String(p.productId) } });
       if (!prod) {
+        await restoreStock(items); // itens anteriores deste pedido já baixaram estoque
         return res.status(404).json({ error: `Produto ${p.productId} não encontrado` });
       }
 
@@ -201,6 +210,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // fica Decimal ponta a ponta e esta conversão sai.
       const productPrice = prod.price.toNumber();
       if (productPrice <= 0) {
+        await restoreStock(items); // itens anteriores deste pedido já baixaram estoque
         return res.status(400).json({ error: `Produto ${prod.name} com preço inválido` });
       }
 
@@ -217,9 +227,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         // Devolve o que já havia sido decrementado neste pedido. Product está no
         // Postgres e não participa do rollback da transação Mongo — a compensação
         // é explícita (já era assim, agora é obrigatória).
-        for (const item of items) {
-          await prisma.product.updateMany({ where: { id: String(item.productId) }, data: { quantity: { increment: item.quantity } } });
-        }
+        await restoreStock(items);
         const current = await prisma.product.findUnique({ where: { id: String(p.productId) }, select: { quantity: true } });
         const available = current?.quantity ?? 0;
         return res.status(409).json({
@@ -242,6 +250,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     if (cupomCode) {
       const couponResult = await computeCouponDiscount(cupomCode, storeIdStr, subtotal);
       if (!couponResult.valid) {
+        // O estoque já foi baixado acima (o cupom depende do subtotal): devolve antes do 400,
+        // senão repetir a chamada com cupom inválido zera o estoque da loja.
+        await restoreStock(items);
         return res.status(400).json({ error: couponResult.reason || 'Cupom inválido' });
       }
       couponDiscount = couponResult.discount;
@@ -278,7 +289,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Modo direto: daqui em diante o caminho é outro (sem carteira/custódia/payout).
     if (directMode) {
-      return finishDirectOrder(res, {
+      // `return await`: rejeição inesperada cai no catch abaixo (500) em vez de pendurar a requisição.
+      return await finishDirectOrder(res, {
         customerId, store: storeForCheck, items, subtotal, couponDiscount, appliedCouponId, cupomCode,
         serverDistanceKm, routeDurationSeconds, routePolyline, idempotentKey, address, latitude, longitude,
         cpf: directCpf,
