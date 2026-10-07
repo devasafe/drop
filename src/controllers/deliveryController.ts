@@ -245,9 +245,16 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     if (String(delivery.motoboyId) !== String(userId)) return res.status(403).json({ error: 'Not your delivery' });
     if (delivery.status === 'delivered') return res.status(409).json({ error: 'Already delivered' });
+    // Só fecha depois que a loja validou a retirada (picked).
+    if (delivery.status !== 'picked') return res.status(400).json({ error: 'Retirada ainda não validada pela loja' });
     if (!pin || pin !== delivery.pin) return res.status(400).json({ error: 'PIN inválido' });
+    // Trava atômica: só quem vira picked→delivered segue para payout/nota/pontos.
+    const lock = await prisma.delivery.updateMany({
+      where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
+      data: { status: 'delivered' },
+    });
+    if (lock.count !== 1) return res.status(409).json({ error: 'Already delivered' });
     delivery.status = 'delivered';
-    await persistDelivery(delivery);
 
     // Atualiza o status do pedido para 'delivered'
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
