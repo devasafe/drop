@@ -325,38 +325,29 @@ describe('POST /api/wallets/transfer (transferBetweenWallets)', () => {
 });
 
 // ============================================================
-// creditWallet
+// creditWallet — REMOVIDA (auditoria de segurança 2026-10-07)
+// Antes: o dono creditava saldo na própria carteira sem pagamento algum
+// (até R$ 100 mil por chamada). Estes casos esperavam 200; com aprovação do
+// dono do produto passaram a garantir que a rota não existe mais e que o saldo
+// não muda. Crédito legítimo = recarga paga (/topup) ou crédito admin auditado.
 // ============================================================
-describe('POST /api/wallets/:userId/credit (creditWallet)', () => {
-  it('deve creditar saldo na carteira do usuario', async () => {
+describe('POST /api/wallets/:userId/credit (removida — sem crédito sem lastro)', () => {
+  it('não credita saldo na carteira do próprio usuário', async () => {
     const client = await createUserAndLogin({ name: 'Cliente Credit' });
+    await setWalletBalance(client.userId, 0);
 
     const res = await request(app)
       .post(`/api/wallets/${client.userId}/credit`)
       .set('Authorization', `Bearer ${client.token}`)
       .send({ amount: 100, paymentMethod: 'pix' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.newBalance).toBe(100);
+    expect(res.status).toBe(404);
+    const wallet = await findWallet({ owner: client.userId, ownerType: 'user' });
+    expect(wallet?.balance).toBe(0);
   });
 
-  it('deve rejeitar credito com amount zero ou negativo', async () => {
-    const client = await createUserAndLogin({ name: 'Cliente CreditZero' });
-
-    const res = await request(app)
-      .post(`/api/wallets/${client.userId}/credit`)
-      .set('Authorization', `Bearer ${client.token}`)
-      .send({ amount: -10, paymentMethod: 'pix' });
-
-    // Zod validation ou controller check
-    expect([400, 422]).toContain(res.status);
-  });
-
-  it('deve criar carteira automaticamente se nao existir ao creditar', async () => {
+  it('não cria carteira com saldo quando ela não existe', async () => {
     const client = await createUserAndLogin({ name: 'Cliente Novo' });
-
-    // Deletar carteira criada no registro
     await deleteWallets({ owner: client.userId });
 
     const res = await request(app)
@@ -364,11 +355,9 @@ describe('POST /api/wallets/:userId/credit (creditWallet)', () => {
       .set('Authorization', `Bearer ${client.token}`)
       .send({ amount: 50, paymentMethod: 'pix' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.newBalance).toBe(50);
-
+    expect(res.status).toBe(404);
     const wallet = await findWallet({ owner: client.userId, ownerType: 'user' });
-    expect(wallet).not.toBeNull();
+    expect(wallet?.balance ?? 0).toBe(0);
   });
 });
 
@@ -440,10 +429,13 @@ describe('POST /api/wallets/:walletId/withdraw', () => {
 });
 
 // ============================================================
-// refundWallet
+// refundWallet — REMOVIDA (auditoria de segurança 2026-10-07)
+// Antes: o dono "reembolsava" qualquer valor na própria carteira, sem pedido.
+// Reembolso real nasce só do fluxo de cancelamento (cancellationController),
+// coberto por cancellation*.test.ts.
 // ============================================================
-describe('POST /api/wallets/:userId/refund', () => {
-  it('deve processar reembolso e creditar saldo', async () => {
+describe('POST /api/wallets/:userId/refund (removida — sem reembolso livre)', () => {
+  it('não credita reembolso arbitrário', async () => {
     const client = await createUserAndLogin({ name: 'Cliente Refund' });
     await setWalletBalance(client.userId, 50);
 
@@ -452,21 +444,9 @@ describe('POST /api/wallets/:userId/refund', () => {
       .set('Authorization', `Bearer ${client.token}`)
       .send({ amount: 30, orderId: 'ORDER123', reason: 'Pedido cancelado' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.newBalance).toBe(80);
-    expect(res.body.refundAmount).toBe(30);
-  });
-
-  it('deve rejeitar refund com amount zero ou negativo', async () => {
-    const client = await createUserAndLogin({ name: 'Cliente RefundZero' });
-
-    const res = await request(app)
-      .post(`/api/wallets/${client.userId}/refund`)
-      .set('Authorization', `Bearer ${client.token}`)
-      .send({ amount: 0, orderId: 'ORDER000' });
-
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
+    const wallet = await findWallet({ owner: client.userId, ownerType: 'user' });
+    expect(wallet?.balance).toBe(50);
   });
 });
 

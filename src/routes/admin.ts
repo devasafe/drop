@@ -8,6 +8,8 @@ import { emitForceLogout } from '../utils/socketEmitter';
 import asaasClient from '../services/asaas/client';
 import env from '../config/env';
 import { decryptSensitiveData } from '../utils/encryption';
+import { z } from 'zod';
+import logger from '../config/logger';
 
 const router = Router();
 
@@ -367,15 +369,29 @@ router.get('/wallets/:id/transactions', authenticate, authorizePermission('walle
   }
 });
 
+// Crédito/ajuste manual de carteira: exclusivo do CEO (wallet:credit não é delegável),
+// com motivo obrigatório. A trilha de auditoria fica persistida no próprio WalletEntry
+// (reason + reference `ADMIN_CREDIT|ADMIN_ADJUST:<adminId>:<timestamp>` + createdAt + amount).
+const ADMIN_WALLET_MAX = 50_000;
+const adminReason = z.string().trim().min(10, 'Informe o motivo (mínimo 10 caracteres)').max(500);
+const AddBalanceSchema = z.object({
+  amount: z.number().positive('Valor deve ser positivo').max(ADMIN_WALLET_MAX, `Máximo R$ ${ADMIN_WALLET_MAX}`),
+  reason: adminReason,
+});
+const AdjustBalanceSchema = z.object({
+  amount: z.number().refine((v) => v !== 0 && Math.abs(v) <= ADMIN_WALLET_MAX, 'Valor inválido'),
+  reason: adminReason,
+});
+
 // POST /admin/wallets/:id/add-balance - Adicionar saldo à carteira
 router.post('/wallets/:id/add-balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const { amount, reason } = req.body;
-
-    if (!amount || amount <= 0 || typeof amount !== 'number') {
-      return res.status(400).json({ error: 'Valid amount is required' });
+    const parsed = AddBalanceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
     }
+    const { amount, reason } = parsed.data;
 
     const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
     if (!existing) {
@@ -383,16 +399,21 @@ router.post('/wallets/:id/add-balance', authenticate, authorizePermission('walle
     }
 
     // Adição manual de saldo (crédito administrativo, categoria 'deposit').
+    const reference = `ADMIN_CREDIT:${req.user.id}:${Date.now()}`;
     const wallet = await walletService.credit({
       owner: existing.owner, ownerType: existing.ownerType as any, amount,
-      reason: reason || 'Adição manual de saldo (admin)', category: 'deposit', reference: `ADMIN_${Date.now()}`,
+      reason, category: 'deposit', reference,
+    });
+    logger.info('[wallet][AUDIT] crédito administrativo', {
+      adminId: req.user.id, walletId: existing.id, owner: existing.owner, ownerType: existing.ownerType,
+      amount, reason, reference,
     });
 
     res.json({
       success: true,
       message: 'Saldo adicionado com sucesso',
       newBalance: Number(wallet.balance),
-      transactionId: `ADMIN_${Date.now()}`
+      transactionId: reference,
     });
   } catch (err) {
     console.error('Erro ao adicionar saldo:', err);
@@ -404,11 +425,11 @@ router.post('/wallets/:id/add-balance', authenticate, authorizePermission('walle
 router.put('/wallets/:id/balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const { amount, reason } = req.body;
-
-    if (!amount || typeof amount !== 'number') {
-      return res.status(400).json({ error: 'Valid amount is required' });
+    const parsed = AdjustBalanceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
     }
+    const { amount, reason } = parsed.data;
 
     const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
     if (!existing) {
@@ -416,10 +437,15 @@ router.put('/wallets/:id/balance', authenticate, authorizePermission('wallet:cre
     }
 
     // Ajuste administrativo (crédito se amount > 0, débito se < 0).
+    const reference = `ADMIN_ADJUST:${req.user.id}:${Date.now()}`;
     const ref = { owner: existing.owner, ownerType: existing.ownerType as any };
     const wallet = amount > 0
-      ? await walletService.credit({ ...ref, amount, reason: reason || 'Admin adjustment: credit', category: 'deposit' })
-      : await walletService.debit({ ...ref, amount: Math.abs(amount), reason: reason || 'Admin adjustment: debit', category: 'transfer' });
+      ? await walletService.credit({ ...ref, amount, reason, category: 'deposit', reference })
+      : await walletService.debit({ ...ref, amount: Math.abs(amount), reason, category: 'transfer', reference });
+    logger.info('[wallet][AUDIT] ajuste administrativo', {
+      adminId: req.user.id, walletId: existing.id, owner: existing.owner, ownerType: existing.ownerType,
+      amount, reason, reference,
+    });
 
     res.json({
       message: 'Wallet balance updated',

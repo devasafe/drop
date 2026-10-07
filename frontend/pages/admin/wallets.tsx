@@ -155,12 +155,16 @@ export default function AdminWalletsPanel() {
       alert('Preencha o valor');
       return;
     }
+    if (addReason.trim().length < 10) {
+      alert('Informe o motivo do crédito (mínimo 10 caracteres). Ele fica registrado na auditoria.');
+      return;
+    }
 
     setAddLoading(true);
     try {
       const res = await api.post(`/admin/wallets/${selectedWallet._id}/add-balance`, {
         amount: parseFloat(addAmount),
-        reason: addReason || 'Adição manual de saldo'
+        reason: addReason.trim()
       });
 
       // Atualizar carteira
@@ -457,7 +461,7 @@ export default function AdminWalletsPanel() {
 
                   <div className={styles.formField}>
                     <label className={styles.formLabel}>
-                      Motivo (opcional)
+                      Motivo (obrigatório, fica na auditoria)
                     </label>
                     <input
                       type="text"
@@ -470,7 +474,7 @@ export default function AdminWalletsPanel() {
 
                   <button
                     onClick={handleAddBalance}
-                    disabled={addLoading || !addAmount}
+                    disabled={addLoading || !addAmount || addReason.trim().length < 10}
                     className={styles.btnConfirm}
                   >
                     {addLoading ? 'Processando...' : 'Confirmar Adição'}

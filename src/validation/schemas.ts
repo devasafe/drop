@@ -174,12 +174,6 @@ export type CreateStoreInput = z.infer<typeof CreateStoreSchema>;
 export type UpdateStoreInput = z.infer<typeof UpdateStoreSchema>;
 
 // ============= WALLET SCHEMAS =============
-export const CreditWalletSchema = z.object({
-  amount: z.number().positive('Valor deve ser positivo').max(100000, 'Máximo R$ 100.000'),
-  paymentMethod: z.enum(['credit_card', 'pix', 'bank_transfer']),
-  reference: z.string().optional()
-});
-
 export const TransferWalletSchema = z.object({
   amount: z.number().positive('Valor deve ser positivo'),
   bankAccount: z.object({
@@ -197,7 +191,6 @@ export const ApplyBenefitSchema = z.object({
   deliveryId: z.string().optional()
 });
 
-export type CreditWalletInput = z.infer<typeof CreditWalletSchema>;
 export type TransferWalletInput = z.infer<typeof TransferWalletSchema>;
 export type ApplyBenefitInput = z.infer<typeof ApplyBenefitSchema>;
 

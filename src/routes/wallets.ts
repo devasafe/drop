@@ -10,13 +10,11 @@ import {
   getClientWalletSummary,
   createWalletTopup,
   getWalletTopupStatus,
-  creditWallet,
   transferWallet,
   transferBetweenWallets,
   getWalletHistory,
   getPlatformMetrics,
   initializePlatformWallet,
-  refundWallet,
   withdrawWallet,
   transferToMotoboyWallet,
   transferStoreToOwner,
@@ -24,10 +22,7 @@ import {
   transferMotoboyToOwner
 } from '../controllers/walletController';
 import { authorizePermission, authorizeWalletOwner, authorizeWalletOwnerById } from '../middleware/authorize';
-import {
-  CreditWalletSchema,
-  TransferWalletSchema
-} from '../validation/schemas';
+import { TransferWalletSchema } from '../validation/schemas';
 
 const router = Router();
 
@@ -56,14 +51,9 @@ router.get('/:userId/history', authenticate, authorizeWalletOwner, getWalletHist
 router.get('/:userId/client-summary', authenticate, authorizeWalletOwner, getClientWalletSummary);
 router.post('/:userId/topup', authenticate, requireActiveUser, authorizeWalletOwner, createWalletTopup);
 router.get('/topup/:topupId/status', authenticate, getWalletTopupStatus);
-router.post(
-  '/:userId/credit',
-  authenticate,
-  requireActiveUser,
-  authorizeWalletOwner,
-  validate(CreditWalletSchema),
-  creditWallet
-);
+// Segurança (2026-10-07): não existe crédito self-service. Saldo só entra por
+// pagamento confirmado (POST /:userId/topup → webhook) ou por crédito administrativo
+// auditado (POST /admin/wallets/:id/add-balance, exclusivo do CEO).
 router.post(
   '/:userId/transfer',
   authenticate,
@@ -71,13 +61,6 @@ router.post(
   authorizeWalletOwner,
   validate(TransferWalletSchema),
   transferWallet
-);
-router.post(
-  '/:userId/refund',
-  authenticate,
-  requireActiveUser,
-  authorizeWalletOwner,
-  refundWallet
 );
 
 // ✅ Saque simples: remove saldo da carteira

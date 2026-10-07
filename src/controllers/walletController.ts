@@ -475,44 +475,6 @@ export const transferMotoboyToOwner = async (req: Request, res: Response) => {
 };
 
 /**
- * POST /wallets/:userId/credit
- * Cliente adiciona saldo (carrega crédito)
- */
-export const creditWallet = async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const { amount, paymentMethod, reference } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valor inválido' });
-    }
-
-    const wallet = await walletService.credit({
-      owner: userId, ownerType: 'user', amount,
-      reason: `Carregamento de saldo via ${paymentMethod}`,
-      category: 'deposit', paymentMethod, reference,
-    });
-
-    // 💰 Notificar usuário em tempo real
-    emitWalletUpdated(userId, 'cliente', {
-      balance: Number(wallet.balance),
-      totalIncome: Number(wallet.totalIncome),
-      totalSpent: Number(wallet.totalSpent),
-      updatedAt: new Date(),
-    });
-
-    return res.json({
-      success: true,
-      newBalance: Number(wallet.balance),
-      transactionId: wallet.id,
-    });
-  } catch (err: any) {
-    console.error('[WALLET ERROR]', err);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-};
-
-/**
  * POST /wallets/:userId/transfer
  * Motoboy ou Lojista saca para banco
  */
@@ -900,51 +862,6 @@ export const initializePlatformWallet = async (req: Request, res: Response) => {
     return res.json({
       success: true,
       wallet: toApiWallet(wallet),
-    });
-  } catch (err: any) {
-    console.error('[WALLET ERROR]', err);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-};
-
-/**
- * POST /wallets/:userId/refund
- * Processa reembolso para carteira do usuário
- * Usado quando pedido é cancelado
- */
-export const refundWallet = async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const { amount, orderId, reason } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valor de reembolso inválido' });
-    }
-
-    // Reembolso é `type: 'refund'` e NÃO conta como entrada (totalIncome). Além disso
-    // reduz totalSpent (o gasto foi desfeito). Por isso não usa walletService.credit.
-    const base = await walletService.getOrCreate(userId, 'user');
-    const newTotalSpent = Math.max(0, Number(base.totalSpent) - amount);
-    const wallet = await prisma.$transaction(async (tx) => {
-      await tx.walletEntry.create({
-        data: {
-          walletId: base.id, type: 'refund', category: 'refund', amount,
-          reason: reason || `Reembolso do pedido ${orderId}`, paymentMethod: 'refund',
-          relatedId: orderId, reference: `REFUND_${orderId}`,
-        },
-      });
-      return tx.wallet.update({
-        where: { id: base.id },
-        data: { balance: { increment: amount }, totalSpent: newTotalSpent },
-      });
-    });
-
-    return res.json({
-      success: true,
-      newBalance: Number(wallet.balance),
-      refundAmount: amount,
-      orderId,
-      refundedAt: new Date()
     });
   } catch (err: any) {
     console.error('[WALLET ERROR]', err);

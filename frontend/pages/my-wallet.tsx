@@ -43,9 +43,6 @@ export default function MyWalletPage() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState('');
   const [transferLoading, setTransferLoading] = useState(false);
-  const [showDeposit, setShowDeposit] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
-  const [depositLoading, setDepositLoading] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawLoading, setWithdrawLoading] = useState(false);
@@ -160,46 +157,6 @@ export default function MyWalletPage() {
       alert('Erro: ' + (err.response?.data?.message || 'Falha na transferência'));
     } finally {
       setTransferLoading(false);
-    }
-  };
-
-  const handleDeposit = async () => {
-    // Verifica se banco está configurado
-    if (!bankInfoConfigured) {
-      alert('Você precisa configurar seus dados bancários primeiro!');
-      router.push('/bank-setup');
-      return;
-    }
-
-    if (!depositAmount || parseFloat(depositAmount) <= 0) {
-      alert('Digite um valor válido');
-      return;
-    }
-
-    setDepositLoading(true);
-    try {
-      // ✅ IMPORTANTE: Depósito SEMPRE vai na carteira de USUÁRIO (cliente)
-      // Usa o ID do usuário (não wallet._id)
-      console.log('💳 Depositando para usuário:', { userId: user?.id });
-
-      await api.post(`/wallets/${user?.id}/credit`, {
-        amount: parseFloat(depositAmount),
-        paymentMethod: 'credit_card'
-      });
-
-      alert('Depósito realizado com sucesso!');
-      setDepositAmount('');
-      setShowDeposit(false);
-
-      // Recarregar carteira com o role correto
-      const activeRole = user?.activeRole || 'cliente';
-      const res = await api.get(`/wallets/my-wallet/by-role/${activeRole}`);
-      setWallet(res.data);
-    } catch (err: any) {
-      alert('Erro: ' + (err.response?.data?.message || 'Falha no depósito'));
-      console.error('Deposit error:', err);
-    } finally {
-      setDepositLoading(false);
     }
   };
 
@@ -405,22 +362,23 @@ export default function MyWalletPage() {
         <div className={styles.actionBtns}>
           {wallet.ownerType === 'user' && (
             <>
+              {/* Recarga real (PIX/cartão via Asaas) vive em /wallet — não existe crédito sem pagamento. */}
               <button
-                onClick={() => { setShowDeposit(!showDeposit); setShowTransfer(false); setShowWithdraw(false); }}
-                className={`${styles.btnDeposit} ${showDeposit ? styles.btnDepositActive : ''}`}
+                onClick={() => router.push('/wallet')}
+                className={styles.btnDeposit}
               >
-                {showDeposit ? '✕ Cancelar' : 'Depositar'}
+                Recarregar
               </button>
 
               <button
-                onClick={() => { setShowTransfer(!showTransfer); setShowDeposit(false); setShowWithdraw(false); }}
+                onClick={() => { setShowTransfer(!showTransfer); setShowWithdraw(false); }}
                 className={`${styles.btnTransfer} ${showTransfer ? styles.btnTransferActive : ''}`}
               >
                 {showTransfer ? '✕ Cancelar' : 'Transferir'}
               </button>
 
               <button
-                onClick={() => { setShowWithdraw(!showWithdraw); setShowDeposit(false); setShowTransfer(false); }}
+                onClick={() => { setShowWithdraw(!showWithdraw); setShowTransfer(false); }}
                 className={`${styles.btnWithdraw} ${showWithdraw ? styles.btnWithdrawActive : ''}`}
               >
                 {showWithdraw ? '✕ Cancelar' : 'Sacar'}
@@ -437,31 +395,6 @@ export default function MyWalletPage() {
             </button>
           )}
         </div>
-
-        {/* Form: Depositar */}
-        {showDeposit && (
-          <div className={`${styles.actionForm} ${styles.actionFormGreen}`}>
-            <h3 className={styles.actionFormTitle}>Depositar Dinheiro</h3>
-            <div className={styles.formField}>
-              <label className={styles.formLabel}>Valor</label>
-              <input
-                type="number"
-                placeholder="0,00"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                min="0.01" step="0.01"
-                className={styles.formInput}
-              />
-            </div>
-            <button
-              onClick={handleDeposit}
-              disabled={depositLoading || !depositAmount}
-              className={`${styles.confirmBtn} ${styles.confirmBtnGreen}`}
-            >
-              {depositLoading ? 'Processando...' : 'Confirmar Depósito'}
-            </button>
-          </div>
-        )}
 
         {/* Form: Saque / Enviar para usuário */}
         {showWithdraw && (
