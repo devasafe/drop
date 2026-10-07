@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { onlineTracker } from './onlineTracker';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
+import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedStoreIds, ADMIN_ROLES } from './socketRooms';
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
@@ -179,7 +180,7 @@ export const initSocket = (server: any) => {
     },
   });
 
-  io.use((socket: Socket, next: (err?: any) => void) => {
+  io.use(async (socket: Socket, next: (err?: any) => void) => {
     // Token via handshake auth (compat) OU via cookie httpOnly (novo)
     let token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) {
@@ -193,6 +194,16 @@ export const initSocket = (server: any) => {
       // Permite todos os roles (incluindo admin roles)
       const allowedRoles = ['cliente', 'motoboy', 'store', 'seller', 'lojista', 'ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
       if (!allowedRoles.includes(decoded.role)) {
+        return next(new Error('Forbidden'));
+      }
+      // JWT é stateless: confere no banco se a conta segue ativa e se ainda tem o papel
+      // do token (papel removido/rebaixado não continua recebendo eventos da sala).
+      const dbUser = await prisma.user.findUnique({
+        where: { id: String(decoded.id) },
+        select: { status: true, role: true, roles: true },
+      });
+      const dbRoles = [...(dbUser?.roles || []), dbUser?.role].filter(Boolean).map(String);
+      if (!dbUser || dbUser.status === 'blocked' || !dbRoles.includes(String(decoded.role))) {
         return next(new Error('Forbidden'));
       }
       socket.data.user = { id: decoded.id, role: decoded.role };
@@ -225,20 +236,20 @@ export const initSocket = (server: any) => {
         socket.join(`user:${userId}`);
         console.log(`   └─ Sala: user:${userId}`);
       }
-      // MOTOBOY
+      // MOTOBOY — o pool (sala `motoboys`) só para quem tem KYC aprovado
       if (role === 'motoboy') {
-        socket.join('motoboys');
-        socket.join(`user:${userId}`);
-        console.log(`   ├─ Sala: motoboys`);
-        console.log(`   └─ Sala: user:${userId}`);
+        canJoinMotoboysRoom({ id: userId, role })
+          .then((ok) => { if (ok) socket.join('motoboys'); })
+          .catch((e) => console.warn('[Socket.io] falha ao avaliar sala motoboys', e));
       }
-      // LOJA (store/seller/lojista) - Will join custom room via 'join' event
+      // LOJA (store/seller/lojista) — entra nas salas das lojas de que é DONO
       if (role === 'store' || role === 'seller' || role === 'lojista') {
-        socket.join(`user:${userId}`); // Keep personal room for fallback
-        console.log(`   └─ Sala: user:${userId} (aguardando join customizado)`);
+        ownedStoreIds(userId)
+          .then((ids) => ids.forEach((id) => socket.join(`store:${id}`)))
+          .catch((e) => console.warn('[Socket.io] falha ao carregar lojas do dono', e));
       }
       // ADMIN ROLES (ceo, marketing, gerentes)
-      if (['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(role)) {
+      if (ADMIN_ROLES.includes(role)) {
         socket.join('admin');
         socket.join(`admin:${role}`);
         socket.join(`user:${userId}`);
@@ -248,28 +259,27 @@ export const initSocket = (server: any) => {
       }
     }
 
-    // Permite join customizado para qualquer sala
-    socket.on('join', (data) => {
-      if (data && data.room) {
-        socket.join(data.room);
-        console.log(`\n✅ [SOCKET][BACKEND-NOTIFIER] Socket entrou na sala: ${data.room}`);
-        console.log(`   UserId: ${userId}`);
-        console.log(`   Role: ${role}`);
-        
-        // ✅ FIX #6: Se for store/lojista, também armazenar storeId para futuro uso
-        if (data.storeId) {
-          socket.data.storeId = data.storeId;
-          console.log(`   StoreId: ${data.storeId}`);
-          console.log(`✅ Pronto para receber eventos na sala: store:${data.storeId}\n`);
+    // join pedido pelo cliente: o SERVIDOR decide (authorizeRoom). Sala não autorizada
+    // é ignorada — antes qualquer usuário entrava em admin, store:<qualquer>, user:<outro>.
+    socket.on('join', async (data) => {
+      const room = data?.room;
+      try {
+        if (!(await authorizeRoom({ id: userId, role }, room))) {
+          console.warn(`[Socket.io] join negado: userId=${userId} role=${role} room=${String(room)}`);
+          return;
         }
-      } else {
-        console.error(`❌ [SOCKET][BACKEND-NOTIFIER] Join com data inválida:`, data);
+        socket.join(room);
+        if (typeof room === 'string' && room.startsWith('store:')) {
+          socket.data.storeId = room.slice('store:'.length);
+        }
+      } catch (e) {
+        console.warn('[Socket.io] erro ao autorizar join', e);
       }
     });
 
     // ⌨️ Typing indicator
-    socket.on('chat:typing', (data) => {
-      if (data && data.conversationId) {
+    socket.on('chat:typing', async (data) => {
+      if (data && data.conversationId && (await isConversationParticipant(data.conversationId, userId))) {
         io?.to(`conversation:${data.conversationId}`).emit('chat:user_typing', {
           userId,
           conversationId: data.conversationId,
@@ -279,8 +289,8 @@ export const initSocket = (server: any) => {
     });
 
     // ✓ Delivery confirmation
-    socket.on('chat:delivery_confirm', (data) => {
-      if (data && data.messageId && data.conversationId) {
+    socket.on('chat:delivery_confirm', async (data) => {
+      if (data && data.messageId && data.conversationId && (await isConversationParticipant(data.conversationId, userId))) {
         io?.to(`conversation:${data.conversationId}`).emit('chat:message_delivered', {
           messageId: data.messageId,
           deliveredAt: new Date().toISOString()
