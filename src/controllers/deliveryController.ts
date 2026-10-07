@@ -572,36 +572,27 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
 // get delivery details (customer, store owner or assigned motoboy)
 export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
-    let delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
-    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
-    // Fallback: se pinRetirada ausente, gera e salva
-    if (!delivery.pinRetirada) {
-      delivery.pinRetirada = Math.floor(100000 + Math.random() * 900000).toString();
-      await persistDelivery(delivery);
-    }
-    delivery = delivery;
-
-    // Busca pedido completo
-    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
-    // Busca dados completos da loja e do usuário dono da loja
-    let storeObj = null;
-    let storeOwner = null;
-    if (order && order.storeId) {
-      storeObj = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
-      if (storeObj && storeObj.ownerId) {
-        storeOwner = await userRepository.findById(String(storeObj.ownerId)) as any;
-      }
-    }
-    // Busca dados completos do cliente
-    let customerObj = null;
-    if (order && order.customerId) {
-      customerObj = await userRepository.findById(String(order.customerId)) as any;
-      // ✅ NOVO: Computar mainAddress dinamicamente
-    }
-
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { id } = req.params;
+    // Leitura pura: os PINs nascem no claim (claimDelivery). Nada é gravado aqui.
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+
+    const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
+    const storeObj: any = order?.storeId ? await prisma.store.findUnique({ where: { id: String(order.storeId) } }) : null;
+
+    // Autoriza ANTES de carregar dados de terceiros: motoboy atribuído, cliente ou dono da loja.
+    const isMotoboy = !!delivery.motoboyId && String(delivery.motoboyId) === String(user.id);
+    const isCustomer = !!order && String(order.customerId) === String(user.id);
+    const isStoreOwner = !!storeObj && String(storeObj.ownerId) === String(user.id);
+    if (!isMotoboy && !isCustomer && !isStoreOwner) {
+      return res.status(403).json({ error: 'Forbidden - cannot access this delivery' });
+    }
+
+    const storeOwner: any = storeObj?.ownerId ? await userRepository.findById(String(storeObj.ownerId)) : null;
+    const customerObj: any = order?.customerId ? await userRepository.findById(String(order.customerId)) : null;
 
     // Dados públicos do motoboy p/ o card do entregador (Drop Maps). Só o essencial:
     // nome, foto, placa (verification.courier) e nota média (das entregas avaliadas).
@@ -659,16 +650,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
       deliveryLng: (delivery.customerLongitude !== undefined && delivery.customerLongitude !== null) ? parseFloat(String(delivery.customerLongitude)) : (defaultAddress?.longitude ? parseFloat(String(defaultAddress.longitude)) : null)
     };
 
-    // allow assigned motoboy
-    if (delivery.motoboyId && delivery.motoboyId.toString() === user.id) return res.json(response);
-
-    // allow customer
-    if (order && order.customerId.toString() === user.id) return res.json(response);
-
-    // allow store owner
-    if (storeObj && storeObj.ownerId.toString() === user.id) return res.json(response);
-
-    return res.status(403).json({ error: 'Forbidden - cannot access this delivery' });
+    return res.json(response);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
