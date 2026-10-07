@@ -41,8 +41,8 @@ import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { getActivePaymentProviderName } from '../services/paymentProvider';
 import { computeCardTotal } from '../utils/cardInstallments';
 import { compensateFailedOrder } from '../services/orderCompensation';
-import { isDirectMode } from '../utils/settlement';
-import { precheckDirectOrder, finishDirectOrder, sendAppError } from '../services/asaasLoja/directCheckout';
+import { isDirectMode, isDirectOrder } from '../utils/settlement';
+import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
 import { AppError } from '../utils/AppError';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
 import { confirmDirectOrderPaid } from '../services/asaasLoja/orderPaymentDirect';
@@ -1014,6 +1014,11 @@ export const deliverPlan1Order = async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ error: 'Apenas o cliente do pedido pode confirmar recebimento' });
     }
 
+    // Modo direto: plano único, entrega sempre pelo pool de motoboys (fecha pelo PIN do cliente).
+    if (isDirectOrder(order)) {
+      return res.status(400).json({ error: 'Este pedido é entregue por motoboy; não há confirmação manual de recebimento.', code: 'PLAN1_DISABLED' });
+    }
+
     if (order.status !== 'pago') {
       return res.status(400).json({ error: `Pedido no estado '${order.status}' não pode ser confirmado como recebido` });
     }
@@ -1089,13 +1094,19 @@ export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) =>
     const store: any = await prisma.store.findUnique({ where: { id: String(storeId) } });
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
 
-    const storeSub = await findSubByStoreId(String(storeId));
-    const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
-    const storePlan = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1;
+    // Modo direto: plano único (decisão do usuário) — Store.plan/StoreSubscription saem do
+    // fluxo e a taxa é sempre a da fórmula da rota, a MESMA do createOrder direto.
+    const direct = await isDirectMode();
+    let storePlan: number | null = null;
+    if (!direct) {
+      const storeSub = await findSubByStoreId(String(storeId));
+      const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
+      storePlan = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1;
 
-    // Plano 1 (Vitrine): sem entrega integrada — taxa sempre zero, sem rotear.
-    if (storePlan === 1) {
-      return res.json({ plan: 1, deliveryFee: 0, distanceKm: 0, durationSeconds: 0, polyline: null, source: null });
+      // Plano 1 (Vitrine): sem entrega integrada — taxa sempre zero, sem rotear.
+      if (storePlan === 1) {
+        return res.json({ plan: 1, deliveryFee: 0, distanceKm: 0, durationSeconds: 0, polyline: null, source: null });
+      }
     }
 
     const sLat = Number(store.latitude);
@@ -1109,7 +1120,7 @@ export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) =>
     const route = await getRoute({ origin: { lat: sLat, lng: sLng }, destination: { lat: cLat, lng: cLng } });
     if (!route) return res.status(422).json({ error: 'Não foi possível calcular a rota' });
 
-    const deliveryFee = await calculateDeliveryFeeWithConfig(route.distanceKm);
+    const deliveryFee = direct ? await directDeliveryFee(route.distanceKm) : await calculateDeliveryFeeWithConfig(route.distanceKm);
     return res.json({
       plan: storePlan,
       deliveryFee,

@@ -10,6 +10,7 @@ import { useDeliveryFee } from './useDeliveryFee';
 import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
+import { useSaasConfig } from './useSaasConfig';
 
 const DRAFT_KEY = 'checkout_draft';
 
@@ -75,7 +76,9 @@ export function useCheckout() {
 
   const storeId = cart.length > 0 ? cart[0].storeId || '' : '';
   const store = stores.find((s: { _id: string; plan?: number; latitude?: string; longitude?: string }) => s._id === storeId);
-  const isPlan1 = store?.plan === 1;
+  // Modo direto: plano único, entrega sempre por motoboy — Store.plan sai do fluxo.
+  const { settlementMode, loading: saasLoading } = useSaasConfig();
+  const isPlan1 = settlementMode !== 'direto' && store?.plan === 1;
 
   const subtotal = useMemo(
     () => cart.reduce((sum: number, c: { price?: number; quantity: number }) => sum + (c.price || 0) * c.quantity, 0),
@@ -115,10 +118,11 @@ export function useCheckout() {
     setBlocked(!!(user && role && role !== 'cliente'));
   }, [user]);
 
-  // Guard: loja Plano 1 usa checkout-vitrine dedicado (sem motoboy).
+  // Guard: loja Plano 1 usa checkout-vitrine dedicado (sem motoboy). Espera o modo de
+  // liquidação carregar: no modo direto não há plano 1 e o redirect não pode acontecer.
   useEffect(() => {
-    if (isPlan1) router.replace('/checkout-vitrine');
-  }, [isPlan1, router]);
+    if (isPlan1 && !saasLoading) router.replace('/checkout-vitrine');
+  }, [isPlan1, saasLoading, router]);
 
   // Restaura rascunho (endereço em edição + método de pagamento) salvo em
   // localStorage — uma única vez ao montar. `hydrated` só vira true depois

@@ -278,7 +278,10 @@ export function useOrderTracking(orderId?: string) {
   const progress = steps.length > 0 ? steps.filter((s) => s.done).length / steps.length : 0;
   const showMap = !!delivery && (delivery.status === 'assigned' || delivery.status === 'picked');
   const showPin = !!delivery?.pin && (delivery.status === 'assigned' || delivery.status === 'picked');
-  const canConfirmReceived = !delivery && order?.status === 'pago' && (!order?.deliveryFee || order.deliveryFee === 0);
+  // Confirmação manual só existe no Plano 1 da custódia. Pedido do modo direto (asaas_loja)
+  // é sempre entregue por motoboy e fecha pelo PIN (o backend recusa com PLAN1_DISABLED).
+  const canConfirmReceived = !delivery && order?.status === 'pago' && order?.paymentProvider !== 'asaas_loja'
+    && (!order?.deliveryFee || order.deliveryFee === 0);
 
   return {
     order,

@@ -314,3 +314,64 @@ describe('I2 — cancelamentos de pedido asaas_loja não encostam na custódia',
     });
   }
 });
+
+// ───────────────────────────── I3 ─────────────────────────────
+describe('I3 — plano 1 fora do fluxo no modo direto', () => {
+  it('quote: loja "plano 1" no modo direto cobra a taxa da fórmula da rota (igual ao createOrder direto)', async () => {
+    const { calculateDeliveryFeeWithConfig } = await import('../utils/walletCalculations');
+    const cliente = await buyer();
+    const { store } = await storeWithAccount();
+    const res = await request(app).post('/api/orders/quote').set('Authorization', bearer(cliente))
+      .send({ storeId: store.id, latitude: -22.95, longitude: -43.25 });
+    expect(res.status).toBe(200);
+    const expected = await calculateDeliveryFeeWithConfig(3);
+    expect(expected).toBeGreaterThan(0);
+    expect(res.body.deliveryFee).toBe(expected);
+    expect(res.body.distanceKm).toBe(3);
+  });
+
+  it('quote na custódia continua respeitando o plano 1 (taxa zero)', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' } as any, 'test');
+    const cliente = await buyer();
+    const { store } = await storeWithAccount();
+    const res = await request(app).post('/api/orders/quote').set('Authorization', bearer(cliente))
+      .send({ storeId: store.id, latitude: -22.95, longitude: -43.25 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ plan: 1, deliveryFee: 0 });
+  });
+
+  it('aceite da loja "plano 1" no modo direto cria a Delivery (pool de motoboys)', async () => {
+    const lojista = await createTestUser('lojista', DOMAIN);
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const { store, product } = await storeWithAccount({ ownerId: lojista.userId });
+    const order = await prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId: store.id, items: { create: [{ productId: product.id, quantity: 1, price: 20 }] },
+        subtotal: 20, totalValue: 28, deliveryFee: 8, deliveryDistance: 3, status: 'criado', paymentMethod: 'pix',
+        paymentStatus: 'paid', asaasChargeStatus: 'received', paymentProvider: 'asaas_loja',
+      } as any,
+    });
+    const res = await request(app).post(`/api/orders/${order.id}/accept`).set('Authorization', bearer(lojista)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.requiresDelivery).not.toBe(false);
+    const delivery = await prisma.delivery.findFirst({ where: { orderId: order.id } });
+    expect(delivery).toBeTruthy();
+    expect(Number(delivery!.fee)).toBe(8);
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.deliveryId).toBe(delivery!.id);
+  });
+
+  it('POST /orders/:id/deliver em pedido asaas_loja → 400 PLAN1_DISABLED e o pedido não muda', async () => {
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const { store, product } = await storeWithAccount();
+    const order = await prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId: store.id, items: { create: [{ productId: product.id, quantity: 1, price: 20 }] },
+        totalValue: 28, deliveryFee: 8, status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid', paymentProvider: 'asaas_loja',
+      } as any,
+    });
+    const res = await request(app).post(`/api/orders/${order.id}/deliver`).set('Authorization', bearer(cliente)).send({});
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('PLAN1_DISABLED');
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('pago');
+  });
+});

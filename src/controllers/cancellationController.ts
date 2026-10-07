@@ -34,7 +34,7 @@ import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
-import { isDirectOrder } from '../utils/settlement';
+import { isDirectOrder, isDirectMode } from '../utils/settlement';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -1261,10 +1261,16 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // Emite evento
     emitOrderAcceptedByStore(order);
 
-    // [Plan1] Verificar plano da loja antes de criar Delivery
-    const storeSub = await findSubByStoreId(String(store.id)); // store vem do Prisma (sem _id)
-    const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
-    const storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store.plan ?? 1);
+    // [Plan1] Verificar plano da loja antes de criar Delivery.
+    // Modo direto (pedido asaas_loja ou plataforma em 'direto'): plano único, entrega sempre
+    // pelo pool de motoboys — o plano da loja não é consultado.
+    const directFlow = isDirectOrder(order) || (await isDirectMode());
+    let storePlan = 2;
+    if (!directFlow) {
+      const storeSub = await findSubByStoreId(String(store.id)); // store vem do Prisma (sem _id)
+      const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
+      storePlan = storeSub ? (planMap[(storeSub as any).currentPlan] ?? 1) : (store.plan ?? 1);
+    }
 
     if (storePlan === 1) {
       // Plano 1: sem motoboy — emitir e retornar sem criar Delivery
