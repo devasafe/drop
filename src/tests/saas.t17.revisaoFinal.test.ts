@@ -502,3 +502,52 @@ describe('M1 — nota de serviço de pedido direto sem comissão do app', () => 
     expect(Number(inv!.appCommission)).toBeGreaterThan(0);
   });
 });
+
+// ───────────────────────────── M2 ─────────────────────────────
+describe('M2 — troca de chave com cobranças vivas na conta antiga', () => {
+  const NEW_KEY = '$aact_hmlg_OUTRA_CONTA_17';
+
+  async function livePixOrder(storeId: string, productId: string, paymentStatus: 'pending' | 'paid' = 'pending') {
+    const cliente = await createTestUser('cliente', DOMAIN);
+    return prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId, items: { create: [{ productId, quantity: 1, price: 20 }] },
+        totalValue: 28, deliveryFee: 8, status: 'criado', paymentMethod: 'pix', paymentStatus,
+        asaasChargeStatus: 'pending', asaasPaymentId: `pay_17_m2_${Math.random().toString(36).slice(2, 8)}`, paymentProvider: 'asaas_loja',
+      } as any,
+    });
+  }
+
+  it('chave diferente com Pix pendente na conta atual → 409 PENDING_DIRECT_ORDERS e nada muda', async () => {
+    const { connectStoreAsaas } = await import('../services/asaasLoja/account');
+    const { store, product } = await storeWithAccount();
+    await livePixOrder(store.id, product.id);
+    getAs.mockResolvedValue({ balance: 0 });
+
+    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor')).rejects.toMatchObject({ statusCode: 409, code: 'PENDING_DIRECT_ORDERS' });
+    const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId: store.id } });
+    expect(row!.apiKeyLast4).toBe('17XX');
+    expect(await prisma.storeAsaasAudit.count({ where: { storeId: store.id } })).toBe(0);
+  });
+
+  it('mesma chave (reconectar) não é bloqueada; sem Pix pendente a troca passa', async () => {
+    const { connectStoreAsaas } = await import('../services/asaasLoja/account');
+    const { store, product } = await storeWithAccount();
+    await livePixOrder(store.id, product.id, 'paid');
+    getAs.mockResolvedValue({ balance: 0 });
+    postAs.mockResolvedValue({ id: 'wh_17_m2' });
+
+    await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor')).resolves.toMatchObject({ status: 'valid' });
+    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor')).resolves.toMatchObject({ status: 'valid', apiKeyLast4: NEW_KEY.slice(-4) });
+  });
+
+  it('pela rota do lojista também responde 409 PENDING_DIRECT_ORDERS', async () => {
+    const lojista = await createTestUser('lojista', DOMAIN);
+    const { store, product } = await storeWithAccount({ ownerId: lojista.userId });
+    await livePixOrder(store.id, product.id);
+    getAs.mockResolvedValue({ balance: 0 });
+    const res = await request(app).put(`/api/stores/${store.id}/asaas`).set('Authorization', bearer(lojista)).send({ apiKey: NEW_KEY });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({ code: 'PENDING_DIRECT_ORDERS' });
+  });
+});

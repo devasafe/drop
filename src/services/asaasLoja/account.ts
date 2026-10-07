@@ -119,6 +119,19 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     // Chave nova ≠ antiga: webhook, tokens e confirmações eram da conta anterior → zera
     // (o webhook novo é registrado abaixo). Mesma chave: mantém o que já existe.
     const sameKey = !!existing && sameStoredKey(existing.apiKeyEncrypted, key);
+    // Troca de conta com Pix vivo na conta antiga: o pagamento cairia lá e a expiração/
+    // conciliação passariam a usar a chave nova. Bloqueia até esses pedidos pagarem/expirarem.
+    if (existing && !sameKey) {
+      const live = await tx.order.count({
+        where: { storeId, paymentProvider: 'asaas_loja', status: 'criado', paymentStatus: 'pending' },
+      });
+      if (live > 0) {
+        throw new AppError(
+          'Há pedidos com Pix aguardando pagamento na conta Asaas atual. Aguarde o pagamento ou a expiração antes de trocar a chave.',
+          409, true, 'PENDING_DIRECT_ORDERS',
+        );
+      }
+    }
     const update = sameKey ? data : { ...data, ...RESET_ACCOUNT_BOUND_FIELDS };
     const saved = await tx.storeAsaasAccount.upsert({
       where: { storeId },
