@@ -23,7 +23,10 @@ export function toApiDelivery(delivery: Delivery | null): any {
  */
 export function stripDeliveryPins<T extends Record<string, any> | null | undefined>(delivery: T): T {
   if (!delivery) return delivery;
-  const { pin, pinRetirada, pinDevolucao, ...rest } = delivery as any;
+  const rest: any = { ...delivery };
+  delete rest.pin;
+  delete rest.pinRetirada;
+  delete rest.pinDevolucao;
   return rest as T;
 }
 
