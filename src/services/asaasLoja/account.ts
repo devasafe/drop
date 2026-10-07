@@ -1,9 +1,11 @@
+import crypto from 'crypto';
 import { prisma } from '../../lib/prisma';
 import env from '../../config/env';
 import asaasClient, { AsaasApiError } from '../asaas/client';
 import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encryption';
 import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
+import { registerPaymentWebhook } from './webhook';
 
 /**
  * Conta Asaas própria da loja (modo SaaS "direto").
@@ -102,11 +104,15 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
   const row = await prisma.$transaction(async (tx) => {
     const store = await tx.store.findUnique({ where: { id: storeId }, select: { id: true } });
     if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
-    const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { id: true } });
+    const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { id: true, apiKeyEncrypted: true } });
+    // Chave nova ≠ antiga: webhook, tokens e confirmações eram da conta anterior → zera
+    // (o webhook novo é registrado abaixo). Mesma chave: mantém o que já existe.
+    const sameKey = !!existing && sameStoredKey(existing.apiKeyEncrypted, key);
+    const update = sameKey ? data : { ...data, ...RESET_ACCOUNT_BOUND_FIELDS };
     const saved = await tx.storeAsaasAccount.upsert({
       where: { storeId },
       create: { storeId, ...data },
-      update: data,
+      update,
     });
     await tx.storeAsaasAudit.create({
       data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
@@ -115,7 +121,44 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });
     return saved;
   });
-  return toStatus(row);
+
+  // Webhook de pagamentos na conta da loja. Falhar aqui NÃO derruba a conexão: a chave
+  // continua 'valid', o checklist mostra paymentWebhook=false e o pagamento ainda é
+  // conciliado pelo polling (GET /orders/:id/pix).
+  if (!row.paymentWebhookId) {
+    try {
+      await registerPaymentWebhook(storeId);
+    } catch (err: any) {
+      logger.warn('[asaasLoja] não foi possível registrar o webhook de pagamentos da loja', {
+        storeId, errName: err?.name, code: err?.code, status: err instanceof AsaasApiError ? err.status : undefined,
+      });
+      await prisma.storeAsaasAccount.update({
+        where: { storeId },
+        data: { lastError: 'Não foi possível registrar o webhook de pagamentos no Asaas' },
+      });
+    }
+  }
+  return getStoreAsaasStatus(storeId);
+}
+
+/** Campos que pertencem à CONTA Asaas (não à loja): perdem validade quando a chave muda. */
+const RESET_ACCOUNT_BOUND_FIELDS = {
+  paymentWebhookId: null,
+  paymentWebhookTokenHash: null,
+  authWebhookTokenHash: null,
+  ipWhitelistConfirmedAt: null,
+  authWebhookConfirmedAt: null,
+};
+
+/** A chave cifrada guardada é igual a `key`? (decifra só aqui; falha ao decifrar = diferente) */
+function sameStoredKey(apiKeyEncrypted: string, key: string): boolean {
+  try {
+    const a = Buffer.from(decryptSensitiveData(apiKeyEncrypted), 'utf8');
+    const b = Buffer.from(key, 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 /** Desconecta a conta Asaas da loja (apaga a linha) e audita. Sem conta → 404. */

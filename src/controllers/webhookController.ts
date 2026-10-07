@@ -5,6 +5,8 @@ import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
 import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/orderPayment';
 import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
+import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
+import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -52,41 +54,116 @@ export const handleAsaasWebhook = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'invalid webhook token' });
     }
 
-    const body = req.body || {};
-    const eventId = deriveEventId(body);
-    if (!eventId || !body.event) {
-      return res.status(400).json({ error: 'payload de webhook inválido' });
-    }
-
-    // 2. Idempotência via insert com índice unique.
-    try {
-      await prisma.webhookEvent.create({
-        data: {
-          provider: 'asaas',
-          eventId,
-          event: body.event,
-          payload: body,
-          processed: false,
-        },
-      });
-    } catch (err: any) {
-      // P2002 = violação de unique (eventId) → já recebido. ACK sem reprocessar.
-      if (err?.code === 'P2002') {
-        return res.status(200).json({ received: true, duplicate: true });
-      }
-      throw err;
-    }
-
-    // 3. Processamento de negócio (no-op na Fase 0; implementado nas fases 2/3/5).
-    await dispatchAsaasEvent(eventId, body);
-
-    return res.status(200).json({ received: true });
+    return await processAsaasEvent(req.body || {}, { provider: 'asaas' }, res);
   } catch (err) {
     logger.error('Erro ao processar webhook Asaas', err as Error);
     // 500 faz o Asaas re-tentar — o evento já está persistido (idempotente).
     return res.status(500).json({ error: 'erro ao processar webhook' });
   }
 };
+
+type EventSource =
+  | { provider: 'asaas' }
+  | { provider: 'asaas_loja'; storeId: string };
+
+/**
+ * Núcleo comum dos webhooks do Asaas (custódia e por loja), DEPOIS da autenticação:
+ *  1. valida o payload mínimo;
+ *  2. idempotência por insert em `WebhookEvent` (eventId @unique) — duplicado → 200;
+ *  3. roteia para o processamento da origem e responde 200.
+ *
+ * Chave de idempotência: na custódia é o `event.id` cru (comportamento original). Por
+ * loja é `loja:<storeId>:<event.id>` — `WebhookEvent.eventId` é unique GLOBAL e os ids
+ * vêm de contas Asaas diferentes, então o prefixo impede que o evento de uma loja seja
+ * tomado como "duplicado" de outra (e o id derivado `EVENTO:pay:status` não colide).
+ */
+async function processAsaasEvent(body: any, source: EventSource, res: Response) {
+  const rawId = deriveEventId(body);
+  if (!rawId || !body.event) {
+    return res.status(400).json({ error: 'payload de webhook inválido' });
+  }
+  const eventId = source.provider === 'asaas_loja' ? `loja:${source.storeId}:${rawId}` : rawId;
+
+  try {
+    await prisma.webhookEvent.create({
+      data: { provider: source.provider, eventId, event: body.event, payload: body, processed: false },
+    });
+  } catch (err: any) {
+    // P2002 = violação de unique (eventId) → já recebido. ACK sem reprocessar.
+    if (err?.code !== 'P2002') throw err;
+    // Por loja, um evento gravado cuja execução FALHOU (processed=false) é reprocessado na
+    // re-tentativa do Asaas — seguro porque a confirmação/estorno são updateMany
+    // condicionais. A custódia mantém o comportamento original (duplicado = ACK).
+    const prev = source.provider === 'asaas_loja'
+      ? await prisma.webhookEvent.findUnique({ where: { eventId }, select: { processed: true, processError: true } })
+      : null;
+    if (!prev || prev.processed || !prev.processError) {
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+  }
+
+  if (source.provider === 'asaas_loja') await dispatchStoreAsaasEvent(eventId, source.storeId, body);
+  else await dispatchAsaasEvent(eventId, body);
+
+  return res.status(200).json({ received: true });
+}
+
+/**
+ * Webhook da conta Asaas DA LOJA — POST /webhooks/asaas/loja/:storeId (modo SaaS direto).
+ * Autentica pelo token próprio da loja (só o SHA-256 fica no banco). Qualquer falha de
+ * autenticação — loja inexistente, sem conta, sem hash, header ausente, token errado —
+ * devolve a MESMA resposta 401, para não revelar quais lojas existem.
+ */
+export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
+  try {
+    const storeId = String(req.params.storeId || '');
+    const ok = await verifyStoreWebhookToken(storeId, req.header('asaas-access-token'), 'payment');
+    if (!ok) {
+      logger.warn('Webhook Asaas da loja rejeitado: token inválido');
+      return res.status(401).json({ error: 'invalid webhook token' });
+    }
+    return await processAsaasEvent(req.body || {}, { provider: 'asaas_loja', storeId }, res);
+  } catch (err) {
+    logger.error('Erro ao processar webhook Asaas da loja', err as Error);
+    return res.status(500).json({ error: 'erro ao processar webhook' });
+  }
+};
+
+/**
+ * Eventos da conta da loja. Nada aqui toca carteira/Payout (sem custódia).
+ *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → pedido pago (só se for DESTA loja);
+ *  - PAYMENT_REFUNDED → pedido estornado (só se for desta loja);
+ *  - PAYMENT_REFUND_IN_PROGRESS, TRANSFER_* (Fase 2) e demais → registrados e ignorados.
+ */
+async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: any): Promise<void> {
+  const event = body.event as string;
+  const payment = body.payment || {};
+  logger.info('Webhook Asaas da loja recebido', { eventId, storeId, event, paymentId: payment.id, status: payment.status });
+
+  let processError: string | undefined;
+  try {
+    switch (event) {
+      case 'PAYMENT_RECEIVED':
+      case 'PAYMENT_CONFIRMED':
+        if (payment.id) await confirmDirectOrderPaid(storeId, String(payment.id), payment.status || (event === 'PAYMENT_CONFIRMED' ? 'CONFIRMED' : 'RECEIVED'));
+        break;
+      case 'PAYMENT_REFUNDED':
+        if (payment.id) await markDirectOrderRefunded(storeId, String(payment.id));
+        break;
+      default:
+        break;
+    }
+  } catch (err: any) {
+    processError = err?.message?.slice(0, 300);
+    logger.error('Erro ao processar evento Asaas da loja', err as Error, { eventId, storeId, event });
+    throw err;
+  } finally {
+    await prisma.webhookEvent.updateMany({
+      where: { eventId },
+      data: { processed: !processError, processedAt: new Date(), processError },
+    });
+  }
+}
 
 /**
  * Roteador de eventos do Asaas.

@@ -44,6 +44,8 @@ import { compensateFailedOrder } from '../services/orderCompensation';
 import { isDirectMode } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError } from '../services/asaasLoja/directCheckout';
 import { AppError } from '../utils/AppError';
+import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
+import { confirmDirectOrderPaid } from '../services/asaasLoja/orderPaymentDirect';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -676,6 +678,12 @@ export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(409).json({ error: 'Pedido cancelado — cobrança não disponível' });
     }
 
+    // Modo SaaS direto: a cobrança está na conta Asaas DA LOJA — concilia e busca o QR
+    // com a chave dela. Nunca consulta a conta-mãe (lá essa cobrança não existe).
+    if (order.paymentProvider === 'asaas_loja') {
+      return await getDirectOrderPix(order, res);
+    }
+
     // Reconciliação independente do webhook: pergunta ao Asaas o status real da
     // cobrança. Se já foi paga, confirma na hora (não depende do webhook chegar) —
     // assim o checkout aprova o pagamento mesmo que o webhook esteja mal configurado.
@@ -700,6 +708,29 @@ export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
+
+/** `getOrderPix` de pedido `asaas_loja`: status e QR pela chave da loja. */
+async function getDirectOrderPix(order: { id: string; storeId: string; asaasPaymentId: string | null }, res: Response) {
+  const paymentId = String(order.asaasPaymentId);
+  try {
+    const raw = await getStorePaymentStatus(order.storeId, paymentId);
+    if (raw && ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(raw)) {
+      await confirmDirectOrderPaid(order.storeId, paymentId, raw);
+      const fresh = await prisma.order.findUnique({ where: { id: order.id }, select: { paymentStatus: true } });
+      if (fresh?.paymentStatus === 'paid') return res.json({ paid: true });
+    }
+  } catch (e) {
+    logger.warn('Falha na reconciliação do Pix na conta da loja (segue mostrando o QR)', { orderId: order.id, storeId: order.storeId });
+  }
+
+  try {
+    const qr = await getStorePixQrCode(order.storeId, paymentId);
+    return res.json({ paid: false, orderId: String(order.id), ...qr });
+  } catch (err) {
+    if (err instanceof AppError) return sendAppError(res, err);
+    return res.status(502).json({ error: 'Não foi possível obter a cobrança PIX' });
+  }
+}
 
 export const listOrders = async (req: AuthenticatedRequest, res: Response) => {
   try {

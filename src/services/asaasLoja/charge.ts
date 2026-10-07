@@ -199,3 +199,16 @@ export async function getStorePaymentStatus(storeId: string, paymentId: string):
     return null;
   }
 }
+
+/** QR Pix de uma cobrança na conta da loja (chave da loja). 401 → conta invalid + 409. */
+export async function getStorePixQrCode(storeId: string, paymentId: string): Promise<{ qrCodeImage?: string; qrCodePayload?: string; expiresAt?: string }> {
+  const apiKey = await storeKey(storeId);
+  try {
+    const qr = await asaasClient.getAs<{ encodedImage: string; payload: string; expirationDate: string }>(
+      apiKey, `/payments/${encodeURIComponent(paymentId)}/pixQrCode`, 12000,
+    );
+    return { qrCodeImage: qr.encodedImage, qrCodePayload: qr.payload, expiresAt: qr.expirationDate };
+  } catch (err) {
+    throw await translate(storeId, err);
+  }
+}
