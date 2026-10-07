@@ -320,10 +320,13 @@ describe('loja rejeita ANTES de aceitar (acceptedAt=null) — refund 100%, sem t
   });
 });
 
-describe('loja cancela APÓS aceitar, MTB atribuído mas não pegou — taxa da entrega', () => {
-  it('debita taxa da loja (base=entrega), refund 100%, compensa MTB e caixa reflete appShare', async () => {
+// Regra de negócio (decisão do dono, 2026-10-07): depois que um motoboy ACEITA a corrida,
+// a loja não cancela mais (MOTOBOY_ACCEPTED_CANNOT_CANCEL, commit 6f62cc2). A taxa da loja
+// (base = entrega) continua valendo para cancelamento APÓS o aceite e ANTES de um motoboy
+// pegar a corrida — sem motoboy, a taxa é 100% do app (não há a quem compensar).
+describe('loja cancela APÓS aceitar, sem motoboy ainda — taxa da entrega', () => {
+  it('debita taxa da loja (base=entrega), refund 100%, taxa inteira no caixa (sem MTB)', async () => {
     const owner = await createUser('lojista');
-    const motoboy = await createUser('motoboy');
     const customer = await createUser('cliente');
 
     const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Cancela Aceita' } });
@@ -331,10 +334,9 @@ describe('loja cancela APÓS aceitar, MTB atribuído mas não pegou — taxa da 
     await createWallet({ owner: customer.id, ownerType: 'user', balance: 1000, totalIncome: 1000, totalSpent: 0 });
     // Carteira da loja com saldo — a taxa (base=entrega) é debitada daqui (não-COD).
     await createWallet({ owner: store.id, ownerType: 'store', balance: 500, totalIncome: 500, totalSpent: 0 });
-    await createWallet({ owner: motoboy.id, ownerType: 'motoboy', balance: 0, totalIncome: 0, totalSpent: 0, availableBalance: 0, pendingBalance: 0 });
     await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
 
-    // Pedido pago, ACEITO pela loja (acceptedAt), com MTB atribuído mas que NÃO pegou.
+    // Pedido pago, ACEITO pela loja (acceptedAt), entrega no pool sem motoboy.
     const order = await prisma.order.create({ data: {
       customerId: customer.id,
       storeId: store.id,
@@ -348,7 +350,7 @@ describe('loja cancela APÓS aceitar, MTB atribuído mas não pegou — taxa da 
     }, include: { items: true } });
 
     const delivery = await prisma.delivery.create({
-      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'assigned' },
+      data: { orderId: order.id, fee: 100, status: 'pending' },
     });
     await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
@@ -358,8 +360,7 @@ describe('loja cancela APÓS aceitar, MTB atribuído mas não pegou — taxa da 
       .send({ reason: 'Cancelou após aceitar' });
 
     expect(res.status).toBe(200);
-    // Config: cancelFeeStorePercent=10% de deliveryFee(100) = R$10 de taxa;
-    // 50% (R$5) motoboy, 50% (R$5) app. Cliente refund 100% (R$200).
+    // Config: cancelFeeStorePercent=10% de deliveryFee(100) = R$10 de taxa; sem MTB → 100% app.
 
     // PROVA 1: cliente recebe 100% do total (loja é a culpada).
     expect(res.body.refundAmount).toBeCloseTo(200, 2);
@@ -373,22 +374,16 @@ describe('loja cancela APÓS aceitar, MTB atribuído mas não pegou — taxa da 
     expect(penalty).toBeTruthy();
     expect(penalty!.amount).toBeCloseTo(10, 2);
 
-    // PROVA 3: compensação do MTB = motoboyShare (50/50), Payout 'released'.
-    const compPayout = await findPayout({ recipientType: 'motoboy', recipientId: motoboy.id, status: 'released' });
-    expect(compPayout).not.toBeNull();
-    expect(compPayout!.amount).toBeCloseTo(5, 2);
-
-    // PROVA 4: AppCashbox recebe a taxa INTEIRA (R$10) como lastro; líquido = appShare (R$5).
+    // PROVA 3: AppCashbox recebe a taxa inteira (R$10).
     const cashbox = await findAppCashbox();
     const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
     expect(feeEntry).toBeTruthy();
     expect(feeEntry!.amount).toBeCloseTo(10, 2);
-    expect(feeEntry!.amount - compPayout!.amount).toBeCloseTo(5, 2); // = appShare
   });
 });
 
-describe('loja tenta cancelar APÓS o MTB pegar (status=picked) — bloqueado', () => {
-  it('retorna 400 PICKED_UP_CANNOT_CANCEL e NÃO altera o status do pedido', async () => {
+describe('loja tenta cancelar com MTB atribuído (assigned ou picked) — bloqueado', () => {
+  it.each(['assigned', 'picked'] as const)('delivery %s → 400 MOTOBOY_ACCEPTED_CANNOT_CANCEL, nada se move', async (deliveryStatus) => {
     const owner = await createUser('lojista');
     const motoboy = await createUser('motoboy');
     const customer = await createUser('cliente');
@@ -397,21 +392,24 @@ describe('loja tenta cancelar APÓS o MTB pegar (status=picked) — bloqueado', 
     await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
 
     const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Bloqueada' } });
+    await createWallet({ owner: store.id, ownerType: 'store', balance: 500, totalIncome: 500, totalSpent: 0 });
 
+    // Pedido real fica em 'pago' durante a entrega (ninguém grava 'enviado'; "a caminho" = Delivery picked).
+    const orderStatus = 'pago';
     const order = await prisma.order.create({ data: {
       customerId: customer.id,
       storeId: store.id,
       items: { create: [{ productId: await productIdForItem('@cancel.test', 200), quantity: 1, price: 200 }] },
       totalValue: 200,
       deliveryFee: 100,
-      status: 'enviado',
+      status: orderStatus,
       paymentMethod: 'pix',
       paymentStatus: 'paid',
       acceptedAt: new Date(),
     }, include: { items: true } });
 
     const delivery = await prisma.delivery.create({
-      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: 'picked' },
+      data: { orderId: order.id, motoboyId: motoboy.id, fee: 100, status: deliveryStatus },
     });
     await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
@@ -421,13 +419,17 @@ describe('loja tenta cancelar APÓS o MTB pegar (status=picked) — bloqueado', 
       .send({ reason: 'Tarde demais' });
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe('PICKED_UP_CANNOT_CANCEL');
+    expect(res.body.code).toBe('MOTOBOY_ACCEPTED_CANNOT_CANCEL');
 
-    // Pedido NÃO muda de status (continua 'enviado', não foi reivindicado/rejeitado).
+    // Pedido NÃO muda de status.
     const updated = await prisma.order.findUnique({ where: { id: order.id } });
-    expect(updated!.status).toBe('enviado');
+    expect(updated!.status).toBe(orderStatus);
 
-    // Nenhuma taxa lançada.
+    // Nenhum dinheiro se move: sem refund, sem taxa da loja, nada no caixa.
+    const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
+    expect(custWallet!.balance).toBeCloseTo(100, 2);
+    const storeWallet = await findWallet({ owner: store.id, ownerType: 'store' });
+    expect(storeWallet!.balance).toBeCloseTo(500, 2);
     const cashbox = await findAppCashbox();
     const feeEntry = cashbox!.history.find((h: any) => h.source === 'cancelled_order');
     expect(feeEntry).toBeFalsy();
