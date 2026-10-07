@@ -200,6 +200,32 @@ export async function getStorePaymentStatus(storeId: string, paymentId: string):
   }
 }
 
+/**
+ * Exclui a cobrança na conta da loja (DELETE /payments/{id} com a chave DA LOJA) —
+ * equivalente ao `cancelCharge` da conta-mãe. true = excluída (não pode mais ser paga);
+ * false = não excluída (já paga, conta sem chave utilizável ou Asaas fora). 401 → conta invalid.
+ * Nunca lança: quem expira pedido trata `false` como "não mexer".
+ */
+export async function cancelStorePixCharge(storeId: string, paymentId: string): Promise<boolean> {
+  let apiKey: string;
+  try {
+    apiKey = await storeKey(storeId);
+  } catch {
+    logger.warn('[asaasLoja] sem chave utilizável para excluir a cobrança', { storeId, paymentId });
+    return false;
+  }
+  try {
+    await asaasClient.deleteAs(apiKey, `/payments/${encodeURIComponent(paymentId)}`);
+    return true;
+  } catch (err) {
+    await translate(storeId, err);
+    logger.warn('[asaasLoja] não foi possível excluir a cobrança (provavelmente já paga)', {
+      storeId, paymentId, status: err instanceof AsaasApiError ? err.status : undefined,
+    });
+    return false;
+  }
+}
+
 /** QR Pix de uma cobrança na conta da loja (chave da loja). 401 → conta invalid + 409. */
 export async function getStorePixQrCode(storeId: string, paymentId: string): Promise<{ qrCodeImage?: string; qrCodePayload?: string; expiresAt?: string }> {
   const apiKey = await storeKey(storeId);

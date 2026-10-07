@@ -24,6 +24,7 @@ import { isMotoboyVerified, missingMotoboyVerifications } from '../utils/courier
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import env from '../config/env';
+import logger from '../config/logger';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
@@ -338,11 +339,17 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
       const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
       const motoboyAmount = delivery.fee * (1 - motoboyCommissionDecimal);
 
+      // Modo SaaS direto: o dinheiro já está na conta Asaas da loja — não há custódia a
+      // liberar nem Payout de motoboy pela conta-mãe (o Pix ao motoboy é a Fase 2).
+      const isDirectOrder = order.paymentProvider === 'asaas_loja';
+
       // Garantir que a wallet do motoboy exista (pra receber o payout).
-      await walletService.getOrCreate(userId, 'motoboy');
+      if (!isDirectOrder) await walletService.getOrCreate(userId, 'motoboy');
 
       const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
-      if (useAsaas) {
+      if (isDirectOrder) {
+        logger.info('[finalizarEntrega] pedido do modo direto — sem Payout/carteira de custódia', { orderId: order.id });
+      } else if (useAsaas) {
         // Cria o Payout do motoboy (pending). A liberação (transferência real conta-mãe
         // → subcontas) só acontece automaticamente se a plataforma estiver com
         // autoApprovePayouts. Caso contrário, os payouts ficam PENDING e o admin libera
@@ -381,7 +388,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         });
       }
 
-      console.log(`✅ [finalizarEntrega] Payouts released for order ${order._id}. Motoboy: R$ ${motoboyAmount.toFixed(2)}`);
+      if (!isDirectOrder) console.log(`✅ [finalizarEntrega] Payouts released for order ${order._id}. Motoboy: R$ ${motoboyAmount.toFixed(2)}`);
 
       // --- Gerar nota de servico (idempotente) ---
       try {

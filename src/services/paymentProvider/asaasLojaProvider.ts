@@ -1,6 +1,6 @@
 import { prisma } from '../../lib/prisma';
 import { AppError } from '../../utils/AppError';
-import { createStorePixCharge, getStorePaymentStatus } from '../asaasLoja/charge';
+import { createStorePixCharge, getStorePaymentStatus, cancelStorePixCharge } from '../asaasLoja/charge';
 import type {
   IPaymentProvider, PaymentProviderCapabilities, CreateChargeInput,
   ChargeResult, NormalizedPaymentStatus, NormalizedWebhookEvent, RefundResult,
@@ -49,8 +49,14 @@ export class AsaasLojaProvider implements IPaymentProvider {
     return 'pending';
   }
 
-  async cancelCharge(): Promise<boolean> {
-    throw notImplemented('cancelCharge'); // Task 1.6
+  /** Exclui a cobrança com a chave da loja dona do pedido. false = não excluída (não mexer no pedido). */
+  async cancelCharge(providerPaymentId: string): Promise<boolean> {
+    const order = await prisma.order.findFirst({
+      where: { asaasPaymentId: providerPaymentId, paymentProvider: 'asaas_loja' },
+      select: { storeId: true },
+    });
+    if (!order) return false;
+    return cancelStorePixCharge(order.storeId, providerPaymentId);
   }
 
   parseWebhook(): NormalizedWebhookEvent | null {
