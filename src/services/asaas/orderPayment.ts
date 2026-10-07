@@ -17,7 +17,12 @@ export async function confirmOrderPaidByPayment(
   asaasPaymentId: string,
   asaasStatus: string
 ): Promise<void> {
-  const order = await prisma.order.findFirst({ where: { asaasPaymentId }, include: orderInclude });
+  // Só pedidos da custódia: um pedido do modo direto (asaas_loja) é confirmado pela conta
+  // da loja (confirmDirectOrderPaid) e nunca pode ganhar Payout de custódia.
+  const order = await prisma.order.findFirst({
+    where: { asaasPaymentId, paymentProvider: { not: 'asaas_loja' } },
+    include: orderInclude,
+  });
   if (!order) {
     logger.warn('Webhook de pagamento sem pedido correspondente', { asaasPaymentId });
     return;
@@ -88,7 +93,8 @@ export async function finalizeWalletPaidOrder(orderId: string): Promise<void> {
  * pelo painel do Asaas — aqui só refletimos o estado final.
  */
 export async function markOrderRefunded(asaasPaymentId: string): Promise<void> {
-  const order = await prisma.order.findFirst({ where: { asaasPaymentId } });
+  // Só custódia: estorno de pedido do modo direto chega pela conta da loja (markDirectOrderRefunded).
+  const order = await prisma.order.findFirst({ where: { asaasPaymentId, paymentProvider: { not: 'asaas_loja' } } });
   if (!order) return;
   if (order.asaasChargeStatus === 'refunded') return; // idempotente
   await prisma.order.update({

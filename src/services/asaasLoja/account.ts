@@ -86,6 +86,12 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     throw new AppError('A chave é de outro ambiente (sandbox/produção) que o do servidor', 400, true, 'ASAAS_ENV_MISMATCH');
   }
 
+  // A chave da conta-mãe da DROP nunca vira "conta da loja": o dinheiro dos pedidos
+  // diretos cairia na plataforma, fora da custódia e sem espelho contábil.
+  if (sameSecret(key, String(env.ASAAS_API_KEY || '').trim())) {
+    throw new AppError('Esta chave é da plataforma DROP, não da loja', 400, true, 'ASAAS_KEY_IS_PLATFORM');
+  }
+
   // Fail closed: nada é gravado se a chave não for aceita.
   if (!(await probeKey(storeId, key))) {
     throw new AppError('Chave de API do Asaas recusada', 400, true, 'ASAAS_KEY_INVALID');
@@ -170,12 +176,18 @@ const RESET_ACCOUNT_BOUND_FIELDS = {
   authWebhookConfirmedAt: null,
 };
 
+/** Comparação em tempo constante (o tamanho vaza, o conteúdo não). Vazio nunca é igual. */
+function sameSecret(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const ba = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
 /** A chave cifrada guardada é igual a `key`? (decifra só aqui; falha ao decifrar = diferente) */
 function sameStoredKey(apiKeyEncrypted: string, key: string): boolean {
   try {
-    const a = Buffer.from(decryptSensitiveData(apiKeyEncrypted), 'utf8');
-    const b = Buffer.from(key, 'utf8');
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    return sameSecret(decryptSensitiveData(apiKeyEncrypted), key);
   } catch {
     return false;
   }

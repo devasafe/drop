@@ -389,3 +389,56 @@ describe('I4 — URL do webhook de autorização vem de PUBLIC_API_URL', () => {
     }
   });
 });
+
+// ───────────────────────────── I5 ─────────────────────────────
+describe('I5 — custódia ignora pedidos asaas_loja; chave da plataforma não vira conta da loja', () => {
+  async function directPending(paymentId: string, paymentStatus: 'pending' | 'paid' = 'pending') {
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const { store, product } = await storeWithAccount();
+    return prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId: store.id, items: { create: [{ productId: product.id, quantity: 1, price: 20 }] },
+        totalValue: 28, deliveryFee: 8, status: 'criado', paymentMethod: 'pix', paymentStatus,
+        asaasChargeStatus: paymentStatus === 'paid' ? 'received' : 'pending', asaasPaymentId: paymentId, paymentProvider: 'asaas_loja',
+        walletDistribution: { storeAmount: 28, appCommission: 0, commissionPercent: 0 },
+      } as any,
+    });
+  }
+
+  it('confirmOrderPaidByPayment (webhook da conta-mãe) não confirma nem cria Payout para pedido asaas_loja', async () => {
+    const { confirmOrderPaidByPayment } = await import('../services/asaas/orderPayment');
+    const order = await directPending('pay_17_i5_conf');
+    await confirmOrderPaidByPayment('pay_17_i5_conf', 'RECEIVED');
+    const after = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(after!.paymentStatus).toBe('pending');
+    expect(await prisma.payout.count({ where: { orderId: order.id } })).toBe(0);
+  });
+
+  it('markOrderRefunded (webhook da conta-mãe) não marca pedido asaas_loja como estornado', async () => {
+    const { markOrderRefunded } = await import('../services/asaas/orderPayment');
+    const order = await directPending('pay_17_i5_ref', 'paid');
+    await markOrderRefunded('pay_17_i5_ref');
+    const after = await prisma.order.findUnique({ where: { id: order.id } });
+    expect(after!.paymentStatus).toBe('paid');
+    expect(after!.asaasChargeStatus).toBe('received');
+  });
+
+  it('connectStoreAsaas recusa a chave da conta-mãe: 400 ASAAS_KEY_IS_PLATFORM, sem chamar o Asaas nem gravar', async () => {
+    const { connectStoreAsaas } = await import('../services/asaasLoja/account');
+    const original = (env as any).ASAAS_API_KEY;
+    (env as any).ASAAS_API_KEY = '$aact_hmlg_PLATAFORMA_DROP_17';
+    try {
+      const { store } = await storeWithAccount({ account: false });
+      getAs.mockResolvedValue({ balance: 0 });
+      await expect(connectStoreAsaas(store.id, ' $aact_hmlg_PLATAFORMA_DROP_17 ', 'actor')).rejects
+        .toMatchObject({ statusCode: 400, code: 'ASAAS_KEY_IS_PLATFORM' });
+      expect(getAs).not.toHaveBeenCalled();
+      expect(await prisma.storeAsaasAccount.count({ where: { storeId: store.id } })).toBe(0);
+      // Outra chave continua conectando normalmente.
+      postAs.mockResolvedValue({ id: 'wh_17' });
+      await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor')).resolves.toMatchObject({ status: 'valid' });
+    } finally {
+      (env as any).ASAAS_API_KEY = original;
+    }
+  });
+});
