@@ -951,7 +951,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       pin: pinEntrega, // 🔑 PIN PARA O CLIENTE (entrega final)
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId} with PIN: ${pinEntrega}`);
+    console.log(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId}`);
 
     // 🔴 BROADCAST 2: Notificar LOJA que motoboy foi atribuído
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;

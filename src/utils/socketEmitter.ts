@@ -1,9 +1,15 @@
 import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
 import { notifyOnlineMotoboysNewDelivery, notifyStoreOwner, notifyAdmins } from '../services/pushService';
+import { toPublicStore } from '../repositories/store.repository';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
+/**
+ * Broadcast GLOBAL — só para dado público de catálogo/tema (produto, categoria, loja via
+ * toPublicStore, tema sazonal). Nunca pedido, entrega, notificação, PIN ou dado pessoal:
+ * esses vão por emitToRoom para a sala da parte interessada.
+ */
 export const emitToAll = (event: string, data: any) => {
   const io = notifier.io;
   if (!io) {
@@ -20,20 +26,14 @@ export const emitToAll = (event: string, data: any) => {
 
 export const emitToRoom = (room: string, event: string, data: any) => {
   const io = notifier.io;
-  console.log(`\n📡 [SOCKET.EMIT] Tentando emitir evento`);
-  console.log(`   Sala: ${room}`);
-  console.log(`   Evento: ${event}`);
-  console.log(`   Data: ${JSON.stringify(data)}`);
-  console.log(`   IO disponível: ${!!io}`);
-  
+  // Nunca logar o payload: ele pode conter PIN, endereço e dados de pagamento.
   if (!io) {
     console.error(`❌ [SOCKET.EMIT] io não inicializado para sala: ${room}`);
     return;
   }
   try {
-    if (DEBUG) console.log(`[SOCKET.EMIT] Broadcasting "${event}" to room: ${room}`);
-    const result = io.to(room).emit(event, data);
-    console.log(`✅ [SOCKET.EMIT] Evento emitido com sucesso para sala: ${room}\n`);
+    if (DEBUG) console.log(`[SOCKET.EMIT] "${event}" → ${room}`);
+    io.to(room).emit(event, data);
   } catch (err) {
     console.error(`❌ [SOCKET.EMIT] Erro ao emitir para sala "${room}":`, err);
   }
@@ -104,8 +104,8 @@ export const emitOrderCreated = (order: any) => {
     walletDistribution: order.walletDistribution
   };
   
-  emitToAll('order:created', payload);
-  
+  // Sem broadcast global: pedido só interessa à loja e ao cliente (salas abaixo).
+
   // 🏪 Notificar a loja - novo pedido recebido
   if (order.storeId) {
     const storePayload = {
@@ -177,11 +177,14 @@ export const emitOrderStatusChanged = (order: any) => {
 };
 
 export const emitDeliveryCreated = (delivery: any) => {
-  emitToAll('delivery:created', delivery);
-  
+  // Nada global: o objeto da entrega tem endereço/coordenadas do cliente. Só a sala
+  // `motoboys` (KYC aprovado) recebe um aviso mínimo — o pool é buscado pela API.
+  const deliveryId = delivery._id ?? delivery.id;
+  emitToRoom('motoboys', 'delivery:created', { _id: deliveryId, deliveryId, orderId: delivery.orderId });
+
   // 🏍️ Notificar motoboys de nova entrega disponível
   emitToRoom('motoboys', 'delivery:available', {
-    deliveryId: delivery._id,
+    deliveryId,
     orderId: delivery.orderId,
     distance: delivery.distance,
     fee: delivery.fee,
@@ -289,8 +292,6 @@ export const emitDeliveryLocationUpdated = (delivery: any) => {
     estimatedTime: delivery.estimatedTime,
   };
   
-  emitToAll('delivery:location_updated', payload);
-  
   // Notificar o motoboy
   if (delivery.motoboyId) {
     emitToRoom(`user:${delivery.motoboyId}`, 'delivery:location_updated', payload);
@@ -312,7 +313,6 @@ export const emitNotificationReceived = (notification: any) => {
   if (notification.userId) {
     emitToRoom(`user:${notification.userId}`, 'notification:received', notification);
   }
-  emitToAll('notification:received', notification);
 };
 
 export const emitNotificationRead = (notification: any) => {
@@ -321,13 +321,13 @@ export const emitNotificationRead = (notification: any) => {
   }
 };
 
+// Loja é catálogo público, mas SÓ com o serializer público (sem asaas/cnpj/verification).
 export const emitStoreCreated = (store: any) => {
-  emitToAll('store:created', store);
+  emitToAll('store:created', toPublicStore(store));
 };
 
 export const emitStoreUpdated = (store: any) => {
-  emitToAll('store:updated', store);
-  emitToRoom(`store:${store.ownerId}`, 'store:updated', store);
+  emitToAll('store:updated', toPublicStore(store));
 };
 
 export const emitCategoryCreated = (category: any) => {
@@ -381,8 +381,7 @@ export const emitOrderCancelled = (order: any, cancellation: any) => {
       cancelledBy: cancellation.cancelledBy,
     });
   }
-  // Broadcast geral
-  emitToAll('order:cancelled', { orderId: order._id, status: 'cancelado', cancelledBy: cancellation.cancelledBy });
+  // Sem broadcast global (cliente e loja já foram avisados nas salas acima).
 };
 
 export const emitDeliveryCancelled = (delivery: any, cancellation: any) => {
@@ -554,15 +553,7 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
     });
     console.log(`📡 [emitDeliveryCompleted] Event sent to motoboy ${delivery.motoboyId}`);
   }
-
-  // 🔴 Broadcast geral
-  emitToAll('delivery:completed', {
-    orderId: order._id.toString(),
-    deliveryId: delivery._id.toString(),
-    status: 'entregue',
-    completedAt: delivery.updatedAt
-  });
-  console.log(`✅ [emitDeliveryCompleted] Broadcast sent`);
+  // Sem broadcast global: as três partes já foram avisadas nas salas acima.
 };
 
 // ========== WALLET EVENTS ==========
