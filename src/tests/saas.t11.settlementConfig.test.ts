@@ -19,7 +19,7 @@ describe('t1.1 — configuração do modo SaaS', () => {
     expect(put.status).toBe(200);
     expect(await isDirectMode()).toBe(true);
     const pub = await request(app).get('/api/settings/saas');
-    expect(pub.body).toEqual({ settlementMode: 'direto', billingModel: 'mensalidade', directCardEnabled: false });
+    expect(pub.body).toEqual({ settlementMode: 'direto', billingModel: 'mensalidade', directCardEnabled: false, egressIp: null });
   });
 
   it('valor inválido de settlementMode → 400 e nada muda', async () => {

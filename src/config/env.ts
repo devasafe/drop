@@ -48,6 +48,8 @@ const envSchema = z.object({
   ASAAS_API_KEY: z.string().optional(),
   ASAAS_API_URL: z.string().default('https://sandbox.asaas.com/api/v3'),
   ASAAS_WEBHOOK_TOKEN: z.string().optional(),
+  // IP público de saída da DROP (o lojista libera no painel do Asaas); exposto em /settings/saas
+  DROP_EGRESS_IP: z.string().default(''),
   RESERVE_PERCENT: z.string().transform(Number).default('5'),
   RESERVE_DAYS: z.string().transform(Number).default('15'),
   RELEASE_FALLBACK_DAYS: z.string().transform(Number).default('3'),
@@ -136,6 +138,7 @@ export const env = (() => {
         ASAAS_API_KEY: undefined,
         ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
         ASAAS_WEBHOOK_TOKEN: undefined,
+        DROP_EGRESS_IP: '',
         RESERVE_PERCENT: 5,
         RESERVE_DAYS: 15,
         RELEASE_FALLBACK_DAYS: 3,

@@ -1,0 +1,16 @@
+.card { display: flex; flex-direction: column; gap: var(--space-5); }
+.statusRow { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.badge { font-size: var(--fs-sm); font-weight: 700; padding: 4px 10px; border-radius: var(--r-pill); border: 1px solid var(--line); color: var(--text-muted); }
+.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, var(--line)); }
+.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
+.meta { font-size: var(--fs-sm); color: var(--text-muted); }
+.form { display: flex; gap: var(--space-2); align-items: flex-start; flex-wrap: wrap; }
+.formField { flex: 1; min-width: 220px; }
+.hint { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.item { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+.itemHead { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; color: var(--text-strong); font-size: var(--fs-body); }
+.mark { width: 18px; text-align: center; font-weight: 700; }
+.code { font-family: monospace; font-size: var(--fs-sm); color: var(--text); background: var(--surface); padding: 6px 10px; border-radius: var(--r-sm); word-break: break-all; display: block; }
+.actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.tokenBox { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--rating) 40%, var(--line)); border-radius: var(--r-md); }

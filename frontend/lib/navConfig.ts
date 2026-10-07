@@ -22,6 +22,8 @@ export interface NavItem {
   exact?: boolean;
   /** Some no modo de liquidação 'direto' (custódia/repasse desligados). */
   custodyOnly?: boolean;
+  /** Inverso de custodyOnly: aparece SÓ no modo 'direto' (conta Asaas própria da loja). */
+  directOnly?: boolean;
 }
 
 export interface RoleArea {
@@ -80,6 +82,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
     { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja', custodyOnly: true },
     { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
+    { label: 'Recebimentos',       icon: 'bank',      route: '/seller/pagamentos',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
     { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
   ],
   motoboy: [
@@ -137,7 +140,7 @@ export function getNavItems(
     }));
   }
   const items = NAV[role] || [];
-  return items.filter((it) => (!it.permission || can(it.permission)) && !(direct && it.custodyOnly));
+  return items.filter((it) => (!it.permission || can(it.permission)) && !(direct && it.custodyOnly) && !(it.directOnly && !direct));
 }
 
 /** Estado ativo por prefixo de rota e tab na querystring. */

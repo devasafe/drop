@@ -15,6 +15,8 @@ export type StoreAsaasStatus = {
   environment: 'sandbox' | 'production' | null;
   lastCheckedAt: string | null;
   walletId: string | null;
+  /** Final da chave (••••1234), único pedaço dela que sai do backend. */
+  apiKeyLast4: string | null;
   checklist: { apiKey: boolean; paymentWebhook: boolean; ipWhitelistConfirmed: boolean; authWebhookConfirmed: boolean };
 };
 
@@ -32,7 +34,7 @@ function serverEnvironment(): 'sandbox' | 'production' {
 function toStatus(row: any | null): StoreAsaasStatus {
   if (!row) {
     return {
-      status: 'none', environment: null, lastCheckedAt: null, walletId: null,
+      status: 'none', environment: null, lastCheckedAt: null, walletId: null, apiKeyLast4: null,
       checklist: { apiKey: false, paymentWebhook: false, ipWhitelistConfirmed: false, authWebhookConfirmed: false },
     };
   }
@@ -41,6 +43,7 @@ function toStatus(row: any | null): StoreAsaasStatus {
     environment: row.environment as 'sandbox' | 'production',
     lastCheckedAt: row.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
     walletId: row.walletId ?? null,
+    apiKeyLast4: row.apiKeyLast4 ?? null,
     checklist: {
       apiKey: row.status === 'valid',
       paymentWebhook: !!row.paymentWebhookId,

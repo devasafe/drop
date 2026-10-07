@@ -28,4 +28,10 @@ describe('navConfig — modo de liquidação', () => {
   it('sem opções: comportamento atual (custódia)', () => {
     expect(getNavItems('cliente', allow, false).map((i) => i.label)).toContain('Carteira');
   });
+
+  it('Recebimentos (lojista) aparece só no modo direto', () => {
+    expect(labels('lojista', 'direto')).toContain('Recebimentos');
+    expect(labels('lojista', 'custodia')).not.toContain('Recebimentos');
+    expect(getNavItems('lojista', allow, false).map((i) => i.label)).not.toContain('Recebimentos');
+  });
 });

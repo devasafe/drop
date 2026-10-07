@@ -16,6 +16,7 @@ import ordersRoutes from './routes/orders';
 import deliveriesRoutes from './routes/deliveries';
 import notificationsRoutes from './routes/notifications';
 import storesRoutes from './routes/stores';
+import storeAsaasRoutes from './routes/storeAsaas';
 import storeRoutes from './routes/storeRoutes'; // ✅ NOVO - Store endpoints
 import categoriesRoutes from './routes/categories';
 import gamificationRoutes from './routes/gamification';
@@ -123,6 +124,7 @@ app.use('/api/products', productsRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/stores/:storeId/asaas', storeAsaasRoutes);
 app.use('/api/stores', storesRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/gamification', gamificationRoutes);

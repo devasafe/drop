@@ -14,6 +14,7 @@ import {
 } from '../controllers/settingsController';
 
 import { getSaasConfig } from '../utils/settlement';
+import env from '../config/env';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ const router = Router();
 router.get('/saas', async (_req, res) => {
   try {
     const { settlementMode, billingModel, directCardEnabled } = await getSaasConfig();
-    return res.json({ settlementMode, billingModel, directCardEnabled });
+    return res.json({ settlementMode, billingModel, directCardEnabled, egressIp: env.DROP_EGRESS_IP || null });
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao ler as configurações' });
   }
