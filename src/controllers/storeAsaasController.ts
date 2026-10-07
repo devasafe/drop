@@ -2,12 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { AppError } from '../utils/AppError';
 import { isStoreOwner } from '../utils/storeOwnership';
 import {
   connectStoreAsaas,
-  getStoreApiKey,
+  testStoreAsaas,
   getStoreAsaasStatus,
   StoreAsaasNotReadyError,
 } from '../services/asaasLoja/account';
@@ -75,44 +74,7 @@ export async function postAuthToken(req: Request, res: Response) {
   ok(res, { token, url: `${AUTH_URL_BASE}/${storeId}/autorizacao` });
 }
 
-/** "Testar configuração": chave (saldo) + webhook de pagamentos; IP e autorização são confirmação manual. */
+/** "Testar configuração": a lógica (e a chave) ficam em services/asaasLoja; aqui só HTTP. */
 export async function postTest(req: Request, res: Response) {
-  const { storeId } = req.params;
-  const key = await getStoreApiKey(storeId).catch(async (err) => {
-    // linha 'invalid' também cai aqui: o teste deve mostrar o estado, não 409
-    if (err instanceof StoreAsaasNotReadyError && (await prisma.storeAsaasAccount.findUnique({ where: { storeId } }))) return null;
-    throw err;
-  });
-
-  let apiKeyOk = false;
-  if (key) {
-    try {
-      await asaasClient.getAs(key, '/finance/balance');
-      apiKeyOk = true;
-      await prisma.storeAsaasAccount.update({ where: { storeId }, data: { status: 'valid', lastCheckedAt: new Date(), lastError: null } });
-    } catch (err: any) {
-      if (err instanceof AsaasApiError && err.status === 401) {
-        await prisma.storeAsaasAccount.update({
-          where: { storeId },
-          data: { status: 'invalid', lastCheckedAt: new Date(), lastError: 'Chave recusada pelo Asaas' },
-        });
-      } else {
-        throw new AppError('Não foi possível falar com o Asaas agora. Tente novamente.', 503, true, 'ASAAS_UNAVAILABLE');
-      }
-    }
-  }
-
-  let paymentWebhook = false;
-  const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
-  if (apiKeyOk && key && row?.paymentWebhookId) {
-    try {
-      const wh: any = await asaasClient.getAs(key, `/webhooks/${encodeURIComponent(row.paymentWebhookId)}`);
-      paymentWebhook = !!wh && wh.enabled === true && wh.interrupted !== true;
-    } catch {
-      paymentWebhook = false;
-    }
-  }
-
-  const status = await getStoreAsaasStatus(storeId);
-  ok(res, { ...status, checklist: { ...status.checklist, apiKey: apiKeyOk, paymentWebhook } });
+  ok(res, await testStoreAsaas(req.params.storeId));
 }

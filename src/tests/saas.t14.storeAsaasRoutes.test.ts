@@ -50,6 +50,7 @@ describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
       expect((await connect(u)).status).toBe(403);
       expect((await request(app).get(base()).set('Authorization', bearer(u))).status).toBe(403);
       expect((await request(app).post(`${base()}/test`).set('Authorization', bearer(u))).status).toBe(403);
+      expect((await request(app).post(`${base()}/checklist`).set('Authorization', bearer(u)).send({ ipWhitelist: true })).status).toBe(403);
       expect((await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(u))).status).toBe(403);
     }
     expect((await request(app).get(base())).status).toBe(401);
@@ -165,6 +166,26 @@ describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
     expect(bad.status).toBe(200);
     expect(bad.body.data.checklist.apiKey).toBe(false);
     expect(bad.body.data.status).toBe('invalid');
+  });
+
+  it('test: conta invalid é retestada e volta a valid se o Asaas aceitar', async () => {
+    (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
+    await connect();
+    await prisma.storeAsaasAccount.update({ where: { storeId }, data: { status: 'invalid' } });
+    (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 1 });
+    const r = await request(app).post(`${base()}/test`).set('Authorization', bearer(owner));
+    expect(r.status).toBe(200);
+    expect(r.body.data.status).toBe('valid');
+    expect((await prisma.storeAsaasAccount.findUnique({ where: { storeId } }))!.status).toBe('valid');
+  });
+
+  it('test: Asaas fora do ar → 503 ASAAS_UNAVAILABLE', async () => {
+    (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
+    await connect();
+    (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(500, []));
+    const r = await request(app).post(`${base()}/test`).set('Authorization', bearer(owner));
+    expect(r.status).toBe(503);
+    expect(r.body.error.code).toBe('ASAAS_UNAVAILABLE');
   });
 
   it('test sem conta → 409 STORE_ASAAS_NOT_READY', async () => {

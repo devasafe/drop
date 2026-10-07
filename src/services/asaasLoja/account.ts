@@ -57,6 +57,21 @@ export async function getStoreAsaasStatus(storeId: string): Promise<StoreAsaasSt
   return toStatus(await prisma.storeAsaasAccount.findUnique({ where: { storeId } }));
 }
 
+/**
+ * Chama /finance/balance com a chave. true = aceita; false = 401 (recusada).
+ * Qualquer outra falha (rede, timeout, 5xx) = ASAAS_UNAVAILABLE (503), logada sem a chave.
+ */
+async function probeKey(storeId: string, key: string): Promise<boolean> {
+  try {
+    await asaasClient.getAs(key, '/finance/balance');
+    return true;
+  } catch (err: any) {
+    if (err instanceof AsaasApiError && err.status === 401) return false;
+    logger.warn('[asaasLoja] validação da chave indisponível', { storeId, errName: err?.name, status: err instanceof AsaasApiError ? err.status : undefined });
+    throw new AppError('Não foi possível validar a chave no Asaas agora. Tente novamente.', 503, true, 'ASAAS_UNAVAILABLE');
+  }
+}
+
 export async function connectStoreAsaas(storeId: string, rawApiKey: string): Promise<StoreAsaasStatus> {
   const key = String(rawApiKey || '').trim();
   let keyEnv: 'sandbox' | 'production';
@@ -68,17 +83,9 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string): Pro
     throw new AppError('A chave é de outro ambiente (sandbox/produção) que o do servidor', 400, true, 'ASAAS_ENV_MISMATCH');
   }
 
-  // Só 401 = chave inválida; qualquer outra falha (rede, timeout, 5xx) = indisponível.
-  // Fail closed: nada é gravado.
-  try {
-    await asaasClient.getAs(key, '/finance/balance');
-  } catch (err: any) {
-    if (err instanceof AsaasApiError && err.status === 401) {
-      throw new AppError('Chave de API do Asaas recusada', 400, true, 'ASAAS_KEY_INVALID');
-    }
-    // sem a chave: só o tipo do erro e o status HTTP
-    logger.warn('[asaasLoja] validação da chave indisponível', { storeId, errName: err?.name, status: err instanceof AsaasApiError ? err.status : undefined });
-    throw new AppError('Não foi possível validar a chave no Asaas agora. Tente novamente.', 503, true, 'ASAAS_UNAVAILABLE');
+  // Fail closed: nada é gravado se a chave não for aceita.
+  if (!(await probeKey(storeId, key))) {
+    throw new AppError('Chave de API do Asaas recusada', 400, true, 'ASAAS_KEY_INVALID');
   }
 
   const data = {
@@ -104,4 +111,35 @@ export async function getStoreApiKey(storeId: string): Promise<string> {
   const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
   if (!row || row.status !== 'valid') throw new StoreAsaasNotReadyError();
   return decryptSensitiveData(row.apiKeyEncrypted);
+}
+
+/**
+ * "Testar configuração". Decifra direto da linha (qualquer status), então uma conta
+ * 'invalid' pode ser retestada e volta a 'valid' se o Asaas aceitar. Sem linha → NotReady.
+ * O webhook de pagamentos só é conferido se existir `paymentWebhookId`.
+ */
+export async function testStoreAsaas(storeId: string): Promise<StoreAsaasStatus> {
+  const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
+  if (!row) throw new StoreAsaasNotReadyError();
+  const key = decryptSensitiveData(row.apiKeyEncrypted);
+
+  const apiKeyOk = await probeKey(storeId, key);
+  await prisma.storeAsaasAccount.update({
+    where: { storeId },
+    data: apiKeyOk
+      ? { status: 'valid', lastCheckedAt: new Date(), lastError: null }
+      : { status: 'invalid', lastCheckedAt: new Date(), lastError: 'Chave recusada pelo Asaas' },
+  });
+
+  let paymentWebhook = false;
+  if (apiKeyOk && row.paymentWebhookId) {
+    try {
+      const wh: any = await asaasClient.getAs(key, `/webhooks/${encodeURIComponent(row.paymentWebhookId)}`);
+      paymentWebhook = !!wh && wh.enabled === true && wh.interrupted !== true;
+    } catch {
+      paymentWebhook = false;
+    }
+  }
+  const status = await getStoreAsaasStatus(storeId);
+  return { ...status, checklist: { ...status.checklist, apiKey: apiKeyOk, paymentWebhook } };
 }
