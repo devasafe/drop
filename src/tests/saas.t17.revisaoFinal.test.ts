@@ -442,3 +442,25 @@ describe('I5 — custódia ignora pedidos asaas_loja; chave da plataforma não v
     }
   });
 });
+
+// ───────────────────────────── I6 ─────────────────────────────
+describe('I6 — CPF do checkout respeita "um CPF por conta"', () => {
+  it('CPF digitado que já é de outra conta → 409 CPF_IN_USE, sem gravar CPF, sem pedido, sem cobrança', async () => {
+    const outro = await buyer();
+    const cpfDoOutro = (await prisma.user.findUnique({ where: { id: outro.userId } }))!.cpf!;
+    const cliente = await createTestUser('cliente', DOMAIN); // sem CPF no perfil
+    const { store, product } = await storeWithAccount();
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send({
+      storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0,
+      address: 'Rua X, 1 - Centro', latitude: -22.95, longitude: -43.25, cpf: cpfDoOutro,
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('CPF_IN_USE');
+    expect((await prisma.user.findUnique({ where: { id: cliente.userId } }))!.cpf).toBeNull();
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect(await qty(product.id)).toBe(10);
+    expect(postAs).not.toHaveBeenCalled();
+  });
+});

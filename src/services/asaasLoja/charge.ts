@@ -84,7 +84,8 @@ export function buyerDocument(user: { cpf?: string | null; verification?: unknow
  * - usuário já tem CPF/CNPJ válido → ok;
  * - senão, aceita `bodyCpf` (só CPF, 11 dígitos, com ou sem máscara) e grava em User.cpf
  *   se o campo estiver vazio;
- * - nenhum válido → CpfRequiredError (400 CPF_REQUIRED).
+ * - nenhum válido → CpfRequiredError (400 CPF_REQUIRED);
+ * - CPF digitado já pertence a outra conta → 409 CPF_IN_USE.
  */
 export async function resolveBuyerCpf(userId: string, bodyCpf?: unknown): Promise<string> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { cpf: true, verification: true } });
@@ -92,6 +93,10 @@ export async function resolveBuyerCpf(userId: string, bodyCpf?: unknown): Promis
   if (existing) return existing;
   const typed = onlyDigits(typeof bodyCpf === 'string' ? bodyCpf : '');
   if (typed.length !== 11 || !isValidCPF(typed)) throw new CpfRequiredError();
+  // Um CPF por conta (mesma regra do perfil em userController): CPF de outra conta → 409,
+  // sem gravar nada e antes de qualquer pedido/cobrança existir.
+  const owner = await prisma.user.findFirst({ where: { id: { not: userId }, cpf: typed }, select: { id: true } });
+  if (owner) throw new AppError('Este CPF já está cadastrado em outra conta', 409, true, 'CPF_IN_USE');
   if (!onlyDigits(user?.cpf)) {
     await prisma.user.update({ where: { id: userId }, data: { cpf: typed } });
   }
