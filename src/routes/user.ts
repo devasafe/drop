@@ -69,11 +69,14 @@ router.get('/public/:userId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
+    // Só papéis-base: rota pública não revela quem é da equipe administrativa.
+    const PUBLIC_ROLES = ['cliente', 'lojista', 'motoboy'];
+    const roles = (user.roles || []).filter((r: string) => PUBLIC_ROLES.includes(r));
     return res.json({
-      _id: user._id,
+      _id: user.id ?? user._id,
       name: user.name,
-      roles: user.roles,
-      activeRole: user.activeRole,
+      roles,
+      activeRole: PUBLIC_ROLES.includes(user.activeRole) ? user.activeRole : roles[0] ?? null,
       createdAt: user.createdAt
     });
   } catch (error: any) {
