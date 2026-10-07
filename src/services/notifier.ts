@@ -170,6 +170,27 @@ export const emitMessagesRead = (conversationId: string, messageIds: string[], u
   }
 };
 
+/**
+ * Reavalia a sala `motoboys` das conexões abertas do usuário (após decisão de KYC).
+ * Sem isso, o motoboy aprovado só passava a receber corridas depois de reconectar.
+ */
+export const syncMotoboysRoom = async (userId: string): Promise<void> => {
+  if (!io || !userId) return;
+  const sockets = (await io.in(`user:${userId}`).fetchSockets()).filter((s) => s.data.user?.role === 'motoboy');
+  if (!sockets.length) return;
+  const ok = await canJoinMotoboysRoom({ id: String(userId), role: 'motoboy' });
+  sockets.forEach((s) => (ok ? s.join('motoboys') : s.leave('motoboys')));
+};
+
+/**
+ * Derruba as conexões do usuário (bloqueio, troca de papel). O `auth:force_logout` sai
+ * antes; o atraso curto deixa o evento chegar. O handshake recusa a reconexão (status/papel no banco).
+ */
+export const disconnectUser = (userId: string, delayMs = 500): void => {
+  if (!io || !userId) return;
+  setTimeout(() => io?.in(`user:${userId}`).disconnectSockets(true), delayMs);
+};
+
 export const initSocket = (server: any) => {
   // Mesma política de origem da API HTTP. `cors` só cobre o polling; o `allowRequest`
   // barra também a conexão direta por WebSocket (que autentica pelo cookie da vítima).
@@ -397,6 +418,8 @@ export default {
   emitConversationDeleted,
   emitConversationDeletedForUser,
   emitMessagesRead,
+  syncMotoboysRoom,
+  disconnectUser,
   initSocket,
   get io() { return io; },
 };

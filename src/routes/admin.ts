@@ -5,6 +5,7 @@ import { authorizePermission } from '../middleware/authorize';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 import { emitForceLogout } from '../utils/socketEmitter';
+import { disconnectUser } from '../services/notifier';
 import asaasClient from '../services/asaas/client';
 import env from '../config/env';
 import { decryptSensitiveData } from '../utils/encryption';
@@ -127,6 +128,7 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
     // offline o evento se perde — login continua bloqueado pelo status no DB.
     if (status === 'blocked') {
       emitForceLogout(String(id), 'blocked', update.blockReason);
+      disconnectUser(String(id)); // não depende do cliente obedecer ao force_logout
     }
 
     res.json({ message: 'Status updated successfully', user });
@@ -149,6 +151,7 @@ router.post('/users/:id/disconnect', authenticate, authorizePermission('user:blo
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     emitForceLogout(String(id), 'admin_disconnect');
+    disconnectUser(String(id));
 
     res.json({ message: 'Disconnect event emitted', userId: id });
   } catch (err) {

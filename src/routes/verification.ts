@@ -2,6 +2,18 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { upload } from '../middleware/upload';
+import { syncMotoboysRoom } from '../services/notifier';
+
+// Decisão de KYC de um usuário: depois da resposta 2xx, ajusta a sala `motoboys` das
+// conexões abertas dele (aprovado entra na hora; reprovado sai).
+const syncSocketsAfter = (req: any, res: any, next: any) => {
+  res.on('finish', () => {
+    if (res.statusCode < 300 && req.params?.userId) {
+      syncMotoboysRoom(String(req.params.userId)).catch(() => undefined);
+    }
+  });
+  next();
+};
 import {
   getMyVerification,
   resendEmailVerification,
@@ -59,8 +71,8 @@ router.post(
 // Autorização por PERMISSÃO (configurável no painel de cargos), não por role fixo.
 const reviewClients = authorizePermission('verification:review_clients');
 router.get('/admin/pending', authenticate, reviewClients, listPendingVerifications);
-router.post('/admin/:userId/approve', authenticate, reviewClients, approveDocument);
-router.post('/admin/:userId/reject', authenticate, reviewClients, rejectDocument);
+router.post('/admin/:userId/approve', authenticate, reviewClients, syncSocketsAfter, approveDocument);
+router.post('/admin/:userId/reject', authenticate, reviewClients, syncSocketsAfter, rejectDocument);
 
 // ===================== FASE 2: LOJA =====================
 // Facial do dono
@@ -73,8 +85,8 @@ router.get('/store/:storeId', authenticate, getStoreVerification);
 // Admin — revisão de loja (facial/CNPJ/endereço)
 const storeReviewers = authorizePermission('verification:review_stores');
 router.get('/admin/store-pending', authenticate, storeReviewers, listPendingStoreVerifications);
-router.post('/admin/facial/:userId/approve', authenticate, storeReviewers, approveFacial);
-router.post('/admin/facial/:userId/reject', authenticate, storeReviewers, rejectFacial);
+router.post('/admin/facial/:userId/approve', authenticate, storeReviewers, syncSocketsAfter, approveFacial);
+router.post('/admin/facial/:userId/reject', authenticate, storeReviewers, syncSocketsAfter, rejectFacial);
 router.post('/admin/store/:storeId/cnpj/approve', authenticate, storeReviewers, approveStoreCnpj);
 router.post('/admin/store/:storeId/cnpj/reject', authenticate, storeReviewers, rejectStoreCnpj);
 router.post('/admin/store/:storeId/address/approve', authenticate, storeReviewers, approveStoreAddress);
@@ -86,7 +98,7 @@ router.get('/motoboy/me', authenticate, getMyCourierVerification);
 
 const courierReviewers = authorizePermission('verification:review_motoboys');
 router.get('/admin/motoboy-pending', authenticate, courierReviewers, listPendingCourier);
-router.post('/admin/motoboy/:userId/approve', authenticate, courierReviewers, approveCourier);
-router.post('/admin/motoboy/:userId/reject', authenticate, courierReviewers, rejectCourier);
+router.post('/admin/motoboy/:userId/approve', authenticate, courierReviewers, syncSocketsAfter, approveCourier);
+router.post('/admin/motoboy/:userId/reject', authenticate, courierReviewers, syncSocketsAfter, rejectCourier);
 
 export default router;
