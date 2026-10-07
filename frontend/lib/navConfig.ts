@@ -20,6 +20,8 @@ export interface NavItem {
    * rota é prefixo de todas as outras (ex.: '/motoboy') — senão ela ficaria
    * ativa em qualquer subtela junto com o item real. */
   exact?: boolean;
+  /** Some no modo de liquidação 'direto' (custódia/repasse desligados). */
+  custodyOnly?: boolean;
 }
 
 export interface RoleArea {
@@ -63,7 +65,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Início',   icon: 'home',        route: '/inicio',         placement: ['bottomNav'] },
     { label: 'Buscar',   icon: 'search',      route: '/',               placement: ['bottomNav'], activeMatch: ['/', '/stores', '/product', '/produtos'] },
     { label: 'Pedidos',  icon: 'receipt',     route: '/user-dashboard', placement: ['bottomNav'] },
-    { label: 'Carteira', icon: 'wallet',      route: '/wallet',         placement: ['bottomNav'] },
+    { label: 'Carteira', icon: 'wallet',      route: '/wallet',         placement: ['bottomNav'], custodyOnly: true },
     { label: 'Perfil',   icon: 'user',        route: '/minha-conta',    placement: ['bottomNav'], activeMatch: ['/minha-conta', '/user-profile', '/editar-conta'] },
   ],
   lojista: [
@@ -75,15 +77,15 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Mensagens',          icon: 'chat',      route: '/seller/dashboard?tab=chat',   placement: ['sidebar', 'drawer'],   group: 'Operação' }, // FOLLOW-UP (Etapa 3): rota real
     { label: 'Marketing',          icon: 'megaphone', route: '/seller/coupons',              placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
     { label: 'Analytics',          icon: 'chart-up',  route: '/seller/analytics',            placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
-    { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro' },
-    { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja' },
+    { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
+    { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja', custodyOnly: true },
     { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
     { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
   ],
   motoboy: [
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
     { label: 'Entregas',         icon: 'truck',     route: '/motoboy/ongoing',     placement: ['sidebar', 'bottomNav'], group: 'Trabalho', badge: 'deliveries' },
-    { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro' },
+    { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
     { label: 'Desempenho',       icon: 'trophy',    route: '/motoboy/gamification', placement: ['sidebar', 'bottomNav'], group: 'Desempenho' },
     { label: 'Benefícios',       icon: 'gift',      route: '/motoboy/beneficios',  placement: ['sidebar', 'drawer'],   group: 'Desempenho' },
     { label: 'Perfil e documentos', icon: 'clipboard', route: '/motoboy/profile',  placement: ['sidebar', 'drawer'],   group: 'Conta profissional' },
@@ -121,9 +123,11 @@ export function getNavItems(
   role: Role,
   can: (permission: string) => boolean,
   isCeo: boolean,
+  opts?: { settlementMode?: string },
 ): NavItem[] {
+  const direct = opts?.settlementMode === 'direto';
   if (role === 'ceo') {
-    return visibleAdminMenu(can, isCeo).map((m) => ({
+    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && m.custodyOnly)).map((m) => ({
       label: m.label,
       icon: m.icon,
       route: m.href,
@@ -133,7 +137,7 @@ export function getNavItems(
     }));
   }
   const items = NAV[role] || [];
-  return items.filter((it) => !it.permission || can(it.permission));
+  return items.filter((it) => (!it.permission || can(it.permission)) && !(direct && it.custodyOnly));
 }
 
 /** Estado ativo por prefixo de rota e tab na querystring. */

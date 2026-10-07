@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireSettlement } from '../middleware/requireSettlement';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
@@ -18,13 +19,13 @@ import {
 const router = Router();
 
 // Motoboy/Lojista - Solicitar saque
-router.post('/request', authenticate, requireActiveUser, authorizeRoles('motoboy', 'lojista', 'seller'), requestWithdrawal);
+router.post('/request', requireSettlement('custodia'), authenticate, requireActiveUser, authorizeRoles('motoboy', 'lojista', 'seller'), requestWithdrawal);
 
 // User (cliente/lojista) - Saque a partir do user balance
-router.post('/request-user', authenticate, requireActiveUser, requestUserWithdrawal);
+router.post('/request-user', requireSettlement('custodia'), authenticate, requireActiveUser, requestUserWithdrawal);
 
 // Motoboy - Ver seus saques
-router.get('/my-withdrawals', authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyWithdrawals);
+router.get('/my-withdrawals', requireSettlement('custodia'), authenticate, authorizeRoles('motoboy', 'lojista', 'seller'), getMyWithdrawals);
 
 // Admin - Ver saques pendentes
 router.get('/pending', authenticate, authorizePermission('withdrawal:view'), getPendingWithdrawals);

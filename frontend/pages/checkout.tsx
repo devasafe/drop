@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { XCircle, ShoppingBag, CreditCard } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useCheckout } from '../hooks/useCheckout';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import { useToast } from '../components/ui/Toast';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -35,6 +36,16 @@ export default function CheckoutPage() {
   const { showToast } = useToast();
   const c = useCheckout();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { settlementMode, directCardEnabled } = useSaasConfig();
+  const direct = settlementMode === 'direto';
+  // Modo direto: sem carteira; cartão só se habilitado pelo CEO.
+  const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
+
+  // Rascunho antigo pode ter 'wallet'/'credit_card' — volta pro PIX se o método não existe mais.
+  useEffect(() => {
+    if (direct && !directMethods.includes(c.paymentMethod as any)) c.setPaymentMethod('pix');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direct, directCardEnabled, c.paymentMethod]);
 
   return (
     <ProtectedRoute required_role="cliente">
@@ -112,7 +123,7 @@ export default function CheckoutPage() {
                 <PaymentSelector
                   value={c.paymentMethod}
                   onChange={c.setPaymentMethod}
-                  methods={c.walletBalance >= c.total && c.total > 0 ? ['pix', 'credit_card', 'wallet'] : ['pix', 'credit_card']}
+                  methods={direct ? directMethods : (c.walletBalance >= c.total && c.total > 0 ? ['pix', 'credit_card', 'wallet'] : ['pix', 'credit_card'])}
                 />
                 {c.paymentMethod === 'credit_card' && (
                   <div className={styles.cardFormWrap}>
@@ -145,6 +156,7 @@ export default function CheckoutPage() {
                 )}
               </section>
 
+              {!direct && (
               <section className={styles.section}>
                 <WalletToggle
                   balance={c.walletBalance}
@@ -154,6 +166,7 @@ export default function CheckoutPage() {
                   pendingDebt={c.pendingDebt ?? undefined}
                 />
               </section>
+              )}
               </div>
 
               <div className={styles.colSide}>

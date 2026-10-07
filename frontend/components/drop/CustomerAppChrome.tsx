@@ -6,7 +6,8 @@ import { useCart } from '../../contexts/CartContext';
 import { spaceGrotesk, inter } from '../../lib/fonts';
 import { getNavItems, isItemActive, GUEST_BOTTOM_NAV } from '../../lib/navConfig';
 import { StickyCart } from './StickyCart';
-import { TabBar, TabKey, TabItem } from './TabBar';
+import { TabBar, TabKey, TabItem, DEFAULT_TABS } from './TabBar';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
 import styles from './CustomerAppChrome.module.css';
 
 interface CartItem {
@@ -45,6 +46,7 @@ export function CustomerAppChrome() {
   const router = useRouter();
   const { user } = useAuth();
   const { cart } = useCart();
+  const { settlementMode } = useSaasConfig();
   const loggedOut = !user;
 
   const items = (cart || []) as CartItem[];
@@ -70,7 +72,7 @@ export function CustomerAppChrome() {
         <TabBar
           active={activeTab(router.pathname)}
           onNavigate={handleTabNavigate}
-          items={loggedOut ? GUEST_TAB_ITEMS : undefined}
+          items={loggedOut ? GUEST_TAB_ITEMS : (settlementMode === 'direto' ? DEFAULT_TABS.filter((t) => t.key !== 'carteira') : undefined)}
         />
       </div>
     </div>

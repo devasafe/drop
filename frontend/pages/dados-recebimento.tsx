@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import { maskCPF, maskCNPJ, maskPhone, maskCEP } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
@@ -39,6 +40,8 @@ const PIX_TYPES = [
 
 export default function DadosRecebimento() {
   const router = useRouter();
+  const { settlementMode } = useSaasConfig();
+  const direct = settlementMode === 'direto';
   const { user, loading: authLoading } = useAuth() || ({} as any);
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +69,8 @@ export default function DadosRecebimento() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pixKey.trim()) { setMsg({ type: 'err', text: 'Informe sua chave PIX.' }); return; }
-    const needsAddress = status && !status.hasAddress;
+    // Modo direto: só a chave Pix (sem subconta, sem endereço).
+    const needsAddress = !direct && status && !status.hasAddress;
     if (needsAddress && (!addr.street || !addr.number || !addr.zip)) {
       setMsg({ type: 'err', text: 'Preencha o endereço (rua, número e CEP).' });
       return;
@@ -78,6 +82,13 @@ export default function DadosRecebimento() {
       const cleanPix = ['CPF', 'CNPJ', 'PHONE'].includes(pixKeyType) ? pixKey.replace(/\D/g, '') : pixKey.trim();
       const body: any = { pixKey: cleanPix };
       if (pixKeyType) body.pixKeyType = pixKeyType;
+      if (direct) {
+        await api.post('/onboarding/pix-key', body);
+        setStatus((s) => (s ? { ...s, hasPixKey: true, pixKey } : s));
+        setEditing(false);
+        setMsg({ type: 'ok', text: 'Chave PIX salva. Os pagamentos caem direto na sua conta.' });
+        return;
+      }
       if (needsAddress) body.address = addr;
       const res = await api.post('/onboarding/receiver', body);
       const a = res.data?.asaas;
@@ -116,8 +127,8 @@ export default function DadosRecebimento() {
     );
   }
 
-  const active = status?.accountStatus === 'active';
-  const needsAddress = !!status && !status.hasAddress;
+  const active = !direct && status?.accountStatus === 'active';
+  const needsAddress = !direct && !!status && !status.hasAddress;
 
   return (
     <div className={styles.page}>
@@ -139,7 +150,7 @@ export default function DadosRecebimento() {
         )}
 
         {/* Subconta com problema: avisa e deixa reenviar (não dá pra sacar assim) */}
-        {!active && status?.accountStatus === 'error' && (
+        {!direct && !active && status?.accountStatus === 'error' && (
           <div className={`${styles.banner} ${styles.bannerError}`}>
             <AlertTriangle size={16} aria-hidden="true" />
             <div className={styles.bannerBody}>
@@ -155,7 +166,7 @@ export default function DadosRecebimento() {
         )}
 
         {/* Subconta em processamento */}
-        {!active && status?.accountStatus === 'pending' && (
+        {!direct && !active && status?.accountStatus === 'pending' && (
           <div className={`${styles.banner} ${styles.bannerWarning}`}>
             <Clock size={16} aria-hidden="true" />
             <div className={styles.bannerBody}>
@@ -235,7 +246,7 @@ export default function DadosRecebimento() {
               )}
 
               <Button type="submit" variant="primary" loading={saving} disabled={saving} className={styles.submitBtn}>
-                {saving ? 'Salvando...' : active ? 'Atualizar dados' : 'Ativar recebimento'}
+                {saving ? 'Salvando...' : direct ? 'Salvar chave PIX' : active ? 'Atualizar dados' : 'Ativar recebimento'}
               </Button>
             </form>
           )}

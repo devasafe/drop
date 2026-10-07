@@ -1,3 +1,4 @@
+import { requireSettlement } from '../middleware/requireSettlement';
 import walletService from '../services/wallet.prisma.service';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
@@ -491,25 +492,25 @@ import {
 } from '../controllers/appCashboxController';
 
 // GET /admin/app-cashbox - Ver saldo e resumo
-router.get('/app-cashbox', authenticate, authorizePermission('cashbox:view'), getAppCashbox);
+router.get('/app-cashbox', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:view'), getAppCashbox);
 
 // GET /admin/app-cashbox/statement - Ver extrato detalhado
-router.get('/app-cashbox/statement', authenticate, authorizePermission('cashbox:view'), getAppCashboxStatement);
+router.get('/app-cashbox/statement', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:view'), getAppCashboxStatement);
 
 // POST /admin/app-cashbox/withdrawal - Solicitar saque
-router.post('/app-cashbox/withdrawal', authenticate, authorizePermission('cashbox:withdraw'), requestWithdrawal);
+router.post('/app-cashbox/withdrawal', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:withdraw'), requestWithdrawal);
 
 // GET /admin/app-cashbox/withdrawals - Ver saques
-router.get('/app-cashbox/withdrawals', authenticate, authorizePermission('cashbox:view'), getWithdrawals);
+router.get('/app-cashbox/withdrawals', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:view'), getWithdrawals);
 
 // PUT /admin/app-cashbox/withdrawals/:id/approve - Aprovar saque
-router.put('/app-cashbox/withdrawals/:id/approve', authenticate, authorizePermission('cashbox:approve_withdrawal'), approveWithdrawal);
+router.put('/app-cashbox/withdrawals/:id/approve', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:approve_withdrawal'), approveWithdrawal);
 
 // PUT /admin/app-cashbox/withdrawals/:id/reject - Rejeitar saque
-router.put('/app-cashbox/withdrawals/:id/reject', authenticate, authorizePermission('cashbox:approve_withdrawal'), rejectWithdrawal);
+router.put('/app-cashbox/withdrawals/:id/reject', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:approve_withdrawal'), rejectWithdrawal);
 
 // POST /admin/app-cashbox/deposit - Registrar depósito
-router.post('/app-cashbox/deposit', authenticate, authorizePermission('cashbox:deposit'), registerDeposit);
+router.post('/app-cashbox/deposit', requireSettlement('custodia'), authenticate, authorizePermission('cashbox:deposit'), registerDeposit);
 
 // ═══════════════════════════════════════════════════════════
 // 🏦 SUBCONTAS ASAAS (gateway) — criar/backfill p/ recebedores já verificados

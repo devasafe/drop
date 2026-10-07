@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireSettlement } from '../middleware/requireSettlement';
 import { authenticate } from '../middleware/auth';
 import { requireActiveUser } from '../middleware/requireActive';
 import { validate } from '../middleware/validate';
@@ -32,30 +33,31 @@ const router = Router();
 router.get('/my-wallet/by-role/:role', authenticate, getMyWallet);
 
 // Transferir saldo da loja para a carteira do dono (user wallet)
-router.post('/store/:storeId/transfer-to-owner', authenticate, requireActiveUser, transferStoreToOwner);
+router.post('/store/:storeId/transfer-to-owner', requireSettlement('custodia'), authenticate, requireActiveUser, transferStoreToOwner);
 
 // Carteira de repasse do motoboy (ownerType='motoboy') + transferência para user wallet
 router.get('/motoboy/:motoboyId', authenticate, getMotoboyWallet);
-router.post('/motoboy/:motoboyId/transfer-to-owner', authenticate, requireActiveUser, transferMotoboyToOwner);
+router.post('/motoboy/:motoboyId/transfer-to-owner', requireSettlement('custodia'), authenticate, requireActiveUser, transferMotoboyToOwner);
 
 // Carteira do usuário logado
 router.get('/my-wallet', authenticate, getMyWallet);
-router.post('/transfer', authenticate, requireActiveUser, transferBetweenWallets);
+router.post('/transfer', requireSettlement('custodia'), authenticate, requireActiveUser, transferBetweenWallets);
 
 // ✅ Transferir para carteira de motoboy
-router.post('/transfer-to-motoboy', authenticate, requireActiveUser, transferToMotoboyWallet);
+router.post('/transfer-to-motoboy', requireSettlement('custodia'), authenticate, requireActiveUser, transferToMotoboyWallet);
 
 // Carteira do usuário (cliente, motoboy, etc)
 router.get('/:userId', authenticate, authorizeWalletOwner, getWallet);
 router.get('/:userId/history', authenticate, authorizeWalletOwner, getWalletHistory);
 router.get('/:userId/client-summary', authenticate, authorizeWalletOwner, getClientWalletSummary);
-router.post('/:userId/topup', authenticate, requireActiveUser, authorizeWalletOwner, createWalletTopup);
-router.get('/topup/:topupId/status', authenticate, getWalletTopupStatus);
+router.post('/:userId/topup', requireSettlement('custodia'), authenticate, requireActiveUser, authorizeWalletOwner, createWalletTopup);
+router.get('/topup/:topupId/status', requireSettlement('custodia'), authenticate, getWalletTopupStatus);
 // Segurança (2026-10-07): não existe crédito self-service. Saldo só entra por
 // pagamento confirmado (POST /:userId/topup → webhook) ou por crédito administrativo
 // auditado (POST /admin/wallets/:id/add-balance, exclusivo do CEO).
 router.post(
   '/:userId/transfer',
+  requireSettlement('custodia'),
   authenticate,
   requireActiveUser,
   authorizeWalletOwner,
@@ -66,6 +68,7 @@ router.post(
 // ✅ Saque simples: remove saldo da carteira
 router.post(
   '/:walletId/withdraw',
+  requireSettlement('custodia'),
   authenticate,
   requireActiveUser,
   authorizeWalletOwnerById,

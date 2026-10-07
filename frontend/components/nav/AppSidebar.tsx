@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOverlay } from '../../contexts/OverlayContext';
 import { useBadgeCounts } from '../../hooks/useSync';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { getNavItems, isItemActive, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './AppSidebar.module.css';
@@ -28,18 +29,19 @@ export default function AppSidebar() {
   const router = useRouter();
   const overlay = useOverlay();
   const badges = useBadgeCounts();
+  const { settlementMode } = useSaasConfig();
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
   // Roles administrativas delegadas (marketing, gerente_*) acessam /admin/* com
   // permissões parciais, mas não são a role literal 'ceo'. Sem isso, PANEL_META
   // não teria entrada pra elas e a sidebar (e o gutter/hambúrguer) sumiriam.
-  const isAdminRole = role === 'ceo' || getNavItems('ceo', can, false).length > 0;
+  const isAdminRole = role === 'ceo' || getNavItems('ceo', can, false, { settlementMode }).length > 0;
   const effRole = isAdminRole ? 'ceo' : role;
   const meta = PANEL_META[effRole];
   if (!meta) return null; // cliente (ou role sem painel) não tem sidebar
 
-  const items = getNavItems(effRole, can, role === 'ceo').filter((i) => i.placement.includes('sidebar'));
+  const items = getNavItems(effRole, can, role === 'ceo', { settlementMode }).filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>

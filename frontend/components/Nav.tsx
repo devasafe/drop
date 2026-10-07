@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNotifications, useBadgeCounts } from '../hooks/useSync';
 import { useOverlay } from '../contexts/OverlayContext';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import AccountMenuButton from './nav/AccountMenuButton';
 import { getNavItems, ROLE_HOME, Role, GUEST_BOTTOM_NAV, isItemActive } from '../lib/navConfig';
 import Icon from './Icon';
@@ -32,6 +33,7 @@ export default function Nav() {
   const { cart } = useCart();
   const { unreadCount: unread } = useNotifications();
   const badges = useBadgeCounts();
+  const { settlementMode } = useSaasConfig();
 
   const cartCount = (cart || []).reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
 
@@ -45,7 +47,7 @@ export default function Nav() {
   // vivem na bottom bar. Só aparece pra cliente logado ou deslogado (lojista/
   // motoboy/admin navegam pela AppSidebar). Some no mobile (a bottom bar cobre).
   const showCustomerLinks = !user || activeRole === 'cliente';
-  const clienteNavItems = getNavItems('cliente', () => true, false).filter((i) => i.placement.includes('bottomNav'));
+  const clienteNavItems = getNavItems('cliente', () => true, false, { settlementMode }).filter((i) => i.placement.includes('bottomNav'));
 
   return (
     <>

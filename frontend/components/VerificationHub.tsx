@@ -44,7 +44,8 @@ export default function VerificationHub() {
 
   const receivingSection = async (): Promise<Section> => {
     const ob = await api.get('/onboarding/status').then((r) => r.data).catch(() => null);
-    const step: Step = ob?.accountStatus === 'active' ? 'done' : ob?.accountStatus === 'pending' ? 'pending' : 'todo';
+    const direct = (await api.get('/settings/saas').then((r) => r.data?.settlementMode).catch(() => null)) === 'direto';
+    const step: Step = direct ? (ob?.hasPixKey ? 'done' : 'todo') : ob?.accountStatus === 'active' ? 'done' : ob?.accountStatus === 'pending' ? 'pending' : 'todo';
     return { title: 'Dados de recebimento', desc: 'Chave PIX e endereço para receber e sacar seu dinheiro.', step, href: '/dados-recebimento', cta: step === 'done' ? 'Ver' : 'Configurar' };
   };
 

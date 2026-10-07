@@ -19,7 +19,7 @@ export interface TabBarProps {
   items?: TabItem[];
 }
 
-const DEFAULT_TABS: TabItem[] = [
+export const DEFAULT_TABS: TabItem[] = [
   { key: 'inicio', label: 'Início', icon: Home },
   { key: 'buscar', label: 'Buscar', icon: Search },
   { key: 'pedidos', label: 'Pedidos', icon: Receipt },
