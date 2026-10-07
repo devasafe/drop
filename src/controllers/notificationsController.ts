@@ -18,7 +18,7 @@ export const subscribeNotifications = (req: AuthenticatedRequest, res: Response)
   res.write(`event: connected\n`);
   res.write(`data: ${JSON.stringify({ msg: 'connected' })}\n\n`);
 
-  notifier.addClient(userId, res);
+  notifier.addClient(userId, res, (req.user as any)?.activeRole || req.user?.role);
 
   req.on('close', () => {
     notifier.removeClient(userId, res);

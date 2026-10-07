@@ -13,12 +13,9 @@ const PRESENCE_MIN_INTERVAL_MS = 10_000;
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
 
-type SSEClient = {
-  id: string; // user id
-  res: Response;
-};
-
 const clients = new Map<string, Set<Response>>();
+// Papel com que cada usuário abriu o SSE (o fallback de motoboys filtra por ele).
+const clientRoles = new Map<string, string>();
 let io: IOServer | null = null;
 
 const send = (res: Response, event: string, data: any) => {
@@ -30,22 +27,23 @@ const send = (res: Response, event: string, data: any) => {
   }
 };
 
-export const addClient = (userId: string, res: Response) => {
+export const addClient = (userId: string, res: Response, role?: string) => {
   if (!clients.has(userId)) clients.set(userId, new Set());
   clients.get(userId)!.add(res);
+  if (role) clientRoles.set(userId, role);
 };
 
 export const removeClient = (userId: string, res: Response) => {
   const set = clients.get(userId);
   if (!set) return;
   set.delete(res);
-  if (set.size === 0) clients.delete(userId);
+  if (set.size === 0) {
+    clients.delete(userId);
+    clientRoles.delete(userId);
+  }
 };
 
 export const notifyMotoboys = (payload: any) => {
-  // DEBUG LOG
-  // eslint-disable-next-line no-console
-  console.log('[notifier] notifyMotoboys called:', JSON.stringify(payload));
   // If Socket.IO is initialized, broadcast to motoboys room
   if (io) {
     try {
@@ -60,11 +58,12 @@ export const notifyMotoboys = (payload: any) => {
     }
   }
 
-  // fallback SSE broadcast
-  for (const [, set] of clients.entries()) {
-    for (const res of set) {
-      send(res, 'notification', payload);
-    }
+  // fallback SSE: só para quem poderia estar na sala `motoboys` (antes: todos os clientes SSE)
+  for (const [userId, set] of clients.entries()) {
+    if (clientRoles.get(userId) !== 'motoboy') continue;
+    canJoinMotoboysRoom({ id: userId, role: 'motoboy' })
+      .then((ok) => { if (ok) set.forEach((res) => send(res, 'notification', payload)); })
+      .catch(() => undefined);
   }
 };
 
