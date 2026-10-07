@@ -343,7 +343,6 @@ export const rolePermissions: { [key: string]: string[] } = {
     'order:view_own',
     'order:cancel_own',
     'wallet:view_own',
-    'wallet:credit',
     'address:manage_own'
   ],
 

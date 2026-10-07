@@ -44,7 +44,7 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'wallet:view_stores',          label: 'Ver carteiras de lojas',      category: 'Carteira' },
   { key: 'wallet:view_motoboys',        label: 'Ver carteiras de motoboys',   category: 'Carteira' },
   { key: 'wallet:view_own',             label: 'Ver própria carteira',        category: 'Carteira' },
-  { key: 'wallet:credit',               label: 'Creditar carteira',           category: 'Carteira' },
+  { key: 'wallet:credit',               label: 'Creditar carteira (somente CEO, não delegável)', category: 'Carteira' },
   { key: 'wallet:transfer',             label: 'Transferir da carteira',      category: 'Carteira' },
   { key: 'wallet:request_access',       label: 'Solicitar acesso a carteiras de clientes', category: 'Carteira' },
   // Dashboard
@@ -107,6 +107,14 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'analytics:view_platform',     label: 'Ver analytics da plataforma', category: 'Analytics' },
 ];
 
+// Permissões que movem dinheiro sem lastro: exclusivas do CEO (via '*'), nunca
+// delegáveis. Mesmo que apareçam numa linha antiga de RolePermissions, são
+// descartadas em runtime (defesa em profundidade além da migration).
+export const CEO_ONLY_PERMISSIONS = ['wallet:credit'];
+const PERMISSION_KEYS = new Set(ALL_PERMISSIONS.map((p) => p.key));
+
+const stripCeoOnly = (perms: string[]) => perms.filter((p) => !CEO_ONLY_PERMISSIONS.includes(p));
+
 // Retorna permissões de um role: primeiro tenta no DB, depois usa padrão estático
 export async function getEffectivePermissions(role: string): Promise<{ permissions: string[]; notificationTargets: string[] }> {
   if (role === 'ceo') {
@@ -114,9 +122,9 @@ export async function getEffectivePermissions(role: string): Promise<{ permissio
   }
   const custom = await prisma.rolePermissions.findUnique({ where: { role: role as any } });
   if (custom) {
-    return { permissions: custom.permissions, notificationTargets: custom.notificationTargets };
+    return { permissions: stripCeoOnly(custom.permissions), notificationTargets: custom.notificationTargets };
   }
-  return { permissions: rolePermissions[role] || [], notificationTargets: [] };
+  return { permissions: stripCeoOnly(rolePermissions[role] || []), notificationTargets: [] };
 }
 
 // GET /role-permissions/me — permissões efetivas do usuário logado (para o frontend
@@ -145,7 +153,7 @@ export const listAllRoles = async (req: AuthenticatedRequest, res: Response) => 
       }
       const custom = customMap[role];
       if (custom) {
-        return { role, permissions: custom.permissions, notificationTargets: custom.notificationTargets, isCustom: true };
+        return { role, permissions: stripCeoOnly(custom.permissions), notificationTargets: custom.notificationTargets, isCustom: true };
       }
       return { role, permissions: rolePermissions[role] || [], notificationTargets: [], isCustom: false };
     });
@@ -188,8 +196,20 @@ export const updateRolePermissions = async (req: AuthenticatedRequest, res: Resp
 
     const { permissions, notificationTargets } = req.body;
 
-    if (!Array.isArray(permissions)) {
-      return res.status(400).json({ error: 'permissions deve ser um array' });
+    if (!Array.isArray(permissions) || !permissions.every((p) => typeof p === 'string')) {
+      return res.status(400).json({ error: 'permissions deve ser um array de strings' });
+    }
+    const invalid = permissions.filter((p: string) => !PERMISSION_KEYS.has(p));
+    if (invalid.length) {
+      return res.status(400).json({ error: `Permissões inexistentes: ${invalid.join(', ')}` });
+    }
+    const ceoOnly = permissions.filter((p: string) => CEO_ONLY_PERMISSIONS.includes(p));
+    if (ceoOnly.length) {
+      return res.status(400).json({ error: `Permissão exclusiva do CEO, não delegável: ${ceoOnly.join(', ')}` });
+    }
+    if (notificationTargets !== undefined &&
+        (!Array.isArray(notificationTargets) || !notificationTargets.every((r: any) => ALL_ROLES.includes(r)))) {
+      return res.status(400).json({ error: 'notificationTargets inválido' });
     }
 
     await prisma.rolePermissions.upsert({
