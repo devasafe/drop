@@ -18,7 +18,7 @@ interface AsaasStatus {
 export interface AsaasConnectCardProps {
   /** Base da API: `/stores/:id/asaas` (lojista) ou `/admin/stores/:id/asaas` (admin). */
   apiBase: string;
-  /** Usado só para mostrar a URL do webhook de autorização antes de gerar o token. */
+  /** Loja dona da conta (reservado para o webhook de autorização da Fase 2). */
   storeId: string;
   /** IP de saída da DROP (de GET /settings/saas), a liberar no painel do Asaas. */
   egressIp?: string | null;
@@ -33,14 +33,17 @@ const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message |
  * enquanto o usuário digita: é apagada assim que a conexão é aceita e nunca é
  * devolvida pelo backend (só o status e o final).
  */
-export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }: AsaasConnectCardProps) {
+/*
+ * O item 4 (webhook de autorização de transferências) fica escondido até a Fase 2: o
+ * endpoint que o Asaas chamaria ainda não existe e o backend responde 404
+ * FEATURE_NOT_AVAILABLE para a geração do token.
+ */
+export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasConnectCardProps) {
   const { showToast } = useToast();
   const [status, setStatus] = useState<AsaasStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,23 +70,12 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
     }
   };
 
-  const toggle = async (field: 'ipWhitelist' | 'authWebhook', value: boolean) => {
+  const toggle = async (field: 'ipWhitelist', value: boolean) => {
     try {
       const r = await api.post(`${apiBase}/checklist`, { [field]: value });
       setStatus(r.data?.data ?? null);
     } catch (e: any) {
       showToast(errMsg(e, 'Não foi possível salvar.'), 'error');
-    }
-  };
-
-  const genToken = async () => {
-    try {
-      const r = await api.post(`${apiBase}/auth-token`);
-      setAuthToken(r.data?.data?.token ?? null);
-      setAuthUrl(r.data?.data?.url ?? null);
-      await load();
-    } catch (e: any) {
-      showToast(errMsg(e, 'Não foi possível gerar o token.'), 'error');
     }
   };
 
@@ -106,7 +98,6 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
     try {
       const r = await api.delete(apiBase);
       setStatus(r.data?.data ?? null);
-      setAuthToken(null);
       showToast('Conta Asaas desconectada.', 'success');
     } catch (e: any) {
       showToast(errMsg(e, 'Não foi possível desconectar.'), 'error');
@@ -115,13 +106,8 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
     }
   };
 
-  const copy = (text: string) => {
-    try { navigator.clipboard?.writeText(text); showToast('Copiado.', 'success'); } catch { /* sem clipboard */ }
-  };
-
   const c = status?.checklist;
   const connected = !!status && status.status !== 'none';
-  const urlShown = authUrl || `https://api.dropapp.com.br/webhooks/asaas/loja/${storeId}/autorizacao`;
   const mark = (v?: boolean) => <span className={`${styles.mark} ${v ? styles.ok : styles.bad}`}>{v ? '✓' : '○'}</span>;
 
   return (
@@ -173,27 +159,6 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
               <div className={styles.actions}>
                 <Button size="sm" variant="ghost" onClick={() => toggle('ipWhitelist', !c?.ipWhitelistConfirmed)}>
                   {c?.ipWhitelistConfirmed ? 'Desmarcar' : 'Já liberei o IP'}
-                </Button>
-              </div>
-            </li>
-            <li className={styles.item}>
-              <div className={styles.itemHead}>{mark(c?.authWebhookConfirmed)} 4. Autorização de transferências</div>
-              <p className={styles.hint}>No Asaas, cadastre este endereço como webhook de autorização e cole o token gerado aqui.</p>
-              <code className={styles.code}>{urlShown}</code>
-              {authToken && (
-                <div className={styles.tokenBox}>
-                  <p className={styles.hint}>Copie o token agora. Ele não será mostrado de novo.</p>
-                  <code className={styles.code}>{authToken}</code>
-                  <div className={styles.actions}>
-                    <Button size="sm" variant="ghost" onClick={() => copy(authToken)}>Copiar token</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setAuthToken(null)}>Já copiei</Button>
-                  </div>
-                </div>
-              )}
-              <div className={styles.actions}>
-                <Button size="sm" variant="ghost" onClick={genToken}>{authToken ? 'Gerar outro token' : 'Gerar token'}</Button>
-                <Button size="sm" variant="ghost" onClick={() => toggle('authWebhook', !c?.authWebhookConfirmed)}>
-                  {c?.authWebhookConfirmed ? 'Desmarcar' : 'Já configurei no Asaas'}
                 </Button>
               </div>
             </li>

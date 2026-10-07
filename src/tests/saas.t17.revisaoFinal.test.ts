@@ -375,3 +375,17 @@ describe('I3 — plano 1 fora do fluxo no modo direto', () => {
     expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('pago');
   });
 });
+
+// ───────────────────────────── I4 ─────────────────────────────
+describe('I4 — URL do webhook de autorização vem de PUBLIC_API_URL', () => {
+  it('authWebhookUrl usa env.PUBLIC_API_URL (sem barra dupla), não um host fixo', async () => {
+    const { authWebhookUrl } = await import('../controllers/storeAsaasController');
+    const original = (env as any).PUBLIC_API_URL;
+    try {
+      (env as any).PUBLIC_API_URL = 'https://api.exemplo.test/';
+      expect(authWebhookUrl('loja1')).toBe('https://api.exemplo.test/webhooks/asaas/loja/loja1/autorizacao');
+    } finally {
+      (env as any).PUBLIC_API_URL = original;
+    }
+  });
+});

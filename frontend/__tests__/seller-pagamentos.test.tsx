@@ -46,20 +46,21 @@ test('campo da chave é password; conectar limpa a chave e ela não aparece na t
   expect(document.body.innerHTML).not.toContain('SEGREDO123456');
 });
 
-test('mostra o IP de saída, a URL de autorização e o botão de teste depois de conectar', async () => {
+// I4 (revisão final da Fase 1): o item 4 (webhook de autorização) e o "Gerar token" ficam
+// escondidos até a Fase 2. Antes estes testes conferiam a URL de autorização e o token.
+test('mostra o IP de saída e o botão de teste depois de conectar; sem o item 4 (autorização)', async () => {
   mockGet(valid);
   renderPage();
   expect(await screen.findByText('203.0.113.7')).toBeInTheDocument();
   expect(screen.getByText('Testar configuração')).toBeInTheDocument();
-  expect(screen.getByText('https://api.dropapp.com.br/webhooks/asaas/loja/s1/autorizacao')).toBeInTheDocument();
+  expect(screen.queryByText(/webhooks\/asaas\/loja\/s1\/autorizacao/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Autorização de transferências/)).not.toBeInTheDocument();
 });
 
-test('gerar token mostra uma vez e "Já copiei" some com ele', async () => {
+test('não oferece "Gerar token" nem chama /auth-token', async () => {
   mockGet(valid, {});
-  (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'tok123abc', url: 'https://api.dropapp.com.br/webhooks/asaas/loja/s1/autorizacao' } } });
   renderPage();
-  fireEvent.click(await screen.findByText('Gerar token'));
-  expect(await screen.findByText('tok123abc')).toBeInTheDocument();
-  fireEvent.click(screen.getByText('Já copiei'));
-  await waitFor(() => expect(screen.queryByText('tok123abc')).not.toBeInTheDocument());
+  await screen.findByText('Testar configuração');
+  expect(screen.queryByText('Gerar token')).not.toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalledWith('/stores/s1/asaas/auth-token');
 });

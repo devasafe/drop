@@ -13,4 +13,3 @@
 .mark { width: 18px; text-align: center; font-weight: 700; }
 .code { font-family: monospace; font-size: var(--fs-sm); color: var(--text); background: var(--surface); padding: 6px 10px; border-radius: var(--r-sm); word-break: break-all; display: block; }
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.tokenBox { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--rating) 40%, var(--line)); border-radius: var(--r-md); }

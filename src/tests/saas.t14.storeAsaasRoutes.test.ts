@@ -6,7 +6,6 @@ jest.mock('../services/asaas/client', () => {
     default: { ...actual.default, getAs: jest.fn(), postAs: jest.fn(), putAs: jest.fn(), deleteAs: jest.fn() },
   };
 });
-import crypto from 'crypto';
 import request from 'supertest';
 import app from '../app';
 import asaasClient, { AsaasApiError } from '../services/asaas/client';
@@ -108,27 +107,22 @@ describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
     expect((await request(app).post(`${base()}/checklist`).set('Authorization', bearer(owner)).send({ ipWhitelist: 'sim' })).status).toBe(400);
   });
 
-  it('auth-token: devolve em claro uma vez, grava só o hash; GET nunca devolve', async () => {
+  // Revisão final da Fase 1 (I4): o endpoint do webhook de autorização só existe na Fase 2.
+  // Antes: gerava o token (200) e 409 sem conta. Agora: 404 FEATURE_NOT_AVAILABLE, nada gravado.
+  it('auth-token: 404 FEATURE_NOT_AVAILABLE até a Fase 2; nada é gravado', async () => {
     (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
     await connect();
     const r = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
-    expect(r.status).toBe(200);
-    const { token, url } = r.body.data;
-    expect(token).toMatch(/^[A-Za-z0-9]{32,255}$/);
-    expect(url).toBe(`https://api.dropapp.com.br/webhooks/asaas/loja/${storeId}/autorizacao`);
+    expect(r.status).toBe(404);
+    expect(r.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
     const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
-    expect(row!.authWebhookTokenHash).toBe(crypto.createHash('sha256').update(token).digest('hex'));
-    expect(JSON.stringify(row)).not.toContain(token);
-    const get = await request(app).get(base()).set('Authorization', bearer(owner));
-    expect(JSON.stringify(get.body)).not.toContain(token);
-    expect(JSON.stringify(get.body)).not.toContain(row!.authWebhookTokenHash!);
-    const r2 = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
-    expect(r2.body.data.token).not.toBe(token);
+    expect(row!.authWebhookTokenHash).toBeNull();
   });
 
-  it('auth-token sem conta conectada → 409', async () => {
+  it('auth-token sem conta conectada → também 404 FEATURE_NOT_AVAILABLE', async () => {
     const r = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
-    expect(r.status).toBe(409);
+    expect(r.status).toBe(404);
+    expect(r.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
   });
 
   it('test: confere /finance/balance e o webhook de pagamentos (se existir)', async () => {

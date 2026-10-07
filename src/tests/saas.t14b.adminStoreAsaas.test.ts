@@ -70,7 +70,8 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
     expect(await audits()).toHaveLength(0);
   });
 
-  it('CEO completa o onboarding: test, checklist e auth-token', async () => {
+  // I4 (revisão final): auth-token responde 404 FEATURE_NOT_AVAILABLE até a Fase 2 (antes: 200 com token).
+  it('CEO completa o onboarding: test e checklist; auth-token indisponível (404)', async () => {
     await put(ceo);
     const t = await request(app).post(`${base()}/test`).set('Authorization', bearer(ceo));
     expect(t.status).toBe(200);
@@ -78,8 +79,8 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
     expect(c.status).toBe(200);
     expect(c.body.data.checklist.ipWhitelistConfirmed).toBe(true);
     const tk = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(ceo));
-    expect(tk.status).toBe(200);
-    expect(tk.body.data.token).toHaveLength(48);
+    expect(tk.status).toBe(404);
+    expect(tk.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
   });
 
   it('não-CEO (gerente_geral, lojista dono, cliente) → 403 em todas as rotas admin; sem token → 401', async () => {

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import env from '../config/env';
 import { AppError } from '../utils/AppError';
 import { isStoreOwner } from '../utils/storeOwnership';
 import {
@@ -19,7 +20,18 @@ export const checklistSchema = z
   .object({ ipWhitelist: z.boolean().optional(), authWebhook: z.boolean().optional() })
   .strict();
 
-const AUTH_URL_BASE = 'https://api.dropapp.com.br/webhooks/asaas/loja';
+/**
+ * Webhook de autorização de transferências: o endpoint que recebe o Asaas só existe na
+ * Fase 2. Até lá a geração de token fica desligada (404 FEATURE_NOT_AVAILABLE) e o item
+ * 4 do checklist não aparece na tela nem é exigido.
+ */
+const AUTH_WEBHOOK_AVAILABLE = false;
+
+/** URL do webhook de autorização da loja (base pública da API, sem barra no fim). */
+export function authWebhookUrl(storeId: string): string {
+  const base = String(env.PUBLIC_API_URL || 'https://api.dropapp.com.br').replace(/\/+$/, '');
+  return `${base}/webhooks/asaas/loja/${storeId}/autorizacao`;
+}
 
 /** Acesso: usuário autenticado precisa ser o dono da loja. Fail closed (loja inexistente → 403). */
 export async function requireStoreOwner(req: Request, _res: Response, next: NextFunction) {
@@ -71,6 +83,9 @@ export async function postChecklist(req: Request, res: Response) {
 
 /** Gera/rotaciona o token do webhook de autorização. Em claro só nesta resposta; no banco, só o hash. */
 export async function postAuthToken(req: Request, res: Response) {
+  if (!AUTH_WEBHOOK_AVAILABLE) {
+    throw new AppError('Autorização de transferências ainda não está disponível', 404, true, 'FEATURE_NOT_AVAILABLE');
+  }
   const { storeId } = req.params;
   await requireAccount(storeId);
   const token = crypto.randomBytes(24).toString('hex'); // 48 chars hex
@@ -81,7 +96,7 @@ export async function postAuthToken(req: Request, res: Response) {
     data: { authWebhookTokenHash: hash, authWebhookConfirmedAt: null },
   });
   res.set('Cache-Control', 'no-store');
-  ok(res, { token, url: `${AUTH_URL_BASE}/${storeId}/autorizacao` });
+  ok(res, { token, url: authWebhookUrl(storeId) });
 }
 
 /** "Testar configuração": a lógica (e a chave) ficam em services/asaasLoja; aqui só HTTP. */
