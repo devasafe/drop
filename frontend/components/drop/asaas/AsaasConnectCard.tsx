@@ -22,6 +22,8 @@ export interface AsaasConnectCardProps {
   storeId: string;
   /** IP de saída da DROP (de GET /settings/saas), a liberar no painel do Asaas. */
   egressIp?: string | null;
+  /** Mostra "Desconectar" (só o admin; o lojista não desconecta). */
+  allowDisconnect?: boolean;
 }
 
 const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message || fallback;
@@ -31,7 +33,7 @@ const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message |
  * enquanto o usuário digita: é apagada assim que a conexão é aceita e nunca é
  * devolvida pelo backend (só o status e o final).
  */
-export function AsaasConnectCard({ apiBase, storeId, egressIp }: AsaasConnectCardProps) {
+export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }: AsaasConnectCardProps) {
   const { showToast } = useToast();
   const [status, setStatus] = useState<AsaasStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -98,6 +100,21 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp }: AsaasConnectCar
     }
   };
 
+  const disconnect = async () => {
+    if (typeof window !== 'undefined' && !window.confirm('Desconectar a conta Asaas desta loja? Os pagamentos dela deixam de funcionar.')) return;
+    setBusy(true);
+    try {
+      const r = await api.delete(apiBase);
+      setStatus(r.data?.data ?? null);
+      setAuthToken(null);
+      showToast('Conta Asaas desconectada.', 'success');
+    } catch (e: any) {
+      showToast(errMsg(e, 'Não foi possível desconectar.'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copy = (text: string) => {
     try { navigator.clipboard?.writeText(text); showToast('Copiado.', 'success'); } catch { /* sem clipboard */ }
   };
@@ -131,6 +148,9 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp }: AsaasConnectCar
           <Button variant="primary" loading={busy} disabled={!apiKey} onClick={connect}>
             {connected ? 'Trocar chave' : 'Conectar'}
           </Button>
+          {allowDisconnect && connected && (
+            <Button variant="ghost" loading={busy} onClick={disconnect}>Desconectar</Button>
+          )}
         </form>
         <p className={styles.hint}>Gere a chave no painel do Asaas, em Integrações. Ela é guardada cifrada e nunca é exibida de novo.</p>
       </Section>

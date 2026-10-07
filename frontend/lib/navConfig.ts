@@ -115,6 +115,7 @@ const ADMIN_GROUP: Record<string, string> = {
   '/admin/freios': 'Plataforma',
   '/admin/seasonal-theme': 'Plataforma',
   '/admin/permissoes': 'Plataforma',
+  '/admin/lojas-asaas': 'Financeiro',
 };
 
 /**
@@ -130,7 +131,7 @@ export function getNavItems(
 ): NavItem[] {
   const direct = opts?.settlementMode === 'direto';
   if (role === 'ceo') {
-    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && m.custodyOnly)).map((m) => ({
+    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && m.custodyOnly) && !(m.directOnly && !direct)).map((m) => ({
       label: m.label,
       icon: m.icon,
       route: m.href,

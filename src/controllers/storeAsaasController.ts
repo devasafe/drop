@@ -6,6 +6,8 @@ import { AppError } from '../utils/AppError';
 import { isStoreOwner } from '../utils/storeOwnership';
 import {
   connectStoreAsaas,
+  disconnectStoreAsaas,
+  listStoresAsaas,
   testStoreAsaas,
   getStoreAsaasStatus,
   StoreAsaasNotReadyError,
@@ -35,8 +37,16 @@ export async function requireStoreOwner(req: Request, _res: Response, next: Next
 const ok = (res: Response, data: unknown) => res.json({ success: true, data });
 
 export async function putAsaas(req: Request, res: Response) {
-  const status = await connectStoreAsaas(req.params.storeId, req.body.apiKey);
+  const status = await connectStoreAsaas(req.params.storeId, req.body.apiKey, (req as any).user?.id);
   ok(res, status);
+}
+
+export async function deleteAsaas(req: Request, res: Response) {
+  ok(res, await disconnectStoreAsaas(req.params.storeId, (req as any).user?.id));
+}
+
+export async function listAsaasStores(_req: Request, res: Response) {
+  ok(res, await listStoresAsaas());
 }
 
 export async function getAsaas(req: Request, res: Response) {

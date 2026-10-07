@@ -32,7 +32,7 @@ afterEach(async () => {
 describe('t1.3 — conta Asaas da loja', () => {
   it('chave válida: grava cifrada, guarda só os 4 últimos, status valid', async () => {
     (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
-    const st = await connectStoreAsaas(storeId, '$aact_hmlg_abcdef123456');
+    const st = await connectStoreAsaas(storeId, '$aact_hmlg_abcdef123456', 'actor-t13');
     expect(st.status).toBe('valid');
     expect(st.environment).toBe('sandbox');
     expect(st.walletId).toBeNull();
@@ -46,7 +46,7 @@ describe('t1.3 — conta Asaas da loja', () => {
 
   it('linha com status invalid: getStoreApiKey lança StoreAsaasNotReadyError', async () => {
     (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
-    await connectStoreAsaas(storeId, '$aact_hmlg_abcdef123456');
+    await connectStoreAsaas(storeId, '$aact_hmlg_abcdef123456', 'actor-t13');
     await prisma.storeAsaasAccount.update({ where: { storeId }, data: { status: 'invalid' } });
     await expect(getStoreApiKey(storeId)).rejects.toBeInstanceOf(StoreAsaasNotReadyError);
     expect((await getStoreAsaasStatus(storeId)).status).toBe('invalid');
@@ -55,7 +55,7 @@ describe('t1.3 — conta Asaas da loja', () => {
   it('indisponível: loga warn com storeId/errName/status, sem a chave', async () => {
     const spy = jest.spyOn(logger as any, 'warn');
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(500, []));
-    await expect(connectStoreAsaas(storeId, '$aact_hmlg_SEGREDO5555')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE' });
+    await expect(connectStoreAsaas(storeId, '$aact_hmlg_SEGREDO5555', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE' });
     const calls = spy.mock.calls;
     expect(JSON.stringify(calls)).not.toContain('SEGREDO5555');
     expect(JSON.stringify(calls)).toContain(storeId);
@@ -69,30 +69,30 @@ describe('t1.3 — conta Asaas da loja', () => {
 
   it('chave recusada (401): nada gravado, erro ASAAS_KEY_INVALID', async () => {
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(401, [{ code: 'invalid', description: 'x' }]));
-    await expect(connectStoreAsaas(storeId, '$aact_hmlg_ruim')).rejects.toMatchObject({ code: 'ASAAS_KEY_INVALID', statusCode: 400 });
+    await expect(connectStoreAsaas(storeId, '$aact_hmlg_ruim', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_KEY_INVALID', statusCode: 400 });
     expect(await prisma.storeAsaasAccount.findUnique({ where: { storeId } })).toBeNull();
   });
 
   it('Asaas fora do ar / 5xx / timeout: ASAAS_UNAVAILABLE (503), nada gravado', async () => {
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(500, []));
-    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x1')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE', statusCode: 503 });
+    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x1', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE', statusCode: 503 });
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new Error('Timeout (20000ms)'));
-    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x1')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE', statusCode: 503 });
+    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x1', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_UNAVAILABLE', statusCode: 503 });
     expect(await prisma.storeAsaasAccount.findUnique({ where: { storeId } })).toBeNull();
   });
 
   it('chave de sandbox com servidor em produção → ASAAS_ENV_MISMATCH', async () => {
     (env as any).ASAAS_API_URL = 'https://api.asaas.com/v3';
-    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x')).rejects.toMatchObject({ code: 'ASAAS_ENV_MISMATCH' });
+    await expect(connectStoreAsaas(storeId, '$aact_hmlg_x', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_ENV_MISMATCH' });
     expect(asaasClient.getAs).not.toHaveBeenCalled();
   });
 
   it('chave de produção com servidor em sandbox (default) → ASAAS_ENV_MISMATCH', async () => {
-    await expect(connectStoreAsaas(storeId, '$aact_prod_x')).rejects.toMatchObject({ code: 'ASAAS_ENV_MISMATCH' });
+    await expect(connectStoreAsaas(storeId, '$aact_prod_x', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_ENV_MISMATCH' });
   });
 
   it('chave que não começa com $aact_ → ASAAS_KEY_FORMAT', async () => {
-    await expect(connectStoreAsaas(storeId, 'abc')).rejects.toMatchObject({ code: 'ASAAS_KEY_FORMAT' });
+    await expect(connectStoreAsaas(storeId, 'abc', 'actor-t13')).rejects.toMatchObject({ code: 'ASAAS_KEY_FORMAT' });
   });
 
   it('a chave nunca aparece em log nem na mensagem de erro', async () => {
@@ -100,7 +100,7 @@ describe('t1.3 — conta Asaas da loja', () => {
     const spies = (['warn', 'error', 'info', 'debug'] as const).map((l) => jest.spyOn(logger as any, l));
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(401, [{ code: 'invalid', description: 'x' }]));
     let err: any;
-    try { await connectStoreAsaas(storeId, key); } catch (e) { err = e; }
+    try { await connectStoreAsaas(storeId, key, 'actor-t13'); } catch (e) { err = e; }
     expect(err.message).not.toContain('SEGREDO987654');
     const logged = JSON.stringify(spies.flatMap((s) => s.mock.calls));
     expect(logged).not.toContain('SEGREDO987654');

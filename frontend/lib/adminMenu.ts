@@ -16,6 +16,8 @@ export interface AdminMenuItem {
   ceoOnly?: boolean;
   /** Some no modo de liquidação 'direto' (custódia/repasse desligados). */
   custodyOnly?: boolean;
+  /** Inverso de custodyOnly: aparece SÓ no modo 'direto' (conta Asaas própria da loja). */
+  directOnly?: boolean;
 }
 
 export const ADMIN_MENU: AdminMenuItem[] = [
@@ -39,6 +41,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   // Não delegáveis por permissão (apenas CEO):
   { href: '/admin/coupons',        label: 'Cupons',       icon: 'tag',          ceoOnly: true },
   { href: '/admin/permissoes',     label: 'Permissões',   icon: 'lock',         ceoOnly: true },
+  { href: '/admin/lojas-asaas',    label: 'Contas Asaas', icon: 'bank',         ceoOnly: true, directOnly: true },
 ];
 
 /** Itens visíveis para um usuário, dadas suas permissões. */

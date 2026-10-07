@@ -1221,6 +1221,19 @@ model StoreAsaasAccount {
   updatedAt               DateTime  @updatedAt
 }
 
+/// Trilha de auditoria de quem conectou/trocou/desconectou a conta Asaas de uma loja.
+/// Sem FK de propósito: o registro sobrevive à loja/usuário. Nunca guarda a chave, só o final.
+model StoreAsaasAudit {
+  id          String   @id @default(cuid())
+  storeId     String
+  actorId     String
+  action      String // connect | replace | disconnect
+  apiKeyLast4 String?
+  createdAt   DateTime @default(now())
+
+  @@index([storeId])
+}
+
 /// Cliente (comprador) criado na conta Asaas da loja, por par loja+usuário.
 model StoreAsaasCustomer {
   id         String   @id @default(cuid())

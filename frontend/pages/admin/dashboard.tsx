@@ -7,6 +7,7 @@ import PushEnableBanner from '../../components/PushEnableBanner';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { visibleAdminMenu } from '../../lib/adminMenu';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
 import styles from './AdminDashboard.module.css';
 
 interface PlatformMetrics {
@@ -25,6 +26,7 @@ interface PlatformMetrics {
 
 export default function CeoDashboard() {
   const { user, can } = useAuth();
+  const { settlementMode } = useSaasConfig();
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('month');
@@ -32,7 +34,7 @@ export default function CeoDashboard() {
   const activeRole = user?.activeRole || user?.role;
   // Cards de acesso rápido = itens do painel que o usuário pode ver (menos o próprio dashboard)
   const quickItems = can
-    ? visibleAdminMenu(can, activeRole === 'ceo').filter((i) => i.href !== '/admin/dashboard')
+    ? visibleAdminMenu(can, activeRole === 'ceo').filter((i) => i.href !== '/admin/dashboard' && !(i.directOnly && settlementMode !== 'direto'))
     : [];
 
   useEffect(() => {

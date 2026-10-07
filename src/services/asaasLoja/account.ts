@@ -72,7 +72,7 @@ async function probeKey(storeId: string, key: string): Promise<boolean> {
   }
 }
 
-export async function connectStoreAsaas(storeId: string, rawApiKey: string): Promise<StoreAsaasStatus> {
+export async function connectStoreAsaas(storeId: string, rawApiKey: string, actorId: string): Promise<StoreAsaasStatus> {
   const key = String(rawApiKey || '').trim();
   let keyEnv: 'sandbox' | 'production';
   if (key.startsWith('$aact_hmlg_')) keyEnv = 'sandbox';
@@ -98,12 +98,51 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string): Pro
     lastCheckedAt: new Date(),
     lastError: null as string | null,
   };
-  const row = await prisma.storeAsaasAccount.upsert({
-    where: { storeId },
-    create: { storeId, ...data },
-    update: data,
+  // Conta + audit na MESMA transação: não existe troca de conta sem rastro.
+  const row = await prisma.$transaction(async (tx) => {
+    const store = await tx.store.findUnique({ where: { id: storeId }, select: { id: true } });
+    if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+    const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { id: true } });
+    const saved = await tx.storeAsaasAccount.upsert({
+      where: { storeId },
+      create: { storeId, ...data },
+      update: data,
+    });
+    await tx.storeAsaasAudit.create({
+      data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
+    });
+    return saved;
   });
   return toStatus(row);
+}
+
+/** Desconecta a conta Asaas da loja (apaga a linha) e audita. Sem conta → 404. */
+export async function disconnectStoreAsaas(storeId: string, actorId: string): Promise<StoreAsaasStatus> {
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { apiKeyLast4: true } });
+    if (!existing) throw new AppError('Esta loja não tem conta Asaas conectada', 404, true, 'STORE_ASAAS_NOT_FOUND');
+    await tx.storeAsaasAccount.delete({ where: { storeId } });
+    await tx.storeAsaasAudit.create({
+      data: { storeId, actorId, action: 'disconnect', apiKeyLast4: existing.apiKeyLast4 },
+    });
+  });
+  return toStatus(null);
+}
+
+/** Visão do admin: todas as lojas com o estado da conta (nunca a chave nem hashes). */
+export async function listStoresAsaas() {
+  const stores = await prisma.store.findMany({
+    select: { id: true, name: true, asaasAccount: { select: { status: true, environment: true, apiKeyLast4: true, lastCheckedAt: true } } },
+    orderBy: { name: 'asc' },
+  });
+  return stores.map((s) => ({
+    storeId: s.id,
+    name: s.name,
+    status: (s.asaasAccount ? (s.asaasAccount.status === 'valid' ? 'valid' : 'invalid') : 'none') as 'none' | 'valid' | 'invalid',
+    environment: (s.asaasAccount?.environment ?? null) as 'sandbox' | 'production' | null,
+    apiKeyLast4: s.asaasAccount?.apiKeyLast4 ?? null,
+    lastCheckedAt: s.asaasAccount?.lastCheckedAt ? s.asaasAccount.lastCheckedAt.toISOString() : null,
+  }));
 }
 
 /** Uso interno de services/asaasLoja/*. Nunca expor o retorno por API/log. */
