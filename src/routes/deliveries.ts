@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, updateDeliveryStatus, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -30,8 +30,10 @@ router.post('/', authenticate, authorizeRoles('lojista'), validate(CreateDeliver
 router.put('/:id/assign', authenticate, authorizeRoles('lojista'), assignDelivery);
 
 // ========== MOTOBOY OPERATIONS ==========
-// motoboy updates status
-router.put('/:id/status', authenticate, authorizeRoles('motoboy'), updateDeliveryStatus);
+// Segurança (2026-10-07): não existe rota genérica de status. `picked` só via
+// POST /:id/validar-pin-retirada (loja digita o PIN) e `delivered` só via
+// POST /:id/finalizar (motoboy digita o PIN do cliente) — PUT /:id/status fechava a
+// entrega sem PIN, sem payout e sem nota.
 
 // motoboy rejects delivery (returns to pool or cancels)
 router.post('/:id/reject', authenticate, authorizeRoles('motoboy'), rejectDeliveryByMotoboy);

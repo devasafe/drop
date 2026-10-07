@@ -569,47 +569,6 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-// motoboy updates status (picked, delivered, cancelled)
-export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const allowed = ['picked', 'delivered', 'cancelled'];
-    if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
-
-    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
-    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
-
-    // only assigned motoboy can update
-    const userId = req.user?.id;
-    if (!userId || !delivery.motoboyId || delivery.motoboyId.toString() !== userId) {
-      return res.status(403).json({ error: 'Forbidden - not assigned motoboy' });
-    }
-
-    delivery.status = status;
-    await persistDelivery(delivery);
-    
-    // Broadcast delivery status change
-    emitDeliveryStatusChanged(delivery);
-    
-    // if delivered, optionally update order status
-    if (status === 'delivered') {
-      const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
-      if (order) {
-        order.status = 'entregue';
-        await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
-        emitOrderStatusChanged(order);
-      }
-    }
-
-    return res.json(delivery);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to update delivery' });
-  }
-};
-
 // get delivery details (customer, store owner or assigned motoboy)
 export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
