@@ -5,7 +5,7 @@ import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 
 import { prisma } from '../lib/prisma';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
+import { toApiDelivery, persistDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 import userRepository from '../repositories/user.repository';
 
 
@@ -112,7 +112,7 @@ export const listHistoryDeliveries = async (req: AuthenticatedRequest, res: Resp
       where: { motoboyId: req.user.id, status: { in: ['delivered', 'cancelled'] } },
       orderBy: { updatedAt: 'desc' },
     });
-    return res.json(rows.map(toApiDelivery));
+    return res.json(rows.map((r) => serializeDeliveryFor(toApiDelivery(r), req.user!.id)));
   } catch (err) {
     console.error('[listHistoryDeliveries] error:', err);
     return res.status(500).json({ error: 'Failed to list history deliveries' });
@@ -214,7 +214,7 @@ export const listOngoingDeliveries = async (req: AuthenticatedRequest, res: Resp
       skip,
       take: limit,
     });
-    const deliveries = rows.map(toApiDelivery);
+    const deliveries = rows.map((r) => serializeDeliveryFor(toApiDelivery(r), req.user!.id));
 
     const total = await prisma.delivery.count({ where });
 
@@ -482,7 +482,7 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
   } catch (e) {
     // ignore notifier errors
   }
-  return res.status(201).json(delivery);
+  return res.status(201).json(stripDeliveryPins(delivery));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -560,8 +560,8 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
       message: `Você foi atribuído a uma nova entrega`,
       timestamp: new Date().toISOString()
     });
-    
-    return res.json(delivery);
+
+    return res.json(stripDeliveryPins(delivery));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -669,7 +669,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
 
     // Monta objeto de resposta com campos de texto e coordenadas para retirada e entrega
     const response = {
-      ...delivery,
+      ...serializeDeliveryFor(delivery, user.id, { customerId: order?.customerId }),
       order,
       storeObj: storeObj ? {
         _id: storeObj.id ?? storeObj._id,
@@ -780,7 +780,8 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     }
 
     const total = visible.length;
-    const deliveries = visible.slice(skip, skip + limit);
+    // Pool: nunca PIN (entrega devolvida ao pool pode carregar PINs antigos).
+    const deliveries = visible.slice(skip, skip + limit).map((d: any) => stripDeliveryPins(d));
 
     return res.json({
       deliveries,
@@ -998,13 +999,9 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       console.warn(`⚠️ [claimDelivery] Failed to notify store:`, e);
     }
 
-    // Retornar delivery com pinRetirada para a loja confirmar
-    const deliveryObj = delivery;
-    return res.json({
-      ...deliveryObj,
-      pin: deliveryObj.pin,  // PIN para entrega final (cliente)
-      pinRetirada: deliveryObj.pinRetirada  // PIN de retirada (loja)
-    });
+    // Motoboy recebe só o PIN de retirada (mostra à loja). O PIN de entrega é do
+    // cliente — foi para ele no evento motoboy:assigned.
+    return res.json(serializeDeliveryFor(delivery, req.user!.id));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);

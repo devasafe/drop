@@ -29,8 +29,6 @@ export default function SellerOrderDetailPage() {
   // Delivery vem populado diretamente na resposta do getOrder (order.delivery)
   // Isso evita uma chamada extra de API e garante dados imediatos
   const [delivery, setDelivery] = useState<any>(null);
-  const [pinInput, setPinInput] = useState('');
-  const [msg, setMsg] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [returnRequest, setReturnRequest] = useState<ReturnRequest | null>(null);
   const [returnPin, setReturnPin] = useState('');
@@ -84,16 +82,6 @@ export default function SellerOrderDetailPage() {
       });
     }
   }, [delivery?.statusDevolucao]);
-
-  const liberarEntrega = async () => {
-    if (!delivery) return;
-    try {
-      await api.post(`/deliveries/${delivery._id}/liberar`, { pin: pinInput });
-      setMsg('Entrega liberada!');
-    } catch (e: any) {
-      setMsg(e?.response?.data?.error || 'Erro ao liberar entrega');
-    }
-  };
 
   const confirmarDevolucao = async () => {
     if (!delivery || !returnPin) return;
@@ -288,32 +276,6 @@ export default function SellerOrderDetailPage() {
                 )}
               </div>
 
-              {/* PIN DE ENTREGA */}
-              {delivery && delivery.pin && (
-                <div className={styles.pinCard}>
-                  <h3 className={styles.pinCardTitle}><Icon name="lock" size={14} /> PIN de Entrega</h3>
-                  <div className={styles.pinDisplay}>{delivery.pin}</div>
-                  <div className={styles.pinHint}>
-                    Compartilhe este código com o cliente para garantir a entrega.
-                  </div>
-                  <div className={styles.pinInputGroup}>
-                    <input
-                      value={pinInput}
-                      onChange={e => setPinInput(e.target.value)}
-                      maxLength={5}
-                      placeholder="Digite o PIN"
-                      className={styles.pinInput}
-                    />
-                    <button
-                      onClick={liberarEntrega}
-                      className={`${styles.btnAction} ${styles.btnLiberar}`}
-                    >
-                      <Icon name="check-circle" size={14} /> Liberar Entrega
-                    </button>
-                  </div>
-                  {msg && <div className={styles.pinMsg}><Icon name="check-circle" size={14} /> {msg}</div>}
-                </div>
-              )}
             </div>
           </div>
         </div>

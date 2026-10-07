@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { toApiDelivery } from '../repositories/delivery.repository';
+import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
 import { prisma } from '../lib/prisma';
@@ -807,7 +807,8 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
     return res.json({
       ...order,
       products: productsWithNames,
-      delivery: delivery ? { ...toApiDelivery(delivery), motoboyName } : null,
+      // PIN só para quem deve ver: o cliente recebe o de entrega; loja/admin nenhum.
+      delivery: delivery ? { ...serializeDeliveryFor(toApiDelivery(delivery), userId, { customerId: order.customerId }), motoboyName } : null,
       storeName: (storeObj as any)?.name ?? 'Loja removida',
       storeObj: storeObj ? {
         name: (storeObj as any).name,
@@ -870,7 +871,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Evitar criação duplicada de delivery
     const existingDelivery = await prisma.delivery.findFirst({ where: { orderId: order.id } });
-    if (existingDelivery) return res.json(existingDelivery);
+    if (existingDelivery) return res.json(stripDeliveryPins(toApiDelivery(existingDelivery)));
 
     const distanceNum = Math.max(0, Number(distance || 0));
     const fee = await calculateDeliveryFeeWithConfig(distanceNum);
@@ -944,7 +945,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
       logger.warn('Falha ao enviar push notification para motoboys', { orderId: order._id });
     }
 
-    return res.status(201).json(delivery);
+    return res.status(201).json(stripDeliveryPins(toApiDelivery(delivery)));
   } catch (err) {
     logger.error('Erro ao aceitar pedido', err as Error);
     return res.status(500).json({ error: 'Failed to accept order' });

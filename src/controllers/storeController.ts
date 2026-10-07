@@ -2,7 +2,7 @@ import { Response, Request } from 'express';
 import { AuthenticatedRequest } from '../types';
 
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { toApiDelivery } from '../repositories/delivery.repository';
+import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
@@ -59,7 +59,8 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
           const motoboy = d.motoboyId
             ? await prisma.user.findUnique({ where: { id: String(d.motoboyId) }, select: { name: true } })
             : null;
-          delivery = { ...toApiDelivery(d), motoboyName: motoboy?.name };
+          // Loja digita o PIN que o motoboy mostra — nunca recebe PIN nenhum.
+          delivery = { ...stripDeliveryPins(toApiDelivery(d)), motoboyName: motoboy?.name };
         }
       }
       // Busca nome do comprador

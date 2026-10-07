@@ -569,7 +569,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
             message: 'Motoboy precisa devolver o produto à loja antes da reatribuição',
             pinRequired: true,
             returnedAt: new Date(),
-            pinDevolucao: delivery.pinDevolucao,
+            // Sem pinDevolucao: a loja DIGITA o PIN que o motoboy mostra.
           });
         }
         return res.status(202).json({

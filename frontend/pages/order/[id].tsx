@@ -260,18 +260,6 @@ export default function OrderDetailPage() {
                 <TimelineStep label="Cancelado" date={fmt(delivery.cancelledAt)} active danger />
               )}
             </div>
-            {delivery.pin && (
-              <div className={styles.pinRow}>
-                <span className={styles.pinLabel}>PIN Entrega</span>
-                <span className={styles.pinValue}>{delivery.pin}</span>
-              </div>
-            )}
-            {delivery.pinRetirada && (
-              <div className={styles.pinRow}>
-                <span className={styles.pinLabel}>PIN Retirada</span>
-                <span className={styles.pinValue}>{delivery.pinRetirada}</span>
-              </div>
-            )}
             {delivery.rating && (
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Avaliacao</span>

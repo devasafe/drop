@@ -19,6 +19,36 @@ export function toApiDelivery(delivery: Delivery | null): any {
 }
 
 /**
+ * Remove os três PINs de um objeto de entrega (para loja, admin, pool, logs, sockets).
+ */
+export function stripDeliveryPins<T extends Record<string, any> | null | undefined>(delivery: T): T {
+  if (!delivery) return delivery;
+  const { pin, pinRetirada, pinDevolucao, ...rest } = delivery as any;
+  return rest as T;
+}
+
+/**
+ * Serializa a entrega para QUEM está vendo. Regra (auditoria 2026-10-07):
+ *   pinRetirada / pinDevolucao → só o motoboy desta entrega (ele mostra à loja)
+ *   pin (entrega)              → só o cliente do pedido (ele informa ao motoboy)
+ *   loja, admin e outros       → nenhum PIN
+ * `delivery` já no formato de API (toApiDelivery).
+ */
+export function serializeDeliveryFor(delivery: any, viewerId: unknown, opts: { customerId?: unknown } = {}): any {
+  if (!delivery) return delivery;
+  const out: any = stripDeliveryPins(delivery);
+  const viewer = viewerId ? String(viewerId) : '';
+  if (viewer && delivery.motoboyId && String(delivery.motoboyId) === viewer) {
+    out.pinRetirada = delivery.pinRetirada ?? null;
+    out.pinDevolucao = delivery.pinDevolucao ?? null;
+  }
+  if (viewer && opts.customerId && String(opts.customerId) === viewer) {
+    out.pin = delivery.pin ?? null;
+  }
+  return out;
+}
+
+/**
  * Persiste o objeto de API mutável de volta no Postgres — substitui o
  * `delivery.save()` do Mongoose. `Delivery` só tem colunas escalares (sem
  * relações), então gravar o objeto inteiro é seguro. Descartamos os campos que
