@@ -56,3 +56,27 @@ describe('CheckoutPage — render do PixPaymentSheet', () => {
     expect(screen.queryByText('PIX_SHEET_STUB')).not.toBeInTheDocument();
   });
 });
+
+describe('CheckoutPage — CPF no modo direto (Task 1.5)', () => {
+  test('mostra o campo CPF quando o hook pede (cpfRequired) e repassa a digitação', async () => {
+    const setCpf = jest.fn();
+    mockedUseCheckout.mockReturnValue(baseHook({
+      items: [{ productId: 'p1', quantity: 1, price: 10 }],
+      cpfRequired: true, cpf: '', setCpf,
+    } as unknown as ReturnType<typeof useCheckout>));
+    render(<CheckoutPage />);
+    const input = screen.getByLabelText(/CPF/i);
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.change(input, { target: { value: '39053344705' } });
+    expect(setCpf).toHaveBeenCalledWith('390.533.447-05');
+  });
+
+  test('sem cpfRequired, o campo CPF não aparece', () => {
+    mockedUseCheckout.mockReturnValue(baseHook({
+      items: [{ productId: 'p1', quantity: 1, price: 10 }],
+      cpfRequired: false, cpf: '', setCpf: jest.fn(),
+    } as unknown as ReturnType<typeof useCheckout>));
+    render(<CheckoutPage />);
+    expect(screen.queryByLabelText(/CPF/i)).not.toBeInTheDocument();
+  });
+});

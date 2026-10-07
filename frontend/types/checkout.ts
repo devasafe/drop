@@ -93,4 +93,5 @@ export interface PlaceOrderPayload {
   card?: CardData;
   cardHolder?: CardHolderInfo;
   installmentCount?: number;
+  cpf?: string; // modo direto: CPF digitado quando o perfil não tem (só dígitos)
 }

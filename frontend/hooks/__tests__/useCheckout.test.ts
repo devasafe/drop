@@ -231,3 +231,45 @@ test('pendingDebt fica null quando não há dívida pendente', async () => {
 
   expect(result.current.pendingDebt).toBeNull();
 });
+
+// Task 1.5 (modo direto): o Asaas da loja exige CPF. Sem CPF no perfil, o backend
+// responde 400 CPF_REQUIRED antes de criar o pedido; o checkout pede o CPF e reenvia.
+test('CPF_REQUIRED → expõe cpfRequired e o reenvio leva o cpf (só dígitos)', async () => {
+  let orderCalls = 0;
+  mockedApi.post.mockImplementation(((url: string) => {
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders') {
+      orderCalls += 1;
+      if (orderCalls === 1) {
+        return Promise.reject({ response: { status: 400, data: { error: 'Informe seu CPF para pagar com Pix.', code: 'CPF_REQUIRED' } } });
+      }
+      return Promise.resolve({ data: { order: { _id: 'o9' }, pix: { qrCodePayload: 'x' } } });
+    }
+    return Promise.resolve({ data: {} });
+  }) as any);
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {});
+  act(() => { result.current.address.selectAddress(0); });
+  await act(async () => {});
+
+  expect(result.current.cpfRequired).toBe(false);
+  let r: { ok: boolean; error?: string } = { ok: true };
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(r.ok).toBe(false);
+  expect(result.current.cpfRequired).toBe(true);
+  const first = mockedApi.post.mock.calls.filter(c => c[0] === '/orders')[0][1] as Record<string, unknown>;
+  expect(first.cpf).toBeUndefined();
+
+  // CPF incompleto não reenvia
+  act(() => { result.current.setCpf('123.456'); });
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(r.ok).toBe(false);
+  expect(orderCalls).toBe(1);
+
+  act(() => { result.current.setCpf('390.533.447-05'); });
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(r.ok).toBe(true);
+  const second = mockedApi.post.mock.calls.filter(c => c[0] === '/orders')[1][1] as Record<string, unknown>;
+  expect(second.cpf).toBe('39053344705');
+  expect(result.current.pixData?.orderId).toBe('o9');
+});

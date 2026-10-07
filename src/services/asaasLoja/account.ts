@@ -111,6 +111,8 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     await tx.storeAsaasAudit.create({
       data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
     });
+    // Customers do Asaas pertencem à conta: com conta nova, o cache de StoreAsaasCustomer não vale mais.
+    await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });
     return saved;
   });
   return toStatus(row);
@@ -122,6 +124,7 @@ export async function disconnectStoreAsaas(storeId: string, actorId: string): Pr
     const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { apiKeyLast4: true } });
     if (!existing) throw new AppError('Esta loja não tem conta Asaas conectada', 404, true, 'STORE_ASAAS_NOT_FOUND');
     await tx.storeAsaasAccount.delete({ where: { storeId } });
+    await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });
     await tx.storeAsaasAudit.create({
       data: { storeId, actorId, action: 'disconnect', apiKeyLast4: existing.apiKeyLast4 },
     });

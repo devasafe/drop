@@ -1,6 +1,6 @@
 import { prisma } from '../../lib/prisma';
 
-export type PaymentProviderName = 'asaas' | 'mercadopago';
+export type PaymentProviderName = 'asaas' | 'mercadopago' | 'asaas_loja';
 
 /**
  * Provedor de pagamento ativo para pedidos NOVOS. Fonte da verdade é o

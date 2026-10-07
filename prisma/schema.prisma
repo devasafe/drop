@@ -129,6 +129,7 @@ enum PayoutGatewayProvider {
 enum PaymentProviderName {
   asaas
   mercadopago
+  asaas_loja // conta Asaas própria da loja (modo SaaS direto)
 }
 
 enum WithdrawalStatus {

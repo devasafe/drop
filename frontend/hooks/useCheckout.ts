@@ -98,6 +98,10 @@ export function useCheckout() {
   const [installmentCount, setInstallmentCount] = useState(1);
   const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
   const [blocked, setBlocked] = useState(false);
+  // Modo direto (Task 1.5): o Asaas da loja exige CPF. Só pedimos quando o backend
+  // responde CPF_REQUIRED (perfil sem CPF); o reenvio leva `cpf` e o backend grava no perfil.
+  const [cpfRequired, setCpfRequired] = useState(false);
+  const [cpf, setCpf] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
@@ -245,6 +249,8 @@ export function useCheckout() {
     if (!canPlace) return { ok: false, error: 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
+    const cpfDigits = onlyDigits(cpf);
+    if (cpfRequired && cpfDigits.length !== 11) return { ok: false, error: 'Informe um CPF válido (11 dígitos)' };
     setPlacing(true);
     try {
       const sel = address.selected;
@@ -267,6 +273,7 @@ export function useCheckout() {
       }
       if (coupon.code.trim()) payload.cupomCode = coupon.code.trim().toUpperCase();
       if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
+      if (cpfRequired && cpfDigits.length === 11) payload.cpf = cpfDigits;
 
       const res = await api.post<PlaceOrderResponse>('/orders', payload);
       const data = res.data;
@@ -284,7 +291,11 @@ export function useCheckout() {
       }
       return { ok: true };
     } catch (err) {
-      const d = (err as { response?: { data?: { error?: string; detail?: string } } })?.response?.data;
+      const d = (err as { response?: { data?: { error?: string; detail?: string; code?: string } } })?.response?.data;
+      if (d?.code === 'CPF_REQUIRED') {
+        setCpfRequired(true);
+        return { ok: false, error: cpfRequired ? 'CPF inválido. Confira os números.' : 'Informe seu CPF para pagar com Pix.' };
+      }
       return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.') };
     } finally {
       setPlacing(false);
@@ -301,5 +312,6 @@ export function useCheckout() {
     isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
+    cpfRequired, cpf, setCpf,
   };
 }

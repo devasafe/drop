@@ -90,6 +90,12 @@
   margin-top: var(--space-3);
 }
 
+.fieldHint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
 /* ---- estados de página inteira (bloqueado / vazio / carregando) ---- */
 .blockedScreen,
 .emptyWrap {

@@ -82,6 +82,8 @@ export const CreateOrderSchema = z.object({
   cupomCode: z.string().min(3, 'Cupom muito curto').max(20, 'Cupom muito longo').toUpperCase().optional(),
   useWalletBalance: z.boolean().optional(), // usar saldo da carteira p/ abater o total (Asaas)
   installmentCount: z.number().int().min(1).max(21).optional(),
+  // CPF digitado no checkout (modo direto, quando o perfil não tem). Validado de verdade no servidor.
+  cpf: z.string().max(14).regex(/^[\d.-]+$/, 'CPF inválido').optional(),
   card: z.object({
     holderName: z.string().min(2).max(60),
     number: z.string().regex(/^\d{13,19}$/, 'Número do cartão inválido'),

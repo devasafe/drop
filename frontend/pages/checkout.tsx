@@ -20,6 +20,8 @@ import { CheckoutBar } from '../components/drop/checkout/CheckoutBar';
 import { PixPaymentSheet } from '../components/drop/checkout/PixPaymentSheet';
 import { CardForm } from '../components/drop/checkout/CardForm';
 import { Select } from '../components/ui/Select';
+import { Input } from '../components/ui/Input';
+import { maskCPF, onlyDigits } from '../lib/masks';
 import { formatBRL } from '../components/ui/PriceTag';
 import { installmentOptions } from '../lib/cardInstallments';
 import styles from './Checkout.module.css';
@@ -156,6 +158,21 @@ export default function CheckoutPage() {
                 )}
               </section>
 
+              {c.cpfRequired && (
+              <section className={styles.section}>
+                <label htmlFor="checkout-cpf" className={styles.sectionTitle}>CPF para o Pix</label>
+                <p className={styles.fieldHint}>A loja precisa do seu CPF para gerar a cobrança. Pedimos só uma vez.</p>
+                <Input
+                  id="checkout-cpf"
+                  value={c.cpf}
+                  onChange={(v) => c.setCpf(maskCPF(v))}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </section>
+              )}
+
               {!direct && (
               <section className={styles.section}>
                 <WalletToggle
@@ -202,7 +219,8 @@ export default function CheckoutPage() {
               !c.canPlace ||
               c.placing ||
               c.isWalletInsufficient ||
-              (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
+              (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid) ||
+              (c.cpfRequired && onlyDigits(c.cpf).length !== 11)
             }
             loading={c.placing}
             hint={
@@ -212,7 +230,9 @@ export default function CheckoutPage() {
                   ? 'Saldo insuficiente'
                   : (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
                     ? 'Preencha os dados do cartão'
-                    : undefined
+                    : (c.cpfRequired && onlyDigits(c.cpf).length !== 11)
+                      ? 'Informe seu CPF'
+                      : undefined
             }
             onConfirm={async () => {
               const r = await c.placeOrder();

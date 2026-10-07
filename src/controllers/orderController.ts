@@ -40,27 +40,10 @@ import { finalizeWalletPaidOrder, confirmOrderPaidByPayment } from '../services/
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { getActivePaymentProviderName } from '../services/paymentProvider';
 import { computeCardTotal } from '../utils/cardInstallments';
-
-/**
- * Compensa um pedido órfão cuja cobrança (PIX ou cartão) falhou: devolve o
- * estoque decrementado, estorna o saldo de carteira já debitado (se houver) e
- * apaga o pedido inútil. Reutilizado pelo ramo PIX e pelo ramo cartão (DRY).
- */
-async function compensateFailedOrder(orderId: string, items: any[], walletApplied: number, customerId: string) {
-  try {
-    for (const it of items) {
-      if (it?.productId && it?.quantity) {
-        await prisma.product.updateMany({ where: { id: String(it.productId) }, data: { quantity: { increment: it.quantity } } });
-      }
-    }
-    if (walletApplied > 0) {
-      await walletService.credit({ owner: customerId, ownerType: 'user', amount: walletApplied, reason: 'Estorno de saldo — cobrança falhou', category: 'refund', relatedId: orderId });
-    }
-    await prisma.order.delete({ where: { id: orderId } });
-  } catch (compErr) {
-    logger.error('Falha ao compensar pedido após erro de cobrança', compErr as Error, { orderId });
-  }
-}
+import { compensateFailedOrder } from '../services/orderCompensation';
+import { isDirectMode } from '../utils/settlement';
+import { precheckDirectOrder, finishDirectOrder, sendAppError } from '../services/asaasLoja/directCheckout';
+import { AppError } from '../utils/AppError';
 
 // Cliente avalia a loja após entrega
 export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
@@ -176,6 +159,19 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });
     }
 
+    // Modo SaaS "direto" (Task 1.5): independe de PAYMENT_GATEWAY. Pré-checagens
+    // (método, cupom global, conta Asaas da loja, CPF) ANTES de baixar estoque.
+    const directMode = await isDirectMode();
+    let directCpf = '';
+    if (directMode) {
+      try {
+        ({ cpf: directCpf } = await precheckDirectOrder({ storeId: storeIdStr, customerId, paymentMethod, cupomCode, cpf: req.body.cpf }));
+      } catch (e) {
+        if (e instanceof AppError && e.code) return sendAppError(res, e);
+        throw e;
+      }
+    }
+
     // [Plan1] Verificar plano da loja antes de calcular taxa de entrega
     const storeSub = await findSubByStoreId(storeIdStr);
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
@@ -276,6 +272,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     } else if (deliveryDistanceKm) {
       logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
+    }
+
+    // Modo direto: daqui em diante o caminho é outro (sem carteira/custódia/payout).
+    if (directMode) {
+      return finishDirectOrder(res, {
+        customerId, store: storeForCheck, items, subtotal, couponDiscount, appliedCouponId, cupomCode,
+        serverDistanceKm, routeDurationSeconds, routePolyline, idempotentKey, address, latitude, longitude,
+        cpf: directCpf,
+      });
     }
 
     // [Plan1] Loja Plano 1 não tem entrega integrada — taxa sempre zero

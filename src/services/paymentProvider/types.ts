@@ -14,6 +14,8 @@ export interface CreateChargeInput {
   method: 'pix' | 'credit_card' | 'debit_card';
   description?: string;
   card?: unknown;                  // payload de cartão quando method != pix (opaco aqui)
+  storeId?: string;                // obrigatório no 'asaas_loja' (cobra na conta da loja)
+  cpf?: string;                    // CPF digitado no checkout (asaas_loja), já validado
 }
 
 export interface ChargeResult {
