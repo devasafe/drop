@@ -52,6 +52,12 @@ const ALLOWED_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 
 // Papéis administrativos: só um CEO atribui (user:manage_roles é delegável, isso não).
 const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
 
+// Campos devolvidos ao painel após alterar um usuário (nunca o hash da senha).
+const SAFE_USER_SELECT = {
+  id: true, name: true, email: true, role: true, activeRole: true, roles: true,
+  status: true, blockedAt: true, blockReason: true, createdAt: true,
+} as const;
+
 // PUT /admin/users/:id/role - Atualizar role do usuário
 router.put('/users/:id/role', authenticate, authorizePermission('user:manage_roles'), async (req: any, res: Response) => {
   try {
@@ -81,13 +87,22 @@ router.put('/users/:id/role', authenticate, authorizePermission('user:manage_rol
       return res.status(400).json({ error: 'Voce nao pode alterar o proprio role. Peca para outro admin.' });
     }
 
+    const current = await prisma.user.findUnique({ where: { id }, select: { roles: true } });
+    if (!current) return res.status(404).json({ error: 'User not found' });
+    // Mantém os papéis-base (cliente/lojista/motoboy); só o papel administrativo
+    // anterior é substituído. Antes, `roles: [role]` apagava os demais papéis.
+    const roles = Array.from(new Set([...(current.roles || []).filter((r) => !ADMIN_ROLES.includes(r)), role]));
+
     const user = await prisma.user.update({
       where: { id },
-      data: { role, activeRole: role, roles: [role] },
+      data: { role, activeRole: role, roles },
+      select: SAFE_USER_SELECT,
     }).catch(() => null);
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // O token antigo carrega o papel anterior: derruba o socket (o HTTP já recusa).
+    disconnectUser(String(id));
     res.json({ message: 'Role updated successfully', user });
   } catch (err) {
     console.error('Erro ao atualizar role:', err);
@@ -121,7 +136,7 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
       update.blockReason = null;
     }
 
-    const user = await prisma.user.update({ where: { id }, data: update }).catch(() => null);
+    const user = await prisma.user.update({ where: { id }, data: update, select: SAFE_USER_SELECT }).catch(() => null);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Ao bloquear, emite force_logout via socket (best-effort). Se o user estiver

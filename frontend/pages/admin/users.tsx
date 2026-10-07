@@ -96,11 +96,12 @@ export default function AdminUsersPanel() {
     }
     setWorking(true);
     try {
-      await api.put(`/admin/users/${action.user._id}/role`, { role: action.newRole });
+      const res = await api.put(`/admin/users/${action.user._id}/role`, { role: action.newRole });
+      const roles = res?.data?.user?.roles || [action.newRole];
       setUsers(prev =>
         prev.map(u =>
           u._id === action.user._id
-            ? { ...u, role: action.newRole, activeRole: action.newRole, roles: [action.newRole] }
+            ? { ...u, role: action.newRole, activeRole: action.newRole, roles }
             : u
         )
       );
