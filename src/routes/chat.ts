@@ -68,6 +68,7 @@ router.get('/admin/conversations/:conversationId/messages', authorizePermission(
 // Mensagens
 router.post('/messages', validate(SendMessageSchema), chatController.sendMessage);
 router.put('/messages/:messageId/read', chatController.markAsRead);
+router.post('/messages/mark-as-read', chatController.markAsRead); // rota que o frontend chama
 router.put('/conversations/:conversationId/mark-as-read', chatController.markAsRead);
 
 export default router;

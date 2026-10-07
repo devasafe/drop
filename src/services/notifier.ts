@@ -299,6 +299,19 @@ export const initSocket = (server: any) => {
       }
     });
 
+    // 💬 Abrir/fechar conversa: entra em `conversation:<id>` só quem participa.
+    socket.on('chat:join', async (data) => {
+      const conversationId = data?.conversationId;
+      try {
+        if (await isConversationParticipant(conversationId, userId)) socket.join(`conversation:${conversationId}`);
+      } catch (e) {
+        console.warn('[Socket.io] erro ao autorizar chat:join', e);
+      }
+    });
+    socket.on('chat:leave', (data) => {
+      if (data?.conversationId) socket.leave(`conversation:${data.conversationId}`);
+    });
+
     // ⌨️ Typing indicator
     socket.on('chat:typing', async (data) => {
       if (data && data.conversationId && (await isConversationParticipant(data.conversationId, userId))) {

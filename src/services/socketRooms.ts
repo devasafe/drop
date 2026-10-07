@@ -35,6 +35,7 @@ export async function authorizeRoom(user: SocketUser | undefined, room: unknown)
   if (room === 'motoboys') return canJoinMotoboysRoom(user);
   if (room === 'admin') return ADMIN_ROLES.includes(user.role);
   if (room.startsWith('admin:')) return ADMIN_ROLES.includes(user.role) && room === `admin:${user.role}`;
+  if (room.startsWith('conversation:')) return isConversationParticipant(room.slice('conversation:'.length), user.id);
 
   return false;
 }

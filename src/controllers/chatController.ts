@@ -608,19 +608,22 @@ export const markAsRead = async (
       return res.status(400).json({ error: 'IDs obrigatórios' });
     }
 
-    // Marcar mensagens como lidas
-    const modifiedCount = await markMessagesReadByIds(messageIds || [], String(conversationId));
-
-    console.log(`✅ [CHAT] ${modifiedCount} mensagens marcadas como lidas`);
-
-    // Obter conversa
+    // Só quem participa da conversa marca como lida (antes: qualquer usuário logado).
     const conversation = await findConversationById(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
+    const isParticipant1 = String(conversation.participant1.userId) === userId;
+    const isParticipant2 = String(conversation.participant2.userId) === userId;
+    if (!isParticipant1 && !isParticipant2) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const modifiedCount = await markMessagesReadByIds(messageIds || [], String(conversationId));
+
+    console.log(`✅ [CHAT] ${modifiedCount} mensagens marcadas como lidas`);
 
     // Atualizar contador de não-lidas
-    const isParticipant1 = String(conversation.participant1.userId) === userId;
     const newUnread = [...conversation.unreadCount];
     if (isParticipant1) newUnread[0] = 0;
     else newUnread[1] = 0;
