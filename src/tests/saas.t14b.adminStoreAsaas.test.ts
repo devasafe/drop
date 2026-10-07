@@ -11,7 +11,8 @@ import app from '../app';
 import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
-import { createTestUser, bearer } from './helpers/authUser';
+import jwt from 'jsonwebtoken';
+import { createTestUser, bearer, TEST_JWT_SECRET } from './helpers/authUser';
 
 const DOMAIN = '@saas14b.test';
 const KEY = '$aact_hmlg_abcdef123456';
@@ -95,6 +96,26 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
       expect((await request(app).get('/api/admin/stores/asaas').set(h)).status).toBe(403);
     }
     expect((await request(app).get(base())).status).toBe(401);
+    expect(asaasClient.getAs).not.toHaveBeenCalled();
+    expect(await audits()).toHaveLength(0);
+  });
+
+  it('usuário com "ceo" em roles mas activeRole ≠ ceo → 403 em todas as rotas admin de conta Asaas', async () => {
+    const u = await prisma.user.create({
+      data: {
+        name: 'CEO em outro papel', email: `ceo-other-${Date.now()}-${Math.random().toString(36).slice(2)}${DOMAIN}`,
+        passwordHash: 'x', role: 'ceo', roles: ['ceo', 'gerente_geral', 'cliente'], activeRole: 'gerente_geral',
+      } as any,
+    });
+    const token = jwt.sign({ id: u.id, role: 'ceo', activeRole: 'gerente_geral', roles: ['ceo', 'gerente_geral', 'cliente'] }, TEST_JWT_SECRET, { expiresIn: '1h' });
+    const h = { Authorization: `Bearer ${token}` };
+    expect((await request(app).put(base()).set(h).send({ apiKey: KEY })).status).toBe(403);
+    expect((await request(app).get(base()).set(h)).status).toBe(403);
+    expect((await request(app).delete(base()).set(h)).status).toBe(403);
+    expect((await request(app).post(`${base()}/test`).set(h)).status).toBe(403);
+    expect((await request(app).post(`${base()}/checklist`).set(h).send({ ipWhitelist: true })).status).toBe(403);
+    expect((await request(app).post(`${base()}/auth-token`).set(h)).status).toBe(403);
+    expect((await request(app).get('/api/admin/stores/asaas').set(h)).status).toBe(403);
     expect(asaasClient.getAs).not.toHaveBeenCalled();
     expect(await audits()).toHaveLength(0);
   });

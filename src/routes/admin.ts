@@ -861,6 +861,13 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     if (!parsed.success) return res.status(400).json({ error: 'Configuração inválida' });
     const patch: Record<string, any> = parsed.data;
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
+    // Modo de liquidação e cartão direto decidem para onde vai o dinheiro dos pedidos:
+    // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
+    const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled'];
+    const activeRole = req.user?.activeRole || req.user?.role;
+    if (CEO_ONLY_SWITCHES.some((k) => k in patch) && activeRole !== 'ceo') {
+      return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação e o cartão direto', code: 'CEO_ONLY' });
+    }
     const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
     return res.json(switchesView(cfg));

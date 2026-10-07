@@ -601,3 +601,46 @@ describe('M4 — falha ao gravar o pedido direto devolve o estoque', () => {
     expect(postAs).not.toHaveBeenCalled();
   });
 });
+
+// ───────────────────────────── M6 ─────────────────────────────
+describe('M6 — settlementMode e directCardEnabled só pelo CEO', () => {
+  let rpSnapshot: any[] = [];
+  beforeAll(async () => {
+    rpSnapshot = await prisma.rolePermissions.findMany({
+      where: { role: 'gerente_geral' }, select: { role: true, permissions: true, notificationTargets: true, updatedBy: true },
+    });
+  });
+  afterAll(async () => {
+    await prisma.rolePermissions.deleteMany({ where: { role: 'gerente_geral' } });
+    for (const row of rpSnapshot) await prisma.rolePermissions.create({ data: row });
+  });
+  beforeEach(async () => {
+    await prisma.rolePermissions.upsert({
+      where: { role: 'gerente_geral' },
+      create: { role: 'gerente_geral', permissions: ['settings:manage'], notificationTargets: [], updatedBy: 'test' },
+      update: { permissions: ['settings:manage'] },
+    });
+  });
+
+  it('gerente com settings:manage: 403 CEO_ONLY para settlementMode/directCardEnabled; os freios comuns seguem liberados', async () => {
+    const { getSaasConfig } = await import('../utils/settlement');
+    const gerente = await createTestUser('gerente_geral', DOMAIN);
+    const put = (body: object) => request(app).put('/api/admin/switches').set('Authorization', bearer(gerente)).send(body);
+
+    const a = await put({ settlementMode: 'custodia' });
+    expect(a.status).toBe(403);
+    expect(a.body.code).toBe('CEO_ONLY');
+    const b = await put({ directCardEnabled: true, rankingPrizesEnabled: false });
+    expect(b.status).toBe(403);
+    expect(await getSaasConfig()).toMatchObject({ settlementMode: 'direto', directCardEnabled: false });
+
+    expect((await put({ rankingPrizesEnabled: false })).status).toBe(200);
+  });
+
+  it('CEO continua alterando o modo de liquidação', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const res = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo)).send({ settlementMode: 'custodia' });
+    expect(res.status).toBe(200);
+    expect(res.body.settlementMode).toBe('custodia');
+  });
+});
