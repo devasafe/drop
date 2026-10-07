@@ -59,6 +59,8 @@ export async function expireStalePixOrders(opts: { onlyDirect?: boolean } = {}):
       ...(opts.onlyDirect ? { paymentProvider: 'asaas_loja' as const } : {}),
     },
     include: orderInclude,
+    // Mais antigos primeiro: com mais de 100 vencidos, nenhum fica para trás para sempre.
+    orderBy: { createdAt: 'asc' },
     take: 100,
   });
 
@@ -73,16 +75,23 @@ export async function expireStalePixOrders(opts: { onlyDirect?: boolean } = {}):
       if (!deleted) continue; // já paga ou erro — deixa o webhook resolver
     }
 
+    // Trava condicional (princípio 2): entre o findMany e aqui o pedido pode ter sido
+    // cancelado pelo cliente/loja (que já devolveu o estoque) ou pago. Só quem ainda o
+    // encontra 'criado' + 'pending' cancela e devolve o estoque — uma única vez.
+    const claim = await prisma.order.updateMany({
+      where: { id: order.id, status: 'criado', paymentStatus: 'pending' },
+      data: { status: 'cancelado', cancelledAt: new Date(), asaasChargeStatus: 'none', paymentStatus: 'failed' },
+    });
+    if (claim.count !== 1) {
+      logger.info('[expirePixOrders] pedido mudou durante a varredura — não expirado', { orderId: order.id });
+      continue;
+    }
+
     for (const it of order.items || []) {
       if (it.productId && it.quantity) {
         await prisma.product.updateMany({ where: { id: String(it.productId) }, data: { quantity: { increment: it.quantity } } });
       }
     }
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { status: 'cancelado', cancelledAt: new Date(), asaasChargeStatus: 'none', paymentStatus: 'failed' },
-    });
     expired++;
     logger.info('Pedido PIX expirado e cancelado (estoque devolvido)', { orderId: order.id });
   }
