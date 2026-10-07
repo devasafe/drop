@@ -26,6 +26,7 @@ import payoutService from '../services/payout.service';
 import env from '../config/env';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
+import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
 
 // Loja valida PIN de retirada informado pelo motoboy
 export const validarPinRetirada = async (req: AuthenticatedRequest, res: Response) => {
@@ -44,8 +45,16 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     if (!userId || store.ownerId.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden - only store owner can validate PIN'});
     }
-    if (!pinRetirada || pinRetirada !== delivery.pinRetirada) return res.status(400).json({ error: 'PIN de retirada inválido' });
     if (delivery.status !== 'assigned') return res.status(400).json({ error: 'Entrega não está aguardando retirada' });
+    const lockedFor = pinLockMinutesLeft(delivery);
+    if (lockedFor) return res.status(429).json(pinLockedResponse(lockedFor));
+    if (!pinRetirada || String(pinRetirada) !== delivery.pinRetirada) {
+      await registerPinFailure(delivery.id);
+      return res.status(400).json({ error: 'PIN de retirada inválido' });
+    }
+    // Zera no objeto: o persistDelivery abaixo regrava a linha inteira.
+    delivery.pinFailedAttempts = 0;
+    delivery.pinLockedUntil = null;
     delivery.status = 'picked';
     await persistDelivery(delivery);
 
@@ -247,11 +256,16 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     if (delivery.status === 'delivered') return res.status(409).json({ error: 'Already delivered' });
     // Só fecha depois que a loja validou a retirada (picked).
     if (delivery.status !== 'picked') return res.status(400).json({ error: 'Retirada ainda não validada pela loja' });
-    if (!pin || pin !== delivery.pin) return res.status(400).json({ error: 'PIN inválido' });
+    const lockedFor = pinLockMinutesLeft(delivery);
+    if (lockedFor) return res.status(429).json(pinLockedResponse(lockedFor));
+    if (!pin || String(pin) !== delivery.pin) {
+      await registerPinFailure(delivery.id);
+      return res.status(400).json({ error: 'PIN inválido' });
+    }
     // Trava atômica: só quem vira picked→delivered segue para payout/nota/pontos.
     const lock = await prisma.delivery.updateMany({
       where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
-      data: { status: 'delivered' },
+      data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
     });
     if (lock.count !== 1) return res.status(409).json({ error: 'Already delivered' });
     delivery.status = 'delivered';
@@ -431,8 +445,8 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
     const fee = await calculateDeliveryFeeWithConfig(Number(distance || 0));
 
   // Gera PIN de retirada (motoboy) e PIN de entrega (cliente)
-  const pinRetirada = Math.floor(100000 + Math.random() * 900000).toString();
-  const pin = Math.floor(100000 + Math.random() * 900000).toString();
+  const pinRetirada = generatePin(6);
+  const pin = generatePin(6);
   const delivery: any = toApiDelivery(await prisma.delivery.create({
     data: {
       orderId,
@@ -866,15 +880,15 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Gerar 2 PINs: um para cliente (entrega final) e outro para loja (retirada)
-    const pinEntrega = Math.floor(10000 + Math.random() * 90000).toString();
-    const pinRetirada = Math.floor(10000 + Math.random() * 90000).toString();
+    const pinEntrega = generatePin(5);
+    const pinRetirada = generatePin(5);
     
     // Trava atômica de aceite (first-accept-wins): UPDATE condicional `WHERE status
     // = pending AND motoboyId IS NULL`. Sob concorrência o Postgres serializa a
     // linha e só o primeiro motoboy reivindica (count === 1); os demais veem 409.
     const claim = await prisma.delivery.updateMany({
       where: { id, status: 'pending', motoboyId: null },
-      data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada },
+      data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
     });
     if (claim.count === 0) return res.status(409).json({ error: 'Already claimed or not available' });
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id } }));
@@ -993,7 +1007,7 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Gerar PIN aleatório de 6 dígitos
-    const pinDevolucao = Math.floor(100000 + Math.random() * 900000).toString();
+    const pinDevolucao = generatePin(6);
     
     // Atualizar delivery com PIN e status
     delivery.pinDevolucao = pinDevolucao;
@@ -1080,10 +1094,15 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       });
     }
 
-    // Validar PIN
-    if (pinDevolucao !== delivery.pinDevolucao) {
+    // Validar PIN (com trava de tentativas)
+    const lockedFor = pinLockMinutesLeft(delivery);
+    if (lockedFor) return res.status(429).json(pinLockedResponse(lockedFor));
+    if (!pinDevolucao || String(pinDevolucao) !== delivery.pinDevolucao) {
+      await registerPinFailure(delivery.id);
       return res.status(400).json({ error: 'PIN de devolução inválido' });
     }
+    delivery.pinFailedAttempts = 0;
+    delivery.pinLockedUntil = null;
 
     // Confirmar devolução — limpar PIN e registrar data
     const returnAction = delivery.pendingReturnAction;

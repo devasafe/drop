@@ -655,6 +655,9 @@ model Delivery {
   pin                       String?
   pinRetirada               String?
   pinDevolucao              String?
+  // Tentativas erradas de PIN (retirada/entrega/devolução) — trava temporária anti força bruta.
+  pinFailedAttempts         Int                 @default(0)
+  pinLockedUntil            DateTime?
   statusDevolucao           ReturnStatus?       @default(pending)
   dataConfirmacaoDevolucao  DateTime?
   pendingReturnAction       PendingReturnAction?

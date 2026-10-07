@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { generatePin } from '../services/pinGuard';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import { emitStockChanged } from '../services/storeIntegration';
@@ -468,7 +469,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
           config: feeConfig,
         });
 
-        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        const pin = generatePin(6);
         const feeRef = `CANCEL_MTB_${delivery._id}`;
 
         // ── IDEMPOTÊNCIA CONCURRENCY-SAFE (review #2) ──
@@ -831,7 +832,7 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     // do Task 7 (motoboy cancela após pegar), aqui NÃO há decisão pendente do cliente
     // — o pedido já foi definitivamente cancelado acima — então a entrega já vai
     // direto pra 'cancelled' (mesmo estado final usado por `cancelOrderWithFullRefund`).
-    const pinDevolucao = Math.floor(100000 + Math.random() * 900000).toString();
+    const pinDevolucao = generatePin(6);
     const deliveryApi: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: deliveryRow.id } }));
     if (deliveryApi) {
       deliveryApi.status = 'cancelled';
