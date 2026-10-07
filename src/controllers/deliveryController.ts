@@ -5,7 +5,7 @@ import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 
 import { prisma } from '../lib/prisma';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { toApiDelivery, persistDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
+import { toApiDelivery, persistDelivery, serializeDeliveryFor, stripDeliveryPins, clearDeliveryPins } from '../repositories/delivery.repository';
 import userRepository from '../repositories/user.repository';
 
 
@@ -1117,8 +1117,9 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
     const returnAction = delivery.pendingReturnAction;
     delivery.statusDevolucao = 'confirmado';
     delivery.dataConfirmacaoDevolucao = new Date();
-    delivery.pinDevolucao = undefined;
-    delivery.pendingReturnAction = undefined;
+    // null (não undefined): o Prisma ignora undefined e o PIN ficava gravado.
+    delivery.pinDevolucao = null;
+    delivery.pendingReturnAction = null;
 
     if (returnAction === 'reassign') {
       // ── REASSIGN: produto voltou à loja, entrega volta ao pool ──
@@ -1126,6 +1127,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       delivery.status = 'pending';
       // motoboyId precisa ser `null` (não `undefined`) — Prisma ignora undefined no update.
       delivery.motoboyId = null;
+      clearDeliveryPins(delivery);
       await persistDelivery(delivery);
       console.log(`✅ [confirmReturn] Delivery ${delivery._id} voltou ao pool para reatribuição`);
 

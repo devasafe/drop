@@ -31,6 +31,19 @@ export function stripDeliveryPins<T extends Record<string, any> | null | undefin
 }
 
 /**
+ * Zera PINs e a trava de tentativas no objeto (antes de persistDelivery) quando a
+ * entrega volta ao pool: o próximo motoboy recebe PINs novos no claim. `null`, não
+ * `undefined` — o Prisma ignora undefined no update e o PIN antigo ficaria gravado.
+ */
+export function clearDeliveryPins(delivery: any): void {
+  delivery.pin = null;
+  delivery.pinRetirada = null;
+  delivery.pinDevolucao = null;
+  delivery.pinFailedAttempts = 0;
+  delivery.pinLockedUntil = null;
+}
+
+/**
  * Serializa a entrega para QUEM está vendo. Regra (auditoria 2026-10-07):
  *   pinRetirada / pinDevolucao → só o motoboy desta entrega (ele mostra à loja)
  *   pin (entrega)              → só o cliente do pedido (ele informa ao motoboy)

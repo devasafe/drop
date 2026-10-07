@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { emitStockChanged } from '../services/storeIntegration';
 
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { toApiDelivery, persistDelivery } from '../repositories/delivery.repository';
+import { toApiDelivery, persistDelivery, clearDeliveryPins } from '../repositories/delivery.repository';
 
 
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
@@ -588,6 +588,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
     delivery.status = 'pending';
     delivery.motoboyId = null;
     delivery.pendingReturnAction = null;
+    clearDeliveryPins(delivery);
     delivery.updatedAt = new Date();
     await persistDelivery(delivery);
 
