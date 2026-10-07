@@ -446,6 +446,7 @@ model Store {
   orders     Order[]    @relation("StoreOrders")
   apiKeys    StoreApiKey[]
   webhooks   StoreWebhook[]
+  asaasAccount StoreAsaasAccount?
 
   @@index([ownerId])
   @@index([plan])
@@ -1196,4 +1197,37 @@ enum BillingModel {
 enum StoreDeliveryMode {
   propria
   pool_drop
+}
+
+/// Conta Asaas PRÓPRIA da loja (modo SaaS "direto"). Chave cifrada (AES-256-GCM),
+/// nunca devolvida pela API. Distinta de `Store.asaas` (subconta da custódia).
+model StoreAsaasAccount {
+  id                      String    @id @default(cuid())
+  storeId                 String    @unique
+  store                   Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  apiKeyEncrypted         String
+  apiKeyLast4             String
+  environment             String // 'sandbox' | 'production' (pelo prefixo $aact_hmlg_ / $aact_prod_)
+  status                  String    @default("valid") // valid | invalid
+  walletId                String?
+  paymentWebhookId        String?
+  paymentWebhookTokenHash String?
+  authWebhookTokenHash    String?
+  ipWhitelistConfirmedAt  DateTime?
+  authWebhookConfirmedAt  DateTime?
+  lastCheckedAt           DateTime?
+  lastError               String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+/// Cliente (comprador) criado na conta Asaas da loja, por par loja+usuário.
+model StoreAsaasCustomer {
+  id         String   @id @default(cuid())
+  storeId    String
+  userId     String
+  customerId String
+  createdAt  DateTime @default(now())
+
+  @@unique([storeId, userId])
 }

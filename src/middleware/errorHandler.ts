@@ -8,6 +8,7 @@ import { Request, Response, NextFunction } from 'express';
 interface AppError extends Error {
   statusCode?: number;
   isOperational?: boolean;
+  code?: string;
 }
 
 export class ApiError extends Error {
@@ -63,6 +64,7 @@ export const errorHandler = (
     error: {
       message: err.message,
       statusCode: err.statusCode,
+      ...(err.code && { code: err.code }),
       ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
     }
   });

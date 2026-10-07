@@ -4,13 +4,17 @@
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
+  /** Código estável legível por máquina (ex.: 'ASAAS_KEY_INVALID'); opcional. */
+  public readonly code?: string;
 
   constructor(
     message: string,
     statusCode: number = 500,
-    isOperational: boolean = true
+    isOperational: boolean = true,
+    code?: string
   ) {
     super(message);
+    this.code = code;
     this.statusCode = statusCode;
     this.isOperational = isOperational;
 

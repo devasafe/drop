@@ -102,7 +102,9 @@ export const asaasClient = {
 
   // Chamadas autenticadas COMO uma subconta (usa a apiKey dela).
   postAs: <T>(apiKey: string, path: string, body?: unknown) => request<T>('POST', path, body, apiKey),
-  getAs: <T>(apiKey: string, path: string) => request<T>('GET', path, undefined, apiKey),
+  getAs: <T>(apiKey: string, path: string, timeoutMs?: number) => request<T>('GET', path, undefined, apiKey, timeoutMs),
+  putAs: <T>(apiKey: string, path: string, body?: unknown) => request<T>('PUT', path, body, apiKey),
+  deleteAs: <T>(apiKey: string, path: string) => request<T>('DELETE', path, undefined, apiKey),
 
   /** Saldo da conta-mãe — útil pra smoke test de conectividade. */
   getBalance: () => request<{ balance: number }>('GET', '/finance/balance'),
