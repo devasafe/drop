@@ -616,6 +616,8 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
 
     // ✅ NOVO: Obter endereço padrão para fallback
     const defaultAddress = customerObj ? getDefaultAddress(customerObj) : null;
+    // Motoboy só precisa do telefone enquanto a entrega está em andamento.
+    const canSeeCustomerPhone = isCustomer || isStoreOwner || ['assigned', 'picked'].includes(delivery.status);
 
     // Monta objeto de resposta com campos de texto e coordenadas para retirada e entrega
     const response = {
@@ -628,16 +630,15 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
         latitude: storeObj.latitude,
         longitude: storeObj.longitude,
         cnpj: storeObj.cnpj,
-        email: storeOwner?.email || '-',
         telefone: storeOwner?.telefone || '-'
       } : null,
+      // Só o necessário para entregar: nome, telefone e o endereço DESTE pedido
+      // (deliveryAddress, abaixo). Sem e-mail e sem a lista de endereços salvos.
       customerObj: customerObj ? {
         _id: customerObj.id ?? customerObj._id,
         name: customerObj.name,
-        email: customerObj.email,
-        telefone: customerObj.telefone,
-        mainAddress: defaultAddress,
-        addresses: customerObj.addresses
+        ...(canSeeCustomerPhone ? { telefone: customerObj.telefone } : {}),
+        ...(delivery.customerAddress ? {} : { mainAddress: defaultAddress }),
       } : null,
       motoboyObj,
       // Campos para frontend
