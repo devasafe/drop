@@ -28,6 +28,15 @@ import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
 
+// Freio de custo: pontos viram benefício resgatável. Desligado (default) ou erro → sem pontos.
+const gamificationPointsOn = async (): Promise<boolean> => {
+  try {
+    return !!(await getPlatformConfig())?.gamificationPointsEnabled;
+  } catch {
+    return false;
+  }
+};
+
 // Loja valida PIN de retirada informado pelo motoboy
 export const validarPinRetirada = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -166,8 +175,8 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
     delivery.comment = comment;
     await persistDelivery(delivery);
 
-    // --- Gamificação ---
-    if (delivery.motoboyId) {
+    // --- Gamificação (respeita o freio /admin/freios) ---
+    if (delivery.motoboyId && (await gamificationPointsOn())) {
       const mid = String(delivery.motoboyId);
       const gamification = (await findGamByUser(mid)) ?? defaultGam(mid);
       // Pontuação base por entrega avaliada
@@ -402,8 +411,8 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     emitOrderStatusChanged(order);
     console.log(`✅ [finalizarEntrega] Order status changed emitted for client to update history`);
 
-    // --- Gamificação: pontos por entrega finalizada ---
-    if (delivery.motoboyId) {
+    // --- Gamificação: pontos por entrega finalizada (respeita o freio /admin/freios) ---
+    if (delivery.motoboyId && (await gamificationPointsOn())) {
       const mid = delivery.motoboyId.toString();
       const gamification = (await findGamByUser(mid)) ?? defaultGam(mid);
       const pontos = 10;
