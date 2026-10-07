@@ -15,6 +15,7 @@ import userRepository from '../repositories/user.repository';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway } from '../services/payoutGateway';
 import env from '../config/env';
+import { isStoreOwner } from '../utils/storeOwnership';
 import { emitAdminNotification, emitToRoom } from '../utils/socketEmitter';
 import { insertNotifications } from '../repositories/notification.repository';
 
@@ -95,6 +96,9 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     const recipientId = isMotoboy ? userId : storeId;
     if (!recipientId) {
       return res.status(400).json({ error: 'recipientId não informado' });
+    }
+    if (!isMotoboy && !(await isStoreOwner(storeId, userId))) {
+      return res.status(403).json({ error: 'Acesso negado: esta loja não é sua' });
     }
 
     // No modo Asaas, o saque transfere da subconta do recebedor para a chave PIX dele.
@@ -472,6 +476,7 @@ export const getMyWithdrawals = async (req: Request & { user?: any }, res: Respo
       // Lojista passa storeId via query
       recipientId = (req.query.storeId as string) || undefined;
       if (!recipientId) return res.status(400).json({ error: 'storeId é obrigatório' });
+      if (!(await isStoreOwner(recipientId, userId))) return res.status(403).json({ error: 'Acesso negado: esta loja não é sua' });
     } else {
       return res.status(403).json({ error: 'Apenas motoboys ou lojistas podem ver saques' });
     }

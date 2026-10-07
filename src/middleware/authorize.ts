@@ -158,13 +158,9 @@ export async function authorizeWalletOwnerById(req: Request, res: Response, next
     return res.status(401).json({ error: 'Não autenticado' });
   }
 
-  const userRole = user.activeRole || user.role;
-  const adminRoles = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
-
-  if (adminRoles.includes(userRole)) {
-    return next();
-  }
-
+  // Sem bypass administrativo: esta rota DEBITA a carteira (saque). Operar dinheiro de
+  // terceiro não é papel de gerente — ajuste administrativo vai por PUT /admin/wallets/:id/balance
+  // (exclusivo do CEO, com motivo e auditoria).
   try {
     const { walletId } = req.params;
     const wallet = await prisma.wallet.findUnique({ where: { id: String(walletId) }, select: { owner: true } });

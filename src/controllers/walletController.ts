@@ -10,6 +10,7 @@ import { findWRByMotoboy } from '../repositories/withdrawalRequest.repository';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
 import env from '../config/env';
+import { isStoreOwner } from '../utils/storeOwnership';
 
 /**
  * Reconcilia os buckets de saldo de um recebedor (store/motoboy) a partir dos
@@ -783,6 +784,7 @@ export const transferBetweenWallets = async (req: Request, res: Response) => {
     // ORIGEM
     let fromRef: { owner: string; ownerType: 'user' | 'store' };
     if (fromStoreId) {
+      if (!(await isStoreOwner(fromStoreId, userId))) return res.status(403).json({ error: 'Acesso negado: esta loja não é sua' });
       const w = await prisma.wallet.findUnique({ where: { owner_ownerType: { owner: fromStoreId, ownerType: 'store' } } });
       if (!w) return res.status(404).json({ error: 'Carteira de loja não encontrada' });
       fromRef = { owner: fromStoreId, ownerType: 'store' };

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import payoutService from '../services/payout.service';
 import { prisma } from '../lib/prisma';
+import { isStoreOwner } from '../utils/storeOwnership';
 
 // Lojista/Motoboy - Ver meus payouts
 export const getMyPayouts = async (req: Request & { user?: any }, res: Response) => {
@@ -15,6 +16,7 @@ export const getMyPayouts = async (req: Request & { user?: any }, res: Response)
     if (role === 'lojista' || role === 'seller') {
       recipientType = 'store';
       recipientId = storeId as string || userId;
+      if (storeId && !(await isStoreOwner(storeId, userId))) return res.status(403).json({ error: 'Acesso negado: esta loja não é sua' });
     } else if (role === 'motoboy') {
       recipientType = 'motoboy';
       recipientId = userId;
@@ -49,6 +51,7 @@ export const getMyPayoutSummary = async (req: Request & { user?: any }, res: Res
     if (role === 'lojista' || role === 'seller') {
       recipientType = 'store';
       recipientId = (storeId as string) || userId;
+      if (storeId && !(await isStoreOwner(storeId, userId))) return res.status(403).json({ error: 'Acesso negado: esta loja não é sua' });
     } else if (role === 'motoboy') {
       recipientType = 'motoboy';
       recipientId = userId;
