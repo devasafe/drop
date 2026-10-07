@@ -16,18 +16,22 @@ import { recordConsent } from '../services/consent.service';
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 // ✅ SEGURANÇA: validação de entrada do registro (formato + limites de tamanho)
+// Auto-cadastro só cria papéis base. Papéis administrativos (ceo, marketing,
+// gerente_*) só são atribuídos por um CEO em PUT /admin/users/:id/role.
+// `.strip()` descarta qualquer campo extra (roles, activeRole, permissions, status…).
+const SELF_SIGNUP_ROLES = ['cliente', 'lojista', 'motoboy'] as const;
 const optionalShort = z.string().trim().max(30).optional().or(z.literal(''));
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Informe seu nome').max(80, 'Nome muito longo'),
   email: z.string().trim().toLowerCase().email('Email inválido').max(120),
   password: z.string().min(8, 'A senha deve ter ao menos 8 caracteres').max(128, 'Senha muito longa'),
-  role: z.string().trim().max(20).optional(),
+  role: z.enum(SELF_SIGNUP_ROLES, { errorMap: () => ({ message: 'Tipo de conta inválido' }) }).optional(),
   telefone: optionalShort,
   dataNascimento: optionalShort,
   sexo: optionalShort,
   acceptedTermsVersion: z.string().min(1, 'É necessário aceitar os Termos de Uso'),
   acceptedPrivacyVersion: z.string().min(1, 'É necessário aceitar a Política de Privacidade'),
-}).passthrough();
+}).strip();
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;

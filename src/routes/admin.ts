@@ -46,6 +46,8 @@ router.get('/users', authenticate, authorizePermission('user:view_all'), async (
 });
 
 const ALLOWED_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'];
+// Papéis administrativos: só um CEO atribui (user:manage_roles é delegável, isso não).
+const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
 
 // PUT /admin/users/:id/role - Atualizar role do usuário
 router.put('/users/:id/role', authenticate, authorizePermission('user:manage_roles'), async (req: any, res: Response) => {
@@ -56,6 +58,19 @@ router.put('/users/:id/role', authenticate, authorizePermission('user:manage_rol
     if (!role) return res.status(400).json({ error: 'Role is required' });
     if (!ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ error: `Invalid role. Allowed: ${ALLOWED_ROLES.join(', ')}` });
+    }
+
+    const actorRole = req.user?.activeRole || req.user?.role;
+    if (actorRole !== 'ceo') {
+      if (ADMIN_ROLES.includes(role)) {
+        return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos' });
+      }
+      // Também não pode rebaixar quem já é da equipe administrativa.
+      const target = await prisma.user.findUnique({ where: { id }, select: { roles: true, role: true } });
+      const targetRoles = [...(target?.roles || []), target?.role].filter(Boolean) as string[];
+      if (targetRoles.some((r) => ADMIN_ROLES.includes(r))) {
+        return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador' });
+      }
     }
 
     // Nao permite admin rebaixar a si mesmo (evita lockout: se for o unico CEO, perde acesso)
