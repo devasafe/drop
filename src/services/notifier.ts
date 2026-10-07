@@ -5,6 +5,10 @@ import { onlineTracker } from './onlineTracker';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedStoreIds, ADMIN_ROLES } from './socketRooms';
+import { isOriginAllowed } from '../config/corsOrigins';
+import { isValidCoordinate } from '../utils/geo';
+
+const PRESENCE_MIN_INTERVAL_MS = 10_000;
 
 // Fonte única de verdade do segredo (config/env garante obrigatoriedade em produção)
 const JWT_SECRET = env.JWT_SECRET;
@@ -167,17 +171,14 @@ export const emitMessagesRead = (conversationId: string, messageIds: string[], u
 };
 
 export const initSocket = (server: any) => {
-  const socketOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+  // Mesma política de origem da API HTTP. `cors` só cobre o polling; o `allowRequest`
+  // barra também a conexão direta por WebSocket (que autentica pelo cookie da vítima).
   io = new IOServer(server, {
     cors: {
-      origin: (origin, cb) => {
-        if (!origin) return cb(null, true);
-        if (socketOrigins.includes(origin)) return cb(null, true);
-        if (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost')) return cb(null, true);
-        return cb(new Error('Socket CORS not allowed'));
-      },
+      origin: (origin, cb) => (isOriginAllowed(origin) ? cb(null, true) : cb(new Error('Socket CORS not allowed'))),
       credentials: true,
     },
+    allowRequest: (req, cb) => cb(null, isOriginAllowed(req.headers.origin)),
   });
 
   io.use(async (socket: Socket, next: (err?: any) => void) => {
@@ -308,8 +309,8 @@ export const initSocket = (server: any) => {
     }) => {
       if (role !== 'motoboy') return; // só motoboys emitem localização
 
-      const { deliveryId, latitude, longitude, accuracy, timestamp } = data;
-      if (!deliveryId || latitude == null || longitude == null) return;
+      const { deliveryId, latitude, longitude, accuracy, timestamp } = data || ({} as any);
+      if (!deliveryId || !isValidCoordinate(latitude, longitude)) return;
 
       try {
         const delivery = await prisma.delivery.findUnique({
@@ -346,11 +347,15 @@ export const initSocket = (server: any) => {
     });
 
     // 📍 Presence location update (alimenta o mapa ao vivo do CEO)
+    // Só coordenada válida e no máximo uma a cada PRESENCE_MIN_INTERVAL_MS por conexão
+    // (o app envia a cada 60 s). Posição é autodeclarada: serve ao mapa, não a decisões.
+    let lastPresenceAt = 0;
     socket.on('presence:location', (data: { latitude: number; longitude: number }) => {
-      if (!userId || !data) return;
-      const { latitude, longitude } = data;
-      if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
-      onlineTracker.updateLocation(userId, latitude, longitude);
+      if (!userId || !data || !isValidCoordinate(data.latitude, data.longitude)) return;
+      const now = Date.now();
+      if (now - lastPresenceAt < PRESENCE_MIN_INTERVAL_MS) return;
+      lastPresenceAt = now;
+      onlineTracker.updateLocation(userId, data.latitude, data.longitude);
       emitPresenceUpdateThrottled();
     });
 

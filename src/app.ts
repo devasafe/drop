@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import path from 'path';
 import env from './config/env';
+import { isOriginAllowed } from './config/corsOrigins';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import userRoutes from './routes/user';
 import authRoutes from './routes/auth';
@@ -53,17 +54,10 @@ app.use(helmet());
 
 // ✅ SEGURANÇA: CORS com whitelist REAL (origens exatas configuradas em CORS_ORIGIN).
 // Previews da Vercel (*.vercel.app) só são aceitos se ALLOW_VERCEL_PREVIEWS=true.
-const allowedOrigins = env.CORS_ORIGIN.split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean);
-const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
-
+// A mesma regra vale para o Socket.io (config/corsOrigins).
 app.use(cors({
   origin: (origin, callback) => {
-    // Requisições sem Origin (curl, apps mobile, server-to-server) são permitidas
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (allowVercelPreviews && origin.endsWith('.vercel.app')) return callback(null, true);
+    if (isOriginAllowed(origin)) return callback(null, true);
     return callback(new Error(`CORS policy: origin ${origin} not allowed`));
   },
   credentials: true,
