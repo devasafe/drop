@@ -203,7 +203,7 @@ describe('t1.5 — cobrança Pix na conta Asaas da loja (modo direto)', () => {
     expect((await prisma.coupon.findUnique({ where: { code } }))!.usedCount).toBe(1);
   });
 
-  it("deliveryMode 'propria' → taxa 0 mesmo com rota", async () => {
+  it("deliveryMode 'propria' gravado no banco é ignorado: paga a taxa da fórmula (só pool DROP)", async () => {
     const cliente = await buyer();
     const { store, product } = await storeWithAccount({ deliveryMode: 'propria', price: 20 });
     mockHappyAsaas();
@@ -211,9 +211,11 @@ describe('t1.5 — cobrança Pix na conta Asaas da loja (modo direto)', () => {
     const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(orderBody(store.id, product.id));
 
     expect(res.status).toBe(201);
-    expect(paymentCalls()[0][2].value).toBe(20);
+    const fee = await calculateDeliveryFeeWithConfig(3);
+    expect(fee).toBeGreaterThan(0);
+    expect(paymentCalls()[0][2].value).toBe(Number((20 + fee).toFixed(2)));
     const order = await prisma.order.findUnique({ where: { id: res.body.order._id } });
-    expect(Number(order!.deliveryFee)).toBe(0);
+    expect(Number(order!.deliveryFee)).toBe(fee);
   });
 
   it.each(['none', 'invalid'] as const)('loja com conta Asaas %s → 409 STORE_PAYMENTS_NOT_READY e nenhum pedido criado', async (account) => {
@@ -337,14 +339,15 @@ describe('t1.5 — cobrança Pix na conta Asaas da loja (modo direto)', () => {
   it('useWalletBalance → ignorado: walletApplied 0, nada debitado, cobra o total', async () => {
     const cliente = await buyer();
     await prisma.wallet.create({ data: { owner: cliente.userId, ownerType: 'user', balance: 50 } as any });
-    const { store, product } = await storeWithAccount({ deliveryMode: 'propria', price: 20 });
+    const { store, product } = await storeWithAccount({ price: 20 });
     mockHappyAsaas();
 
     const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente))
       .send(orderBody(store.id, product.id, { useWalletBalance: true }));
 
     expect(res.status).toBe(201);
-    expect(paymentCalls()[0][2].value).toBe(20);
+    const fee = await calculateDeliveryFeeWithConfig(3);
+    expect(paymentCalls()[0][2].value).toBe(Number((20 + fee).toFixed(2)));
     const order = await prisma.order.findUnique({ where: { id: res.body.order._id } });
     expect(Number(order!.walletApplied)).toBe(0);
     const w = await prisma.wallet.findFirst({ where: { owner: cliente.userId, ownerType: 'user' } });

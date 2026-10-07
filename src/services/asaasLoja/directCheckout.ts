@@ -18,7 +18,9 @@ import { isStorePaymentsReady, resolveBuyerCpf, StorePaymentsNotReadyError } fro
  * Diferenças para a custódia:
  * - cobra Pix na conta Asaas DA LOJA (provider 'asaas_loja'), nunca na conta-mãe;
  * - sem carteira (walletApplied 0), sem Payout, sem AppCashbox, sem comissão;
- * - taxa de entrega por Store.deliveryMode (ignora plano/StoreSubscription);
+ * - taxa de entrega SEMPRE pela fórmula da rota real (pool de motoboys da DROP),
+ *   ignorando plano/StoreSubscription e Store.deliveryMode (decisão do usuário: por
+ *   enquanto não existe entrega própria; o campo fica no schema, sem uso);
  * - cupom global recusado; cupom da loja aplica e não lança nada no caixa do app.
  */
 
@@ -61,9 +63,11 @@ export async function precheckDirectOrder(params: {
   return { cpf: await resolveBuyerCpf(params.customerId, params.cpf) };
 }
 
-/** Taxa de entrega do modo direto: 'propria' → 0; 'pool_drop' → fórmula da rota real. */
-export async function directDeliveryFee(store: { deliveryMode?: string | null }, serverDistanceKm: number): Promise<number> {
-  if (store.deliveryMode === 'propria') return 0;
+/**
+ * Taxa de entrega do modo direto: sempre a fórmula da rota real no servidor (pool DROP).
+ * Store.deliveryMode é ignorado de propósito (entrega própria ainda não existe).
+ */
+export async function directDeliveryFee(serverDistanceKm: number): Promise<number> {
   return calculateDeliveryFeeWithConfig(serverDistanceKm);
 }
 
@@ -92,7 +96,7 @@ export interface DirectOrderContext {
 export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) {
   const { customerId, store, items, subtotal, couponDiscount } = ctx;
   const storeId = String(store.id);
-  const deliveryFee = await directDeliveryFee(store, ctx.serverDistanceKm);
+  const deliveryFee = await directDeliveryFee(ctx.serverDistanceKm);
   const totalValue = round2(subtotal + deliveryFee - couponDiscount);
 
   const created = await prisma.order.create({
