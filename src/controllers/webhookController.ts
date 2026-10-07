@@ -154,13 +154,16 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
         break;
     }
   } catch (err: any) {
-    processError = err?.message?.slice(0, 300);
+    // Sempre uma string não vazia: erro sem `message` (ex.: throw 'x') não pode virar
+    // processed=true e perder o evento.
+    processError = String(err?.message || err || 'erro').slice(0, 300) || 'erro';
     logger.error('Erro ao processar evento Asaas da loja', err as Error, { eventId, storeId, event });
     throw err;
   } finally {
     await prisma.webhookEvent.updateMany({
       where: { eventId },
-      data: { processed: !processError, processedAt: new Date(), processError },
+      // Sucesso (inclusive reprocessamento) limpa o erro anterior.
+      data: { processed: !processError, processedAt: new Date(), processError: processError ?? null },
     });
   }
 }

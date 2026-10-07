@@ -17,19 +17,23 @@ import {
 /**
  * Montado em /api/admin/stores. Trocar a conta Asaas de uma loja redireciona o dinheiro dela:
  * só o CEO (activeRole), sem permissão delegável. Mesmos handlers do lojista, outro guard.
- * Registrar ANTES de adminRoutes em app.ts não é necessário: o prefixo /stores não colide.
+ *
+ * O guard vai em CADA rota (não em `router.use`): um `router.use` aqui interceptaria qualquer
+ * /api/admin/stores/* — inclusive rotas futuras de outros routers — e devolveria 401/403 antes
+ * de o Express procurar o handler certo. Assim, só os caminhos abaixo exigem CEO; o resto
+ * segue adiante (e cai em 404 se ninguém responder).
  */
 const router = Router({ mergeParams: true });
 
-router.use(authenticate, authorizeRoles('ceo'));
+const ceoOnly = [authenticate, authorizeRoles('ceo')];
 
-router.get('/asaas', catchAsync(listAsaasStores));
+router.get('/asaas', ...ceoOnly, catchAsync(listAsaasStores));
 
-router.put('/:storeId/asaas', validate(connectSchema), catchAsync(putAsaas));
-router.get('/:storeId/asaas', catchAsync(getAsaas));
-router.delete('/:storeId/asaas', catchAsync(deleteAsaas));
-router.post('/:storeId/asaas/checklist', validate(checklistSchema), catchAsync(postChecklist));
-router.post('/:storeId/asaas/auth-token', catchAsync(postAuthToken));
-router.post('/:storeId/asaas/test', catchAsync(postTest));
+router.put('/:storeId/asaas', ...ceoOnly, validate(connectSchema), catchAsync(putAsaas));
+router.get('/:storeId/asaas', ...ceoOnly, catchAsync(getAsaas));
+router.delete('/:storeId/asaas', ...ceoOnly, catchAsync(deleteAsaas));
+router.post('/:storeId/asaas/checklist', ...ceoOnly, validate(checklistSchema), catchAsync(postChecklist));
+router.post('/:storeId/asaas/auth-token', ...ceoOnly, catchAsync(postAuthToken));
+router.post('/:storeId/asaas/test', ...ceoOnly, catchAsync(postTest));
 
 export default router;

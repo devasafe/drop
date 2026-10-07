@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import env from '../../config/env';
 import asaasClient, { AsaasApiError } from '../asaas/client';
@@ -101,9 +102,13 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     lastError: null as string | null,
   };
   // Conta + audit na MESMA transação: não existe troca de conta sem rastro.
-  const row = await prisma.$transaction(async (tx) => {
-    const store = await tx.store.findUnique({ where: { id: storeId }, select: { id: true } });
-    if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+  // Defesa extra: se ainda assim duas gravações colidirem no unique(storeId) (P2002), a
+  // perdedora repete UMA vez — agora a linha existe e ela vira 'replace'.
+  const saveAccount = () => prisma.$transaction(async (tx) => {
+    // Trava a linha da loja: conexões simultâneas da MESMA loja são serializadas, então a
+    // segunda vê a conta gravada pela primeira (audit 'replace' e reset de campos corretos).
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Store" WHERE id = ${storeId} FOR UPDATE`;
+    if (locked.length === 0) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
     const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { id: true, apiKeyEncrypted: true } });
     // Chave nova ≠ antiga: webhook, tokens e confirmações eram da conta anterior → zera
     // (o webhook novo é registrado abaixo). Mesma chave: mantém o que já existe.
@@ -121,6 +126,21 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });
     return saved;
   });
+  let row: Awaited<ReturnType<typeof saveAccount>>;
+  try {
+    row = await saveAccount();
+  } catch (err) {
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+    logger.warn('[asaasLoja] conexão concorrente da conta Asaas — repetindo como troca', { storeId });
+    try {
+      row = await saveAccount();
+    } catch (err2) {
+      if (err2 instanceof Prisma.PrismaClientKnownRequestError && err2.code === 'P2002') {
+        throw new AppError('Outra alteração da conta Asaas desta loja está em andamento. Tente novamente.', 409, true, 'CONCURRENT_UPDATE');
+      }
+      throw err2;
+    }
+  }
 
   // Webhook de pagamentos na conta da loja. Falhar aqui NÃO derruba a conexão: a chave
   // continua 'valid', o checklist mostra paymentWebhook=false e o pagamento ainda é
@@ -166,7 +186,9 @@ export async function disconnectStoreAsaas(storeId: string, actorId: string): Pr
   await prisma.$transaction(async (tx) => {
     const existing = await tx.storeAsaasAccount.findUnique({ where: { storeId }, select: { apiKeyLast4: true } });
     if (!existing) throw new AppError('Esta loja não tem conta Asaas conectada', 404, true, 'STORE_ASAAS_NOT_FOUND');
-    await tx.storeAsaasAccount.delete({ where: { storeId } });
+    // deleteMany + count: numa corrida, quem chega depois vê 0 linhas → 404 (delete daria P2025 → 500).
+    const { count } = await tx.storeAsaasAccount.deleteMany({ where: { storeId } });
+    if (count === 0) throw new AppError('Esta loja não tem conta Asaas conectada', 404, true, 'STORE_ASAAS_NOT_FOUND');
     await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });
     await tx.storeAsaasAudit.create({
       data: { storeId, actorId, action: 'disconnect', apiKeyLast4: existing.apiKeyLast4 },

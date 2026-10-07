@@ -38,17 +38,17 @@ export async function confirmDirectOrderPaid(storeId: string, paymentId: string,
     return false;
   }
 
-  const order = await prisma.order.findFirst({
-    where: { asaasPaymentId: paymentId, storeId, paymentProvider: 'asaas_loja' },
-    include: orderInclude,
-  });
-  logger.info('[asaasLoja] pedido confirmado como pago (modo direto)', { orderId: order?.id, storeId, paymentId });
-  if (order) {
-    try {
-      emitOrderCreated(toApiOrder(order));
-    } catch {
-      /* socket best-effort: o estado já está persistido */
-    }
+  // Daqui em diante é só aviso: o pagamento JÁ está gravado. Falha de leitura/emissão
+  // não pode derrubar o evento (o webhook re-tentaria algo que já foi aplicado).
+  try {
+    const order = await prisma.order.findFirst({
+      where: { asaasPaymentId: paymentId, storeId, paymentProvider: 'asaas_loja' },
+      include: orderInclude,
+    });
+    logger.info('[asaasLoja] pedido confirmado como pago (modo direto)', { orderId: order?.id, storeId, paymentId });
+    if (order) emitOrderCreated(toApiOrder(order));
+  } catch (err) {
+    logger.warn('[asaasLoja] pago gravado, mas a notificação falhou', { storeId, paymentId, errName: (err as Error)?.name });
   }
   return true;
 }

@@ -33,6 +33,7 @@ import { createTestUser, bearer } from './helpers/authUser';
 import { ownerIdForStore } from './helpers/storeOwner';
 import { connectStoreAsaas } from '../services/asaasLoja/account';
 import { registerPaymentWebhook, verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
+import * as orderPaymentDirect from '../services/asaasLoja/orderPaymentDirect';
 
 const DOMAIN = '@saas16.test';
 const KEY_A = '$aact_hmlg_LOJA_A_0001';
@@ -429,5 +430,92 @@ describe('t1.6 — GET /orders/:id/pix concilia pela chave da loja', () => {
     expect(res.body.qrCodeImage).toBe('img');
     expect(getAs.mock.calls.every((c) => c[0] === KEY_A)).toBe(true);
     expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe('t1.6b(F) — robustez do webhook por loja', () => {
+  it('erro SEM message (throw de string) → processError preenchido, evento NÃO marcado processado', async () => {
+    const store = await storeWith();
+    const pay = `pay_t16_${uid()}`;
+    await directOrder(store.id, pay);
+    const ev = event(`evt_t16_${uid()}`, 'PAYMENT_RECEIVED', pay);
+    const spy = jest.spyOn(orderPaymentDirect, 'confirmDirectOrderPaid').mockRejectedValueOnce('falha-sem-message');
+
+    const res = await send(store.id, ev, TOKEN_A);
+
+    expect(res.status).toBe(500); // Asaas re-tenta
+    const row = await prisma.webhookEvent.findUnique({ where: { eventId: `loja:${store.id}:${ev.id}` } });
+    expect(row!.processed).toBe(false);
+    expect(row!.processError).toBe('falha-sem-message');
+    spy.mockRestore();
+  });
+
+  it('reprocessamento bem-sucedido limpa o processError anterior', async () => {
+    const store = await storeWith();
+    const pay = `pay_t16_${uid()}`;
+    await directOrder(store.id, pay);
+    const ev = event(`evt_t16_${uid()}`, 'PAYMENT_RECEIVED', pay);
+    await prisma.webhookEvent.create({
+      data: { provider: 'asaas_loja', eventId: `loja:${store.id}:${ev.id}`, event: ev.event, payload: ev, processed: false, processError: 'db fora' },
+    });
+
+    expect((await send(store.id, ev, TOKEN_A)).status).toBe(200);
+
+    const row = await prisma.webhookEvent.findUnique({ where: { eventId: `loja:${store.id}:${ev.id}` } });
+    expect(row!.processed).toBe(true);
+    expect(row!.processError).toBeNull();
+  });
+
+  it('evento com processed=false e SEM processError (em andamento) continua tratado como duplicado', async () => {
+    const store = await storeWith();
+    const pay = `pay_t16_${uid()}`;
+    const { order } = await directOrder(store.id, pay);
+    const ev = event(`evt_t16_${uid()}`, 'PAYMENT_RECEIVED', pay);
+    await prisma.webhookEvent.create({
+      data: { provider: 'asaas_loja', eventId: `loja:${store.id}:${ev.id}`, event: ev.event, payload: ev, processed: false },
+    });
+
+    const res = await send(store.id, ev, TOKEN_A);
+
+    expect(res.status).toBe(200);
+    expect(res.body.duplicate).toBe(true);
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.paymentStatus).toBe('pending');
+  });
+
+  it('confirmDirectOrderPaid: falha na leitura/notificação depois do updateMany não derruba (pago fica gravado, warn)', async () => {
+    const store = await storeWith();
+    const pay = `pay_t16_${uid()}`;
+    const { order } = await directOrder(store.id, pay);
+    const warn = jest.spyOn(logger as any, 'warn');
+    const ff = jest.spyOn(prisma.order, 'findFirst').mockRejectedValueOnce(new Error('db oscilou'));
+
+    await expect(orderPaymentDirect.confirmDirectOrderPaid(store.id, pay, 'RECEIVED')).resolves.toBe(true);
+
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.paymentStatus).toBe('paid');
+    expect(warn).toHaveBeenCalled();
+    ff.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('registro do webhook: nenhum log (sucesso ou falha) contém o authToken enviado', async () => {
+    const spies = (['info', 'warn', 'error', 'debug'] as const).map((m) => jest.spyOn(logger as any, m));
+    const logged = () => JSON.stringify(spies.map((s) => s.mock.calls));
+
+    const ok = await storeWith({ token: null });
+    postAs.mockResolvedValueOnce({ id: 'wh_log_ok' });
+    await registerPaymentWebhook(ok.id);
+    const tokenOk = postAs.mock.calls[0][2].authToken;
+    expect(tokenOk).toHaveLength(48);
+
+    const bad = await storeWith({ account: false });
+    getAs.mockResolvedValueOnce({ balance: 0 });
+    postAs.mockRejectedValueOnce(new AsaasApiError(400, [{ code: 'invalid', description: 'limite' }]));
+    await connectStoreAsaas(bad.id, KEY_A, 'actor-t16');
+    const tokenFail = postAs.mock.calls[1][2].authToken;
+    expect(tokenFail).toHaveLength(48);
+
+    expect(logged()).not.toContain(tokenOk);
+    expect(logged()).not.toContain(tokenFail);
+    spies.forEach((s) => s.mockRestore());
   });
 });

@@ -152,7 +152,17 @@ export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) 
     return res.status(502).json({ error: 'Falha ao gerar a cobrança PIX. Tente novamente.', detail });
   }
 
-  await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: charge.providerPaymentId } });
+  // A cobrança JÁ existe na conta da loja. Se gravar o id falhar, o pedido fica sem vínculo
+  // com ela: log específico para reconciliação manual (sem CPF/chave) e 500 (sem QR: o
+  // cliente não paga uma cobrança que o pedido não conhece).
+  try {
+    await prisma.order.update({ where: { id: order.id }, data: { asaasPaymentId: charge.providerPaymentId } });
+  } catch (err) {
+    logger.error('[asaasLoja] cobrança criada na conta da loja, mas o pedido não gravou o asaasPaymentId — reconciliar manualmente', err as Error, {
+      orderId: order.id, paymentId: charge.providerPaymentId, storeId,
+    });
+    return res.status(500).json({ error: 'Erro ao registrar a cobrança do pedido. Tente novamente.' });
+  }
   order.asaasPaymentId = charge.providerPaymentId;
 
   // Cupom da loja: conta o uso (mesma trava atômica do custódia). Nada no caixa do app.
@@ -168,9 +178,17 @@ export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) 
     }
   }
 
-  await prisma.transaction.create({
-    data: { orderId: String(order.id), paymentMethod: 'pix', amount: totalValue, commissionProduct: 0, commissionDelivery: 0 },
-  });
+  // Registro contábil auxiliar: pedido e cobrança já estão ok, então a falha aqui só é
+  // logada (para reconciliação) e o cliente recebe o QR normalmente.
+  try {
+    await prisma.transaction.create({
+      data: { orderId: String(order.id), paymentMethod: 'pix', amount: totalValue, commissionProduct: 0, commissionDelivery: 0 },
+    });
+  } catch (err) {
+    logger.error('[asaasLoja] cobrança criada, mas o registro Transaction falhou — reconciliar manualmente', err as Error, {
+      orderId: order.id, paymentId: charge.providerPaymentId, storeId,
+    });
+  }
 
   logger.info('Pedido criado (modo direto, cobrança na conta da loja)', { orderId: order.id, storeId, totalValue });
 
