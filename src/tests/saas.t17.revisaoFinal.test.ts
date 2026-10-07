@@ -464,3 +464,41 @@ describe('I6 — CPF do checkout respeita "um CPF por conta"', () => {
     expect(postAs).not.toHaveBeenCalled();
   });
 });
+
+// ───────────────────────────── M1 ─────────────────────────────
+describe('M1 — nota de serviço de pedido direto sem comissão do app', () => {
+  async function entregaPicked(provider: 'asaas' | 'asaas_loja') {
+    const { store } = await storeWithAccount();
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const motoboy = await createTestUser('motoboy', DOMAIN);
+    const order = await prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId: store.id, totalValue: 30, subtotal: 20, deliveryFee: 10,
+        status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid', paymentProvider: provider,
+      } as any,
+    });
+    const delivery = await prisma.delivery.create({
+      data: { orderId: order.id, status: 'picked', motoboyId: motoboy.userId, fee: 10, distance: 4, pin: '12345', pinRetirada: '54321' },
+    });
+    return { order, delivery, motoboy };
+  }
+
+  it('pedido asaas_loja entregue: nota com appCommission 0 e a entrega inteira como valor do motoboy', async () => {
+    const { order, delivery, motoboy } = await entregaPicked('asaas_loja');
+    const res = await request(app).post(`/api/deliveries/${delivery.id}/finalizar`).set('Authorization', bearer(motoboy)).send({ pin: '12345' });
+    expect(res.status).toBe(200);
+    const inv = await prisma.deliveryInvoice.findFirst({ where: { orderId: order.id } });
+    expect(inv).toBeTruthy();
+    expect(Number(inv!.appCommission)).toBe(0);
+    expect(Number(inv!.commissionPercent)).toBe(0);
+    expect(Number(inv!.motoboyAmount)).toBe(10);
+  });
+
+  it('pedido da custódia segue com a comissão do app na nota', async () => {
+    const { order, delivery, motoboy } = await entregaPicked('asaas');
+    const res = await request(app).post(`/api/deliveries/${delivery.id}/finalizar`).set('Authorization', bearer(motoboy)).send({ pin: '12345' });
+    expect(res.status).toBe(200);
+    const inv = await prisma.deliveryInvoice.findFirst({ where: { orderId: order.id } });
+    expect(Number(inv!.appCommission)).toBeGreaterThan(0);
+  });
+});

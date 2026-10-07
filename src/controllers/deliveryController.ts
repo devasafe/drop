@@ -389,21 +389,25 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         });
       }
 
-      if (!isDirectOrder) console.log(`✅ [finalizarEntrega] Payouts released for order ${order._id}. Motoboy: R$ ${motoboyAmount.toFixed(2)}`);
+      if (!isDirectOrder) {
+        logger.info('[finalizarEntrega] payouts do pedido processados', { orderId: order.id, motoboyAmount: Number(motoboyAmount.toFixed(2)) });
+      }
 
       // --- Gerar nota de servico (idempotente) ---
+      // Modo direto: a DROP não reteve comissão sobre a entrega (o dinheiro está na conta da
+      // loja), então a nota sai com comissão 0 e a entrega inteira como valor do motoboy.
+      // A cobrança da comissão/repasse ao motoboy no modo direto é a Fase 2.
       try {
-        const appCommission = delivery.fee - motoboyAmount;
         const invoice = await deliveryInvoiceService.generateInvoice({
           orderId: order._id.toString(),
           deliveryId: delivery._id.toString(),
-          motoboyAmount,
-          appCommission,
-          commissionPercent: motoboyCommissionPercent,
+          motoboyAmount: isDirectOrder ? Number(delivery.fee) : motoboyAmount,
+          appCommission: isDirectOrder ? 0 : delivery.fee - motoboyAmount,
+          commissionPercent: isDirectOrder ? 0 : motoboyCommissionPercent,
         });
-        console.log(`📄 [finalizarEntrega] Nota de servico gerada: ${invoice.invoiceNumber}`);
+        logger.info('[finalizarEntrega] nota de serviço gerada', { orderId: order.id, invoiceNumber: invoice.invoiceNumber });
       } catch (invoiceErr) {
-        console.error('❌ Erro ao gerar nota de servico:', invoiceErr);
+        logger.error('[finalizarEntrega] erro ao gerar nota de serviço', invoiceErr as Error, { orderId: order.id });
       }
     } catch (walletErr) {
       console.error('❌ Erro ao processar payouts na entrega:', walletErr);
