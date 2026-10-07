@@ -25,6 +25,7 @@ jest.mock('../services/routeService', () => {
   return { __esModule: true, ...actual, getRoute: jest.fn() };
 });
 
+import crypto from 'crypto';
 import request from 'supertest';
 import app from '../app';
 import asaasClient from '../services/asaas/client';
@@ -549,5 +550,54 @@ describe('M2 — troca de chave com cobranças vivas na conta antiga', () => {
     const res = await request(app).put(`/api/stores/${store.id}/asaas`).set('Authorization', bearer(lojista)).send({ apiKey: NEW_KEY });
     expect(res.status).toBe(409);
     expect(res.body.error).toMatchObject({ code: 'PENDING_DIRECT_ORDERS' });
+  });
+});
+
+// ───────────────────────────── M4 ─────────────────────────────
+describe('M4 — falha ao gravar o pedido direto devolve o estoque', () => {
+  const body = (storeId: string, productId: string, idempotentKey?: string) => ({
+    storeId, products: [{ productId, quantity: 3 }], paymentMethod: 'pix', deliveryDistanceKm: 0,
+    address: 'Rua X, 1 - Centro', latitude: -22.95, longitude: -43.25, ...(idempotentKey ? { idempotentKey } : {}),
+  });
+
+  it('P2002 de idempotentKey (requisição duplicada em paralelo): estoque volta e responde o pedido já criado', async () => {
+    const { Prisma } = jest.requireActual('@prisma/client');
+    const cliente = await buyer();
+    const { store, product } = await storeWithAccount();
+    const key = crypto.randomUUID();
+    const realCreate = prisma.order.create.bind(prisma.order);
+    let sibling: any = null;
+    jest.spyOn(prisma.order, 'create').mockImplementationOnce((async () => {
+      // A "outra" requisição gravou primeiro com a mesma chave.
+      sibling = await realCreate({
+        data: {
+          customerId: cliente.userId, storeId: store.id, items: { create: [{ productId: product.id, quantity: 3, price: 20 }] },
+          totalValue: 68, deliveryFee: 8, status: 'criado', paymentMethod: 'pix', paymentStatus: 'pending',
+          paymentProvider: 'asaas_loja', idempotentKey: key,
+        } as any,
+      });
+      throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed on the fields: (`idempotentKey`)', { code: 'P2002', clientVersion: 'test' });
+    }) as any);
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(body(store.id, product.id, key));
+
+    expect(res.status).toBe(200);
+    expect(res.body._id).toBe(sibling.id);
+    expect(await qty(product.id)).toBe(10); // a baixa desta requisição foi devolvida
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(1);
+    expect(postAs).not.toHaveBeenCalled();
+  });
+
+  it('erro qualquer no create: 500, estoque devolvido, nenhum pedido nem cobrança', async () => {
+    const cliente = await buyer();
+    const { store, product } = await storeWithAccount();
+    jest.spyOn(prisma.order, 'create').mockRejectedValueOnce(new Error('db fora'));
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(body(store.id, product.id));
+
+    expect(res.status).toBe(500);
+    expect(await qty(product.id)).toBe(10);
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect(postAs).not.toHaveBeenCalled();
   });
 });

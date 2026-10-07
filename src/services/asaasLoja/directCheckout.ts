@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
 import { AppError } from '../../utils/AppError';
@@ -89,6 +90,32 @@ export interface DirectOrderContext {
   cpf: string;
 }
 
+/** Compensação do estoque baixado pelo createOrder (Product fora de transação). */
+async function restoreItems(items: DirectOrderContext['items']): Promise<void> {
+  for (const it of items) {
+    try {
+      await prisma.product.updateMany({ where: { id: String(it.productId) }, data: { quantity: { increment: it.quantity } } });
+    } catch (err) {
+      logger.error('[asaasLoja] falha ao devolver estoque após erro ao criar o pedido', err as Error, { productId: String(it.productId) });
+    }
+  }
+}
+
+/**
+ * Falha ao gravar o pedido (antes de qualquer cobrança). P2002 com idempotentKey = a mesma
+ * requisição chegou duas vezes em paralelo: devolve o pedido já criado (igual à checagem de
+ * idempotência do createOrder). Chave de outro cliente → 409. Resto → 500.
+ */
+async function respondCreateFailure(res: Response, err: unknown, customerId: string, idempotentKey: string | undefined, storeId: string) {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002' && idempotentKey) {
+    const existing = await prisma.order.findFirst({ where: { idempotentKey }, include: orderInclude }).catch(() => null);
+    if (existing && existing.customerId === customerId) return res.status(200).json(toApiOrder(existing));
+    return res.status(409).json({ error: 'Chave de idempotência já utilizada.', code: 'IDEMPOTENCY_CONFLICT' });
+  }
+  logger.error('[asaasLoja] falha ao criar o pedido do modo direto (estoque devolvido)', err as Error, { storeId });
+  return res.status(500).json({ error: 'Erro ao criar o pedido. Tente novamente.' });
+}
+
 /**
  * Cria o pedido e a cobrança Pix na conta da loja. O estoque já foi baixado pelo
  * createOrder; qualquer falha da cobrança compensa (devolve estoque, apaga o pedido).
@@ -99,34 +126,41 @@ export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) 
   const deliveryFee = await directDeliveryFee(ctx.serverDistanceKm);
   const totalValue = round2(subtotal + deliveryFee - couponDiscount);
 
-  const created = await prisma.order.create({
-    data: {
-      customerId,
-      storeId,
-      items: { create: items.map((it) => ({ productId: String(it.productId), quantity: it.quantity, price: it.price })) },
-      subtotal,
-      totalValue,
-      deliveryFee,
-      deliveryDistance: ctx.serverDistanceKm,
-      deliveryDuration: ctx.routeDurationSeconds || undefined,
-      routePolyline: ctx.routePolyline || undefined,
-      status: 'criado',
-      paymentMethod: 'pix',
-      idempotentKey: ctx.idempotentKey,
-      customerAddress: ctx.address,
-      customerLatitude: ctx.latitude ? Number(ctx.latitude) : undefined,
-      customerLongitude: ctx.longitude ? Number(ctx.longitude) : undefined,
-      storeAddress: store.address,
-      storeLatitude: store.latitude ? Number(store.latitude) : undefined,
-      storeLongitude: store.longitude ? Number(store.longitude) : undefined,
-      // Sem custódia: o total cobrado é inteiro da loja.
-      walletDistribution: { storeAmount: totalValue, appCommission: 0, commissionPercent: 0 },
-      asaasChargeStatus: 'pending',
-      paymentProvider: 'asaas_loja',
-      walletApplied: 0,
-    },
-    include: orderInclude,
-  });
+  // O estoque já foi baixado pelo createOrder: se o pedido não nascer, devolve antes de responder.
+  let created;
+  try {
+    created = await prisma.order.create({
+      data: {
+        customerId,
+        storeId,
+        items: { create: items.map((it) => ({ productId: String(it.productId), quantity: it.quantity, price: it.price })) },
+        subtotal,
+        totalValue,
+        deliveryFee,
+        deliveryDistance: ctx.serverDistanceKm,
+        deliveryDuration: ctx.routeDurationSeconds || undefined,
+        routePolyline: ctx.routePolyline || undefined,
+        status: 'criado',
+        paymentMethod: 'pix',
+        idempotentKey: ctx.idempotentKey,
+        customerAddress: ctx.address,
+        customerLatitude: ctx.latitude ? Number(ctx.latitude) : undefined,
+        customerLongitude: ctx.longitude ? Number(ctx.longitude) : undefined,
+        storeAddress: store.address,
+        storeLatitude: store.latitude ? Number(store.latitude) : undefined,
+        storeLongitude: store.longitude ? Number(store.longitude) : undefined,
+        // Sem custódia: o total cobrado é inteiro da loja.
+        walletDistribution: { storeAmount: totalValue, appCommission: 0, commissionPercent: 0 },
+        asaasChargeStatus: 'pending',
+        paymentProvider: 'asaas_loja',
+        walletApplied: 0,
+      },
+      include: orderInclude,
+    });
+  } catch (err) {
+    await restoreItems(items);
+    return respondCreateFailure(res, err, customerId, ctx.idempotentKey, storeId);
+  }
   void emitStockChanged(storeId, items.map((it) => String(it.productId)));
   const order: any = toApiOrder(created);
 
