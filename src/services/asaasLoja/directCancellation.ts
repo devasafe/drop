@@ -133,6 +133,7 @@ export interface CancellationClaim {
 
 type CompensationSource =
   | CancellationCompensation
+  // eslint-disable-next-line no-unused-vars -- nome do parâmetro de tipo, não variável
   | ((tx: Prisma.TransactionClient) => Promise<CancellationCompensation | null>)
   | null
   | undefined;

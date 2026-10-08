@@ -59,7 +59,7 @@ export function parseAuthorizationRequest(body: any): AuthRequest {
 export function normalizePixKey(key: string): string {
   const k = String(key ?? '').trim();
   if (k.includes('@')) return k.toLowerCase();
-  if (/^[\d.\-\/\s()+]+$/.test(k)) return k.replace(/\D/g, '');
+  if (/^[\d.\-/\s()+]+$/.test(k)) return k.replace(/\D/g, '');
   return k.toLowerCase();
 }
 
