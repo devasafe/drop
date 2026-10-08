@@ -18,6 +18,7 @@ import notificationsRoutes from './routes/notifications';
 import storesRoutes from './routes/stores';
 import storeAsaasRoutes from './routes/storeAsaas';
 import adminStoreAsaasRoutes from './routes/adminStoreAsaas';
+import directRefundsRoutes from './routes/directRefunds';
 import storeRoutes from './routes/storeRoutes'; // ✅ NOVO - Store endpoints
 import categoriesRoutes from './routes/categories';
 import gamificationRoutes from './routes/gamification';
@@ -122,6 +123,7 @@ app.use('/api/user', userRoutes);
 // ✅ Rotas específicas (mais específicas = depois)
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api', directRefundsRoutes); // Task 3.4: refund-direct + /admin/direct-refunds
 app.use('/api/orders', ordersRoutes);
 app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/notifications', notificationsRoutes);

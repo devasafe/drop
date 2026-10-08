@@ -30,6 +30,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   { href: '/admin/payouts',        label: 'Payouts',      icon: 'clipboard',    permission: 'payout:view', custodyOnly: true },
   { href: '/admin/app-cashbox',    label: 'Caixa',        icon: 'bank',         permission: 'cashbox:view', custodyOnly: true },
   { href: '/admin/plan-approvals', label: 'Planos',       icon: 'check-circle', permission: 'plan:view', custodyOnly: true },
+  { href: '/admin/estornos',      label: 'Estornos',     icon: 'send',         permission: 'payout:view', directOnly: true },
   { href: '/admin/conversas',      label: 'Conversas',    icon: 'chat',         permission: 'conversations:view_all' },
   { href: '/admin/broadcasts',     label: 'Anúncios',     icon: 'megaphone',    permission: 'broadcast:send' },
   { href: '/admin/avisos',         label: 'Avisos (home)', icon: 'star',        ceoOnly: true },

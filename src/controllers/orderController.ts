@@ -858,8 +858,19 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       : null;
     const motoboyName = motoboy?.name;
 
+    // Task 3.4: resumo do estorno (pedido direto) só para dono da loja/admin — nunca para o cliente.
+    let directRefund: { status: string; amount: number; lastError: string | null; attempts: number } | null = null;
+    if ((isStoreOwner || isAdmin) && order.paymentProvider === 'asaas_loja') {
+      const dr = await prisma.directRefund.findUnique({
+        where: { orderId: id },
+        select: { status: true, amount: true, lastError: true, attempts: true },
+      });
+      if (dr) directRefund = { status: dr.status, amount: Number(dr.amount), lastError: dr.lastError, attempts: dr.attempts };
+    }
+
     return res.json({
       ...order,
+      ...((isStoreOwner || isAdmin) ? { directRefund } : {}),
       products: productsWithNames,
       // PIN só para quem deve ver: o cliente recebe o de entrega; loja/admin nenhum.
       delivery: delivery ? { ...serializeDeliveryFor(toApiDelivery(delivery), userId, { customerId: order.customerId }), motoboyName } : null,

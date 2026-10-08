@@ -8,6 +8,7 @@ import { useOrder } from '../../hooks/useSync';
 import { useSocket } from '../../contexts/SocketContext';
 import { OrderActionsCard } from '../../components/order/OrderActionsCard';
 import { CancellationStatusDisplay } from '../../components/order/CancellationStatusDisplay';
+import { DirectRefundCard } from '../../components/order/DirectRefundCard';
 import { paymentMethodLabel } from '../../lib/paymentLabel';
 import styles from './SellerOrder.module.css';
 
@@ -197,6 +198,13 @@ export default function SellerOrderDetailPage() {
               {(order.status === 'cancelado' || order.status === 'rejeitado') && (
                 <div className={styles.actionWrapper}>
                   <CancellationStatusDisplay orderId={order._id} />
+                </div>
+              )}
+
+              {/* ESTORNO (pedido direto) */}
+              {order.directRefund && (
+                <div className={styles.actionWrapper}>
+                  <DirectRefundCard orderId={order._id} refund={order.directRefund} />
                 </div>
               )}
 
