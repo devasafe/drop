@@ -196,13 +196,23 @@ class PayoutService {
           throw new Error(`Payout ${id} não está em status pagável (released ou requested)`);
         }
 
+        // Baixa condicional (trava anti-duplo-pagamento): só conclui quem ainda encontra o
+        // payout no status lido. Concorrente que já leu 'released' mas perdeu a corrida
+        // recebe count 0 e lança — a transação inteira dele é revertida (nada creditado).
+        const { count } = await db.payout.updateMany({
+          where: { id, status: payout.status },
+          data: { status: 'paid', paidAt: new Date(), gatewayTransferId },
+        });
+        if (count !== 1) {
+          throw new Error(`Payout ${id} não está em status pagável (released ou requested)`);
+        }
+
         // Se ainda estava released (admin paga sem saque formal), debita availableBalance
         if (payout.status === 'released') {
           const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
           await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { decrement: num(payout.amount) } });
         }
 
-        await db.payout.update({ where: { id }, data: { status: 'paid', paidAt: new Date(), gatewayTransferId } });
         totalPaid += num(payout.amount);
       }
 

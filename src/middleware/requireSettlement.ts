@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getSaasConfig, SettlementMode } from '../utils/settlement';
 import { hasCustodyLeftover } from '../services/custodyLeftover';
 import logger from '../config/logger';
+import { prisma } from '../lib/prisma';
 
 const featureDisabled = (res: Response) =>
   res.status(404).json({ error: 'Função indisponível neste modo de operação', code: 'FEATURE_DISABLED' });
@@ -48,3 +49,44 @@ export const requireCustodyOrLeftover = async (req: Request & { user?: any }, re
   }
   return featureDisabled(res);
 };
+
+/**
+ * Ruling R23 — `transfer-to-owner` (loja → carteira user do dono; motoboy → própria carteira
+ * user) no modo direto. Vai DEPOIS de `authenticate` e `requireCustodyOrLeftover`.
+ * Na custódia → libera (comportamento antigo). No modo direto → só o dono da origem
+ * (senão 403) e só se a carteira de origem tem saldo transferível (Payout `released`);
+ * sem saldo → 404 como as demais rotas de custódia. O dinheiro não sai da plataforma: só
+ * muda de carteira do MESMO usuário (nunca dinheiro novo). Fail closed: erro → 503/404.
+ */
+export const requireOwnerTransferSource = (kind: 'store' | 'motoboy') =>
+  async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
+    let mode: SettlementMode;
+    try {
+      mode = (await getSaasConfig()).settlementMode;
+    } catch (err) {
+      logger.error('requireOwnerTransferSource: falha ao ler configuração', err as Error);
+      return res.status(503).json({ error: 'Configuração indisponível' });
+    }
+    if (mode === 'custodia') return next();
+
+    const userId = String(req.user?.id || '');
+    if (!userId) return featureDisabled(res);
+    try {
+      const recipientId = kind === 'store' ? String(req.params.storeId) : String(req.params.motoboyId);
+      if (kind === 'store') {
+        const store = await prisma.store.findUnique({ where: { id: recipientId }, select: { ownerId: true } });
+        if (!store) return featureDisabled(res);
+        if (String(store.ownerId) !== userId) return res.status(403).json({ error: 'Apenas o dono da loja pode transferir' });
+      } else if (recipientId !== userId) {
+        return res.status(403).json({ error: 'Apenas o próprio motoboy pode transferir' });
+      }
+      const agg = await prisma.payout.aggregate({
+        where: { recipientType: kind, recipientId, status: 'released' },
+        _sum: { amount: true },
+      });
+      if (Number(agg._sum.amount || 0) > 0) return next();
+    } catch (err) {
+      logger.error('requireOwnerTransferSource: falha ao consultar saldo da origem', err as Error);
+    }
+    return featureDisabled(res);
+  };
