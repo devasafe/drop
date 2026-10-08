@@ -5,6 +5,8 @@ import { catchAsync } from '../middleware/errorHandler';
 import {
   connectSchema,
   checklistSchema,
+  consentSchema,
+  postConsent,
   putAsaas,
   getAsaas,
   deleteAsaas,
@@ -34,6 +36,7 @@ router.get('/:storeId/asaas', ...ceoOnly, catchAsync(getAsaas));
 router.delete('/:storeId/asaas', ...ceoOnly, catchAsync(deleteAsaas));
 router.post('/:storeId/asaas/checklist', ...ceoOnly, validate(checklistSchema), catchAsync(postChecklist));
 router.post('/:storeId/asaas/auth-token', ...ceoOnly, catchAsync(postAuthToken));
+router.post('/:storeId/asaas/consent', ...ceoOnly, validate(consentSchema), catchAsync(postConsent));
 router.post('/:storeId/asaas/test', ...ceoOnly, catchAsync(postTest));
 
 export default router;

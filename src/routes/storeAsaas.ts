@@ -6,6 +6,8 @@ import {
   requireStoreOwner,
   connectSchema,
   checklistSchema,
+  consentSchema,
+  postConsent,
   putAsaas,
   getAsaas,
   postChecklist,
@@ -22,6 +24,7 @@ router.put('/', validate(connectSchema), catchAsync(putAsaas));
 router.get('/', catchAsync(getAsaas));
 router.post('/checklist', validate(checklistSchema), catchAsync(postChecklist));
 router.post('/auth-token', catchAsync(postAuthToken));
+router.post('/consent', validate(consentSchema), catchAsync(postConsent));
 router.post('/test', catchAsync(postTest));
 
 export default router;

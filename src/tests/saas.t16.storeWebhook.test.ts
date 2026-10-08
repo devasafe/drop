@@ -34,6 +34,7 @@ import { ownerIdForStore } from './helpers/storeOwner';
 import { connectStoreAsaas } from '../services/asaasLoja/account';
 import { registerPaymentWebhook, verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import * as orderPaymentDirect from '../services/asaasLoja/orderPaymentDirect';
+import { TEST_CONSENT, grantStoreConsent } from './helpers/storeConsent';
 
 const DOMAIN = '@saas16.test';
 const KEY_A = '$aact_hmlg_LOJA_A_0001';
@@ -90,6 +91,7 @@ async function storeWith(opts: { key?: string; token?: string | null; account?: 
         paymentWebhookTokenHash: opts.token === null ? null : sha(opts.token ?? TOKEN_A),
       },
     });
+    await grantStoreConsent(store.id);
   }
   return store;
 }
@@ -317,7 +319,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     getAs.mockResolvedValueOnce({ balance: 0 });
     postAs.mockResolvedValueOnce({ id: 'wh_conn' });
 
-    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16');
+    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16', TEST_CONSENT);
 
     expect(st.status).toBe('valid');
     expect(st.checklist.paymentWebhook).toBe(true);
@@ -330,7 +332,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     postAs.mockRejectedValueOnce(new AsaasApiError(400, [{ code: 'invalid', description: 'limite de webhooks' }]));
     const warn = jest.spyOn(logger as any, 'warn');
 
-    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16');
+    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16', TEST_CONSENT);
 
     expect(st.status).toBe('valid');
     expect(st.checklist.paymentWebhook).toBe(false);
@@ -353,7 +355,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     getAs.mockResolvedValueOnce({ balance: 0 });
     postAs.mockRejectedValueOnce(new Error('rede'));
 
-    await connectStoreAsaas(store.id, KEY_B, 'actor-t16');
+    await connectStoreAsaas(store.id, KEY_B, 'actor-t16', TEST_CONSENT);
 
     const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId: store.id } });
     expect(row!.paymentWebhookId).toBeNull();
@@ -371,7 +373,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     const store = await storeWith({ token: TOKEN_A });
     getAs.mockResolvedValueOnce({ balance: 0 });
     postAs.mockResolvedValueOnce({ id: 'wh_conta_nova' });
-    await connectStoreAsaas(store.id, KEY_B, 'actor-t16');
+    await connectStoreAsaas(store.id, KEY_B, 'actor-t16', TEST_CONSENT);
     const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId: store.id } });
     expect(row!.paymentWebhookId).toBe('wh_conta_nova');
     expect(row!.paymentWebhookTokenHash).not.toBe(sha(TOKEN_A));
@@ -381,7 +383,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     const store = await storeWith({ token: TOKEN_A });
     getAs.mockResolvedValueOnce({ balance: 0 });
 
-    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16');
+    const st = await connectStoreAsaas(store.id, KEY_A, 'actor-t16', TEST_CONSENT);
 
     expect(postAs).not.toHaveBeenCalled();
     expect(st.checklist.paymentWebhook).toBe(true);
@@ -510,7 +512,7 @@ describe('t1.6b(F) — robustez do webhook por loja', () => {
     const bad = await storeWith({ account: false });
     getAs.mockResolvedValueOnce({ balance: 0 });
     postAs.mockRejectedValueOnce(new AsaasApiError(400, [{ code: 'invalid', description: 'limite' }]));
-    await connectStoreAsaas(bad.id, KEY_A, 'actor-t16');
+    await connectStoreAsaas(bad.id, KEY_A, 'actor-t16', TEST_CONSENT);
     const tokenFail = postAs.mock.calls[1][2].authToken;
     expect(tokenFail).toHaveLength(48);
 

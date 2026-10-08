@@ -8,6 +8,10 @@ import styles from './PixPaymentSheet.module.css';
 
 export interface PixPaymentSheetProps {
   pix: PixInfo;
+  /** Provedor do pedido (`Order.paymentProvider`). 'asaas_loja' = pedido direto, na conta da loja. */
+  paymentProvider?: string | null;
+  /** Nome do recebedor (a loja) para o aviso do Pix direto. */
+  recipientName?: string | null;
   onPaid: (orderId: string) => void;
   onClose: () => void;
 }
@@ -27,7 +31,7 @@ const MAX_QR_ATTEMPTS = 5;
  * webhook chegar). Redesign de `PixPaymentModal` no DS (Sheet + CSS Modules
  * + tokens), sem alterar a lógica de polling.
  */
-export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) {
+export function PixPaymentSheet({ pix, paymentProvider, recipientName, onPaid, onClose }: PixPaymentSheetProps) {
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
   // O QR pode vir vazio da criação do pedido (Asaas às vezes demora a gerar).
@@ -123,6 +127,9 @@ export function PixPaymentSheet({ pix, onPaid, onClose }: PixPaymentSheetProps) 
                 {copied ? 'Copiado!' : 'Copiar código'}
               </button>
             </>
+          )}
+          {paymentProvider === 'asaas_loja' && (
+            <p className={styles.hint}>{`Pix processado pelo Asaas. Recebedor: ${recipientName || 'a loja'}`}</p>
           )}
           <div className={styles.waiting}>Aguardando pagamento…</div>
         </div>

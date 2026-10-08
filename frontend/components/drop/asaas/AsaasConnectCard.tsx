@@ -13,6 +13,10 @@ interface AsaasStatus {
   lastCheckedAt: string | null;
   checklist: Checklist;
   apiKeyLast4?: string;
+  /** Aceite mais recente do termo (null = nunca aceitou; a loja não vende até aceitar). */
+  consent?: { version: string; acceptedAt: string } | null;
+  /** Versão vigente do termo. */
+  termsVersion?: string;
 }
 
 export interface AsaasConnectCardProps {
@@ -44,6 +48,17 @@ export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasCo
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [terms, setTerms] = useState('');
+  const [accepted, setAccepted] = useState(false);
+
+  // Texto do termo vindo do backend (fonte única; a versão é a que o aceite grava).
+  useEffect(() => {
+    let alive = true;
+    api.get('/settings/store-asaas-terms')
+      .then((r) => { if (alive) setTerms(typeof r.data?.text === 'string' ? r.data.text : ''); })
+      .catch(() => { /* sem texto, o aceite continua exigido pelo backend */ });
+    return () => { alive = false; };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -59,12 +74,27 @@ export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasCo
     setBusy(true);
     setError('');
     try {
-      const r = await api.put(apiBase, { apiKey });
+      const r = await api.put(apiBase, { apiKey, acceptTerms: true });
       setStatus(r.data?.data ?? null);
       setApiKey(''); // a chave não fica em estado nem em tela
+      setAccepted(false);
       showToast('Conta Asaas conectada.', 'success');
     } catch (e: any) {
       setError(errMsg(e, 'Não foi possível conectar.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const acceptTermsOnly = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post(`${apiBase}/consent`, { acceptTerms: true });
+      setStatus(r.data?.data ?? null);
+      setAccepted(false);
+      showToast('Termo aceito.', 'success');
+    } catch (e: any) {
+      showToast(errMsg(e, 'Não foi possível registrar o aceite.'), 'error');
     } finally {
       setBusy(false);
     }
@@ -108,6 +138,9 @@ export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasCo
 
   const c = status?.checklist;
   const connected = !!status && status.status !== 'none';
+  const needsConsent = status?.status === 'valid' && !status.consent;
+  const outdatedConsent = status?.status === 'valid' && !!status.consent && !!status.termsVersion && status.consent.version !== status.termsVersion;
+  const acceptLabel = allowDisconnect ? 'O lojista assinou este termo' : 'Li e aceito o termo';
   const mark = (v?: boolean) => <span className={`${styles.mark} ${v ? styles.ok : styles.bad}`}>{v ? '✓' : '○'}</span>;
 
   return (
@@ -120,7 +153,26 @@ export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasCo
           {status?.environment && <span className={styles.meta}>Ambiente: {status.environment === 'sandbox' ? 'sandbox' : 'produção'}</span>}
           {status?.apiKeyLast4 && <span className={styles.meta}>{`Chave ••••${status.apiKeyLast4}`}</span>}
         </div>
-        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey) connect(); }}>
+        {needsConsent && (
+          <p className={`${styles.hint} ${styles.warn}`} role="alert">Aceite o termo para voltar a vender. Enquanto isso, os pedidos Pix desta loja ficam bloqueados.</p>
+        )}
+        {outdatedConsent && (
+          <p className={`${styles.hint} ${styles.warn}`}>O termo foi atualizado. Aceite a nova versão para manter o registro em dia.</p>
+        )}
+        <div className={styles.terms}>
+          <strong>Termo de autorização</strong>
+          {terms && <pre className={styles.termsText}>{terms}</pre>}
+          <label className={styles.accept}>
+            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <span>{acceptLabel}</span>
+          </label>
+          {(needsConsent || outdatedConsent) && (
+            <div className={styles.actions}>
+              <Button size="sm" variant="primary" loading={busy} disabled={!accepted} onClick={acceptTermsOnly}>Aceitar o termo</Button>
+            </div>
+          )}
+        </div>
+        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey && accepted) connect(); }}>
           <Input
             className={styles.formField}
             type="password"
@@ -131,7 +183,7 @@ export function AsaasConnectCard({ apiBase, egressIp, allowDisconnect }: AsaasCo
             aria-label="Chave de API do Asaas"
             error={error || undefined}
           />
-          <Button variant="primary" loading={busy} disabled={!apiKey} onClick={connect}>
+          <Button variant="primary" loading={busy} disabled={!apiKey || !accepted} onClick={connect}>
             {connected ? 'Trocar chave' : 'Conectar'}
           </Button>
           {allowDisconnect && connected && (

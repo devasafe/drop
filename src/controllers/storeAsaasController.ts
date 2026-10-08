@@ -11,11 +11,28 @@ import {
   listStoresAsaas,
   testStoreAsaas,
   getStoreAsaasStatus,
+  recordStoreConsent,
   StoreAsaasNotReadyError,
 } from '../services/asaasLoja/account';
 
 /** Corpo do PUT: só valida formato bruto; o prefixo/ambiente é conferido no service. */
-export const connectSchema = z.object({ apiKey: z.string().trim().min(10).max(200) }).strict();
+export const connectSchema = z
+  .object({ apiKey: z.string().trim().min(10).max(200), acceptTerms: z.boolean().optional() })
+  .strict();
+export const consentSchema = z.object({ acceptTerms: z.boolean().optional() }).strict();
+
+/** Termo exige `acceptTerms: true` explícito (lojista clica; admin atesta assinatura presencial). */
+function assertTermsAccepted(body: { acceptTerms?: boolean }) {
+  if (body.acceptTerms !== true) {
+    throw new AppError('É preciso aceitar o termo de autorização para conectar a conta Asaas', 400, true, 'TERMS_NOT_ACCEPTED');
+  }
+}
+
+/** Quem aceitou e de onde. Rota /api/admin = admin (CEO); o resto é o dono da loja. */
+function consentContext(req: Request) {
+  const actorRole: 'lojista' | 'admin' = req.baseUrl.startsWith('/api/admin/') ? 'admin' : 'lojista';
+  return { ip: req.ip || null, userAgent: req.get('user-agent') || null, actorRole };
+}
 export const checklistSchema = z
   .object({ ipWhitelist: z.boolean().optional(), authWebhook: z.boolean().optional() })
   .strict();
@@ -49,8 +66,18 @@ export async function requireStoreOwner(req: Request, _res: Response, next: Next
 const ok = (res: Response, data: unknown) => res.json({ success: true, data });
 
 export async function putAsaas(req: Request, res: Response) {
-  const status = await connectStoreAsaas(req.params.storeId, req.body.apiKey, (req as any).user?.id);
+  assertTermsAccepted(req.body);
+  const status = await connectStoreAsaas(req.params.storeId, req.body.apiKey, (req as any).user?.id, consentContext(req));
   ok(res, status);
+}
+
+/** Aceite avulso (conta conectada antes do termo, ou nova versão). Exige conta existente. */
+export async function postConsent(req: Request, res: Response) {
+  assertTermsAccepted(req.body);
+  const { storeId } = req.params;
+  await requireAccount(storeId);
+  await recordStoreConsent({ storeId, actorId: (req as any).user?.id, ...consentContext(req) });
+  ok(res, await getStoreAsaasStatus(storeId));
 }
 
 export async function deleteAsaas(req: Request, res: Response) {

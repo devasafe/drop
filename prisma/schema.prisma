@@ -448,6 +448,7 @@ model Store {
   apiKeys    StoreApiKey[]
   webhooks   StoreWebhook[]
   asaasAccount StoreAsaasAccount?
+  asaasConsents StoreAsaasConsent[]
 
   @@index([ownerId])
   @@index([plan])
@@ -1233,6 +1234,22 @@ model StoreAsaasAudit {
   createdAt   DateTime @default(now())
 
   @@index([storeId])
+}
+
+/// Aceite do termo de autorização do uso da conta Asaas da loja. Comprovação: só INSERT,
+/// nunca UPDATE. Some junto com a loja (Cascade).
+model StoreAsaasConsent {
+  id           String   @id @default(cuid())
+  storeId      String
+  actorId      String // quem clicou (lojista ou admin)
+  actorRole    String // 'lojista' | 'admin' (admin = assinatura presencial)
+  termsVersion String
+  ip           String?
+  userAgent    String?
+  acceptedAt   DateTime @default(now())
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, acceptedAt])
 }
 
 /// Cliente (comprador) criado na conta Asaas da loja, por par loja+usuário.

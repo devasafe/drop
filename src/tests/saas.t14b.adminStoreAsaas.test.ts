@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 const base = () => `/api/admin/stores/${storeId}/asaas`;
-const put = (u: any, key = KEY) => request(app).put(base()).set('Authorization', bearer(u)).send({ apiKey: key });
+const put = (u: any, key = KEY) => request(app).put(base()).set('Authorization', bearer(u)).send({ apiKey: key, acceptTerms: true });
 const audits = () => prisma.storeAsaasAudit.findMany({ where: { storeId }, orderBy: { createdAt: 'asc' } });
 
 describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => {
@@ -121,7 +121,7 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
   });
 
   it('loja inexistente → 404 no PUT do CEO', async () => {
-    const r = await request(app).put('/api/admin/stores/naoexiste/asaas').set('Authorization', bearer(ceo)).send({ apiKey: KEY });
+    const r = await request(app).put('/api/admin/stores/naoexiste/asaas').set('Authorization', bearer(ceo)).send({ apiKey: KEY, acceptTerms: true });
     expect(r.status).toBe(404);
   });
 
@@ -154,7 +154,7 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
   });
 
   it('o conectar do lojista (rota 1.4) também audita, com actorId do dono', async () => {
-    const r = await request(app).put(`/api/stores/${storeId}/asaas`).set('Authorization', bearer(owner)).send({ apiKey: KEY });
+    const r = await request(app).put(`/api/stores/${storeId}/asaas`).set('Authorization', bearer(owner)).send({ apiKey: KEY, acceptTerms: true });
     expect(r.status).toBe(200);
     const a = await audits();
     expect(a).toHaveLength(1);

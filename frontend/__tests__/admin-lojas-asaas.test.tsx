@@ -40,8 +40,9 @@ test('lista as lojas e, ao selecionar, usa apiBase /admin/stores/<id>/asaas para
   fireEvent.click(await screen.findByText(/Loja Dois — Não conectada/));
   const input = await screen.findByLabelText('Chave de API do Asaas');
   fireEvent.change(input, { target: { value: KEY } });
+  fireEvent.click(screen.getByLabelText('O lojista assinou este termo'));
   fireEvent.click(screen.getByText('Conectar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY, acceptTerms: true }));
   expect(document.body.innerHTML).not.toContain('SEGREDO123456');
 });
 

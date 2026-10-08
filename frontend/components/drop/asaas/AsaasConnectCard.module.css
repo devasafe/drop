@@ -13,3 +13,8 @@
 .mark { width: 18px; text-align: center; font-weight: 700; }
 .code { font-family: monospace; font-size: var(--fs-sm); color: var(--text); background: var(--surface); padding: 6px 10px; border-radius: var(--r-sm); word-break: break-all; display: block; }
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+.warn { color: var(--rating); font-weight: 600; }
+.terms { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.termsText { margin: 0; white-space: pre-wrap; font-family: inherit; font-size: var(--fs-sm); color: var(--text-muted); background: var(--surface); padding: var(--space-3); border-radius: var(--r-sm); max-height: 220px; overflow-y: auto; }
+.accept { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-body); color: var(--text); }

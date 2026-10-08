@@ -410,6 +410,8 @@ export default function StoreOrderStatus() {
         {t.pixData && (
           <PixPaymentSheet
             pix={t.pixData}
+            paymentProvider={order.paymentProvider}
+            recipientName={order.storeName}
             onPaid={() => {
               t.closePix();
               t.refetch();

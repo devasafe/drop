@@ -15,6 +15,7 @@ import {
 
 import { getSaasConfig } from '../utils/settlement';
 import env from '../config/env';
+import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT } from '../legal/storeAsaasTerms';
 
 const router = Router();
 
@@ -27,6 +28,9 @@ router.get('/saas', async (_req, res) => {
     return res.status(500).json({ error: 'Erro ao ler as configurações' });
   }
 });
+
+// Public - termo de autorização da conta Asaas da loja (texto e versão vigentes)
+router.get('/store-asaas-terms', (_req, res) => res.json({ version: STORE_ASAAS_TERMS_VERSION, text: STORE_ASAAS_TERMS_TEXT }));
 
 // Public - Get current config
 router.get('/platform-config', getPlatformConfig);

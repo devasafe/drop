@@ -38,6 +38,7 @@ import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgC
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { ownerIdForStore } from './helpers/storeOwner';
 import { expireStalePixOrders } from '../services/asaas/expireOrders';
+import { TEST_CONSENT, grantStoreConsent } from './helpers/storeConsent';
 
 const DOMAIN = '@saas17.test';
 const STORE_KEY = '$aact_hmlg_LOJA_17XX';
@@ -117,6 +118,7 @@ async function storeWithAccount(opts: { account?: boolean; quantity?: number; ow
         environment: 'sandbox', status: 'valid',
       },
     });
+    await grantStoreConsent(store.id);
   }
   return { store, product };
 }
@@ -431,13 +433,13 @@ describe('I5 — custódia ignora pedidos asaas_loja; chave da plataforma não v
     try {
       const { store } = await storeWithAccount({ account: false });
       getAs.mockResolvedValue({ balance: 0 });
-      await expect(connectStoreAsaas(store.id, ' $aact_hmlg_PLATAFORMA_DROP_17 ', 'actor')).rejects
+      await expect(connectStoreAsaas(store.id, ' $aact_hmlg_PLATAFORMA_DROP_17 ', 'actor', TEST_CONSENT)).rejects
         .toMatchObject({ statusCode: 400, code: 'ASAAS_KEY_IS_PLATFORM' });
       expect(getAs).not.toHaveBeenCalled();
       expect(await prisma.storeAsaasAccount.count({ where: { storeId: store.id } })).toBe(0);
       // Outra chave continua conectando normalmente.
       postAs.mockResolvedValue({ id: 'wh_17' });
-      await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor')).resolves.toMatchObject({ status: 'valid' });
+      await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor', TEST_CONSENT)).resolves.toMatchObject({ status: 'valid' });
     } finally {
       (env as any).ASAAS_API_KEY = original;
     }
@@ -525,7 +527,7 @@ describe('M2 — troca de chave com cobranças vivas na conta antiga', () => {
     await livePixOrder(store.id, product.id);
     getAs.mockResolvedValue({ balance: 0 });
 
-    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor')).rejects.toMatchObject({ statusCode: 409, code: 'PENDING_DIRECT_ORDERS' });
+    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor', TEST_CONSENT)).rejects.toMatchObject({ statusCode: 409, code: 'PENDING_DIRECT_ORDERS' });
     const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId: store.id } });
     expect(row!.apiKeyLast4).toBe('17XX');
     expect(await prisma.storeAsaasAudit.count({ where: { storeId: store.id } })).toBe(0);
@@ -538,8 +540,8 @@ describe('M2 — troca de chave com cobranças vivas na conta antiga', () => {
     getAs.mockResolvedValue({ balance: 0 });
     postAs.mockResolvedValue({ id: 'wh_17_m2' });
 
-    await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor')).resolves.toMatchObject({ status: 'valid' });
-    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor')).resolves.toMatchObject({ status: 'valid', apiKeyLast4: NEW_KEY.slice(-4) });
+    await expect(connectStoreAsaas(store.id, STORE_KEY, 'actor', TEST_CONSENT)).resolves.toMatchObject({ status: 'valid' });
+    await expect(connectStoreAsaas(store.id, NEW_KEY, 'actor', TEST_CONSENT)).resolves.toMatchObject({ status: 'valid', apiKeyLast4: NEW_KEY.slice(-4) });
   });
 
   it('pela rota do lojista também responde 409 PENDING_DIRECT_ORDERS', async () => {
@@ -547,7 +549,7 @@ describe('M2 — troca de chave com cobranças vivas na conta antiga', () => {
     const { store, product } = await storeWithAccount({ ownerId: lojista.userId });
     await livePixOrder(store.id, product.id);
     getAs.mockResolvedValue({ balance: 0 });
-    const res = await request(app).put(`/api/stores/${store.id}/asaas`).set('Authorization', bearer(lojista)).send({ apiKey: NEW_KEY });
+    const res = await request(app).put(`/api/stores/${store.id}/asaas`).set('Authorization', bearer(lojista)).send({ apiKey: NEW_KEY, acceptTerms: true });
     expect(res.status).toBe(409);
     expect(res.body.error).toMatchObject({ code: 'PENDING_DIRECT_ORDERS' });
   });

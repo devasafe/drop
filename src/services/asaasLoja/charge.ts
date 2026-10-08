@@ -47,10 +47,16 @@ async function storeKey(storeId: string): Promise<string> {
   return decryptSensitiveData(row.apiKeyEncrypted);
 }
 
-/** A loja tem conta Asaas 'valid'? (checagem barata, sem decifrar a chave) */
+/**
+ * A loja pode vender no modo direto? Conta Asaas 'valid' E ao menos um aceite do termo
+ * (qualquer versão; fail closed: conta antiga sem aceite não vende até aceitar).
+ * Checagem barata, sem decifrar a chave.
+ */
 export async function isStorePaymentsReady(storeId: string): Promise<boolean> {
   const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId }, select: { status: true } });
-  return row?.status === 'valid';
+  if (row?.status !== 'valid') return false;
+  const consent = await prisma.storeAsaasConsent.findFirst({ where: { storeId }, select: { id: true } });
+  return !!consent;
 }
 
 /**

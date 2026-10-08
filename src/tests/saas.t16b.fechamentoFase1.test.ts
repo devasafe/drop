@@ -43,6 +43,7 @@ import { expirePixOrdersTick } from '../jobs/expirePixOrders.job';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { connectStoreAsaas, disconnectStoreAsaas } from '../services/asaasLoja/account';
 import adminStoreAsaasRouter from '../routes/adminStoreAsaas';
+import { TEST_CONSENT, grantStoreConsent } from './helpers/storeConsent';
 
 const DOMAIN = '@saas16b.test';
 const STORE_KEY = '$aact_hmlg_LOJA_16B';
@@ -118,6 +119,7 @@ async function storeWithAccount(opts: { account?: boolean; quantity?: number } =
         environment: 'sandbox', status: 'valid',
       },
     });
+    await grantStoreConsent(store.id);
   }
   return { store, product };
 }
@@ -334,8 +336,8 @@ describe('D — corridas em connect/disconnect', () => {
     postAs.mockResolvedValue({ id: 'wh_16b' });
     for (let i = 0; i < 5; i++) {
       const results = await Promise.allSettled([
-        connectStoreAsaas(store.id, STORE_KEY, 'actor-a'),
-        connectStoreAsaas(store.id, STORE_KEY, 'actor-b'),
+        connectStoreAsaas(store.id, STORE_KEY, 'actor-a', TEST_CONSENT),
+        connectStoreAsaas(store.id, STORE_KEY, 'actor-b', TEST_CONSENT),
       ]);
       for (const r of results) {
         if (r.status === 'rejected') expect(r.reason).toMatchObject({ statusCode: 409, code: 'CONCURRENT_UPDATE' });
@@ -368,7 +370,7 @@ describe('D — corridas em connect/disconnect', () => {
       return realTx(fn, ...rest);
     });
 
-    const st = await connectStoreAsaas(store.id, STORE_KEY, 'actor-a');
+    const st = await connectStoreAsaas(store.id, STORE_KEY, 'actor-a', TEST_CONSENT);
 
     expect(st.status).toBe('valid');
     expect(calls).toBe(2);

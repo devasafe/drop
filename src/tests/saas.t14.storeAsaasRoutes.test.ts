@@ -30,7 +30,7 @@ beforeEach(async () => {
 afterEach(() => cleanupUsersByEmailDomain(DOMAIN));
 
 const base = () => `/api/stores/${storeId}/asaas`;
-const connect = (u = owner) => request(app).put(base()).set('Authorization', bearer(u)).send({ apiKey: KEY });
+const connect = (u = owner) => request(app).put(base()).set('Authorization', bearer(u)).send({ apiKey: KEY, acceptTerms: true });
 
 describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
   it('dono conecta (200) e lê o status', async () => {
@@ -76,7 +76,7 @@ describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
     await connect();
     (asaasClient.getAs as jest.Mock).mockRejectedValueOnce(new AsaasApiError(500, []));
     await connect();
-    const bad = await request(app).put(base()).set('Authorization', bearer(owner)).send({ apiKey: '$aact_hmlg_SEGREDOZZ' + 'x'.repeat(300) });
+    const bad = await request(app).put(base()).set('Authorization', bearer(owner)).send({ apiKey: '$aact_hmlg_SEGREDOZZ' + 'x'.repeat(300), acceptTerms: true });
     expect(bad.status).toBe(400);
     const logged = JSON.stringify(spies.flatMap((s) => s.mock.calls));
     expect(logged).not.toContain('abcdef123456');

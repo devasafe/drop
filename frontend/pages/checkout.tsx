@@ -249,6 +249,8 @@ export default function CheckoutPage() {
       {c.pixData && (
         <PixPaymentSheet
           pix={c.pixData}
+          paymentProvider={c.pixNotice?.paymentProvider}
+          recipientName={c.pixNotice?.recipientName}
           onPaid={(id) => router.push('/store-order/' + id)}
           onClose={c.closePix}
         />

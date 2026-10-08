@@ -38,8 +38,9 @@ test('campo da chave é password; conectar limpa a chave e ela não aparece na t
   const input = (await screen.findByLabelText('Chave de API do Asaas')) as HTMLInputElement;
   expect(input.type).toBe('password');
   fireEvent.change(input, { target: { value: KEY } });
+  fireEvent.click(screen.getByLabelText('Li e aceito o termo'));
   fireEvent.click(screen.getByText('Conectar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY, acceptTerms: true }));
   await screen.findByText('Chave válida');
   expect(input.value).toBe('');
   expect(screen.getByText('Chave ••••3456')).toBeInTheDocument();

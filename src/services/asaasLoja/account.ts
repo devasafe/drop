@@ -7,6 +7,7 @@ import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encrypti
 import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
 import { registerPaymentWebhook } from './webhook';
+import { STORE_ASAAS_TERMS_VERSION } from '../../legal/storeAsaasTerms';
 
 /**
  * Conta Asaas própria da loja (modo SaaS "direto").
@@ -21,7 +22,16 @@ export type StoreAsaasStatus = {
   /** Final da chave (••••1234), único pedaço dela que sai do backend. */
   apiKeyLast4: string | null;
   checklist: { apiKey: boolean; paymentWebhook: boolean; ipWhitelistConfirmed: boolean; authWebhookConfirmed: boolean };
+  /** Aceite mais recente do termo de autorização (null = nunca aceitou). */
+  consent: { version: string; acceptedAt: string } | null;
+  /** Versão vigente do termo (para a UI avisar de reaceite). */
+  termsVersion: string;
 };
+
+export type StoreConsentActorRole = 'lojista' | 'admin';
+
+/** Quem/como aceitou: origem da requisição, para a comprovação. */
+export type StoreConsentContext = { ip: string | null; userAgent: string | null; actorRole: StoreConsentActorRole };
 
 export class StoreAsaasNotReadyError extends AppError {
   constructor() {
@@ -34,14 +44,18 @@ function serverEnvironment(): 'sandbox' | 'production' {
   return String(env.ASAAS_API_URL || '').includes('sandbox') ? 'sandbox' : 'production';
 }
 
-function toStatus(row: any | null): StoreAsaasStatus {
+function toStatus(row: any | null, consent: { version: string; acceptedAt: Date } | null = null): StoreAsaasStatus {
+  const consentOut = consent ? { version: consent.version, acceptedAt: consent.acceptedAt.toISOString() } : null;
   if (!row) {
     return {
       status: 'none', environment: null, lastCheckedAt: null, walletId: null, apiKeyLast4: null,
       checklist: { apiKey: false, paymentWebhook: false, ipWhitelistConfirmed: false, authWebhookConfirmed: false },
+      consent: consentOut, termsVersion: STORE_ASAAS_TERMS_VERSION,
     };
   }
   return {
+    consent: consentOut,
+    termsVersion: STORE_ASAAS_TERMS_VERSION,
     status: row.status === 'valid' ? 'valid' : 'invalid',
     environment: row.environment as 'sandbox' | 'production',
     lastCheckedAt: row.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
@@ -57,7 +71,33 @@ function toStatus(row: any | null): StoreAsaasStatus {
 }
 
 export async function getStoreAsaasStatus(storeId: string): Promise<StoreAsaasStatus> {
-  return toStatus(await prisma.storeAsaasAccount.findUnique({ where: { storeId } }));
+  const [row, consent] = await Promise.all([
+    prisma.storeAsaasAccount.findUnique({ where: { storeId } }),
+    getStoreConsent(storeId),
+  ]);
+  return toStatus(row, consent);
+}
+
+/** Aceite mais recente do termo (qualquer versão). Linhas só são inseridas, nunca alteradas. */
+export async function getStoreConsent(storeId: string): Promise<{ version: string; acceptedAt: Date; actorRole: string } | null> {
+  const row = await prisma.storeAsaasConsent.findFirst({
+    where: { storeId }, orderBy: { acceptedAt: 'desc' },
+    select: { termsVersion: true, acceptedAt: true, actorRole: true },
+  });
+  return row ? { version: row.termsVersion, acceptedAt: row.acceptedAt, actorRole: row.actorRole } : null;
+}
+
+/** Registra o aceite da versão vigente do termo (comprovação: INSERT puro). */
+export async function recordStoreConsent(params: {
+  storeId: string; actorId: string; actorRole: StoreConsentActorRole; ip: string | null; userAgent: string | null;
+}): Promise<void> {
+  await prisma.storeAsaasConsent.create({
+    data: {
+      storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
+      termsVersion: STORE_ASAAS_TERMS_VERSION,
+      ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
+    },
+  });
 }
 
 /**
@@ -75,7 +115,9 @@ async function probeKey(storeId: string, key: string): Promise<boolean> {
   }
 }
 
-export async function connectStoreAsaas(storeId: string, rawApiKey: string, actorId: string): Promise<StoreAsaasStatus> {
+export async function connectStoreAsaas(
+  storeId: string, rawApiKey: string, actorId: string, consent: StoreConsentContext,
+): Promise<StoreAsaasStatus> {
   const key = String(rawApiKey || '').trim();
   let keyEnv: 'sandbox' | 'production';
   if (key.startsWith('$aact_hmlg_')) keyEnv = 'sandbox';
@@ -140,6 +182,13 @@ export async function connectStoreAsaas(storeId: string, rawApiKey: string, acto
     });
     await tx.storeAsaasAudit.create({
       data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
+    });
+    // Aceite do termo na MESMA transação: não existe conta conectada sem a comprovação.
+    await tx.storeAsaasConsent.create({
+      data: {
+        storeId, actorId, actorRole: consent.actorRole, termsVersion: STORE_ASAAS_TERMS_VERSION,
+        ip: consent.ip, userAgent: consent.userAgent ? consent.userAgent.slice(0, 500) : null,
+      },
     });
     // Customers do Asaas pertencem à conta: com conta nova, o cache de StoreAsaasCustomer não vale mais.
     await tx.storeAsaasCustomer.deleteMany({ where: { storeId } });

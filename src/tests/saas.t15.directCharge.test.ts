@@ -35,6 +35,7 @@ import { ownerIdForStore } from './helpers/storeOwner';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { connectStoreAsaas } from '../services/asaasLoja/account';
 import { saoPauloToday } from '../services/asaasLoja/charge';
+import { TEST_CONSENT, grantStoreConsent } from './helpers/storeConsent';
 
 const DOMAIN = '@saas15.test';
 const STORE_KEY = '$aact_hmlg_LOJA';
@@ -115,6 +116,7 @@ async function storeWithAccount(opts: {
         environment: 'sandbox', status: account,
       },
     });
+    await grantStoreConsent(store.id);
   }
   return { store, product };
 }
@@ -448,7 +450,7 @@ describe('t1.5 — provider asaas_loja', () => {
     const { store } = await storeWithAccount();
     await prisma.storeAsaasCustomer.create({ data: { storeId: store.id, userId: cliente.userId, customerId: 'cus_velho' } });
     getAs.mockResolvedValueOnce({ balance: 0 });
-    await connectStoreAsaas(store.id, '$aact_hmlg_NOVACHAVE1234', 'actor-t15');
+    await connectStoreAsaas(store.id, '$aact_hmlg_NOVACHAVE1234', 'actor-t15', TEST_CONSENT);
     expect(await prisma.storeAsaasCustomer.count({ where: { storeId: store.id } })).toBe(0);
   });
 });

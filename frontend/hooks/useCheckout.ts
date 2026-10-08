@@ -27,7 +27,7 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => 
 // { order, card:{status,approved} } (cartão, aprovado/pendente — recusado
 // vem como HTTP 402 e cai no catch); fluxo legado (pedido já pago pela
 // carteira) retorna o pedido puro no corpo.
-type OrderLike = { _id: string };
+type OrderLike = { _id: string; paymentProvider?: string };
 type PlaceOrderResponse =
   | { order: OrderLike; pix?: Omit<PixInfo, 'orderId'>; card?: { status: string; approved: boolean } }
   | OrderLike;
@@ -97,6 +97,8 @@ export function useCheckout() {
   const [pendingDebt, setPendingDebt] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
   const [pixData, setPixData] = useState<PixInfo | null>(null);
+  // Provedor e recebedor do Pix, guardados na criação: o carrinho é limpo logo depois e a loja some.
+  const [pixNotice, setPixNotice] = useState<{ paymentProvider: string | null; recipientName: string | null }>({ paymentProvider: null, recipientName: null });
   const [cardPayload, setCardPayload] = useState<CardPayload | null>(null);
   const [installmentCount, setInstallmentCount] = useState(1);
   const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
@@ -289,6 +291,7 @@ export function useCheckout() {
       clear();
 
       if (pix) {
+        setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
         setPixData({ ...pix, orderId: order._id });
       } else {
         router.push(`/store-order/${order._id}`);
@@ -313,7 +316,7 @@ export function useCheckout() {
   return {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
-    isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, closePix,
+    isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf,
