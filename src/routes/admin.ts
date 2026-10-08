@@ -830,6 +830,7 @@ const switchesSchema = z
     motoboyShareDirect: z.number().min(0).max(100),
     directCardEnabled: z.boolean(),
     transferBlockHours: z.number().int().min(1).max(720),
+    confirmSettlement: z.string().max(60),
   })
   .partial()
   .strict();
@@ -855,21 +856,59 @@ router.get('/switches', authenticate, authorizePermission('settings:manage'), as
   }
 });
 
+const isCeo = (req: any) => (req.user?.activeRole || req.user?.role) === 'ceo';
+
+// Riscos da troca de modo, com os números reais, antes de o CEO confirmar.
+router.get('/switches/settlement-preview', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
+  try {
+    if (!isCeo(req)) return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação', code: 'CEO_ONLY' });
+    const to = req.query.to;
+    if (to !== 'custodia' && to !== 'direto') return res.status(400).json({ error: 'Modo inválido' });
+    const { settlementSwitchPreview } = await import('../services/settlementSwitch');
+    return res.json(await settlementSwitchPreview(to));
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao calcular os riscos da troca' });
+  }
+});
+
 router.put('/switches', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
   try {
     const parsed = switchesSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ error: 'Configuração inválida' });
-    const patch: Record<string, any> = parsed.data;
+    const { confirmSettlement, ...patch } = parsed.data as Record<string, any>;
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
     // Modo de liquidação e cartão direto decidem para onde vai o dinheiro dos pedidos:
     // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
     const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled'];
-    const activeRole = req.user?.activeRole || req.user?.role;
-    if (CEO_ONLY_SWITCHES.some((k) => k in patch) && activeRole !== 'ceo') {
+    if (CEO_ONLY_SWITCHES.some((k) => k in patch) && !isCeo(req)) {
       return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação e o cartão direto', code: 'CEO_ONLY' });
+    }
+    // Trocar o modo muda para onde vai o dinheiro dos pedidos novos: bloqueios primeiro,
+    // depois a frase exata (o CEO viu os riscos no preview).
+    let settlementChange: { from: string; to: string } | null = null;
+    if ('settlementMode' in patch) {
+      const { getSaasConfig } = await import('../utils/settlement');
+      const { settlementSwitchPreview } = await import('../services/settlementSwitch');
+      const from = (await getSaasConfig()).settlementMode;
+      if (patch.settlementMode !== from) {
+        const preview = await settlementSwitchPreview(patch.settlementMode);
+        if (preview.blockers.length > 0) {
+          return res.status(409).json({ error: 'Troca de modo bloqueada', code: 'SETTLEMENT_BLOCKED', blockers: preview.blockers });
+        }
+        if (confirmSettlement !== preview.confirmPhrase) {
+          return res.status(400).json({
+            error: `Para trocar o modo, digite exatamente: ${preview.confirmPhrase}`,
+            code: 'SETTLEMENT_CONFIRM_REQUIRED',
+            confirmPhrase: preview.confirmPhrase,
+            risks: preview.risks,
+          });
+        }
+        settlementChange = { from, to: patch.settlementMode };
+      }
     }
     const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
+    if (settlementChange) logger.warn('[settlement][AUDIT] modo de liquidação trocado', { by: req.user?.id, ...settlementChange });
     return res.json(switchesView(cfg));
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao salvar os freios' });

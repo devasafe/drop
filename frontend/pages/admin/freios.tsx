@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { useAuth } from '../../contexts/AuthContext';
+import { SettlementSwitchCard } from '../../components/drop/settlement/SettlementSwitchCard';
 import styles from './Freios.module.css';
 
 type SwitchKey = 'rankingPrizesEnabled' | 'benefitsRedeemEnabled' | 'gamificationPointsEnabled';
@@ -34,7 +36,9 @@ const SWITCHES: SwitchDef[] = [
 
 export default function FreiosPage() {
   const router = useRouter();
-  const [state, setState] = useState<Record<SwitchKey, boolean> | null>(null);
+  const { user } = useAuth() as any;
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  const [state, setState] = useState<(Record<SwitchKey, boolean> & { settlementMode?: 'custodia' | 'direto' }) | null>(null);
   const [busy, setBusy] = useState<SwitchKey | null>(null);
   const [msg, setMsg] = useState('');
 
@@ -67,6 +71,13 @@ export default function FreiosPage() {
           </header>
 
           {msg && <div className={styles.msg}>{msg}</div>}
+
+          {isCeo && state?.settlementMode && (
+            <SettlementSwitchCard
+              mode={state.settlementMode}
+              onChanged={(m) => setState((prev) => (prev ? { ...prev, settlementMode: m } : prev))}
+            />
+          )}
 
           <div className={styles.list}>
             {SWITCHES.map((s) => {

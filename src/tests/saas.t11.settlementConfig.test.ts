@@ -15,7 +15,7 @@ describe('t1.1 — configuração do modo SaaS', () => {
   it('CEO troca o settlementMode pelos freios; leitura pública reflete', async () => {
     await updatePlatformConfig({ settlementMode: 'custodia', billingModel: 'mensalidade', directCardEnabled: false }, 'test');
     const ceo = await createTestUser('ceo', DOMAIN);
-    const put = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo)).send({ settlementMode: 'direto' });
+    const put = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo)).send({ settlementMode: 'direto', confirmSettlement: 'TROCAR PARA SAAS' });
     expect(put.status).toBe(200);
     expect(await isDirectMode()).toBe(true);
     const pub = await request(app).get('/api/settings/saas');

@@ -639,7 +639,12 @@ describe('M6 — settlementMode e directCardEnabled só pelo CEO', () => {
 
   it('CEO continua alterando o modo de liquidação', async () => {
     const ceo = await createTestUser('ceo', DOMAIN);
-    const res = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo)).send({ settlementMode: 'custodia' });
+    (env as any).PAYMENT_GATEWAY = 'asaas';
+    const outGateway = env.PAYOUT_GATEWAY;
+    (env as any).PAYOUT_GATEWAY = 'asaas';
+    const res = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo))
+      .send({ settlementMode: 'custodia', confirmSettlement: 'TROCAR PARA APP' });
+    (env as any).PAYOUT_GATEWAY = outGateway;
     expect(res.status).toBe(200);
     expect(res.body.settlementMode).toBe('custodia');
   });
