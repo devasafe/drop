@@ -34,7 +34,7 @@ import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
-import { isDirectOrder, isDirectMode } from '../utils/settlement';
+import { isDirectOrder } from '../utils/settlement';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -1262,9 +1262,10 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     emitOrderAcceptedByStore(order);
 
     // [Plan1] Verificar plano da loja antes de criar Delivery.
-    // Modo direto (pedido asaas_loja ou plataforma em 'direto'): plano único, entrega sempre
-    // pelo pool de motoboys — o plano da loja não é consultado.
-    const directFlow = isDirectOrder(order) || (await isDirectMode());
+    // Pedido do modo direto (asaas_loja): plano único, entrega sempre pelo pool de motoboys —
+    // o plano da loja não é consultado. Decide pelo pedido, não pelo settlementMode atual:
+    // o pedido termina no modo em que nasceu, mesmo que a plataforma tenha trocado de modo.
+    const directFlow = isDirectOrder(order);
     let storePlan = 2;
     if (!directFlow) {
       const storeSub = await findSubByStoreId(String(store.id)); // store vem do Prisma (sem _id)
