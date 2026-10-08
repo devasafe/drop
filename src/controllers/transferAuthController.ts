@@ -83,6 +83,8 @@ async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind:
   if (!t) return refuse('UNKNOWN_TRANSFER', req.transferId);
   if (t.storeId !== storeId) return refuse('STORE_MISMATCH', t.id);
   if (t.status !== 'requested') return refuse('INVALID_STATUS', t.id);
+  // Id de uma tentativa anterior (já dada como falha e substituída): nunca aprovar.
+  if ((t.previousAsaasTransferIds ?? []).includes(req.asaasId)) return refuse('PREVIOUS_TRANSFER', t.id);
   if (req.valueCents === null || req.valueCents !== Math.round(Number(t.amount) * 100)) return refuse('AMOUNT_MISMATCH', t.id);
   let snapshot = '';
   try {
@@ -100,6 +102,7 @@ async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind:
       status: 'requested',
       authorizedAt: null,
       OR: [{ asaasTransferId: null }, { asaasTransferId: req.asaasId }],
+      NOT: { previousAsaasTransferIds: { has: req.asaasId } },
     },
     data: { authorizedAt: new Date(), asaasTransferId: req.asaasId },
   });

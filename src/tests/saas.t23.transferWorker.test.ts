@@ -37,6 +37,7 @@ import { runMotoboyTransfers } from '../jobs/motoboyTransfers.job';
 const DOMAIN = '@saas23.test';
 const STORE_KEY = '$aact_hmlg_LOJA_23XX';
 const WH_TOKEN = 'd'.repeat(48);
+const AUTH_TOKEN = 'e'.repeat(48);
 const PIX = '12345678909';
 const sha = (s: string) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 const postAs = asaasClient.postAs as jest.Mock;
@@ -83,6 +84,7 @@ async function setupStore() {
     data: {
       storeId: store.id, apiKeyEncrypted: encryptSensitiveData(STORE_KEY), apiKeyLast4: '23XX', environment: 'sandbox', status: 'valid',
       paymentWebhookId: 'wh_23', paymentWebhookTokenHash: sha(WH_TOKEN),
+      authWebhookTokenHash: sha(AUTH_TOKEN), authWebhookConfirmedAt: new Date(),
     },
   });
   await grantStoreConsent(store.id);
@@ -90,7 +92,7 @@ async function setupStore() {
 }
 
 let seq = 0;
-async function mkTransfer(storeId: string, motoboyId: string, o: Partial<{ status: string; amount: number; attempts: number; nextAttemptAt: Date; orderId: string; key: string }> = {}) {
+async function mkTransfer(storeId: string, motoboyId: string, o: Partial<{ status: string; amount: number; attempts: number; nextAttemptAt: Date; orderId: string; key: string; lastError: string }> = {}) {
   seq += 1;
   return prisma.motoboyTransfer.create({
     data: {
@@ -99,10 +101,11 @@ async function mkTransfer(storeId: string, motoboyId: string, o: Partial<{ statu
       storeId,
       motoboyId,
       amount: o.amount ?? 12.5,
-      pixKeyEncrypted: encryptSensitiveData(o.key ?? PIX),
+      pixKeyEncrypted: o.key === '' ? '' : encryptSensitiveData(o.key ?? PIX),
       pixKeyType: 'CPF',
       status: o.status ?? 'pending',
       attempts: o.attempts ?? 0,
+      lastError: o.lastError ?? null,
       nextAttemptAt: o.nextAttemptAt ?? new Date(Date.now() - MIN),
     },
   });
@@ -517,5 +520,206 @@ describe('bloqueio do aceite (transferência vencida)', () => {
     const res = await accept(o, lojista);
 
     expect(res.status).toBe(200);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fix round 1 (R13, R14, R15, m4, m6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const hookT = (storeId: string, event: string, ref: string, asaasId: string) =>
+  request(app).post(`/webhooks/asaas/loja/${storeId}`).set('asaas-access-token', WH_TOKEN)
+    .send({ id: `evt_t23_${Math.random().toString(36).slice(2, 10)}`, event, transfer: { id: asaasId, externalReference: ref, status: event.replace('TRANSFER_', '') } });
+
+/** tra_A enviada e recusada pelo Asaas via webhook; pronta para a retentativa. */
+async function failedAfterTraA() {
+  const s = await setupStore();
+  const t = await mkTransfer(s.store.id, s.motoboy.userId);
+  postAs.mockResolvedValueOnce({ id: 'tra_A' });
+  await runMotoboyTransfers();
+  await hookT(s.store.id, 'TRANSFER_FAILED', t.id, 'tra_A');
+  expect((await rowOf(t.id))!.status).toBe('failed');
+  await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { nextAttemptAt: new Date(Date.now() - MIN) } });
+  adminNotify.mockClear();
+  return { ...s, t };
+}
+
+describe('R13 — eventos atrasados da transferência anterior', () => {
+  it.each(['TRANSFER_FAILED', 'TRANSFER_CANCELLED'])('%s atrasado de tra_A logo após o claim da retentativa não derruba a tentativa nova', async (ev) => {
+    const { store, t } = await failedAfterTraA();
+    postAs.mockImplementationOnce(async () => {
+      await hookT(store.id, ev, t.id, 'tra_A'); // chega com o vínculo nulo
+      return { id: 'tra_B' };
+    });
+
+    await runMotoboyTransfers();
+
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('requested');
+    expect(row!.asaasTransferId).toBe('tra_B');
+    expect(row!.previousAsaasTransferIds).toEqual(['tra_A']);
+    expect(row!.attempts).toBe(2);
+  });
+
+  it('FAILED atrasado de tra_A depois do vínculo de tra_B → nada muda', async () => {
+    const { store, t } = await failedAfterTraA();
+    postAs.mockResolvedValueOnce({ id: 'tra_B' });
+    await runMotoboyTransfers();
+    await hookT(store.id, 'TRANSFER_FAILED', t.id, 'tra_A');
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('requested');
+    expect(row!.asaasTransferId).toBe('tra_B');
+  });
+
+  it('DONE atrasado de tra_A não conclui e alerta o admin', async () => {
+    const { store, motoboy, t } = await failedAfterTraA();
+    postAs.mockImplementationOnce(async () => {
+      await hookT(store.id, 'TRANSFER_DONE', t.id, 'tra_A');
+      return { id: 'tra_B' };
+    });
+
+    await runMotoboyTransfers();
+
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('requested');
+    expect(row!.doneAt).toBeNull();
+    expect(row!.asaasTransferId).toBe('tra_B');
+    expect(adminNotify).toHaveBeenCalled();
+    expect(emit.mock.calls.some((c) => c[0] === `user:${motoboy.userId}`)).toBe(false);
+  });
+
+  it('DONE de tra_B (vínculo atual) conclui normalmente', async () => {
+    const { store, t } = await failedAfterTraA();
+    postAs.mockResolvedValueOnce({ id: 'tra_B' });
+    await runMotoboyTransfers();
+    await hookT(store.id, 'TRANSFER_DONE', t.id, 'tra_B');
+    expect((await rowOf(t.id))!.status).toBe('done');
+  });
+
+  it('autorização (2.2) de tra_A depois da retentativa → REFUSED; tra_B → APPROVED', async () => {
+    const { store, t } = await failedAfterTraA();
+    let authA: any = null;
+    let authB: any = null;
+    const auth = (id: string) => request(app).post(`/webhooks/asaas/loja/${store.id}/autorizacao`).set('asaas-access-token', AUTH_TOKEN)
+      .send({ type: 'TRANSFER', transfer: { id, value: 12.5, externalReference: t.id, pixAddressKey: PIX } });
+    postAs.mockImplementationOnce(async () => {
+      authA = (await auth('tra_A')).body;
+      authB = (await auth('tra_B')).body;
+      return { id: 'tra_B' };
+    });
+
+    await runMotoboyTransfers();
+
+    expect(authA.status).toBe('REFUSED');
+    expect(authB).toEqual({ status: 'APPROVED' });
+  });
+});
+
+describe('R14 — envio exige a trava de autorização confirmada', () => {
+  it('conta sem authWebhookConfirmedAt → failed AUTH_WEBHOOK_NOT_CONFIRMED, sem Asaas, sem gastar tentativa, alerta', async () => {
+    const { store, motoboy } = await setupStore();
+    await prisma.storeAsaasAccount.update({ where: { storeId: store.id }, data: { authWebhookConfirmedAt: null } });
+    const t = await mkTransfer(store.id, motoboy.userId);
+
+    await runMotoboyTransfers();
+
+    expect(postAs).not.toHaveBeenCalled();
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('failed');
+    expect(row!.lastError).toBe('AUTH_WEBHOOK_NOT_CONFIRMED');
+    expect(row!.attempts).toBe(0);
+    expect(row!.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
+    expect(adminNotify).toHaveBeenCalled();
+  });
+});
+
+describe('R15 — bloqueio só por causa da loja e com envio ligado', () => {
+  async function directOrder(storeId: string) {
+    const cliente = await createTestUser('cliente', DOMAIN);
+    const product = await prisma.product.create({ data: { storeId, name: 'Item', price: 20, quantity: 10 } } as any);
+    return prisma.order.create({
+      data: {
+        customerId: cliente.userId, storeId, items: { create: [{ productId: product.id, quantity: 1, price: 20 }] },
+        subtotal: 20, totalValue: 28, deliveryFee: 8, deliveryDistance: 3, status: 'criado', paymentMethod: 'pix',
+        paymentStatus: 'paid', asaasChargeStatus: 'received', paymentProvider: 'asaas_loja',
+      } as any,
+    });
+  }
+  async function scenario(o: { lastError?: string; status?: string }) {
+    const { store, motoboy, lojista } = await setupStore();
+    const t = await mkTransfer(store.id, motoboy.userId, { status: o.status ?? 'failed', attempts: 1, lastError: o.lastError });
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { createdAt: new Date(Date.now() - 25 * HOUR) } });
+    const ord = await directOrder(store.id);
+    return request(app).post(`/api/orders/${ord.id}/accept`).set('Authorization', bearer(lojista)).send({});
+  }
+
+  it('envio desligado → não bloqueia', async () => {
+    await updatePlatformConfig({ directTransfersEnabled: false } as any, 'test');
+    expect((await scenario({})).status).toBe(200);
+  });
+
+  it.each([
+    ['failed', 'DAILY_LIMIT'],
+    ['failed', 'MOTOBOY_PIX_KEY_MISSING'],
+    ['failed_final', 'AMOUNT_OVER_LIMIT'],
+  ])('%s %s (causa fora da loja) → não bloqueia', async (status, lastError) => {
+    expect((await scenario({ status, lastError })).status).toBe(200);
+  });
+
+  it('AUTH_WEBHOOK_NOT_CONFIRMED (causa da loja) → bloqueia', async () => {
+    const res = await scenario({ lastError: 'AUTH_WEBHOOK_NOT_CONFIRMED' });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('STORE_TRANSFER_PENDING');
+  });
+
+  it('failed comum (erro do Asaas) há mais de 24 h → bloqueia', async () => {
+    const res = await scenario({ lastError: 'invalid_pixKey' });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('m4 — lastError não guarda a chave Pix', () => {
+  it('description do Asaas com a chave → grava o code, sem a chave', async () => {
+    const { store, motoboy } = await setupStore();
+    const t = await mkTransfer(store.id, motoboy.userId);
+    postAs.mockRejectedValue(new AsaasApiError(400, [{ code: 'invalid_pixAddressKey', description: 'Chave 123.456.789-09 (12345678909) ou joao@gmail.com inválida' } as any]));
+
+    await runMotoboyTransfers();
+
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('failed');
+    expect(row!.lastError).toContain('invalid_pixAddressKey');
+    expect(row!.lastError).not.toMatch(/\d{3}/);
+    expect(row!.lastError).not.toContain('joao@gmail.com');
+  });
+});
+
+describe('m6 — chave Pix ausente não gasta tentativas', () => {
+  it('sem chave: pula sem incrementar; com chave cadastrada: tira o snapshot e envia', async () => {
+    const { store, motoboy } = await setupStore();
+    const t = await mkTransfer(store.id, motoboy.userId, { key: '', status: 'failed', lastError: 'MOTOBOY_PIX_KEY_MISSING' });
+
+    await runMotoboyTransfers();
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { nextAttemptAt: new Date(Date.now() - MIN) } });
+    await runMotoboyTransfers();
+
+    expect(postAs).not.toHaveBeenCalled();
+    let row = await rowOf(t.id);
+    expect(row!.status).toBe('failed');
+    expect(row!.lastError).toBe('MOTOBOY_PIX_KEY_MISSING');
+    expect(row!.attempts).toBe(0);
+
+    await prisma.user.update({ where: { id: motoboy.userId }, data: { asaas: { status: 'none', pixKey: 'joao@gmail.com', pixKeyType: 'EMAIL' } } as any });
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { nextAttemptAt: new Date(Date.now() - MIN) } });
+    postAs.mockResolvedValue({ id: 'tra_m6' });
+
+    await runMotoboyTransfers();
+
+    expect(postAs).toHaveBeenCalledTimes(1);
+    expect(postAs.mock.calls[0][2]).toMatchObject({ pixAddressKey: 'joao@gmail.com', pixAddressKeyType: 'EMAIL' });
+    row = await rowOf(t.id);
+    expect(row!.status).toBe('requested');
+    expect(row!.attempts).toBe(1);
+    expect(row!.pixKeyEncrypted).not.toBe('');
   });
 });

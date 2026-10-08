@@ -1304,6 +1304,7 @@ model MotoboyTransfer {
   attempts         Int       @default(0)
   nextAttemptAt    DateTime  @default(now())
   asaasTransferId  String?
+  previousAsaasTransferIds String[] @default([])
   lastError        String?
   authorizedAt     DateTime?
   doneAt           DateTime?
