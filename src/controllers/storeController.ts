@@ -264,6 +264,19 @@ export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Respons
     if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
+    // Fail closed: a prova do aceite do termo Asaas (StoreAsaasConsent) é imutável e não
+    // sai em cascata. Loja com termo aceito não é apagada — checado ANTES de qualquer remoção.
+    const consents = await prisma.storeAsaasConsent.count({ where: { storeId: store.id } });
+    if (consents > 0) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          message: 'Esta loja aceitou o termo de autorização do Asaas e não pode ser excluída. Fale com o suporte.',
+          statusCode: 409,
+          code: 'STORE_HAS_CONSENT',
+        },
+      });
+    }
     // Remove produtos e categorias da loja
     await prisma.product.deleteMany({ where: { storeId: store.id } });
     await prisma.category.deleteMany({ where: { storeId: store.id } });

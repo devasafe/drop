@@ -1250,7 +1250,9 @@ model StoreAsaasConsent {
   ip           String?
   userAgent    String?
   acceptedAt   DateTime @default(now())
-  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// Restrict: a prova do aceite nunca sai em cascata com a loja. Um trigger no Postgres
+  /// (migration 20261009160000) recusa UPDATE/DELETE: a tabela só aceita INSERT.
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   @@index([storeId, acceptedAt])
 }
