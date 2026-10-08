@@ -17,6 +17,19 @@ export function maskAsaasErrors(errors: unknown): Array<{ code: string; descript
 }
 
 /**
+ * lastError para a visão da LOJA: códigos nossos (ex.: STUCK_REQUESTED) passam; `code: texto`
+ * mantém o code e mascara o texto; qualquer outro texto (linhas antigas com a descrição crua do
+ * Asaas) sai mascarado.
+ */
+export function storeSafeLastError(lastError: string | null | undefined): string | null {
+  if (!lastError) return lastError ?? null;
+  if (/^[A-Z][A-Z0-9_]*$/.test(lastError)) return lastError;
+  const m = /^([A-Za-z][A-Za-z0-9_]*): ([\s\S]*)$/.exec(lastError);
+  if (m) return `${m[1]}: ${maskSensitiveText(m[2])}`;
+  return maskSensitiveText(lastError);
+}
+
+/**
  * lastError seguro: o `code` do Asaas e a descrição mascarada. Erros que não são do Asaas
  * (ex.: StorePaymentsNotReadyError) têm mensagem nossa e passam como estão.
  */

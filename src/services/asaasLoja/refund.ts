@@ -5,6 +5,7 @@ import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
 import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import { storeKey, translate, StorePaymentsNotReadyError } from './charge';
+import { safeErrorText } from '../../utils/safeErrorText';
 
 /**
  * Estorno de pedido no modo SaaS "direto": POST /payments/{id}/refund com a chave da
@@ -201,9 +202,8 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     const definite = err instanceof StorePaymentsNotReadyError
       || (err instanceof AsaasApiError && err.status >= 400 && err.status < 500 && err.status !== 408); // 408: o Asaas pode ter estornado
     if (definite) {
-      const message = err instanceof AsaasApiError
-        ? (err.errors?.[0]?.description || err.message)
-        : (err as Error).message;
+      // M3: nunca a descrição crua do Asaas (pode ecoar chave/documento) — code + texto mascarado.
+      const message = err instanceof AsaasApiError ? safeErrorText(err) : (err as Error).message;
       const backoff = DIRECT_REFUND_BACKOFF_MS[attempts - 1];
       if (backoff === undefined) {
         // 6ª falha: sem nova retentativa, o admin resolve.

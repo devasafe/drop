@@ -7,6 +7,7 @@ import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { getEffectivePermissions } from './rolePermissionsController';
 import { executeDirectRefund, markDirectRefundDone } from '../services/asaasLoja/refund';
+import { storeSafeLastError } from '../utils/safeErrorText';
 
 /** Task 3.4 — botão "Estornar" (loja e admin) do pedido no modo direto. */
 
@@ -23,7 +24,7 @@ export function serializeDirectRefund(r: DirectRefund) {
     status: r.status,
     amount: Number(r.amount),
     attempts: r.attempts,
-    lastError: r.lastError,
+    lastError: storeSafeLastError(r.lastError), // M3: nunca texto cru do Asaas
     nextAttemptAt: r.nextAttemptAt,
     resolvedBy: r.resolvedBy,
     doneAt: r.doneAt,

@@ -7,6 +7,7 @@ import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { decryptSensitiveData } from '../utils/encryption';
 import { maskPixKey } from '../services/asaasLoja/motoboyTransfer';
+import { storeSafeLastError } from '../utils/safeErrorText';
 
 /** Task 2.4 — visões das transferências Pix da loja ao motoboy (modo direto). */
 
@@ -50,6 +51,13 @@ function serialize(t: MotoboyTransfer) {
   };
 }
 
+/** Visão da LOJA (M3): sem a resolução interna do admin e com lastError só code/mascarado. */
+function serializeForStore(t: MotoboyTransfer) {
+  const { resolvedBy: _rb, resolutionNote: _rn, ...rest } = serialize(t);
+  void _rb; void _rn;
+  return { ...rest, lastError: storeSafeLastError(t.lastError) };
+}
+
 async function withNames<T extends { storeId: string; motoboyId: string }>(rows: T[]) {
   const [stores, users] = await Promise.all([
     prisma.store.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.storeId))] } }, select: { id: true, name: true } }),
@@ -76,7 +84,7 @@ export async function listStoreTransfers(req: any, res: Response) {
   if (!(await isStoreOwner(storeId, req.user?.id))) throw new AppError('Sem permissão para esta loja', 403, true, 'FORBIDDEN');
   const rows = await prisma.motoboyTransfer.findMany({ where: { storeId }, orderBy: { createdAt: 'desc' }, take: 100 });
   const names = await withNames(rows);
-  return res.json({ success: true, data: rows.map((r) => ({ ...serialize(r), motoboyName: names.motoboyName(r.motoboyId) })) });
+  return res.json({ success: true, data: rows.map((r) => ({ ...serializeForStore(r), motoboyName: names.motoboyName(r.motoboyId) })) });
 }
 
 /** GET /api/admin/transfers?status= */

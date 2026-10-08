@@ -44,6 +44,7 @@ import { compensateFailedOrder } from '../services/orderCompensation';
 import { isDirectMode, isDirectOrder } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
 import { AppError } from '../utils/AppError';
+import { storeSafeLastError } from '../utils/safeErrorText';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
 import { confirmDirectOrderPaid } from '../services/asaasLoja/orderPaymentDirect';
 
@@ -865,7 +866,7 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
         where: { orderId: id },
         select: { status: true, amount: true, lastError: true, attempts: true },
       });
-      if (dr) directRefund = { status: dr.status, amount: Number(dr.amount), lastError: dr.lastError, attempts: dr.attempts };
+      if (dr) directRefund = { status: dr.status, amount: Number(dr.amount), lastError: storeSafeLastError(dr.lastError), attempts: dr.attempts };
     }
 
     return res.json({
