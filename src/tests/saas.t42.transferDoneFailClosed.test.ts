@@ -118,3 +118,41 @@ describe('I2 — TRANSFER_DONE fail closed', () => {
     expect(adminNotify).not.toHaveBeenCalled();
   });
 });
+
+describe('I3 — DONE de uma tentativa ANTERIOR trava a linha atual', () => {
+  const withPrevious = async (status: string, extra: any = {}) => {
+    const { store, motoboy } = await setupStore();
+    const t = await mkTransfer(store.id, motoboy.userId, status, extra.asaasTransferId ?? null);
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { previousAsaasTransferIds: ['tra_old'], ...extra } });
+    return { store, motoboy, t };
+  };
+
+  it('requested sem autorização → uncertain PREVIOUS_DONE + alerta, nunca done', async () => {
+    const { store, motoboy, t } = await withPrevious('requested');
+    await done(store.id, { id: 'tra_old', externalReference: t.id });
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
+    expect(row!.doneAt).toBeNull();
+    expect(adminNotify).toHaveBeenCalled();
+    expect(emit.mock.calls.some((c) => c[0] === `user:${motoboy.userId}`)).toBe(false);
+  });
+
+  it.each(['pending', 'failed'])('%s → uncertain PREVIOUS_DONE (o job não reenvia)', async (st) => {
+    const { store, t } = await withPrevious(st);
+    await done(store.id, { id: 'tra_old', externalReference: t.id });
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('requested JÁ autorizado → só alerta (o admin resolve o possível pagamento em dobro)', async () => {
+    const { store, t } = await withPrevious('requested', { authorizedAt: new Date(), asaasTransferId: 'tra_new' });
+    await done(store.id, { id: 'tra_old', externalReference: t.id });
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('requested');
+    expect(row!.lastError).toBeNull();
+    expect(adminNotify).toHaveBeenCalled();
+  });
+});

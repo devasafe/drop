@@ -402,9 +402,19 @@ export async function reconcileTransferFromWebhook(storeId: string, event: strin
     return;
   }
   if (asaasId && (t.previousAsaasTransferIds ?? []).includes(asaasId)) {
-    // R13: evento atrasado de uma tentativa ANTERIOR — nunca mexe na tentativa atual.
+    // R13: evento atrasado de uma tentativa ANTERIOR — nunca conclui a tentativa atual.
     logger.warn('[motoboyTransfer] webhook de transferência anterior (ignorado)', { transferId: t.id, storeId, event });
     if (event === 'TRANSFER_DONE') {
+      // I3: o Pix anterior SAIU. Trava a linha (uncertain) para o job não reenviar e a trava de
+      // autorização (só aprova `requested`) recusar a tentativa nova ainda não autorizada. Se a
+      // nova já foi autorizada, o dinheiro pode ter saído em dobro: só alerta, o admin resolve.
+      await prisma.motoboyTransfer.updateMany({
+        where: {
+          id: t.id,
+          OR: [{ status: 'requested', authorizedAt: null }, { status: { in: ['pending', 'failed'] } }],
+        },
+        data: { status: 'uncertain', lastError: 'PREVIOUS_DONE' },
+      });
       alertAdmin(t, 'Pix ao motoboy: tentativa anterior concluída', 'uma transferência dada como falha foi concluída no Asaas; risco de pagamento em dobro — conferir.');
     }
     return;

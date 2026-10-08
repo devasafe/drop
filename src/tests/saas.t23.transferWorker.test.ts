@@ -581,7 +581,9 @@ describe('R13 — eventos atrasados da transferência anterior', () => {
     await runMotoboyTransfers();
 
     const row = await rowOf(t.id);
-    expect(row!.status).toBe('requested');
+    // R22 (I3): a tentativa em voo, ainda sem autorização, é travada em uncertain.
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
     expect(row!.doneAt).toBeNull();
     expect(row!.asaasTransferId).toBe('tra_B');
     expect(adminNotify).toHaveBeenCalled();
