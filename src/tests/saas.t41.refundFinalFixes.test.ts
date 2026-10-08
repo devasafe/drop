@@ -352,3 +352,39 @@ describe('I6 — PAYMENT_PARTIALLY_REFUNDED conclui o DirectRefund quando o valo
     expect((await rowOf(a.refund.id)).status).toBe('requested');
   });
 });
+
+describe('re-revisão I-1 — estorno parcial só conclui com refund DONE (e o mesmo id, se vinculado)', () => {
+  const partial = (storeId: string, paymentId: string, payment: any) =>
+    request(app).post(`/webhooks/asaas/loja/${storeId}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: 'PAYMENT_PARTIALLY_REFUNDED', payment: { id: paymentId, status: 'RECEIVED', value: 50, ...payment } });
+
+  it.each(['PENDING', 'AWAITING_CRITICAL_ACTION_AUTHORIZATION'])('refund %s com valor igual → não conclui e alerta', async (st) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_q1', status: st, value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('asaasRefundId vinculado diferente do refund DONE → não conclui e alerta', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested', asaasRefundId: 'rfd_bound' } as any });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_other', status: 'DONE', value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('asaasRefundId vinculado igual ao refund DONE → conclui', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested', asaasRefundId: 'rfd_bound' } as any });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_bound', status: 'DONE', value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('done');
+  });
+
+  it('com refunds[] presente, refundedValue (acumulado) é ignorado', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_q2', status: 'DONE', value: 20 }], refundedValue: 30 });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+  });
+});

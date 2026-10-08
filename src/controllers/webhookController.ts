@@ -152,40 +152,38 @@ async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: stri
 }
 
 /**
- * Valores estornados que o payload informa. CONFIRMAR NO SANDBOX o formato do
- * PAYMENT_PARTIALLY_REFUNDED: aceitamos `payment.refunds[].value` (exceto cancelados) e
- * `payment.refundedValue`. Nunca `payment.value` (é o valor original da cobrança).
+ * Estorno parcial confere com o DirectRefund? CONFIRMAR NO SANDBOX o formato do
+ * PAYMENT_PARTIALLY_REFUNDED. Regras (fail closed):
+ *  - com `payment.refunds[]`: só itens com status DONE e valor > 0 contam; se a linha já tem o
+ *    id do estorno vinculado pela trava (asaasRefundId), o item precisa ter o MESMO id;
+ *  - sem `refunds[]`: usa `payment.refundedValue` (> 0), só se a linha não tem id vinculado;
+ *  - nunca `payment.value` (é o valor original da cobrança).
  */
-function refundedCentsFromPayment(payment: any): number[] {
-  const out: number[] = [];
-  const add = (v: unknown) => {
+function partialRefundMatches(payment: any, expectedCents: number, boundRefundId: string | null): boolean {
+  const cents = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
     const n = Number(v);
-    if (v !== null && v !== undefined && v !== '' && Number.isFinite(n)) out.push(Math.round(n * 100));
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
   };
   if (Array.isArray(payment?.refunds)) {
-    for (const r of payment.refunds) {
-      if (String(r?.status ?? '').toUpperCase() === 'CANCELLED') continue;
-      add(r?.value);
-    }
+    return payment.refunds.some((r: any) =>
+      String(r?.status ?? '').toUpperCase() === 'DONE'
+      && cents(r?.value) === expectedCents
+      && (!boundRefundId || String(r?.id ?? '') === boundRefundId));
   }
-  add(payment?.refundedValue);
-  return out;
+  if (boundRefundId) return false; // sem refunds[] não há como conferir o id vinculado
+  return cents(payment?.refundedValue) === expectedCents;
 }
 
-/**
- * I6: estorno PARCIAL confirmado. Só conclui o DirectRefund desta loja/pagamento quando um dos
- * valores estornados do payload bate (em centavos) com o do estorno; sem valor ou valor
- * diferente → fail closed (nada muda) e alerta o admin.
- */
 async function reconcilePartialRefundFromWebhook(storeId: string, payment: any): Promise<void> {
   const paymentId = String(payment.id);
   const refund = await prisma.directRefund.findFirst({
     where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested', 'pending'] } },
-    select: { id: true, orderId: true, amount: true },
+    select: { id: true, orderId: true, amount: true, asaasRefundId: true },
   });
   if (!refund) return;
   const expected = Math.round(Number(refund.amount) * 100);
-  if (refundedCentsFromPayment(payment).includes(expected)) {
+  if (partialRefundMatches(payment, expected, refund.asaasRefundId ?? null)) {
     await markDirectRefundDone(refund.orderId, 'webhook');
     return;
   }
