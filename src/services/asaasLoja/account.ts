@@ -109,13 +109,18 @@ export async function recordStoreConsent(params: {
   termsVersion?: string;
 }): Promise<void> {
   const termsVersion = consentVersion(params.termsVersion);
-  await prisma.storeAsaasConsent.createMany({
-    skipDuplicates: true,
-    data: {
-      storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
-      termsVersion,
-      ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
-    },
+  // Trava a loja (como a exclusão e a conexão): o aceite não entra no meio de uma exclusão.
+  await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Store" WHERE id = ${params.storeId} FOR UPDATE`;
+    if (locked.length === 0) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+    await tx.storeAsaasConsent.createMany({
+      skipDuplicates: true,
+      data: {
+        storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
+        termsVersion,
+        ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
+      },
+    });
   });
 }
 

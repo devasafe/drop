@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
 import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
@@ -256,6 +257,16 @@ export const listarAvaliacoesLoja = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Deletar loja e remover usuário lojista e dados relacionados
+const STORE_HAS_CONSENT_BODY = {
+  success: false,
+  error: {
+    message: 'Esta loja aceitou o termo de autorização do Asaas e não pode ser excluída. Fale com o suporte.',
+    statusCode: 409,
+    code: 'STORE_HAS_CONSENT',
+  },
+};
+const storeHasConsent = () => Object.assign(new Error('STORE_HAS_CONSENT'), { storeHasConsent: true });
+
 export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params; // id da loja
@@ -265,27 +276,31 @@ export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Respons
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
     // Fail closed: a prova do aceite do termo Asaas (StoreAsaasConsent) é imutável e não
-    // sai em cascata. Loja com termo aceito não é apagada — checado ANTES de qualquer remoção.
-    const consents = await prisma.storeAsaasConsent.count({ where: { storeId: store.id } });
-    if (consents > 0) {
-      return res.status(409).json({
-        success: false,
-        error: {
-          message: 'Esta loja aceitou o termo de autorização do Asaas e não pode ser excluída. Fale com o suporte.',
-          statusCode: 409,
-          code: 'STORE_HAS_CONSENT',
-        },
-      });
-    }
-    // Remove produtos e categorias da loja
-    await prisma.product.deleteMany({ where: { storeId: store.id } });
-    await prisma.category.deleteMany({ where: { storeId: store.id } });
-    // Remove loja
-    await prisma.store.delete({ where: { id: store.id } });
-    // Remove usuário lojista
-    await prisma.user.delete({ where: { id: String(store.ownerId) } });
+    // sai em cascata. Loja com termo aceito não é apagada. Checagem + remoções na MESMA
+    // transação, com a loja travada antes da checagem: o aceite (que também trava a loja)
+    // não entra entre a checagem e o delete — nada é apagado pela metade.
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Store" WHERE id = ${store.id} FOR UPDATE`;
+      if (locked.length === 0) throw Object.assign(new Error('Store not found'), { storeGone: true });
+      const consents = await tx.storeAsaasConsent.count({ where: { storeId: store.id } });
+      if (consents > 0) throw storeHasConsent();
+      // Remove produtos e categorias da loja
+      await tx.product.deleteMany({ where: { storeId: store.id } });
+      await tx.category.deleteMany({ where: { storeId: store.id } });
+      // Remove loja
+      await tx.store.delete({ where: { id: store.id } });
+      // Remove usuário lojista
+      await tx.user.delete({ where: { id: String(store.ownerId) } });
+    });
     return res.json({ ok: true });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.storeHasConsent) return res.status(409).json(STORE_HAS_CONSENT_BODY);
+    if (err?.storeGone) return res.status(404).json({ error: 'Store not found' });
+    // Defesa extra: a FK Restrict do aceite recusou o delete da loja → a transação inteira voltou.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003'
+      && String((err.meta as any)?.field_name || '').includes('StoreAsaasConsent')) {
+      return res.status(409).json(STORE_HAS_CONSENT_BODY);
+    }
     console.error(err);
     return res.status(500).json({ error: 'Failed to delete store and user' });
   }
