@@ -148,6 +148,8 @@ describe('cancelamentos do pedido direto disparam o estorno', () => {
     const res = await request(app).post(`/api/orders/${s.order.id}/cancel`).set('Authorization', bearer(s.cliente)).send({});
     expect(res.status).toBe(200);
     expect(res.body.refundStatus).toBe('processed');
+    expect(res.body.refundAmount).toBe(52);
+    expect((await lastCancellation(s.order.id))!.refundAmount.toString()).toBe('52');
     expect(postAs).toHaveBeenCalledTimes(1);
     expect(postAs.mock.calls[0][0]).toBe(STORE_KEY);
     expect(postAs.mock.calls[0][1]).toBe(`/payments/${s.order.asaasPaymentId}/refund`);
@@ -171,6 +173,8 @@ describe('cancelamentos do pedido direto disparam o estorno', () => {
     const res = await request(app).post(`/api/orders/${s.order.id}/cancel`).set('Authorization', bearer(s.cliente)).send({});
     expect(res.status).toBe(200);
     expect(res.body.refundStatus).toBe('processed');
+    expect(res.body.refundAmount).toBe(40);
+    expect(Number((await lastCancellation(s.order.id))!.refundAmount)).toBe(40);
     expect(postAs.mock.calls[0][2].value).toBe(40);
     expect(Number((await refundRow(s.order.id))!.amount)).toBe(40);
     expect(await custodyCounts(s.order.id, owners(s))).toEqual(before);
@@ -182,6 +186,8 @@ describe('cancelamentos do pedido direto disparam o estorno', () => {
     const res = await request(app).post(`/api/deliveries/${s.delivery.id}/cliente-ausente`).set('Authorization', bearer(s.motoboy)).send({});
     expect(res.status).toBe(200);
     expect(res.body.refundStatus).toBe('processed');
+    expect(res.body.refundAmount).toBe(40);
+    expect(Number((await lastCancellation(s.order.id))!.refundAmount)).toBe(40);
     expect(postAs.mock.calls[0][2].value).toBe(40);
     const row = await refundRow(s.order.id);
     expect(Number(row!.amount)).toBe(40);
@@ -196,6 +202,8 @@ describe('cancelamentos do pedido direto disparam o estorno', () => {
     const res = await request(app).post(`/api/orders/${s.order.id}/reject`).set('Authorization', bearer(s.lojista)).send({ reason: 'sem estoque' });
     expect(res.status).toBe(200);
     expect(res.body.refundStatus).toBe('processed');
+    expect(res.body.refundAmount).toBe(52);
+    expect(Number((await lastCancellation(s.order.id))!.refundAmount)).toBe(52);
     expect(postAs.mock.calls[0][2].value).toBe(52);
     expect((await lastCancellation(s.order.id))!.refundStatus).toBe('processed');
     expect(await statusOf(s.order.id)).toBe('rejeitado');
@@ -209,6 +217,8 @@ describe('cancelamentos do pedido direto disparam o estorno', () => {
     const r = await cancelOrderWithFullRefund(order, { reason: 'timeout', reasonCode: 'store_rejected', cancelledBy: 'store' });
     expect(r.ok).toBe(true);
     expect(r.refundStatus).toBe('processed');
+    expect(r.refundAmount).toBe(52);
+    expect(Number((await lastCancellation(s.order.id))!.refundAmount)).toBe(52);
     expect(postAs.mock.calls[0][2].value).toBe(52);
     const row = await refundRow(s.order.id);
     expect(row!.status).toBe('done');

@@ -741,7 +741,8 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
       deliveryFee: order.deliveryFee || 0,
       config: feeConfig,
     });
-    const refundAmount = fee.refundToCustomer;
+    // Modo direto (P1): o valor devolvido é total - taxa de entrega, o mesmo do DirectRefund.
+    const refundAmount = isDirectOrder(order) ? directCustomerRefund(order, fee, 'customer_absent') : fee.refundToCustomer;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: mesma trava de `cancelOrderByCustomer` — só UM
@@ -763,7 +764,7 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // --- Refund PARCIAL ao cliente (mesmo padrão de cancelOrderByCustomer) ---
     const direct = isDirectOrder(order);
-    const directAmount = direct ? directCustomerRefund(order, fee, 'customer_absent') : 0;
+    const directAmount = direct ? refundAmount : 0;
     if (direct) {
       refundStatus = directRefundStatus(order, 'cliente ausente', directAmount);
     } else if (!isCashOnDelivery) {
