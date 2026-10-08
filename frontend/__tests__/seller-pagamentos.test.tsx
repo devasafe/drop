@@ -57,6 +57,33 @@ test('mostra o IP de saída, o botão de teste e o item 4 (autorização) depois
   expect(screen.getByText(/Gerar token da trava de autorização/)).toBeInTheDocument();
 });
 
+test('regerar token com autorização já configurada pede confirmação; cancelar não chama a API', async () => {
+  const confirmed = { ...valid, checklist: { ...valid.checklist, authWebhookConfirmed: true } };
+  mockGet(confirmed, {});
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  renderPage();
+  fireEvent.click(await screen.findByText('Gerar token'));
+  expect(confirmSpy).toHaveBeenCalledWith(expect.stringMatching(/deixa de valer/));
+  expect(api.post).not.toHaveBeenCalledWith('/stores/s1/asaas/auth-token');
+  confirmSpy.mockReturnValue(true);
+  (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'TK_NOVO', url: 'u' } } });
+  fireEvent.click(screen.getByText('Gerar token'));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/s1/asaas/auth-token'));
+  confirmSpy.mockRestore();
+});
+
+test('gerar token: botão desabilitado durante a chamada', async () => {
+  mockGet(valid, {});
+  let resolve: (v: any) => void = () => {};
+  (api.post as jest.Mock).mockReturnValue(new Promise((r) => { resolve = r; }));
+  renderPage();
+  const btn = await screen.findByText('Gerar token');
+  fireEvent.click(btn);
+  await waitFor(() => expect(screen.getByText('Gerar token').closest('button')).toBeDisabled());
+  resolve({ data: { success: true, data: { token: 'T', url: 'u' } } });
+  await screen.findByText('T');
+});
+
 test('gerar token: chama /auth-token, mostra o token uma vez e some ao marcar "Já copiei"', async () => {
   mockGet(valid, {});
   (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'TOKEN_AUTH_UNICO_123', url: 'http://x/webhooks/asaas/loja/s1/autorizacao' } } });

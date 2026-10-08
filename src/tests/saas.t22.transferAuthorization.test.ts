@@ -43,7 +43,7 @@ afterEach(async () => {
 });
 
 let seq = 0;
-async function mkTransfer(o: Partial<{ storeId: string; status: string; amount: number; key: string; authorizedAt: Date | null }> = {}) {
+async function mkTransfer(o: Partial<{ storeId: string; status: string; amount: number; key: string; keyType: string; authorizedAt: Date | null }> = {}) {
   seq += 1;
   return prisma.motoboyTransfer.create({
     data: {
@@ -53,7 +53,7 @@ async function mkTransfer(o: Partial<{ storeId: string; status: string; amount: 
       motoboyId: 'mb22',
       amount: o.amount ?? 12.5,
       pixKeyEncrypted: encryptSensitiveData(o.key ?? KEY),
-      pixKeyType: 'CPF',
+      pixKeyType: o.keyType ?? 'CPF',
       status: o.status ?? 'requested',
       authorizedAt: o.authorizedAt ?? null,
     },
@@ -88,9 +88,45 @@ describe('t2.2 — autorização de transferências', () => {
     expect((await prisma.motoboyTransfer.findUnique({ where: { id: t.id } }))!.authorizedAt).toEqual(a1);
   });
 
+  it('mesma referência com OUTRO transfer.id do Asaas → REFUSED ALREADY_AUTHORIZED; banco mantém o id do primeiro', async () => {
+    const t = await mkTransfer();
+    expect((await call(transferBody(t, { id: 'tra_1' }))).body.status).toBe('APPROVED');
+    expectRefused(await call(transferBody(t, { id: 'tra_2' })), 'ALREADY_AUTHORIZED');
+    expect((await prisma.motoboyTransfer.findUnique({ where: { id: t.id } }))!.asaasTransferId).toBe('tra_1');
+    expect((await call(transferBody(t, { id: 'tra_1' }))).body.status).toBe('APPROVED');
+  });
+
+  it('transfer.id ausente → REFUSED INVALID_REQUEST, nada gravado', async () => {
+    const t = await mkTransfer();
+    expectRefused(await call(transferBody(t, { id: undefined })), 'INVALID_REQUEST');
+    const row = await prisma.motoboyTransfer.findUnique({ where: { id: t.id } });
+    expect(row!.authorizedAt).toBeNull();
+    expect(row!.asaasTransferId).toBeNull();
+  });
+
+  it('asaasTransferId já gravado pelo envio: aprova só o mesmo id; id diferente → ALREADY_AUTHORIZED', async () => {
+    const t = await mkTransfer();
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { asaasTransferId: 'tra_9' } });
+    expectRefused(await call(transferBody(t, { id: 'tra_1' })), 'ALREADY_AUTHORIZED');
+    expect((await call(transferBody(t, { id: 'tra_9' }))).body.status).toBe('APPROVED');
+  });
+
+  it('corrida: duas autorizações concorrentes com ids diferentes → exatamente uma APPROVED', async () => {
+    const t = await mkTransfer();
+    const rs = await Promise.all([call(transferBody(t, { id: 'tra_a' })), call(transferBody(t, { id: 'tra_b' }))]);
+    expect(rs.map((r) => r.body.status).sort()).toEqual(['APPROVED', 'REFUSED']);
+  });
+
+  it('DDI 55 só vale para snapshot PHONE: CPF 12345678909 vs 5512345678909 → REFUSED', async () => {
+    const t = await mkTransfer();
+    expectRefused(await call(transferBody(t, { pixAddressKey: '5512345678909' })), 'PIX_KEY_MISMATCH');
+    const p = await mkTransfer({ key: '11912345678', keyType: 'PHONE' });
+    expect((await call(transferBody(p, { pixAddressKey: '+5511912345678' }))).body.status).toBe('APPROVED');
+  });
+
   it('aceita chave em bankAccount.pixAddressKey e CPF formatado', async () => {
     const t = await mkTransfer();
-    const res = await call({ type: 'transfer', transfer: { value: 12.5, externalReference: t.id, bankAccount: { pixAddressKey: '123.456.789-09' } } });
+    const res = await call({ type: 'transfer', transfer: { id: 'tra_bk', value: 12.5, externalReference: t.id, bankAccount: { pixAddressKey: '123.456.789-09' } } });
     expect(res.body.status).toBe('APPROVED');
   });
 

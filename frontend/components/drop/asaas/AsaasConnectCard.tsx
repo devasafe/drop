@@ -41,6 +41,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const { showToast } = useToast();
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
   const [status, setStatus] = useState<AsaasStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -98,6 +99,10 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   };
 
   const genToken = async () => {
+    if (genBusy) return;
+    if ((authToken || status?.checklist?.authWebhookConfirmed) && typeof window !== 'undefined'
+      && !window.confirm('Gerar um novo token? O token atual, já colado no Asaas, deixa de valer e as transferências serão recusadas até você colar o novo token no Asaas.')) return;
+    setGenBusy(true);
     try {
       const r = await api.post(`${apiBase}/auth-token`);
       setAuthToken(r.data?.data?.token ?? null);
@@ -105,6 +110,8 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
       await load();
     } catch (e: any) {
       showToast(errMsg(e, 'Não foi possível gerar o token.'), 'error');
+    } finally {
+      setGenBusy(false);
     }
   };
 
@@ -243,7 +250,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
                 </div>
               )}
               <div className={styles.actions}>
-                <Button size="sm" variant="ghost" onClick={genToken}>{authToken ? 'Gerar outro token' : 'Gerar token'}</Button>
+                <Button size="sm" variant="ghost" disabled={genBusy} onClick={genToken}>{authToken ? 'Gerar outro token' : 'Gerar token'}</Button>
                 <Button size="sm" variant="ghost" onClick={() => toggle('authWebhook', !c?.authWebhookConfirmed)}>
                   {c?.authWebhookConfirmed ? 'Desmarcar' : 'Já configurei no Asaas'}
                 </Button>

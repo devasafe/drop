@@ -13,7 +13,7 @@ import { decryptSensitiveData } from '../utils/encryption';
  */
 
 export type AuthRequest =
-  | { kind: 'transfer'; transferId: string; valueCents: number | null; pixKey: string }
+  | { kind: 'transfer'; transferId: string; asaasId: string; valueCents: number | null; pixKey: string }
   | { kind: 'pixRefund'; paymentId: string; valueCents: number | null }
   | { kind: 'unsupported'; type: string }
   | { kind: 'invalid' };
@@ -41,6 +41,7 @@ export function parseAuthorizationRequest(body: any): AuthRequest {
     return {
       kind: 'transfer',
       transferId: str(t.externalReference),
+      asaasId: str(t.id),
       valueCents: toCents(t.value),
       pixKey: str(t.pixAddressKey) || str(t.bankAccount?.pixAddressKey),
     };
@@ -62,12 +63,13 @@ export function normalizePixKey(key: string): string {
   return k.toLowerCase();
 }
 
-function samePixKey(a: string, b: string): boolean {
+function samePixKey(a: string, b: string, snapshotType?: string): boolean {
   const x = normalizePixKey(a);
   const y = normalizePixKey(b);
   if (!x || !y) return false;
   if (x === y) return true;
-  // telefone com/sem DDI 55
+  // DDI 55 só é tolerado quando o snapshot é telefone (CPF/CNPJ nunca casam por prefixo)
+  if (String(snapshotType ?? '').toUpperCase() !== 'PHONE') return false;
   return (x === `55${y}` && y.length >= 10 && y.length <= 11) || (y === `55${x}` && x.length >= 10 && x.length <= 11);
 }
 
@@ -76,6 +78,7 @@ const refuse = (reason: string, transferId?: string | null): Decision => ({ appr
 
 async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind: 'transfer' }>): Promise<Decision> {
   if (!req.transferId) return refuse('UNKNOWN_TRANSFER');
+  if (!req.asaasId) return refuse('INVALID_REQUEST', req.transferId);
   const t = await prisma.motoboyTransfer.findUnique({ where: { id: req.transferId } });
   if (!t) return refuse('UNKNOWN_TRANSFER', req.transferId);
   if (t.storeId !== storeId) return refuse('STORE_MISMATCH', t.id);
@@ -87,18 +90,23 @@ async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind:
   } catch {
     return refuse('PIX_KEY_UNREADABLE', t.id);
   }
-  if (!samePixKey(req.pixKey, snapshot)) return refuse('PIX_KEY_MISMATCH', t.id);
+  if (!samePixKey(req.pixKey, snapshot, t.pixKeyType)) return refuse('PIX_KEY_MISMATCH', t.id);
 
-  if (!t.authorizedAt) {
-    const upd = await prisma.motoboyTransfer.updateMany({
-      where: { id: t.id, status: 'requested', authorizedAt: null },
-      data: { authorizedAt: new Date() },
-    });
-    if (upd.count !== 1) {
-      // perdeu a corrida: só aprova se a outra chamada já gravou e o status segue requested
-      const again = await prisma.motoboyTransfer.findUnique({ where: { id: t.id }, select: { status: true, authorizedAt: true } });
-      if (!(again && again.status === 'requested' && again.authorizedAt)) return refuse('INVALID_STATUS', t.id);
-    }
+  // Vincula a autorização ao id da transferência do Asaas: uma segunda transferência
+  // (id diferente) para a mesma referência nunca é aprovada. Retry do MESMO id é idempotente.
+  const upd = await prisma.motoboyTransfer.updateMany({
+    where: {
+      id: t.id,
+      status: 'requested',
+      authorizedAt: null,
+      OR: [{ asaasTransferId: null }, { asaasTransferId: req.asaasId }],
+    },
+    data: { authorizedAt: new Date(), asaasTransferId: req.asaasId },
+  });
+  if (upd.count !== 1) {
+    const again = await prisma.motoboyTransfer.findUnique({ where: { id: t.id }, select: { status: true, authorizedAt: true, asaasTransferId: true } });
+    if (!again || again.status !== 'requested') return refuse('INVALID_STATUS', t.id);
+    if (!(again.authorizedAt && again.asaasTransferId === req.asaasId)) return refuse('ALREADY_AUTHORIZED', t.id);
   }
   return { approved: true, transferId: t.id };
 }
