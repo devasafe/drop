@@ -155,6 +155,14 @@ function alertAdmin(t: AlertRow, title: string, detail: string): void {
   }
 }
 
+/** Linha travada porque o Pix de uma tentativa anterior foi concluído (I3): só o admin a move. */
+export const PREVIOUS_DONE = 'PREVIOUS_DONE';
+function isPreviousDoneLock(t: Pick<MotoboyTransfer, 'status' | 'lastError'>): boolean {
+  return t.status === 'uncertain' && t.lastError === PREVIOUS_DONE;
+}
+/** Condição de banco equivalente a "não está travada por PREVIOUS_DONE" (lastError nulo incluso). */
+const NOT_PREVIOUS_DONE_LOCK = { OR: [{ status: { not: 'uncertain' } }, { lastError: null }, { lastError: { not: PREVIOUS_DONE } }] };
+
 /**
  * Falha DEFINIDA (nada foi pago): `failed` com backoff P5 contado por `attempts`;
  * sem degrau restante → `failed_final` + alerta. Condicional ao status de origem.
@@ -174,7 +182,7 @@ async function registerFailure(
   const bindData = bindAsaasId ? { asaasTransferId: bindAsaasId } : {};
   if (backoff === undefined) {
     const { count } = await prisma.motoboyTransfer.updateMany({
-      where: { id: t.id, status: { in: from }, ...bindWhere },
+      where: { id: t.id, status: { in: from }, AND: [bindWhere, NOT_PREVIOUS_DONE_LOCK] },
       data: { status: 'failed_final', lastError, ...bindData },
     });
     if (count !== 1) return null;
@@ -183,7 +191,7 @@ async function registerFailure(
     return 'failed_final';
   }
   const { count } = await prisma.motoboyTransfer.updateMany({
-    where: { id: t.id, status: { in: from }, ...bindWhere },
+    where: { id: t.id, status: { in: from }, AND: [bindWhere, NOT_PREVIOUS_DONE_LOCK] },
     data: { status: 'failed', lastError, nextAttemptAt: new Date(now.getTime() + backoff), ...bindData },
   });
   if (count !== 1) return null;
@@ -413,10 +421,18 @@ export async function reconcileTransferFromWebhook(storeId: string, event: strin
           id: t.id,
           OR: [{ status: 'requested', authorizedAt: null }, { status: { in: ['pending', 'failed'] } }],
         },
-        data: { status: 'uncertain', lastError: 'PREVIOUS_DONE' },
+        data: { status: 'uncertain', lastError: PREVIOUS_DONE },
       });
       alertAdmin(t, 'Pix ao motoboy: tentativa anterior concluída', 'uma transferência dada como falha foi concluída no Asaas; risco de pagamento em dobro — conferir.');
     }
+    return;
+  }
+  if (isPreviousDoneLock(t)) {
+    // Re-revisão C1: o Pix anterior já saiu. Nenhum evento (DONE/FAILED/CANCELLED da tentativa
+    // atual) tira a linha de uncertain — um FAILED a levaria a failed e o job reenviaria (Pix em
+    // dobro). Só o admin resolve.
+    logger.warn('[motoboyTransfer] evento em linha travada por PREVIOUS_DONE (ignorado)', { transferId: t.id, storeId, event });
+    alertAdmin(t, 'Pix ao motoboy travado (tentativa anterior concluída)', `evento ${event} recebido; a linha segue em conferência — resolver pelo admin.`);
     return;
   }
   if (asaasId && t.asaasTransferId && t.asaasTransferId !== asaasId) {
@@ -448,6 +464,7 @@ export async function reconcileTransferFromWebhook(storeId: string, event: strin
           ? { status: 'failed', asaasTransferId: asaasId }
           : { status: { in: ['requested', 'uncertain'] }, OR: [{ asaasTransferId: null }, { asaasTransferId: asaasId }] }),
         NOT: { previousAsaasTransferIds: { has: asaasId } },
+        AND: [NOT_PREVIOUS_DONE_LOCK],
       },
       data: { status: 'done', doneAt: new Date(), lastError: null, asaasTransferId: asaasId },
     });

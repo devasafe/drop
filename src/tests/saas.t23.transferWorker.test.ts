@@ -725,3 +725,48 @@ describe('m6 — chave Pix ausente não gasta tentativas', () => {
     expect(row!.pixKeyEncrypted).not.toBe('');
   });
 });
+
+describe('re-revisão C1 — linha PREVIOUS_DONE só sai pelo admin', () => {
+  async function previousDone() {
+    const s = await failedAfterTraA();
+    postAs.mockImplementationOnce(async () => {
+      await hookT(s.store.id, 'TRANSFER_DONE', s.t.id, 'tra_A');
+      return { id: 'tra_B' };
+    });
+    await runMotoboyTransfers();
+    const row = await rowOf(s.t.id);
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
+    expect(row!.asaasTransferId).toBe('tra_B');
+    postAs.mockClear();
+    adminNotify.mockClear();
+    return s;
+  }
+
+  it.each(['TRANSFER_FAILED', 'TRANSFER_CANCELLED'])('%s de tra_B (id atual) mantém uncertain/PREVIOUS_DONE, alerta e o job não reenvia', async (ev) => {
+    const { store, t } = await previousDone();
+    await prisma.motoboyTransfer.update({ where: { id: t.id }, data: { nextAttemptAt: new Date(Date.now() - HOUR) } });
+
+    await hookT(store.id, ev, t.id, 'tra_B');
+
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
+    expect(adminNotify).toHaveBeenCalled();
+
+    await runMotoboyTransfers();
+    expect(transfersPosted()).toHaveLength(0);
+    expect((await rowOf(t.id))!.status).toBe('uncertain');
+  });
+
+  it('TRANSFER_DONE de tra_B também não move a linha (só alerta: possível pagamento em dobro)', async () => {
+    const { store, motoboy, t } = await previousDone();
+    await hookT(store.id, 'TRANSFER_DONE', t.id, 'tra_B');
+    const row = await rowOf(t.id);
+    expect(row!.status).toBe('uncertain');
+    expect(row!.lastError).toBe('PREVIOUS_DONE');
+    expect(row!.doneAt).toBeNull();
+    expect(adminNotify).toHaveBeenCalled();
+    expect(emit.mock.calls.some((c) => c[0] === `user:${motoboy.userId}`)).toBe(false);
+  });
+});
