@@ -149,6 +149,26 @@ async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: stri
     select: { orderId: true },
   });
   if (refund) await markDirectRefundDone(refund.orderId, 'webhook');
+  else await alertFinalRefundConfirmed(storeId, paymentId, 'PAYMENT_REFUNDED');
+}
+
+/**
+ * M-a: estorno confirmado pelo Asaas para um DirectRefund em `failed_final` (o admin assumiu).
+ * Não conclui sozinho — o admin confere e resolve —, mas avisa (antes era silencioso).
+ */
+async function alertFinalRefundConfirmed(storeId: string, paymentId: string, event: string): Promise<void> {
+  const row = await prisma.directRefund.findFirst({
+    where: { storeId, asaasPaymentId: paymentId, status: 'failed_final' },
+    select: { id: true, orderId: true },
+  });
+  if (!row) return;
+  logger.warn('[asaasLoja] estorno confirmado pelo Asaas com DirectRefund em failed_final (não concluído)', { storeId, paymentId, refundId: row.id, event });
+  emitAdminNotification({
+    title: 'Estorno confirmado no Asaas (falha final)',
+    body: `Pedido ${String(row.orderId).slice(-6)}: o Asaas confirmou um estorno (${event}) de uma linha em falha final; conferir e resolver.`,
+    url: '/admin/estornos',
+    tag: `refund:final-confirmed:${row.id}`,
+  });
 }
 
 /**
@@ -181,7 +201,10 @@ async function reconcilePartialRefundFromWebhook(storeId: string, payment: any):
     where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested', 'pending'] } },
     select: { id: true, orderId: true, amount: true, asaasRefundId: true },
   });
-  if (!refund) return;
+  if (!refund) {
+    await alertFinalRefundConfirmed(storeId, paymentId, 'PAYMENT_PARTIALLY_REFUNDED');
+    return;
+  }
   const expected = Math.round(Number(refund.amount) * 100);
   if (partialRefundMatches(payment, expected, refund.asaasRefundId ?? null)) {
     await markDirectRefundDone(refund.orderId, 'webhook');

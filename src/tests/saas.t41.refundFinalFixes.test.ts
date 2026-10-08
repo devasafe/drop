@@ -388,3 +388,15 @@ describe('re-revisão I-1 — estorno parcial só conclui com refund DONE (e o m
     expect((await rowOf(s.refund.id)).status).toBe('requested');
   });
 });
+
+describe('re-revisão M-a — estorno confirmado com DirectRefund em failed_final', () => {
+  it.each(['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'])('%s → não conclui, mas alerta o admin', async (ev) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'failed_final', attempts: 6 } });
+    const res = await request(app).post(`/webhooks/asaas/loja/${s.store.id}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: ev, payment: { id: s.order.asaasPaymentId, status: 'REFUNDED', value: 50, refunds: [{ id: 'rfd_f', status: 'DONE', value: 30 }] } });
+    expect(res.status).toBe(200);
+    expect((await rowOf(s.refund.id)).status).toBe('failed_final');
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ url: '/admin/estornos', tag: expect.stringContaining(s.refund.id) }));
+  });
+});
