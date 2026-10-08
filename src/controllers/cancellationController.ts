@@ -395,7 +395,9 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
     order.cancellationId = String(cancellation.id);
-    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+    // Pedido direto: o vínculo já foi gravado na transação da trava (M4a) — um update aqui só
+    // poderia falhar depois do commit e impedir o estorno abaixo.
+    if (!direct) await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
     // Modo direto: estorno pela chave da loja, só depois do cancelamento gravado.
     if (direct && refundStatus === 'pending') {
@@ -906,7 +908,9 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
     order.cancellationId = String(cancellation.id);
-    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+    // Pedido direto: o vínculo já foi gravado na transação da trava (M4a) — um update aqui só
+    // poderia falhar depois do commit e impedir o estorno abaixo.
+    if (!direct) await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
     // Modo direto: estorno (total - taxa de entrega, P1) pela chave da loja, depois do cancelamento gravado.
     if (direct && refundStatus === 'pending') {
@@ -1718,7 +1722,9 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'rejeitado';
     order.cancellationId = String(cancellation.id);
-    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+    // Pedido direto: o vínculo já foi gravado na transação da trava (M4a) — um update aqui só
+    // poderia falhar depois do commit e impedir o estorno abaixo.
+    if (!direct) await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
     // Modo direto: estorno integral pela chave da loja, depois do cancelamento gravado.
     if (direct && refundStatus === 'pending') {
