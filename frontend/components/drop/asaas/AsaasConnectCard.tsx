@@ -58,7 +58,11 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
 
   // Texto do termo vindo do backend (fonte única; a versão exibida é a que o aceite envia).
   const aliveRef = useRef(true);
-  useEffect(() => () => { aliveRef.current = false; }, []);
+  // Volta a true no (re)mount: em StrictMode o React monta, desmonta e monta de novo.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
   const loadTerms = useCallback(() => {
     setTermsState('loading');
     return api.get('/settings/store-asaas-terms')
