@@ -47,21 +47,24 @@ test('campo da chave é password; conectar limpa a chave e ela não aparece na t
   expect(document.body.innerHTML).not.toContain('SEGREDO123456');
 });
 
-// I4 (revisão final da Fase 1): o item 4 (webhook de autorização) e o "Gerar token" ficam
-// escondidos até a Fase 2. Antes estes testes conferiam a URL de autorização e o token.
-test('mostra o IP de saída e o botão de teste depois de conectar; sem o item 4 (autorização)', async () => {
+// Fase 2 (Task 2.2, R9): o item 4 (trava de autorização) volta e o token é mostrado uma única vez.
+test('mostra o IP de saída, o botão de teste e o item 4 (autorização) depois de conectar', async () => {
   mockGet(valid);
   renderPage();
   expect(await screen.findByText('203.0.113.7')).toBeInTheDocument();
   expect(screen.getByText('Testar configuração')).toBeInTheDocument();
-  expect(screen.queryByText(/webhooks\/asaas\/loja\/s1\/autorizacao/)).not.toBeInTheDocument();
-  expect(screen.queryByText(/Autorização de transferências/)).not.toBeInTheDocument();
+  expect(screen.getByText(/webhooks\/asaas\/loja\/s1\/autorizacao/)).toBeInTheDocument();
+  expect(screen.getByText(/Gerar token da trava de autorização/)).toBeInTheDocument();
 });
 
-test('não oferece "Gerar token" nem chama /auth-token', async () => {
+test('gerar token: chama /auth-token, mostra o token uma vez e some ao marcar "Já copiei"', async () => {
   mockGet(valid, {});
+  (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'TOKEN_AUTH_UNICO_123', url: 'http://x/webhooks/asaas/loja/s1/autorizacao' } } });
   renderPage();
-  await screen.findByText('Testar configuração');
-  expect(screen.queryByText('Gerar token')).not.toBeInTheDocument();
-  expect(api.post).not.toHaveBeenCalledWith('/stores/s1/asaas/auth-token');
+  fireEvent.click(await screen.findByText('Gerar token'));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/s1/asaas/auth-token'));
+  expect(await screen.findByText('TOKEN_AUTH_UNICO_123')).toBeInTheDocument();
+  expect(screen.getByText(/não será mostrado de novo/)).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Já copiei'));
+  expect(screen.queryByText('TOKEN_AUTH_UNICO_123')).not.toBeInTheDocument();
 });

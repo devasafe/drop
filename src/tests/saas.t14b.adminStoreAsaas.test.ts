@@ -7,6 +7,7 @@ jest.mock('../services/asaas/client', () => {
   };
 });
 import request from 'supertest';
+import { createHash } from 'crypto';
 import app from '../app';
 import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { prisma } from '../lib/prisma';
@@ -71,8 +72,8 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
     expect(await audits()).toHaveLength(0);
   });
 
-  // I4 (revisão final): auth-token responde 404 FEATURE_NOT_AVAILABLE até a Fase 2 (antes: 200 com token).
-  it('CEO completa o onboarding: test e checklist; auth-token indisponível (404)', async () => {
+  // Fase 2 (Task 2.2, autorizado pelo usuário - R9): auth-token volta a gerar o token (o 404 era trava do I4).
+  it('CEO completa o onboarding: test, checklist e auth-token (token uma vez, só hash no banco)', async () => {
     await put(ceo);
     const t = await request(app).post(`${base()}/test`).set('Authorization', bearer(ceo));
     expect(t.status).toBe(200);
@@ -80,8 +81,11 @@ describe('t1.4b — admin (CEO) gerencia a conta Asaas de qualquer loja', () => 
     expect(c.status).toBe(200);
     expect(c.body.data.checklist.ipWhitelistConfirmed).toBe(true);
     const tk = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(ceo));
-    expect(tk.status).toBe(404);
-    expect(tk.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
+    expect(tk.status).toBe(200);
+    expect(tk.body.data.token).toMatch(/^[0-9a-f]{48}$/);
+    const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
+    expect(row!.authWebhookTokenHash).toBe(createHash('sha256').update(tk.body.data.token).digest('hex'));
+    expect(JSON.stringify(row)).not.toContain(tk.body.data.token);
   });
 
   it('não-CEO (gerente_geral, lojista dono, cliente) → 403 em todas as rotas admin; sem token → 401', async () => {

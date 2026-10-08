@@ -7,6 +7,7 @@ jest.mock('../services/asaas/client', () => {
   };
 });
 import request from 'supertest';
+import { createHash } from 'crypto';
 import app from '../app';
 import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import logger from '../config/logger';
@@ -107,22 +108,32 @@ describe('t1.4 — rotas de conexão da conta Asaas (lojista)', () => {
     expect((await request(app).post(`${base()}/checklist`).set('Authorization', bearer(owner)).send({ ipWhitelist: 'sim' })).status).toBe(400);
   });
 
-  // Revisão final da Fase 1 (I4): o endpoint do webhook de autorização só existe na Fase 2.
-  // Antes: gerava o token (200) e 409 sem conta. Agora: 404 FEATURE_NOT_AVAILABLE, nada gravado.
-  it('auth-token: 404 FEATURE_NOT_AVAILABLE até a Fase 2; nada é gravado', async () => {
+  // Fase 2 (Task 2.2, autorizado pelo usuário - R9): os 404 eram travas temporárias do I4.
+  it('auth-token: gera o token UMA vez; no banco só o hash; gerar de novo invalida o anterior', async () => {
     (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
     await connect();
     const r = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
-    expect(r.status).toBe(404);
-    expect(r.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
+    expect(r.status).toBe(200);
+    expect(r.headers['cache-control']).toMatch(/no-store/);
+    const token = r.body.data.token;
+    expect(token).toMatch(/^[0-9a-f]{48}$/);
+    expect(r.body.data.url).toContain(`/webhooks/asaas/loja/${storeId}/autorizacao`);
     const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
-    expect(row!.authWebhookTokenHash).toBeNull();
+    expect(row!.authWebhookTokenHash).toBe(createHash('sha256').update(token).digest('hex'));
+    expect(JSON.stringify(row)).not.toContain(token);
+    const get = await request(app).get(base()).set('Authorization', bearer(owner));
+    expect(JSON.stringify(get.body)).not.toContain(token);
+    const r2 = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
+    expect(r2.body.data.token).not.toBe(token);
+    const row2 = await prisma.storeAsaasAccount.findUnique({ where: { storeId } });
+    expect(row2!.authWebhookTokenHash).not.toBe(row!.authWebhookTokenHash);
   });
 
-  it('auth-token sem conta conectada → também 404 FEATURE_NOT_AVAILABLE', async () => {
+  it('auth-token sem conta conectada → 409 STORE_ASAAS_NOT_READY, nada gerado', async () => {
     const r = await request(app).post(`${base()}/auth-token`).set('Authorization', bearer(owner));
-    expect(r.status).toBe(404);
-    expect(r.body.error).toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: 'STORE_ASAAS_NOT_READY' });
+    expect(r.body.data).toBeUndefined();
   });
 
   it('test: confere /finance/balance e o webhook de pagamentos (se existir)', async () => {

@@ -1,0 +1,18 @@
+{
+  "_comment": "Formato ASSUMIDO a partir da doc 'Mecanismo para validacao de saque via webhooks' do Asaas. Confirmar no sandbox.",
+  "transfer": {
+    "type": "TRANSFER",
+    "transfer": {
+      "id": "tra_000000000001",
+      "value": 12.5,
+      "externalReference": "__TRANSFER_ID__",
+      "pixAddressKey": "__PIX_KEY__",
+      "bankAccount": { "pixAddressKey": "__PIX_KEY__" }
+    }
+  },
+  "pixRefund": {
+    "type": "PIX_REFUND",
+    "pixRefund": { "paymentId": "pay_000000000001", "value": 30 }
+  },
+  "bill": { "type": "BILL", "bill": { "id": "bil_1", "value": 10 } }
+}

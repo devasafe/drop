@@ -38,11 +38,10 @@ export const checklistSchema = z
   .strict();
 
 /**
- * Webhook de autorização de transferências: o endpoint que recebe o Asaas só existe na
- * Fase 2. Até lá a geração de token fica desligada (404 FEATURE_NOT_AVAILABLE) e o item
- * 4 do checklist não aparece na tela nem é exigido.
+ * Webhook de autorização de transferências: o endpoint que recebe o Asaas existe desde a
+ * Fase 2 (transferAuthController). Mantido como chave de desligamento (404 se false).
  */
-const AUTH_WEBHOOK_AVAILABLE = false;
+const AUTH_WEBHOOK_AVAILABLE = true;
 
 /** URL do webhook de autorização da loja (base pública da API, sem barra no fim). */
 export function authWebhookUrl(storeId: string): string {
