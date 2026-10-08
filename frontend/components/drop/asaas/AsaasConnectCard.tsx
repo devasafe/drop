@@ -47,16 +47,25 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [terms, setTerms] = useState('');
+  // 'loading' → 'ok' (texto exibido) | 'error' (falhou ou veio sem texto). Fail closed: sem
+  // o texto na tela, ninguém aceita um termo que não leu.
+  const [termsState, setTermsState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [accepted, setAccepted] = useState(false);
 
   // Texto do termo vindo do backend (fonte única; a versão é a que o aceite grava).
   useEffect(() => {
     let alive = true;
     api.get('/settings/store-asaas-terms')
-      .then((r) => { if (alive) setTerms(typeof r.data?.text === 'string' ? r.data.text : ''); })
-      .catch(() => { /* sem texto, o aceite continua exigido pelo backend */ });
+      .then((r) => {
+        if (!alive) return;
+        const text = typeof r.data?.text === 'string' ? r.data.text.trim() : '';
+        setTerms(text);
+        setTermsState(text ? 'ok' : 'error');
+      })
+      .catch(() => { if (alive) setTermsState('error'); });
     return () => { alive = false; };
   }, []);
+  const termsReady = termsState === 'ok';
 
   const load = useCallback(async () => {
     try {
@@ -182,18 +191,21 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
         )}
         <div className={styles.terms}>
           <strong>Termo de autorização</strong>
-          {terms && <pre className={styles.termsText}>{terms}</pre>}
+          {termsReady && <pre className={styles.termsText}>{terms}</pre>}
+          {termsState === 'error' && (
+            <p className={`${styles.hint} ${styles.warn}`} role="alert">Não foi possível carregar o termo. Recarregue a página para ler e aceitar.</p>
+          )}
           <label className={styles.accept}>
-            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <input type="checkbox" checked={accepted && termsReady} disabled={!termsReady} onChange={(e) => setAccepted(e.target.checked)} />
             <span>{acceptLabel}</span>
           </label>
           {(needsConsent || outdatedConsent) && (
             <div className={styles.actions}>
-              <Button size="sm" variant="primary" loading={busy} disabled={!accepted} onClick={acceptTermsOnly}>Aceitar o termo</Button>
+              <Button size="sm" variant="primary" loading={busy} disabled={!accepted || !termsReady} onClick={acceptTermsOnly}>Aceitar o termo</Button>
             </div>
           )}
         </div>
-        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey && accepted) connect(); }}>
+        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey && accepted && termsReady) connect(); }}>
           <Input
             className={styles.formField}
             type="password"
@@ -204,7 +216,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
             aria-label="Chave de API do Asaas"
             error={error || undefined}
           />
-          <Button variant="primary" loading={busy} disabled={!apiKey || !accepted} onClick={connect}>
+          <Button variant="primary" loading={busy} disabled={!apiKey || !accepted || !termsReady} onClick={connect}>
             {connected ? 'Trocar chave' : 'Conectar'}
           </Button>
           {allowDisconnect && connected && (

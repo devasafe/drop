@@ -79,3 +79,29 @@ test('aceite de versão antiga: só avisa que o termo foi atualizado (a loja seg
   expect(await screen.findByText(/O termo foi atualizado/)).toBeInTheDocument();
   expect(screen.queryByText(/voltar a vender/)).not.toBeInTheDocument();
 });
+
+test('termo não carregou: checkbox e botões de aceite ficam desabilitados (fail closed)', async () => {
+  (api.get as jest.Mock).mockImplementation((url: string) => {
+    if (url === '/settings/store-asaas-terms') return Promise.reject(new Error('rede'));
+    return Promise.resolve({ data: { success: true, data: validNoConsent } });
+  });
+  renderCard();
+  expect(await screen.findByText(/Não foi possível carregar o termo/)).toBeInTheDocument();
+  const box = screen.getByLabelText('Li e aceito o termo') as HTMLInputElement;
+  expect(box).toBeDisabled();
+  fireEvent.click(box);
+  expect(box.checked).toBe(false);
+  expect(screen.getByText('Aceitar o termo').closest('button')).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Chave de API do Asaas'), { target: { value: KEY } });
+  expect(screen.getByText('Trocar chave').closest('button')).toBeDisabled();
+});
+
+test('resposta do termo sem texto também desabilita o aceite', async () => {
+  (api.get as jest.Mock).mockImplementation((url: string) => {
+    if (url === '/settings/store-asaas-terms') return Promise.resolve({ data: { version: '2026-10-08' } });
+    return Promise.resolve({ data: { success: true, data: none } });
+  });
+  renderCard();
+  expect(await screen.findByText(/Não foi possível carregar o termo/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Li e aceito o termo')).toBeDisabled();
+});
