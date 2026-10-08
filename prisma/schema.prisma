@@ -1004,6 +1004,9 @@ model PlatformConfig {
   motoboyShareDirect          Decimal        @default(100) @db.Decimal(5, 2)
   directCardEnabled           Boolean        @default(false)
   transferBlockHours          Int            @default(24)
+  directTransfersEnabled      Boolean        @default(false)
+  directTransferMaxAmount     Decimal        @default(150) @db.Decimal(12, 2)
+  directTransferDailyMaxPerStore Decimal     @default(3000) @db.Decimal(12, 2)
   commissionPlan1             Decimal       @default(10) @db.Decimal(5, 2)
   commissionPlan2             Decimal       @default(15) @db.Decimal(5, 2)
   commissionPlan3             Decimal       @default(5) @db.Decimal(5, 2)
@@ -1285,4 +1288,29 @@ model DirectRefund {
 
   @@index([status, nextAttemptAt])
   @@index([storeId, status])
+}
+
+model MotoboyTransfer {
+  id               String    @id @default(cuid())
+  deliveryId       String    @unique
+  orderId          String
+  storeId          String
+  motoboyId        String
+  reason           String    @default("delivery")
+  amount           Decimal   @db.Decimal(12, 2)
+  pixKeyEncrypted  String
+  pixKeyType       String
+  status           String    @default("pending")
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime  @default(now())
+  asaasTransferId  String?
+  lastError        String?
+  authorizedAt     DateTime?
+  doneAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([storeId, status])
+  @@index([motoboyId, createdAt])
 }

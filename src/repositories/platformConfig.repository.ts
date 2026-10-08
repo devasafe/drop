@@ -23,6 +23,8 @@ const DECIMAL_FIELDS = [
   'cardAnticipationMonthlyRate',
   'cardInstallmentMinValue',
   'motoboyShareDirect',
+  'directTransferMaxAmount',
+  'directTransferDailyMaxPerStore',
 ] as const;
 
 export function toApiConfig(c: any): any {

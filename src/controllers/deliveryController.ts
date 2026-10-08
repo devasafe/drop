@@ -26,6 +26,7 @@ import payoutService from '../services/payout.service';
 import env from '../config/env';
 import logger from '../config/logger';
 import { isDirectOrder } from '../utils/settlement';
+import { createTransferForDelivery, notifyTransferCreated } from '../services/asaasLoja/motoboyTransfer';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
@@ -273,18 +274,28 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
       await registerPinFailure(delivery.id);
       return res.status(400).json({ error: 'PIN inválido' });
     }
-    // Trava atômica: só quem vira picked→delivered segue para payout/nota/pontos.
-    const lock = await prisma.delivery.updateMany({
-      where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
-      data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
-    });
-    if (lock.count !== 1) return res.status(409).json({ error: 'Already delivered' });
-    delivery.status = 'delivered';
-
-    // Atualiza o status do pedido para 'delivered'
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    
+
+    // Trava atômica: só quem vira picked→delivered segue para payout/nota/pontos.
+    // No modo direto, a transferência Pix ao motoboy é registrada na MESMA transação da trava.
+    let createdTransfer: any = null;
+    const locked = await prisma.$transaction(async (tx) => {
+      const lock = await tx.delivery.updateMany({
+        where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
+        data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
+      });
+      if (lock.count !== 1) return false;
+      if (isDirectOrder(order)) {
+        createdTransfer = await createTransferForDelivery(tx, { id: delivery.id, motoboyId: String(userId), fee: delivery.fee }, { id: order.id, storeId: String(order.storeId) });
+      }
+      return true;
+    });
+    if (!locked) return res.status(409).json({ error: 'Already delivered' });
+    delivery.status = 'delivered';
+    if (createdTransfer) notifyTransferCreated(createdTransfer);
+
+    // Atualiza o status do pedido para 'delivered'
     order.status = 'entregue';
     await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
     console.log(`✅ [finalizarEntrega] Order ${order._id} marked as 'entregue'`);
@@ -342,13 +353,13 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 
       // Modo SaaS direto: o dinheiro já está na conta Asaas da loja — não há custódia a
       // liberar nem Payout de motoboy pela conta-mãe (o Pix ao motoboy é a Fase 2).
-      const isDirectOrder = order.paymentProvider === 'asaas_loja';
+      const directOrder = isDirectOrder(order);
 
       // Garantir que a wallet do motoboy exista (pra receber o payout).
-      if (!isDirectOrder) await walletService.getOrCreate(userId, 'motoboy');
+      if (!directOrder) await walletService.getOrCreate(userId, 'motoboy');
 
       const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
-      if (isDirectOrder) {
+      if (directOrder) {
         logger.info('[finalizarEntrega] pedido do modo direto — sem Payout/carteira de custódia', { orderId: order.id });
       } else if (useAsaas) {
         // Cria o Payout do motoboy (pending). A liberação (transferência real conta-mãe
@@ -389,7 +400,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         });
       }
 
-      if (!isDirectOrder) {
+      if (!directOrder) {
         logger.info('[finalizarEntrega] payouts do pedido processados', { orderId: order.id, motoboyAmount: Number(motoboyAmount.toFixed(2)) });
       }
 
@@ -401,9 +412,9 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         const invoice = await deliveryInvoiceService.generateInvoice({
           orderId: order._id.toString(),
           deliveryId: delivery._id.toString(),
-          motoboyAmount: isDirectOrder ? Number(delivery.fee) : motoboyAmount,
-          appCommission: isDirectOrder ? 0 : delivery.fee - motoboyAmount,
-          commissionPercent: isDirectOrder ? 0 : motoboyCommissionPercent,
+          motoboyAmount: directOrder ? Number(delivery.fee) : motoboyAmount,
+          appCommission: directOrder ? 0 : delivery.fee - motoboyAmount,
+          commissionPercent: directOrder ? 0 : motoboyCommissionPercent,
         });
         logger.info('[finalizarEntrega] nota de serviço gerada', { orderId: order.id, invoiceNumber: invoice.invoiceNumber });
       } catch (invoiceErr) {
