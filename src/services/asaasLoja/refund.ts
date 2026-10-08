@@ -239,7 +239,8 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     // Aceito, mas ainda em andamento no Asaas (a trava de autorização pode nem ter sido
     // chamada): não dá como estornado. O webhook PAYMENT_REFUNDED conclui; o reaper só
     // marca incerto depois de ACCEPTED_REFUND_MAX_MS.
-    await prisma.directRefund.updateMany({ where: { id: refundId, status: 'requested' }, data: { acceptedAt: new Date() } });
+    const accepted = await prisma.directRefund.updateMany({ where: { id: refundId, status: 'requested' }, data: { acceptedAt: new Date() } });
+    if (accepted.count !== 1) return currentStatus(refundId); // o webhook/admin já concluiu
     logger.info('[asaasLoja] estorno direto aceito e em andamento no Asaas', { refundId, orderId, storeId, status: response?.status ?? null });
     return 'requested';
   }

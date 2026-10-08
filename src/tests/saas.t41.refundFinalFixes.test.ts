@@ -291,3 +291,15 @@ describe('M8 — 408 do Asaas é incerto (como na transferência)', () => {
     expect(row.lastError).toBe('UNCERTAIN');
   });
 });
+
+describe('C1 — webhook concluiu antes da resposta em andamento', () => {
+  it('POST devolve REFUND_IN_PROGRESS mas a linha já está done → devolve done (não requested)', async () => {
+    const s = await setup();
+    postAs.mockImplementation(async () => {
+      await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'done', doneAt: new Date() } });
+      return { id: s.order.asaasPaymentId, status: 'REFUND_IN_PROGRESS' };
+    });
+    expect(await executeDirectRefund(s.refund.id)).toBe('done');
+    expect((await rowOf(s.refund.id)).acceptedAt).toBeNull();
+  });
+});
