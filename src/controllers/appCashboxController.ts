@@ -281,21 +281,27 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Saldo insuficiente para aprovar saque' });
     }
 
-    // ✅ Atualizar status
-    const updated = await updateWithdrawal(withdrawal._id, {
-      status: 'approved',
-      approvedAt: new Date(),
-      processedBy: userId,
+    // ✅ Status (pending → approved, condicional) + débito no caixa na MESMA transação:
+    // duas aprovações concorrentes não debitam o caixa duas vezes.
+    const approved = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.withdrawal.updateMany({
+        where: { id: String(withdrawal._id), status: 'pending' },
+        data: { status: 'approved', approvedAt: new Date(), processedBy: userId },
+      });
+      if (count !== 1) return false;
+      await recordCashboxEntry(tx, {
+        type: 'withdrawal',
+        source: 'manual_withdrawal',
+        amount: withdrawal.amount,
+        withdrawalId: String(withdrawal._id),
+        reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
+      });
+      return true;
     });
-
-    // ✅ Registrar no caixa (débito manual)
-    await recordCashboxEntry(prisma, {
-      type: 'withdrawal',
-      source: 'manual_withdrawal',
-      amount: updated.amount,
-      withdrawalId: String(updated._id),
-      reason: `Saque aprovado - ${updated.reason || 'Sem motivo'}`,
-    });
+    if (!approved) {
+      return res.status(409).json({ error: 'Saque não está mais pendente' });
+    }
+    const updated = await findWithdrawalById(id);
 
     console.log('✅ Saque aprovado:', updated._id);
 

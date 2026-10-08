@@ -766,6 +766,9 @@ model WithdrawalRequest {
   processedAt    DateTime?
   transactionId  String?
   payoutIds      String[]                @default([])
+  // Resposta incerta do gateway (timeout, rede, 5xx): o Pix pode ter saído. O saque fica em
+  // `approved` (reivindicado) até o admin conferir no painel do Asaas — nunca volta a pending.
+  uncertainAt    DateTime?
 
   @@index([motoboyId])
   @@index([status])
