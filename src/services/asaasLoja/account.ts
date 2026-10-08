@@ -87,11 +87,16 @@ export async function getStoreConsent(storeId: string): Promise<{ version: strin
   return row ? { version: row.termsVersion, acceptedAt: row.acceptedAt, actorRole: row.actorRole } : null;
 }
 
-/** Registra o aceite da versão vigente do termo (comprovação: INSERT puro). */
+/**
+ * Registra o aceite da versão vigente do termo (comprovação: INSERT puro).
+ * Idempotente: a mesma versão já aceita pela loja não gera segunda linha (unique
+ * storeId+termsVersion + ON CONFLICT DO NOTHING); vale a prova do primeiro aceite.
+ */
 export async function recordStoreConsent(params: {
   storeId: string; actorId: string; actorRole: StoreConsentActorRole; ip: string | null; userAgent: string | null;
 }): Promise<void> {
-  await prisma.storeAsaasConsent.create({
+  await prisma.storeAsaasConsent.createMany({
+    skipDuplicates: true,
     data: {
       storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
       termsVersion: STORE_ASAAS_TERMS_VERSION,
@@ -184,7 +189,9 @@ export async function connectStoreAsaas(
       data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
     });
     // Aceite do termo na MESMA transação: não existe conta conectada sem a comprovação.
-    await tx.storeAsaasConsent.create({
+    // Mesma versão já aceita (reconexão): ON CONFLICT DO NOTHING — não aborta a transação.
+    await tx.storeAsaasConsent.createMany({
+      skipDuplicates: true,
       data: {
         storeId, actorId, actorRole: consent.actorRole, termsVersion: STORE_ASAAS_TERMS_VERSION,
         ip: consent.ip, userAgent: consent.userAgent ? consent.userAgent.slice(0, 500) : null,

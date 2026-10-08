@@ -1254,6 +1254,8 @@ model StoreAsaasConsent {
   /// (migration 20261009160000) recusa UPDATE/DELETE: a tabela só aceita INSERT.
   store        Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
+  /// Um aceite por versão por loja: aceitar de novo a mesma versão é idempotente.
+  @@unique([storeId, termsVersion])
   @@index([storeId, acceptedAt])
 }
 
