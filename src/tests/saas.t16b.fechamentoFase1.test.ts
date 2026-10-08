@@ -95,6 +95,9 @@ afterEach(async () => {
   const orders = await prisma.order.findMany({ where: { storeId: { in: storeIds } }, select: { id: true } });
   await prisma.deliveryInvoice.deleteMany({ where: { orderId: { in: orders.map((o) => o.id) } } });
   await prisma.payout.deleteMany({ where: { orderId: { in: orders.map((o) => o.id) } } });
+  // Entrega direta finalizada cria MotoboyTransfer 'pending': sem limpar, o job da t23
+  // (runMotoboyTransfers varre todas as linhas vencidas) topava com elas na rodada seguinte.
+  await prisma.motoboyTransfer.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.storeAsaasCustomer.deleteMany({ where: { storeId: { in: storeIds } } });
   await prisma.storeAsaasAudit.deleteMany({ where: { storeId: { in: storeIds } } });
   if (couponCodes.length) await prisma.coupon.deleteMany({ where: { code: { in: couponCodes.splice(0) } } });

@@ -48,7 +48,14 @@ const MIN = 60000;
 const HOUR = 60 * MIN;
 
 let restore: () => Promise<void>;
-beforeAll(async () => { restore = await snapshotPlatformConfig(); });
+beforeAll(async () => {
+  restore = await snapshotPlatformConfig();
+  // O job varre TODAS as transferências vencidas do banco: linhas órfãs (loja já apagada)
+  // deixadas por outras suítes entravam na contagem de `failed` e o 1º envio falhava
+  // (flaky dependente de ordem). Remove só as órfãs — nunca linhas de loja existente.
+  const orphans = await prisma.$queryRaw<{ id: string }[]>`SELECT t.id FROM "MotoboyTransfer" t LEFT JOIN "Store" s ON s.id = t."storeId" WHERE s.id IS NULL`;
+  if (orphans.length) await prisma.motoboyTransfer.deleteMany({ where: { id: { in: orphans.map((o) => o.id) } } });
+});
 afterAll(async () => { await restore(); });
 
 beforeEach(async () => {
