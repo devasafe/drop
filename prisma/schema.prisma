@@ -1262,3 +1262,26 @@ model StoreAsaasCustomer {
 
   @@unique([storeId, userId])
 }
+
+/// Estorno de pedido no modo SaaS "direto": feito com a chave da conta Asaas DA LOJA.
+/// 1 por pedido. `uncertain` = resposta incerta do Asaas (nunca reenviar às cegas).
+model DirectRefund {
+  id             String    @id @default(cuid())
+  orderId        String    @unique
+  cancellationId String?
+  storeId        String
+  asaasPaymentId String
+  amount         Decimal   @db.Decimal(12, 2)
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  lastError      String?
+  requestedBy    String
+  resolvedBy     String?
+  doneAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([storeId, status])
+}

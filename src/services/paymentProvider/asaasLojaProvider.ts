@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma';
 import { AppError } from '../../utils/AppError';
+import { requestDirectRefund, executeDirectRefund } from '../asaasLoja/refund';
 import { createStorePixCharge, getStorePaymentStatus, cancelStorePixCharge } from '../asaasLoja/charge';
 import type {
   IPaymentProvider, PaymentProviderCapabilities, CreateChargeInput,
@@ -69,10 +70,23 @@ export class AsaasLojaProvider implements IPaymentProvider {
   }
 
   /**
-   * Estorno com a chave da loja ainda não existe. Devolve 'failed' (não lança) para o
-   * fluxo de cancelamento escalar ao admin (refundStatus 'pending'), como em qualquer falha.
+   * Estorno com a chave da loja (DirectRefund). 'done' só se o estorno terminou 'done';
+   * qualquer outro desfecho (recusa, incerteza, pedido inelegível) devolve 'failed' sem lançar,
+   * para o fluxo de cancelamento escalar ao admin.
    */
-  async refund(): Promise<RefundResult> {
-    return { status: 'failed', errorMessage: 'asaas_loja: estorno ainda não implementado (NOT_IMPLEMENTED)' };
+  async refund(orderId: string, _providerPaymentId: string, value?: number): Promise<RefundResult> {
+    try {
+      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { totalValue: true } });
+      const cancellation = await prisma.cancellation.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
+      const refund = await requestDirectRefund({
+        orderId, cancellationId: cancellation?.id ?? null,
+        amount: value ?? Number(order?.totalValue ?? 0), requestedBy: 'system',
+      });
+      const status = await executeDirectRefund(refund.id);
+      if (status === 'done') return { status: 'done' };
+      return { status: 'failed', errorMessage: `asaas_loja: estorno não concluído (${status})` };
+    } catch (err) {
+      return { status: 'failed', errorMessage: (err as Error)?.message || 'asaas_loja: falha no estorno' };
+    }
   }
 }

@@ -39,7 +39,7 @@ export function saoPauloToday(): string {
 }
 
 /** Chave da loja, só se a conta está 'valid'. Senão, StorePaymentsNotReadyError. */
-async function storeKey(storeId: string): Promise<string> {
+export async function storeKey(storeId: string): Promise<string> {
   const row = await prisma.storeAsaasAccount.findUnique({
     where: { storeId }, select: { status: true, apiKeyEncrypted: true },
   });
@@ -73,7 +73,7 @@ async function markKeyRevoked(storeId: string): Promise<StorePaymentsNotReadyErr
 }
 
 /** Traduz um erro de chamada com a chave da loja: 401 → conta invalid + 409. */
-async function translate(storeId: string, err: unknown): Promise<unknown> {
+export async function translate(storeId: string, err: unknown): Promise<unknown> {
   if (err instanceof AsaasApiError && err.status === 401) return markKeyRevoked(storeId);
   return err;
 }
