@@ -8,6 +8,7 @@ import { getNavItems, isItemActive, GUEST_BOTTOM_NAV } from '../../lib/navConfig
 import { StickyCart } from './StickyCart';
 import { TabBar, TabKey, TabItem, DEFAULT_TABS } from './TabBar';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import styles from './CustomerAppChrome.module.css';
 
 interface CartItem {
@@ -25,6 +26,14 @@ const KEY_BY_LABEL: Record<string, TabKey> = {
 // navConfig (GUEST_BOTTOM_NAV); os ícones lucide são atribuídos por key aqui.
 const GUEST_ICON: Record<string, ComponentType<LucideProps>> = { inicio: Home, buscar: Search, entrar: LogIn };
 const GUEST_TAB_ITEMS: TabItem[] = GUEST_BOTTOM_NAV.map((g) => ({ key: g.key as TabKey, label: g.label, icon: GUEST_ICON[g.key] }));
+
+/** Abas do cliente logado. Modo direto: sem Carteira — exceto quem ainda tem saldo da
+ * custódia (P16), que vê a aba como "Saldo anterior" (mesma tela /wallet). */
+function directTabs(direct: boolean, custodyLeftover: boolean): TabItem[] | undefined {
+  if (!direct) return undefined;
+  if (custodyLeftover) return DEFAULT_TABS.map((t) => (t.key === 'carteira' ? { ...t, label: 'Saldo anterior' } : t));
+  return DEFAULT_TABS.filter((t) => t.key !== 'carteira');
+}
 
 /** Aba ativa derivada da rota do app-shell do cliente, via navConfig (rota +
  * activeMatch de cada item). As telas de vitrine (/stores, /stores/[id],
@@ -47,6 +56,7 @@ export function CustomerAppChrome() {
   const { user } = useAuth();
   const { cart } = useCart();
   const { settlementMode } = useSaasConfig();
+  const custodyLeftover = useCustodyLeftover();
   const loggedOut = !user;
 
   const items = (cart || []) as CartItem[];
@@ -72,7 +82,7 @@ export function CustomerAppChrome() {
         <TabBar
           active={activeTab(router.pathname)}
           onNavigate={handleTabNavigate}
-          items={loggedOut ? GUEST_TAB_ITEMS : (settlementMode === 'direto' ? DEFAULT_TABS.filter((t) => t.key !== 'carteira') : undefined)}
+          items={loggedOut ? GUEST_TAB_ITEMS : directTabs(settlementMode === 'direto', custodyLeftover)}
         />
       </div>
     </div>

@@ -24,6 +24,9 @@ export interface NavItem {
   custodyOnly?: boolean;
   /** Inverso de custodyOnly: aparece SÓ no modo 'direto' (conta Asaas própria da loja). */
   directOnly?: boolean;
+  /** Aparece SÓ no modo 'direto' para quem ainda tem saldo da custódia (P16: o saldo
+   * termina no modo em que nasceu). Quem decide é o backend (GET /settings/custody-leftover). */
+  custodyLeftoverOnly?: boolean;
 }
 
 export interface RoleArea {
@@ -68,6 +71,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Buscar',   icon: 'search',      route: '/',               placement: ['bottomNav'], activeMatch: ['/', '/stores', '/product', '/produtos'] },
     { label: 'Pedidos',  icon: 'receipt',     route: '/user-dashboard', placement: ['bottomNav'] },
     { label: 'Carteira', icon: 'wallet',      route: '/wallet',         placement: ['bottomNav'], custodyOnly: true },
+    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/wallet', placement: ['bottomNav'], custodyLeftoverOnly: true },
     { label: 'Perfil',   icon: 'user',        route: '/minha-conta',    placement: ['bottomNav'], activeMatch: ['/minha-conta', '/user-profile', '/editar-conta'] },
   ],
   lojista: [
@@ -82,6 +86,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
     { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja', custodyOnly: true },
     { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
+    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet',             placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
     { label: 'Recebimentos',       icon: 'bank',      route: '/seller/pagamentos',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
     { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
   ],
@@ -89,6 +94,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
     { label: 'Entregas',         icon: 'truck',     route: '/motoboy/ongoing',     placement: ['sidebar', 'bottomNav'], group: 'Trabalho', badge: 'deliveries' },
     { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
+    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/motoboy/wallet',  placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
     { label: 'Desempenho',       icon: 'trophy',    route: '/motoboy/gamification', placement: ['sidebar', 'bottomNav'], group: 'Desempenho' },
     { label: 'Benefícios',       icon: 'gift',      route: '/motoboy/beneficios',  placement: ['sidebar', 'drawer'],   group: 'Desempenho' },
     { label: 'Perfil e documentos', icon: 'clipboard', route: '/motoboy/profile',  placement: ['sidebar', 'drawer'],   group: 'Conta profissional' },
@@ -127,9 +133,10 @@ export function getNavItems(
   role: Role,
   can: (permission: string) => boolean,
   isCeo: boolean,
-  opts?: { settlementMode?: string },
+  opts?: { settlementMode?: string; custodyLeftover?: boolean },
 ): NavItem[] {
   const direct = opts?.settlementMode === 'direto';
+  const showLeftover = direct && opts?.custodyLeftover === true;
   if (role === 'ceo') {
     return visibleAdminMenu(can, isCeo).filter((m) => !(direct && m.custodyOnly) && !(m.directOnly && !direct)).map((m) => ({
       label: m.label,
@@ -141,7 +148,11 @@ export function getNavItems(
     }));
   }
   const items = NAV[role] || [];
-  return items.filter((it) => (!it.permission || can(it.permission)) && !(direct && it.custodyOnly) && !(it.directOnly && !direct));
+  return items.filter((it) =>
+    (!it.permission || can(it.permission))
+    && !(direct && it.custodyOnly)
+    && !(it.directOnly && !direct)
+    && !(it.custodyLeftoverOnly && !showLeftover));
 }
 
 /** Estado ativo por prefixo de rota e tab na querystring. */

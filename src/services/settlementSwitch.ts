@@ -82,7 +82,7 @@ export async function settlementSwitchPreview(to: SettlementMode): Promise<Settl
     }
     if (wallets.length > 0) {
       risks.push(
-        `${wallets.length} carteira(s) com saldo de custódia (${brl(custodyBalance)}): o saque some das telas no SaaS e só o admin consegue pagar.`,
+        `${wallets.length} carteira(s) com saldo de custódia (${brl(custodyBalance)}): no SaaS o dono continua vendo e sacando esse saldo (menu "Saldo do modo anterior") até zerar.`,
       );
     }
     if (openPayouts > 0) risks.push(`${openPayouts} repasse(s) de custódia em aberto: o admin precisa concluí-los em /admin/payouts.`);

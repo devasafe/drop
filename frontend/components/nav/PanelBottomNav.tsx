@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useOverlay } from '../../contexts/OverlayContext';
 import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import { getNavItems, isItemActive, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './PanelBottomNav.module.css';
@@ -13,12 +14,13 @@ export default function PanelBottomNav() {
   const overlay = useOverlay();
   const badges = useBadgeCounts();
   const { settlementMode } = useSaasConfig();
+  const custodyLeftover = useCustodyLeftover();
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
   if (role === 'cliente') return null; // cliente usa CustomerAppChrome
 
-  const all = getNavItems(role, can, role === 'ceo', { settlementMode });
+  const all = getNavItems(role, can, role === 'ceo', { settlementMode, custodyLeftover });
   const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, 4);
   if (bottom.length === 0) return null; // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer)
   // "Mais" abre a sidebar lateral completa (o mesmo menu do antigo hambúrguer do topo).

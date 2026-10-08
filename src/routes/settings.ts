@@ -14,6 +14,8 @@ import {
 } from '../controllers/settingsController';
 
 import { getSaasConfig } from '../utils/settlement';
+import { hasCustodyLeftover } from '../services/custodyLeftover';
+import logger from '../config/logger';
 import env from '../config/env';
 import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT } from '../legal/storeAsaasTerms';
 
@@ -26,6 +28,18 @@ router.get('/saas', async (_req, res) => {
     return res.json({ settlementMode, billingModel, directCardEnabled, egressIp: env.DROP_EGRESS_IP || null });
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao ler as configurações' });
+  }
+});
+
+// Usuário - tem saldo da custódia sobrando no modo direto? (menu "Saldo do modo anterior", P16)
+// Na custódia é sempre false: lá a carteira/saque já aparecem normalmente.
+router.get('/custody-leftover', authenticate, async (req: any, res) => {
+  try {
+    if ((await getSaasConfig()).settlementMode !== 'direto') return res.json({ hasLeftover: false });
+    return res.json({ hasLeftover: await hasCustodyLeftover(String(req.user.id)) });
+  } catch (err) {
+    logger.error('custody-leftover: falha ao consultar saldo de custódia', err as Error);
+    return res.status(500).json({ error: 'Erro ao consultar o saldo' });
   }
 });
 
