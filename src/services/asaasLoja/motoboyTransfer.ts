@@ -8,6 +8,7 @@ import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encrypti
 import { getSaasConfig } from '../../utils/settlement';
 import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import logger from '../../config/logger';
+import { maskSensitiveText } from '../../utils/safeErrorText';
 import { storeKey, translate, saoPauloToday, StorePaymentsNotReadyError } from './charge';
 import { DIRECT_REFUND_BACKOFF_MS } from './refund';
 
@@ -223,10 +224,7 @@ function safeErrorText(err: unknown): string {
   if (err instanceof AsaasApiError) {
     const e = err.errors?.[0];
     const code = e?.code || `HTTP_${err.status}`;
-    const desc = String(e?.description ?? '')
-      .replace(/[^\s@]+@[^\s@]+/g, '***')
-      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '***')
-      .replace(/\d/g, '*');
+    const desc = maskSensitiveText(e?.description);
     return desc ? `${code}: ${desc}` : code;
   }
   return (err as Error)?.message || 'erro'; // StorePaymentsNotReadyError: mensagem nossa

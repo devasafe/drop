@@ -1,5 +1,6 @@
 import env from '../../config/env';
 import logger from '../../config/logger';
+import { maskAsaasErrors } from '../../utils/safeErrorText';
 
 /**
  * Client HTTP do Asaas.
@@ -87,7 +88,8 @@ async function request<T>(method: Method, path: string, body?: unknown, apiKey?:
     const errors: AsaasError[] = Array.isArray(data?.errors)
       ? data.errors
       : [{ code: 'unknown', description: data?.message || data?._raw || `HTTP ${res.status}` }];
-    logger.warn('Chamada Asaas falhou', { method, path, status: res.status, errors });
+    // descrição mascarada: o Asaas pode ecoar chave Pix, documento ou e-mail
+    logger.warn('Chamada Asaas falhou', { method, path, status: res.status, errors: maskAsaasErrors(errors) });
     throw new AsaasApiError(res.status, errors);
   }
 

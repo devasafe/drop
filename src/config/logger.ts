@@ -1,7 +1,56 @@
 import winston from 'winston';
 import path from 'path';
+import { maskAsaasErrors, maskSensitiveText } from '../utils/safeErrorText';
 
 const { combine, timestamp, printf, colorize, errors, json } = winston.format;
+
+const SPLAT = Symbol.for('splat');
+
+/**
+ * Serializa um erro só com campos seguros: name, message, stack, status/statusCode, code e
+ * errors[] do Asaas (descrição mascarada). Nunca copia `config`/`headers`/`request`/`response`
+ * inteiros (o erro estilo axios carrega o header `access_token` com a chave da loja).
+ */
+export function serializeError(err: any): Record<string, unknown> {
+  const isAsaas = Array.isArray(err?.errors);
+  const out: Record<string, unknown> = {
+    name: err?.name,
+    message: isAsaas ? maskSensitiveText(err?.message) : err?.message,
+  };
+  if (err?.stack) out.stack = isAsaas && err.message ? String(err.stack).split(String(err.message)).join(String(out.message)) : err.stack;
+  const status = err?.status ?? err?.statusCode ?? err?.response?.status;
+  if (typeof status === 'number') out.status = status;
+  if (typeof err?.code === 'string' || typeof err?.code === 'number') out.code = err.code;
+  if (isAsaas) out.errors = maskAsaasErrors(err.errors);
+  return out;
+}
+
+/**
+ * `logger.error(msg, err, meta)`: o winston só usa o 1º argumento extra (e copia as
+ * propriedades enumeráveis do erro para o log). Aqui o erro vira `error` serializado com
+ * campos seguros e os objetos seguintes (meta) são mesclados.
+ */
+const mergeErrorAndMeta = winston.format((info: any) => {
+  const splat = info[SPLAT];
+  if (!Array.isArray(splat) || splat.length === 0) return info;
+  const [first, ...rest] = splat;
+  if (first instanceof Error) {
+    for (const k of Object.keys(first)) delete info[k];
+    delete info.stack;
+    const e = serializeError(first);
+    // o winston anexa err.message à mensagem; troca pela versão segura
+    const raw = String((first as Error).message ?? '');
+    if (raw && typeof info.message === 'string' && info.message.endsWith(` ${raw}`)) {
+      info.message = `${info.message.slice(0, -raw.length - 1)} ${e.message}`;
+    }
+    info.error = e;
+  }
+  for (const m of rest) {
+    if (m instanceof Error) info.cause = serializeError(m);
+    else if (m && typeof m === 'object') Object.assign(info, m);
+  }
+  return info;
+});
 
 // Formato customizado para logs
 const customFormat = printf(({ level, message, timestamp, ...meta }) => {
@@ -52,6 +101,7 @@ const developmentTransports = [
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
   format: combine(
+    mergeErrorAndMeta(),
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     errors({ stack: true }),
     json(),
