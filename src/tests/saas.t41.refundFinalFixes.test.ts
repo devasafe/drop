@@ -179,3 +179,43 @@ describe('C1 — 200 do POST com estorno em andamento', () => {
     expect(postAs).not.toHaveBeenCalled();
   });
 });
+
+describe('I7 — DirectRefund pending órfão', () => {
+  it('pending criado há mais de 10 min → o job executa (claim atômico) e conclui', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { createdAt: new Date(Date.now() - 11 * MIN) } });
+    postAs.mockResolvedValue({ id: s.order.asaasPaymentId, status: 'REFUNDED' });
+
+    const out = await runDirectRefunds();
+
+    expect(postAs).toHaveBeenCalledTimes(1);
+    expect(out.retried).toBe(1);
+    const row = await rowOf(s.refund.id);
+    expect(row.status).toBe('done');
+    expect(row.attempts).toBe(1);
+  });
+
+  it('pending recente (< 10 min) → intacto', async () => {
+    const s = await setup();
+    await runDirectRefunds();
+    expect(postAs).not.toHaveBeenCalled();
+    expect((await rowOf(s.refund.id)).status).toBe('pending');
+  });
+
+  it('duas execuções concorrentes do job → 1 chamada ao Asaas', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { createdAt: new Date(Date.now() - 11 * MIN) } });
+    postAs.mockImplementation(() => new Promise((res) => setTimeout(() => res({ id: 'x', status: 'REFUNDED' }), 50)));
+    await Promise.all([runDirectRefunds(), runDirectRefunds()]);
+    expect(postAs).toHaveBeenCalledTimes(1);
+  });
+
+  it('webhook PAYMENT_REFUNDED conclui o pending', async () => {
+    const s = await setup();
+    expect((await refundedEvent(s.store.id, s.order.asaasPaymentId!)).status).toBe(200);
+    const row = await rowOf(s.refund.id);
+    expect(row.status).toBe('done');
+    expect(row.resolvedBy).toBe('webhook');
+    expect((await prisma.cancellation.findUnique({ where: { id: s.cancellation.id } }))!.refundStatus).toBe('processed');
+  });
+});

@@ -143,7 +143,7 @@ export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
 /** O Asaas confirmou o estorno: fecha o DirectRefund (se for desta loja e ainda em aberto). */
 async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: string): Promise<void> {
   const refund = await prisma.directRefund.findFirst({
-    where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested'] } },
+    where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested', 'pending'] } },
     select: { orderId: true },
   });
   if (refund) await markDirectRefundDone(refund.orderId, 'webhook');

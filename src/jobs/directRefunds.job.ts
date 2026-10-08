@@ -8,6 +8,8 @@ import { executeDirectRefund, notifyDirectRefund } from '../services/asaasLoja/r
  *
  *  - `failed` com nextAttemptAt vencido → reexecuta (executeDirectRefund faz o claim atômico e o
  *    backoff P5; a 6ª falha vira `failed_final`).
+ *  - `pending` criado há mais de 10 min → órfão (o processo caiu entre gravar e executar):
+ *    executa pelo mesmo caminho, com o mesmo claim atômico.
  *  - `requested` há mais de 10 min → processo morreu no meio da chamada: vira `uncertain`
  *    (NUNCA `failed`, para não reenviar às cegas) e alerta o admin.
  *  - `requested` com `acceptedAt` (o Asaas aceitou e o estorno está em andamento) espera o
@@ -17,6 +19,7 @@ import { executeDirectRefund, notifyDirectRefund } from '../services/asaasLoja/r
 
 export const STUCK_REQUESTED_MS = 10 * 60 * 1000;
 export const ACCEPTED_REFUND_MAX_MS = 24 * 60 * 60 * 1000;
+export const ORPHAN_PENDING_MS = 10 * 60 * 1000;
 const BATCH = 50;
 
 export async function runDirectRefunds(now: Date = new Date()): Promise<{ retried: number; finalFailed: number }> {
@@ -43,7 +46,12 @@ export async function runDirectRefunds(now: Date = new Date()): Promise<{ retrie
 
   // 2) Retentativas vencidas.
   const due = await prisma.directRefund.findMany({
-    where: { status: 'failed', nextAttemptAt: { lte: now } },
+    where: {
+      OR: [
+        { status: 'failed', nextAttemptAt: { lte: now } },
+        { status: 'pending', createdAt: { lt: new Date(now.getTime() - ORPHAN_PENDING_MS) } },
+      ],
+    },
     select: { id: true },
     orderBy: { nextAttemptAt: 'asc' },
     take: BATCH,
@@ -54,7 +62,7 @@ export async function runDirectRefunds(now: Date = new Date()): Promise<{ retrie
   for (const r of due) {
     try {
       const before = await prisma.directRefund.findUnique({ where: { id: r.id }, select: { status: true } });
-      if (before?.status !== 'failed') continue; // outra execução já pegou
+      if (before?.status !== 'failed' && before?.status !== 'pending') continue; // outra execução já pegou
       const result = await executeDirectRefund(r.id);
       retried++;
       if (result === 'failed_final') finalFailed++;
