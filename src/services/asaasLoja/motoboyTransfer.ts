@@ -416,12 +416,30 @@ export async function reconcileTransferFromWebhook(storeId: string, event: strin
   }
 
   if (event === 'TRANSFER_DONE') {
+    // Fail closed (I2): sem o id do Asaas não há como provar que é ESTA transferência.
+    if (!asaasId) {
+      logger.warn('[motoboyTransfer] TRANSFER_DONE sem transfer.id (ignorado)', { transferId: t.id, storeId });
+      if (t.status !== 'done') alertAdmin(t, 'Pix ao motoboy: conclusão sem id do Asaas', 'evento TRANSFER_DONE sem id da transferência; conferir no Asaas.');
+      return;
+    }
+    if (t.status === 'done') return; // idempotente
+    // DONE só de quem está em voo/incerto, ou de `failed` com o MESMO id vinculado.
+    const boundSame = t.asaasTransferId === asaasId;
+    const accepts = t.status === 'requested' || t.status === 'uncertain' || (t.status === 'failed' && boundSame);
+    if (!accepts) {
+      logger.warn('[motoboyTransfer] TRANSFER_DONE em status que não aceita conclusão (ignorado)', { transferId: t.id, storeId, status: t.status });
+      alertAdmin(t, 'Pix ao motoboy concluído fora de hora', `o Asaas concluiu uma transferência com a linha em ${t.status}; conferir (risco de pagamento em dobro).`);
+      return;
+    }
     const { count } = await prisma.motoboyTransfer.updateMany({
       where: {
-        id: t.id, status: { not: 'done' },
-        ...(asaasId ? { OR: [{ asaasTransferId: null }, { asaasTransferId: asaasId }] } : {}),
+        id: t.id,
+        ...(t.status === 'failed'
+          ? { status: 'failed', asaasTransferId: asaasId }
+          : { status: { in: ['requested', 'uncertain'] }, OR: [{ asaasTransferId: null }, { asaasTransferId: asaasId }] }),
+        NOT: { previousAsaasTransferIds: { has: asaasId } },
       },
-      data: { status: 'done', doneAt: new Date(), lastError: null, ...(asaasId ? { asaasTransferId: asaasId } : {}) },
+      data: { status: 'done', doneAt: new Date(), lastError: null, asaasTransferId: asaasId },
     });
     if (count === 1) {
       logger.info('[motoboyTransfer] transferência concluída', { transferId: t.id, storeId });
