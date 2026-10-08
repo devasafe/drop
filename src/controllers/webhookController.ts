@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/orderPayment';
 import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
+import { markDirectRefundDone } from '../services/asaasLoja/refund';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 
 /**
@@ -135,6 +136,15 @@ export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
  *  - PAYMENT_REFUNDED → pedido estornado (só se for desta loja);
  *  - PAYMENT_REFUND_IN_PROGRESS, TRANSFER_* (Fase 2) e demais → registrados e ignorados.
  */
+/** O Asaas confirmou o estorno: fecha o DirectRefund (se for desta loja e ainda em aberto). */
+async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: string): Promise<void> {
+  const refund = await prisma.directRefund.findFirst({
+    where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested'] } },
+    select: { orderId: true },
+  });
+  if (refund) await markDirectRefundDone(refund.orderId, 'webhook');
+}
+
 async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: any): Promise<void> {
   const event = body.event as string;
   const payment = body.payment || {};
@@ -148,7 +158,10 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
         if (payment.id) await confirmDirectOrderPaid(storeId, String(payment.id), payment.status || (event === 'PAYMENT_CONFIRMED' ? 'CONFIRMED' : 'RECEIVED'));
         break;
       case 'PAYMENT_REFUNDED':
-        if (payment.id) await markDirectOrderRefunded(storeId, String(payment.id));
+        if (payment.id) {
+          await markDirectOrderRefunded(storeId, String(payment.id));
+          await reconcileDirectRefundFromWebhook(storeId, String(payment.id));
+        }
         break;
       default:
         break;

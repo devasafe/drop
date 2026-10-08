@@ -18,6 +18,7 @@ import { startDeliveryTimeoutJob } from './jobs/deliveryTimeout.job';
 import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
 import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
 import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
+import { startDirectRefundsJob } from './jobs/directRefunds.job';
 
 console.log('📍 [INDEX] Starting application...');
 
@@ -87,6 +88,14 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Pool timeout job failed to start', e);
+  }
+
+  // ✅ Retentativa/reconciliação do estorno no modo SaaS direto (backoff P5 + reaper de 'requested' preso).
+  try {
+    startDirectRefundsJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Direct refunds job failed to start', e);
   }
 
   console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);

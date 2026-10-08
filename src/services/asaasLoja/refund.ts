@@ -17,7 +17,10 @@ import { storeKey, translate, StorePaymentsNotReadyError } from './charge';
 
 export type DirectRefundStatus = 'pending' | 'requested' | 'done' | 'failed' | 'failed_final' | 'uncertain';
 
-export const DIRECT_REFUND_RETRY_MS = 5 * 60 * 1000;
+/** P5: espera depois da 1ª..5ª falha (5 min, 15 min, 1 h, 3 h, 6 h). A 6ª falha é final. */
+const MIN_MS = 60 * 1000;
+export const DIRECT_REFUND_BACKOFF_MS = [5 * MIN_MS, 15 * MIN_MS, 60 * MIN_MS, 180 * MIN_MS, 360 * MIN_MS];
+export const DIRECT_REFUND_RETRY_MS = DIRECT_REFUND_BACKOFF_MS[0];
 
 const cents = (v: unknown) => Math.round(Number(v) * 100);
 
@@ -96,12 +99,16 @@ export async function markDirectRefundDone(
   return done === true;
 }
 
-function notify(storeId: string, event: 'refund:failed' | 'refund:uncertain', orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
+function notify(storeId: string, event: 'refund:failed' | 'refund:uncertain' | 'refund:failed_final', orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
   const payload = { refundId, orderId, storeId };
   for (const r of rooms) emitToRoom(r === 'store' ? `store:${storeId}` : 'admin', event, payload);
 }
 
 /** Claim atômico + chamada ao Asaas com a chave da loja. */
+export function notifyDirectRefund(storeId: string, event: 'refund:failed' | 'refund:uncertain' | 'refund:failed_final', orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
+  notify(storeId, event, orderId, refundId, rooms);
+}
+
 export async function executeDirectRefund(refundId: string): Promise<DirectRefundStatus> {
   const current = await prisma.directRefund.findUnique({ where: { id: refundId } });
   if (!current) throw new AppError('Estorno não encontrado', 404, true, 'REFUND_NOT_FOUND');
@@ -115,6 +122,8 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     return (now?.status ?? current.status) as DirectRefundStatus; // outro processo pegou ou já terminou
   }
 
+  const claimed = await prisma.directRefund.findUnique({ where: { id: refundId }, select: { attempts: true } });
+  const attempts = claimed?.attempts ?? current.attempts + 1;
   const { orderId, storeId, asaasPaymentId } = current;
   const amount = Number(current.amount);
 
@@ -135,9 +144,20 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
       const message = err instanceof AsaasApiError
         ? (err.errors?.[0]?.description || err.message)
         : (err as Error).message;
+      const backoff = DIRECT_REFUND_BACKOFF_MS[attempts - 1];
+      if (backoff === undefined) {
+        // 6ª falha: sem nova retentativa, o admin resolve.
+        await prisma.directRefund.updateMany({
+          where: { id: refundId, status: 'requested' },
+          data: { status: 'failed_final', lastError: String(message).slice(0, 500) },
+        });
+        logger.warn('[asaasLoja] estorno direto esgotou as tentativas', { refundId, orderId, storeId, attempts });
+        notify(storeId, 'refund:failed_final', orderId, refundId, ['admin']);
+        return 'failed_final';
+      }
       await prisma.directRefund.updateMany({
         where: { id: refundId, status: 'requested' },
-        data: { status: 'failed', lastError: String(message).slice(0, 500), nextAttemptAt: new Date(Date.now() + DIRECT_REFUND_RETRY_MS) },
+        data: { status: 'failed', lastError: String(message).slice(0, 500), nextAttemptAt: new Date(Date.now() + backoff) },
       });
       logger.warn('[asaasLoja] estorno direto recusado', { refundId, orderId, storeId, status: (err as any)?.status });
       notify(storeId, 'refund:failed', orderId, refundId, ['store', 'admin']);
