@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
+import TransferToOwnerCard from '../../components/wallet/TransferToOwnerCard';
 import WalletMetrics, { EarningsSummary } from '../../components/wallet/WalletMetrics';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -135,6 +136,9 @@ export default function MototboyWalletPage() {
   };
 
   const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
+  // O transfer-to-owner move os repasses `released` (é o que o backend confere).
+  const releasedTotal = Math.round(payouts.filter((p) => p.status === 'released').reduce((s, p) => s + Number(p.amount), 0) * 100) / 100;
+  const motoboyIdForTransfer: string | undefined = user?._id || user?.id;
 
   const confirmarSaque = async (amount: number | 'all') => {
     const motoboyId = user?._id || user?.id;
@@ -232,6 +236,15 @@ export default function MototboyWalletPage() {
               <ArrowUpRight size={17} aria-hidden="true" /> Sacar para meu PIX
             </Button>
           </div>
+
+          {/* Saldo do modo anterior (R23): repasses liberados → carteira pessoal */}
+          {motoboyIdForTransfer && (
+            <TransferToOwnerCard
+              endpoint={`/wallets/motoboy/${motoboyIdForTransfer}/transfer-to-owner`}
+              amount={releasedTotal}
+              onTransferred={() => refetchWallet(motoboyIdForTransfer)}
+            />
+          )}
 
           {/* Resumo financeiro (buckets agregados no backend) */}
           {summary && <WalletMetrics summary={summary} />}

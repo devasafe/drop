@@ -9,6 +9,7 @@ import TransactionDetailsModal, { DetailRow } from '../../components/Transaction
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
+import TransferToOwnerCard from '../../components/wallet/TransferToOwnerCard';
 import StoreWalletMetrics, { StoreFinancialSummary } from '../../components/wallet/StoreWalletMetrics';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -92,7 +93,7 @@ export default function SellerWalletPage() {
   }[s] || s);
 
   const reload = async () => {
-    const storeId = user?.storeId || user?._id;
+    const storeId = resolvedStoreId || user?.storeId || user?._id;
     if (!storeId) return;
     const walletRes = await api.get(`/wallets/store/${storeId}`);
     setWallet(walletRes.data);
@@ -183,6 +184,8 @@ export default function SellerWalletPage() {
   };
 
   const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
+  // O transfer-to-owner move os repasses `released` (é o que o backend confere).
+  const releasedTotal = Math.round(payouts.filter((p) => p.status === 'released').reduce((s, p) => s + Number(p.amount), 0) * 100) / 100;
 
   const wdStatus = (s: string) => (
     s === 'processed' ? { label: 'Pago', cls: 'paid' } :
@@ -237,6 +240,15 @@ export default function SellerWalletPage() {
               <ArrowUpRight size={17} aria-hidden="true" /> {transferring ? 'Sacando…' : 'Sacar para meu PIX'}
             </Button>
           </div>
+
+          {/* Saldo do modo anterior (R23): repasses liberados da loja → carteira do dono */}
+          {resolvedStoreId && (
+            <TransferToOwnerCard
+              endpoint={`/wallets/store/${resolvedStoreId}/transfer-to-owner`}
+              amount={releasedTotal}
+              onTransferred={reload}
+            />
+          )}
 
           {/* Resumo financeiro (líquido + bruto + taxas, agregado no backend) */}
           {summary && <StoreWalletMetrics summary={summary} />}
