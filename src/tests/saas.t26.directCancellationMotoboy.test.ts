@@ -262,15 +262,99 @@ describe('compensação do motoboy no cancelamento do pedido direto', () => {
     expect(rows[0].lastError).toBe('AMOUNT_OVER_LIMIT');
   });
 
-  it('falha ao criar a transferência desfaz o registro do cancelamento (mesma transação)', async () => {
+  it('falha ao criar a transferência desfaz o cancelamento inteiro (R19-a): pedido NÃO fica cancelado e um novo cancelamento funciona', async () => {
     const s = await scenario({ status: 'enviado', delivery: 'picked', acceptedAt: true });
-    jest.spyOn(motoboyTransferModule, 'createTransferForDelivery').mockRejectedValue(new Error('boom'));
+    const spy = jest.spyOn(motoboyTransferModule, 'createTransferForDelivery').mockRejectedValue(new Error('boom'));
     const res = await cancelByCustomer(s);
     expect(res.status).toBe(500);
     expect(await lastCancellation(s.order.id)).toBeNull();
     expect(await transfersOf(s.order.id)).toHaveLength(0);
-    // Sem cancelamento gravado, o estorno não é pedido (R1).
+    // Sem cancelamento gravado, o estorno não é pedido (R1)...
     expect(postAs).not.toHaveBeenCalled();
+    // ...e a trava foi desfeita junto: status e estoque intactos.
+    const o = await prisma.order.findUnique({ where: { id: s.order.id } });
+    expect(o!.status).toBe('enviado');
+    expect(o!.cancellationId).toBeNull();
+    expect((await prisma.product.findUnique({ where: { id: s.product.id } }))!.quantity).toBe(10);
+
+    spy.mockRestore();
+    const retry = await cancelByCustomer(s);
+    expect(retry.status).toBe(200);
+    expect(retry.body.refundStatus).toBe('processed');
+    expect(await transfersOf(s.order.id)).toHaveLength(1);
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.status).toBe('cancelado');
+    expect((await prisma.product.findUnique({ where: { id: s.product.id } }))!.quantity).toBe(12);
+  });
+
+  it('cliente ausente: falha na compensação desfaz a trava (R19-a)', async () => {
+    const s = await scenario({ status: 'enviado', delivery: 'picked', acceptedAt: true });
+    const spy = jest.spyOn(motoboyTransferModule, 'createTransferForDelivery').mockRejectedValue(new Error('boom'));
+    const res = await request(app).post(`/api/deliveries/${s.delivery.id}/cliente-ausente`).set('Authorization', bearer(s.motoboy)).send({});
+    expect(res.status).toBe(500);
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.status).toBe('enviado');
+    expect(await lastCancellation(s.order.id)).toBeNull();
+    spy.mockRestore();
+    const retry = await request(app).post(`/api/deliveries/${s.delivery.id}/cliente-ausente`).set('Authorization', bearer(s.motoboy)).send({});
+    expect(retry.status).toBe(200);
+    expect(await transfersOf(s.order.id)).toHaveLength(1);
+  });
+
+  it('loja: falha na compensação desfaz a trava (R19-a)', async () => {
+    const s = await scenario({ status: 'aguardando_motoboy', delivery: 'assigned', acceptedAt: true });
+    const real = prisma.delivery.findUnique.bind(prisma.delivery);
+    jest.spyOn(prisma.delivery, 'findUnique')
+      .mockImplementationOnce((async () => ({ id: s.delivery.id, status: 'pending', motoboyId: null })) as any)
+      .mockImplementation(real as any);
+    jest.spyOn(motoboyTransferModule, 'createTransferForDelivery').mockRejectedValue(new Error('boom'));
+    const res = await request(app).post(`/api/orders/${s.order.id}/reject`).set('Authorization', bearer(s.lojista)).send({ reason: 'x' });
+    expect(res.status).toBe(500);
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.status).toBe('aguardando_motoboy');
+    expect(await lastCancellation(s.order.id)).toBeNull();
+    expect(postAs).not.toHaveBeenCalled();
+  });
+
+  it('entrega já tem transferência de entrega -> compensação pulada e o admin é alertado (R19-c)', async () => {
+    const s = await scenario({ status: 'enviado', delivery: 'picked', acceptedAt: true });
+    await prisma.$transaction((tx) => motoboyTransferModule.createTransferForDelivery(
+      tx, { id: s.delivery.id, motoboyId: s.motoboy.userId, fee: 12 }, { id: s.order.id, storeId: s.store.id },
+    ));
+    adminNotify.mockClear();
+    const res = await cancelByCustomer(s);
+    expect(res.status).toBe(200);
+    const rows = await transfersOf(s.order.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason).toBe('delivery');
+    expect(adminNotify).toHaveBeenCalledTimes(1);
+    const n = adminNotify.mock.calls[0][0];
+    expect(n.title).toMatch(/compensação/i);
+    expect(n.url).toBe('/admin/transfers');
+    expect(JSON.stringify(n)).not.toContain('12345678909');
+  });
+});
+
+describe('finalizarEntrega com pedido cancelado (R19-b)', () => {
+  const finalizar = (s: any) => request(app).post(`/api/deliveries/${s.delivery.id}/finalizar`).set('Authorization', bearer(s.motoboy)).send({ pin: '12345' });
+
+  for (const closed of ['cancelado', 'rejeitado'] as const) {
+    it(`pedido ${closed} com entrega ainda picked -> PIN correto é recusado e nenhuma transferência de entrega`, async () => {
+      const s = await scenario({ status: 'enviado', delivery: 'picked', acceptedAt: true });
+      await prisma.order.update({ where: { id: s.order.id }, data: { status: closed } });
+      const res = await finalizar(s);
+      expect(res.status).toBe(409);
+      expect(await transfersOf(s.order.id)).toHaveLength(0);
+      expect((await prisma.delivery.findUnique({ where: { id: s.delivery.id } }))!.status).toBe('picked');
+      expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.status).toBe(closed);
+    });
+  }
+
+  it('pedido aberto -> finaliza normalmente (pedido entregue + transferência de entrega)', async () => {
+    const s = await scenario({ status: 'enviado', delivery: 'picked', acceptedAt: true });
+    const res = await finalizar(s);
+    expect(res.status).toBe(200);
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.status).toBe('entregue');
+    const rows = await transfersOf(s.order.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason).toBe('delivery');
   });
 });
 

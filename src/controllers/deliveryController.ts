@@ -279,18 +279,38 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 
     // Trava atômica: só quem vira picked→delivered segue para payout/nota/pontos.
     // No modo direto, a transferência Pix ao motoboy é registrada na MESMA transação da trava.
+    // A trava também exige o pedido aberto (R19-b): pedido cancelado/rejeitado não é
+    // entregue nem gera transferência de entrega — e a compensação do cancelamento (mesma
+    // deliveryId única) não colide com ela. A transição do pedido para 'entregue' é
+    // condicional e na mesma transação; se o pedido já fechou, tudo é desfeito.
+    const ORDER_CLOSED = 'ORDER_CLOSED';
     let createdTransfer: any = null;
-    const locked = await prisma.$transaction(async (tx) => {
-      const lock = await tx.delivery.updateMany({
-        where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
-        data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
+    let locked: boolean | typeof ORDER_CLOSED;
+    try {
+      locked = await prisma.$transaction(async (tx) => {
+        const lock = await tx.delivery.updateMany({
+          where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
+          data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
+        });
+        if (lock.count !== 1) return false;
+        const orderLock = await tx.order.updateMany({
+          where: { id: order.id, status: { notIn: ['cancelado', 'rejeitado'] as any } },
+          data: { status: 'entregue' },
+        });
+        if (orderLock.count !== 1) throw new Error(ORDER_CLOSED);
+        if (isDirectOrder(order)) {
+          createdTransfer = await createTransferForDelivery(tx, { id: delivery.id, motoboyId: String(userId), fee: delivery.fee }, { id: order.id, storeId: String(order.storeId) });
+        }
+        return true;
       });
-      if (lock.count !== 1) return false;
-      if (isDirectOrder(order)) {
-        createdTransfer = await createTransferForDelivery(tx, { id: delivery.id, motoboyId: String(userId), fee: delivery.fee }, { id: order.id, storeId: String(order.storeId) });
-      }
-      return true;
-    });
+    } catch (err) {
+      if ((err as Error)?.message !== ORDER_CLOSED) throw err;
+      locked = ORDER_CLOSED;
+    }
+    if (locked === ORDER_CLOSED) {
+      logger.warn('[finalizarEntrega] PIN de entrega com o pedido já cancelado/rejeitado — recusado', { orderId: order.id, deliveryId: delivery.id });
+      return res.status(409).json({ error: 'Pedido cancelado; a entrega não pode ser finalizada', code: 'ORDER_CLOSED' });
+    }
     if (!locked) return res.status(409).json({ error: 'Already delivered' });
     delivery.status = 'delivered';
     if (createdTransfer) notifyTransferCreated(createdTransfer);

@@ -59,10 +59,11 @@ export async function createTransferForDelivery(
   reason: TransferReason = 'delivery',
   amountOverride?: number,
 ): Promise<MotoboyTransfer> {
-  const cfg = await getSaasConfig();
+  // Config lida pelo `tx` (mesma conexão/snapshot da transação que grava a linha).
   const pc: any = await tx.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
   const maxAmount = Number(pc?.directTransferMaxAmount ?? DEFAULT_MAX_AMOUNT);
-  const base = amountOverride != null ? Number(amountOverride) : (Number(delivery.fee) * cfg.motoboyShareDirect) / 100;
+  const motoboyShareDirect = Number(pc?.motoboyShareDirect ?? 100);
+  const base = amountOverride != null ? Number(amountOverride) : (Number(delivery.fee) * motoboyShareDirect) / 100;
   const amount = Math.round(base * 100) / 100;
 
   const { pixKey, pixKeyType } = await motoboyPixSnapshot(tx, delivery.motoboyId);

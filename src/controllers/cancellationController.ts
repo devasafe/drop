@@ -35,7 +35,9 @@ import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { isDirectOrder } from '../utils/settlement';
-import { directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation } from '../services/asaasLoja/directCancellation';
+import {
+  directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation, CancellationClaimLostError,
+} from '../services/asaasLoja/directCancellation';
 import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -185,25 +187,30 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // A trava vira um UPDATE condicional: `WHERE status IN (canceláveis)`. Sob
     // concorrência o Postgres serializa a linha e só um request muda o status,
     // então `count === 1` é a reivindicação exclusiva (bloqueia duplo-reembolso).
-    const claim = await prisma.order.updateMany({
-      where: { id: orderId, status: { in: cancellableStatuses as any } },
-      data: { status: 'cancelado', cancelledAt: new Date() },
-    });
-    if (claim.count === 0) {
-      return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
-    }
-
-    // ✅ Devolver estoque (createOrder decrementa sempre, COD ou não).
-    // Roda uma única vez graças à trava atômica acima.
-    for (const it of (order.products || [])) {
-      if ((it as any).productId && (it as any).quantity) {
-        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
-      }
-    }
-    // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
-    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
-
+    // Pedido direto (R19-a): a trava e a devolução de estoque rodam DENTRO da transação que
+    // grava o Cancellation e a compensação do motoboy (recordCancellationWithCompensation) —
+    // se ela falhar, o pedido continua cancelável e o estorno não se perde atrás de um 409.
     const direct = isDirectOrder(order);
+    if (!direct) {
+      const claim = await prisma.order.updateMany({
+        where: { id: orderId, status: { in: cancellableStatuses as any } },
+        data: { status: 'cancelado', cancelledAt: new Date() },
+      });
+      if (claim.count === 0) {
+        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      }
+
+      // ✅ Devolver estoque (createOrder decrementa sempre, COD ou não).
+      // Roda uma única vez graças à trava atômica acima.
+      for (const it of (order.products || [])) {
+        if ((it as any).productId && (it as any).quantity) {
+          await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+        }
+      }
+      // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
+      void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+    }
+
     const directAmount = direct ? directCustomerRefund(order, fee, 'customer') : 0;
     if (direct) {
       refundStatus = directRefundStatus(order, 'cancelamento pelo cliente', directAmount);
@@ -358,17 +365,32 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
 
     // Cria documento de cancelamento. Modo direto: a parte do motoboy (fee.motoboyShare,
     // entrega cheia com o motoboy a caminho) vira MotoboyTransfer na MESMA transação.
-    const { cancellation } = await recordCancellationWithCompensation({
-      orderId: order.id,
-      deliveryId: order.deliveryId || undefined,
-      cancelledBy: 'customer',
-      reason: reason || 'Solicitado pelo cliente',
-      reasonCode: isLate ? 'late_cancellation' : (reasonCode || 'customer_request'),
-      refundAmount,
-      refundStatus,
-      isLateCancellation: isLate,
-      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    }, direct ? { order, deliveryId: order.deliveryId, motoboyId: compMotoboyId, motoboyShare: fee.motoboyShare } : null);
+    // Pedido direto: a trava do pedido e o estoque entram na mesma transação (R19-a).
+    let cancellation: any;
+    try {
+      ({ cancellation } = await recordCancellationWithCompensation({
+        orderId: order.id,
+        deliveryId: order.deliveryId || undefined,
+        cancelledBy: 'customer',
+        reason: reason || 'Solicitado pelo cliente',
+        reasonCode: isLate ? 'late_cancellation' : (reasonCode || 'customer_request'),
+        refundAmount,
+        refundStatus,
+        isLateCancellation: isLate,
+        lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
+      },
+      direct ? { order, deliveryId: order.deliveryId, motoboyId: compMotoboyId, motoboyShare: fee.motoboyShare } : null,
+      direct ? { orderId: order.id, from: cancellableStatuses, to: 'cancelado', restock: order.products || [] } : undefined));
+    } catch (err) {
+      if (err instanceof CancellationClaimLostError) {
+        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      }
+      throw err;
+    }
+    if (direct) {
+      // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja (pós-commit).
+      void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+    }
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
@@ -750,23 +772,26 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: mesma trava de `cancelOrderByCustomer` — só UM
     // request consegue mover de um status cancelável → 'cancelado'.
-    const claim = await prisma.order.updateMany({
-      where: { id: order.id, status: { in: cancellableStatuses as any } },
-      data: { status: 'cancelado', cancelledAt: new Date() },
-    });
-    if (claim.count === 0) {
-      return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
-    }
+    // Pedido direto (R19-a): trava + estoque dentro da transação do registro (abaixo).
+    const direct = isDirectOrder(order);
+    if (!direct) {
+      const claim = await prisma.order.updateMany({
+        where: { id: order.id, status: { in: cancellableStatuses as any } },
+        data: { status: 'cancelado', cancelledAt: new Date() },
+      });
+      if (claim.count === 0) {
+        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      }
 
-    // ✅ Devolver estoque (uma única vez, graças à trava acima) — produto volta pra loja.
-    for (const it of (order.products || [])) {
-      if ((it as any).productId && (it as any).quantity) {
-        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+      // ✅ Devolver estoque (uma única vez, graças à trava acima) — produto volta pra loja.
+      for (const it of (order.products || [])) {
+        if ((it as any).productId && (it as any).quantity) {
+          await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+        }
       }
     }
 
     // --- Refund PARCIAL ao cliente (mesmo padrão de cancelOrderByCustomer) ---
-    const direct = isDirectOrder(order);
     const directAmount = direct ? refundAmount : 0;
     if (direct) {
       refundStatus = directRefundStatus(order, 'cliente ausente', directAmount);
@@ -856,16 +881,27 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // Documento de cancelamento. Modo direto (P1): a entrega cheia (fee.motoboyShare) vira
     // MotoboyTransfer ao motoboy na MESMA transação.
-    const { cancellation } = await recordCancellationWithCompensation({
-      orderId: order.id,
-      deliveryId: deliveryRow.id,
-      cancelledBy: 'motoboy',
-      reason: reason || 'Cliente ausente no momento da entrega',
-      reasonCode: (reasonCode as any) || 'customer_unreachable',
-      refundAmount,
-      refundStatus,
-      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    }, direct ? { order, deliveryId: deliveryRow.id, motoboyId, motoboyShare: fee.motoboyShare } : null);
+    // Pedido direto: a trava do pedido e o estoque entram na mesma transação (R19-a).
+    let cancellation: any;
+    try {
+      ({ cancellation } = await recordCancellationWithCompensation({
+        orderId: order.id,
+        deliveryId: deliveryRow.id,
+        cancelledBy: 'motoboy',
+        reason: reason || 'Cliente ausente no momento da entrega',
+        reasonCode: (reasonCode as any) || 'customer_unreachable',
+        refundAmount,
+        refundStatus,
+        lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
+      },
+      direct ? { order, deliveryId: deliveryRow.id, motoboyId, motoboyShare: fee.motoboyShare } : null,
+      direct ? { orderId: order.id, from: cancellableStatuses, to: 'cancelado', restock: order.products || [] } : undefined));
+    } catch (err) {
+      if (err instanceof CancellationClaimLostError) {
+        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      }
+      throw err;
+    }
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
@@ -1472,26 +1508,29 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: só UM request consegue mover para 'rejeitado'.
     // UPDATE condicional por status — bloqueia duplo-reembolso concorrente.
-    const claim = await prisma.order.updateMany({
-      where: { id: orderId, status: { in: CANCELLABLE_BEFORE_MOTOBOY as any } },
-      data: { status: 'rejeitado', cancelledAt: new Date() },
-    });
-    if (claim.count === 0) {
-      return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
-    }
-
-    // ✅ Devolver estoque (uma única vez, graças à trava atômica acima)
-    for (const it of (order.products || [])) {
-      if ((it as any).productId && (it as any).quantity) {
-        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+    // Pedido direto (R19-a): trava + estoque dentro da transação do registro (abaixo).
+    const direct = isDirectOrder(order);
+    if (!direct) {
+      const claim = await prisma.order.updateMany({
+        where: { id: orderId, status: { in: CANCELLABLE_BEFORE_MOTOBOY as any } },
+        data: { status: 'rejeitado', cancelledAt: new Date() },
+      });
+      if (claim.count === 0) {
+        return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
       }
+
+      // ✅ Devolver estoque (uma única vez, graças à trava atômica acima)
+      for (const it of (order.products || [])) {
+        if ((it as any).productId && (it as any).quantity) {
+          await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+        }
+      }
+      void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+      // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
+      void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
     }
-    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
-    // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja.
-    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
-    const direct = isDirectOrder(order);
     const directAmount = direct ? directCustomerRefund(order, null, 'full') : 0;
     if (direct) {
       refundStatus = directRefundStatus(order, 'rejeição pela loja', directAmount);
@@ -1624,39 +1663,57 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // Modo direto: a multa da loja não é cobrada (sem carteira), mas se um motoboy aceitou a
     // corrida na janela entre o guard MOTOBOY_ACCEPTED_CANNOT_CANCEL e a trava do pedido, ele
     // recebe a parte da fórmula (calculateCancellationFee actor 'store') pela conta da loja.
+    // A entrega é relida pelo `tx`, depois da trava, dentro da transação do registro.
     let directCompensation: Parameters<typeof recordCancellationWithCompensation>[1] = null;
     if (direct && storeAccepted && order.deliveryId) {
-      const fresh = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
-      if (fresh?.motoboyId) {
-        const config = await getPlatformConfig();
-        const storeFee = calculateCancellationFee({
-          actor: 'store',
-          motoboyInvolved: true,
-          orderTotal: order.totalValue || 0,
-          deliveryFee: order.deliveryFee || 0,
-          config: {
-            cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
-            cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
-            cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
-            lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
-          },
-        });
-        directCompensation = { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: storeFee.motoboyShare };
-      }
+      const config = await getPlatformConfig();
+      const storeFee = calculateCancellationFee({
+        actor: 'store',
+        motoboyInvolved: true,
+        orderTotal: order.totalValue || 0,
+        deliveryFee: order.deliveryFee || 0,
+        config: {
+          cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
+          cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
+          cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
+          lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
+        },
+      });
+      directCompensation = async (tx) => {
+        const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+        return fresh?.motoboyId
+          ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: storeFee.motoboyShare }
+          : null;
+      };
     }
 
     // Cria documento de cancelamento (com a compensação do motoboy na mesma transação).
-    const { cancellation } = await recordCancellationWithCompensation({
-      orderId: order.id,
-      deliveryId: order.deliveryId || undefined,
-      cancelledBy: 'store',
-      reason: reason || 'Rejeitado pela loja',
-      reasonCode: isLate ? 'late_cancellation' : (reasonCode || 'store_rejected'),
-      refundAmount,
-      refundStatus,
-      isLateCancellation: isLate,
-      lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    }, directCompensation);
+    // Pedido direto: a trava do pedido e o estoque entram na mesma transação (R19-a).
+    let cancellation: any;
+    try {
+      ({ cancellation } = await recordCancellationWithCompensation({
+        orderId: order.id,
+        deliveryId: order.deliveryId || undefined,
+        cancelledBy: 'store',
+        reason: reason || 'Rejeitado pela loja',
+        reasonCode: isLate ? 'late_cancellation' : (reasonCode || 'store_rejected'),
+        refundAmount,
+        refundStatus,
+        isLateCancellation: isLate,
+        lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
+      },
+      directCompensation,
+      direct ? { orderId: order.id, from: CANCELLABLE_BEFORE_MOTOBOY, to: 'rejeitado', restock: order.products || [] } : undefined));
+    } catch (err) {
+      if (err instanceof CancellationClaimLostError) {
+        return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
+      }
+      throw err;
+    }
+    if (direct) {
+      // Estoque voltou (cancelamento) → avisa os webhooks de integração da loja (pós-commit).
+      void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+    }
 
     // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'rejeitado';
