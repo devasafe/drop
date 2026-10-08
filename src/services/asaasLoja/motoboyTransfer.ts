@@ -3,7 +3,7 @@
 import { Prisma, MotoboyTransfer } from '@prisma/client';
 import { encryptSensitiveData } from '../../utils/encryption';
 import { getSaasConfig } from '../../utils/settlement';
-import { emitToRoom } from '../../utils/socketEmitter';
+import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import logger from '../../config/logger';
 
 export type TransferReason = 'delivery' | 'cancellation_compensation';
@@ -89,7 +89,16 @@ export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' |
     if (t.lastError === 'MOTOBOY_PIX_KEY_MISSING') {
       emitToRoom(`user:${t.motoboyId}`, 'motoboy:transfer_pix_key_missing', payload);
     }
-    emitToRoom('admin', 'motoboy:transfer_alert', payload);
+    const shortId = String(t.orderId).slice(-6);
+    const valor = Number(t.amount).toFixed(2).replace('.', ',');
+    emitAdminNotification({
+      title: t.lastError === 'AMOUNT_OVER_LIMIT' ? 'Transferência ao motoboy acima do limite' : 'Transferência ao motoboy pendente',
+      body: t.lastError === 'AMOUNT_OVER_LIMIT'
+        ? `Pedido ${shortId}: R$ ${valor} acima do teto; requer análise.`
+        : `Pedido ${shortId}: R$ ${valor} sem chave Pix cadastrada pelo motoboy.`,
+      url: '/admin/transfers',
+      tag: `motoboy-transfer-${t.id}`,
+    });
     logger.warn('[motoboyTransfer] transferência nasceu com pendência', { transferId: t.id, status: t.status, error: t.lastError });
   } catch (err) {
     logger.error('[motoboyTransfer] falha ao notificar', err as Error, { transferId: t.id });

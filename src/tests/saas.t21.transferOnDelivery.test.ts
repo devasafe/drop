@@ -8,7 +8,7 @@ jest.mock('../services/routeService', () => {
 });
 jest.mock('../utils/socketEmitter', () => {
   const actual = jest.requireActual('../utils/socketEmitter');
-  return { __esModule: true, ...actual, emitToRoom: jest.fn() };
+  return { __esModule: true, ...actual, emitToRoom: jest.fn(), emitAdminNotification: jest.fn() };
 });
 
 import request from 'supertest';
@@ -16,7 +16,7 @@ import app from '../app';
 import { prisma } from '../lib/prisma';
 import env from '../config/env';
 import { decryptSensitiveData } from '../utils/encryption';
-import { emitToRoom } from '../utils/socketEmitter';
+import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { maskPixKey } from '../services/asaasLoja/motoboyTransfer';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
@@ -25,6 +25,7 @@ import { ownerIdForStore } from './helpers/storeOwner';
 
 const DOMAIN = '@saas21.test';
 const emit = emitToRoom as jest.Mock;
+const adminNotify = emitAdminNotification as jest.Mock;
 let restore: () => Promise<void>;
 const ORIGINAL_GATEWAY = env.PAYMENT_GATEWAY;
 
@@ -32,6 +33,7 @@ beforeAll(async () => { restore = await snapshotPlatformConfig(); });
 afterAll(async () => { await restore(); (env as any).PAYMENT_GATEWAY = ORIGINAL_GATEWAY; });
 beforeEach(async () => {
   emit.mockClear();
+  adminNotify.mockClear();
   (env as any).PAYMENT_GATEWAY = 'none';
   await updatePlatformConfig({ settlementMode: 'direto', motoboyShareDirect: 100, directTransferMaxAmount: 150 } as any, 'test');
 });
@@ -107,8 +109,9 @@ describe('transferência no PIN de entrega', () => {
     const t = (await prisma.motoboyTransfer.findUnique({ where: { deliveryId: delivery.id } }))!;
     expect(t.status).toBe('failed_final');
     expect(t.lastError).toBe('AMOUNT_OVER_LIMIT');
-    expect(emit.mock.calls.some((c) => c[0] === 'admin')).toBe(true);
-    expect(JSON.stringify(emit.mock.calls)).not.toContain('12345678909');
+    expect(adminNotify).toHaveBeenCalledTimes(1);
+    expect(adminNotify.mock.calls[0][0]).toMatchObject({ url: '/admin/transfers' });
+    expect(JSON.stringify([...emit.mock.calls, ...adminNotify.mock.calls])).not.toContain('12345678909');
   });
 
   it('finalizar concorrente → uma 200, outra 4xx, 1 linha', async () => {
@@ -132,7 +135,8 @@ describe('transferência no PIN de entrega', () => {
     expect(t.pixKeyType).toBe('');
     const rooms = emit.mock.calls.map((c) => c[0]);
     expect(rooms).toContain(`user:${motoboy.userId}`);
-    expect(rooms).toContain('admin');
+    expect(adminNotify).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(adminNotify.mock.calls)).not.toContain('12345678909');
   });
 
   it('pedido de custódia → nenhum MotoboyTransfer', async () => {
