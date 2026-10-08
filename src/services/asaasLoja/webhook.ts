@@ -22,6 +22,9 @@ export const STORE_WEBHOOK_EVENTS = [
   'TRANSFER_DONE',
   'TRANSFER_FAILED',
   'TRANSFER_CANCELLED',
+  // I6: estorno parcial (cancelamento com taxa retida). Nome a CONFIRMAR NO SANDBOX; lojas já
+  // conectadas só recebem depois de regravar o webhook.
+  'PAYMENT_PARTIALLY_REFUNDED',
 ] as const;
 
 export const sha256Hex = (s: string) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');

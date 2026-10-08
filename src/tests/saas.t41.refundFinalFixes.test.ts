@@ -303,3 +303,52 @@ describe('C1 — webhook concluiu antes da resposta em andamento', () => {
     expect((await rowOf(s.refund.id)).acceptedAt).toBeNull();
   });
 });
+
+describe('I6 — PAYMENT_PARTIALLY_REFUNDED conclui o DirectRefund quando o valor bate', () => {
+  const partial = (storeId: string, paymentId: string, payment: any) =>
+    request(app).post(`/webhooks/asaas/loja/${storeId}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: 'PAYMENT_PARTIALLY_REFUNDED', payment: { id: paymentId, status: 'RECEIVED', value: 50, ...payment } });
+
+  it.each(['requested', 'uncertain', 'pending'])('%s + refunds[] com o valor do estorno (30) → done, cancelamento processed', async (st) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: st } });
+    const res = await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p1', status: 'DONE', value: 30 }] });
+    expect(res.status).toBe(200);
+    const row = await rowOf(s.refund.id);
+    expect(row.status).toBe('done');
+    expect(row.resolvedBy).toBe('webhook');
+    expect((await prisma.cancellation.findUnique({ where: { id: s.cancellation.id } }))!.refundStatus).toBe('processed');
+  });
+
+  it('refundedValue igual ao estorno também conclui', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refundedValue: 30 });
+    expect((await rowOf(s.refund.id)).status).toBe('done');
+  });
+
+  it('valor diferente → não conclui, pedido intacto, alerta o admin', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p2', status: 'DONE', value: 20 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.paymentStatus).toBe('paid');
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ url: '/admin/estornos' }));
+  });
+
+  it('sem valor no payload → não conclui (fail closed) e alerta', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'uncertain' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, {});
+    expect((await rowOf(s.refund.id)).status).toBe('uncertain');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('pagamento de OUTRA loja → ignorado', async () => {
+    const a = await setup();
+    const b = await setup();
+    await prisma.directRefund.update({ where: { id: a.refund.id }, data: { status: 'requested' } });
+    await partial(b.store.id, a.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p3', status: 'DONE', value: 30 }] });
+    expect((await rowOf(a.refund.id)).status).toBe('requested');
+  });
+});

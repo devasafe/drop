@@ -7,6 +7,7 @@ import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/
 import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { markDirectRefundDone } from '../services/asaasLoja/refund';
+import { emitAdminNotification } from '../utils/socketEmitter';
 import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 
@@ -137,6 +138,7 @@ export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
  * Eventos da conta da loja. Nada aqui toca carteira/Payout (sem custódia).
  *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → pedido pago (só se for DESTA loja);
  *  - PAYMENT_REFUNDED → pedido estornado (só se for desta loja);
+ *  - PAYMENT_PARTIALLY_REFUNDED → conclui o DirectRefund só se o valor estornado bater;
  *  - TRANSFER_DONE / TRANSFER_FAILED / TRANSFER_CANCELLED → Pix da loja ao motoboy (MotoboyTransfer);
  *  - PAYMENT_REFUND_IN_PROGRESS e demais → registrados e ignorados.
  */
@@ -147,6 +149,53 @@ async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: stri
     select: { orderId: true },
   });
   if (refund) await markDirectRefundDone(refund.orderId, 'webhook');
+}
+
+/**
+ * Valores estornados que o payload informa. CONFIRMAR NO SANDBOX o formato do
+ * PAYMENT_PARTIALLY_REFUNDED: aceitamos `payment.refunds[].value` (exceto cancelados) e
+ * `payment.refundedValue`. Nunca `payment.value` (é o valor original da cobrança).
+ */
+function refundedCentsFromPayment(payment: any): number[] {
+  const out: number[] = [];
+  const add = (v: unknown) => {
+    const n = Number(v);
+    if (v !== null && v !== undefined && v !== '' && Number.isFinite(n)) out.push(Math.round(n * 100));
+  };
+  if (Array.isArray(payment?.refunds)) {
+    for (const r of payment.refunds) {
+      if (String(r?.status ?? '').toUpperCase() === 'CANCELLED') continue;
+      add(r?.value);
+    }
+  }
+  add(payment?.refundedValue);
+  return out;
+}
+
+/**
+ * I6: estorno PARCIAL confirmado. Só conclui o DirectRefund desta loja/pagamento quando um dos
+ * valores estornados do payload bate (em centavos) com o do estorno; sem valor ou valor
+ * diferente → fail closed (nada muda) e alerta o admin.
+ */
+async function reconcilePartialRefundFromWebhook(storeId: string, payment: any): Promise<void> {
+  const paymentId = String(payment.id);
+  const refund = await prisma.directRefund.findFirst({
+    where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested', 'pending'] } },
+    select: { id: true, orderId: true, amount: true },
+  });
+  if (!refund) return;
+  const expected = Math.round(Number(refund.amount) * 100);
+  if (refundedCentsFromPayment(payment).includes(expected)) {
+    await markDirectRefundDone(refund.orderId, 'webhook');
+    return;
+  }
+  logger.warn('[asaasLoja] estorno parcial sem valor correspondente ao DirectRefund (ignorado)', { storeId, paymentId, refundId: refund.id });
+  emitAdminNotification({
+    title: 'Estorno parcial sem valor conferido',
+    body: `Pedido ${String(refund.orderId).slice(-6)}: o Asaas avisou estorno parcial sem o valor esperado; conferir no Asaas.`,
+    url: '/admin/estornos',
+    tag: `refund:partial:${refund.id}`,
+  });
 }
 
 async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: any): Promise<void> {
@@ -166,6 +215,10 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
           await markDirectOrderRefunded(storeId, String(payment.id));
           await reconcileDirectRefundFromWebhook(storeId, String(payment.id));
         }
+        break;
+      case 'PAYMENT_PARTIALLY_REFUNDED':
+        // Nunca marca o pedido inteiro como estornado sem conferir o valor (markDirectRefundDone faz isso).
+        if (payment.id) await reconcilePartialRefundFromWebhook(storeId, payment);
         break;
       case 'TRANSFER_DONE':
       case 'TRANSFER_FAILED':

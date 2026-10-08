@@ -302,7 +302,7 @@ describe('t1.6 — registro do webhook na conta da loja', () => {
     expect(body).toMatchObject({
       url: `https://api.exemplo.test/webhooks/asaas/loja/${store.id}`,
       enabled: true, interrupted: false, apiVersion: 3, sendType: 'SEQUENTIALLY',
-      events: ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED', 'PAYMENT_REFUND_IN_PROGRESS', 'TRANSFER_DONE', 'TRANSFER_FAILED', 'TRANSFER_CANCELLED'],
+      events: ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED', 'PAYMENT_REFUND_IN_PROGRESS', 'TRANSFER_DONE', 'TRANSFER_FAILED', 'TRANSFER_CANCELLED', 'PAYMENT_PARTIALLY_REFUNDED'],
     });
     expect(body.email).toBe(owner?.email);
     expect(typeof body.authToken).toBe('string');
