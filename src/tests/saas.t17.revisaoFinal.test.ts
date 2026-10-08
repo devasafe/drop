@@ -28,7 +28,7 @@ jest.mock('../services/routeService', () => {
 import crypto from 'crypto';
 import request from 'supertest';
 import app from '../app';
-import asaasClient from '../services/asaas/client';
+import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { getRoute } from '../services/routeService';
 import { prisma } from '../lib/prisma';
 import env from '../config/env';
@@ -90,6 +90,7 @@ afterEach(async () => {
   const storeIds = stores.map((s) => s.id);
   const orders = await prisma.order.findMany({ where: { storeId: { in: storeIds } }, select: { id: true } });
   const orderIds = orders.map((o) => o.id);
+  await prisma.directRefund.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.deliveryInvoice.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payout.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.appCashboxEntry.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -240,6 +241,9 @@ describe('I2 — cancelamentos de pedido asaas_loja não encostam na custódia',
 
   beforeEach(async () => {
     post.mockResolvedValue({ id: 'refund_mae', status: 'REFUNDED' });
+    // Setup (Task 3.2): o cancelamento do pedido direto agora tenta o estorno pela chave da loja.
+    // Aqui o Asaas da loja recusa, o que mantém o cenário original (refund pending, nada de custódia).
+    postAs.mockRejectedValue(new AsaasApiError(400, [{ code: 'x', description: 'recusado' } as any]));
     await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
   });
 

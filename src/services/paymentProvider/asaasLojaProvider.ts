@@ -75,12 +75,14 @@ export class AsaasLojaProvider implements IPaymentProvider {
    * para o fluxo de cancelamento escalar ao admin.
    */
   async refund(orderId: string, _providerPaymentId: string, value?: number): Promise<RefundResult> {
+    if (value === undefined || value === null || !Number.isFinite(Number(value))) {
+      return { status: 'failed', errorMessage: 'asaas_loja: valor do estorno obrigatório' };
+    }
     try {
-      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { totalValue: true } });
       const cancellation = await prisma.cancellation.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
       const refund = await requestDirectRefund({
         orderId, cancellationId: cancellation?.id ?? null,
-        amount: value ?? Number(order?.totalValue ?? 0), requestedBy: 'system',
+        amount: Number(value), requestedBy: 'system',
       });
       const status = await executeDirectRefund(refund.id);
       if (status === 'done') return { status: 'done' };

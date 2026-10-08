@@ -35,20 +35,22 @@ import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { isDirectOrder } from '../utils/settlement';
+import { directCustomerRefund, settleDirectRefund } from '../services/asaasLoja/directCancellation';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Cancelamento de pedido do modo direto (asaas_loja): o dinheiro está na conta Asaas DA
  * LOJA, então nenhum ramo financeiro da custódia roda (carteira, AppCashbox, Payout,
- * estorno pela conta-mãe). Pago → refundStatus 'pending' e escala pro admin, o mesmo
- * caminho de quando o estorno da custódia falha (o estorno pela chave da loja é a Fase 3).
- * Não pago → nada a devolver.
+ * estorno pela conta-mãe). Esta função só dá o status INICIAL do Cancellation: pago e com
+ * valor a devolver → 'pending'; senão → 'processed'. O estorno em si (chave da loja) roda
+ * DEPOIS de o cancelamento estar gravado, em `settleDirectRefund` — o cancelamento nunca
+ * depende do Asaas.
  */
-function directRefundStatus(order: any, flow: string): 'pending' | 'processed' {
-  if (order?.paymentStatus === 'paid') {
-    logger.error('Pedido do modo direto cancelado já pago — estorno pela conta da loja pendente, escala pro admin', 'DIRECT_REFUND_PENDING', {
-      orderId: String(order.id ?? order._id), flow,
+function directRefundStatus(order: any, flow: string, amount: number): 'pending' | 'processed' {
+  if (order?.paymentStatus === 'paid' && amount > 0) {
+    logger.info('Pedido do modo direto cancelado já pago — estorno pela conta da loja será pedido', {
+      orderId: String(order.id ?? order._id), flow, amount,
     });
     return 'pending';
   }
@@ -201,8 +203,9 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
     const direct = isDirectOrder(order);
+    const directAmount = direct ? directCustomerRefund(order, fee, 'customer') : 0;
     if (direct) {
-      refundStatus = directRefundStatus(order, 'cancelamento pelo cliente');
+      refundStatus = directRefundStatus(order, 'cancelamento pelo cliente', directAmount);
     } else if (!isCashOnDelivery) {
       // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
       try {
@@ -368,6 +371,11 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     order.status = 'cancelado';
     order.cancellationId = String(cancellation.id);
     await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+
+    // Modo direto: estorno pela chave da loja, só depois do cancelamento gravado.
+    if (direct && refundStatus === 'pending') {
+      refundStatus = await settleDirectRefund({ orderId: order.id, cancellationId: String(cancellation.id), amount: directAmount, requestedBy: customerId });
+    }
 
     // Para COD antes do pickup: liberar reserva da loja se existir
     if (isCashOnDelivery && !isLate) {
@@ -755,8 +763,9 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // --- Refund PARCIAL ao cliente (mesmo padrão de cancelOrderByCustomer) ---
     const direct = isDirectOrder(order);
+    const directAmount = direct ? directCustomerRefund(order, fee, 'customer_absent') : 0;
     if (direct) {
-      refundStatus = directRefundStatus(order, 'cliente ausente');
+      refundStatus = directRefundStatus(order, 'cliente ausente', directAmount);
     } else if (!isCashOnDelivery) {
       try {
         await prisma.$transaction(async (tx) => {
@@ -857,6 +866,11 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     order.cancellationId = String(cancellation.id);
     await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
+    // Modo direto: estorno (total - taxa de entrega, P1) pela chave da loja, depois do cancelamento gravado.
+    if (direct && refundStatus === 'pending') {
+      refundStatus = await settleDirectRefund({ orderId: order.id, cancellationId: String(cancellation.id), amount: directAmount, requestedBy: String(motoboyId) });
+    }
+
     // Produto volta pra loja: mesmo fluxo de devolução com PIN das outras tasks
     // (statusDevolucao='aguardando_confirmacao' + pinDevolucao). Diferente do fluxo
     // do Task 7 (motoboy cancela após pegar), aqui NÃO há decisão pendente do cliente
@@ -947,8 +961,10 @@ export async function cancelOrderWithFullRefund(
   }
   void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
 
-  if (isDirectOrder(order)) {
-    refundStatus = directRefundStatus(order, opts.reasonCode);
+  const direct = isDirectOrder(order);
+  const directAmount = direct ? directCustomerRefund(order, null, 'full') : 0;
+  if (direct) {
+    refundStatus = directRefundStatus(order, opts.reasonCode, directAmount);
   } else if (!isCashOnDelivery) {
     try {
       await prisma.$transaction(async (tx) => {
@@ -1011,6 +1027,11 @@ export async function cancelOrderWithFullRefund(
 
   order.status = 'cancelado';
   await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+
+  // Modo direto: estorno integral pela chave da loja, depois do cancelamento gravado.
+  if (direct && refundStatus === 'pending') {
+    refundStatus = await settleDirectRefund({ orderId: order.id, cancellationId: String(cancellation.id), amount: directAmount, requestedBy: 'system' });
+  }
 
   // Cancela a entrega associada E leva o estado de devolução ao TERMINAL (review #1a):
   // com `statusDevolucao='confirmado'` + `pinDevolucao=null`, o guard do `confirmReturn`
@@ -1456,8 +1477,9 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
 
     // --- NOVO FLUXO: Cancelar payouts + reembolsar cliente + debitar AppCashbox ---
     const direct = isDirectOrder(order);
+    const directAmount = direct ? directCustomerRefund(order, null, 'full') : 0;
     if (direct) {
-      refundStatus = directRefundStatus(order, 'rejeição pela loja');
+      refundStatus = directRefundStatus(order, 'rejeição pela loja', directAmount);
     } else if (!isCashOnDelivery) {
       try {
         await prisma.$transaction(async (tx) => {
@@ -1601,6 +1623,11 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     order.status = 'rejeitado';
     order.cancellationId = String(cancellation.id);
     await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+
+    // Modo direto: estorno integral pela chave da loja, depois do cancelamento gravado.
+    if (direct && refundStatus === 'pending') {
+      refundStatus = await settleDirectRefund({ orderId: order.id, cancellationId: String(cancellation.id), amount: directAmount, requestedBy: userId });
+    }
 
     // Para COD antes do pickup: liberar reserva da loja
     if (isCashOnDelivery && !isLate) {

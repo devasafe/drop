@@ -31,7 +31,14 @@ export async function requestDirectRefund(params: {
   const { orderId, cancellationId, amount, requestedBy } = params;
 
   const existing = await prisma.directRefund.findUnique({ where: { orderId } });
-  if (existing) return existing;
+  if (existing) {
+    if (cents(existing.amount) !== cents(amount)) {
+      logger.warn('[asaasLoja] estorno direto já existe com valor diferente do pedido — mantida a linha existente', {
+        orderId, existingAmount: Number(existing.amount), requestedAmount: Number(amount),
+      });
+    }
+    return existing;
+  }
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
