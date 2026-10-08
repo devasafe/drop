@@ -938,11 +938,39 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // Trava atômica de aceite (first-accept-wins): UPDATE condicional `WHERE status
     // = pending AND motoboyId IS NULL`. Sob concorrência o Postgres serializa a
     // linha e só o primeiro motoboy reivindica (count === 1); os demais veem 409.
-    const claim = await prisma.delivery.updateMany({
-      where: { id, status: 'pending', motoboyId: null },
-      data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
-    });
-    if (claim.count === 0) return res.status(409).json({ error: 'Already claimed or not available' });
+    // O pedido precisa estar aberto (mesmo padrão do R19-b em finalizarEntrega): na mesma
+    // transação, a linha do pedido é travada (FOR UPDATE) ANTES da entrega — a mesma ordem
+    // de travas da recusa/cancelamento (pedido → entrega) — e pedido cancelado/rejeitado
+    // desfaz o aceite (409 ORDER_CLOSED). Quem cancela depois enxerga o motoboy (compensa).
+    const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true } });
+    if (!target) return res.status(409).json({ error: 'Already claimed or not available' });
+    const ORDER_CLOSED = 'ORDER_CLOSED';
+    const ORDER_MISSING = 'ORDER_MISSING';
+    let claimedCount: number;
+    try {
+      claimedCount = await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "Order" WHERE id = ${String(target.orderId)} FOR UPDATE`;
+        if (rows.length === 0) throw new Error(ORDER_MISSING);
+        if (rows[0].status === 'cancelado' || rows[0].status === 'rejeitado') throw new Error(ORDER_CLOSED);
+        const c = await tx.delivery.updateMany({
+          where: { id, status: 'pending', motoboyId: null },
+          data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
+        });
+        return c.count;
+      });
+    } catch (err) {
+      const msg = (err as Error)?.message;
+      if (msg === ORDER_CLOSED) {
+        logger.warn('[claimDelivery] aceite recusado: pedido já cancelado/rejeitado', { deliveryId: id, orderId: target.orderId });
+        return res.status(409).json({ error: 'Pedido cancelado; a corrida não está mais disponível', code: 'ORDER_CLOSED' });
+      }
+      if (msg === ORDER_MISSING) {
+        console.error(`❌ [claimDelivery] Order not found: ${target.orderId}`);
+        return res.status(404).json({ error: 'Order not found' });
+      }
+      throw err;
+    }
+    if (claimedCount === 0) return res.status(409).json({ error: 'Already claimed or not available' });
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id } }));
 
     // Buscar order para notificações
