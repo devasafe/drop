@@ -55,6 +55,9 @@ export default function MototboyWalletPage() {
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
+  // Paginação por cursor das transferências diretas (null = acabou).
+  const [transfersCursor, setTransfersCursor] = useState<string | null>(null);
+  const [loadingMoreTransfers, setLoadingMoreTransfers] = useState(false);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'ganhos' | 'saques'>('todos');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -99,6 +102,7 @@ export default function MototboyWalletPage() {
           // Modo direto: a loja paga o motoboy por Pix; só "Recebido" ou "pendente" (sem códigos internos).
           const trRes = await api.get('/motoboy/transfers');
           setTransfers(Array.isArray(trRes.data?.data) ? trRes.data.data : []);
+          setTransfersCursor(trRes.data?.nextCursor ?? null);
         } catch { /* sem transferências diretas */ }
         try {
           const wdRes = await api.get('/withdrawals/my-withdrawals');
@@ -145,6 +149,21 @@ export default function MototboyWalletPage() {
       showToast(err?.response?.data?.error || 'Erro ao solicitar saque. Confira sua chave PIX em Dados de recebimento.', 'error');
     } finally {
       setTransferring(false);
+    }
+  };
+
+  const loadMoreTransfers = async () => {
+    if (!transfersCursor || loadingMoreTransfers) return;
+    setLoadingMoreTransfers(true);
+    try {
+      const r = await api.get('/motoboy/transfers', { params: { cursor: transfersCursor } });
+      const more: TransferItem[] = Array.isArray(r.data?.data) ? r.data.data : [];
+      setTransfers((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
+      setTransfersCursor(r.data?.nextCursor ?? null);
+    } catch {
+      showToast('Não foi possível carregar mais pagamentos.', 'error');
+    } finally {
+      setLoadingMoreTransfers(false);
     }
   };
 
@@ -263,6 +282,11 @@ export default function MototboyWalletPage() {
               </div>
             );
             })()}
+            {transfersCursor && extractFilter !== 'saques' && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
+                <Button variant="ghost" loading={loadingMoreTransfers} onClick={loadMoreTransfers}>Carregar mais</Button>
+              </div>
+            )}
           </section>
 
           {/* Ajuda */}

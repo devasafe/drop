@@ -31,6 +31,9 @@ export default function AdminEstornos() {
   const { can } = useAuth() as any;
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
+  // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [resolving, setResolving] = useState<string | null>(null);
@@ -41,6 +44,7 @@ export default function AdminEstornos() {
     try {
       const r = await api.get('/admin/direct-refunds', { params: status ? { status } : {} });
       setRows(r.data?.data ?? []);
+      setNextCursor(r.data?.nextCursor ?? null);
       setError('');
     } catch {
       setError('Não foi possível carregar os estornos.');
@@ -48,6 +52,21 @@ export default function AdminEstornos() {
   }, [status]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const r = await api.get('/admin/direct-refunds', { params: status ? { status, cursor: nextCursor } : { cursor: nextCursor } });
+      const more: Row[] = r.data?.data ?? [];
+      setRows((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
+      setNextCursor(r.data?.nextCursor ?? null);
+    } catch {
+      setError('Não foi possível carregar os estornos.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const act = async (id: string, fn: () => Promise<unknown>) => {
     setBusy(id);
@@ -124,6 +143,11 @@ export default function AdminEstornos() {
               </li>
             ))}
           </ul>
+          {nextCursor && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
+              <Button variant="ghost" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+            </div>
+          )}
         </div>
       </div>
     </ProtectedRoute>

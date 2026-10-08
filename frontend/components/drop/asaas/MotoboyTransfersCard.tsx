@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../../lib/api';
 import { Section } from '../../ui/Section';
+import { Button } from '../../ui/Button';
 import { humanizeTransferError, TRANSFER_STATUS_LABEL } from '../../../lib/transferErrors';
 
 interface Row {
@@ -17,6 +18,9 @@ interface Row {
 export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState('');
+  // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,13 +28,31 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
       try {
         const r = await api.get(`/stores/${storeId}/transfers`);
         const data = r.data?.data;
-        if (!cancelled) setRows(Array.isArray(data) ? data : []);
+        if (!cancelled) {
+          setRows(Array.isArray(data) ? data : []);
+          setNextCursor(r.data?.nextCursor ?? null);
+        }
       } catch {
         if (!cancelled) setError('Não foi possível carregar os pagamentos.');
       }
     })();
     return () => { cancelled = true; };
   }, [storeId]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const r = await api.get(`/stores/${storeId}/transfers`, { params: { cursor: nextCursor } });
+      const more: Row[] = Array.isArray(r.data?.data) ? r.data.data : [];
+      setRows((prev) => [...(prev ?? []), ...more.filter((m) => !(prev ?? []).some((p) => p.id === m.id))]);
+      setNextCursor(r.data?.nextCursor ?? null);
+    } catch {
+      setError('Não foi possível carregar os pagamentos.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <Section title="Pagamentos a motoboys">
@@ -49,6 +71,11 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
           </li>
         ))}
       </ul>
+      {!error && nextCursor && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
+          <Button variant="ghost" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+        </div>
+      )}
     </Section>
   );
 }

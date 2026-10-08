@@ -34,6 +34,9 @@ export default function AdminTransfers() {
   const { can } = useAuth() as any;
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
+  // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [resolving, setResolving] = useState<string | null>(null);
@@ -44,6 +47,7 @@ export default function AdminTransfers() {
     try {
       const r = await api.get('/admin/transfers', { params: status ? { status } : {} });
       setRows(r.data?.data ?? []);
+      setNextCursor(r.data?.nextCursor ?? null);
       setError('');
     } catch {
       setError('Não foi possível carregar as transferências.');
@@ -51,6 +55,21 @@ export default function AdminTransfers() {
   }, [status]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const r = await api.get('/admin/transfers', { params: status ? { status, cursor: nextCursor } : { cursor: nextCursor } });
+      const more: Row[] = r.data?.data ?? [];
+      setRows((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
+      setNextCursor(r.data?.nextCursor ?? null);
+    } catch {
+      setError('Não foi possível carregar as transferências.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const act = async (id: string, fn: () => Promise<unknown>) => {
     setBusy(id);
@@ -130,6 +149,11 @@ export default function AdminTransfers() {
               </li>
             ))}
           </ul>
+          {nextCursor && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
+              <Button variant="ghost" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+            </div>
+          )}
         </div>
       </div>
     </ProtectedRoute>
