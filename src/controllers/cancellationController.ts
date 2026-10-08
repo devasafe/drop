@@ -35,7 +35,7 @@ import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { isDirectOrder } from '../utils/settlement';
-import { directCustomerRefund, settleDirectRefund } from '../services/asaasLoja/directCancellation';
+import { directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation } from '../services/asaasLoja/directCancellation';
 import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -298,7 +298,8 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     let cancellationFeeCharged = 0;
     try {
       if (direct) {
-        // Modo direto: sem compensação de motoboy nem AppCashbox pela custódia (Fase 2).
+        // Modo direto: sem Payout/AppCashbox da custódia; a compensação do motoboy é uma
+        // MotoboyTransfer gravada junto com o cancelamento (abaixo).
       } else if (isCashOnDelivery) {
         if (isLate && fee.totalFee > 0) {
           cancellationFeeCharged = fee.totalFee;
@@ -355,8 +356,9 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       logger.error('Erro ao aplicar taxa de cancelamento do cliente', feeErr as Error, { orderId });
     }
 
-    // Cria documento de cancelamento
-    const cancellation = await prisma.cancellation.create({ data: {
+    // Cria documento de cancelamento. Modo direto: a parte do motoboy (fee.motoboyShare,
+    // entrega cheia com o motoboy a caminho) vira MotoboyTransfer na MESMA transação.
+    const { cancellation } = await recordCancellationWithCompensation({
       orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'customer',
@@ -366,7 +368,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       refundStatus,
       isLateCancellation: isLate,
       lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    } });
+    }, direct ? { order, deliveryId: order.deliveryId, motoboyId: compMotoboyId, motoboyShare: fee.motoboyShare } : null);
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
@@ -828,7 +830,8 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 
     // --- Compensação do motoboy (entrega CHEIA) + AppCashbox (taxa cheia = lastro) ---
     let cancellationFeeCharged = 0;
-    // Modo direto: sem Payout/AppCashbox da custódia (a compensação do motoboy é a Fase 2).
+    // Modo direto: sem Payout/AppCashbox da custódia; a compensação do motoboy é uma
+    // MotoboyTransfer gravada junto com o cancelamento (abaixo).
     try {
       if (!direct) await prisma.$transaction(async (tx) => {
         if (fee.motoboyShare > 0) {
@@ -851,8 +854,9 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
       logger.error('Erro ao aplicar taxa/compensação de cliente ausente', feeErr as Error, { orderId: order.id });
     }
 
-    // Documento de cancelamento
-    const cancellation = await prisma.cancellation.create({ data: {
+    // Documento de cancelamento. Modo direto (P1): a entrega cheia (fee.motoboyShare) vira
+    // MotoboyTransfer ao motoboy na MESMA transação.
+    const { cancellation } = await recordCancellationWithCompensation({
       orderId: order.id,
       deliveryId: deliveryRow.id,
       cancelledBy: 'motoboy',
@@ -861,7 +865,7 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
       refundAmount,
       refundStatus,
       lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    } });
+    }, direct ? { order, deliveryId: deliveryRow.id, motoboyId, motoboyShare: fee.motoboyShare } : null);
 
     // Status já foi para 'cancelado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'cancelado';
@@ -1617,8 +1621,32 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       }
     }
 
-    // Cria documento de cancelamento
-    const cancellation = await prisma.cancellation.create({ data: {
+    // Modo direto: a multa da loja não é cobrada (sem carteira), mas se um motoboy aceitou a
+    // corrida na janela entre o guard MOTOBOY_ACCEPTED_CANNOT_CANCEL e a trava do pedido, ele
+    // recebe a parte da fórmula (calculateCancellationFee actor 'store') pela conta da loja.
+    let directCompensation: Parameters<typeof recordCancellationWithCompensation>[1] = null;
+    if (direct && storeAccepted && order.deliveryId) {
+      const fresh = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+      if (fresh?.motoboyId) {
+        const config = await getPlatformConfig();
+        const storeFee = calculateCancellationFee({
+          actor: 'store',
+          motoboyInvolved: true,
+          orderTotal: order.totalValue || 0,
+          deliveryFee: order.deliveryFee || 0,
+          config: {
+            cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
+            cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
+            cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
+            lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
+          },
+        });
+        directCompensation = { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: storeFee.motoboyShare };
+      }
+    }
+
+    // Cria documento de cancelamento (com a compensação do motoboy na mesma transação).
+    const { cancellation } = await recordCancellationWithCompensation({
       orderId: order.id,
       deliveryId: order.deliveryId || undefined,
       cancelledBy: 'store',
@@ -1628,7 +1656,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       refundStatus,
       isLateCancellation: isLate,
       lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
-    } });
+    }, directCompensation);
 
     // Status já foi para 'rejeitado' na trava atômica; grava o vínculo do cancelamento.
     order.status = 'rejeitado';

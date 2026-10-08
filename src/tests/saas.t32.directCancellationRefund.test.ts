@@ -58,6 +58,8 @@ afterEach(async () => {
   jest.restoreAllMocks();
   const stores = await prisma.store.findMany({ where: { owner: { email: { endsWith: DOMAIN } } }, select: { id: true } });
   await prisma.directRefund.deleteMany({ where: { storeId: { in: stores.map((s) => s.id) } } });
+  // Task 2.6: os cancelamentos com motoboy agora registram MotoboyTransfer de compensação.
+  await prisma.motoboyTransfer.deleteMany({ where: { storeId: { in: stores.map((s) => s.id) } } });
   await cleanupUsersByEmailDomain(DOMAIN);
 });
 

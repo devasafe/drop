@@ -91,6 +91,8 @@ afterEach(async () => {
   const orders = await prisma.order.findMany({ where: { storeId: { in: storeIds } }, select: { id: true } });
   const orderIds = orders.map((o) => o.id);
   await prisma.directRefund.deleteMany({ where: { orderId: { in: orderIds } } });
+  // Task 2.6: os cancelamentos com motoboy agora registram MotoboyTransfer de compensação.
+  await prisma.motoboyTransfer.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.deliveryInvoice.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payout.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.appCashboxEntry.deleteMany({ where: { orderId: { in: orderIds } } });
