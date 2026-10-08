@@ -11,7 +11,8 @@ const config: Config.InitialOptions = {
   setupFiles: ['<rootDir>/jest.setup.ts'],
 
   // ✅ Retry de testes de integração (erros transitórios de transação no ReplSet em memória)
-  setupFilesAfterEnv: ['<rootDir>/jest.retry.ts'],
+  // ✅ Fecha o PrismaClient de cada arquivo (sem isso as conexões acumulam entre suítes)
+  setupFilesAfterEnv: ['<rootDir>/jest.retry.ts', '<rootDir>/jest.prismaDisconnect.ts'],
 
   // Aumentar timeout para conexão com DB
   testTimeout: 30000,
