@@ -42,6 +42,8 @@ import {
 import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Pedido encerrado: nada de reembolso/reentrega/reatribuição depois disso. */
+const CLOSED_ORDER_STATUSES = ['cancelado', 'rejeitado'];
 
 /**
  * Cancelamento de pedido do modo direto (asaas_loja): o dinheiro está na conta Asaas DA
@@ -202,20 +204,39 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // se ela falhar, o pedido continua cancelável e o estorno não se perde atrás de um 409.
     const direct = isDirectOrder(order);
     if (!direct) {
-      const claim = await prisma.order.updateMany({
-        where: { id: orderId, status: { in: cancellableStatuses as any } },
-        data: { status: 'cancelado', cancelledAt: new Date() },
-      });
-      if (claim.count === 0) {
-        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      // Trava + releitura da entrega na MESMA transação: devolução em andamento descoberta
+      // depois da leitura desfaz a trava (como no pedido direto) — antes de qualquer dinheiro
+      // se mover. Sem isso, o pedido era cancelado com reembolso de 100% e a entrega ficava
+      // em devolução num pedido 'cancelado'.
+      let fresh: { motoboyId: string | null; statusDevolucao: string | null } | null = null;
+      try {
+        const claimed = await prisma.$transaction(async (tx) => {
+          const claim = await tx.order.updateMany({
+            where: { id: orderId, status: { in: cancellableStatuses as any } },
+            data: { status: 'cancelado', cancelledAt: new Date() },
+          });
+          if (claim.count === 0) return false;
+          if (order.deliveryId) {
+            fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+            if (fresh?.statusDevolucao === 'aguardando_confirmacao') throw new CancelReturnInProgressError();
+          }
+          return true;
+        });
+        if (!claimed) {
+          return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+        }
+      } catch (err) {
+        if (err instanceof CancelReturnInProgressError) {
+          return res.status(409).json({ error: 'RETURN_IN_PROGRESS', message: 'Devolução em andamento; use a decisão pós-devolução.' });
+        }
+        throw err;
       }
 
-      // Relê a entrega DEPOIS da trava: quem desistiu no meio (devolução em andamento) não é
-      // compensado e quem assumiu a entrega no meio é. Se o envolvimento do motoboy mudou, a
-      // taxa/reembolso são recalculados (o reembolso da custódia só sai abaixo).
+      // Entrega relida DEPOIS da trava: quem assumiu a entrega no meio é compensado. Se o
+      // envolvimento do motoboy mudou, a taxa/reembolso são recalculados (o reembolso da
+      // custódia só sai abaixo).
       if (order.deliveryId) {
-        const fresh = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
-        const freshMotoboy = fresh?.statusDevolucao === 'aguardando_confirmacao' ? null : (fresh?.motoboyId ?? null);
+        const freshMotoboy = (fresh as { motoboyId: string | null } | null)?.motoboyId ?? null;
         if (freshMotoboy !== compMotoboyId) {
           logger.warn('[cancelOrder] entrega mudou entre a leitura e a trava — relida', { orderId, before: compMotoboyId, after: freshMotoboy });
           compMotoboyId = freshMotoboy;
@@ -1199,6 +1220,10 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
     const delivery: any = order.deliveryId
       ? toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }))
       : null;
+    // Pedido já encerrado: nenhuma decisão pós-devolução vale (nada é gravado).
+    if (CLOSED_ORDER_STATUSES.includes(order.status)) {
+      return res.status(409).json({ error: 'Pedido já foi encerrado', code: 'ORDER_CLOSED' });
+    }
     if (!delivery || delivery.statusDevolucao !== 'aguardando_confirmacao') {
       return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
     }
@@ -1221,8 +1246,18 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
     }
 
     // reentrega → produto volta à loja (confirmReturn) e daí ao pool via 'reassign'.
-    delivery.pendingReturnAction = 'reassign';
-    await persistDelivery(delivery);
+    // Pedido travado: um cancelamento concorrente não deixa 'reassign' num pedido encerrado.
+    const marked = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
+      if (!rows.length || CLOSED_ORDER_STATUSES.includes(rows[0].status)) return 'closed';
+      const { count } = await tx.delivery.updateMany({
+        where: { id: String(delivery._id), statusDevolucao: 'aguardando_confirmacao' },
+        data: { pendingReturnAction: 'reassign' },
+      });
+      return count === 1 ? 'ok' : 'no_return';
+    });
+    if (marked === 'closed') return res.status(409).json({ error: 'Pedido já foi encerrado', code: 'ORDER_CLOSED' });
+    if (marked === 'no_return') return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
 
     emitToRoom(`store:${order.storeId}`, 'delivery:return_requested', {
       deliveryId: delivery._id,
