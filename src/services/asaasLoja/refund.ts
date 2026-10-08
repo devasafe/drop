@@ -3,7 +3,7 @@ import { prisma } from '../../lib/prisma';
 import asaasClient, { AsaasApiError } from '../asaas/client';
 import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
-import { emitToRoom } from '../../utils/socketEmitter';
+import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import { storeKey, translate, StorePaymentsNotReadyError } from './charge';
 
 /**
@@ -126,16 +126,48 @@ export async function markDirectRefundDone(
   return done === true;
 }
 
-function notify(storeId: string, event: 'refund:failed' | 'refund:uncertain' | 'refund:failed_final', orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
+type RefundAlert = 'refund:failed' | 'refund:uncertain' | 'refund:failed_final';
+
+const ADMIN_ALERT: Record<RefundAlert, { title: string; body: string }> = {
+  'refund:failed': { title: 'Estorno recusado pelo Asaas', body: 'nova tentativa automática agendada.' },
+  'refund:failed_final': { title: 'Estorno esgotou as tentativas', body: 'reabrir ou resolver em Estornos.' },
+  'refund:uncertain': { title: 'Estorno com resultado incerto', body: 'conferir no Asaas antes de qualquer reenvio.' },
+};
+
+/**
+ * Alerta do estorno. O admin recebe `admin:notification` + push (o painel escuta esse evento);
+ * o evento `refund:*` segue para as salas pedidas (compatibilidade). Quem chama só notifica se
+ * o `updateMany` da transição deu count === 1 (M9).
+ */
+function notify(storeId: string, event: RefundAlert, orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
   const payload = { refundId, orderId, storeId };
   for (const r of rooms) emitToRoom(r === 'store' ? `store:${storeId}` : 'admin', event, payload);
+  if (rooms.includes('admin')) {
+    const a = ADMIN_ALERT[event];
+    try {
+      emitAdminNotification({
+        title: a.title,
+        body: `Pedido ${String(orderId).slice(-6)}: ${a.body}`,
+        url: '/admin/estornos',
+        tag: `${event}:${refundId}`,
+      });
+    } catch (err) {
+      logger.warn('[asaasLoja] falha ao alertar o admin sobre o estorno', { refundId, orderId, error: (err as Error)?.message });
+    }
+  }
 }
 
-/** Claim atômico + chamada ao Asaas com a chave da loja. */
-export function notifyDirectRefund(storeId: string, event: 'refund:failed' | 'refund:uncertain' | 'refund:failed_final', orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
+/** Alerta de estorno para quem já fez a transição condicional (ex.: reaper do job). */
+export function notifyDirectRefund(storeId: string, event: RefundAlert, orderId: string, refundId: string, rooms: Array<'store' | 'admin'>) {
   notify(storeId, event, orderId, refundId, rooms);
 }
 
+async function currentStatus(refundId: string): Promise<DirectRefundStatus> {
+  const row = await prisma.directRefund.findUnique({ where: { id: refundId }, select: { status: true } });
+  return (row?.status ?? 'uncertain') as DirectRefundStatus;
+}
+
+/** Claim atômico + chamada ao Asaas com a chave da loja. */
 export async function executeDirectRefund(refundId: string): Promise<DirectRefundStatus> {
   const current = await prisma.directRefund.findUnique({ where: { id: refundId } });
   if (!current) throw new AppError('Estorno não encontrado', 404, true, 'REFUND_NOT_FOUND');
@@ -175,26 +207,29 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
       const backoff = DIRECT_REFUND_BACKOFF_MS[attempts - 1];
       if (backoff === undefined) {
         // 6ª falha: sem nova retentativa, o admin resolve.
-        await prisma.directRefund.updateMany({
+        const { count } = await prisma.directRefund.updateMany({
           where: { id: refundId, status: 'requested' },
           data: { status: 'failed_final', lastError: String(message).slice(0, 500) },
         });
+        if (count !== 1) return currentStatus(refundId); // outro caminho (webhook/admin) já mudou a linha
         logger.warn('[asaasLoja] estorno direto esgotou as tentativas', { refundId, orderId, storeId, attempts });
         notify(storeId, 'refund:failed_final', orderId, refundId, ['admin']);
         return 'failed_final';
       }
-      await prisma.directRefund.updateMany({
+      const { count } = await prisma.directRefund.updateMany({
         where: { id: refundId, status: 'requested' },
         data: { status: 'failed', lastError: String(message).slice(0, 500), nextAttemptAt: new Date(Date.now() + backoff) },
       });
+      if (count !== 1) return currentStatus(refundId);
       logger.warn('[asaasLoja] estorno direto recusado', { refundId, orderId, storeId, status: (err as any)?.status });
       notify(storeId, 'refund:failed', orderId, refundId, ['store', 'admin']);
       return 'failed';
     }
-    await prisma.directRefund.updateMany({
+    const { count } = await prisma.directRefund.updateMany({
       where: { id: refundId, status: 'requested' },
       data: { status: 'uncertain', lastError: 'UNCERTAIN' },
     });
+    if (count !== 1) return currentStatus(refundId);
     logger.error('[asaasLoja] estorno direto com resposta incerta — NÃO reenviar sem conferir no Asaas', err as Error, { refundId, orderId, storeId });
     notify(storeId, 'refund:uncertain', orderId, refundId, ['admin']);
     return 'uncertain';
@@ -213,8 +248,13 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     await markDirectRefundDone(orderId, 'api');
   } catch (err) {
     // O Asaas já estornou, mas o banco não registrou: trava em 'uncertain' para o admin conferir.
-    await prisma.directRefund.updateMany({ where: { id: refundId, status: 'requested' }, data: { status: 'uncertain', lastError: 'UNCERTAIN' } }).catch(() => undefined);
+    // 'moved' = esta chamada marcou incerto; 'lost' = outro caminho já mudou a linha;
+    // 'error' = nem o incerto foi gravado (o admin precisa saber: o dinheiro já saiu).
+    const outcome = await prisma.directRefund.updateMany({ where: { id: refundId, status: 'requested' }, data: { status: 'uncertain', lastError: 'UNCERTAIN' } })
+      .then((r) => (r.count === 1 ? 'moved' : 'lost'))
+      .catch(() => 'error');
     logger.error('[asaasLoja] estorno feito no Asaas mas falhou ao registrar', err as Error, { refundId, orderId, storeId });
+    if (outcome === 'lost') return currentStatus(refundId).catch(() => 'uncertain' as DirectRefundStatus);
     notify(storeId, 'refund:uncertain', orderId, refundId, ['admin']);
     return 'uncertain';
   }

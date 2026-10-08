@@ -219,3 +219,63 @@ describe('I7 — DirectRefund pending órfão', () => {
     expect((await prisma.cancellation.findUnique({ where: { id: s.cancellation.id } }))!.refundStatus).toBe('processed');
   });
 });
+
+describe('I4/M9 — alertas do estorno chegam ao admin (admin:notification + push) só para quem mudou a linha', () => {
+  const { AsaasApiError } = jest.requireActual('../services/asaas/client');
+  const fail400 = () => new AsaasApiError(400, [{ code: 'x', description: 'Saldo insuficiente' }]);
+  const expectAdminAlert = (refundId: string) =>
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ title: expect.any(String), url: '/admin/estornos', tag: expect.stringContaining(refundId) }));
+
+  it('failed → emitAdminNotification', async () => {
+    const s = await setup();
+    postAs.mockRejectedValue(fail400());
+    expect(await executeDirectRefund(s.refund.id)).toBe('failed');
+    expect(adminNotify).toHaveBeenCalledTimes(1);
+    expectAdminAlert(s.refund.id);
+  });
+
+  it('failed_final → emitAdminNotification', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'failed', attempts: 5 } });
+    postAs.mockRejectedValue(fail400());
+    expect(await executeDirectRefund(s.refund.id)).toBe('failed_final');
+    expectAdminAlert(s.refund.id);
+  });
+
+  it('uncertain (5xx) → emitAdminNotification', async () => {
+    const s = await setup();
+    postAs.mockRejectedValue(new AsaasApiError(503, []));
+    expect(await executeDirectRefund(s.refund.id)).toBe('uncertain');
+    expectAdminAlert(s.refund.id);
+  });
+
+  it('reaper (requested preso) → emitAdminNotification', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested', attempts: 1, updatedAt: new Date(Date.now() - 11 * MIN) } });
+    await runDirectRefunds();
+    expectAdminAlert(s.refund.id);
+  });
+
+  it('M9: a linha saiu de requested durante a chamada (webhook concluiu) → falha 400 não notifica nem regride', async () => {
+    const s = await setup();
+    postAs.mockImplementation(async () => {
+      await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'done', doneAt: new Date() } });
+      throw fail400();
+    });
+    await executeDirectRefund(s.refund.id);
+    expect((await rowOf(s.refund.id)).status).toBe('done');
+    expect(adminNotify).not.toHaveBeenCalled();
+    expect(emit.mock.calls.some((c) => String(c[1]).startsWith('refund:'))).toBe(false);
+  });
+
+  it('M9: idem para resposta incerta (5xx)', async () => {
+    const s = await setup();
+    postAs.mockImplementation(async () => {
+      await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'done', doneAt: new Date() } });
+      throw new AsaasApiError(503, []);
+    });
+    await executeDirectRefund(s.refund.id);
+    expect(adminNotify).not.toHaveBeenCalled();
+    expect(emit.mock.calls.some((c) => String(c[1]).startsWith('refund:'))).toBe(false);
+  });
+});
