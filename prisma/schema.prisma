@@ -1307,6 +1307,8 @@ model MotoboyTransfer {
   previousAsaasTransferIds String[] @default([])
   lastError        String?
   authorizedAt     DateTime?
+  resolvedBy       String?
+  resolutionNote   String?
   doneAt           DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

@@ -3,6 +3,7 @@ import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../contexts/AuthContext';
 import { AsaasConnectCard } from '../../components/drop/asaas/AsaasConnectCard';
+import MotoboyTransfersCard from '../../components/drop/asaas/MotoboyTransfersCard';
 import styles from './Integrations.module.css';
 
 export default function SellerPagamentos() {
@@ -35,6 +36,7 @@ export default function SellerPagamentos() {
             <p className={styles.subtitle}>Conecte a sua conta Asaas. Os pagamentos dos seus pedidos caem direto nela.</p>
           </header>
           {storeId && <AsaasConnectCard apiBase={`/stores/${storeId}/asaas`} storeId={storeId} egressIp={egressIp} />}
+          {storeId && <MotoboyTransfersCard storeId={storeId} />}
         </div>
       </div>
     </ProtectedRoute>

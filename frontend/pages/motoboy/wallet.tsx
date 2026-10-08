@@ -26,6 +26,9 @@ interface PayoutItem {
   status: 'pending' | 'released' | 'requested' | 'paid' | 'cancelled';
   orderId: string; deliveryId?: string; createdAt: string;
 }
+interface TransferItem {
+  id: string; orderId: string; amount: number; status: string; createdAt: string; doneAt?: string | null;
+}
 interface HistoryItem {
   date: string; type: 'credit' | 'debit'; amount: number; reason: string; relatedId?: string;
 }
@@ -51,6 +54,7 @@ export default function MototboyWalletPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'ganhos' | 'saques'>('todos');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -91,6 +95,11 @@ export default function MototboyWalletPage() {
           const sumRes = await api.get('/payouts/my/summary');
           setSummary(sumRes.data);
         } catch { /* resumo opcional */ }
+        try {
+          // Modo direto: a loja paga o motoboy por Pix; só "Recebido" ou "pendente" (sem códigos internos).
+          const trRes = await api.get('/motoboy/transfers');
+          setTransfers(Array.isArray(trRes.data?.data) ? trRes.data.data : []);
+        } catch { /* sem transferências diretas */ }
         try {
           const wdRes = await api.get('/withdrawals/my-withdrawals');
           setWithdrawals(Array.isArray(wdRes.data) ? wdRes.data : (wdRes.data?.withdrawals || []));
@@ -146,6 +155,14 @@ export default function MototboyWalletPage() {
       title: `Entrega #${p.orderId?.slice(-6) || '—'}`, statusView: payoutStatusView(p.status),
       // Repasse leva ao detalhe da entrega (com tudo). Sem deliveryId, cai no modal.
       onClick: () => p.deliveryId ? router.push(`/motoboy/delivery/${p.deliveryId}`) : handlePayoutClick(p),
+    })),
+    ...transfers.map((t) => ({
+      key: `t-${t.id}`, date: t.doneAt || t.createdAt, sign: '+' as const, amount: t.amount,
+      title: `Entrega #${t.orderId?.slice(-6) || '—'}`,
+      statusView: (t.status === 'done'
+        ? { label: 'Recebido', tone: 'paid' }
+        : { label: 'Pagamento pendente da loja', tone: 'pending' }) as { label: string; tone: PillTone },
+      onClick: undefined as undefined | (() => void),
     })),
     ...withdrawals.map((w: any, i: number) => {
       const wv = withdrawalStatusView(w.status);

@@ -35,8 +35,9 @@ export function maskPixKey(key: string, type?: string): string {
   const looksPhone = t === 'PHONE' || k.startsWith('+') || k.includes('(');
   if (looksPhone && digits.length >= 10) return `(**) *****-${digits.slice(-4)}`;
   if ((t === 'CPF' || !t) && digits.length === 11 && /^[\d.\-\s]+$/.test(k)) return `***.***.***-${digits.slice(-2)}`;
+  // Chave desconhecida/aleatória (EVP): só os 4 últimos caracteres.
   if (k.length <= 8) return '*'.repeat(k.length);
-  return `${k.slice(0, 4)}…${k.slice(-4)}`;
+  return `***${k.slice(-4)}`;
 }
 
 /** Chave Pix ATUAL do motoboy (User.asaas.pixKey/pixKeyType) — usada para o snapshot da transferência. */
