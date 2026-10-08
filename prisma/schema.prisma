@@ -769,6 +769,10 @@ model WithdrawalRequest {
   // Resposta incerta do gateway (timeout, rede, 5xx): o Pix pode ter saído. O saque fica em
   // `approved` (reivindicado) até o admin conferir no painel do Asaas — nunca volta a pending.
   uncertainAt    DateTime?
+  // Resolução manual (admin) de saque incerto/travado em `approved`: quem, quando e a nota.
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  resolutionNote String?
 
   @@index([motoboyId])
   @@index([status])

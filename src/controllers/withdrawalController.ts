@@ -16,6 +16,7 @@ import userRepository from '../repositories/user.repository';
 import payoutService from '../services/payout.service';
 import { getPayoutGateway, TransferResult } from '../services/payoutGateway';
 import env from '../config/env';
+import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { emitAdminNotification, emitToRoom } from '../utils/socketEmitter';
 import { insertNotifications } from '../repositories/notification.repository';
@@ -220,6 +221,31 @@ const WR_IN_FLIGHT = 'approved';
 
 const conflict = (message: string) => Object.assign(new Error(message), { withdrawalConflict: true });
 
+/**
+ * Baixa local de um saque que SAIU: payouts vinculados → paid (ou libera o blockedBalance do
+ * saque da carteira pessoal). Roda dentro da transação de quem conclui o saque (fluxo feliz
+ * da aprovação e resolução manual de saque incerto).
+ */
+async function settlePaidWithdrawal(tx: any, withdrawal: any, transferId: string) {
+  if (withdrawal.payoutIds?.length) {
+    await payoutService.markPayoutsPaid(
+      withdrawal.payoutIds!,
+      transferId,
+      tx,
+      // Em modo Asaas o dinheiro está na subconta (não no AppCashbox virtual);
+      // o saque sai da subconta direto pro banco, então NÃO debita o caixa.
+      { skipCashboxDebit: env.PAYOUT_GATEWAY === 'asaas' },
+    );
+  } else {
+    // Saque de user wallet: liberar blockedBalance. NÃO debitar AppCashbox —
+    // o dinheiro já saiu do cofre quando foi transferido para a carteira (payout_paid)
+    // ou quando foi reembolsado (order_refund).
+    const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user', tx);
+    const newBlocked = Math.max(0, Number(w.blockedBalance) - Number(withdrawal.amount));
+    await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: Number(withdrawal.amount) } } });
+  }
+}
+
 // Executa aprovação + processamento. Reutilizado pelo endpoint approveWithdrawal e pelo auto-approve.
 async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
   // Trava anti-saque em dobro: reivindica o saque ANTES de chamar o gateway.
@@ -230,10 +256,21 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
   if (count !== 1) throw conflict('Saque não está pendente (já está sendo processado ou foi concluído)');
 
   const markUncertain = async (reason: string) => {
-    await updateWR(withdrawal._id, { uncertainAt: new Date(), rejectionReason: `Resposta incerta: ${reason}`.slice(0, 500) });
+    // A marca pode falhar (banco fora): o alerta sai mesmo assim e a falha é registrada —
+    // nunca silencioso. Sem a marca, o saque fica em `approved` e a resolução manual vale
+    // depois de 10 minutos.
+    let marked = true;
+    try {
+      await updateWR(withdrawal._id, { uncertainAt: new Date(), rejectionReason: `Resposta incerta: ${reason}`.slice(0, 500) });
+    } catch (markErr) {
+      marked = false;
+      logger.error('[saque] falha ao gravar a marca de incerteza', markErr as Error, { withdrawalId: String(withdrawal._id) });
+    }
     emitAdminNotification({
       title: 'Saque com resposta incerta ⚠️',
-      body: `O saque de ${withdrawal.motoboyName} (${brl(Number(withdrawal.amount))}) pode ter saído. Confira no painel do Asaas antes de qualquer ação.`,
+      body: marked
+        ? `O saque de ${withdrawal.motoboyName} (${brl(Number(withdrawal.amount))}) pode ter saído. Confira no painel do Asaas antes de qualquer ação.`
+        : `O saque de ${withdrawal.motoboyName} (${brl(Number(withdrawal.amount))}) pode ter saído e a marca de incerteza NÃO foi gravada. Confira no painel do Asaas; a resolução manual libera em 10 minutos.`,
       url: '/admin/withdrawals',
       tag: 'withdrawal',
     });
@@ -277,23 +314,7 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      if (withdrawal.payoutIds?.length) {
-        await payoutService.markPayoutsPaid(
-          withdrawal.payoutIds!,
-          transferResult.gatewayTransferId || `manual_${Date.now()}`,
-          tx,
-          // Em modo Asaas o dinheiro está na subconta (não no AppCashbox virtual);
-          // o saque sai da subconta direto pro banco, então NÃO debita o caixa.
-          { skipCashboxDebit: env.PAYOUT_GATEWAY === 'asaas' },
-        );
-      } else {
-        // Saque de user wallet: liberar blockedBalance. NÃO debitar AppCashbox —
-        // o dinheiro já saiu do cofre quando foi transferido para a carteira (payout_paid)
-        // ou quando foi reembolsado (order_refund).
-        const w = await walletService.getOrCreate(withdrawal.motoboyId, 'user', tx);
-        const newBlocked = Math.max(0, Number(w.blockedBalance) - withdrawal.amount);
-        await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, totalSpent: { increment: withdrawal.amount } } });
-      }
+      await settlePaidWithdrawal(tx, withdrawal, transferResult.gatewayTransferId || `manual_${Date.now()}`);
 
       const done = await tx.withdrawalRequest.updateMany({
         where: { id: String(withdrawal._id), status: WR_IN_FLIGHT },
@@ -373,6 +394,74 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(502).json({ error: err.message || 'Falha na transferência do saque' });
     }
     return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/** Saque em `approved` sem a marca de incerteza só é resolvível depois disso (processo caiu). */
+export const STALE_IN_FLIGHT_MS = 10 * 60 * 1000;
+
+/**
+ * R27 — POST /withdrawals/:id/resolve-uncertain (admin, `withdrawal:approve`).
+ * Saque em `approved` com `uncertainAt` (resposta incerta) ou reivindicado há mais de 10 min
+ * sem resposta (o processo caiu entre a reserva e o gateway). O admin confere no Asaas:
+ *  - `paid`: conclui (processed) e baixa os payouts na MESMA transação, como o fluxo feliz;
+ *  - `not_sent`: volta a pending (payouts seguem reservados) para nova aprovação.
+ * Transição por updateMany condicional a partir de `approved` (count 1, senão 409).
+ * O "há mais de 10 min" usa `approvedAt` (gravado na reivindicação; o modelo não tem updatedAt).
+ */
+export const resolveUncertainWithdrawal = async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const adminId = req.user?.id || (req as any).userId;
+    const { id } = req.params;
+    const { outcome, asaasTransferId, note } = req.body as { outcome: 'paid' | 'not_sent'; asaasTransferId?: string; note: string };
+
+    const withdrawal = await findWRById(id);
+    if (!withdrawal) return res.status(404).json({ error: 'Saque não encontrado' });
+
+    const staleBefore = new Date(Date.now() - STALE_IN_FLIGHT_MS);
+    // Elegível: approved + (incerto OU reivindicado há mais de 10 min).
+    const eligible = {
+      id: String(withdrawal._id),
+      status: WR_IN_FLIGHT as any,
+      OR: [{ uncertainAt: { not: null } }, { approvedAt: { lt: staleBefore } }],
+    };
+    const resolution = { resolvedBy: String(adminId), resolvedAt: new Date(), resolutionNote: note };
+    const notResolvable = () => conflict('Saque não está incerto nem travado em processamento (ou já foi resolvido)');
+
+    if (outcome === 'not_sent') {
+      const { count } = await prisma.withdrawalRequest.updateMany({
+        where: eligible,
+        data: {
+          status: 'pending', uncertainAt: null, approvedAt: null, approvedBy: null,
+          rejectionReason: `Conferido no Asaas: não enviado. ${note}`.slice(0, 500), ...resolution,
+        },
+      });
+      if (count !== 1) throw notResolvable();
+    } else {
+      const transferId = asaasTransferId || withdrawal.transactionId || `manual_resolve_${withdrawal._id}`;
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.withdrawalRequest.updateMany({
+          where: eligible,
+          data: { status: 'processed', processedAt: new Date(), transactionId: transferId, ...resolution },
+        });
+        if (count !== 1) throw notResolvable();
+        await settlePaidWithdrawal(tx, withdrawal, transferId);
+      });
+      await notifyMotoboy(
+        withdrawal.motoboyId,
+        'Saque aprovado ✅',
+        `Seu saque de ${brl(Number(withdrawal.amount))} foi aprovado e enviado para a sua chave PIX.`,
+      );
+    }
+
+    logger.info('[saque] saque incerto resolvido', { withdrawalId: String(withdrawal._id), outcome, adminId });
+    return res.json({ message: 'Saque resolvido', withdrawal: await findWRById(id) });
+  } catch (err: any) {
+    if (err?.withdrawalConflict) {
+      return res.status(409).json({ error: err.message, code: 'WITHDRAWAL_NOT_RESOLVABLE' });
+    }
+    logger.error('[saque] falha ao resolver saque incerto', err as Error, { withdrawalId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao resolver o saque' });
   }
 };
 
