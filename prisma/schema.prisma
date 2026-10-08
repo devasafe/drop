@@ -1278,6 +1278,7 @@ model DirectRefund {
   lastError      String?
   requestedBy    String
   resolvedBy     String?
+  resolutionNote String?
   doneAt         DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

@@ -81,12 +81,16 @@ export async function requestDirectRefund(params: {
 export async function markDirectRefundDone(
   orderId: string,
   source: 'api' | 'webhook' | 'admin',
-  note?: string,
+  opts: { actorId?: string; note?: string } = {},
 ): Promise<boolean> {
+  const resolvedBy = opts.actorId ? `${source}:${opts.actorId}` : source;
   const done = await prisma.$transaction(async (tx) => {
     const { count } = await tx.directRefund.updateMany({
       where: { orderId, status: { not: 'done' } },
-      data: { status: 'done', doneAt: new Date(), resolvedBy: note ? `${source}:${note}` : source, lastError: null },
+      data: {
+        status: 'done', doneAt: new Date(), resolvedBy, lastError: null,
+        ...(opts.note ? { resolutionNote: opts.note } : {}),
+      },
     });
     if (count !== 1) return null;
     const row = await tx.directRefund.findUnique({ where: { orderId }, select: { cancellationId: true } });

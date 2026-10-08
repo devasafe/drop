@@ -104,10 +104,10 @@ export async function resolveDirectRefund(req: any, res: Response) {
   const refund = await prisma.directRefund.findUnique({ where: { id: String(req.params.id) } });
   if (!refund) throw new AppError('Estorno não encontrado', 404, true, 'REFUND_NOT_FOUND');
   if (refund.status === 'done') throw new AppError('Este estorno já foi concluído', 409, true, 'REFUND_ALREADY_DONE');
+  if (refund.status === 'requested') throw new AppError('O estorno já está em andamento', 409, true, 'REFUND_IN_PROGRESS');
 
-  const marked = await markDirectRefundDone(refund.orderId, 'admin', note);
+  const marked = await markDirectRefundDone(refund.orderId, 'admin', { actorId: adminId, note });
   if (!marked) throw new AppError('Este estorno já foi concluído', 409, true, 'REFUND_ALREADY_DONE');
-  await prisma.directRefund.updateMany({ where: { id: refund.id }, data: { resolvedBy: `admin:${adminId}` } });
   logger.info('[refund][AUDIT]', { refundId: refund.id, orderId: refund.orderId, adminId, note });
 
   const fresh = await prisma.directRefund.findUnique({ where: { id: refund.id } });

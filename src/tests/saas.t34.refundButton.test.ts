@@ -158,6 +158,22 @@ describe('POST /api/orders/:id/refund-direct', () => {
 });
 
 describe('admin direct-refunds', () => {
+  it('resolve com estorno em voo (requested) -> 409 REFUND_IN_PROGRESS e nada muda', async () => {
+    const s = await setup();
+    await setStatus(s.refund.id, 'requested');
+    const r = await request(app).post(`/api/admin/direct-refunds/${s.refund.id}/resolve`).set('Authorization', bearer(s.ceo)).send({ note: 'conferido no painel do Asaas' });
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body)).toContain('REFUND_IN_PROGRESS');
+    expect((await prisma.directRefund.findUnique({ where: { id: s.refund.id } }))!.status).toBe('requested');
+  });
+
+  it.each(['pending', 'failed', 'failed_final'])('resolve aceita %s', async (st) => {
+    const s = await setup();
+    await setStatus(s.refund.id, st);
+    const r = await request(app).post(`/api/admin/direct-refunds/${s.refund.id}/resolve`).set('Authorization', bearer(s.ceo)).send({ note: 'conferido no painel do Asaas' });
+    expect(r.status).toBe(200);
+  });
+
   it('GET lista com filtro de status; lojista -> 403', async () => {
     const s = await setup();
     await setStatus(s.refund.id, 'uncertain', { lastError: 'UNCERTAIN' });
@@ -185,6 +201,7 @@ describe('admin direct-refunds', () => {
     const row = await prisma.directRefund.findUnique({ where: { id: s.refund.id } });
     expect(row!.status).toBe('done');
     expect(row!.resolvedBy).toBe(`admin:${s.ceo.userId}`);
+    expect(row!.resolutionNote).toBe('conferido no painel do Asaas');
     expect((await prisma.cancellation.findUnique({ where: { id: s.cancellation.id } }))!.refundStatus).toBe('processed');
     expect(info).toHaveBeenCalledWith('[refund][AUDIT]', expect.objectContaining({ refundId: s.refund.id, orderId: s.order.id, adminId: s.ceo.userId, note: 'conferido no painel do Asaas' }));
     expect(postAs).not.toHaveBeenCalled();
