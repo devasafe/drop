@@ -133,12 +133,15 @@ export function getNavItems(
   role: Role,
   can: (permission: string) => boolean,
   isCeo: boolean,
-  opts?: { settlementMode?: string; custodyLeftover?: boolean },
+  opts?: { settlementMode?: string; custodyLeftover?: boolean; adminCustodyOpen?: boolean },
 ): NavItem[] {
   const direct = opts?.settlementMode === 'direto';
   const showLeftover = direct && opts?.custodyLeftover === true;
   if (role === 'ceo') {
-    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && m.custodyOnly) && !(m.directOnly && !direct)).map((m) => ({
+    // I5: Payouts/Saques seguem no modo direto enquanto houver custódia em aberto.
+    const hiddenInDirect = (m: { custodyOnly?: boolean; whileCustodyOpen?: boolean }) =>
+      !!m.custodyOnly && !(m.whileCustodyOpen && opts?.adminCustodyOpen === true);
+    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && hiddenInDirect(m)) && !(m.directOnly && !direct)).map((m) => ({
       label: m.label,
       icon: m.icon,
       route: m.href,

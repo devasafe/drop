@@ -4,6 +4,7 @@ import { useOverlay } from '../../contexts/OverlayContext';
 import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
+import { useAdminCustodyOpen } from '../../hooks/useAdminCustodyOpen';
 import { getNavItems, isItemActive, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './AppSidebar.module.css';
@@ -32,6 +33,7 @@ export default function AppSidebar() {
   const badges = useBadgeCounts();
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
+  const adminCustodyOpen = useAdminCustodyOpen();
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
@@ -43,7 +45,7 @@ export default function AppSidebar() {
   const meta = PANEL_META[effRole];
   if (!meta) return null; // cliente (ou role sem painel) não tem sidebar
 
-  const items = getNavItems(effRole, can, role === 'ceo', { settlementMode, custodyLeftover }).filter((i) => i.placement.includes('sidebar'));
+  const items = getNavItems(effRole, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen }).filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>

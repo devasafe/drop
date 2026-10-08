@@ -858,6 +858,19 @@ router.get('/switches', authenticate, authorizePermission('settings:manage'), as
 
 const isCeo = (req: any) => (req.user?.activeRole || req.user?.role) === 'ceo';
 
+// I5: no modo direto o menu do admin mantém Payouts/Saques enquanto houver repasse de
+// custódia ou saque em aberto (mesma contagem do preview da troca de modo).
+router.get('/custody-open', authenticate, authorizePermission('payout:view'), async (_req: any, res: Response) => {
+  try {
+    const { countOpenCustody } = await import('../services/settlementSwitch');
+    const { openPayouts, openWithdrawals } = await countOpenCustody();
+    return res.json({ success: true, data: { open: openPayouts + openWithdrawals > 0, openPayouts, openWithdrawals } });
+  } catch (err) {
+    logger.error('custody-open: falha ao contar repasses/saques em aberto', err as Error);
+    return res.status(500).json({ success: false, error: { message: 'Erro ao consultar repasses em aberto', statusCode: 500 } });
+  }
+});
+
 // Riscos da troca de modo, com os números reais, antes de o CEO confirmar.
 router.get('/switches/settlement-preview', authenticate, authorizePermission('settings:manage'), async (req: any, res: Response) => {
   try {

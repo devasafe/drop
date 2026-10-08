@@ -29,6 +29,18 @@ export interface SettlementPreview {
   counts: Record<string, number>;
 }
 
+/** Repasse de custódia ainda não liquidado e saque em aberto (menu do admin no modo direto). */
+export const OPEN_PAYOUT_STATUSES = ['pending', 'released', 'requested'] as const;
+export const OPEN_WITHDRAWAL_STATUSES = ['pending', 'approved'] as const;
+
+export async function countOpenCustody(): Promise<{ openPayouts: number; openWithdrawals: number }> {
+  const [openPayouts, openWithdrawals] = await Promise.all([
+    prisma.payout.count({ where: { status: { in: [...OPEN_PAYOUT_STATUSES] } } }),
+    prisma.withdrawalRequest.count({ where: { status: { in: [...OPEN_WITHDRAWAL_STATUSES] } } }),
+  ]);
+  return { openPayouts, openWithdrawals };
+}
+
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export async function settlementSwitchPreview(to: SettlementMode): Promise<SettlementPreview> {
@@ -68,7 +80,7 @@ export async function settlementSwitchPreview(to: SettlementMode): Promise<Settl
         where: { OR: [{ balance: { gt: 0 } }, { blockedBalance: { gt: 0 } }] },
         select: { balance: true, blockedBalance: true },
       }),
-      prisma.payout.count({ where: { status: { in: ['pending', 'released', 'requested'] } } }),
+      countOpenCustody().then((c) => c.openPayouts),
       prisma.store.count({ where: { OR: [{ asaasAccount: null }, { asaasAccount: { status: { not: 'valid' } } }] } }),
     ]);
     const custodyBalance = wallets.reduce((acc, w) => acc + Number(w.balance) + Number(w.blockedBalance), 0);

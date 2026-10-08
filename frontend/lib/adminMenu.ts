@@ -18,6 +18,8 @@ export interface AdminMenuItem {
   custodyOnly?: boolean;
   /** Inverso de custodyOnly: aparece SÓ no modo 'direto' (conta Asaas própria da loja). */
   directOnly?: boolean;
+  /** custodyOnly que continua visível no modo 'direto' enquanto houver repasse/saque da custódia em aberto. */
+  whileCustodyOpen?: boolean;
 }
 
 export const ADMIN_MENU: AdminMenuItem[] = [
@@ -26,8 +28,8 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   { href: '/admin/analytics',      label: 'Analytics',    icon: 'chart-up',     permission: 'analytics:view_platform' },
   { href: '/admin/users',          label: 'Usuários',     icon: 'users',        permission: 'user:view_all' },
   { href: '/admin/wallets',        label: 'Carteiras',    icon: 'wallet',       permission: 'wallet:view_all', custodyOnly: true },
-  { href: '/admin/withdrawals',    label: 'Saques',       icon: 'send',         permission: 'withdrawal:view', custodyOnly: true },
-  { href: '/admin/payouts',        label: 'Payouts',      icon: 'clipboard',    permission: 'payout:view', custodyOnly: true },
+  { href: '/admin/withdrawals',    label: 'Saques',       icon: 'send',         permission: 'withdrawal:view', custodyOnly: true, whileCustodyOpen: true },
+  { href: '/admin/payouts',        label: 'Payouts',      icon: 'clipboard',    permission: 'payout:view', custodyOnly: true, whileCustodyOpen: true },
   { href: '/admin/app-cashbox',    label: 'Caixa',        icon: 'bank',         permission: 'cashbox:view', custodyOnly: true },
   { href: '/admin/plan-approvals', label: 'Planos',       icon: 'check-circle', permission: 'plan:view', custodyOnly: true },
   { href: '/admin/estornos',      label: 'Estornos',     icon: 'send',         permission: 'payout:view', directOnly: true },
