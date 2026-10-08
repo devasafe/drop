@@ -63,17 +63,24 @@ export async function refundDirect(req: any, res: Response) {
     case 'requested': throw new AppError('O estorno já está em andamento', 409, true, 'REFUND_IN_PROGRESS');
     case 'failed_final':
       if (!admin) throw new AppError('Estorno esgotou as tentativas: apenas o admin pode reabrir', 409, true, 'REFUND_FINAL_ADMIN_ONLY');
-      // Reabre com claim condicional: só um admin concorrente passa.
+      // Reabre com claim condicional: só um admin concorrente passa. Zera attempts (como o
+      // retry da transferência): sem isso, 1 falha nova voltaria direto a failed_final.
       {
         const { count } = await prisma.directRefund.updateMany({
           where: { id: refund.id, status: 'failed_final' },
-          data: { status: 'failed', nextAttemptAt: new Date() },
+          data: { status: 'failed', attempts: 0, nextAttemptAt: new Date() },
         });
         if (count !== 1) throw new AppError('O estorno já está em andamento', 409, true, 'REFUND_IN_PROGRESS');
         logger.info('[refund][AUDIT]', { refundId: refund.id, orderId, adminId: userId, action: 'reopen' });
       }
       break;
-    default: break; // pending | failed
+    case 'failed':
+      // O lojista não antecipa a retentativa agendada (cada clique gastaria um degrau do backoff).
+      if (!admin && refund.nextAttemptAt.getTime() > Date.now()) {
+        throw new AppError('Nova tentativa disponível em breve — aguarde o horário agendado', 409, true, 'REFUND_RETRY_NOT_DUE');
+      }
+      break;
+    default: break; // pending
   }
 
   await executeDirectRefund(refund.id);
