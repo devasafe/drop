@@ -279,3 +279,15 @@ describe('I4/M9 — alertas do estorno chegam ao admin (admin:notification + pus
     expect(emit.mock.calls.some((c) => String(c[1]).startsWith('refund:'))).toBe(false);
   });
 });
+
+describe('M8 — 408 do Asaas é incerto (como na transferência)', () => {
+  it('408 → uncertain, sem retentativa automática', async () => {
+    const { AsaasApiError } = jest.requireActual('../services/asaas/client');
+    const s = await setup();
+    postAs.mockRejectedValue(new AsaasApiError(408, [{ code: 'timeout', description: 'Request Timeout' }]));
+    expect(await executeDirectRefund(s.refund.id)).toBe('uncertain');
+    const row = await rowOf(s.refund.id);
+    expect(row.status).toBe('uncertain');
+    expect(row.lastError).toBe('UNCERTAIN');
+  });
+});

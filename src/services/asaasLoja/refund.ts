@@ -199,7 +199,7 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     }
   } catch (err) {
     const definite = err instanceof StorePaymentsNotReadyError
-      || (err instanceof AsaasApiError && err.status >= 400 && err.status < 500);
+      || (err instanceof AsaasApiError && err.status >= 400 && err.status < 500 && err.status !== 408); // 408: o Asaas pode ter estornado
     if (definite) {
       const message = err instanceof AsaasApiError
         ? (err.errors?.[0]?.description || err.message)
