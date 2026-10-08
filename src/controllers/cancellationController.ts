@@ -990,24 +990,29 @@ export async function cancelOrderWithFullRefund(
   const refundAmount = order.totalValue || 0; // 100%, sem desconto de taxa.
   let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
 
-  // ✅ Trava atômica: só UM request move de status cancelável → 'cancelado'.
-  const claim = await prisma.order.updateMany({
-    where: { id: order.id, status: { in: cancellableStatuses as any } },
-    data: { status: 'cancelado', cancelledAt: new Date() },
-  });
-  if (claim.count === 0) {
-    return { ok: false, status: 409, error: 'Pedido já foi cancelado ou está em processamento' };
-  }
-
-  // ✅ Devolver estoque (uma única vez, graças à trava).
-  for (const it of (order.products || [])) {
-    if ((it as any).productId && (it as any).quantity) {
-      await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
-    }
-  }
-  void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
-
   const direct = isDirectOrder(order);
+
+  // ✅ Trava atômica: só UM request move de status cancelável → 'cancelado'.
+  // Pedido direto (M4b/R19): a trava, o estoque e o vínculo entram na transação do
+  // cancelamento, lá embaixo — uma falha desfaz tudo e o estorno nunca fica perdido.
+  if (!direct) {
+    const claim = await prisma.order.updateMany({
+      where: { id: order.id, status: { in: cancellableStatuses as any } },
+      data: { status: 'cancelado', cancelledAt: new Date() },
+    });
+    if (claim.count === 0) {
+      return { ok: false, status: 409, error: 'Pedido já foi cancelado ou está em processamento' };
+    }
+
+    // ✅ Devolver estoque (uma única vez, graças à trava).
+    for (const it of (order.products || [])) {
+      if ((it as any).productId && (it as any).quantity) {
+        await prisma.product.updateMany({ where: { id: String((it as any).productId) }, data: { quantity: { increment: (it as any).quantity } } });
+      }
+    }
+    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+  }
+
   const directAmount = direct ? directCustomerRefund(order, null, 'full') : 0;
   if (direct) {
     refundStatus = directRefundStatus(order, opts.reasonCode, directAmount);
@@ -1061,7 +1066,7 @@ export async function cancelOrderWithFullRefund(
     refundStatus = 'processed';
   }
 
-  const cancellation = await prisma.cancellation.create({ data: {
+  const cancellationData = {
     orderId: order.id,
     deliveryId: order.deliveryId || undefined,
     cancelledBy: opts.cancelledBy,
@@ -1069,10 +1074,28 @@ export async function cancelOrderWithFullRefund(
     reasonCode: opts.reasonCode as any,
     refundAmount,
     refundStatus,
-  } });
+  };
+  let cancellation: any;
+  if (direct) {
+    try {
+      ({ cancellation } = await recordCancellationWithCompensation(
+        cancellationData,
+        null,
+        { orderId: order.id, from: cancellableStatuses, to: 'cancelado', restock: order.products || [] },
+      ));
+    } catch (err) {
+      if (err instanceof CancellationClaimLostError) {
+        return { ok: false, status: 409, error: 'Pedido já foi cancelado ou está em processamento' };
+      }
+      throw err;
+    }
+    void emitStockChanged(String(order.storeId), (order.products || []).map((it: any) => String(it.productId)).filter(Boolean));
+  } else {
+    cancellation = await prisma.cancellation.create({ data: cancellationData });
+    await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
+  }
 
   order.status = 'cancelado';
-  await prisma.order.update({ where: { id: order.id }, data: { cancellationId: String(cancellation.id) } });
 
   // Modo direto: estorno integral pela chave da loja, depois do cancelamento gravado.
   if (direct && refundStatus === 'pending') {

@@ -2,6 +2,8 @@
  * Revisão final M4 — cancelamentos do pedido direto:
  *  - M4a: o vínculo order.cancellationId já é gravado na transação; o update pós-commit
  *    redundante não pode mais derrubar a requisição antes do estorno (settleDirectRefund).
+ *  - M4b: cancelOrderWithFullRefund (timeout/recusa) usa a mesma trava transacional da R19:
+ *    falha ao gravar o cancelamento desfaz a trava e o estoque.
  */
 jest.mock('../services/asaas/client', () => {
   const actual = jest.requireActual('../services/asaas/client');
@@ -28,6 +30,8 @@ import { encryptSensitiveData } from '../utils/encryption';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
+import { toApiOrder, orderInclude } from '../repositories/order.repository';
+import { cancelOrderWithFullRefund } from '../controllers/cancellationController';
 
 const DOMAIN = '@saas44.test';
 const STORE_KEY = '$aact_hmlg_LOJA_44XX';
@@ -99,6 +103,7 @@ function failCancellationIdOnlyUpdate() {
 
 const refundRow = (orderId: string) => prisma.directRefund.findUnique({ where: { orderId } });
 const orderRow = (id: string) => prisma.order.findUnique({ where: { id } });
+const qty = async (id: string) => (await prisma.product.findUnique({ where: { id } }))!.quantity;
 
 describe('M4a — vínculo cancellationId só na transação (pedido direto)', () => {
   it('cliente cancela: falha no update pós-commit não impede o estorno', async () => {
@@ -130,5 +135,38 @@ describe('M4a — vínculo cancellationId só na transação (pedido direto)', (
     const o = await orderRow(s.order.id);
     expect(o!.cancellationId).toBeTruthy();
     expect(o!.status).toBe('rejeitado');
+  });
+});
+
+describe('M4b — cancelOrderWithFullRefund no pedido direto usa a trava transacional', () => {
+  it('falha ao gravar o cancelamento desfaz a trava e o estoque; nova tentativa funciona e estorna', async () => {
+    const s = await scenario({ status: 'aguardando_motoboy', delivery: 'pending', acceptedAt: true });
+    const load = async () => toApiOrder(await prisma.order.findUnique({ where: { id: s.order.id }, include: orderInclude }));
+
+    await expect(cancelOrderWithFullRefund(await load(), { reason: 'timeout', reasonCode: 'codigo_invalido', cancelledBy: 'store' })).rejects.toBeTruthy();
+
+    expect((await orderRow(s.order.id))!.status).toBe('aguardando_motoboy');
+    expect(await qty(s.product.id)).toBe(10);
+    expect(await prisma.cancellation.count({ where: { orderId: s.order.id } })).toBe(0);
+    expect(await refundRow(s.order.id)).toBeNull();
+
+    const r = await cancelOrderWithFullRefund(await load(), { reason: 'timeout', reasonCode: 'store_rejected', cancelledBy: 'store' });
+    expect(r.ok).toBe(true);
+    expect(r.refundStatus).toBe('processed');
+    expect(await qty(s.product.id)).toBe(12);
+    const o = await orderRow(s.order.id);
+    expect(o!.status).toBe('cancelado');
+    expect(o!.cancellationId).toBe(r.cancellation.id);
+    expect((await refundRow(s.order.id))!.status).toBe('done');
+  });
+
+  it('trava perdida (pedido já cancelado) → 409 sem novo cancelamento', async () => {
+    const s = await scenario({ status: 'aguardando_motoboy', delivery: 'pending', acceptedAt: true });
+    const order = toApiOrder(await prisma.order.findUnique({ where: { id: s.order.id }, include: orderInclude }));
+    await prisma.order.update({ where: { id: s.order.id }, data: { status: 'cancelado' } });
+    const r = await cancelOrderWithFullRefund(order, { reason: 'timeout', reasonCode: 'store_rejected', cancelledBy: 'store' });
+    expect(r.ok).toBe(false);
+    expect(r.status).toBe(409);
+    expect(await prisma.cancellation.count({ where: { orderId: s.order.id } })).toBe(0);
   });
 });
