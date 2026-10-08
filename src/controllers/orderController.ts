@@ -202,6 +202,12 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         await restoreStock(items); // itens anteriores deste pedido já baixaram estoque
         return res.status(404).json({ error: `Produto ${p.productId} não encontrado` });
       }
+      // O pedido é de UMA loja: produto de outra loja baixaria o estoque dela com o
+      // dinheiro e a notificação indo para esta.
+      if (String(prod.storeId) !== storeIdStr) {
+        await restoreStock(items);
+        return res.status(400).json({ error: `O produto ${prod.name} não é desta loja`, code: 'PRODUCT_FROM_OTHER_STORE' });
+      }
 
       // ✅ SEGURANÇA: NUNCA confiar no preço enviado pelo frontend.
       // O preço é SEMPRE o que está no banco de dados (fonte da verdade).
