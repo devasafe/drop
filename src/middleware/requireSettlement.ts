@@ -3,6 +3,7 @@ import { getSaasConfig, SettlementMode } from '../utils/settlement';
 import { hasCustodyLeftover } from '../services/custodyLeftover';
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
+import env from '../config/env';
 
 const featureDisabled = (res: Response) =>
   res.status(404).json({ error: 'Função indisponível neste modo de operação', code: 'FEATURE_DISABLED' });
@@ -48,6 +49,27 @@ export const requireCustodyOrLeftover = async (req: Request & { user?: any }, re
     logger.error('requireCustodyOrLeftover: falha ao consultar saldo de custódia', err as Error);
   }
   return featureDisabled(res);
+};
+
+/**
+ * Ruling R26 (revisa R23) — com PAYOUT_GATEWAY=asaas o dinheiro dos repasses está na SUBCONTA
+ * do recebedor: `transfer-to-owner` só marcaria os payouts como pagos (sem mover nada da
+ * subconta) e creditaria a carteira virtual, cujo saque o gateway Asaas não paga. Em qualquer
+ * modo → 409 USE_PAYOUT_WITHDRAWAL antes de qualquer outra checagem; o saldo sai pelo saque
+ * por payouts (/withdrawals/request). Vai logo depois de `authenticate`.
+ */
+export const rejectOwnerTransferWithAsaasPayout = (_req: Request, res: Response, next: NextFunction) => {
+  if (env.PAYOUT_GATEWAY === 'asaas') {
+    return res.status(409).json({
+      success: false,
+      error: {
+        message: 'Saque pela carteira da loja/motoboy: use "Sacar para meu PIX" (o valor sai da sua conta de recebimento).',
+        statusCode: 409,
+        code: 'USE_PAYOUT_WITHDRAWAL',
+      },
+    });
+  }
+  return next();
 };
 
 /**

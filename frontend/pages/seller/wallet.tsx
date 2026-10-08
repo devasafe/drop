@@ -9,7 +9,8 @@ import TransactionDetailsModal, { DetailRow } from '../../components/Transaction
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
-import TransferToOwnerCard from '../../components/wallet/TransferToOwnerCard';
+import LegacyBalanceCard from '../../components/wallet/LegacyBalanceCard';
+import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import StoreWalletMetrics, { StoreFinancialSummary } from '../../components/wallet/StoreWalletMetrics';
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
@@ -48,6 +49,8 @@ interface HistoryItem {
 
 export default function SellerWalletPage() {
   const { user } = useAuth();
+  // Modo direto com saldo da custódia (o backend decide); na custódia → false.
+  const custodyLeftover = useCustodyLeftover();
   const router = useRouter();
   const [wallet, setWallet] = useState<StoreWallet | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -184,7 +187,7 @@ export default function SellerWalletPage() {
   };
 
   const available = wallet?.availableBalance ?? wallet?.balance ?? 0;
-  // O transfer-to-owner move os repasses `released` (é o que o backend confere).
+  // Saldo do modo anterior: repasses `released` (o saque por payouts consome exatamente esses).
   const releasedTotal = Math.round(payouts.filter((p) => p.status === 'released').reduce((s, p) => s + Number(p.amount), 0) * 100) / 100;
 
   const wdStatus = (s: string) => (
@@ -241,14 +244,8 @@ export default function SellerWalletPage() {
             </Button>
           </div>
 
-          {/* Saldo do modo anterior (R23): repasses liberados da loja → carteira do dono */}
-          {resolvedStoreId && (
-            <TransferToOwnerCard
-              endpoint={`/wallets/store/${resolvedStoreId}/transfer-to-owner`}
-              amount={releasedTotal}
-              onTransferred={reload}
-            />
-          )}
+          {/* Saldo do modo anterior (R26): só no modo direto, sai pelo saque por payouts */}
+          {custodyLeftover && <LegacyBalanceCard amount={releasedTotal} onWithdraw={handleSacar} />}
 
           {/* Resumo financeiro (líquido + bruto + taxas, agregado no backend) */}
           {summary && <StoreWalletMetrics summary={summary} />}

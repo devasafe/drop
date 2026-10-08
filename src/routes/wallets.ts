@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireSettlement, requireCustodyOrLeftover, requireOwnerTransferSource } from '../middleware/requireSettlement';
+import { requireSettlement, requireCustodyOrLeftover, requireOwnerTransferSource, rejectOwnerTransferWithAsaasPayout } from '../middleware/requireSettlement';
 import { authenticate } from '../middleware/auth';
 import { requireActiveUser } from '../middleware/requireActive';
 import { validate } from '../middleware/validate';
@@ -34,11 +34,11 @@ router.get('/my-wallet/by-role/:role', authenticate, getMyWallet);
 
 // Transferir saldo da loja para a carteira do dono (user wallet)
 // R23: no modo direto, abre só para mover o saldo antigo (Payout released) para a carteira user do dono.
-router.post('/store/:storeId/transfer-to-owner', authenticate, requireCustodyOrLeftover, requireActiveUser, requireOwnerTransferSource('store'), transferStoreToOwner);
+router.post('/store/:storeId/transfer-to-owner', authenticate, rejectOwnerTransferWithAsaasPayout, requireCustodyOrLeftover, requireActiveUser, requireOwnerTransferSource('store'), transferStoreToOwner);
 
 // Carteira de repasse do motoboy (ownerType='motoboy') + transferência para user wallet
 router.get('/motoboy/:motoboyId', authenticate, getMotoboyWallet);
-router.post('/motoboy/:motoboyId/transfer-to-owner', authenticate, requireCustodyOrLeftover, requireActiveUser, requireOwnerTransferSource('motoboy'), transferMotoboyToOwner);
+router.post('/motoboy/:motoboyId/transfer-to-owner', authenticate, rejectOwnerTransferWithAsaasPayout, requireCustodyOrLeftover, requireActiveUser, requireOwnerTransferSource('motoboy'), transferMotoboyToOwner);
 
 // Carteira do usuário logado
 router.get('/my-wallet', authenticate, getMyWallet);
