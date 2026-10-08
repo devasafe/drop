@@ -7,14 +7,15 @@ import { decryptSensitiveData } from '../utils/encryption';
 /**
  * Webhook de autorização de saques/transferências do Asaas ("Mecanismo para validação de
  * saque via webhooks"). FECHADO POR PADRÃO: a DROP só aprova o que ela mesma pediu
- * (MotoboyTransfer / DirectRefund em `requested`, mesma loja, mesmo valor, mesma chave).
+ * (MotoboyTransfer em `requested` / DirectRefund em `requested` ou `done` recente, mesma loja,
+ * mesmo valor, mesma chave), vinculando uma única vez.
  * Sempre HTTP 200 com { status: 'APPROVED' } ou { status: 'REFUSED', refuseReason }.
  * Qualquer exceção interna vira REFUSED. Nunca logar chave Pix nem token.
  */
 
 export type AuthRequest =
   | { kind: 'transfer'; transferId: string; asaasId: string; valueCents: number | null; pixKey: string }
-  | { kind: 'pixRefund'; paymentId: string; valueCents: number | null }
+  | { kind: 'pixRefund'; paymentId: string; valueCents: number | null; refundId?: string }
   | { kind: 'unsupported'; type: string }
   | { kind: 'invalid' };
 
@@ -50,7 +51,14 @@ export function parseAuthorizationRequest(body: any): AuthRequest {
     const r = body.pixRefund;
     if (!r || typeof r !== 'object') return { kind: 'invalid' };
     const pay = r.paymentId ?? r.payment;
-    return { kind: 'pixRefund', paymentId: str(pay && typeof pay === 'object' ? (pay as any).id : pay), valueCents: toCents(r.value) };
+    // id do estorno no Asaas (CONFIRMAR NO SANDBOX o nome do campo): vincula a autorização.
+    const refundId = str(r.id ?? r.refundId);
+    return {
+      kind: 'pixRefund',
+      paymentId: str(pay && typeof pay === 'object' ? (pay as any).id : pay),
+      valueCents: toCents(r.value),
+      ...(refundId ? { refundId } : {}),
+    };
   }
   return { kind: 'unsupported', type };
 }
@@ -114,11 +122,38 @@ async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind:
   return { approved: true, transferId: t.id };
 }
 
+/** Janela em que um estorno já dado como `done` ainda aceita a autorização do Asaas (R20). */
+export const REFUND_AUTH_DONE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * R20: o Asaas pode pedir a autorização DEPOIS de a DROP ter registrado o 200 do POST /refund
+ * (linha já `done`). Aprova `requested` ou `done` recente (≤ 24 h), mesma loja, mesmo pagamento,
+ * mesmo valor — e vincula uma única vez (authorizedAt + id do estorno no Asaas): outro id é
+ * recusado (ALREADY_AUTHORIZED); o mesmo id (retry) é aprovado de novo.
+ */
 async function decidePixRefund(storeId: string, req: Extract<AuthRequest, { kind: 'pixRefund' }>): Promise<Decision> {
   if (!req.paymentId) return refuse('UNKNOWN_REFUND');
-  const r = await prisma.directRefund.findFirst({ where: { storeId, asaasPaymentId: req.paymentId, status: 'requested' } });
+  const eligible = () => ({
+    OR: [
+      { status: 'requested' },
+      { status: 'done', doneAt: { gte: new Date(Date.now() - REFUND_AUTH_DONE_WINDOW_MS) } },
+    ],
+  });
+  const r = await prisma.directRefund.findFirst({ where: { storeId, asaasPaymentId: req.paymentId, ...eligible() } });
   if (!r) return refuse('UNKNOWN_REFUND');
   if (req.valueCents === null || req.valueCents !== Math.round(Number(r.amount) * 100)) return refuse('AMOUNT_MISMATCH', r.id);
+
+  const refundId = req.refundId || null;
+  const upd = await prisma.directRefund.updateMany({
+    where: { id: r.id, authorizedAt: null, ...eligible() },
+    data: { authorizedAt: new Date(), ...(refundId ? { asaasRefundId: refundId } : {}) },
+  });
+  if (upd.count !== 1) {
+    const again = await prisma.directRefund.findFirst({ where: { id: r.id, ...eligible() }, select: { authorizedAt: true, asaasRefundId: true } });
+    if (!again) return refuse('INVALID_STATUS', r.id);
+    // Retry idempotente: mesmo id do estorno (ou, sem id no corpo, autorização anterior também sem id).
+    if (!(again.authorizedAt && (again.asaasRefundId ?? null) === refundId)) return refuse('ALREADY_AUTHORIZED', r.id);
+  }
   return { approved: true, transferId: r.id };
 }
 

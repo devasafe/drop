@@ -1283,6 +1283,11 @@ model DirectRefund {
   resolvedBy     String?
   resolutionNote String?
   doneAt         DateTime?
+  /// 200 do POST /refund com estorno ainda em andamento no Asaas: fica `requested` e o webhook conclui.
+  acceptedAt     DateTime?
+  /// Trava de autorização PIX_REFUND: aprovada uma única vez (vincula o id do estorno do Asaas).
+  authorizedAt   DateTime?
+  asaasRefundId  String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

@@ -24,6 +24,29 @@ export const DIRECT_REFUND_RETRY_MS = DIRECT_REFUND_BACKOFF_MS[0];
 
 const cents = (v: unknown) => Math.round(Number(v) * 100);
 
+/**
+ * Status do Asaas que indicam estorno AINDA EM ANDAMENTO (pagamento ou item de `refunds[]`).
+ * CONFIRMAR NO SANDBOX o formato exato da resposta de POST /payments/{id}/refund.
+ */
+const REFUND_IN_PROGRESS_STATUSES = new Set([
+  'REFUND_IN_PROGRESS', 'REFUND_REQUESTED', 'PENDING',
+  'AWAITING_AUTHORIZATION', 'AWAITING_CRITICAL_ACTION_AUTHORIZATION', 'AWAITING_CUSTOMER_EXTERNAL_AUTHORIZATION',
+]);
+
+/**
+ * R20: a resposta 200 só conclui o estorno se não indicar andamento. Status explícito de
+ * andamento → fica `requested` com `acceptedAt` e o webhook PAYMENT_REFUNDED conclui.
+ * Resposta sem status (ou REFUNDED/DONE) → `done` como antes (a confirmar no sandbox).
+ */
+export function refundResponseInProgress(response: any): boolean {
+  const up = (v: unknown) => (typeof v === 'string' ? v.trim().toUpperCase() : '');
+  const refunds: any[] = Array.isArray(response?.refunds) ? response.refunds : [];
+  const last = refunds.length ? refunds[refunds.length - 1] : null;
+  const refundStatus = up(last?.status);
+  if (refundStatus) return REFUND_IN_PROGRESS_STATUSES.has(refundStatus);
+  return REFUND_IN_PROGRESS_STATUSES.has(up(response?.status));
+}
+
 /** Cria (ou devolve) o estorno do pedido direto. Idempotente por pedido. */
 export async function requestDirectRefund(params: {
   orderId: string;
@@ -119,7 +142,7 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
 
   const { count } = await prisma.directRefund.updateMany({
     where: { id: refundId, status: { in: ['pending', 'failed'] } },
-    data: { status: 'requested', attempts: { increment: 1 } },
+    data: { status: 'requested', attempts: { increment: 1 }, acceptedAt: null },
   });
   if (count !== 1) {
     const now = await prisma.directRefund.findUnique({ where: { id: refundId }, select: { status: true } });
@@ -131,10 +154,11 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
   const { orderId, storeId, asaasPaymentId } = current;
   const amount = Number(current.amount);
 
+  let response: any;
   try {
     const apiKey = await storeKey(storeId); // conta ausente/invalid → StorePaymentsNotReadyError (falha definida, nada enviado)
     try {
-      await asaasClient.postAs(apiKey, `/payments/${encodeURIComponent(asaasPaymentId)}/refund`, {
+      response = await asaasClient.postAs(apiKey, `/payments/${encodeURIComponent(asaasPaymentId)}/refund`, {
         value: amount,
         description: `Estorno do pedido ${orderId}`,
       });
@@ -174,6 +198,15 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     logger.error('[asaasLoja] estorno direto com resposta incerta — NÃO reenviar sem conferir no Asaas', err as Error, { refundId, orderId, storeId });
     notify(storeId, 'refund:uncertain', orderId, refundId, ['admin']);
     return 'uncertain';
+  }
+
+  if (refundResponseInProgress(response)) {
+    // Aceito, mas ainda em andamento no Asaas (a trava de autorização pode nem ter sido
+    // chamada): não dá como estornado. O webhook PAYMENT_REFUNDED conclui; o reaper só
+    // marca incerto depois de ACCEPTED_REFUND_MAX_MS.
+    await prisma.directRefund.updateMany({ where: { id: refundId, status: 'requested' }, data: { acceptedAt: new Date() } });
+    logger.info('[asaasLoja] estorno direto aceito e em andamento no Asaas', { refundId, orderId, storeId, status: response?.status ?? null });
+    return 'requested';
   }
 
   try {

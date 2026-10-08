@@ -10,26 +10,33 @@ import { executeDirectRefund, notifyDirectRefund } from '../services/asaasLoja/r
  *    backoff P5; a 6ª falha vira `failed_final`).
  *  - `requested` há mais de 10 min → processo morreu no meio da chamada: vira `uncertain`
  *    (NUNCA `failed`, para não reenviar às cegas) e alerta o admin.
+ *  - `requested` com `acceptedAt` (o Asaas aceitou e o estorno está em andamento) espera o
+ *    webhook; só após 24 h sem confirmação vira `uncertain` (ACCEPTED_NOT_CONFIRMED) + alerta.
  *  - `uncertain`, `done` e `failed_final` nunca são tocados aqui.
  */
 
 export const STUCK_REQUESTED_MS = 10 * 60 * 1000;
+export const ACCEPTED_REFUND_MAX_MS = 24 * 60 * 60 * 1000;
 const BATCH = 50;
 
 export async function runDirectRefunds(now: Date = new Date()): Promise<{ retried: number; finalFailed: number }> {
   // 1) Reaper (condicional: só quem obtém count === 1 alerta).
+  const stuckWhere = { status: 'requested', acceptedAt: null, updatedAt: { lt: new Date(now.getTime() - STUCK_REQUESTED_MS) } };
+  const acceptedWhere = { status: 'requested', acceptedAt: { lt: new Date(now.getTime() - ACCEPTED_REFUND_MAX_MS) } };
   const stuck = await prisma.directRefund.findMany({
-    where: { status: 'requested', updatedAt: { lt: new Date(now.getTime() - STUCK_REQUESTED_MS) } },
-    select: { id: true, orderId: true, storeId: true },
+    where: { OR: [stuckWhere, acceptedWhere] },
+    select: { id: true, orderId: true, storeId: true, acceptedAt: true },
     take: BATCH,
   });
   for (const r of stuck) {
+    const accepted = !!r.acceptedAt;
+    const code = accepted ? 'ACCEPTED_NOT_CONFIRMED' : 'STUCK_REQUESTED';
     const { count } = await prisma.directRefund.updateMany({
-      where: { id: r.id, status: 'requested', updatedAt: { lt: new Date(now.getTime() - STUCK_REQUESTED_MS) } },
-      data: { status: 'uncertain', lastError: 'STUCK_REQUESTED' },
+      where: { id: r.id, ...(accepted ? acceptedWhere : stuckWhere) },
+      data: { status: 'uncertain', lastError: code },
     });
     if (count === 1) {
-      logger.error('[directRefunds] estorno preso em requested — NÃO reenviar sem conferir no Asaas', new Error('STUCK_REQUESTED'), { refundId: r.id, orderId: r.orderId, storeId: r.storeId });
+      logger.error('[directRefunds] estorno sem confirmação — NÃO reenviar sem conferir no Asaas', new Error(code), { refundId: r.id, orderId: r.orderId, storeId: r.storeId });
       notifyDirectRefund(r.storeId, 'refund:uncertain', r.orderId, r.id, ['admin']);
     }
   }
