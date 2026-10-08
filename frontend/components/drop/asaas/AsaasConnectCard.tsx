@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../../lib/api';
 import { Section } from '../../ui/Section';
 import { Button } from '../../ui/Button';
@@ -31,6 +31,8 @@ export interface AsaasConnectCardProps {
 }
 
 const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message || fallback;
+const TERMS_OUTDATED_MSG = 'O termo foi atualizado, recarregue';
+const isTermsOutdated = (e: any) => e?.response?.data?.error?.code === 'TERMS_VERSION_OUTDATED';
 
 /**
  * Cartão de conexão da conta Asaas da loja. A chave de API só vive no estado
@@ -47,24 +49,37 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [terms, setTerms] = useState('');
+  // Versão do texto EXIBIDO: é ela que o aceite envia (o servidor recusa se não for a vigente).
+  const [termsVersion, setTermsVersion] = useState('');
   // 'loading' → 'ok' (texto exibido) | 'error' (falhou ou veio sem texto). Fail closed: sem
   // o texto na tela, ninguém aceita um termo que não leu.
   const [termsState, setTermsState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [accepted, setAccepted] = useState(false);
 
-  // Texto do termo vindo do backend (fonte única; a versão é a que o aceite grava).
-  useEffect(() => {
-    let alive = true;
-    api.get('/settings/store-asaas-terms')
+  // Texto do termo vindo do backend (fonte única; a versão exibida é a que o aceite envia).
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+  const loadTerms = useCallback(() => {
+    setTermsState('loading');
+    return api.get('/settings/store-asaas-terms')
       .then((r) => {
-        if (!alive) return;
+        if (!aliveRef.current) return;
         const text = typeof r.data?.text === 'string' ? r.data.text.trim() : '';
+        const version = typeof r.data?.version === 'string' ? r.data.version.trim() : '';
         setTerms(text);
-        setTermsState(text ? 'ok' : 'error');
+        setTermsVersion(version);
+        setTermsState(text && version ? 'ok' : 'error');
       })
-      .catch(() => { if (alive) setTermsState('error'); });
-    return () => { alive = false; };
+      .catch(() => { if (aliveRef.current) setTermsState('error'); });
   }, []);
+  useEffect(() => { loadTerms(); }, [loadTerms]);
+
+  // Termo mudou entre a leitura e o aceite: desmarca, avisa e recarrega o texto novo.
+  const onTermsOutdated = () => {
+    setAccepted(false);
+    showToast(TERMS_OUTDATED_MSG, 'error');
+    loadTerms();
+  };
   const termsReady = termsState === 'ok';
 
   const load = useCallback(async () => {
@@ -81,13 +96,18 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
     setBusy(true);
     setError('');
     try {
-      const r = await api.put(apiBase, { apiKey, acceptTerms: true });
+      const r = await api.put(apiBase, { apiKey, acceptTerms: true, termsVersion });
       setStatus(r.data?.data ?? null);
       setApiKey(''); // a chave não fica em estado nem em tela
       setAccepted(false);
       showToast('Conta Asaas conectada.', 'success');
     } catch (e: any) {
-      setError(errMsg(e, 'Não foi possível conectar.'));
+      if (isTermsOutdated(e)) {
+        setError(TERMS_OUTDATED_MSG);
+        onTermsOutdated();
+      } else {
+        setError(errMsg(e, 'Não foi possível conectar.'));
+      }
     } finally {
       setBusy(false);
     }
@@ -96,12 +116,13 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const acceptTermsOnly = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`${apiBase}/consent`, { acceptTerms: true });
+      const r = await api.post(`${apiBase}/consent`, { acceptTerms: true, termsVersion });
       setStatus(r.data?.data ?? null);
       setAccepted(false);
       showToast('Termo aceito.', 'success');
     } catch (e: any) {
-      showToast(errMsg(e, 'Não foi possível registrar o aceite.'), 'error');
+      if (isTermsOutdated(e)) onTermsOutdated();
+      else showToast(errMsg(e, 'Não foi possível registrar o aceite.'), 'error');
     } finally {
       setBusy(false);
     }

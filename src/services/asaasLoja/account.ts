@@ -31,7 +31,19 @@ export type StoreAsaasStatus = {
 export type StoreConsentActorRole = 'lojista' | 'admin';
 
 /** Quem/como aceitou: origem da requisição, para a comprovação. */
-export type StoreConsentContext = { ip: string | null; userAgent: string | null; actorRole: StoreConsentActorRole };
+/** `termsVersion`: a versão que a tela exibiu (o controller já recusou versão diferente da vigente). */
+export type StoreConsentContext = {
+  ip: string | null; userAgent: string | null; actorRole: StoreConsentActorRole; termsVersion?: string;
+};
+
+/** Grava só a versão vigente: qualquer outra é recusada antes de tocar no banco (fail closed). */
+function consentVersion(received?: string): string {
+  const version = received ?? STORE_ASAAS_TERMS_VERSION;
+  if (version !== STORE_ASAAS_TERMS_VERSION) {
+    throw new AppError('O termo foi atualizado. Recarregue para ler e aceitar a nova versão.', 409, true, 'TERMS_VERSION_OUTDATED');
+  }
+  return version;
+}
 
 export class StoreAsaasNotReadyError extends AppError {
   constructor() {
@@ -94,12 +106,14 @@ export async function getStoreConsent(storeId: string): Promise<{ version: strin
  */
 export async function recordStoreConsent(params: {
   storeId: string; actorId: string; actorRole: StoreConsentActorRole; ip: string | null; userAgent: string | null;
+  termsVersion?: string;
 }): Promise<void> {
+  const termsVersion = consentVersion(params.termsVersion);
   await prisma.storeAsaasConsent.createMany({
     skipDuplicates: true,
     data: {
       storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
-      termsVersion: STORE_ASAAS_TERMS_VERSION,
+      termsVersion,
       ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
     },
   });
@@ -123,6 +137,7 @@ async function probeKey(storeId: string, key: string): Promise<boolean> {
 export async function connectStoreAsaas(
   storeId: string, rawApiKey: string, actorId: string, consent: StoreConsentContext,
 ): Promise<StoreAsaasStatus> {
+  const termsVersion = consentVersion(consent.termsVersion);
   const key = String(rawApiKey || '').trim();
   let keyEnv: 'sandbox' | 'production';
   if (key.startsWith('$aact_hmlg_')) keyEnv = 'sandbox';
@@ -193,7 +208,7 @@ export async function connectStoreAsaas(
     await tx.storeAsaasConsent.createMany({
       skipDuplicates: true,
       data: {
-        storeId, actorId, actorRole: consent.actorRole, termsVersion: STORE_ASAAS_TERMS_VERSION,
+        storeId, actorId, actorRole: consent.actorRole, termsVersion,
         ip: consent.ip, userAgent: consent.userAgent ? consent.userAgent.slice(0, 500) : null,
       },
     });

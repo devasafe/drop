@@ -44,7 +44,7 @@ test('mostra o termo e só habilita "Conectar" depois de marcar "Li e aceito o t
   fireEvent.click(screen.getByLabelText('Li e aceito o termo'));
   expect(button).not.toBeDisabled();
   fireEvent.click(button);
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY, acceptTerms: true }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY, acceptTerms: true, termsVersion: '2026-10-08' }));
 });
 
 test('admin (allowDisconnect): rótulo "O lojista assinou este termo"', async () => {
@@ -61,7 +61,7 @@ test('conta válida sem aceite: avisa para aceitar e o botão chama POST /consen
   expect(accept).toBeDisabled();
   fireEvent.click(screen.getByLabelText('Li e aceito o termo'));
   fireEvent.click(accept);
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/s1/asaas/consent', { acceptTerms: true }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/s1/asaas/consent', { acceptTerms: true, termsVersion: '2026-10-08' }));
   await waitFor(() => expect(screen.queryByText(/Aceite o termo para voltar a vender/)).not.toBeInTheDocument());
 });
 

@@ -44,7 +44,7 @@ test('lista as lojas e, ao selecionar, usa apiBase /admin/stores/<id>/asaas para
   fireEvent.change(input, { target: { value: KEY } });
   fireEvent.click(screen.getByLabelText('O lojista assinou este termo'));
   fireEvent.click(screen.getByText('Conectar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY, acceptTerms: true }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY, acceptTerms: true, termsVersion: '2026-10-08' }));
   expect(document.body.innerHTML).not.toContain('SEGREDO123456');
 });
 
