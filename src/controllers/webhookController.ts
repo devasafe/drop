@@ -7,6 +7,7 @@ import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/
 import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { markDirectRefundDone } from '../services/asaasLoja/refund';
+import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 
 /**
@@ -37,6 +38,8 @@ function deriveEventId(body: any): string | null {
   const paymentId = body?.payment?.id;
   const status = body?.payment?.status;
   if (event && paymentId) return `${event}:${paymentId}:${status ?? ''}`;
+  const transferId = body?.transfer?.id;
+  if (event && transferId) return `${event}:${transferId}:${body?.transfer?.status ?? ''}`;
   return null;
 }
 
@@ -134,7 +137,8 @@ export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
  * Eventos da conta da loja. Nada aqui toca carteira/Payout (sem custódia).
  *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → pedido pago (só se for DESTA loja);
  *  - PAYMENT_REFUNDED → pedido estornado (só se for desta loja);
- *  - PAYMENT_REFUND_IN_PROGRESS, TRANSFER_* (Fase 2) e demais → registrados e ignorados.
+ *  - TRANSFER_DONE / TRANSFER_FAILED / TRANSFER_CANCELLED → Pix da loja ao motoboy (MotoboyTransfer);
+ *  - PAYMENT_REFUND_IN_PROGRESS e demais → registrados e ignorados.
  */
 /** O Asaas confirmou o estorno: fecha o DirectRefund (se for desta loja e ainda em aberto). */
 async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: string): Promise<void> {
@@ -162,6 +166,11 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
           await markDirectOrderRefunded(storeId, String(payment.id));
           await reconcileDirectRefundFromWebhook(storeId, String(payment.id));
         }
+        break;
+      case 'TRANSFER_DONE':
+      case 'TRANSFER_FAILED':
+      case 'TRANSFER_CANCELLED':
+        await reconcileTransferFromWebhook(storeId, event, body.transfer || {});
         break;
       default:
         break;

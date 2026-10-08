@@ -36,6 +36,7 @@ import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { isDirectOrder } from '../utils/settlement';
 import { directCustomerRefund, settleDirectRefund } from '../services/asaasLoja/directCancellation';
+import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -1231,6 +1232,15 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     if (!['criado', 'pago'].includes(order.status)) {
       return res.status(400).json({
         error: `Pedido não pode ser aceito no estado: ${order.status}`,
+      });
+    }
+
+    // Modo direto (decide pelo pedido, P15): loja com Pix ao motoboy falho há mais de
+    // transferBlockHours não aceita novos pedidos diretos até regularizar. Custódia não é afetada.
+    if (isDirectOrder(order) && (await storeHasOverdueTransfer(String(order.storeId)))) {
+      return res.status(409).json({
+        error: 'Há repasse Pix a motoboy pendente há muito tempo. Regularize para voltar a aceitar pedidos.',
+        code: 'STORE_TRANSFER_PENDING',
       });
     }
 

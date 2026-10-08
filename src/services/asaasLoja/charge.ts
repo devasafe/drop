@@ -32,10 +32,10 @@ export class CpfRequiredError extends AppError {
 }
 
 /** Data de hoje no fuso de São Paulo (YYYY-MM-DD) — `dueDate` do Asaas. */
-export function saoPauloToday(): string {
+export function saoPauloToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
+  }).format(now);
 }
 
 /** Chave da loja, só se a conta está 'valid'. Senão, StorePaymentsNotReadyError. */

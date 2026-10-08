@@ -1,10 +1,15 @@
-// Registro da transferência Pix da loja ao motoboy (modo direto). Aqui só REGISTRA a linha
-// MotoboyTransfer dentro da transação da entrega; o envio é feito por outro serviço.
+// Transferência Pix da loja ao motoboy (modo direto): registro da linha MotoboyTransfer
+// dentro da transação da entrega, envio pela conta Asaas DA LOJA (sendTransfer, chamado pelo
+// job motoboyTransfers) e reconciliação pelos webhooks TRANSFER_*.
 import { Prisma, MotoboyTransfer } from '@prisma/client';
-import { encryptSensitiveData } from '../../utils/encryption';
+import { prisma } from '../../lib/prisma';
+import asaasClient, { AsaasApiError } from '../asaas/client';
+import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encryption';
 import { getSaasConfig } from '../../utils/settlement';
 import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import logger from '../../config/logger';
+import { storeKey, translate, saoPauloToday, StorePaymentsNotReadyError } from './charge';
+import { DIRECT_REFUND_BACKOFF_MS } from './refund';
 
 export type TransferReason = 'delivery' | 'cancellation_compensation';
 
@@ -103,4 +108,274 @@ export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' |
   } catch (err) {
     logger.error('[motoboyTransfer] falha ao notificar', err as Error, { transferId: t.id });
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Envio (Task 2.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type MotoboyTransferStatus = 'pending' | 'requested' | 'done' | 'failed' | 'failed_final' | 'uncertain';
+
+/** P5: mesma escada do estorno direto (5 min, 15 min, 1 h, 3 h, 6 h). A 6ª falha é final. */
+export const MOTOBOY_TRANSFER_BACKOFF_MS = DIRECT_REFUND_BACKOFF_MS;
+
+const cents = (v: unknown) => Math.round(Number(v) * 100);
+const brl = (v: unknown) => Number(v).toFixed(2).replace('.', ',');
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Início do dia civil de São Paulo (UTC−3; o Brasil não tem horário de verão desde 2019). */
+export function saoPauloDayStart(now: Date = new Date()): Date {
+  return new Date(`${saoPauloToday(now)}T00:00:00-03:00`);
+}
+
+type AlertRow = Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId' | 'amount'>;
+
+function alertAdmin(t: AlertRow, title: string, detail: string): void {
+  try {
+    emitAdminNotification({
+      title,
+      body: `Pedido ${String(t.orderId).slice(-6)}: R$ ${brl(t.amount)} — ${detail}`,
+      url: '/admin/transfers',
+      tag: `motoboy-transfer-${t.id}`,
+    });
+  } catch (err) {
+    logger.error('[motoboyTransfer] falha ao alertar o admin', err as Error, { transferId: t.id });
+  }
+}
+
+/**
+ * Falha DEFINIDA (nada foi pago): `failed` com backoff P5 contado por `attempts`;
+ * sem degrau restante → `failed_final` + alerta. Condicional ao status de origem.
+ */
+async function registerFailure(
+  t: AlertRow & { attempts: number },
+  message: string,
+  from: MotoboyTransferStatus[],
+  now: Date = new Date(),
+): Promise<'failed' | 'failed_final' | null> {
+  const lastError = String(message || 'erro').slice(0, 500);
+  const backoff = MOTOBOY_TRANSFER_BACKOFF_MS[Math.max(t.attempts, 1) - 1];
+  if (backoff === undefined) {
+    const { count } = await prisma.motoboyTransfer.updateMany({
+      where: { id: t.id, status: { in: from } },
+      data: { status: 'failed_final', lastError },
+    });
+    if (count !== 1) return null;
+    logger.warn('[motoboyTransfer] transferência esgotou as tentativas', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
+    alertAdmin(t, 'Pix ao motoboy falhou em definitivo', `${t.attempts} tentativas sem sucesso; requer ação do admin.`);
+    return 'failed_final';
+  }
+  const { count } = await prisma.motoboyTransfer.updateMany({
+    where: { id: t.id, status: { in: from } },
+    data: { status: 'failed', lastError, nextAttemptAt: new Date(now.getTime() + backoff) },
+  });
+  if (count !== 1) return null;
+  logger.warn('[motoboyTransfer] transferência recusada; nova tentativa agendada', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
+  return 'failed';
+}
+
+async function markUncertain(t: AlertRow, reason: string, err?: unknown): Promise<void> {
+  const { count } = await prisma.motoboyTransfer.updateMany({
+    where: { id: t.id, status: 'requested' },
+    data: { status: 'uncertain', lastError: reason },
+  });
+  if (count !== 1) return;
+  logger.error('[motoboyTransfer] resposta incerta do Asaas — NÃO reenviar sem conferir no Asaas', (err as Error) ?? new Error(reason), { transferId: t.id, storeId: t.storeId });
+  alertAdmin(t, 'Pix ao motoboy com resposta incerta', 'conferir no Asaas antes de qualquer reenvio.');
+}
+
+type Claim =
+  | { kind: 'skip' }
+  | { kind: 'limited'; row: MotoboyTransfer; error: 'DAILY_LIMIT' | 'AMOUNT_OVER_LIMIT' }
+  | { kind: 'claimed'; row: MotoboyTransfer };
+
+/**
+ * Envia a transferência ao Asaas com a chave DA LOJA (POST /transfers).
+ *
+ *  1. Claim atômico `pending|failed` (vencida) → `requested` sob trava consultiva por loja,
+ *     que também serializa a checagem do teto diário (P10) entre execuções concorrentes.
+ *  2. Sucesso HTTP NÃO é `done`: fica `requested` até o webhook TRANSFER_DONE.
+ *  3. 4xx / loja sem conta → `failed` com backoff P5; timeout, rede, 5xx → `uncertain`
+ *     (R6: nunca reenviado automaticamente).
+ *
+ * Desligado (`directTransfersEnabled=false`) → não faz nada (fail closed) e devolve 'skipped'.
+ * Nunca loga a chave da loja nem a chave Pix.
+ */
+export async function sendTransfer(transferId: string, now: Date = new Date()): Promise<MotoboyTransferStatus | 'skipped'> {
+  const cfg = await getSaasConfig();
+  const current = await prisma.motoboyTransfer.findUnique({ where: { id: transferId } });
+  if (!current) throw new Error(`MotoboyTransfer ${transferId} não encontrada`);
+  if (!cfg.directTransfersEnabled) return 'skipped';
+
+  const claim: Claim = await prisma.$transaction(async (tx) => {
+    const lockKey = `motoboy-transfer:${current.storeId}`;
+    await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    const t = await tx.motoboyTransfer.findUnique({ where: { id: transferId } });
+    if (!t || !['pending', 'failed'].includes(t.status) || t.nextAttemptAt.getTime() > now.getTime()) {
+      return { kind: 'skip' };
+    }
+
+    if (cents(t.amount) > cents(cfg.directTransferMaxAmount)) {
+      const { count } = await tx.motoboyTransfer.updateMany({
+        where: { id: t.id, status: t.status },
+        data: { status: 'failed_final', lastError: 'AMOUNT_OVER_LIMIT' },
+      });
+      return count === 1 ? { kind: 'limited', row: t, error: 'AMOUNT_OVER_LIMIT' } : { kind: 'skip' };
+    }
+
+    // P10: o que já saiu (ou pode ter saído) hoje, desta loja. `uncertain` conta, porque o
+    // dinheiro pode ter saído. Dia civil de São Paulo, pela última mudança da linha.
+    const today = await tx.motoboyTransfer.aggregate({
+      where: {
+        storeId: t.storeId, id: { not: t.id }, status: { in: ['requested', 'done', 'uncertain'] },
+        updatedAt: { gte: saoPauloDayStart(now) },
+      },
+      _sum: { amount: true },
+    });
+    if (cents(today._sum.amount ?? 0) + cents(t.amount) > cents(cfg.directTransferDailyMaxPerStore)) {
+      // Não conta tentativa: volta a tentar no próximo dia de São Paulo.
+      const { count } = await tx.motoboyTransfer.updateMany({
+        where: { id: t.id, status: t.status },
+        data: { status: 'failed', lastError: 'DAILY_LIMIT', nextAttemptAt: new Date(saoPauloDayStart(now).getTime() + DAY_MS) },
+      });
+      return count === 1 ? { kind: 'limited', row: t, error: 'DAILY_LIMIT' } : { kind: 'skip' };
+    }
+
+    // Chave Pix ausente no snapshot (motoboy cadastrou depois da entrega): usa a atual.
+    let keyPatch: { pixKeyEncrypted: string; pixKeyType: string } | null = null;
+    if (!t.pixKeyEncrypted) {
+      const u = await tx.user.findUnique({ where: { id: t.motoboyId }, select: { asaas: true } });
+      const a: any = u?.asaas ?? {};
+      const k = typeof a.pixKey === 'string' ? a.pixKey.trim() : '';
+      if (k) keyPatch = { pixKeyEncrypted: encryptSensitiveData(k), pixKeyType: String(a.pixKeyType ?? '') };
+    }
+
+    // Nova tentativa = nova transferência no Asaas: solta o vínculo e a autorização da
+    // anterior (que falhou em definitivo), senão a autorização (2.2) recusaria o novo id.
+    const { count } = await tx.motoboyTransfer.updateMany({
+      where: { id: t.id, status: { in: ['pending', 'failed'] }, nextAttemptAt: { lte: now } },
+      data: { status: 'requested', attempts: { increment: 1 }, asaasTransferId: null, authorizedAt: null, lastError: null, ...(keyPatch ?? {}) },
+    });
+    if (count !== 1) return { kind: 'skip' };
+    return { kind: 'claimed', row: (await tx.motoboyTransfer.findUnique({ where: { id: t.id } }))! };
+  });
+
+  if (claim.kind === 'skip') return 'skipped'; // outra execução pegou, não venceu ou já terminou
+  if (claim.kind === 'limited') {
+    if (claim.error === 'DAILY_LIMIT') {
+      logger.warn('[motoboyTransfer] teto diário da loja atingido', { transferId: claim.row.id, storeId: claim.row.storeId });
+      alertAdmin(claim.row, 'Pix ao motoboy retido pelo teto diário', `a loja atingiu R$ ${brl(cfg.directTransferDailyMaxPerStore)} no dia; nova tentativa amanhã.`);
+      return 'failed';
+    }
+    alertAdmin(claim.row, 'Transferência ao motoboy acima do limite', 'acima do teto por transferência; requer análise.');
+    return 'failed_final';
+  }
+
+  const t = claim.row;
+  let pixKey = '';
+  try {
+    pixKey = t.pixKeyEncrypted ? decryptSensitiveData(t.pixKeyEncrypted) : '';
+  } catch {
+    return (await registerFailure(t, 'PIX_KEY_UNREADABLE', ['requested'], now)) ?? 'skipped';
+  }
+  if (!pixKey) return (await registerFailure(t, 'MOTOBOY_PIX_KEY_MISSING', ['requested'], now)) ?? 'skipped';
+
+  let response: any;
+  try {
+    const apiKey = await storeKey(t.storeId); // conta ausente/inválida → falha definida, nada enviado
+    try {
+      response = await asaasClient.postAs(apiKey, '/transfers', {
+        value: Number(t.amount),
+        operationType: 'PIX',
+        pixAddressKey: pixKey,
+        pixAddressKeyType: t.pixKeyType,
+        externalReference: t.id,
+        description: `DROP entrega ${String(t.orderId).slice(0, 6)}`,
+      });
+    } catch (err) {
+      throw await translate(t.storeId, err);
+    }
+  } catch (err) {
+    const definite = err instanceof StorePaymentsNotReadyError
+      || (err instanceof AsaasApiError && err.status >= 400 && err.status < 500 && err.status !== 408);
+    if (definite) {
+      const message = err instanceof AsaasApiError ? (err.errors?.[0]?.description || err.message) : (err as Error).message;
+      return (await registerFailure(t, message, ['requested'], now)) ?? 'skipped';
+    }
+    // R6: incerta fica para o admin. A consulta da transferência por externalReference antes
+    // de reenviar depende de endpoint ainda não confirmado no sandbox — até lá, sem consulta.
+    await markUncertain(t, 'UNCERTAIN', err);
+    return 'uncertain';
+  }
+
+  const asaasId = typeof response?.id === 'string' ? response.id : '';
+  if (!asaasId) {
+    await markUncertain(t, 'UNCERTAIN_NO_ID');
+    return 'uncertain';
+  }
+  // Grava o id do Asaas sem sobrescrever outro já vinculado (a autorização da 2.2 pode ter
+  // chegado antes) e sem tocar em authorizedAt. `done` só pelo webhook.
+  const { count } = await prisma.motoboyTransfer.updateMany({
+    where: { id: t.id, OR: [{ asaasTransferId: null }, { asaasTransferId: asaasId }] },
+    data: { asaasTransferId: asaasId },
+  });
+  if (count !== 1) {
+    logger.error('[motoboyTransfer] id do Asaas diferente do já vinculado', new Error('ASAAS_ID_MISMATCH'), { transferId: t.id, storeId: t.storeId });
+    alertAdmin(t, 'Pix ao motoboy com id divergente', 'o Asaas devolveu outro id de transferência; conferir no Asaas.');
+  }
+  logger.info('[motoboyTransfer] transferência enviada ao Asaas', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
+  return 'requested';
+}
+
+/**
+ * Webhook da conta da loja: TRANSFER_DONE / TRANSFER_FAILED / TRANSFER_CANCELLED.
+ * Identifica pela externalReference (= MotoboyTransfer.id), senão pelo asaasTransferId, sempre
+ * dentro da loja do webhook. `done` nunca regride; referência desconhecida é ignorada.
+ */
+export async function reconcileTransferFromWebhook(storeId: string, event: string, transfer: any): Promise<void> {
+  const ref = typeof transfer?.externalReference === 'string' ? transfer.externalReference.trim() : '';
+  const asaasId = typeof transfer?.id === 'string' ? transfer.id.trim() : '';
+  const t = ref
+    ? await prisma.motoboyTransfer.findFirst({ where: { id: ref, storeId } })
+    : asaasId ? await prisma.motoboyTransfer.findFirst({ where: { asaasTransferId: asaasId, storeId } }) : null;
+  if (!t) {
+    logger.warn('[motoboyTransfer] webhook de transferência sem MotoboyTransfer correspondente (ignorado)', { storeId, event, asaasTransferId: asaasId || null });
+    return;
+  }
+  if (asaasId && t.asaasTransferId && t.asaasTransferId !== asaasId) {
+    logger.error('[motoboyTransfer] webhook com id do Asaas diferente do vinculado (ignorado)', new Error('ASAAS_ID_MISMATCH'), { transferId: t.id, storeId, event });
+    alertAdmin(t, 'Pix ao motoboy com id divergente', `evento ${event} de outra transferência no Asaas; conferir.`);
+    return;
+  }
+
+  if (event === 'TRANSFER_DONE') {
+    const { count } = await prisma.motoboyTransfer.updateMany({
+      where: {
+        id: t.id, status: { not: 'done' },
+        ...(asaasId ? { OR: [{ asaasTransferId: null }, { asaasTransferId: asaasId }] } : {}),
+      },
+      data: { status: 'done', doneAt: new Date(), lastError: null, ...(asaasId ? { asaasTransferId: asaasId } : {}) },
+    });
+    if (count === 1) {
+      logger.info('[motoboyTransfer] transferência concluída', { transferId: t.id, storeId });
+      emitToRoom(`user:${t.motoboyId}`, 'motoboy:transfer_done', { transferId: t.id, orderId: t.orderId, amount: Number(t.amount) });
+    }
+    return;
+  }
+
+  // FAILED / CANCELLED: só o que estava em voo (requested) ou incerto vira falha com retentativa.
+  await registerFailure(t, event, ['requested', 'uncertain']);
+}
+
+/**
+ * Loja com Pix ao motoboy em `failed`/`failed_final` há mais de `transferBlockHours`.
+ * Idade medida por `createdAt` (momento da entrega = desde quando o motoboy espera): o
+ * `updatedAt` é renovado a cada retentativa (backoff ≤ 6 h) e nunca envelheceria 24 h.
+ */
+export async function storeHasOverdueTransfer(storeId: string, now: Date = new Date()): Promise<boolean> {
+  const { transferBlockHours } = await getSaasConfig();
+  const n = await prisma.motoboyTransfer.count({
+    where: { storeId, status: { in: ['failed', 'failed_final'] }, createdAt: { lt: new Date(now.getTime() - transferBlockHours * 60 * 60 * 1000) } },
+  });
+  return n > 0;
 }

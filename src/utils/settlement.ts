@@ -10,6 +10,9 @@ export async function getSaasConfig() {
     motoboyShareDirect: Number(c?.motoboyShareDirect ?? 100),
     directCardEnabled: !!c?.directCardEnabled,
     transferBlockHours: Number(c?.transferBlockHours ?? 24),
+    directTransfersEnabled: !!c?.directTransfersEnabled,
+    directTransferMaxAmount: Number(c?.directTransferMaxAmount ?? 150),
+    directTransferDailyMaxPerStore: Number(c?.directTransferDailyMaxPerStore ?? 3000),
   };
 }
 

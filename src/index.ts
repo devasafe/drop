@@ -19,6 +19,7 @@ import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
 import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
 import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
+import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 
 console.log('📍 [INDEX] Starting application...');
 
@@ -96,6 +97,14 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Direct refunds job failed to start', e);
+  }
+
+  // ✅ Envio/retentativa do Pix da loja ao motoboy no modo SaaS direto (só age com directTransfersEnabled).
+  try {
+    startMotoboyTransfersJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Motoboy transfers job failed to start', e);
   }
 
   console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);
