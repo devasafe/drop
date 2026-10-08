@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { ArrowUpRight, KeyRound, Receipt, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -58,6 +58,8 @@ export default function MototboyWalletPage() {
   // Paginação por cursor das transferências diretas (null = acabou).
   const [transfersCursor, setTransfersCursor] = useState<string | null>(null);
   const [loadingMoreTransfers, setLoadingMoreTransfers] = useState(false);
+  // Geração da consulta: recarregar a carteira invalida um "Carregar mais" em voo.
+  const transfersGen = useRef(0);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'ganhos' | 'saques'>('todos');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export default function MototboyWalletPage() {
 
   useEffect(() => {
     const fetchWallet = async () => {
+      const gen = ++transfersGen.current;
       try {
         const motoboyId = user?._id || user?.id;
         if (!motoboyId) return;
@@ -101,6 +104,7 @@ export default function MototboyWalletPage() {
         try {
           // Modo direto: a loja paga o motoboy por Pix; só "Recebido" ou "pendente" (sem códigos internos).
           const trRes = await api.get('/motoboy/transfers');
+          if (gen !== transfersGen.current) return;
           setTransfers(Array.isArray(trRes.data?.data) ? trRes.data.data : []);
           setTransfersCursor(trRes.data?.nextCursor ?? null);
         } catch { /* sem transferências diretas */ }
@@ -154,9 +158,11 @@ export default function MototboyWalletPage() {
 
   const loadMoreTransfers = async () => {
     if (!transfersCursor || loadingMoreTransfers) return;
+    const gen = transfersGen.current;
     setLoadingMoreTransfers(true);
     try {
       const r = await api.get('/motoboy/transfers', { params: { cursor: transfersCursor } });
+      if (gen !== transfersGen.current) return; // carteira recarregada: resposta da lista antiga
       const more: TransferItem[] = Array.isArray(r.data?.data) ? r.data.data : [];
       setTransfers((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
       setTransfersCursor(r.data?.nextCursor ?? null);

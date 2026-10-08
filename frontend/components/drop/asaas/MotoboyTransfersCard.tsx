@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../../lib/api';
 import { Section } from '../../ui/Section';
 import { Button } from '../../ui/Button';
@@ -21,9 +21,13 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
   // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Geração da consulta: trocar de loja invalida um "Carregar mais" em voo da loja anterior.
+  const queryGen = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    ++queryGen.current;
+    setNextCursor(null);
     (async () => {
       try {
         const r = await api.get(`/stores/${storeId}/transfers`);
@@ -41,14 +45,16 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
+    const gen = queryGen.current;
     setLoadingMore(true);
     try {
       const r = await api.get(`/stores/${storeId}/transfers`, { params: { cursor: nextCursor } });
+      if (gen !== queryGen.current) return; // outra loja: resposta da lista antiga
       const more: Row[] = Array.isArray(r.data?.data) ? r.data.data : [];
       setRows((prev) => [...(prev ?? []), ...more.filter((m) => !(prev ?? []).some((p) => p.id === m.id))]);
       setNextCursor(r.data?.nextCursor ?? null);
     } catch {
-      setError('Não foi possível carregar os pagamentos.');
+      if (gen === queryGen.current) setError('Não foi possível carregar os pagamentos.');
     } finally {
       setLoadingMore(false);
     }

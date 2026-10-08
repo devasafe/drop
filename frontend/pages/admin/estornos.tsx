@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -40,14 +40,21 @@ export default function AdminEstornos() {
   const [note, setNote] = useState('');
   const canAct = typeof can === 'function' ? can('payout:release') : false;
 
+  // Geração da consulta: cada carga da 1ª página (troca de filtro, recarga) invalida as
+  // respostas em voo — um "Carregar mais" disparado antes não anexa linhas da lista antiga.
+  const queryGen = useRef(0);
+
   const load = useCallback(async () => {
+    const gen = ++queryGen.current;
+    setNextCursor(null);
     try {
       const r = await api.get('/admin/direct-refunds', { params: status ? { status } : {} });
+      if (gen !== queryGen.current) return;
       setRows(r.data?.data ?? []);
       setNextCursor(r.data?.nextCursor ?? null);
       setError('');
     } catch {
-      setError('Não foi possível carregar os estornos.');
+      if (gen === queryGen.current) setError('Não foi possível carregar os estornos.');
     }
   }, [status]);
 
@@ -55,14 +62,16 @@ export default function AdminEstornos() {
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
+    const gen = queryGen.current;
     setLoadingMore(true);
     try {
       const r = await api.get('/admin/direct-refunds', { params: status ? { status, cursor: nextCursor } : { cursor: nextCursor } });
+      if (gen !== queryGen.current) return; // filtro mudou: resposta da lista antiga
       const more: Row[] = r.data?.data ?? [];
       setRows((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
       setNextCursor(r.data?.nextCursor ?? null);
     } catch {
-      setError('Não foi possível carregar os estornos.');
+      if (gen === queryGen.current) setError('Não foi possível carregar os estornos.');
     } finally {
       setLoadingMore(false);
     }
