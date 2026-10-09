@@ -4,8 +4,8 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  background: var(--color-surface-default);
+  border-bottom: 1px solid var(--color-border-default);
   flex-shrink: 0;
 }
 
@@ -22,18 +22,18 @@
 }
 
 .title {
-  font-size: var(--fs-h3);
+  font: var(--text-label);
   font-weight: 700;
   font-family: var(--font-display);
-  color: var(--text-strong);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .subtitle {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
   margin-top: 1px;
 }
 
@@ -50,15 +50,15 @@
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: var(--r-sm);
-  background: var(--surface-field);
-  color: var(--text);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 
 .iconButton:hover {
-  background: var(--surface-chip);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, var(--color-surface-sunken));
 }
 
 @media (prefers-reduced-motion: reduce) {

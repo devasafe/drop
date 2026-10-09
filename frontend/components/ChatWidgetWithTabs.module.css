@@ -11,10 +11,10 @@
   /* Acima do mapa de navegação do motoboy (overlay 500), abaixo de toasts/modais. */
   z-index: 900;
   font-family: var(--font-body);
-  background: var(--bg);
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(108, 43, 217, 0.15);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-default);
+  box-shadow: var(--elevation-3);
   width: min(384px, calc(100vw - 40px));
   height: 420px;
   display: flex;

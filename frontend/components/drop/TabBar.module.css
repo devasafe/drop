@@ -1,5 +1,5 @@
 /* TabBar — navegação principal, 5 itens fixos. Replica `.tab`/`.tab .it.on`
- * do mock canônico. Ativo = --brand-2 (Regra D: roxo com hierarquia,
+ * do mock canônico. Ativo = --color-text-brand (Regra D: roxo com hierarquia,
  * navegação ativa é um dos poucos lugares fora de CTA/promo/desconto).
  */
 
@@ -9,8 +9,8 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: var(--bg);
-  border-top: 1px solid var(--line);
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .item {
@@ -22,14 +22,14 @@
   background: none;
   padding: 0;
   font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease);
 }
 
 .on {
-  color: var(--brand-2);
+  color: var(--color-text-brand);
 }
 
 .label {

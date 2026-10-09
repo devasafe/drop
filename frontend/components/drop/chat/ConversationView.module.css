@@ -2,7 +2,7 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-3) 14px;
-  background: var(--bg);
+  background: var(--color-bg-primary);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -16,8 +16,8 @@
 .status,
 .empty {
   margin: auto;
-  color: var(--text-subtle);
-  font-size: var(--fs-body);
+  color: var(--color-text-muted);
+  font: var(--text-meta);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -26,7 +26,7 @@
 .empty {
   flex-direction: column;
   text-align: center;
-  font-size: var(--fs-sm);
+  font: var(--text-caption);
 }
 
 .emptyIcon {
@@ -41,14 +41,14 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--line);
-  border-top-color: var(--brand);
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-action-primary);
   animation: spin 0.7s linear infinite;
 }
 
 .typing {
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
   font-style: italic;
   height: 14px;
 }
