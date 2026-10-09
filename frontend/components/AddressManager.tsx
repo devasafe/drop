@@ -106,7 +106,7 @@ export default function AddressManager({ onCountChange }: AddressManagerProps) {
       <div className={styles.header}>
         <h2 className={styles.title}>Seus endereços</h2>
         <Button
-          variant={showForm ? 'ghost' : 'primary'}
+          variant={showForm ? 'tertiary' : 'primary'}
           size="sm"
           onClick={() => { if (showForm) resetForm(); setShowForm(!showForm); }}
         >

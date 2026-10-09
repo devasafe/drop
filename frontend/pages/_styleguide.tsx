@@ -257,7 +257,9 @@ export default function Styleguide() {
         <Sub title="Button (variantes + estados)">
           <Row>
             <Button variant="primary" onClick={noop}>Primary</Button>
-            <Button variant="tertiary" onClick={noop}>Ghost</Button>
+            <Button variant="secondary" onClick={noop}>Secondary</Button>
+            <Button variant="tertiary" onClick={noop}>Tertiary</Button>
+            <Button variant="danger" onClick={noop}>Danger</Button>
             <Button variant="onImage" onClick={noop}>On image</Button>
             <Button variant="primary" size="sm" onClick={noop}>Small</Button>
             <Button variant="primary" loading onClick={noop}>Salvando</Button>

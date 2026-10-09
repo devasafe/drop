@@ -323,7 +323,7 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
         {/* BOTÕES DE AÇÃO */}
         <div className={styles.actionBtns}>
           <Button
-            variant={showChat ? 'ghost' : 'primary'}
+            variant={showChat ? 'tertiary' : 'primary'}
             leftIcon={<Icon name={showChat ? 'x-circle' : 'chat'} size={14} />}
             onClick={handleToggleChat}
             loading={chatLoading}

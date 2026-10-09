@@ -52,7 +52,7 @@ export function CouponField({
         />
         <Button
           size="sm"
-          variant={applied ? 'ghost' : 'primary'}
+          variant={applied ? 'tertiary' : 'primary'}
           loading={validating}
           disabled={!applied && !code.trim()}
           onClick={applied ? onRemove : onApply}
