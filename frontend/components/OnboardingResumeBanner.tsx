@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { ListChecks } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
+import { loadSaasConfig } from '../hooks/useSaasConfig';
 import { getFlow } from '../lib/onboardingFlow';
 import { Button } from './ui/Button';
 import { ICON_STROKE_WIDTH } from './ui/Icon';
@@ -12,7 +13,9 @@ import styles from './OnboardingResumeBanner.module.css';
 // Retorna o path da 1ª etapa pendente do papel, ou null se nada pendente.
 async function firstPendingPath(role?: string): Promise<string | null> {
   if (!role) return null;
-  const flow = getFlow(role);
+  // Só o lojista muda de fluxo por modo: espera o modo carregar (sem piscar o fluxo de 5 etapas).
+  const mode = role === 'lojista' ? (await loadSaasConfig())?.settlementMode ?? 'custodia' : 'custodia';
+  const flow = getFlow(role, mode);
   if (flow.length === 0) return null;
 
   // FAIL SILENT: erro no endpoint primário → não exibe o banner (evita ruído em falha transitória).
@@ -43,12 +46,17 @@ async function firstPendingPath(role?: string): Promise<string | null> {
   // São ETAPAS DIFERENTES no fluxo do lojista — não podem cair na mesma chave.
   let storeExists = false;
   let storeVerifOk = false;
+  let asaasOk = false;
   if (role === 'lojista') {
     try {
       const dash = await api.get('/stores/dashboard').then((r) => r.data);
       const storeId = dash?.store?._id || dash?._id || dash?.storeId;
       storeExists = !!storeId;
-      if (storeId) {
+      if (storeId && mode === 'direto') {
+        // Modo direto: sem verificação de loja; conclui quando a conta Asaas está válida e com termo aceito.
+        const as = await api.get(`/stores/${storeId}/asaas`).then((r) => r.data?.data);
+        asaasOk = as?.status === 'valid' && !!as?.consent;
+      } else if (storeId) {
         const sv = await api.get(`/verification/store/${storeId}`).then((r) => r.data);
         storeVerifOk =
           submitted(sv?.facial?.status) &&
@@ -72,6 +80,7 @@ async function firstPendingPath(role?: string): Promise<string | null> {
     lojaVerif: storeVerifOk, // "Verificar loja" (antes faltava esta chave → sempre pendente)
     motoboy: motoboyOk,
     pix: pixOk,
+    asaas: asaasOk,      // modo direto: conta Asaas conectada
     plano: true, // plano é escolha, não bloqueia o banner
   };
 

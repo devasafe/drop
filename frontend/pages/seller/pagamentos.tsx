@@ -4,6 +4,8 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../contexts/AuthContext';
 import { AsaasConnectCard } from '../../components/drop/asaas/AsaasConnectCard';
 import MotoboyTransfersCard from '../../components/drop/asaas/MotoboyTransfersCard';
+import OnboardingProgress from '../../components/OnboardingProgress';
+import OnboardingFooter from '../../components/OnboardingFooter';
 import styles from './Integrations.module.css';
 
 export default function SellerPagamentos() {
@@ -31,6 +33,7 @@ export default function SellerPagamentos() {
     <ProtectedRoute required_role="lojista">
       <div className={styles.page}>
         <div className={styles.container}>
+          <OnboardingProgress />
           <header className={styles.header}>
             <h1 className={styles.title}>Recebimentos</h1>
             <p className={styles.subtitle}>Conecte a sua conta Asaas. Os pagamentos dos seus pedidos caem direto nela.</p>
@@ -38,6 +41,7 @@ export default function SellerPagamentos() {
           {storeId && <AsaasConnectCard apiBase={`/stores/${storeId}/asaas`} storeId={storeId} egressIp={egressIp} />}
           {storeId && <MotoboyTransfersCard storeId={storeId} />}
         </div>
+        <OnboardingFooter />
       </div>
     </ProtectedRoute>
   );

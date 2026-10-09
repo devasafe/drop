@@ -10,6 +10,7 @@ const LABELS: Record<string, string> = {
   cnpj: 'informar CNPJ',
   address: 'enviar comprovante de endereço',
   courier: 'enviar CNH e placa',
+  asaas: 'conectar a conta Asaas',
   owner: 'verificar a conta do dono (email/documento)',
 };
 

@@ -6,6 +6,8 @@ import { maskCNPJ, maskCEP } from '../../lib/masks';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import OnboardingProgress from '../../components/OnboardingProgress';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { getNextStep } from '../../lib/onboardingFlow';
 import styles from './CreateStore.module.css';
 
 export default function CreateStore() {
@@ -26,6 +28,9 @@ export default function CreateStore() {
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const router = useRouter();
+  const { settlementMode } = useSaasConfig();
+  // Modo direto: o CNPJ é opcional (o lojista só conecta a própria conta Asaas).
+  const cnpjRequired = settlementMode !== 'direto';
 
   // Inicializa mapa quando Google Maps está carregado
   useEffect(() => {
@@ -170,7 +175,7 @@ export default function CreateStore() {
     e.preventDefault();
     setError('');
 
-    if (!name || !cnpj || !street || !number || !neighborhood || !city || !state || !cep) {
+    if (!name || (cnpjRequired && !cnpj) || !street || !number || !neighborhood || !city || !state || !cep) {
       setError('Preencha todos os campos obrigatórios');
       return;
     }
@@ -185,7 +190,7 @@ export default function CreateStore() {
       const address = `${street}, ${number} - ${neighborhood}, ${city} - ${state}, ${cep}`;
       await api.post('/stores', {
         name,
-        cnpj,
+        ...(cnpj ? { cnpj } : {}),
         address,
         // Campos estruturados: viram o endereço oficial da loja (reusado no Asaas,
         // evita pedir endereço de novo em Dados de Recebimento).
@@ -198,7 +203,7 @@ export default function CreateStore() {
         latitude,
         longitude,
       });
-      router.push('/verificacao?onboarding=1');
+      router.push(`${getNextStep('lojista', '/seller/create-store', settlementMode)?.path || '/verificacao'}?onboarding=1`);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao cadastrar loja');
       setLoading(false);
@@ -246,11 +251,11 @@ export default function CreateStore() {
 
                 {/* CNPJ */}
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>CNPJ</label>
+                  <label className={styles.label}>CNPJ{cnpjRequired ? '' : ' (opcional)'}</label>
                   <Input
                     value={cnpj}
                     onChange={(v) => setCnpj(maskCNPJ(v))}
-                    required
+                    required={cnpjRequired}
                     placeholder="00.000.000/0000-00"
                     aria-label="CNPJ"
                   />
