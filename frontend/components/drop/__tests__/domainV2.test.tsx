@@ -99,7 +99,7 @@ describe('OrderRow', () => {
     expect(toCustomerStatus('criado', 'pending')).toBe('awaiting_payment');
     expect(toCustomerStatus('criado', 'paid')).toBe('awaiting_store');
     expect(toCustomerStatus('criado', 'failed')).toBe('awaiting_payment');
-    expect(toCustomerStatus('pago')).toBe('preparing');
+    expect(toCustomerStatus('pago')).toBe('in_progress');
     expect(toCustomerStatus('aguardando_motoboy')).toBe('in_progress');
     expect(toCustomerStatus('qualquer_outro')).toBe('in_progress');
     expect(toCustomerStatus('rejeitado')).toBe('cancelled');

@@ -27,8 +27,6 @@ export function toCustomerStatus(status: string, paymentStatus?: string): Custom
     case 'criado':
     case 'created':
       return paymentStatus && paymentStatus !== 'paid' ? 'awaiting_payment' : 'awaiting_store';
-    case 'pago':
-      return 'preparing';
     case 'entregue':
     case 'delivered':
       return 'delivered';
@@ -36,7 +34,8 @@ export function toCustomerStatus(status: string, paymentStatus?: string): Custom
     case 'cancelled':
     case 'rejeitado':
       return 'cancelled';
-    // aguardando_motoboy e qualquer outro: a lista de pedidos não traz o status da
+    // pago (vale da aceitação da loja até a entrega), aguardando_motoboy e qualquer outro:
+    // a lista de pedidos não traz o status da
     // entrega, então não afirmamos uma fase (buscando / a caminho) que pode estar errada.
     default:
       return 'in_progress';
