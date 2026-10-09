@@ -5,6 +5,8 @@ import type { AsaasSubscriptionPayment } from '../asaas/subscription';
 
 /** Status do Asaas que contam como fatura paga. */
 export const SAAS_PAID_STATUSES = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+/** Status do Asaas de fatura ainda a pagar (a "próxima cobrança" da loja). */
+export const SAAS_OPEN_STATUSES = ['PENDING', 'OVERDUE'];
 export const isSaasPaid = (s?: string | null) => !!s && SAAS_PAID_STATUSES.includes(s);
 
 /** 'YYYY-MM-DD' (ou ISO) do Asaas → Date em UTC 00:00. */

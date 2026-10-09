@@ -10,7 +10,7 @@ import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { effectiveFee, isStoreBlocked } from '../services/saasBilling/policy';
-import { SAAS_PAID_STATUSES } from '../services/saasBilling/payments';
+import { SAAS_OPEN_STATUSES } from '../services/saasBilling/payments';
 import { updateSubscriptionValue, deleteSubscription } from '../services/asaas/subscription';
 
 /**
@@ -121,11 +121,12 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
   }
   const cfg = await getSaasConfig();
   const billing = await ensureBillingRow(String(storeId));
-  const unpaid = await prisma.saasBillingPayment.findFirst({
-    where: { billingId: billing.id, status: { notIn: SAAS_PAID_STATUSES } },
-    orderBy: { dueDate: 'desc' },
+  // Próxima cobrança = fatura EM ABERTO (apagada/estornada/paga não se paga). A mais antiga
+  // primeiro: se há uma vencida, é ela que a loja precisa quitar. Nenhuma → null.
+  const p = await prisma.saasBillingPayment.findFirst({
+    where: { billingId: billing.id, status: { in: SAAS_OPEN_STATUSES } },
+    orderBy: { dueDate: 'asc' },
   });
-  const p = unpaid || await prisma.saasBillingPayment.findFirst({ where: { billingId: billing.id }, orderBy: { dueDate: 'desc' } });
   return res.json({
     success: true,
     data: {

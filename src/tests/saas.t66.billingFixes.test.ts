@@ -294,3 +294,27 @@ describe('F4 — assinatura recriada não cobra período já pago', () => {
     expect(subCalls(billing.id)[0][1].nextDueDate).toBe('2026-10-01');
   });
 });
+
+describe('F5 — próxima cobrança ignora fatura apagada/estornada', () => {
+  it('só faturas em aberto (PENDING/OVERDUE) contam; sem nenhuma → nextPayment null', async () => {
+    const { store, owner } = await makeStore();
+    const billing = await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() + 10 * DAY) } });
+    const pay = (status: string, dueDate: string) => prisma.saasBillingPayment.create({
+      data: { billingId: billing.id, asaasPaymentId: `pay_t66_${rand()}`, value: 49.9, dueDate: new Date(`${dueDate}T00:00:00Z`), status, invoiceUrl: `https://asaas/i/${status}` },
+    });
+    await pay('RECEIVED', '2026-09-15');
+    await pay('REFUNDED', '2026-10-15');
+    await pay('DELETED', '2026-11-15');
+    const get = () => request(app).get(`/api/stores/${store.id}/saas-billing`).set('Authorization', bearer(owner));
+
+    const r1 = await get();
+    expect(r1.status).toBe(200);
+    expect(r1.body.data.nextPayment).toBeNull();
+
+    await pay('PENDING', '2026-12-15');
+    await pay('OVERDUE', '2026-11-20');
+    const r2 = await get();
+    // A mais antiga em aberto primeiro: a vencida é a que a loja precisa pagar.
+    expect(r2.body.data.nextPayment).toMatchObject({ status: 'OVERDUE', invoiceUrl: 'https://asaas/i/OVERDUE' });
+  });
+});
