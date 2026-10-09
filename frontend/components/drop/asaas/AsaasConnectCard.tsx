@@ -274,7 +274,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
             </li>
             <li className={styles.item}>
               <div className={styles.itemHead}>{mark(c?.authWebhookConfirmed)} 4. Gerar token da trava de autorização</div>
-              <p className={styles.hint}>No Asaas, cadastre este endereço como webhook de autorização de transferências e cole o token gerado aqui.</p>
+              <p className={styles.hint}>No Asaas, abra Menu do usuário → Integrações → Mecanismos de segurança → Validação de saque via webhook. Cole este endereço, o token gerado aqui e seu e-mail. É nessa tela, não em Integrações → Webhooks.</p>
               <code className={styles.code}>{urlShown}</code>
               {authToken && (
                 <div className={styles.tokenBox}>
