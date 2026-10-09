@@ -921,7 +921,16 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     }
     const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
-    if (settlementChange) logger.warn('[settlement][AUDIT] modo de liquidação trocado', { by: req.user?.id, ...settlementChange });
+    if (settlementChange) {
+      logger.warn('[settlement][AUDIT] modo de liquidação trocado', { by: req.user?.id, ...settlementChange });
+      // O KYC da loja depende do modo: recalcula todas (a troca já foi gravada, falha não a desfaz).
+      try {
+        const { recomputeAllStores } = await import('../utils/storeVerification');
+        await recomputeAllStores();
+      } catch (err) {
+        logger.error('Falha ao recalcular lojas após troca de modo', err as Error);
+      }
+    }
     return res.json(switchesView(cfg));
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao salvar os freios' });
