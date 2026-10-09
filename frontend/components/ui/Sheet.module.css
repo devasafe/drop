@@ -114,7 +114,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
-  .sheet {
+  .sheet.bottom,
+  .sheet.center {
     animation: none;
   }
 }
