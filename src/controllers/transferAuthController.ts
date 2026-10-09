@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { decryptSensitiveData } from '../utils/encryption';
+import env from '../config/env';
 
 /**
  * Webhook de autorização de saques/transferências do Asaas ("Mecanismo para validação de
@@ -62,6 +63,33 @@ export function parseAuthorizationRequest(body: any): AuthRequest {
   }
   return { kind: 'unsupported', type };
 }
+
+/** Campos do corpo da autorização que saem no log como vieram (ids, valores e status). */
+const SHAPE_PLAIN_KEYS = new Set([
+  'type', 'id', 'transferId', 'externalReference', 'payment', 'paymentId', 'refundId', 'status',
+  'operationType', 'dateCreated', 'effectiveDate', 'scheduleDate', 'canBeCancelled', 'refundDisabledReason',
+]);
+
+/**
+ * Formato do corpo da autorização para o log do sandbox: mantém todos os nomes de campo,
+ * números, booleanos e os campos de SHAPE_PLAIN_KEYS; qualquer outro texto (chave Pix,
+ * documento, nome, conta) sai mascarado.
+ */
+export function authPayloadShape(value: unknown, key = ''): unknown {
+  if (Array.isArray(value)) return value.map((v) => authPayloadShape(v, key));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = authPayloadShape(v, k);
+    return out;
+  }
+  if (typeof value === 'string') {
+    if (SHAPE_PLAIN_KEYS.has(key)) return value;
+    return value ? `*** (${value.length})` : value;
+  }
+  return value;
+}
+
+const isAsaasSandbox = () => String(env.ASAAS_API_URL || '').includes('sandbox');
 
 /** Normaliza chave Pix: e-mail minúsculo; CPF/CNPJ/telefone só dígitos; demais (EVP) minúsculo. */
 export function normalizePixKey(key: string): string {
@@ -160,6 +188,10 @@ async function decidePixRefund(storeId: string, req: Extract<AuthRequest, { kind
 export const handleTransferAuthorization = async (req: Request, res: Response) => {
   const storeId = String(req.params.storeId || '');
   let decision: Decision = refuse('INTERNAL_ERROR');
+  // Só no sandbox: o formato real do corpo ainda precisa ser confirmado (ver fixture).
+  if (isAsaasSandbox()) {
+    logger.info('[transfer-auth][sandbox] corpo recebido', { storeId, body: authPayloadShape(req.body) });
+  }
   try {
     const tokenOk = await verifyStoreWebhookToken(storeId, req.header('asaas-access-token'), 'auth');
     if (!tokenOk) {
