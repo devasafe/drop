@@ -4,6 +4,7 @@ import logger from '../config/logger';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { decryptSensitiveData } from '../utils/encryption';
 import env from '../config/env';
+import { emitAdminNotification } from '../utils/socketEmitter';
 
 /**
  * Webhook de autorização de saques/transferências do Asaas ("Mecanismo para validação de
@@ -196,6 +197,17 @@ export const handleTransferAuthorization = async (req: Request, res: Response) =
     const tokenOk = await verifyStoreWebhookToken(storeId, req.header('asaas-access-token'), 'auth');
     if (!tokenOk) {
       decision = refuse('INVALID_TOKEN');
+    } else if (req.body && typeof req.body === 'object' && typeof req.body.event === 'string') {
+      // Aviso comum de webhook (PAYMENT_*/TRANSFER_*) nesta URL: o lojista cadastrou o endereço
+      // da trava em Integrações → Webhooks em vez de Mecanismos de segurança.
+      decision = refuse('WRONG_ENDPOINT');
+      logger.warn('[transfer-auth] aviso de webhook comum na URL de autorização (configuração errada no Asaas)', { storeId, event: req.body.event });
+      emitAdminNotification({
+        title: 'Loja com webhook do Asaas no lugar errado',
+        body: `A loja ${storeId.slice(-6)} cadastrou a URL de autorização em Integrações → Webhooks. Ela deve ficar em Mecanismos de segurança (validação de saque via webhook); depois, "Testar configuração" regrava o webhook de pagamentos.`,
+        url: '/admin/lojas-asaas',
+        tag: `transfer-auth-wrong-endpoint-${storeId}`,
+      });
     } else {
       const parsed = parseAuthorizationRequest(req.body);
       if (parsed.kind === 'transfer') decision = await decideTransfer(storeId, parsed);
