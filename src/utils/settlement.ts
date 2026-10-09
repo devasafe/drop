@@ -13,6 +13,9 @@ export async function getSaasConfig() {
     directTransfersEnabled: !!c?.directTransfersEnabled,
     directTransferMaxAmount: Number(c?.directTransferMaxAmount ?? 150),
     directTransferDailyMaxPerStore: Number(c?.directTransferDailyMaxPerStore ?? 3000),
+    saasMonthlyFee: Number(c?.saasMonthlyFee ?? 0),
+    saasTrialDays: Number(c?.saasTrialDays ?? 14),
+    saasGraceDays: Number(c?.saasGraceDays ?? 5),
   };
 }
 

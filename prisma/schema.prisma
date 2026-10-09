@@ -449,6 +449,7 @@ model Store {
   webhooks   StoreWebhook[]
   asaasAccount StoreAsaasAccount?
   asaasConsents StoreAsaasConsent[]
+  saasBilling  StoreSaasBilling?
 
   @@index([ownerId])
   @@index([plan])
@@ -1014,6 +1015,9 @@ model PlatformConfig {
   directTransfersEnabled      Boolean        @default(false)
   directTransferMaxAmount     Decimal        @default(150) @db.Decimal(12, 2)
   directTransferDailyMaxPerStore Decimal     @default(3000) @db.Decimal(12, 2)
+  saasMonthlyFee              Decimal        @default(0) @db.Decimal(12, 2)
+  saasTrialDays               Int            @default(14)
+  saasGraceDays               Int            @default(5)
   commissionPlan1             Decimal       @default(10) @db.Decimal(5, 2)
   commissionPlan2             Decimal       @default(15) @db.Decimal(5, 2)
   commissionPlan3             Decimal       @default(5) @db.Decimal(5, 2)
@@ -1332,4 +1336,51 @@ model MotoboyTransfer {
   @@index([status, nextAttemptAt])
   @@index([storeId, status])
   @@index([motoboyId, createdAt])
+}
+
+// Mensalidade SaaS (modo direto): assinatura Asaas na conta-mãe da DROP, cobrada da loja.
+// Não confundir com StoreSubscription (faixa de comissão da custódia).
+enum SaasBillingStatus {
+  trialing
+  active
+  past_due
+  paused
+  cancelled
+}
+
+model StoreSaasBilling {
+  id                  String            @id @default(cuid())
+  storeId             String            @unique
+  status              SaasBillingStatus @default(trialing)
+  trialEndsAt         DateTime
+  paidUntil           DateTime?
+  customFee           Decimal?          @db.Decimal(12, 2)
+  asaasCustomerId     String?
+  asaasSubscriptionId String?           @unique
+  overdueSince        DateTime?
+  pausedAt            DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  store    Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  payments SaasBillingPayment[]
+
+  @@index([status])
+}
+
+model SaasBillingPayment {
+  id             String   @id @default(cuid())
+  billingId      String
+  asaasPaymentId String   @unique
+  value          Decimal  @db.Decimal(12, 2)
+  dueDate        DateTime
+  status         String
+  invoiceUrl     String?
+  paidAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  billing StoreSaasBilling @relation(fields: [billingId], references: [id], onDelete: Cascade)
+
+  @@index([billingId])
 }

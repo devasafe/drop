@@ -25,6 +25,7 @@ const DECIMAL_FIELDS = [
   'motoboyShareDirect',
   'directTransferMaxAmount',
   'directTransferDailyMaxPerStore',
+  'saasMonthlyFee',
 ] as const;
 
 export function toApiConfig(c: any): any {
