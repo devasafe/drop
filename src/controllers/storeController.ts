@@ -16,6 +16,7 @@ import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { publicStoreBillingWhere } from '../services/saasBilling/gate';
+import { toApiProduct } from './productController';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -143,7 +144,9 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       orders: ongoingOrders,
       history: historyOrders,
       store: storeWithPlan,
-      categories
+      categories,
+      // Produtos do dono: o painel não pode depender de GET /products (loja pausada some da vitrine).
+      products: products.map(toApiProduct),
     });
   } catch (err) {
     console.error('[dashboard] error:', err);

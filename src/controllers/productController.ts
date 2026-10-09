@@ -14,7 +14,7 @@ import { publicStoreBillingWhere } from '../services/saasBilling/gate';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
-const toApiProduct = (p: any) => {
+export const toApiProduct = (p: any) => {
   // Remove a RELAÇÃO `category` ({ name }) do payload — ela é um objeto e
   // quebrava o front que renderiza `product.category` como texto (React #31).
   // O nome vai em `categoryName`; o `categoryId` (string) continua no `...rest`.
