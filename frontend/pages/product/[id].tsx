@@ -380,7 +380,7 @@ export default function ProductPage() {
 
           {store && (
             <Button
-              variant="ghost"
+              variant="tertiary"
               className={styles.ctaFull}
               onClick={() => router.push(`/stores/${product.storeId}`)}
             >

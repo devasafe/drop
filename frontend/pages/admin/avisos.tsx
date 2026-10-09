@@ -131,7 +131,7 @@ export default function AdminAvisos() {
           <Input value={newTitle} onChange={setNewTitle} placeholder="Título (opcional, p/ acessibilidade)" />
           <Input value={newLink} onChange={setNewLink} placeholder="Link ao tocar (opcional): /produtos, /stores/ID ou https://…" />
           <div className={styles.newActions}>
-            {newImage && <Button variant="ghost" size="sm" onClick={() => setNewImage('')}>Trocar imagem</Button>}
+            {newImage && <Button variant="tertiary" size="sm" onClick={() => setNewImage('')}>Trocar imagem</Button>}
             <Button variant="primary" loading={saving} disabled={!newImage} onClick={handleCreate}>Publicar aviso</Button>
           </div>
         </Card>
@@ -153,7 +153,7 @@ export default function AdminAvisos() {
                 <div className={styles.itemActions}>
                   <button type="button" className={styles.iconBtn} aria-label="Subir" onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp size={16} /></button>
                   <button type="button" className={styles.iconBtn} aria-label="Descer" onClick={() => move(i, 1)} disabled={i === banners.length - 1}><ArrowDown size={16} /></button>
-                  <Button variant="ghost" size="sm" onClick={() => toggleActive(b)}>{b.active ? 'Ativo' : 'Inativo'}</Button>
+                  <Button variant="tertiary" size="sm" onClick={() => toggleActive(b)}>{b.active ? 'Ativo' : 'Inativo'}</Button>
                   <button type="button" className={styles.iconBtn} aria-label="Remover" onClick={() => remove(b)}><Trash2 size={16} /></button>
                 </div>
               </Card>

@@ -132,7 +132,7 @@ export default function AdminTransfers() {
                         Reenviar
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => { setResolving(resolving === r.id ? null : r.id); setNote(''); }}>
+                    <Button size="sm" variant="tertiary" onClick={() => { setResolving(resolving === r.id ? null : r.id); setNote(''); }}>
                       Marcar como resolvido
                     </Button>
                   </div>
@@ -160,7 +160,7 @@ export default function AdminTransfers() {
           </ul>
           {nextCursor && (
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
-              <Button variant="ghost" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+              <Button variant="tertiary" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
             </div>
           )}
         </div>

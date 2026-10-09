@@ -174,7 +174,7 @@ export default function AddressManager({ onCountChange }: AddressManagerProps) {
 
             <div className={styles.formButtons}>
               <Button type="submit" variant="primary">Salvar endereço</Button>
-              <Button type="button" variant="ghost" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</Button>
+              <Button type="button" variant="tertiary" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</Button>
             </div>
           </form>
         </div>
@@ -198,7 +198,7 @@ export default function AddressManager({ onCountChange }: AddressManagerProps) {
                 {def && <Tag>Padrão</Tag>}
               </div>
               <div className={styles.actions}>
-                <Button variant="ghost" size="sm" onClick={() => {
+                <Button variant="tertiary" size="sm" onClick={() => {
                   setEditing({ ...addr, idx });
                   setForm({
                     label: addr.label || '', street: addr.street || '', number: addr.number || '',
@@ -208,9 +208,9 @@ export default function AddressManager({ onCountChange }: AddressManagerProps) {
                   });
                   setShowForm(true);
                 }}>Editar</Button>
-                <Button variant="ghost" size="sm" onClick={() => remove(idx)}>Remover</Button>
+                <Button variant="tertiary" size="sm" onClick={() => remove(idx)}>Remover</Button>
                 {!def && (
-                  <Button variant="ghost" size="sm" onClick={() => setDefault(addr, idx)}>Tornar padrão</Button>
+                  <Button variant="tertiary" size="sm" onClick={() => setDefault(addr, idx)}>Tornar padrão</Button>
                 )}
               </div>
             </Card>

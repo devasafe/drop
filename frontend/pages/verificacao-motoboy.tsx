@@ -258,7 +258,7 @@ export default function VerificacaoMotoboyPage() {
           )}
           {(cs === 'pending' || cs === 'approved') && !editCourier && (
             <Button
-              variant="ghost"
+              variant="tertiary"
               size="sm"
               onClick={() => { setCnh(ver?.courier?.cnhNumber || ''); setPlate(ver?.courier?.plate || ''); setEditCourier(true); }}
             >

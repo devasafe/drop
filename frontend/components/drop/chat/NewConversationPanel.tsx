@@ -46,7 +46,7 @@ export function NewConversationPanel({
   return (
     <div className={styles.wrapper}>
       <Button
-        variant="ghost"
+        variant="tertiary"
         size="sm"
         className={styles.backButton}
         leftIcon={<Icon name="arrow-left" size={16} />}

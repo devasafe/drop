@@ -240,7 +240,7 @@ function SellerWalletPageInner() {
               <span className={styles.balanceBadge}><ArrowUpRight size={17} aria-hidden="true" /></span>
             </div>
             <span className={styles.balanceValue}>{formatBRL(available)}</span>
-            <Button variant="accent" className={styles.sacarBtn} onClick={handleSacar} disabled={available <= 0 || transferring}>
+            <Button variant="primary" className={styles.sacarBtn} onClick={handleSacar} disabled={available <= 0 || transferring}>
               <ArrowUpRight size={17} aria-hidden="true" /> {transferring ? 'Sacando…' : 'Sacar para meu PIX'}
             </Button>
           </div>

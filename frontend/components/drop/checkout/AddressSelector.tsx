@@ -52,7 +52,7 @@ export function AddressSelector({ selected, addresses, onPick, onAddNew }: Addre
           <MapPin size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
           Endereço de entrega
         </span>
-        <Button size="sm" variant="ghost" onClick={onAddNew}>
+        <Button size="sm" variant="tertiary" onClick={onAddNew}>
           {selected ? 'Trocar' : 'Adicionar'}
         </Button>
       </div>

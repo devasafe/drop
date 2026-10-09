@@ -62,7 +62,7 @@ export default function MotoboyBeneficios() {
         <div className={styles.container}>
           <header className={styles.header}>
             <h1 className={styles.title}>Benefícios</h1>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
+            <Button variant="tertiary" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
           {featuresLoading ? (

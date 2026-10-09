@@ -1,8 +1,5 @@
-/* Button — primitivo do design system DROP.
- * Raio de função "botão": --r-sm (não herda --r-lg de card).
- * Roxo com hierarquia: only .primary carrega fundo roxo; ghost/onImage não
- * empilham roxo em fundo+borda+sombra ao mesmo tempo (regra D do spec).
- * Sem borda decorativa — ghost usa mudança de fundo no hover, não contorno.
+/* Button — primitivo do design system DROP (DS v2).
+ * Lê só a camada semântica. Alturas: md 48 / sm 40. Foco por outline.
  */
 
 .button {
@@ -10,92 +7,107 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
-  font-family: var(--font-body);
-  font-weight: 600;
-  border-radius: var(--r-sm);
+  font: var(--text-label);
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   transition:
-    background-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    background-color var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
 }
 
-.button:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-  cursor: not-allowed;
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
+.button:disabled:not([aria-busy='true']) {
+  background: var(--color-action-disabled);
+  color: var(--color-text-disabled);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+.button:disabled {
+  pointer-events: none;
+}
+.button.secondary:disabled:not([aria-busy='true']) {
+  background: transparent;
+  border-color: var(--color-action-disabled);
+}
+.button.tertiary:disabled:not([aria-busy='true']) {
+  background: transparent;
+}
+/* carregando: mantém a aparência do botão, só não aceita clique */
+.button[aria-busy='true']:disabled {
+  cursor: progress;
+}
+
 /* Tamanhos */
 
 .sm {
+  min-height: 40px;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--fs-sm);
+  padding: 0 var(--space-3);
 }
 
 .md {
+  min-height: 48px;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  font-size: var(--fs-body);
+  padding: 0 var(--space-5);
 }
 
 /* Variantes */
 
 .primary {
-  background: var(--brand);
-  color: var(--on-brand);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
 }
 .primary:hover:not(:disabled) {
-  background: var(--brand-grad);
-  box-shadow: var(--shadow-brand);
+  background: var(--color-action-primary-hover);
+}
+.primary:active:not(:disabled) {
+  background: var(--color-action-primary-pressed);
 }
 
-.ghost {
+.secondary {
   background: transparent;
-  color: var(--text);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
 }
-.ghost:hover:not(:disabled) {
-  background: var(--surface-2);
-  color: var(--text-strong);
+.secondary:hover:not(:disabled) {
+  background: var(--color-surface-sunken);
+}
+
+.tertiary {
+  background: transparent;
+  color: var(--color-text-link);
+}
+.tertiary:hover:not(:disabled) {
+  background: var(--color-surface-sunken);
 }
 
 .danger {
-  background: var(--danger);
-  color: var(--on-brand);
+  background: var(--color-error);
+  color: var(--color-on-action);
 }
 .danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger) 88%, #000);
+  background: color-mix(in srgb, var(--color-error) 88%, black);
 }
 
 .onImage {
-  background: var(--text-strong);
-  color: var(--brand);
+  background: var(--color-on-action);
+  color: var(--color-action-primary);
 }
 .onImage:hover:not(:disabled) {
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--elevation-2);
 }
-
-/* CTA escuro premium: preto/grafite + borda roxa fina + glow discreto + ícone roxo.
-   O roxo assina o botão sem virar uma parede roxa (linguagem "premium dark"). */
-.accent {
-  background: var(--panel-2);
-  color: var(--text-strong);
-  border: 1px solid var(--accent-line);
-  box-shadow: var(--accent-glow);
-}
-.accent:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--brand-2);
-}
-.accent .icon { color: var(--brand-2); }
 
 .icon {
   display: inline-flex;

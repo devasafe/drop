@@ -13,6 +13,6 @@ test('loading desabilita e mostra estado de carregando', () => {
   expect(screen.getByRole('button')).toBeDisabled();
 });
 test('variant aplica a classe correspondente', () => {
-  const { container } = render(<Button variant="ghost">X</Button>);
-  expect(container.firstChild).toHaveClass('ghost');
+  const { container } = render(<Button variant="tertiary">X</Button>);
+  expect(container.firstChild).toHaveClass('tertiary');
 });

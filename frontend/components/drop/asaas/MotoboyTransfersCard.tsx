@@ -79,7 +79,7 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
       </ul>
       {!error && nextCursor && (
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
-          <Button variant="ghost" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+          <Button variant="tertiary" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
         </div>
       )}
     </Section>

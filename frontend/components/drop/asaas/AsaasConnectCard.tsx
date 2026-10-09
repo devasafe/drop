@@ -245,14 +245,14 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
             {connected ? 'Trocar chave' : 'Conectar'}
           </Button>
           {allowDisconnect && connected && (
-            <Button variant="ghost" loading={busy} onClick={disconnect}>Desconectar</Button>
+            <Button variant="tertiary" loading={busy} onClick={disconnect}>Desconectar</Button>
           )}
         </form>
         <p className={styles.hint}>Gere a chave no painel do Asaas, em Integrações. Ela é guardada cifrada e nunca é exibida de novo.</p>
       </Section>
 
       {connected && (
-        <Section title="Checklist" action={<Button size="sm" variant="ghost" loading={busy} onClick={runTest}>Testar configuração</Button>}>
+        <Section title="Checklist" action={<Button size="sm" variant="tertiary" loading={busy} onClick={runTest}>Testar configuração</Button>}>
           <ul className={styles.list}>
             <li className={styles.item}>
               <div className={styles.itemHead}>{mark(c?.apiKey)} 1. Chave de API válida</div>
@@ -267,7 +267,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
               <p className={styles.hint}>No Asaas, em Integrações, adicione o IP abaixo à lista de IPs autorizados.</p>
               <code className={styles.code}>{egressIp || 'IP ainda não informado pela plataforma'}</code>
               <div className={styles.actions}>
-                <Button size="sm" variant="ghost" onClick={() => toggle('ipWhitelist', !c?.ipWhitelistConfirmed)}>
+                <Button size="sm" variant="tertiary" onClick={() => toggle('ipWhitelist', !c?.ipWhitelistConfirmed)}>
                   {c?.ipWhitelistConfirmed ? 'Desmarcar' : 'Já liberei o IP'}
                 </Button>
               </div>
@@ -281,14 +281,14 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
                   <p className={styles.hint}>Copie o token agora. Ele não será mostrado de novo.</p>
                   <code className={styles.code}>{authToken}</code>
                   <div className={styles.actions}>
-                    <Button size="sm" variant="ghost" onClick={() => copy(authToken)}>Copiar token</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setAuthToken(null)}>Já copiei</Button>
+                    <Button size="sm" variant="tertiary" onClick={() => copy(authToken)}>Copiar token</Button>
+                    <Button size="sm" variant="tertiary" onClick={() => setAuthToken(null)}>Já copiei</Button>
                   </div>
                 </div>
               )}
               <div className={styles.actions}>
-                <Button size="sm" variant="ghost" disabled={genBusy} onClick={genToken}>{authToken ? 'Gerar outro token' : 'Gerar token'}</Button>
-                <Button size="sm" variant="ghost" onClick={() => toggle('authWebhook', !c?.authWebhookConfirmed)}>
+                <Button size="sm" variant="tertiary" disabled={genBusy} onClick={genToken}>{authToken ? 'Gerar outro token' : 'Gerar token'}</Button>
+                <Button size="sm" variant="tertiary" onClick={() => toggle('authWebhook', !c?.authWebhookConfirmed)}>
                   {c?.authWebhookConfirmed ? 'Desmarcar' : 'Já configurei no Asaas'}
                 </Button>
               </div>

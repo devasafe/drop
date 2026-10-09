@@ -144,7 +144,7 @@ export default function BuscarPage() {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Lojas em destaque</h2>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/stores')}>Ver mais</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push('/stores')}>Ver mais</Button>
             </div>
             {topStoresLoading ? (
               <p className={styles.muted}>Carregando…</p>
@@ -162,7 +162,7 @@ export default function BuscarPage() {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Produtos mais vendidos</h2>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/produtos')}>Ver todos</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push('/produtos')}>Ver todos</Button>
             </div>
             {topProductsLoading ? (
               <p className={styles.muted}>Carregando…</p>

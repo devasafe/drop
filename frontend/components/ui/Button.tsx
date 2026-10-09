@@ -3,7 +3,16 @@ import { Loader2 } from 'lucide-react';
 import styles from './Button.module.css';
 import { ICON_STROKE_WIDTH } from './Icon';
 
-export type ButtonVariant = 'primary' | 'ghost' | 'onImage' | 'danger' | 'accent';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'tertiary'
+  | 'danger'
+  | 'onImage'
+  /** @deprecated use `tertiary` */
+  | 'ghost'
+  /** @deprecated use `primary` */
+  | 'accent';
 export type ButtonSize = 'sm' | 'md';
 
 export interface ButtonProps
@@ -18,9 +27,9 @@ export interface ButtonProps
 }
 
 /**
- * Botão de ação do DROP. Variantes: `primary` (ação principal, roxo),
- * `ghost` (secundária, sem fundo/borda) e `onImage` (sobre foto/hero,
- * fundo branco + texto roxo). Raio de botão é sempre `--r-sm`.
+ * Botão de ação do DROP. Variantes: `primary` (ação principal), `secondary`
+ * (contorno), `tertiary` (só texto), `danger` e `onImage` (sobre foto/hero).
+ * `ghost` e `accent` são aliases depreciados de `tertiary` e `primary`.
  */
 export function Button({
   variant = 'primary',
@@ -35,11 +44,12 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const v = variant === 'ghost' ? 'tertiary' : variant === 'accent' ? 'primary' : variant;
 
   return (
     <button
       type={type}
-      className={[styles.button, styles[variant], styles[size], className]
+      className={[styles.button, styles[v], styles[size], className]
         .filter(Boolean)
         .join(' ')}
       disabled={isDisabled}

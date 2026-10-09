@@ -138,7 +138,7 @@ export default function OrderCard({ order, isNew, pinInput, pinStatus, onPinInpu
           {order.delivery?.status === 'assigned' && (
             <div className={styles.pinRow}>
               <Input value={pinInput} onChange={onPinInput} placeholder="PIN de retirada" className={styles.pinInput} />
-              <Button variant="ghost" size="sm" onClick={onPinValidate} disabled={!pinInput}>Validar PIN</Button>
+              <Button variant="tertiary" size="sm" onClick={onPinValidate} disabled={!pinInput}>Validar PIN</Button>
             </div>
           )}
           {pinStatus && (
@@ -179,7 +179,7 @@ export default function OrderCard({ order, isNew, pinInput, pinStatus, onPinInpu
                 <Bike size={14} aria-hidden="true" /> Aguardando motoboy
               </span>
               {canCancel && (
-                <Button variant="ghost" size="sm" onClick={onReject}>Cancelar pedido</Button>
+                <Button variant="tertiary" size="sm" onClick={onReject}>Cancelar pedido</Button>
               )}
             </>
           )}

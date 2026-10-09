@@ -119,7 +119,7 @@ export default function VerificationHub() {
               </div>
               <p className={styles.rowDesc}>{s.desc}</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => router.push(s.href)}>{s.cta} →</Button>
+            <Button variant="tertiary" size="sm" onClick={() => router.push(s.href)}>{s.cta} →</Button>
           </div>
         ))}
       </div>

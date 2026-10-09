@@ -29,7 +29,7 @@ export default function OnboardingFooter() {
     <div className={styles.wrap}>
       {!isLast && (
         <Button
-          variant="ghost"
+          variant="tertiary"
           size="sm"
           onClick={() => router.push(getFinalDestination(role))}
         >
