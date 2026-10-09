@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { saoPauloToday } from '../services/asaasLoja/charge';
-import { effectiveFee, shouldPause } from '../services/saasBilling/policy';
+import { coveredUntil, effectiveFee, shouldPause } from '../services/saasBilling/policy';
 import { ensureBillingCustomer } from '../services/saasBilling/customer';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { cancelSaasSubscriptions } from '../services/saasBilling/modeSwitch';
@@ -15,7 +15,7 @@ import { createSubscription, deleteSubscription, listSubscriptionPayments, updat
  * Cada passo é idempotente e isolado por loja (erro de uma não para as outras):
  *  a) backfill: loja sem StoreSaasBilling ganha linha `trialing` (fim do teste = now + saasTrialDays);
  *  b) assinatura: dono com documento aprovado e fee > 0 → customer dedicado + assinatura na
- *     conta-mãe, 1º vencimento = max(fim do teste, now) em America/Sao_Paulo. Gravação condicional
+ *     conta-mãe, 1º vencimento = max(coveredUntil, now) (ver firstDueDate). Gravação condicional
  *     (`asaasSubscriptionId: null`); se outro processo gravou antes, a assinatura recém-criada é
  *     apagada no Asaas (DELETE) para não cobrar a loja em dobro;
  *  b2) valor: fee efetivo ≠ subscriptionValue → atualiza a assinatura (ou apaga, se fee ≤ 0);
@@ -30,6 +30,18 @@ let running = false;
 
 const docApproved = (verification: any) => verification?.document?.status === 'approved';
 const sameCents = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
+
+/**
+ * 1º vencimento da assinatura: max(coveredUntil, now) — uma assinatura recriada (ex.: fee voltou
+ * a ser > 0) não pode cobrar o período que a loja já pagou. paidUntil é DATA do Asaas gravada em
+ * 00:00Z (o dia vale inteiro): usa o dia em UTC. trialEndsAt/now são instantes: dia em São Paulo.
+ */
+function firstDueDate(billing: { trialEndsAt: Date; paidUntil: Date | null }, now: Date): string {
+  const covered = coveredUntil(billing);
+  if (covered.getTime() <= now.getTime()) return saoPauloToday(now);
+  if (covered === billing.paidUntil) return covered.toISOString().slice(0, 10);
+  return saoPauloToday(covered);
+}
 
 export async function runSaasBillingCycle(now: Date = new Date()): Promise<void> {
   const cfg = await getSaasConfig();
@@ -60,11 +72,10 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
       const fee = effectiveFee(billing, cfg);
       if (!(fee > 0) || !docApproved(billing.store?.owner?.verification)) continue;
       const customer = await ensureBillingCustomer(billing);
-      const firstDue = billing.trialEndsAt.getTime() > now.getTime() ? billing.trialEndsAt : now;
       const sub = await createSubscription({
         customer,
         value: fee,
-        nextDueDate: saoPauloToday(firstDue),
+        nextDueDate: firstDueDate(billing, now),
         description: `Mensalidade DROP — ${billing.store?.name || ''}`.trim(),
         externalReference: `saas-sub:${billing.id}`,
       });

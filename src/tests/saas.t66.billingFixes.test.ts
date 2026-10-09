@@ -269,3 +269,28 @@ describe('F3 — valor padrão novo chega às assinaturas existentes', () => {
     expect(puts(subId)).toHaveLength(1);
   });
 });
+
+describe('F4 — assinatura recriada não cobra período já pago', () => {
+  const subCalls = (billingId: string) =>
+    (asaasClient.post as jest.Mock).mock.calls.filter(([p, b]) => p === '/subscriptions' && b?.externalReference === `saas-sub:${billingId}`);
+
+  it('loja sem assinatura com paidUntil futuro → 1º vencimento no fim do período pago', async () => {
+    const { store } = await makeStore();
+    const billing = await prisma.storeSaasBilling.create({
+      data: { storeId: store.id, trialEndsAt: new Date(NOW.getTime() - 20 * DAY), paidUntil: new Date('2026-11-15T00:00:00.000Z'), status: 'active' },
+    });
+    await runSaasBillingCycle(NOW);
+    const calls = subCalls(billing.id);
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1].nextDueDate).toBe('2026-11-15');
+  });
+
+  it('período pago já vencido → vence hoje (São Paulo)', async () => {
+    const { store } = await makeStore();
+    const billing = await prisma.storeSaasBilling.create({
+      data: { storeId: store.id, trialEndsAt: new Date(NOW.getTime() - 40 * DAY), paidUntil: new Date('2026-09-20T00:00:00.000Z'), status: 'past_due' },
+    });
+    await runSaasBillingCycle(NOW);
+    expect(subCalls(billing.id)[0][1].nextDueDate).toBe('2026-10-01');
+  });
+});
