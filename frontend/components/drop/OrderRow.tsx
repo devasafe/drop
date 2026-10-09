@@ -28,16 +28,7 @@ export function toCustomerStatus(status: string, paymentStatus?: string): Custom
     case 'created':
       return paymentStatus && paymentStatus !== 'paid' ? 'awaiting_payment' : 'awaiting_store';
     case 'pago':
-    case 'paid':
       return 'preparing';
-    case 'aguardando_motoboy':
-    case 'assigned':
-      return 'finding_courier';
-    case 'picked':
-    case 'enviado':
-    case 'shipped':
-    case 'aguardando_confirmacao':
-      return 'out_for_delivery';
     case 'entregue':
     case 'delivered':
       return 'delivered';
@@ -45,8 +36,10 @@ export function toCustomerStatus(status: string, paymentStatus?: string): Custom
     case 'cancelled':
     case 'rejeitado':
       return 'cancelled';
+    // aguardando_motoboy e qualquer outro: a lista de pedidos não traz o status da
+    // entrega, então não afirmamos uma fase (buscando / a caminho) que pode estar errada.
     default:
-      return 'preparing';
+      return 'in_progress';
   }
 }
 

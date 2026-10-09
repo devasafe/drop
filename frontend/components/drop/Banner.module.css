@@ -40,8 +40,8 @@
 }
 
 a.item:focus-visible {
-  outline: 2px solid var(--color-action-primary);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .image {
@@ -68,13 +68,11 @@ a.item:focus-visible {
 }
 
 .title {
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  font: var(--text-title);
 }
 
 .subtitle {
-  font-size: var(--fs-sm);
+  font: var(--text-meta);
   color: var(--color-text-secondary);
 }
 

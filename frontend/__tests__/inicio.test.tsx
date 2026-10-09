@@ -40,7 +40,9 @@ describe('/inicio', () => {
   it('mostra o banner premium no carrossel', () => {
     render(<Inicio />);
     expect(screen.getByText('Banner Premium')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /destaques/i })).toBeInTheDocument();
+    // um único Banner por tela, e o item da loja premium leva à loja (antigo onSelect(id))
+    expect(screen.getAllByRole('region', { name: /destaques/i })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /Banner Premium$/ })).toHaveAttribute('href', '/stores/f1');
   });
 
   it('lista só lojas premium (Plano 3) — loja comum não aparece', () => {

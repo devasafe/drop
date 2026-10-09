@@ -22,7 +22,7 @@
 }
 
 .sub {
-  font-size: var(--fs-sm);
+  font: var(--text-meta);
   color: var(--color-text-secondary);
 }
 

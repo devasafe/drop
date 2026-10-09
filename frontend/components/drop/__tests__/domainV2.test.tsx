@@ -34,6 +34,11 @@ describe('Banner', () => {
     expect(screen.queryByRole('link', { name: /Aviso sem link/ })).toBeNull();
   });
 
+  it('aceita label do landmark', () => {
+    render(<Banner items={items} label="Avisos" />);
+    expect(screen.getByRole('region', { name: 'Avisos' })).toBeInTheDocument();
+  });
+
   it('não tem autoplay nem dots', () => {
     render(<Banner items={items} />);
     expect(screen.queryByRole('tab')).toBeNull();
@@ -41,13 +46,13 @@ describe('Banner', () => {
 });
 
 describe('OrderRow', () => {
-  const order = { _id: 'o1', status: 'enviado', total: 1234.5, storeName: 'Pizza Place', createdAt: '2026-07-31T12:00:00Z' };
+  const order = { _id: 'o1', status: 'aguardando_motoboy', total: 1234.5, storeName: 'Pizza Place', createdAt: '2026-07-31T12:00:00Z' };
 
   it('mostra loja, valor formatado e status do OrderStatusBadge', () => {
     render(<List><OrderRow order={order} /></List>);
     expect(screen.getByText('Pizza Place')).toBeInTheDocument();
     expect(screen.getByText('R$ 1.234,50')).toBeInTheDocument();
-    expect(screen.getByText('Saiu para entrega')).toBeInTheDocument();
+    expect(screen.getByText('Em andamento')).toBeInTheDocument();
   });
 
   it('mostra código, resumo, pagamento e data (histórico)', () => {
@@ -79,7 +84,11 @@ describe('OrderRow', () => {
   it('mapeia status do backend para o vocabulário do cliente', () => {
     expect(toCustomerStatus('criado', 'pending')).toBe('awaiting_payment');
     expect(toCustomerStatus('criado', 'paid')).toBe('awaiting_store');
+    expect(toCustomerStatus('criado', 'failed')).toBe('awaiting_payment');
     expect(toCustomerStatus('pago')).toBe('preparing');
+    expect(toCustomerStatus('aguardando_motoboy')).toBe('in_progress');
+    expect(toCustomerStatus('qualquer_outro')).toBe('in_progress');
+    expect(toCustomerStatus('rejeitado')).toBe('cancelled');
     expect(toCustomerStatus('entregue')).toBe('delivered');
     expect(toCustomerStatus('cancelado')).toBe('cancelled');
   });

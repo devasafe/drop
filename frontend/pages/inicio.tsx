@@ -89,6 +89,12 @@ export default function Inicio() {
     [promoBanners]
   );
 
+  // Um único Banner por tela: avisos da DROP primeiro, depois lojas premium.
+  const bannerItems = useMemo(
+    () => [...promoBannerItems, ...featuredBanner],
+    [promoBannerItems, featuredBanner]
+  );
+
   // Lojas perto de você: SÓ lojas premium (Plano 3), mais vendidas + raio 20km.
   // Preenche em camadas (mais vendidas perto → catálogo perto → sem raio) e
   // nunca mostra loja não-premium.
@@ -180,6 +186,12 @@ export default function Inicio() {
         </div>
       )}
 
+      {bannerItems.length > 0 && (
+        <div className={styles.section}>
+          <Banner items={bannerItems} />
+        </div>
+      )}
+
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Lojas perto de você</h2>
@@ -202,11 +214,6 @@ export default function Inicio() {
           />
         ) : (
           <>
-            {featuredItems.length > 0 && (
-              <div className={styles.carouselWrap}>
-                <Banner items={featuredBanner} />
-              </div>
-            )}
             {rankedStores.length > 0 && (
               <div className={styles.storeRows}>
                 {rankedStores.map((s: any) => (
@@ -222,12 +229,6 @@ export default function Inicio() {
           </>
         )}
       </section>
-
-      {promoBanners.length > 0 && (
-        <div className={styles.section}>
-          <Banner items={promoBannerItems} />
-        </div>
-      )}
 
       {(productsLoading || offerProducts.length > 0) && (
         <section className={styles.section}>

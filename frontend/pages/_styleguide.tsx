@@ -92,7 +92,7 @@ const categories = [
 ];
 const PRODUCT_VARIANTS = ['home', 'busca', 'loja', 'carrinho', 'recomendado'] as const;
 const STATUSES = ['aberta', 'fechada', 'em_entrega', 'cancelado', 'entregue'] as const;
-const ORDER_STATUSES: CustomerOrderStatus[] = ['awaiting_payment', 'awaiting_store', 'preparing', 'finding_courier', 'out_for_delivery', 'delivered', 'cancelled', 'problem'];
+const ORDER_STATUSES: CustomerOrderStatus[] = ['awaiting_payment', 'awaiting_store', 'preparing', 'finding_courier', 'out_for_delivery', 'in_progress', 'delivered', 'cancelled', 'problem'];
 
 /* ---------- DS v2: componentes novos, renderizados dentro de um tema ---------- */
 function V2Label({ children }: { children: ReactNode }) {
@@ -341,7 +341,7 @@ export default function Styleguide() {
         </Sub>
         <Sub title="OrderRow">
           <List>
-            <OrderRow order={{ _id: 'o1', status: 'enviado', total: 129.9, storeName: 'TechStore', createdAt: '2026-10-01T12:00:00Z', code: 'A1B2C3D4' }} onClick={noop} />
+            <OrderRow order={{ _id: 'o1', status: 'aguardando_motoboy', total: 129.9, storeName: 'TechStore', createdAt: '2026-10-01T12:00:00Z', code: 'A1B2C3D4' }} onClick={noop} />
             <OrderRow showDate order={{ _id: 'o2', status: 'entregue', total: 42.5, storeName: 'Pizza Place', createdAt: '2026-09-20T12:00:00Z' }} />
           </List>
         </Sub>

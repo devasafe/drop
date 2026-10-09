@@ -16,12 +16,12 @@ export interface BannerItem {
  * prefers-reduced-motion por construção). Fundo sólido ou imagem, sem
  * gradiente. Cada item com `href` é um único link; sem `href` é só aviso.
  */
-export function Banner({ items }: { items: BannerItem[] }) {
+export function Banner({ items, label = 'Destaques' }: { items: BannerItem[]; label?: string }) {
   if (items.length === 0) return null;
   const multi = items.length > 1;
 
   return (
-    <div className={`${styles.track} ${multi ? styles.multi : ''}`} role="region" aria-label="Destaques">
+    <div className={`${styles.track} ${multi ? styles.multi : ''}`} role="region" aria-label={label}>
       {items.map((it) => {
         const external = !!it.href && /^https?:\/\//.test(it.href);
         const tone = it.tone === 'neutral' ? styles.neutral : styles.brand;

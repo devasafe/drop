@@ -8,6 +8,7 @@ export type CustomerOrderStatus =
   | 'preparing'
   | 'finding_courier'
   | 'out_for_delivery'
+  | 'in_progress'
   | 'delivered'
   | 'cancelled'
   | 'problem';
@@ -20,6 +21,7 @@ const VIEW: Record<CustomerOrderStatus, { label: string; tone: Tone }> = {
   preparing: { label: 'Em preparação', tone: 'warning' },
   finding_courier: { label: 'Procurando entregador', tone: 'info' },
   out_for_delivery: { label: 'Saiu para entrega', tone: 'brand' },
+  in_progress: { label: 'Em andamento', tone: 'info' },
   delivered: { label: 'Entregue', tone: 'success' },
   cancelled: { label: 'Cancelado', tone: 'neutral' },
   problem: { label: 'Problema na entrega', tone: 'error' },
