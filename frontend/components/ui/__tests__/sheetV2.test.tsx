@@ -63,3 +63,12 @@ it('toda classe que anima tem animation: none em prefers-reduced-motion', () => 
   const reducedSel = reduced.split(',').map((x) => x.trim());
   animated.forEach((sel) => expect(reducedSel).toContain(sel));
 });
+
+it('não rouba o foco de um campo com autoFocus', () => {
+  render(
+    <Sheet open onClose={() => {}} title="Sacar">
+      <input autoFocus aria-label="Valor" />
+    </Sheet>,
+  );
+  expect(document.activeElement).toBe(screen.getByLabelText('Valor'));
+});

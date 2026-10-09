@@ -39,7 +39,7 @@ export function Sheet({ open, onClose, title, children, presentation = 'center' 
   useEffect(() => {
     if (!visible) return;
     const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    if (!dialogRef.current?.contains(document.activeElement)) dialogRef.current?.focus();
     return () => {
       if (previous && typeof previous.focus === 'function') previous.focus();
     };
