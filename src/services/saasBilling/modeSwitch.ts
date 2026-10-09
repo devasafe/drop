@@ -37,7 +37,7 @@ export async function cancelSaasSubscriptions(): Promise<SaasBillingWarning[]> {
       }
       await prisma.storeSaasBilling.updateMany({
         where: { id: row.id, asaasSubscriptionId: subId },
-        data: { asaasSubscriptionId: null },
+        data: { asaasSubscriptionId: null, subscriptionValue: null },
       });
       logger.info('[saas-billing] assinatura cancelada (modo custódia)', { storeId: row.storeId });
     } catch (err) {

@@ -97,7 +97,12 @@ adminSaasBillingRouter.put('/:storeId/saas-billing', authenticate, authorizePerm
 
   const saved = await prisma.storeSaasBilling.update({
     where: { id: billing.id },
-    data: { customFee, ...(clearSubscription ? { asaasSubscriptionId: null } : {}) },
+    data: {
+      customFee,
+      ...(clearSubscription
+        ? { asaasSubscriptionId: null, subscriptionValue: null }
+        : billing.asaasSubscriptionId ? { subscriptionValue: fee } : {}),
+    },
   });
   logger.info('[saas-billing][AUDIT] valor especial', { by: req.user?.id, storeId: store.id, from, to: customFee });
   return res.json({

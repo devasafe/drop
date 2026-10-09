@@ -1355,6 +1355,8 @@ model StoreSaasBilling {
   trialEndsAt         DateTime
   paidUntil           DateTime?
   customFee           Decimal?          @db.Decimal(12, 2)
+  // Valor gravado na assinatura do Asaas (null = desconhecido → o job sincroniza com o fee atual).
+  subscriptionValue   Decimal?          @db.Decimal(12, 2)
   asaasCustomerId     String?
   asaasSubscriptionId String?           @unique
   overdueSince        DateTime?

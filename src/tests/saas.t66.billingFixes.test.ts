@@ -65,7 +65,7 @@ beforeEach(async () => {
     const m = /^\/subscriptions\/([^/]+)\/payments/.exec(path);
     return { data: (m && payments[decodeURIComponent(m[1])]) || [], hasMore: false };
   });
-  (asaasClient.put as jest.Mock).mockResolvedValue({});
+  (asaasClient.put as jest.Mock).mockReset().mockResolvedValue({});
   (asaasClient.delete as jest.Mock).mockResolvedValue({ deleted: true });
 });
 afterEach(() => cleanupUsersByEmailDomain(DOMAIN));
@@ -197,5 +197,75 @@ describe('F2 — troca de modo cancela/reabre as assinaturas', () => {
     const l = await prisma.storeSaasBilling.findUnique({ where: { storeId: longa.id } });
     expect(l!.trialEndsAt.getTime()).toBe(longe.getTime());
     expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: cancelada.id } }))!.status).toBe('cancelled');
+  });
+});
+
+describe('F3 — valor padrão novo chega às assinaturas existentes', () => {
+  const puts = (subId: string) => (asaasClient.put as jest.Mock).mock.calls.filter(([p]) => p === `/subscriptions/${subId}`);
+  const withSub = async (data: Record<string, unknown> = {}) => {
+    const { store } = await makeStore();
+    const subId = `sub_t66_${rand()}`;
+    const billing = await prisma.storeSaasBilling.create({
+      data: { storeId: store.id, trialEndsAt: new Date(NOW.getTime() + 10 * DAY), asaasSubscriptionId: subId, asaasCustomerId: 'cus_x', ...data } as any,
+    });
+    return { store, subId, billing };
+  };
+
+  it('ao criar a assinatura grava subscriptionValue', async () => {
+    const { store } = await makeStore();
+    await runSaasBillingCycle(NOW);
+    const row = await prisma.storeSaasBilling.findUnique({ where: { storeId: store.id } });
+    expect(row!.asaasSubscriptionId).toMatch(/^sub_t66_/);
+    expect(Number((row as any).subscriptionValue)).toBe(49.9);
+    expect(puts(row!.asaasSubscriptionId!)).toHaveLength(0);
+  });
+
+  it('padrão mudou → job atualiza o valor no Asaas uma vez e grava', async () => {
+    const { subId, billing } = await withSub({ subscriptionValue: 49.9 });
+    await updatePlatformConfig({ saasMonthlyFee: 59.9 } as any, 'test');
+    await runSaasBillingCycle(NOW);
+    await runSaasBillingCycle(NOW);
+    expect(puts(subId)).toHaveLength(1);
+    expect(puts(subId)[0][1]).toEqual({ value: 59.9, updatePendingPayments: true });
+    expect(Number((await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any).subscriptionValue)).toBe(59.9);
+  });
+
+  it('valor gravado desconhecido (linha antiga, null) → sincroniza com o fee atual', async () => {
+    const { subId, billing } = await withSub();
+    await runSaasBillingCycle(NOW);
+    expect(puts(subId)).toHaveLength(1);
+    expect(puts(subId)[0][1].value).toBe(49.9);
+    expect(Number((await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any).subscriptionValue)).toBe(49.9);
+  });
+
+  it('padrão foi a 0 → apaga a assinatura e limpa id/valor', async () => {
+    const { subId, billing } = await withSub({ subscriptionValue: 49.9 });
+    await updatePlatformConfig({ saasMonthlyFee: 0 } as any, 'test');
+    await runSaasBillingCycle(NOW);
+    expect(asaasClient.delete).toHaveBeenCalledWith(`/subscriptions/${subId}`);
+    const row = await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any;
+    expect(row.asaasSubscriptionId).toBeNull();
+    expect(row.subscriptionValue).toBeNull();
+  });
+
+  it('Asaas falha → nada gravado; o próximo ciclo tenta de novo', async () => {
+    const { subId, billing } = await withSub({ subscriptionValue: 49.9 });
+    await updatePlatformConfig({ saasMonthlyFee: 59.9 } as any, 'test');
+    (asaasClient.put as jest.Mock).mockRejectedValueOnce(new Error('fora do ar'));
+    await runSaasBillingCycle(NOW);
+    expect(Number((await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any).subscriptionValue)).toBe(49.9);
+    await runSaasBillingCycle(NOW);
+    expect(puts(subId)).toHaveLength(2);
+    expect(Number((await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any).subscriptionValue)).toBe(59.9);
+  });
+
+  it('valor especial do CEO grava subscriptionValue (e o job não reenvia)', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const { store, subId, billing } = await withSub({ subscriptionValue: 49.9 });
+    const r = await request(app).put(`/api/admin/stores/${store.id}/saas-billing`).set('Authorization', bearer(ceo)).send({ customFee: 30 });
+    expect(r.status).toBe(200);
+    expect(Number((await prisma.storeSaasBilling.findUnique({ where: { id: billing.id } }) as any).subscriptionValue)).toBe(30);
+    await runSaasBillingCycle(NOW);
+    expect(puts(subId)).toHaveLength(1);
   });
 });
