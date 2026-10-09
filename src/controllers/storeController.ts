@@ -15,6 +15,7 @@ import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { publicStoreBillingWhere } from '../services/saasBilling/gate';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -448,6 +449,9 @@ export const listStores = async (_req: Request, res: Response) => {
     // ✅ GATE KYC (Fase 2): com KYC_ENFORCED, só lojas verificadas aparecem.
     const filter: any = {};
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    // Modo direto: loja pausada/cancelada pela mensalidade some da vitrine.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere) filter.AND = [billingWhere];
     const found = await prisma.store.findMany({ where: filter });
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
     return res.json(found.map(toPublicStore));
@@ -499,6 +503,8 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
       NOT: { featuredBannerUrl: '' },
     };
     if (process.env.KYC_ENFORCED === 'true') featuredFilter.isVerified = true; // ✅ GATE KYC Fase 2
+    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
+    if (billingWhere) featuredFilter.AND = [billingWhere];
 
     const rows = await prisma.store.findMany({
       where: featuredFilter,
@@ -597,6 +603,8 @@ export const getTopStores = async (req: Request, res: Response) => {
     const counts = new Map(grouped.map((g) => [g.storeId, g._count._all]));
     const filter: any = { id: { in: grouped.map((g) => g.storeId) } };
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
+    if (billingWhere) filter.AND = [billingWhere];
     const stores = await prisma.store.findMany({ where: filter });
     const out = stores
       .map((s) => ({ ...toPublicStore(s), salesCount: counts.get(s.id) ?? 0 }))
@@ -623,9 +631,13 @@ export const getTopProducts = async (req: Request, res: Response) => {
     const sold = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
     const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } });
     const storeIds = [...new Set(products.map((p) => p.storeId))];
-    const stores = await prisma.store.findMany({ where: { id: { in: storeIds } }, select: { id: true, name: true, plan: true } });
+    // Modo direto: produto de loja pausada/cancelada pela mensalidade não aparece.
+    const billingWhere = await publicStoreBillingWhere();
+    const storeWhere: Prisma.StoreWhereInput = { id: { in: storeIds }, ...(billingWhere ? { AND: [billingWhere] } : {}) };
+    const stores = await prisma.store.findMany({ where: storeWhere, select: { id: true, name: true, plan: true } });
     const storeMap = new Map(stores.map((s) => [s.id, s]));
     const out = products
+      .filter((p: any) => storeMap.has(p.storeId))
       .map((p: any) => {
         const st = storeMap.get(p.storeId) as any;
         return {
@@ -653,6 +665,11 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (!store) return res.status(404).json({ error: 'Store not found' });
     // ✅ GATE KYC Fase 2: loja não verificada não aparece publicamente
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+    // Modo direto: loja pausada/cancelada pela mensalidade responde como inexistente.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
     return res.json(toPublicStore(store));

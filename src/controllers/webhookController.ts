@@ -10,6 +10,7 @@ import { markDirectRefundDone } from '../services/asaasLoja/refund';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
+import { handleSaasBillingEvent } from '../services/saasBilling/webhook';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -266,6 +267,7 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
 
 /**
  * Roteador de eventos do Asaas.
+ *  - fatura da mensalidade SaaS (assinatura na conta-mãe) → handleSaasBillingEvent, e PARA aí;
  *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → confirma pedido pago + cria Payout (Fase 2)
  *  - PAYMENT_REFUNDED → estorno (Fase 5) [TODO]
  *  - PAYMENT_CHARGEBACK* → reserva/débito (Fase 6) [TODO]
@@ -277,6 +279,9 @@ async function dispatchAsaasEvent(eventId: string, body: any): Promise<void> {
 
   let processError: string | undefined;
   try {
+    // Mensalidade SaaS primeiro: uma fatura da assinatura nunca pode ser tratada como pedido/recarga.
+    if (await handleSaasBillingEvent(event, payment)) return;
+
     switch (event) {
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_CONFIRMED':

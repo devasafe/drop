@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/prisma';
+import logger from '../../config/logger';
 import { nextPaidUntil } from './policy';
 import type { AsaasSubscriptionPayment } from '../asaas/subscription';
 
@@ -22,6 +23,9 @@ function asaasDate(d?: string | null): Date | null {
  *    novo (e, mesmo em corrida, nextPaidUntil é max(atual, dueDate + 1 mês): o resultado é o mesmo).
  *    Loja `cancelled` só tem o período estendido; o status não volta sozinho.
  *  - OVERDUE → past_due (se não estiver paused/cancelled) e overdueSince = dueDate se vazio.
+ *  - DELETED (o webhook manda `status: 'DELETED'` no PAYMENT_DELETED) → só o status da fatura.
+ *  - REFUNDED → status da fatura + warn. NÃO recua paidUntil: o período já liberado fica, e o
+ *    estorno de mensalidade é decisão manual da plataforma (o admin vê a fatura estornada).
  */
 export async function applySaasPayment(billingId: string, payment: AsaasSubscriptionPayment): Promise<void> {
   const dueDate = asaasDate(payment?.dueDate);
@@ -47,6 +51,13 @@ export async function applySaasPayment(billingId: string, payment: AsaasSubscrip
       create: { billingId, asaasPaymentId: payment.id, ...data },
       update: data,
     });
+
+    if (payment.status === 'REFUNDED' && prev?.status !== 'REFUNDED') {
+      logger.warn('[saas-billing] fatura da mensalidade estornada — paidUntil mantido (revisar manualmente)', {
+        billingId, asaasPaymentId: payment.id, previousStatus: prev?.status ?? null,
+      });
+      return;
+    }
 
     if (isSaasPaid(payment.status) && !isSaasPaid(prev?.status)) {
       const billing = await tx.storeSaasBilling.findUnique({ where: { id: billingId }, select: { paidUntil: true, status: true } });

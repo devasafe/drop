@@ -10,6 +10,7 @@ import {
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
 import logger from '../config/logger';
+import { publicStoreBillingWhere } from '../services/saasBilling/gate';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
@@ -118,6 +119,10 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
       const verifiedStores = await prisma.store.findMany({ where: { isVerified: true }, select: { id: true } });
       filter.storeId = { in: verifiedStores.map((st) => st.id) };
     }
+
+    // Modo direto: produtos de loja pausada/cancelada pela mensalidade somem da vitrine.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere) filter.store = billingWhere;
 
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number(req.query.page) || 1);
