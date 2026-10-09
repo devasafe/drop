@@ -19,7 +19,7 @@ import { createTestUser, bearer } from './helpers/authUser';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import { isStoreBillingBlocked } from '../services/saasBilling/gate';
-import { isStoreBlocked } from '../services/saasBilling/policy';
+import { isBillingBlocked, isStoreBlocked } from '../services/saasBilling/policy';
 import env from '../config/env';
 
 const DOMAIN = '@saas66.test';
@@ -316,5 +316,44 @@ describe('F5 — próxima cobrança ignora fatura apagada/estornada', () => {
     const r2 = await get();
     // A mais antiga em aberto primeiro: a vencida é a que a loja precisa pagar.
     expect(r2.body.data.nextPayment).toMatchObject({ status: 'OVERDUE', invoiceUrl: 'https://asaas/i/OVERDUE' });
+  });
+});
+
+describe('F7 — vencimento conta o dia inteiro no horário de Brasília', () => {
+  const z = (s: string) => new Date(s);
+  const pago = { status: 'active', trialEndsAt: z('2026-09-01T12:00:00.000Z'), paidUntil: z('2026-12-10T00:00:00.000Z') };
+
+  it('pago até 10/12 (00:00Z), tolerância 0: o dia 10/12 inteiro (Brasília) está coberto', () => {
+    expect(isBillingBlocked(pago, z('2026-12-10T12:00:00.000Z'), 0)).toBe(false);
+    expect(isBillingBlocked(pago, z('2026-12-11T02:59:59.999Z'), 0)).toBe(false);
+    expect(isBillingBlocked(pago, z('2026-12-11T03:00:00.000Z'), 0)).toBe(false);
+    expect(isBillingBlocked(pago, z('2026-12-11T03:00:00.001Z'), 0)).toBe(true);
+  });
+
+  it('tolerância soma dias inteiros ao fim do dia', () => {
+    expect(isBillingBlocked(pago, z('2026-12-13T03:00:00.000Z'), 2)).toBe(false);
+    expect(isBillingBlocked(pago, z('2026-12-13T03:00:00.001Z'), 2)).toBe(true);
+  });
+
+  it('fim do teste (instante): vale até o fim daquele dia em Brasília', () => {
+    // 16/10 01:00Z = 15/10 22:00 em Brasília → coberto até 16/10 03:00Z.
+    const teste = { status: 'trialing', trialEndsAt: z('2026-10-16T01:00:00.000Z'), paidUntil: null };
+    expect(isBillingBlocked(teste, z('2026-10-16T02:00:00.000Z'), 0)).toBe(false);
+    expect(isBillingBlocked(teste, z('2026-10-16T03:00:00.001Z'), 0)).toBe(true);
+    const tarde = { status: 'trialing', trialEndsAt: z('2026-10-15T15:00:00.000Z'), paidUntil: null };
+    expect(isBillingBlocked(tarde, z('2026-10-16T02:59:59.000Z'), 0)).toBe(false);
+    expect(isBillingBlocked(tarde, z('2026-10-16T03:00:00.001Z'), 0)).toBe(true);
+  });
+
+  it('job: pago até ontem (UTC) mas ainda no dia em Brasília, tolerância 0 → não pausa', async () => {
+    await updatePlatformConfig({ saasGraceDays: 0 } as any, 'test');
+    const { store } = await makeStore({ verified: false });
+    await prisma.storeSaasBilling.create({
+      data: { storeId: store.id, trialEndsAt: z('2026-09-01T12:00:00.000Z'), paidUntil: z('2026-12-10T00:00:00.000Z'), status: 'active' },
+    });
+    await runSaasBillingCycle(z('2026-12-10T22:00:00.000Z'));
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: store.id } }))!.status).toBe('active');
+    await runSaasBillingCycle(z('2026-12-11T04:00:00.000Z'));
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: store.id } }))!.status).toBe('paused');
   });
 });

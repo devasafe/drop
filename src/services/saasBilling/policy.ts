@@ -28,17 +28,35 @@ export function coveredUntil(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUnt
   return paid && paid.getTime() > trial.getTime() ? paid : trial;
 }
 
+// Brasília = UTC-3 FIXO: o Brasil não tem horário de verão desde 2019 (Decreto 9.772/2019).
+const SAO_PAULO_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Instante em que termina a cobertura: o FIM do dia (Brasília) de coveredUntil.
+ * - paidUntil vem do Asaas como DATA ('YYYY-MM-DD' gravada em 00:00Z = 21:00 da véspera em
+ *   Brasília): o dia é o da data em UTC;
+ * - trialEndsAt é um instante (now + dias de teste): o dia é o dele em Brasília.
+ * Fim do dia D em Brasília = D+1 00:00 local = D+1 03:00Z.
+ */
+function coverageEnd(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil'>): number {
+  const covered = coveredUntil(billing);
+  const dayMs = covered === billing.paidUntil ? covered.getTime() : covered.getTime() - SAO_PAULO_OFFSET_MS;
+  const dayStart = Math.floor(dayMs / DAY_MS) * DAY_MS;
+  return dayStart + DAY_MS + SAO_PAULO_OFFSET_MS;
+}
+
 /**
  * A loja deve ser pausada (sumir da vitrine e não receber pedido novo)?
  * - sem linha de cobrança (billing null): NÃO bloqueia. Fail open proposital: a linha é criada
  *   pelo job de assinatura (B2); até lá a loja não pode ser punida por falta de registro.
  * - cancelled: bloqueada.
- * - demais: bloqueada quando now > coveredUntil + graceDays dias.
+ * - demais: bloqueada quando now > fim do dia (Brasília) de coveredUntil + graceDays dias.
+ *   Ex.: coberto até 10/12 (00:00Z), tolerância 0 → bloqueia só depois de 11/12 03:00Z.
  */
 export function isBillingBlocked(billing: BillingLike | null | undefined, now: Date, graceDays: number): boolean {
   if (!billing) return false;
   if (billing.status === 'cancelled') return true;
-  const limit = coveredUntil(billing).getTime() + Math.max(0, graceDays) * DAY_MS;
+  const limit = coverageEnd(billing) + Math.max(0, graceDays) * DAY_MS;
   return now.getTime() > limit;
 }
 
