@@ -32,6 +32,21 @@ import { RepeatRow } from '../components/drop/RepeatRow';
 import { StickyCart } from '../components/drop/StickyCart';
 import { TabBar } from '../components/drop/TabBar';
 
+import { Checkbox } from '../components/ui/Checkbox';
+import { Switch } from '../components/ui/Switch';
+import { Tabs } from '../components/ui/Tabs';
+import { Alert } from '../components/ui/Alert';
+import { Avatar } from '../components/ui/Avatar';
+import { QuantitySelector } from '../components/ui/QuantitySelector';
+import { Rating } from '../components/ui/Rating';
+import { ProgressBar } from '../components/ui/ProgressBar';
+import { DeliveryBadge } from '../components/drop/DeliveryBadge';
+import { OrderStatusBadge, type CustomerOrderStatus } from '../components/drop/OrderStatusBadge';
+import { PriceDisplay } from '../components/drop/PriceDisplay';
+import { OrderSummary } from '../components/drop/OrderSummary';
+import { OrderTimeline } from '../components/drop/OrderTimeline';
+import { CartItem } from '../components/drop/CartItem';
+
 /* ---------- helpers de layout (página só de dev) ---------- */
 const noop = () => {};
 
@@ -76,21 +91,135 @@ const categories = [
 ];
 const PRODUCT_VARIANTS = ['home', 'busca', 'loja', 'carrinho', 'recomendado'] as const;
 const STATUSES = ['aberta', 'fechada', 'em_entrega', 'cancelado', 'entregue'] as const;
+const ORDER_STATUSES: CustomerOrderStatus[] = ['awaiting_payment', 'awaiting_store', 'preparing', 'finding_courier', 'out_for_delivery', 'delivered', 'cancelled', 'problem'];
+
+/* ---------- DS v2: componentes novos, renderizados dentro de um tema ---------- */
+function V2Label({ children }: { children: ReactNode }) {
+  return <div style={{ font: 'var(--text-caption)', color: 'var(--color-text-muted)', margin: 'var(--space-5) 0 var(--space-2)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{children}</div>;
+}
+
+function V2Gallery({ theme }: { theme: 'light' | 'dark' }) {
+  const [terms, setTerms] = useState(true);
+  const [wallet, setWallet] = useState(false);
+  const [tab, setTab] = useState('andamento');
+  const [qty, setQty] = useState(2);
+  const [cartQty, setCartQty] = useState(1);
+  const [stars, setStars] = useState(4);
+
+  return (
+    <div data-theme={theme} style={{ background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', font: 'var(--text-body)', padding: 'var(--space-5)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-default)', minWidth: 0 }}>
+      <div style={{ font: 'var(--text-title)' }}>Tema {theme === 'light' ? 'claro' : 'escuro'}</div>
+
+      <V2Label>Checkbox · Switch</V2Label>
+      <Checkbox label="Aceito os termos de uso" description="Você pode ler os termos antes de pagar." checked={terms} onChange={setTerms} />
+      <Checkbox label="Opção desabilitada" checked={false} onChange={noop} disabled />
+      <Switch label="Usar saldo da carteira" description="Saldo disponível: R$ 18,20" checked={wallet} onChange={setWallet} />
+
+      <V2Label>Tabs</V2Label>
+      <Tabs label="Pedidos" idPrefix={`sg-${theme}`} items={[{ id: 'andamento', label: 'Em andamento', count: 2 }, { id: 'historico', label: 'Histórico' }]} value={tab} onChange={setTab} />
+
+      <V2Label>Alert (4 tons)</V2Label>
+      <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
+        <Alert tone="error" title="Não entregamos nesse endereço" action={{ label: 'Trocar endereço', onClick: noop }}>A loja entrega até 12 km.</Alert>
+        <Alert tone="warning" title="Informe seu CPF">O Pix exige o CPF de quem paga.</Alert>
+        <Alert tone="info">A taxa de entrega é calculada pela rota real.</Alert>
+        <Alert tone="success" title="Pagamento aprovado" />
+      </div>
+
+      <V2Label>Avatar · Rating · ProgressBar</V2Label>
+      <Row>
+        <Avatar name="Ana Souza" size="sm" />
+        <Avatar name="Carlos Lima" />
+        <Avatar name="Bruno" size="lg" />
+        <Rating value={4.83} count={32} />
+      </Row>
+      <Rating value={stars} onChange={setStars} label="Avalie a loja" />
+      <div style={{ marginTop: 'var(--space-2)' }}><ProgressBar value={3} max={4} label="Progresso do pedido" /></div>
+
+      <V2Label>QuantitySelector</V2Label>
+      <Row>
+        <QuantitySelector itemName="Fone" value={qty} onChange={setQty} max={5} />
+        <QuantitySelector itemName="Cabo" size="sm" value={1} onChange={noop} min={0} />
+      </Row>
+
+      <V2Label>PriceDisplay (linha · card · produto)</V2Label>
+      <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+        <PriceDisplay size="line" price={23.9} />
+        <PriceDisplay price={129.9} oldPrice={189.9} />
+        <PriceDisplay size="product" price={240} oldPrice={299} installment={{ count: 12, installmentValue: 21.8, total: 261.6 }} />
+      </div>
+
+      <V2Label>DeliveryBadge (todos os estados)</V2Label>
+      <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
+        <DeliveryBadge state={{ kind: 'fast', minutes: 35 }} />
+        <DeliveryBadge state={{ kind: 'today', until: '18h' }} />
+        <DeliveryBadge state={{ kind: 'tomorrow' }} />
+        <DeliveryBadge state={{ kind: 'free' }} />
+        <DeliveryBadge state={{ kind: 'fee', fee: 7.4 }} />
+        <DeliveryBadge state={{ kind: 'noAddress', onSetAddress: noop }} />
+        <DeliveryBadge state={{ kind: 'loading' }} />
+        <DeliveryBadge state={{ kind: 'outOfArea', address: 'Av. Paulista, 1578', onChangeAddress: noop }} />
+      </div>
+
+      <V2Label>OrderStatusBadge</V2Label>
+      <Row>{ORDER_STATUSES.map((s) => <OrderStatusBadge key={s} status={s} />)}</Row>
+
+      <V2Label>OrderTimeline</V2Label>
+      <OrderTimeline steps={[
+        { label: 'Pedido confirmado', time: '14:02', state: 'done' },
+        { label: 'Em preparação', time: '14:05', state: 'done' },
+        { label: 'Saiu para entrega', time: '14:21', detail: 'Carlos · moto ABC1D23', state: 'current' },
+        { label: 'Entregue', state: 'upcoming' },
+      ]} />
+
+      <V2Label>CartItem + OrderSummary (sacola)</V2Label>
+      <div style={{ borderBottom: '1px solid var(--color-border-default)' }}>
+        <CartItem item={{ name: 'Fone Bluetooth JBL Tune 520', price: 199.9, quantity: qty, variant: 'Preto', maxQuantity: 5 }} onQuantityChange={setQty} />
+      </div>
+      <div style={{ borderBottom: '1px solid var(--color-border-default)' }}>
+        <CartItem item={{ name: 'Cabo USB-C 2m', price: 39.9, quantity: cartQty }} onQuantityChange={(n) => setCartQty(Math.max(n, 1))} />
+      </div>
+      <CartItem item={{ name: 'Capa de silicone', price: 29.9, quantity: 1, unavailable: true }} onQuantityChange={noop} />
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        <OrderSummary
+          lines={[
+            { label: 'Subtotal (2 itens)', value: 269.8 },
+            { label: 'Entrega · 2,4 km', value: 7.4 },
+            { label: 'Cupom SEMANATECH', value: -15, tone: 'credit' },
+            { label: 'Saldo da carteira', value: -18.2, tone: 'credit' },
+          ]}
+          total={244}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function Styleguide() {
-  // Página só de desenvolvimento — não renderiza em produção.
-  if (process.env.NODE_ENV === 'production') return null;
-
   const [inputVal, setInputVal] = useState('');
   const [searchVal, setSearchVal] = useState('');
   const [selectVal, setSelectVal] = useState('a');
   const [activeCat, setActiveCat] = useState('todos');
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Página só de desenvolvimento — não renderiza em produção (depois dos hooks).
+  if (process.env.NODE_ENV === 'production') return null;
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 'var(--space-6) var(--space-5) 140px', background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'var(--space-6) var(--space-5) 140px', background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
       <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 26, color: 'var(--text-strong)', letterSpacing: '.02em', marginBottom: 'var(--space-2)' }}>DROP Design System</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 'var(--space-10)' }}>Validação visual da fundação — bate com o mock canônico <code>home-refinada.html</code>.</p>
+
+      {/* ============ DS v2 ============ */}
+      <Section title="DS v2 — componentes novos (claro × escuro)">
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 'var(--space-4)' }}>
+          Só tokens semânticos (<code>--color-*</code>). O mesmo componente, sem nenhuma mudança, nos dois temas.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--space-4)' }}>
+          <V2Gallery theme="light" />
+          <V2Gallery theme="dark" />
+        </div>
+      </Section>
 
       {/* ============ FUNDAÇÃO ============ */}
       <Section title="Cores">

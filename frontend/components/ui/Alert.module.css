@@ -1,0 +1,42 @@
+/* Alert — DS v2. Fundo -subtle + ícone e título na cor -text do tom. */
+.alert {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+}
+.info    { background: var(--color-info-subtle); }
+.success { background: var(--color-success-subtle); }
+.warning { background: var(--color-warning-subtle); }
+.error   { background: var(--color-error-subtle); }
+
+.icon { flex-shrink: 0; margin-top: 1px; }
+.info .icon,    .info .title    { color: var(--color-info-text); }
+.success .icon, .success .title { color: var(--color-success-text); }
+.warning .icon, .warning .title { color: var(--color-warning-text); }
+.error .icon,   .error .title   { color: var(--color-error-text); }
+
+.body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.title { margin: 0; font: var(--text-label); }
+.text { font: var(--text-meta); color: var(--color-text-secondary); }
+.text p { margin: 0; }
+
+.action {
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  margin: calc(var(--space-3) * -1) 0 calc(var(--space-3) * -1) 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-link);
+  font: var(--text-label);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}

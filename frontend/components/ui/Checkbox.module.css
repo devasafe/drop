@@ -1,0 +1,55 @@
+/* Checkbox — DS v2. Só tokens semânticos (--color-*). */
+.row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--touch-min);
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+.disabled { cursor: not-allowed; color: var(--color-text-disabled); }
+
+/* Input nativo invisível, mas presente para teclado e leitor de tela */
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.box {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-border-input);
+  border-radius: 6px;
+  background: var(--color-surface-default);
+  color: var(--color-on-action);
+  transition: background-color var(--motion-fast) var(--ease-in), border-color var(--motion-fast) var(--ease-in);
+}
+.input:checked + .box {
+  background: var(--color-action-primary);
+  border-color: var(--color-action-primary);
+}
+.input:focus-visible + .box {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.input:disabled + .box {
+  background: var(--color-action-disabled);
+  border-color: var(--color-border-default);
+}
+
+.text { display: flex; flex-direction: column; gap: 2px; }
+.label { font: var(--text-body); }
+.description { font: var(--text-meta); color: var(--color-text-secondary); }
+.disabled .description { color: var(--color-text-disabled); }
+
+@media (prefers-reduced-motion: reduce) { .box { transition: none; } }

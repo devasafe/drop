@@ -1,0 +1,40 @@
+/* CartItem — DS v2. Linha flat (sem card); a divisória é da lista que a contém. */
+.item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) 0;
+  color: var(--color-text-primary);
+}
+
+.photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  overflow: hidden;
+}
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+
+.info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.name {
+  font: var(--text-body);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.meta { font: var(--text-meta); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.warn { font: var(--text-meta); font-weight: 600; color: var(--color-error-text); }
+
+.side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+.total { font: var(--text-price-sm); color: var(--color-price); font-variant-numeric: tabular-nums; }
+
+.unavailable .photo,
+.unavailable .name,
+.unavailable .total { opacity: .5; }

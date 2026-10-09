@@ -1,0 +1,36 @@
+/* Rating — DS v2. Estrela âmbar; o número carrega a informação. */
+.display {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.icon { fill: var(--color-rating); }
+.value { font-weight: 600; color: var(--color-text-primary); }
+.count { color: var(--color-text-muted); }
+
+.input { display: inline-flex; }
+.star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-border-input);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-in);
+}
+.filled { color: var(--color-rating); }
+.filled svg { fill: var(--color-rating); }
+.star:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) { .star { transition: none; } }

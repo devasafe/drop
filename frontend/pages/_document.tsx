@@ -3,8 +3,10 @@ import Script from 'next/script';
 import { spaceGrotesk, inter } from '../lib/fonts';
 
 export default function Document() {
+  // Tema do DS v2 (tokens --color-*). Fica "dark" para tudo até o tema por rota:
+  // as telas atuais são escuras e os componentes novos precisam casar com elas.
   return (
-    <Html className={`${spaceGrotesk.variable} ${inter.variable}`}>
+    <Html data-theme="dark" className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <Head>
         {/* Favicon (ícone da aba) */}
         <link rel="icon" type="image/png" href="/images/drop_png.png" />

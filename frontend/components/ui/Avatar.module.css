@@ -1,0 +1,17 @@
+/* Avatar — DS v2. Iniciais sobre o tom suave da ação. */
+.avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+  font-family: var(--font-display);
+  font-weight: 600;
+  object-fit: cover;
+  overflow: hidden;
+}
+.sm { width: 32px; height: 32px; font-size: 12px; }
+.md { width: 40px; height: 40px; font-size: 15px; }
+.lg { width: 56px; height: 56px; font-size: 20px; }

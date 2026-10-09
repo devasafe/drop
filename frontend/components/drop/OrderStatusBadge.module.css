@@ -1,0 +1,18 @@
+/* OrderStatusBadge — DS v2. Fundo -subtle, ponto e texto na cor -text do estado. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font: var(--text-caption);
+  white-space: nowrap;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.warning { background: var(--color-warning-subtle); color: var(--color-warning-text); }
+.info    { background: var(--color-info-subtle);    color: var(--color-info-text); }
+.brand   { background: var(--color-action-primary-subtle); color: var(--color-action-primary-subtle-text); }
+.success { background: var(--color-success-subtle); color: var(--color-success-text); }
+.neutral { background: var(--color-surface-sunken); color: var(--color-text-muted); }
+.error   { background: var(--color-error-subtle);   color: var(--color-error-text); }
