@@ -16,21 +16,21 @@
 .dot {
   width: 6px;
   height: 6px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   background: currentColor;
   flex-shrink: 0;
 }
 
 .aberta,
 .entregue {
-  color: var(--success);
+  color: var(--color-success-text);
 }
 
 .em_entrega {
-  color: var(--rating);
+  color: var(--color-warning-text);
 }
 
 .fechada,
 .cancelado {
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
 }

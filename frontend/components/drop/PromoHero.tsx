@@ -19,7 +19,7 @@ export interface PromoHeroProps {
  * Hero de promoção — o gradiente roxo (`--brand-grad`) grande de destaque
  * da home, ao lado de `FreteBanner`/`OrderTracker`. Preço em `PriceTag`
  * (sempre branco, nunca roxo — Regra D), desconto em selo circular
- * (`Badge` tone `seal`), CTA via `Button` `onImage`. Sem `imageUrl`, a
+ * (`Badge` tone `discount`), CTA via `Button` `onImage`. Sem `imageUrl`, a
  * mídia cai para `--surface-2` em vez de quebrar.
  */
 export function PromoHero({
@@ -55,7 +55,7 @@ export function PromoHero({
         />
         {discountPercent !== undefined && (
           <span className={styles.seal}>
-            <Badge tone="seal">
+            <Badge tone="discount">
               <span>{discountPercent}%</span>
               <span>OFF</span>
             </Badge>

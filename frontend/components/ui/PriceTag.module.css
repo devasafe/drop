@@ -13,12 +13,12 @@
 
 .current {
   font-weight: 700;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 
 .old {
   font-family: var(--font-body);
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
   text-decoration: line-through;
 }
 

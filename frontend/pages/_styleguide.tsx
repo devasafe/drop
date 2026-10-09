@@ -287,7 +287,7 @@ export default function Styleguide() {
             <Chip icon={<PenTool size={16} />} label="Papelaria" onClick={noop} />
             <Badge tone="discount">20% OFF</Badge>
             <Badge tone="count">3</Badge>
-            <Badge tone="seal">31% OFF</Badge>
+            <Badge tone="discount">31% OFF</Badge>
             <Tag>Eletrônicos • Acessórios</Tag>
           </Row>
           <div style={{ height: 'var(--space-3)' }} />

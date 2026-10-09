@@ -1,5 +1,5 @@
 /* Skeleton — placeholder de carregamento.
- * Shimmer entre --surface/--surface-2, ciclo derivado de --dur-slow (token
+ * Pulso de opacidade (sem gradiente) entre superfície e sunken, ciclo derivado de --motion-slow (token
  * base de movimento) multiplicado para leitura confortável em loop.
  */
 
@@ -7,24 +7,25 @@
   position: relative;
   display: inline-block;
   overflow: hidden;
-  background: var(--surface);
-  border-radius: var(--r-sm);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-sm);
 }
 
 .skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, var(--surface-2), transparent);
-  animation: skeleton-shimmer calc(var(--dur-slow) * 4) var(--ease) infinite;
+  background: var(--color-surface-sunken);
+  animation: skeleton-shimmer calc(var(--motion-slow) * 4) var(--ease-in) infinite;
 }
 
 @keyframes skeleton-shimmer {
-  from {
-    transform: translateX(-100%);
+  0%,
+  100% {
+    opacity: 0;
   }
-  to {
-    transform: translateX(100%);
+  50% {
+    opacity: 1;
   }
 }
 

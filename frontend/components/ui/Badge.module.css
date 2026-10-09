@@ -11,35 +11,24 @@
   font-weight: 700;
   line-height: 1;
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
 /* `.of .disc` do mock: fundo roxo sólido, texto branco. */
 .discount {
-  background: var(--brand);
-  color: var(--on-brand);
+  background: var(--color-discount);
+  color: var(--color-on-action);
 }
 
 /* Contador neutro (ex.: itens no carrinho) — nunca roxo. */
 .count {
-  background: var(--surface-2);
-  color: var(--text-strong);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
 }
 
-/* Selo circular de desconto (ex.: PromoHero) — mesma cor de .discount,
- * forma de círculo cheio para se sobrepor a uma foto/hero. */
-.seal {
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border-radius: var(--r-pill);
-  background: var(--brand);
-  color: var(--on-brand);
-  text-align: center;
-  white-space: normal;
-  line-height: 1.15;
+/* Status neutro-informativo (ex.: "Novo") — nunca roxo sólido. */
+.status {
+  background: var(--color-info-subtle);
+  color: var(--color-info-text);
 }
