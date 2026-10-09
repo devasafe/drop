@@ -137,7 +137,7 @@ describe('t62 — job da mensalidade SaaS', () => {
     const vencida = await makeStore({ verified: false });
     const tolerancia = await makeStore({ verified: false });
     const liberada = await makeStore({ verified: false });
-    await prisma.storeSaasBilling.create({ data: { storeId: vencida.id, trialEndsAt: new Date(NOW.getTime() - 6 * DAY) } });
+    await prisma.storeSaasBilling.create({ data: { storeId: vencida.id, trialEndsAt: new Date(NOW.getTime() - 6 * DAY), asaasSubscriptionId: `sub_t62_${rand()}` } });
     await prisma.storeSaasBilling.create({ data: { storeId: tolerancia.id, trialEndsAt: new Date(NOW.getTime() - 4 * DAY) } });
     await prisma.storeSaasBilling.create({
       data: { storeId: liberada.id, trialEndsAt: new Date(NOW.getTime() - 20 * DAY), paidUntil: new Date(NOW.getTime() + 10 * DAY), status: 'paused', pausedAt: NOW },

@@ -13,11 +13,11 @@ import { isStoreBlocked } from './policy';
  * A loja pode receber pedido NOVO? Bloqueada quando já está `paused` (o job pausou) ou quando
  * a política diz que passou da carência — mesmo antes de o job (1 h) gravar a pausa.
  * Sem linha de cobrança → não bloqueia (fail open proposital, ver isBillingBlocked).
- * Mensalidade efetiva 0 → nunca bloqueia (ver isStoreBlocked).
+ * Mensalidade efetiva 0 ou loja ainda sem assinatura → não bloqueia (ver isStoreBlocked/shouldPause).
  */
 export async function isStoreBillingBlocked(storeId: string, now: Date = new Date()): Promise<boolean> {
   const [billing, cfg] = await Promise.all([
-    prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true, trialEndsAt: true, paidUntil: true, customFee: true } }),
+    prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true, trialEndsAt: true, paidUntil: true, customFee: true, asaasSubscriptionId: true } }),
     getSaasConfig(),
   ]);
   return isStoreBlocked(billing, now, cfg);

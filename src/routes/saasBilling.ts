@@ -127,15 +127,19 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
     where: { billingId: billing.id, status: { in: SAAS_OPEN_STATUSES } },
     orderBy: { dueDate: 'asc' },
   });
+  const fee = effectiveFee(billing, cfg);
+  // Sem assinatura com fee > 0: a fatura só é gerada quando o dono tiver documento aprovado.
+  const pendingReason = !billing.asaasSubscriptionId && fee > 0 ? 'owner_document' : null;
   return res.json({
     success: true,
     data: {
       status: billing.status,
       trialEndsAt: billing.trialEndsAt,
       paidUntil: billing.paidUntil,
-      fee: effectiveFee(billing, cfg),
+      fee,
       nextPayment: p ? { dueDate: p.dueDate, value: Number(p.value), invoiceUrl: p.invoiceUrl, status: p.status } : null,
       blocked: isStoreBlocked(billing, new Date(), cfg),
+      pendingReason,
     },
   });
 }));

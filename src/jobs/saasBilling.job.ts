@@ -20,7 +20,7 @@ import { createSubscription, deleteSubscription, listSubscriptionPayments, updat
  *     apagada no Asaas (DELETE) para não cobrar a loja em dobro;
  *  b2) valor: fee efetivo ≠ subscriptionValue → atualiza a assinatura (ou apaga, se fee ≤ 0);
  *  c) reconciliação: faturas da assinatura → applySaasPayment (mesma função do webhook);
- *  d) pausa: bloqueada pela política (shouldPause; fee 0 nunca) → `paused`; paused que deixou de estar bloqueada → volta
+ *  d) pausa: bloqueada pela política (shouldPause; fee 0 ou sem assinatura nunca) → `paused`; paused que deixou de estar bloqueada → volta
  *     (`active` se já pagou alguma vez, senão `trialing`).
  */
 
@@ -139,7 +139,7 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
   // d) Pausa / despausa.
   const rows = await prisma.storeSaasBilling.findMany({
     where: { status: { not: 'cancelled' } },
-    select: { id: true, storeId: true, status: true, trialEndsAt: true, paidUntil: true, customFee: true },
+    select: { id: true, storeId: true, status: true, trialEndsAt: true, paidUntil: true, customFee: true, asaasSubscriptionId: true },
   });
   for (const billing of rows) {
     try {

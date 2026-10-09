@@ -19,7 +19,7 @@ import { createTestUser, bearer } from './helpers/authUser';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import { isStoreBillingBlocked } from '../services/saasBilling/gate';
-import { isBillingBlocked, isStoreBlocked } from '../services/saasBilling/policy';
+import { isBillingBlocked, isStoreBlocked, shouldPause } from '../services/saasBilling/policy';
 import env from '../config/env';
 
 const DOMAIN = '@saas66.test';
@@ -72,7 +72,7 @@ afterEach(() => cleanupUsersByEmailDomain(DOMAIN));
 
 describe('F1 — loja com mensalidade 0 nunca é pausada', () => {
   const cfg = (fee: number) => ({ saasMonthlyFee: fee, saasGraceDays: 5 });
-  const vencida = { status: 'trialing', trialEndsAt: new Date(NOW.getTime() - 30 * DAY), paidUntil: null };
+  const vencida = { status: 'trialing', trialEndsAt: new Date(NOW.getTime() - 30 * DAY), paidUntil: null, asaasSubscriptionId: 'sub_x' };
 
   it('política: fee efetivo 0 (padrão 0 ou isenta) não bloqueia; fee > 0 bloqueia; cancelada sempre bloqueia', () => {
     expect(isStoreBlocked(vencida, NOW, cfg(0))).toBe(false);
@@ -107,7 +107,7 @@ describe('F1 — loja com mensalidade 0 nunca é pausada', () => {
   it('gate e visões: fee 0 → não bloqueada', async () => {
     await updatePlatformConfig({ saasMonthlyFee: 0 } as any, 'test');
     const { store, owner } = await makeStore();
-    await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() - 30 * DAY), status: 'past_due' } });
+    await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() - 30 * DAY), status: 'past_due', asaasSubscriptionId: `sub_t66_${rand()}` } });
     expect(await isStoreBillingBlocked(store.id)).toBe(false);
 
     const mine = await request(app).get(`/api/stores/${store.id}/saas-billing`).set('Authorization', bearer(owner));
@@ -349,11 +349,53 @@ describe('F7 — vencimento conta o dia inteiro no horário de Brasília', () =>
     await updatePlatformConfig({ saasGraceDays: 0 } as any, 'test');
     const { store } = await makeStore({ verified: false });
     await prisma.storeSaasBilling.create({
-      data: { storeId: store.id, trialEndsAt: z('2026-09-01T12:00:00.000Z'), paidUntil: z('2026-12-10T00:00:00.000Z'), status: 'active' },
+      data: { storeId: store.id, trialEndsAt: z('2026-09-01T12:00:00.000Z'), paidUntil: z('2026-12-10T00:00:00.000Z'), status: 'active', asaasSubscriptionId: `sub_t66_${rand()}` },
     });
     await runSaasBillingCycle(z('2026-12-10T22:00:00.000Z'));
     expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: store.id } }))!.status).toBe('active');
     await runSaasBillingCycle(z('2026-12-11T04:00:00.000Z'));
     expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: store.id } }))!.status).toBe('paused');
+  });
+});
+
+describe('F6 — não pausa loja que ainda não tem assinatura', () => {
+  const cfg = { saasMonthlyFee: 49.9, saasGraceDays: 5 };
+  const vencida = { status: 'past_due', trialEndsAt: new Date(NOW.getTime() - 30 * DAY), paidUntil: null };
+
+  it('política: sem assinatura não pausa nem bloqueia; com assinatura, sim', () => {
+    expect(shouldPause({ ...vencida, asaasSubscriptionId: null }, NOW, cfg)).toBe(false);
+    expect(isStoreBlocked({ ...vencida, asaasSubscriptionId: null }, NOW, cfg)).toBe(false);
+    expect(shouldPause({ ...vencida, asaasSubscriptionId: 'sub_x' }, NOW, cfg)).toBe(true);
+    expect(isStoreBlocked({ ...vencida, asaasSubscriptionId: 'sub_x' }, NOW, cfg)).toBe(true);
+  });
+
+  it('job: dono sem documento (sem assinatura) com teste vencido → não pausa; paused sem assinatura → despausa', async () => {
+    const { store: a } = await makeStore({ verified: false });
+    const { store: b } = await makeStore({ verified: false });
+    await prisma.storeSaasBilling.create({ data: { storeId: a.id, trialEndsAt: new Date(NOW.getTime() - 30 * DAY) } });
+    await prisma.storeSaasBilling.create({ data: { storeId: b.id, trialEndsAt: new Date(NOW.getTime() - 30 * DAY), status: 'paused', pausedAt: NOW } });
+    await runSaasBillingCycle(NOW);
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: a.id } }))!.status).toBe('trialing');
+    const rb = await prisma.storeSaasBilling.findUnique({ where: { storeId: b.id } });
+    expect(rb!.status).toBe('trialing');
+    expect(rb!.pausedAt).toBeNull();
+  });
+
+  it('gate: past_due vencida sem assinatura não bloqueia pedido', async () => {
+    const { store } = await makeStore({ verified: false });
+    await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() - 30 * DAY), status: 'past_due' } });
+    expect(await isStoreBillingBlocked(store.id)).toBe(false);
+  });
+
+  it('GET do lojista: pendingReason owner_document sem assinatura e fee > 0; null com assinatura ou fee 0', async () => {
+    const { store, owner } = await makeStore({ verified: false });
+    const billing = await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() + 5 * DAY) } });
+    const get = () => request(app).get(`/api/stores/${store.id}/saas-billing`).set('Authorization', bearer(owner));
+
+    expect((await get()).body.data.pendingReason).toBe('owner_document');
+    await prisma.storeSaasBilling.update({ where: { id: billing.id }, data: { customFee: 0 } });
+    expect((await get()).body.data.pendingReason).toBeNull();
+    await prisma.storeSaasBilling.update({ where: { id: billing.id }, data: { customFee: null, asaasSubscriptionId: `sub_t66_${rand()}` } });
+    expect((await get()).body.data.pendingReason).toBeNull();
   });
 });

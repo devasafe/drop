@@ -262,7 +262,7 @@ describe('t64 — loja pausada não vende e some da vitrine (modo direto)', () =
     });
     await grantStoreConsent(store.id);
     // Status ainda `past_due` (o job não rodou), mas já passou da carência: bloqueia pela política.
-    await billingFor(store.id, { status: 'past_due' });
+    await billingFor(store.id, { status: 'past_due', asaasSubscriptionId: `sub_t64_${rand()}` });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);
 
     const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send({

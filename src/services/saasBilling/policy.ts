@@ -60,24 +60,28 @@ export function isBillingBlocked(billing: BillingLike | null | undefined, now: D
   return now.getTime() > limit;
 }
 
-type BillingWithFee = BillingLike & { customFee?: Money | null };
+type BillingWithFee = BillingLike & { customFee?: Money | null; asaasSubscriptionId?: string | null };
 type BlockConfig = { saasMonthlyFee: Money; saasGraceDays: number };
 
 /**
- * O job deve pausar a loja (ou mantê-la pausada)? Só olha datas e valor, não o status `paused`.
+ * O job deve pausar a loja (ou mantê-la pausada)? Só olha datas, valor e assinatura, não o status `paused`.
  * Fee efetivo ≤ 0 (padrão 0 ou valor especial 0 = isenta) → NUNCA: sem valor não há fatura
  * para pagar, então a loja não teria como sair da pausa.
+ * Sem assinatura (dono sem documento aprovado / sem CPF/CNPJ válido) → NUNCA, pelo mesmo motivo:
+ * não há fatura. Não abre brecha: no modo direto, loja cujo dono não tem documento aprovado já
+ * fica fora da vitrine pelo KYC da loja (A1). A tela do lojista mostra pendingReason 'owner_document'.
  */
 export function shouldPause(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
   if (!billing) return false;
   if (!(effectiveFee(billing, config) > 0)) return false;
+  if (!billing.asaasSubscriptionId) return false;
   return isBillingBlocked(billing, now, config.saasGraceDays);
 }
 
 /**
  * A loja está bloqueada AGORA pela mensalidade (gate de pedido e visões usam esta)?
  * Sem linha → não; cancelled → sempre; fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
- * demais → já `paused` ou shouldPause (antes de o job, de 1 em 1 h, gravar a pausa).
+ * demais → já `paused` ou shouldPause (que exige assinatura) (antes de o job, de 1 em 1 h, gravar a pausa).
  */
 export function isStoreBlocked(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
   if (!billing) return false;

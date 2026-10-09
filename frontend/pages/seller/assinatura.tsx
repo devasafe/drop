@@ -4,7 +4,8 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import ModeGate from '../../components/ModeGate';
 import { useAuth } from '../../contexts/AuthContext';
 import { Section } from '../../components/ui/Section';
-import { formatBRL, formatBillingDate, saasStatusMessage, type SaasBillingView } from '../../lib/saasBilling';
+import Link from 'next/link';
+import { formatBRL, formatBillingDate, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView } from '../../lib/saasBilling';
 import styles from './Integrations.module.css';
 
 function Assinatura() {
@@ -46,6 +47,14 @@ function Assinatura() {
                 {saasStatusMessage(data)}
               </p>
             </Section>
+            {data.pendingReason === 'owner_document' && (
+              <Section title="Fatura pendente">
+                <p style={{ margin: 0, color: 'var(--text-strong)' }}>{SAAS_PENDING_MESSAGE.owner_document}</p>
+                <Link href="/verificacao" className={styles.docsLink}>
+                  Ir para a verificação
+                </Link>
+              </Section>
+            )}
             <Section title="Valor mensal">
               <p style={{ margin: 0, color: 'var(--text-strong)' }}>{formatBRL(data.fee)}</p>
             </Section>

@@ -37,7 +37,16 @@ export interface SaasBillingView {
   fee: number;
   nextPayment: { dueDate: string; value: number; invoiceUrl: string | null; status: string } | null;
   blocked: boolean;
+  /** Sem assinatura com fee > 0: a fatura só sai depois de o dono aprovar o documento. */
+  pendingReason?: SaasPendingReason;
 }
+
+export type SaasPendingReason = 'owner_document' | null;
+
+/** Aviso ao lojista quando a fatura ainda não pode ser gerada (link para /verificacao na tela). */
+export const SAAS_PENDING_MESSAGE: Record<Exclude<SaasPendingReason, null>, string> = {
+  owner_document: 'Para gerar sua fatura, conclua a verificação do seu documento',
+};
 
 /** Frase em linguagem simples para o lojista. */
 export function saasStatusMessage(b: Pick<SaasBillingView, 'status' | 'trialEndsAt' | 'paidUntil'>): string {
