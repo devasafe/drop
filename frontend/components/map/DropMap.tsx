@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, ReactNode } from 'react';
 import { Map as MaplibreMap, AttributionControl } from 'maplibre-gl';
 import { DropMapContext } from './DropMapContext';
 import { mapStyleFor } from './style/dropLight';
+import { applyTheme } from './applyTheme';
 import { mapConfig, hasMapKey } from '../../lib/mapConfig';
 import styles from './DropMap.module.css';
 
@@ -11,6 +12,10 @@ export interface DropMapProps {
   className?: string;
   /** Camadas de negócio + overlays (só montam depois que o mapa carrega). */
   children?: ReactNode;
+  /**
+   * Dispara só no PRIMEIRO load. Camadas adicionadas aqui (em vez de via `children`)
+   * se perdem na troca de tema, pois `setStyle` recarrega o estilo.
+   */
   onReady?: (map: MaplibreMap) => void;
 }
 
@@ -65,8 +70,7 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
       if (next === theme) return;
       theme = next;
       setReady(false);
-      map.once('style.load', () => setReady(true));
-      map.setStyle(mapStyleFor(next, mapConfig.maptilerKey));
+      applyTheme(map, next, mapConfig.maptilerKey, () => setReady(true));
     });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
