@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import WithdrawSheet from '../../components/wallet/WithdrawSheet';
 import LegacyBalanceCard from '../../components/wallet/LegacyBalanceCard';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
 import WalletMetrics, { EarningsSummary } from '../../components/wallet/WalletMetrics';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -49,6 +50,10 @@ export default function MototboyWalletPage() {
   const { user } = useAuth();
   // Modo direto com saldo da custódia (o backend decide); na custódia → false.
   const custodyLeftover = useCustodyLeftover();
+  const { settlementMode, loading: modeLoading } = useSaasConfig();
+  // No modo direto não existe carteira/payout/saque (as rotas dão 404): só os Pix recebidos da loja.
+  // Exceção: saldo antigo da custódia mantém a página como na custódia.
+  const showWallet = settlementMode !== 'direto' || custodyLeftover;
   const router = useRouter();
   const { showToast } = useToast();
   const [transferring, setTransferring] = useState(false);
@@ -85,12 +90,14 @@ export default function MototboyWalletPage() {
   };
 
   useEffect(() => {
+    if (modeLoading) return;
     const fetchWallet = async () => {
       const gen = ++transfersGen.current;
       try {
         const motoboyId = user?._id || user?.id;
         if (!motoboyId) return;
         setFetchError(null);
+        if (showWallet) {
         const walletRes = await api.get(`/wallets/motoboy/${motoboyId}`);
         setWallet(walletRes.data);
         try {
@@ -105,6 +112,7 @@ export default function MototboyWalletPage() {
           const sumRes = await api.get('/payouts/my/summary');
           setSummary(sumRes.data);
         } catch { /* resumo opcional */ }
+        }
         try {
           // Modo direto: a loja paga o motoboy por Pix; só "Recebido" ou "pendente" (sem códigos internos).
           const trRes = await api.get('/motoboy/transfers');
@@ -112,10 +120,12 @@ export default function MototboyWalletPage() {
           setTransfers(Array.isArray(trRes.data?.data) ? trRes.data.data : []);
           setTransfersCursor(trRes.data?.nextCursor ?? null);
         } catch { /* sem transferências diretas */ }
-        try {
-          const wdRes = await api.get('/withdrawals/my-withdrawals');
-          setWithdrawals(Array.isArray(wdRes.data) ? wdRes.data : (wdRes.data?.withdrawals || []));
-        } catch { /* saques opcional */ }
+        if (showWallet) {
+          try {
+            const wdRes = await api.get('/withdrawals/my-withdrawals');
+            setWithdrawals(Array.isArray(wdRes.data) ? wdRes.data : (wdRes.data?.withdrawals || []));
+          } catch { /* saques opcional */ }
+        }
       } catch (err: any) {
         const status = err?.response?.status;
         const msg = err?.response?.data?.error || err?.message || 'Erro desconhecido';
@@ -125,7 +135,7 @@ export default function MototboyWalletPage() {
       }
     };
     fetchWallet();
-  }, [(user?._id || user?.id)]);
+  }, [(user?._id || user?.id), modeLoading, showWallet]);
 
   const handlePayoutClick = async (p: PayoutItem) => {
     setSelectedTx({ kind: 'payout', data: p });
@@ -181,7 +191,7 @@ export default function MototboyWalletPage() {
 
   // Extrato unificado: repasses (crédito) + saques (débito), mais recente primeiro.
   const entries = [
-    ...payouts.map((p) => ({
+    ...(showWallet ? payouts : []).map((p) => ({
       key: `p-${p._id}`, date: p.createdAt, sign: '+' as const, amount: p.amount,
       title: `Entrega #${p.orderId?.slice(-6) || '—'}`, statusView: payoutStatusView(p.status),
       // Repasse leva ao detalhe da entrega (com tudo). Sem deliveryId, cai no modal.
@@ -195,7 +205,7 @@ export default function MototboyWalletPage() {
         : { label: 'Pagamento pendente da loja', tone: 'pending' }) as { label: string; tone: PillTone },
       onClick: undefined as undefined | (() => void),
     })),
-    ...withdrawals.map((w: any, i: number) => {
+    ...(showWallet ? withdrawals : []).map((w: any, i: number) => {
       const wv = withdrawalStatusView(w.status);
       return {
         key: `w-${w._id || w.id || i}`, date: w.requestedAt || w.createdAt, sign: '-' as const, amount: Number(w.amount),
@@ -206,7 +216,7 @@ export default function MototboyWalletPage() {
     }),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  if (loading) {
+  if (loading || modeLoading) {
     return (
       <ProtectedRoute required_role="motoboy">
         <div className={styles.page}><div className={styles.container}>
@@ -222,11 +232,12 @@ export default function MototboyWalletPage() {
     <ProtectedRoute required_role="motoboy">
       <div className={styles.page}>
         <div className={styles.container}>
-          <h1 className={styles.title}>Ganhos e saques</h1>
+          <h1 className={styles.title}>{showWallet ? 'Ganhos e saques' : 'Repasses recebidos'}</h1>
 
           {fetchError && <div className={styles.error}>Erro ao carregar carteira: {fetchError}</div>}
 
           {/* Card de saldo */}
+          {showWallet && (<>
           <div className={styles.balanceCard}>
             <span className={styles.balanceGlow} aria-hidden="true" />
             <div className={styles.balanceTop}>
@@ -244,8 +255,10 @@ export default function MototboyWalletPage() {
 
           {/* Resumo financeiro (buckets agregados no backend) */}
           {summary && <WalletMetrics summary={summary} />}
+          </>)}
 
           {/* Dados de recebimento (item configurável discreto) */}
+          {showWallet && (
           <button className={styles.pixRow} onClick={() => router.push('/dados-recebimento')}>
             <span className={styles.pixIcon}><KeyRound size={16} aria-hidden="true" /></span>
             <span className={styles.pixText}>
@@ -254,12 +267,13 @@ export default function MototboyWalletPage() {
             </span>
             <ArrowUpRight size={16} aria-hidden="true" className={styles.pixChevron} />
           </button>
+          )}
 
           {/* Extrato */}
           <section className={styles.section}>
             <div className={styles.extractHead}>
-              <h2 className={styles.sectionTitle}>Extrato</h2>
-              <div className={styles.extractFilters}>
+              <h2 className={styles.sectionTitle}>{showWallet ? 'Extrato' : 'Pix recebidos das lojas'}</h2>
+              {showWallet && (<div className={styles.extractFilters}>
                 {(['todos', 'ganhos', 'saques'] as const).map((f) => (
                   <button
                     key={f}
@@ -269,14 +283,14 @@ export default function MototboyWalletPage() {
                     {f === 'todos' ? 'Todos' : f === 'ganhos' ? 'Ganhos' : 'Saques'}
                   </button>
                 ))}
-              </div>
+              </div>)}
             </div>
             {(() => {
               const filtered = entries.filter((e) =>
                 extractFilter === 'todos' ? true : extractFilter === 'ganhos' ? e.sign === '+' : e.sign === '-',
               );
               return filtered.length === 0 ? (
-              <EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Nenhuma movimentação" description="Seus repasses e saques aparecem aqui." />
+              <EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Nenhuma movimentação" description={showWallet ? 'Seus repasses e saques aparecem aqui.' : 'Os Pix que as lojas enviarem por suas entregas aparecem aqui.'} />
             ) : (
               <div className={styles.extractList}>
                 {filtered.map((e) => (
@@ -305,11 +319,13 @@ export default function MototboyWalletPage() {
           </section>
 
           {/* Ajuda */}
+          {showWallet && (
           <button className={styles.helpLink} onClick={() => router.push('/motoboy/ajuda-ganhos')}>
             <HelpCircle size={15} aria-hidden="true" />
             <span>Entenda como funcionam os ganhos e saques</span>
             <ArrowUpRight size={14} aria-hidden="true" />
           </button>
+          )}
         </div>
       </div>
 

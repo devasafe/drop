@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Icon from '../components/Icon';
 import { useStores } from '../hooks/useSync';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import styles from './CheckoutVitrine.module.css';
 
 type CartItem = { productId: string; quantity: number; name?: string; price?: number; storeId?: string };
@@ -15,6 +16,9 @@ export default function CheckoutVitrinePage() {
   const auth = useAuth();
   const router = useRouter();
   const { stores } = useStores();
+  // Carteira interna só existe na custódia; no modo direto /wallets/my-wallet dá 404.
+  const { settlementMode, loading: modeLoading } = useSaasConfig();
+  const walletActive = settlementMode === 'custodia';
 
   const storeId = cart.length > 0 ? cart[0].storeId : '';
   const currentStore = stores.find((s: any) => s._id === storeId);
@@ -45,13 +49,14 @@ export default function CheckoutVitrinePage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!auth?.user?.id) return;
+    if (!auth?.user?.id || modeLoading) return;
+    if (!walletActive) { setLoadingWallet(false); return; }
     api.get('/wallets/my-wallet')
       .then(res => { if (!cancelled) setWalletBalance(res.data?.balance ?? 0); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoadingWallet(false); });
     return () => { cancelled = true; };
-  }, [auth?.user?.id]);
+  }, [auth?.user?.id, modeLoading, walletActive]);
 
   // Pré-preencher endereço principal
   useEffect(() => {
@@ -75,7 +80,7 @@ export default function CheckoutVitrinePage() {
 
   const subtotal = cart.reduce((sum, c) => sum + (c.price || 0) * c.quantity, 0);
   const total = subtotal; // Sem taxa de entrega para Plano 1
-  const isWalletInsufficient = walletBalance < total;
+  const isWalletInsufficient = walletActive && walletBalance < total;
 
   const generateUUID = () =>
     'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -230,7 +235,7 @@ export default function CheckoutVitrinePage() {
               <span>R$ {total.toFixed(2)}</span>
             </div>
 
-            {!loadingWallet && (
+            {walletActive && !loadingWallet && (
               <div className={styles.walletRow}>
                 <span><Icon name="wallet" size={14} /> Seu saldo</span>
                 <span style={{ color: isWalletInsufficient ? '#ef4444' : '#34d399' }}>

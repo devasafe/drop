@@ -19,6 +19,8 @@ import PushEnableBanner from '../components/PushEnableBanner';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
 import OverviewTab from '../components/seller/OverviewTab';
+import { useSaasConfig } from '../hooks/useSaasConfig';
+import { useCustodyLeftover } from '../hooks/useCustodyLeftover';
 import OrderCard from '../components/seller/OrderCard';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -339,6 +341,8 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
 
 
 export default function StoreDashboard() {
+  const { settlementMode } = useSaasConfig();
+  const custodyLeftover = useCustodyLeftover();
   const router = useRouter();
   const { user, token } = useContext(AuthContext);
   const [store, setStore] = useState<any>(null);
@@ -792,6 +796,7 @@ export default function StoreDashboard() {
           {activeTab === 'overview' && (
             <OverviewTab
               store={store}
+              showFinanceiro={settlementMode === 'custodia' || custodyLeftover}
               orders={orders}
               history={historyOrders}
               metrics={{

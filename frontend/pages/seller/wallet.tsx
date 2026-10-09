@@ -15,6 +15,7 @@ import StoreWalletMetrics, { StoreFinancialSummary } from '../../components/wall
 import { List, Row } from '../../components/ui/List';
 import { formatBRL } from '../../components/ui/PriceTag';
 import styles from './SellerWallet.module.css';
+import ModeGate from '../../components/ModeGate';
 
 interface StoreWallet {
   _id: string;
@@ -47,7 +48,7 @@ interface HistoryItem {
   relatedId?: string;
 }
 
-export default function SellerWalletPage() {
+function SellerWalletPageInner() {
   const { user } = useAuth();
   // Modo direto com saldo da custódia (o backend decide); na custódia → false.
   const custodyLeftover = useCustodyLeftover();
@@ -476,4 +477,9 @@ export default function SellerWalletPage() {
       />
     </ProtectedRoute>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function SellerWalletPage() {
+  return (<ModeGate mode="custodia" allowLeftover><SellerWalletPageInner /></ModeGate>);
 }

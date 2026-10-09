@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert, Bell, BellRing, Package } from 'lucide-react';
 import api from '../../lib/api';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AuthContext from '../../contexts/AuthContext';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -31,6 +32,7 @@ export default function MotoboyPage() {
   const router = useRouter();
   const { user } = useContext(AuthContext);
   const { showToast } = useToast();
+  const { settlementMode } = useSaasConfig();
   const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
   const push = usePushNotifications();
 
@@ -233,10 +235,12 @@ export default function MotoboyPage() {
             <div className={styles.shortcuts}>
               {SHORTCUTS.map((s) => {
                 const Ico = s.icon;
+                // No modo direto o motoboy não tem carteira/saque: só vê os Pix recebidos da loja.
+                const label = s.href === '/motoboy/wallet' && settlementMode === 'direto' ? 'Repasses recebidos' : s.label;
                 return (
                   <button key={s.href} className={styles.shortcut} onClick={() => router.push(s.href)}>
                     <Ico size={18} className={styles.shortcutIcon} aria-hidden="true" />
-                    <span className={styles.shortcutLabel}>{s.label}</span>
+                    <span className={styles.shortcutLabel}>{label}</span>
                     <ChevronRight size={16} className={styles.shortcutChevron} aria-hidden="true" />
                   </button>
                 );

@@ -94,6 +94,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
     { label: 'Entregas',         icon: 'truck',     route: '/motoboy/ongoing',     placement: ['sidebar', 'bottomNav'], group: 'Trabalho', badge: 'deliveries' },
     { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
+    { label: 'Repasses recebidos', icon: 'wallet',   route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', directOnly: true },
     { label: 'Saldo do modo anterior', icon: 'wallet', route: '/motoboy/wallet',  placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
     { label: 'Desempenho',       icon: 'trophy',    route: '/motoboy/gamification', placement: ['sidebar', 'bottomNav'], group: 'Desempenho' },
     { label: 'Benefícios',       icon: 'gift',      route: '/motoboy/beneficios',  placement: ['sidebar', 'drawer'],   group: 'Desempenho' },

@@ -6,6 +6,7 @@ import styles from './MyWallet.module.css';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import TransactionDetailsModal from '../components/TransactionDetailsModal';
 import { useWallet } from '../hooks/useSync';
+import ModeGate from '../components/ModeGate';
 
 type HistoryTx = {
   date: string;
@@ -32,7 +33,7 @@ interface MyWallet {
 }
 
 
-export default function MyWalletPage() {
+function MyWalletPageInner() {
   const auth = useAuth();
   const router = useRouter();
   const { user, loading: authLoading } = auth || { loading: true };
@@ -586,4 +587,9 @@ export default function MyWalletPage() {
       )}
     </div>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function MyWalletPage() {
+  return (<ModeGate mode="custodia"><MyWalletPageInner /></ModeGate>);
 }

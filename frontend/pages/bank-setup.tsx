@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import Icon from '@/components/Icon';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import styles from './BankSetup.module.css';
+import ModeGate from '../components/ModeGate';
 
 interface BankInfo {
   banco: string;
@@ -13,7 +14,7 @@ interface BankInfo {
   cpfBanco: string;
 }
 
-export default function BankSetup() {
+function BankSetupInner() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth() || { loading: true };
 
@@ -295,4 +296,9 @@ export default function BankSetup() {
       </div>
     </div>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function BankSetup() {
+  return (<ModeGate mode="custodia"><BankSetupInner /></ModeGate>);
 }
