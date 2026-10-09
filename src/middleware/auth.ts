@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import env from '../config/env';
 import { extractTokenFromCookie } from '../utils/cookieManager';
 import { prisma } from '../lib/prisma';
+import logger from '../config/logger';
 
 interface JwtPayload {
   id: string;
@@ -20,8 +21,8 @@ const isDev = process.env.NODE_ENV === 'development';
 
 export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (isDev) {
-    console.log(`🔐 [AUTH] ${req.method} ${req.path}`);
-    console.log(`🔐 [AUTH] Headers:`, {
+    logger.debug(`🔐 [AUTH] ${req.method} ${req.path}`);
+    logger.debug(`🔐 [AUTH] Headers:`, {
       authorization: req.headers.authorization ? `${req.headers.authorization.substring(0, 20)}...` : 'NOT PROVIDED',
       contentType: req.headers['content-type']
     });
@@ -81,7 +82,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
   }
 
   req.user = decoded;
-  if (isDev) console.log(`✅ [AUTH OK] ${req.path} - User: ${decoded.id}`);
+  if (isDev) logger.debug(`✅ [AUTH OK] ${req.path} - User: ${decoded.id}`);
   return next();
 };
 

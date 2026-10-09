@@ -11,6 +11,7 @@ import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketEmitter';
 import env from '../config/env';
 import { isStoreOwner } from '../utils/storeOwnership';
+import logger from '../config/logger';
 
 /**
  * Reconcilia os buckets de saldo de um recebedor (store/motoboy) a partir dos
@@ -607,14 +608,14 @@ export const getMyWallet = async (req: Request, res: Response) => {
     let user: any = null;
     try {
       user = await userRepository.findById(userId);
-      console.log('✅ User encontrado:', { userId, name: user?.name });
+      logger.debug('✅ User encontrado:', { userId, name: user?.name });
     } catch (userErr: any) {
       console.warn('⚠️ Erro ao buscar user:', userErr.message);
     }
 
     // ✅ NOVO: Buscar role do parâmetro ou usar activeRole do user
     let role = req.params.role || user?.activeRole || user?.role || 'cliente';
-    console.log('🔍 getMyWallet chamado:', { userId, role, storeId: user?.storeId });
+    logger.debug('🔍 getMyWallet chamado:', { userId, role, storeId: user?.storeId });
     
     // Determinar ownerType baseado no role
     let ownerType = 'user';
@@ -624,13 +625,13 @@ export const getMyWallet = async (req: Request, res: Response) => {
       // Se é lojista e tem loja, buscar carteira da loja
       ownerType = 'store';
       owner = user.storeId.toString();
-      console.log('🏪 Buscando carteira de LOJA:', { owner, ownerType });
+      logger.debug('🏪 Buscando carteira de LOJA:', { owner, ownerType });
     } else if (role === 'motoboy') {
       // Se é motoboy, buscar carteira de motoboy
       ownerType = 'motoboy';
-      console.log('🏍️ Buscando carteira de MOTOBOY:', { owner, ownerType, userId });
+      logger.debug('🏍️ Buscando carteira de MOTOBOY:', { owner, ownerType, userId });
     } else {
-      console.log('👤 Buscando carteira de CLIENTE:', { owner, ownerType });
+      logger.debug('👤 Buscando carteira de CLIENTE:', { owner, ownerType });
     }
 
     // Busca/cria a wallet do papel.
@@ -711,7 +712,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       
       // Tentar buscar withdrawal requests
       try {
-        console.log('🔄 Buscando WithdrawalRequests...');
+        logger.debug('🔄 Buscando WithdrawalRequests...');
         const withdrawals = await findWRByMotoboy(String(userId));
         const pending = withdrawals.filter((w: any) => w.status === 'pending');
         const approved = withdrawals.filter((w: any) => w.status === 'approved');
@@ -720,19 +721,19 @@ export const getMyWallet = async (req: Request, res: Response) => {
         responseData.motoboy.totalRequestedAmount = withdrawals.reduce((sum: number, w: any) => sum + w.amount, 0);
         responseData.motoboy.totalApprovedAmount = approved.reduce((sum: number, w: any) => sum + w.amount, 0);
         responseData.motoboy.pendingWithdrawals = pending.length;
-        console.log('✅ WithdrawalRequests encontrados:', withdrawals?.length || 0);
+        logger.debug('✅ WithdrawalRequests encontrados:', withdrawals?.length || 0);
       } catch (withdrawalErr: any) {
         console.warn('⚠️ Erro ao buscar WithdrawalRequests (continuando):', withdrawalErr.message);
       }
       
       // Buscar config do sistema
       try {
-        console.log('🔄 Buscando PlatformConfig...');
+        logger.debug('🔄 Buscando PlatformConfig...');
         const config = await getPlatformConfig();
         responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw || 50;
         responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery || 5;
         responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm || 1;
-        console.log('✅ PlatformConfig encontrado');
+        logger.debug('✅ PlatformConfig encontrado');
       } catch (configErr: any) {
         console.warn('⚠️ Erro ao buscar PlatformConfig (continuando):', configErr.message);
       }
@@ -746,7 +747,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       };
     }
 
-    console.log('✅ Retornando response:', { owner, ownerType, balance: responseData.balance, role });
+    logger.debug('✅ Retornando response:', { owner, ownerType, balance: responseData.balance, role });
     return res.json(responseData);
     
   } catch (err: any) {

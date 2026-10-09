@@ -350,7 +350,7 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 
     // ✅ FIX: Atualizar user.storeId para que o wallet funcione
     await prisma.user.update({ where: { id: String(ownerId) }, data: { storeId: store.id } });
-    console.log('✅ [CREATE_STORE] User.storeId atualizado:', { ownerId, storeId: store.id });
+    logger.debug('✅ [CREATE_STORE] User.storeId atualizado:', { ownerId, storeId: store.id });
 
     // Broadcast store creation
     emitStoreCreated(store);
@@ -491,7 +491,7 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 // [Plan1] Retorna lojas em destaque (Plano 3 com featuredBannerUrl preenchido)
 export const getFeaturedStores = async (_req: Request, res: Response) => {
   try {
-    console.log('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
+    logger.debug('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
     // `{ $exists: true, $ne: '' }` vira "não nulo e diferente de vazio" no Prisma.
     const featuredFilter: any = {
       plan: 3,

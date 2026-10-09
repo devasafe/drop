@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { Address } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../types';
+import logger from '../config/logger';
 
 /**
  * Endereços do usuário.
@@ -40,8 +41,8 @@ export const addAddress = async (req: AuthenticatedRequest, res: Response) => {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true } });
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-    console.log(`[ADDRESS] POST /addresses para usuário ${user.name}:`);
-    console.log(`  - Novo endereço: ${street}, ${number} (setAsDefault=${setAsDefault})`);
+    logger.debug(`[ADDRESS] POST /addresses para usuário ${user.name}:`);
+    logger.debug(`  - Novo endereço: ${street}, ${number} (setAsDefault=${setAsDefault})`);
 
     await prisma.$transaction(async (tx) => {
       // Só pode haver um padrão: limpa os demais antes de inserir.
@@ -58,7 +59,7 @@ export const addAddress = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     const addresses = await listOrdered(userId);
-    console.log(`  - Endereços DEPOIS: ${addresses.length}`);
+    logger.debug(`  - Endereços DEPOIS: ${addresses.length}`);
 
     return res.status(201).json(addresses);
   } catch (err) {
@@ -145,10 +146,10 @@ export const listAddresses = async (req: AuthenticatedRequest, res: Response) =>
 
     const addresses = await listOrdered(userId);
 
-    console.log(`[ADDRESS] GET /addresses para usuário ${user.name} (${userId}):`);
-    console.log(`  - Total de endereços no DB: ${addresses.length}`);
+    logger.debug(`[ADDRESS] GET /addresses para usuário ${user.name} (${userId}):`);
+    logger.debug(`  - Total de endereços no DB: ${addresses.length}`);
     addresses.forEach((addr, idx) => {
-      console.log(`  [${idx}] ${addr.label || 'Sem apelido'} - ${addr.street}, ${addr.number} (isDefault=${addr.isDefault})`);
+      logger.debug(`  [${idx}] ${addr.label || 'Sem apelido'} - ${addr.street}, ${addr.number} (isDefault=${addr.isDefault})`);
     });
 
     return res.json(addresses);

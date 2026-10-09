@@ -219,7 +219,7 @@ export const avaliarMotoboy = async (req: AuthenticatedRequest, res: Response) =
 // Listar entregas em andamento para o motoboy logado
 export const listOngoingDeliveries = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    console.log('[listOngoingDeliveries] req.user:', req.user);
+    logger.debug('[listOngoingDeliveries] req.user:', req.user);
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
 
@@ -239,7 +239,7 @@ export const listOngoingDeliveries = async (req: AuthenticatedRequest, res: Resp
 
     const total = await prisma.delivery.count({ where });
 
-    console.log('[listOngoingDeliveries] found:', deliveries.length, 'deliveries');
+    logger.debug('[listOngoingDeliveries] found:', deliveries.length, 'deliveries');
     
     return res.json({
       deliveries,
@@ -318,7 +318,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     // Atualiza o status do pedido para 'delivered'
     order.status = 'entregue';
     await prisma.order.update({ where: { id: order.id }, data: { status: 'entregue' } });
-    console.log(`✅ [finalizarEntrega] Order ${order._id} marked as 'entregue'`);
+    logger.debug(`✅ [finalizarEntrega] Order ${order._id} marked as 'entregue'`);
 
     // Distribuição financeira para pedidos COD (pagamento acontece na entrega)
     if (order.paymentMethod === 'cash_on_delivery') {
@@ -399,7 +399,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
         if (cfg?.autoApprovePayouts === true) {
           await getPaymentProvider(order.paymentProvider).onDeliveryConfirmed(order._id.toString());
         } else {
-          console.log(`⏸️ [finalizarEntrega] autoApprovePayouts OFF — payouts do pedido ${order._id} ficam PENDING para liberação manual do admin`);
+          logger.debug(`⏸️ [finalizarEntrega] autoApprovePayouts OFF — payouts do pedido ${order._id} ficam PENDING para liberação manual do admin`);
         }
       } else {
         await prisma.$transaction(async (tx) => {
@@ -452,7 +452,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
 
     // 🎉 BROADCAST 3: ATUALIZAR O PEDIDO TAMBÉM - remove de 'andamento', entra em 'histórico'
     emitOrderStatusChanged(order);
-    console.log(`✅ [finalizarEntrega] Order status changed emitted for client to update history`);
+    logger.debug(`✅ [finalizarEntrega] Order status changed emitted for client to update history`);
 
     // --- Gamificação: pontos por entrega finalizada (respeita o freio /admin/freios) ---
     if (delivery.motoboyId && (await gamificationPointsOn())) {
@@ -522,18 +522,18 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
   let motoboyAmount: number | undefined = undefined;
   try {
     const productTotal = (order.products || []).reduce((sum: number, it: any) => sum + (it.price || 0) * (it.quantity || 1), 0);
-    console.log(`\n🔍 [createDelivery] INICIANDO REGISTRO DE COMISSÃO:`);
-    console.log(`   📦 Produto total: R$ ${productTotal}`);
-    console.log(`   🚗 Taxa de entrega: R$ ${fee}`);
-    console.log(`   📍 Distância: ${distance || 0}km`);
-    console.log(`   🏪 Store ID: ${order.storeId.toString()}`);
+    logger.debug(`\n🔍 [createDelivery] INICIANDO REGISTRO DE COMISSÃO:`);
+    logger.debug(`   📦 Produto total: R$ ${productTotal}`);
+    logger.debug(`   🚗 Taxa de entrega: R$ ${fee}`);
+    logger.debug(`   📍 Distância: ${distance || 0}km`);
+    logger.debug(`   🏪 Store ID: ${order.storeId.toString()}`);
     
     const distribution = await calculateOrderDistribution(productTotal, fee, order.storeId.toString(), Number(distance || 0));
     
-    console.log(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
-    console.log(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
-    console.log(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
-    console.log(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
+    logger.debug(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
+    logger.debug(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
+    logger.debug(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
+    logger.debug(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
 
     if (distribution.delivery) {
       motoboyAmount = distribution.delivery.motoboyAmount;
@@ -542,7 +542,7 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
       }
     }
     
-    console.log(`✅ COMISSÃO DE ENTREGA REGISTRADA COM SUCESSO!\n`);
+    logger.debug(`✅ COMISSÃO DE ENTREGA REGISTRADA COM SUCESSO!\n`);
   } catch (err) {
     console.error('\n❌ ERRO ao registrar comissão de entrega no caixa do app:', err);
     console.error(`   Pedido: ${order._id}`);
@@ -737,7 +737,6 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
   try {
     // DEBUG LOG
     // eslint-disable-next-line no-console
-    console.log('[listAvailableDeliveries] user:', req.user);
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
 
@@ -876,7 +875,7 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
     });
 
     // Log de verificação: confirma que o GPS do motoboy está pingando (Coolify logs).
-    console.log(`[gps] motoboy=${req.user.id} lat=${lat.toFixed(5)} lng=${lng.toFixed(5)}`);
+    logger.debug(`[gps] motoboy=${req.user.id} lat=${lat.toFixed(5)} lng=${lng.toFixed(5)}`);
     return res.json({ ok: true });
   } catch (err) {
     console.error('[updateMotoboyLocation] error:', err);
@@ -995,7 +994,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       pin: pinEntrega, // 🔑 PIN PARA O CLIENTE (entrega final)
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId}`);
+    logger.debug(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId}`);
 
     // 🔴 BROADCAST 2: Notificar LOJA que motoboy foi atribuído
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
@@ -1008,7 +1007,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
         motoboyName: motoboyName,
         message: `${motoboyName} foi atribuído para essa entrega`
       });
-      console.log(`📡 [claimDelivery] Event 'motoboy:assigned_to_order' sent to store ${order.storeId}`);
+      logger.debug(`📡 [claimDelivery] Event 'motoboy:assigned_to_order' sent to store ${order.storeId}`);
     }
 
     // 🔴 BROADCAST 3: Notificar MOTOBOY que foi atribuído
@@ -1021,16 +1020,16 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       message: `Você foi atribuído a uma nova entrega`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [claimDelivery] Event 'delivery:assigned_to_you' sent to motoboy ${userId}`);
+    logger.debug(`📡 [claimDelivery] Event 'delivery:assigned_to_you' sent to motoboy ${userId}`);
 
     // 🔴 BROADCAST 4: Status geral da delivery
     emitDeliveryStatusChanged(delivery);
-    console.log(`📡 [claimDelivery] Event 'delivery:status_changed' broadcast`);
+    logger.debug(`📡 [claimDelivery] Event 'delivery:status_changed' broadcast`);
 
     // Notifica a loja em tempo real para atualizar a lista de pedidos
     try {
       if (notifier.io) {
-        console.log('[SOCKET][BACKEND] Emitindo order_update para', `store:${order.storeId}`, 'orderId:', order._id);
+        logger.debug('[SOCKET][BACKEND] Emitindo order_update para', `store:${order.storeId}`, 'orderId:', order._id);
         notifier.io.to(`store:${order.storeId}`).emit('order_update', {
           orderId: String(order._id),
           type: 'motoboy_assigned',
@@ -1109,7 +1108,7 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
           returnedAt: new Date()
         }
       );
-      console.log(`📡 [requestReturn] Loja ${order.storeId} notificada sobre devolução`);
+      logger.debug(`📡 [requestReturn] Loja ${order.storeId} notificada sobre devolução`);
     }
 
     // Notificar motoboy que PIN foi gerado (não enviar o PIN para o cliente!)
@@ -1160,7 +1159,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
-    console.log(`📋 [confirmReturn] userId: ${userId}, store.ownerId: ${store?.ownerId}`);
+    logger.debug(`📋 [confirmReturn] userId: ${userId}, store.ownerId: ${store?.ownerId}`);
     if (!store || store.ownerId.toString() !== userId) {
       console.error(`📋 [confirmReturn] ❌ AUTH FAIL - userId: ${userId}, storeOwnerId: ${store?.ownerId?.toString()}`);
       return res.status(403).json({ error: 'Apenas o proprietário da loja pode confirmar devolução' });
@@ -1200,7 +1199,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       delivery.motoboyId = null;
       clearDeliveryPins(delivery);
       await persistDelivery(delivery);
-      console.log(`✅ [confirmReturn] Delivery ${delivery._id} voltou ao pool para reatribuição`);
+      logger.debug(`✅ [confirmReturn] Delivery ${delivery._id} voltou ao pool para reatribuição`);
 
       // Notificar motoboy: pode fechar a modal
       emitToRoom(`user:${motoboyIdNotify}`, 'delivery:return_confirmed', {
@@ -1234,7 +1233,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       delivery.status = 'cancelled';
       delivery.cancelledAt = new Date();
       await persistDelivery(delivery);
-      console.log(`📋 [confirmReturn] Cancelando Order para o cliente...`);
+      logger.debug(`📋 [confirmReturn] Cancelando Order para o cliente...`);
 
       // ✅ TRAVA ATÔMICA ANTI-DUPLO-REEMBOLSO (review #1b): só reembolsa se ESTE request for
       // o que efetivamente move o pedido de um estado cancelável → 'cancelado'. Se o pedido já
@@ -1249,7 +1248,7 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       });
       order.status = 'cancelado';
       const newlyCancelled = cancelClaim.count === 1;
-      console.log(`✅ [confirmReturn] Order ${order._id} — newlyCancelled=${newlyCancelled}`);
+      logger.debug(`✅ [confirmReturn] Order ${order._id} — newlyCancelled=${newlyCancelled}`);
 
       // Modo direto (asaas_loja): o dinheiro está na conta da loja — nada de carteira,
       // Payout ou AppCashbox. Pago → o estorno pela chave da loja fica pendente pro admin
@@ -1281,12 +1280,12 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
               });
             }
           });
-          console.log(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
+          logger.debug(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
         } catch (refundErr) {
           console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);
         }
       } else if (!newlyCancelled) {
-        console.log(`⏭️ [confirmReturn] Pedido ${order._id} já estava cancelado — refund pulado (anti-duplo-reembolso)`);
+        logger.debug(`⏭️ [confirmReturn] Pedido ${order._id} já estava cancelado — refund pulado (anti-duplo-reembolso)`);
       }
 
       emitToRoom(`user:${delivery.motoboyId}`, 'delivery:return_confirmed', {

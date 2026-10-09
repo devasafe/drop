@@ -919,7 +919,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // [Plan1] Lojas no Plano 1 (Vitrine) não usam motoboy integrado
     if (storePlan === 1) {
-      console.log(`[Plan1] Pedido ${order.id} — loja ${store.id} é Plano 1 (Vitrine). Aceitando sem criar Delivery.`);
+      logger.debug(`[Plan1] Pedido ${order.id} — loja ${store.id} é Plano 1 (Vitrine). Aceitando sem criar Delivery.`);
       order.status = 'pago';
       await prisma.order.update({ where: { id: order.id }, data: { status: 'pago' } });
       emitOrderStatusChanged(order);

@@ -21,12 +21,12 @@ import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 
-console.log('📍 [INDEX] Starting application...');
+logger.info('📍 [INDEX] Starting application...');
 
 connectDB().then(() => {
-  console.log('✅ [INDEX] Database connected');
+  logger.info('✅ [INDEX] Database connected');
   const server = http.createServer(app);
-  console.log('✅ [INDEX] HTTP server created');
+  logger.info('✅ [INDEX] HTTP server created');
 
   // Error handlers ANTES de qualquer coisa
   server.on('error', (err: any) => {
@@ -46,9 +46,9 @@ connectDB().then(() => {
 
   // initialize Socket.IO on the HTTP server (notifier handles initialization)
   try {
-    console.log('📍 [INDEX] Initializing Socket.IO...');
+    logger.info('📍 [INDEX] Initializing Socket.IO...');
     notifier.initSocket(server);
-    console.log('✅ [INDEX] Socket.IO initialized');
+    logger.info('✅ [INDEX] Socket.IO initialized');
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Socket.IO initialization skipped or failed', e);
@@ -56,9 +56,9 @@ connectDB().then(() => {
 
   // ✅ FIX #5: Inicializar job de timeout para motoboy não-responsivo
   try {
-    console.log('📍 [INDEX] Starting delivery timeout job...');
+    logger.info('📍 [INDEX] Starting delivery timeout job...');
     startDeliveryTimeoutJob();
-    console.log('✅ [INDEX] Delivery timeout job started');
+    logger.info('✅ [INDEX] Delivery timeout job started');
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Delivery timeout job failed to start', e);
@@ -107,12 +107,12 @@ connectDB().then(() => {
     console.warn('⚠️ Motoboy transfers job failed to start', e);
   }
 
-  console.log(`📍 [INDEX] Calling server.listen(${env.PORT})...`);
+  logger.info(`📍 [INDEX] Calling server.listen(${env.PORT})...`);
   
   server.listen(env.PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${env.PORT} (${env.NODE_ENV} mode)`);
-    console.log(`✅ [INDEX] Server fully initialized and listening on 0.0.0.0:${env.PORT}`);
-    console.log('📍 [INDEX] Keeping process alive...');
+    logger.info(`🚀 Server running on port ${env.PORT} (${env.NODE_ENV} mode)`);
+    logger.info(`✅ [INDEX] Server fully initialized and listening on 0.0.0.0:${env.PORT}`);
+    logger.info('📍 [INDEX] Keeping process alive...');
     
     // Manter processo vivo
     setInterval(() => {

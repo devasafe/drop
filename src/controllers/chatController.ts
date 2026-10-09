@@ -88,7 +88,7 @@ export const createOrGetConversation = async (
       // 🆕 Remover userId do deletedBy se estava lá (reativar) + reativar se inativa
       const patch: any = {};
       if (Array.isArray(conversation.deletedBy) && conversation.deletedBy.includes(String(userId))) {
-        console.log(`🔄 [CHAT] Reativando conversa deletada: ${conversation._id}`);
+        logger.debug(`🔄 [CHAT] Reativando conversa deletada: ${conversation._id}`);
         patch.deletedBy = conversation.deletedBy.filter((id: string) => String(id) !== String(userId));
       }
       if (!conversation.isActive) patch.isActive = true;
@@ -96,7 +96,7 @@ export const createOrGetConversation = async (
       if (Object.keys(patch).length > 0) {
         conversation = await updateConversation(conversation._id, patch);
       }
-      console.log(`✅ [CHAT] Conversa existente encontrada/reativada: ${conversation._id}`);
+      logger.debug(`✅ [CHAT] Conversa existente encontrada/reativada: ${conversation._id}`);
       return res.json(conversation);
     }
 
@@ -142,8 +142,8 @@ export const createOrGetConversation = async (
       isMuted: [false, false]
     });
 
-    console.log(`✅ [CHAT] Nova conversa criada: ${newConversation._id}`);
-    console.log(`📢 [CHAT] Emitindo para userId1=${userId}, userId2=${otherUserId}`);
+    logger.debug(`✅ [CHAT] Nova conversa criada: ${newConversation._id}`);
+    logger.debug(`📢 [CHAT] Emitindo para userId1=${userId}, userId2=${otherUserId}`);
     
     // 📢 Notificar ambos os participantes sobre a conversa via Socket.io
     notifier.emitNewConversation(userId, otherUserId, newConversation);
@@ -244,7 +244,7 @@ export const getMessages = async (
     // 🆕 AUTO-MARCAR COMO LIDO: Mensagens do outro usuário que ainda não foram lidas
     const modified = await markIncomingMessagesRead(String(conversationId), String(userId));
     if (modified > 0) {
-      console.log(`✅ [GET MESSAGES] ${modified} mensagens marcadas como lidas automaticamente`);
+      logger.debug(`✅ [GET MESSAGES] ${modified} mensagens marcadas como lidas automaticamente`);
     }
 
     // Buscar mensagens
@@ -261,7 +261,7 @@ export const getMessages = async (
     if (participantIndex !== -1 && conversation.unreadCount[participantIndex] > 0) {
       conversation.unreadCount[participantIndex] = 0;
       await updateConversation(conversation._id, { unreadCount: conversation.unreadCount });
-      console.log(`✅ [GET MESSAGES] Zerado unreadCount para participante ${participantIndex}`);
+      logger.debug(`✅ [GET MESSAGES] Zerado unreadCount para participante ${participantIndex}`);
     }
 
     return res.json({
@@ -305,7 +305,7 @@ export const sendMessage = async (
     const conversationId = req.params.conversationId || req.body.conversationId;
     const { text, attachments } = req.body;
 
-    console.log('📨 [SEND MESSAGE] Recebido:', {
+    logger.debug('📨 [SEND MESSAGE] Recebido:', {
       userId,
       userRole,
       userName,
@@ -335,7 +335,7 @@ export const sendMessage = async (
 
     // Buscar conversa
     let conversation = await findConversationById(conversationId);
-    console.log('🔍 [SEND MESSAGE] Conversa encontrada:', {
+    logger.debug('🔍 [SEND MESSAGE] Conversa encontrada:', {
       found: !!conversation,
       conversationId,
       participant1Id: conversation?.participant1.userId?.toString(),
@@ -346,7 +346,7 @@ export const sendMessage = async (
     // 🆕 Se conversa foi deletada pelo usuário, reativar
     let wasReactivated = false;
     if (conversation && Array.isArray(conversation.deletedBy) && conversation.deletedBy.includes(String(userId))) {
-      console.log(`🔄 [SEND MESSAGE] Reativando conversa deletada para usuário: ${userId}`);
+      logger.debug(`🔄 [SEND MESSAGE] Reativando conversa deletada para usuário: ${userId}`);
       conversation = await updateConversation(conversation._id, {
         deletedBy: conversation.deletedBy.filter((id: string) => String(id) !== String(userId)),
       });
@@ -370,7 +370,7 @@ export const sendMessage = async (
 
     // Se conversa não existe, criar automaticamente
     if (!conversation) {
-      console.log(`⚠️ [SEND MESSAGE] Conversa não encontrada. Tentando criar automaticamente...`);
+      logger.debug(`⚠️ [SEND MESSAGE] Conversa não encontrada. Tentando criar automaticamente...`);
       
       // Buscar outro participante no body
       const { otherParticipantId, conversationType } = req.body;
@@ -441,7 +441,7 @@ export const sendMessage = async (
         lastMessageAt: new Date()
       });
 
-      console.log(`✅ [SEND MESSAGE] Nova conversa criada automaticamente: ${conversation._id}`);
+      logger.debug(`✅ [SEND MESSAGE] Nova conversa criada automaticamente: ${conversation._id}`);
       
       // Emitir evento de nova conversa (usando otherUserIdForNotif)
       notifier.emitNewConversation(userId, otherUserIdForNotif, conversation);
@@ -456,7 +456,7 @@ export const sendMessage = async (
     const isSenderAdmin = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(senderActiveRole);
     const isSupportConv = (conversation as any).type === 'suporte';
 
-    console.log('👤 [SEND MESSAGE] Verificação de participante:', {
+    logger.debug('👤 [SEND MESSAGE] Verificação de participante:', {
       isParticipant,
       userId,
       participant1: String(conversation.participant1.userId),
@@ -523,7 +523,7 @@ export const sendMessage = async (
       unreadCount: newUnread,
     });
 
-    console.log(`✅ [CHAT] Mensagem enviada: ${message._id}`);
+    logger.debug(`✅ [CHAT] Mensagem enviada: ${message._id}`);
 
     // 📨 Emitir evento Socket.io para notificar participantes em tempo real
     const msgPayload = {
@@ -621,7 +621,7 @@ export const markAsRead = async (
 
     const modifiedCount = await markMessagesReadByIds(messageIds || [], String(conversationId));
 
-    console.log(`✅ [CHAT] ${modifiedCount} mensagens marcadas como lidas`);
+    logger.debug(`✅ [CHAT] ${modifiedCount} mensagens marcadas como lidas`);
 
     // Atualizar contador de não-lidas
     const newUnread = [...conversation.unreadCount];
@@ -681,7 +681,7 @@ export const muteConversation = async (
     newMuted[participantIndex] = isMuted;
     await updateConversation(conversation._id, { isMuted: newMuted });
 
-    console.log(`✅ [CHAT] Conversa ${isMuted ? 'silenciada' : 'desilenciada'}: ${conversationId}`);
+    logger.debug(`✅ [CHAT] Conversa ${isMuted ? 'silenciada' : 'desilenciada'}: ${conversationId}`);
 
     return res.json({ success: true, isMuted });
   } catch (error) {
@@ -728,7 +728,7 @@ export const blockParticipant = async (
     newBlocked[participantIndex] = isBlocked;
     await updateConversation(conversation._id, { isBlocked: newBlocked });
 
-    console.log(
+    logger.debug(
       `✅ [CHAT] Conversa ${isBlocked ? 'bloqueada' : 'desbloqueada'}: ${conversationId}`
     );
 
@@ -769,7 +769,7 @@ export const deleteConversation = async (
     }
 
     // Marcar como deletado apenas para este usuário (soft delete)
-    console.log(`🗑️ [CHAT] Marcando conversa como deletada para usuário: ${userId}`);
+    logger.debug(`🗑️ [CHAT] Marcando conversa como deletada para usuário: ${userId}`);
 
     // Se ambos usuários deletaram, excluir de verdade
     let deletedByArray: string[] = [...(conversation.deletedBy || [])];
@@ -782,7 +782,7 @@ export const deleteConversation = async (
 
     // Se ambos deletaram, excluir permanentemente
     if (deletedByArray.length === 2) {
-      console.log(`🗑️ [CHAT] Ambos usuários deletaram. Removendo conversa permanentemente: ${conversationId}`);
+      logger.debug(`🗑️ [CHAT] Ambos usuários deletaram. Removendo conversa permanentemente: ${conversationId}`);
       await deleteMessagesByConversation(String(conversationId));
       await deleteConversationById(String(conversationId));
 
@@ -800,7 +800,7 @@ export const deleteConversation = async (
       notifier.default.emitConversationDeletedForUser(userId, conversationId);
     }
 
-    console.log(`✅ [CHAT] Conversa marcada como deletada para usuário: ${userId}`);
+    logger.debug(`✅ [CHAT] Conversa marcada como deletada para usuário: ${userId}`);
 
     return res.json({ success: true });
   } catch (error) {
@@ -880,43 +880,43 @@ export const createOrGetPrePurchaseConversation = async (
   res: Response
 ): Promise<Response> => {
   try {
-    console.log(`📨 [CONTROLLER] createOrGetPrePurchaseConversation - START`);
-    console.log(`📨 [CONTROLLER] req.user:`, req.user);
-    console.log(`📨 [CONTROLLER] req.body:`, req.body);
+    logger.debug(`📨 [CONTROLLER] createOrGetPrePurchaseConversation - START`);
+    logger.debug(`📨 [CONTROLLER] req.user:`, req.user);
+    logger.debug(`📨 [CONTROLLER] req.body:`, req.body);
     
     const userId = req.user?.id;
     const { storeId, productId, conversationType = 'user' } = req.body;
 
-    console.log(`📨 [CONTROLLER] userId: ${userId}, storeId: ${storeId}`);
+    logger.debug(`📨 [CONTROLLER] userId: ${userId}, storeId: ${storeId}`);
 
     if (!userId || !storeId) {
-      console.log(`❌ [CONTROLLER] Missing IDs - userId: ${userId}, storeId: ${storeId}`);
+      logger.debug(`❌ [CONTROLLER] Missing IDs - userId: ${userId}, storeId: ${storeId}`);
       return res.status(400).json({ error: 'IDs obrigatórios', details: { userId: !!userId, storeId: !!storeId } });
     }
 
     // ✅ FIX: Buscar a Store e obter o ownerId
-    console.log(`📨 [CONTROLLER] Buscando Store com ID: ${storeId}`);
+    logger.debug(`📨 [CONTROLLER] Buscando Store com ID: ${storeId}`);
     const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     
     if (!store) {
-      console.log(`❌ [CONTROLLER] Store não encontrada com ID: ${storeId}`);
+      logger.debug(`❌ [CONTROLLER] Store não encontrada com ID: ${storeId}`);
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
 
-    console.log(`✅ [CONTROLLER] Store encontrada: ${store.name}, ownerId: ${store.ownerId}`);
+    logger.debug(`✅ [CONTROLLER] Store encontrada: ${store.name}, ownerId: ${store.ownerId}`);
     
     const storeOwnerId = store.ownerId.toString();
 
     // Validar tipo de conversa (com fallback para 'user')
     const validConversationType = ['product', 'user'].includes(conversationType) ? conversationType : 'user';
 
-    console.log(`📨 [CONTROLLER] validConversationType: ${validConversationType}`);
+    logger.debug(`📨 [CONTROLLER] validConversationType: ${validConversationType}`);
 
     // Buscar conversa existente
     let conversation: any;
 
     if (validConversationType === 'product' && productId) {
-      console.log(`📨 [CONTROLLER] Buscando por PRODUTO`);
+      logger.debug(`📨 [CONTROLLER] Buscando por PRODUTO`);
       // Buscar por produto
       conversation = await findConversationBetween({
         type: 'loja_cliente_pre_compra',
@@ -925,7 +925,7 @@ export const createOrGetPrePurchaseConversation = async (
         productId: String(productId),
       });
     } else {
-      console.log(`📨 [CONTROLLER] Buscando por USUÁRIO`);
+      logger.debug(`📨 [CONTROLLER] Buscando por USUÁRIO`);
       // Buscar por usuário (sem produto específico)
       conversation = await findConversationBetween({
         type: 'loja_cliente_pre_compra',
@@ -936,7 +936,7 @@ export const createOrGetPrePurchaseConversation = async (
     }
 
     if (conversation) {
-      console.log(`✅ [CONTROLLER] Conversa encontrada: ${conversation._id}`);
+      logger.debug(`✅ [CONTROLLER] Conversa encontrada: ${conversation._id}`);
       // Reativar se estava desativada
       if (!conversation.isActive) {
         conversation = await updateConversation(conversation._id, { isActive: true });
@@ -944,21 +944,21 @@ export const createOrGetPrePurchaseConversation = async (
       return res.json(conversation);
     }
 
-    console.log(`📨 [CONTROLLER] Conversa não encontrada, buscando participantes`);
+    logger.debug(`📨 [CONTROLLER] Conversa não encontrada, buscando participantes`);
 
     // Buscar dados dos participantes
     const customer = await userRepository.findById(String(userId)) as any;
     const storeOwner = await userRepository.findById(String(storeOwnerId)) as any;
 
-    console.log(`📨 [CONTROLLER] customer:`, customer ? customer.name : 'NOT FOUND');
-    console.log(`📨 [CONTROLLER] storeOwner:`, storeOwner ? storeOwner.name : 'NOT FOUND');
+    logger.debug(`📨 [CONTROLLER] customer:`, customer ? customer.name : 'NOT FOUND');
+    logger.debug(`📨 [CONTROLLER] storeOwner:`, storeOwner ? storeOwner.name : 'NOT FOUND');
 
     if (!customer || !storeOwner) {
-      console.log(`❌ [CONTROLLER] Usuário não encontrado`);
+      logger.debug(`❌ [CONTROLLER] Usuário não encontrado`);
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    console.log(`📨 [CONTROLLER] Criando nova conversa`);
+    logger.debug(`📨 [CONTROLLER] Criando nova conversa`);
 
     // Criar nova conversa
     const newConversation = await createConversation({
@@ -980,7 +980,7 @@ export const createOrGetPrePurchaseConversation = async (
       isMuted: [false, false]
     });
 
-    console.log(
+    logger.debug(
       `✅ [CHAT PRÉ-COMPRA] Nova conversa criada: ${newConversation._id}`
     );
 

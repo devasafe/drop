@@ -545,7 +545,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       `Seu saque de ${brl(Number(withdrawal.amount))} foi rejeitado. Motivo: ${rejectionReason}. O valor voltou a ficar disponível para saque.`,
     );
 
-    console.log('✅ Saque rejeitado:', { withdrawalId, motoboyId: withdrawal.motoboyId, reason });
+    logger.debug('✅ Saque rejeitado:', { withdrawalId, motoboyId: withdrawal.motoboyId, reason });
 
     return res.json({
       message: 'Saque rejeitado',

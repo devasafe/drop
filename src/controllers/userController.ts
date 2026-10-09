@@ -6,17 +6,18 @@ import userRepository from '../repositories/user.repository';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidImageBuffer } from '../middleware/upload';
+import logger from '../config/logger';
 
 // Retorna os dados do usuário autenticado
 export const getMe = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    console.log(`[getMe] Requisição para usuário: ${userId}`);
+    logger.debug(`[getMe] Requisição para usuário: ${userId}`);
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     const user = await userRepository.findByIdWithAddresses(userId);
-    console.log(`[getMe] Resultado: ${user ? 'Usuário encontrado' : 'Usuário NÃO encontrado'}`);
+    logger.debug(`[getMe] Resultado: ${user ? 'Usuário encontrado' : 'Usuário NÃO encontrado'}`);
     if (user) {
-      console.log(`[getMe] User name: ${user.name}, addresses count: ${(user.addresses || []).length}`);
+      logger.debug(`[getMe] User name: ${user.name}, addresses count: ${(user.addresses || []).length}`);
     }
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 

@@ -4,6 +4,7 @@ import { findPlanById, findPlanByName } from '../repositories/pricingPlan.reposi
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { prisma } from '../lib/prisma';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
+import logger from '../config/logger';
 
 /**
  * Arredonda valores monetários para 2 casas decimais (centavos).
@@ -21,7 +22,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     // 1️⃣ Primeiro, tenta buscar StoreSubscription (modelo atual)
     const subscription = await findSubByStoreId(storeId);
     if (subscription && subscription.commissionRate !== undefined) {
-      console.log(`📊 [getStorePlanFee] StoreSubscription ${storeId} - Plano: ${subscription.currentPlan}, Comissão: ${subscription.commissionRate}%`);
+      logger.debug(`📊 [getStorePlanFee] StoreSubscription ${storeId} - Plano: ${subscription.currentPlan}, Comissão: ${subscription.commissionRate}%`);
       return subscription.commissionRate;
     }
 
@@ -31,7 +32,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     if (user && user.planId) {
       const plan = await findPlanById(user.planId);
       if (plan) {
-        console.log(`📊 [getStorePlanFee] Lojista ${storeId} - Plano: ${plan.name}, Comissão: ${plan.commission}%`);
+        logger.debug(`📊 [getStorePlanFee] Lojista ${storeId} - Plano: ${plan.name}, Comissão: ${plan.commission}%`);
         return plan.commission || 0;
       }
     }
@@ -42,7 +43,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
 
     // Se houver customFee (caso especial), usa ela
     if (store.customCommissionRate !== undefined) {
-      console.log(`📊 [getStorePlanFee] Store ${storeId} - Custom Fee: ${store.customCommissionRate}%`);
+      logger.debug(`📊 [getStorePlanFee] Store ${storeId} - Custom Fee: ${store.customCommissionRate}%`);
       return store.customCommissionRate;
     }
 
@@ -57,7 +58,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     if (planName) {
       const pricingPlan = await findPlanByName(planName);
       if (pricingPlan && pricingPlan.commission != null) {
-        console.log(`📊 [getStorePlanFee] Store ${storeId} - PricingPlan "${planName}": ${pricingPlan.commission}%`);
+        logger.debug(`📊 [getStorePlanFee] Store ${storeId} - PricingPlan "${planName}": ${pricingPlan.commission}%`);
         return pricingPlan.commission;
       }
     }
@@ -70,7 +71,7 @@ export async function getStorePlanFee(storeId: string): Promise<number> {
     };
 
     const fee = planFees[store.plan || 1] || 10;
-    console.log(`📊 [getStorePlanFee] Store ${storeId} - Fallback Fee: ${fee}% (planId: ${store.plan})`);
+    logger.debug(`📊 [getStorePlanFee] Store ${storeId} - Fallback Fee: ${fee}% (planId: ${store.plan})`);
     return fee;
   } catch (error) {
     // ⚠️ NUNCA retornar 0% silenciosamente — isso faria a plataforma deixar de
@@ -188,7 +189,7 @@ export async function calculateOrderDistribution(
     const storePlan = (store as any)?.plan ?? 2;
     let effectiveDeliveryFee = deliveryFeeTotal;
     if (storePlan === 1) {
-      console.log(`[Plan1] Loja ${storeId} é Plano 1 (Vitrine) — forçando deliveryFee = 0`);
+      logger.debug(`[Plan1] Loja ${storeId} é Plano 1 (Vitrine) — forçando deliveryFee = 0`);
       effectiveDeliveryFee = 0;
     }
 

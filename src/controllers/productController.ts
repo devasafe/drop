@@ -9,6 +9,7 @@ import {
   emitProductDeleted,
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
+import logger from '../config/logger';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
@@ -98,7 +99,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
       // Não falha a requisição se socket falhar
     }
     
-    console.log(`[createProduct] Produto criado: ${product.id} (${name})`);
+    logger.debug(`[createProduct] Produto criado: ${product.id} (${name})`);
     return res.status(201).json(toApiProduct(product));
   } catch (err: any) {
     console.error('[createProduct] Erro:', err);
@@ -235,7 +236,7 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     // Emit socket event
     emitProductUpdated(toApiProduct(updated));
 
-    console.log(`[updateProduct] Produto atualizado: ${updated.id}`);
+    logger.debug(`[updateProduct] Produto atualizado: ${updated.id}`);
     return res.json(toApiProduct(updated));
   } catch (err) {
     // eslint-disable-next-line no-console

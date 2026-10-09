@@ -1511,24 +1511,24 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       // 🔴 REGISTRAR COMISSÃO DE ENTREGA NO APPCASHBOX
       try {
         const productTotal = (order.products || []).reduce((sum: number, it: any) => sum + (it.price || 0) * (it.quantity || 1), 0);
-        console.log(`\n🔍 [rejectOrder] REGISTRANDO COMISSÃO DE ENTREGA:`);
-        console.log(`   📦 Produto total: R$ ${productTotal}`);
-        console.log(`   🚗 Taxa de entrega: R$ ${fee}`);
-        console.log(`   📍 Distância: ${distance}km`);
-        console.log(`   🏪 Store ID: ${order.storeId.toString()}`);
+        logger.debug(`\n🔍 [rejectOrder] REGISTRANDO COMISSÃO DE ENTREGA:`);
+        logger.debug(`   📦 Produto total: R$ ${productTotal}`);
+        logger.debug(`   🚗 Taxa de entrega: R$ ${fee}`);
+        logger.debug(`   📍 Distância: ${distance}km`);
+        logger.debug(`   🏪 Store ID: ${order.storeId.toString()}`);
         
         const distribution = await calculateOrderDistribution(productTotal, fee, order.storeId.toString(), Number(distance || 0));
         
-        console.log(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
-        console.log(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
-        console.log(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
-        console.log(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
+        logger.debug(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
+        logger.debug(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
+        logger.debug(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
+        logger.debug(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
 
         if (order.paymentMethod === 'cash_on_delivery' && distribution.delivery) {
           await addCommissionToAppCashbox('delivery_commission', distribution.delivery.appCommission, order._id.toString(), delivery._id.toString(), 'Comissão de entrega');
         }
 
-        console.log(`✅ COMISSÃO REGISTRADA COM SUCESSO!\n`);
+        logger.debug(`✅ COMISSÃO REGISTRADA COM SUCESSO!\n`);
       } catch (err) {
         console.error('\n❌ ERRO ao registrar comissão de entrega no caixa do app:', err);
         console.error(`   Pedido: ${order._id}`);

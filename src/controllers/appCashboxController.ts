@@ -9,6 +9,7 @@ import {
   updateWithdrawal,
 } from '../repositories/withdrawal.repository';
 import payoutService from '../services/payout.service';
+import logger from '../config/logger';
 
 /**
  * Carrega o extrato (ledger) do caixa na forma { type, source, amount, date, ... }
@@ -215,7 +216,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     });
 
     // ✅ Registrar no histórico (apenas o débito vai quando aprovado)
-    console.log('✅ Solicitação de saque criada:', withdrawal._id);
+    logger.debug('✅ Solicitação de saque criada:', withdrawal._id);
 
     return res.json({
       success: true,
@@ -303,7 +304,7 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     }
     const updated = await findWithdrawalById(id);
 
-    console.log('✅ Saque aprovado:', updated._id);
+    logger.debug('✅ Saque aprovado:', updated._id);
 
     return res.json({
       success: true,
@@ -343,7 +344,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       processedBy: userId,
     });
 
-    console.log('✅ Saque rejeitado:', updated._id);
+    logger.debug('✅ Saque rejeitado:', updated._id);
 
     return res.json({
       success: true,
@@ -376,7 +377,7 @@ export const registerDeposit = async (req: Request & { user?: any }, res: Respon
     });
     const cashbox = await ensureAppCashbox();
 
-    console.log('✅ Depósito registrado:', amount);
+    logger.debug('✅ Depósito registrado:', amount);
 
     return res.json({
       success: true,
@@ -444,7 +445,7 @@ export async function addCommissionToAppCashbox(
       reason,
       affectsBalance,
     });
-    console.log(`✅ Comissão adicionada ao caixa: ${type} = R$ ${amount} (affectsBalance=${affectsBalance})`);
+    logger.debug(`✅ Comissão adicionada ao caixa: ${type} = R$ ${amount} (affectsBalance=${affectsBalance})`);
   } catch (err) {
     console.error(`❌ Erro ao adicionar comissão ao caixa:`, err);
   }

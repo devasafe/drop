@@ -2,6 +2,7 @@ import { CronJob } from 'cron';
 import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
 import { emitDeliveryRejected, emitToRoom } from '../utils/socketEmitter';
+import logger from '../config/logger';
 
 /**
  * 🕐 JOB: Reassignação Automática de Entregas Não Aceitas
@@ -23,7 +24,7 @@ import { emitDeliveryRejected, emitToRoom } from '../utils/socketEmitter';
 const DELIVERY_TIMEOUT_MINUTES = 30;
 
 export function startDeliveryTimeoutJob() {
-  console.log('🕐 [DELIVERY TIMEOUT JOB] Iniciada (executa a cada 5 min)');
+  logger.debug('🕐 [DELIVERY TIMEOUT JOB] Iniciada (executa a cada 5 min)');
 
   const job = new CronJob('*/5 * * * *', async () => {
     try {
@@ -44,14 +45,14 @@ export function startDeliveryTimeoutJob() {
         return;
       }
 
-      console.log(`🕐 [DELIVERY TIMEOUT] Encontradas ${timedOutDeliveries.length} entregas expiradas`);
+      logger.debug(`🕐 [DELIVERY TIMEOUT] Encontradas ${timedOutDeliveries.length} entregas expiradas`);
 
       for (const delivery of timedOutDeliveries) {
         try {
           const order: any = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
           const motoboyId = delivery.motoboyId;
 
-          console.log(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
+          logger.debug(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
 
           // Volta delivery para 'pending' (novo PIN é gerado na próxima atribuição)
           await prisma.delivery.update({
@@ -73,7 +74,7 @@ export function startDeliveryTimeoutJob() {
               message: '⏰ Seu motoboy não compareceu. Procurando outro entregador...',
               timestamp: new Date().toISOString()
             });
-            console.log(`📬 [DELIVERY TIMEOUT] Cliente ${order.customerId} notificado`);
+            logger.debug(`📬 [DELIVERY TIMEOUT] Cliente ${order.customerId} notificado`);
           }
 
           // 📬 Notificar LOJA sobre reatribuição
@@ -85,7 +86,7 @@ export function startDeliveryTimeoutJob() {
               message: '⏰ Motoboy não compareceu. Aguardando novo entregador.',
               timestamp: new Date().toISOString()
             });
-            console.log(`📬 [DELIVERY TIMEOUT] Loja ${order.storeId} notificada`);
+            logger.debug(`📬 [DELIVERY TIMEOUT] Loja ${order.storeId} notificada`);
           }
 
           // 🔔 Notificar MOTOBOY que foi desatribuído (para logs)
@@ -95,7 +96,7 @@ export function startDeliveryTimeoutJob() {
               reason: 'Não comparecimento dentro do prazo',
               message: 'Você foi desatribuído desta entrega por não comparecer no prazo'
             });
-            console.log(`🔔 [DELIVERY TIMEOUT] Motoboy ${motoboyId} notificado de desatribuição`);
+            logger.debug(`🔔 [DELIVERY TIMEOUT] Motoboy ${motoboyId} notificado de desatribuição`);
           }
 
           // 📱 Notificar motoboys que nova delivery está disponível
@@ -109,7 +110,7 @@ export function startDeliveryTimeoutJob() {
                 distance: delivery.distance
               }
             });
-            console.log(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
+            logger.debug(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
           } catch (e) {
             console.warn(`⚠️ [DELIVERY TIMEOUT] Erro ao notificar motoboys:`, e);
           }
@@ -131,6 +132,6 @@ export function startDeliveryTimeoutJob() {
 export function stopDeliveryTimeoutJob(job: CronJob) {
   if (job) {
     job.stop();
-    console.log('🛑 [DELIVERY TIMEOUT JOB] Parada');
+    logger.debug('🛑 [DELIVERY TIMEOUT JOB] Parada');
   }
 }
