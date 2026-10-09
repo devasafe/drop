@@ -18,6 +18,7 @@ import StoreQRCode from '../components/StoreQRCode';
 import PushEnableBanner from '../components/PushEnableBanner';
 import styles from './StoreDashboard.module.css';
 import OnboardingResumeBanner from '../components/OnboardingResumeBanner';
+import SaasBillingBanner from '../components/drop/SaasBillingBanner';
 import OverviewTab from '../components/seller/OverviewTab';
 import { useSaasConfig } from '../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../hooks/useCustodyLeftover';
@@ -791,6 +792,7 @@ export default function StoreDashboard() {
 
           <div className={styles.tabContent}>
             <OnboardingResumeBanner />
+            {settlementMode === 'direto' && store?._id && <SaasBillingBanner storeId={String(store._id)} />}
 
           {/* Visão geral */}
           {activeTab === 'overview' && (

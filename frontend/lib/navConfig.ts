@@ -88,6 +88,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
     { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet',             placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
     { label: 'Recebimentos',       icon: 'bank',      route: '/seller/pagamentos',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
+    { label: 'Assinatura',         icon: 'receipt',   route: '/seller/assinatura',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
     { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
   ],
   motoboy: [
