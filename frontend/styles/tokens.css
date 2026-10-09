@@ -137,6 +137,46 @@
   --elevation-3:0 12px 32px rgba(26,23,34,.14);
 }
 
+/* ponte-claro */
+/* Também no body: var() resolve no elemento onde é declarado. Declarado só no <html>, --brand
+   congelaria o roxo antes do sazonal (body.theme-natal redefine --color-action-primary no body). */
+[data-theme="light"], [data-theme="light"] body {
+  /* Tokens antigos seguem o tema claro até cada tela migrar (fase C).
+     --scrim-soft/--scrim-strong ficam como estão: preto translúcido serve nos dois temas. */
+  --bg: var(--color-bg-primary);
+  --bg-radial: var(--color-bg-primary);
+  --surface: var(--color-surface-default);
+  --surface-2: var(--color-surface-sunken);
+  --surface-field: var(--color-surface-default);
+  --surface-chip: var(--color-surface-sunken);
+  --panel: var(--color-surface-default);
+  --panel-2: var(--color-surface-sunken);
+  --panel-grad: var(--color-surface-default);
+  --line: var(--color-border-default);
+  --divider: var(--color-border-default);
+  --accent-line: var(--color-border-default);
+  --text: var(--color-text-primary);
+  --text-strong: var(--color-text-primary);
+  --text-muted: var(--color-text-secondary);
+  --text-subtle: var(--color-text-muted);
+  --text-on-panel-muted: var(--color-text-secondary);
+  --brand: var(--color-action-primary);
+  --brand-2: var(--color-text-brand);
+  --brand-grad: var(--color-action-primary);
+  --accent-soft: var(--color-action-primary-subtle);
+  --on-brand: var(--color-on-action);
+  --success: var(--color-success-text);
+  --danger: var(--color-error-text);
+  --info: var(--color-info-text);
+  --rating: var(--color-rating);
+  --brand-glow: none;
+  --accent-glow: none;
+  --shadow-brand: none;
+  --shadow-float: var(--elevation-2);
+  --shadow-neutral: var(--elevation-1);
+  --scrim: var(--color-scrim);
+}
+
 /* Tema escuro — a paleta atual (loja, motoboy e admin até a rodada deles) */
 [data-theme="dark"] {
   color-scheme: dark;
