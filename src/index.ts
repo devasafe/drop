@@ -20,6 +20,7 @@ import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
 import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
+import { startSaasBillingJob } from './jobs/saasBilling.job';
 
 logger.info('📍 [INDEX] Starting application...');
 
@@ -105,6 +106,13 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Motoboy transfers job failed to start', e);
+  }
+
+  // ✅ Mensalidade SaaS (modo direto): backfill, assinatura na conta-mãe, reconciliação e pausa (1 h).
+  try {
+    startSaasBillingJob();
+  } catch (e) {
+    logger.error('Saas billing job failed to start', e as Error);
   }
 
   logger.info(`📍 [INDEX] Calling server.listen(${env.PORT})...`);

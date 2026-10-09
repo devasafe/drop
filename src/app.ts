@@ -18,6 +18,7 @@ import notificationsRoutes from './routes/notifications';
 import storesRoutes from './routes/stores';
 import storeAsaasRoutes from './routes/storeAsaas';
 import adminStoreAsaasRoutes from './routes/adminStoreAsaas';
+import { adminSaasBillingRouter, storeSaasBillingRouter } from './routes/saasBilling';
 import directRefundsRoutes from './routes/directRefunds';
 import motoboyTransfersRoutes from './routes/motoboyTransfers';
 import storeRoutes from './routes/storeRoutes'; // ✅ NOVO - Store endpoints
@@ -132,6 +133,8 @@ app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/stores/:storeId/asaas', storeAsaasRoutes);
 app.use('/api/admin/stores', adminStoreAsaasRoutes);
+app.use('/api/stores/:storeId/saas-billing', storeSaasBillingRouter);
+app.use('/api/admin/stores', adminSaasBillingRouter);
 app.use('/api/stores', storesRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/gamification', gamificationRoutes);
