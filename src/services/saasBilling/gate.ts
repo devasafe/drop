@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getSaasConfig, isDirectMode } from '../../utils/settlement';
-import { isBillingBlocked } from './policy';
+import { isStoreBlocked } from './policy';
 
 /**
  * Bloqueio da loja pela mensalidade SaaS (só no modo direto; quem chama confere o modo).
@@ -13,14 +13,14 @@ import { isBillingBlocked } from './policy';
  * A loja pode receber pedido NOVO? Bloqueada quando já está `paused` (o job pausou) ou quando
  * a política diz que passou da carência — mesmo antes de o job (1 h) gravar a pausa.
  * Sem linha de cobrança → não bloqueia (fail open proposital, ver isBillingBlocked).
+ * Mensalidade efetiva 0 → nunca bloqueia (ver isStoreBlocked).
  */
 export async function isStoreBillingBlocked(storeId: string, now: Date = new Date()): Promise<boolean> {
   const [billing, cfg] = await Promise.all([
-    prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true, trialEndsAt: true, paidUntil: true } }),
+    prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true, trialEndsAt: true, paidUntil: true, customFee: true } }),
     getSaasConfig(),
   ]);
-  if (!billing) return false;
-  return billing.status === 'paused' || isBillingBlocked(billing, now, cfg.saasGraceDays);
+  return isStoreBlocked(billing, now, cfg);
 }
 
 /** Fragmento de `where` de Store: lojas visíveis na vitrine (sem linha de cobrança ou não paused/cancelled). */

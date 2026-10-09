@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { isStoreOwner } from '../utils/storeOwnership';
-import { effectiveFee, isBillingBlocked } from '../services/saasBilling/policy';
+import { effectiveFee, isStoreBlocked } from '../services/saasBilling/policy';
 import { SAAS_PAID_STATUSES } from '../services/saasBilling/payments';
 import { updateSubscriptionValue, deleteSubscription } from '../services/asaas/subscription';
 
@@ -59,7 +59,7 @@ adminSaasBillingRouter.get('/saas-billing', authenticate, authorizePermission('s
       customFee: num(b?.customFee),
       fee: effectiveFee(b, cfg),
       hasSubscription: !!b?.asaasSubscriptionId,
-      blocked: !!b && (b.status === 'paused' || isBillingBlocked(b, now, cfg.saasGraceDays)),
+      blocked: isStoreBlocked(b, now, cfg),
     };
   });
   res.json({ success: true, data });
@@ -129,7 +129,7 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
       paidUntil: billing.paidUntil,
       fee: effectiveFee(billing, cfg),
       nextPayment: p ? { dueDate: p.dueDate, value: Number(p.value), invoiceUrl: p.invoiceUrl, status: p.status } : null,
-      blocked: billing.status === 'paused' || isBillingBlocked(billing, new Date(), cfg.saasGraceDays),
+      blocked: isStoreBlocked(billing, new Date(), cfg),
     },
   });
 }));

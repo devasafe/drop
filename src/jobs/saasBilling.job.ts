@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { saoPauloToday } from '../services/asaasLoja/charge';
-import { effectiveFee, isBillingBlocked } from '../services/saasBilling/policy';
+import { effectiveFee, shouldPause } from '../services/saasBilling/policy';
 import { ensureBillingCustomer } from '../services/saasBilling/customer';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { createSubscription, deleteSubscription, listSubscriptionPayments } from '../services/asaas/subscription';
@@ -17,7 +17,7 @@ import { createSubscription, deleteSubscription, listSubscriptionPayments } from
  *     (`asaasSubscriptionId: null`); se outro processo gravou antes, a assinatura recém-criada é
  *     apagada no Asaas (DELETE) para não cobrar a loja em dobro;
  *  c) reconciliação: faturas da assinatura → applySaasPayment (mesma função do webhook);
- *  d) pausa: bloqueada pela política → `paused`; paused que deixou de estar bloqueada → volta
+ *  d) pausa: bloqueada pela política (shouldPause; fee 0 nunca) → `paused`; paused que deixou de estar bloqueada → volta
  *     (`active` se já pagou alguma vez, senão `trialing`).
  */
 
@@ -89,11 +89,11 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
   // d) Pausa / despausa.
   const rows = await prisma.storeSaasBilling.findMany({
     where: { status: { not: 'cancelled' } },
-    select: { id: true, storeId: true, status: true, trialEndsAt: true, paidUntil: true },
+    select: { id: true, storeId: true, status: true, trialEndsAt: true, paidUntil: true, customFee: true },
   });
   for (const billing of rows) {
     try {
-      const blocked = isBillingBlocked(billing, now, cfg.saasGraceDays);
+      const blocked = shouldPause(billing, now, cfg);
       if (blocked && billing.status !== 'paused') {
         const { count } = await prisma.storeSaasBilling.updateMany({
           where: { id: billing.id, status: { notIn: ['paused', 'cancelled'] } },

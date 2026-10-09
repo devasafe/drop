@@ -42,6 +42,32 @@ export function isBillingBlocked(billing: BillingLike | null | undefined, now: D
   return now.getTime() > limit;
 }
 
+type BillingWithFee = BillingLike & { customFee?: Money | null };
+type BlockConfig = { saasMonthlyFee: Money; saasGraceDays: number };
+
+/**
+ * O job deve pausar a loja (ou mantê-la pausada)? Só olha datas e valor, não o status `paused`.
+ * Fee efetivo ≤ 0 (padrão 0 ou valor especial 0 = isenta) → NUNCA: sem valor não há fatura
+ * para pagar, então a loja não teria como sair da pausa.
+ */
+export function shouldPause(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
+  if (!billing) return false;
+  if (!(effectiveFee(billing, config) > 0)) return false;
+  return isBillingBlocked(billing, now, config.saasGraceDays);
+}
+
+/**
+ * A loja está bloqueada AGORA pela mensalidade (gate de pedido e visões usam esta)?
+ * Sem linha → não; cancelled → sempre; fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
+ * demais → já `paused` ou shouldPause (antes de o job, de 1 em 1 h, gravar a pausa).
+ */
+export function isStoreBlocked(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
+  if (!billing) return false;
+  if (billing.status === 'cancelled') return true;
+  if (!(effectiveFee(billing, config) > 0)) return false;
+  return billing.status === 'paused' || shouldPause(billing, now, config);
+}
+
 /** Soma `n` meses de calendário em UTC; se o dia não existe no mês destino, usa o último dia (31/01 + 1 = 28/02). */
 function addMonthsClamped(date: Date, n: number): Date {
   const out = new Date(date.getTime());
