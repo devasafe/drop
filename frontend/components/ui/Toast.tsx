@@ -9,12 +9,28 @@ import {
 import { CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react';
 import styles from './Toast.module.css';
 import { ICON_STROKE_WIDTH } from './Icon';
+import { Button } from './Button';
 
 export type ToastTone = 'success' | 'error' | 'info';
 
 export interface ToastProps {
   message: string;
   tone?: ToastTone;
+  /** Ação opcional (ex.: "Desfazer"), exibida como botão terciário. */
+  action?: ToastAction;
+  /** Chamado após o clique na ação, para o provedor fechar o toast. */
+  onAction?: () => void;
+}
+
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface ToastOptions {
+  action?: ToastAction;
+  /** Sobrescreve a duração padrão (4 s sem ação, 6 s com ação). */
+  durationMs?: number;
 }
 
 const TONE_ICON: Record<ToastTone, LucideIcon> = {
@@ -29,12 +45,24 @@ const TONE_ICON: Record<ToastTone, LucideIcon> = {
  * apresentacional puro; quem decide quando exibir/esconder é
  * `ToastProvider`/`useToast`.
  */
-export function Toast({ message, tone = 'info' }: ToastProps) {
+export function Toast({ message, tone = 'info', action, onAction }: ToastProps) {
   const ToneIcon = TONE_ICON[tone];
   return (
-    <div className={[styles.toast, styles[tone]].join(' ')} role="status">
+    <div className={[styles.toast, styles[tone]].join(' ')} role={tone === 'error' ? 'alert' : 'status'}>
       <ToneIcon className={styles.icon} size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
       <span className={styles.message}>{message}</span>
+      {action && (
+        <Button
+          variant="tertiary"
+          size="sm"
+          onClick={() => {
+            action.onClick();
+            onAction?.();
+          }}
+        >
+          {action.label}
+        </Button>
+      )}
     </div>
   );
 }
@@ -43,15 +71,17 @@ interface ToastEntry {
   id: number;
   message: string;
   tone: ToastTone;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  showToast: (message: string, tone?: ToastTone) => void;
+  showToast: (message: string, tone?: ToastTone, opts?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const TOAST_DURATION_MS = 4000;
+const TOAST_ACTION_DURATION_MS = 6000;
 
 /** Provedor global: monta o container fixo e o stack de `Toast`. Envolva o app (ex.: `_app.tsx`). */
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -62,10 +92,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, tone: ToastTone = 'info') => {
+    (message: string, tone: ToastTone = 'info', opts?: ToastOptions) => {
       const id = Date.now() + Math.random();
-      setToasts(prev => [...prev, { id, message, tone }]);
-      setTimeout(() => dismiss(id), TOAST_DURATION_MS);
+      setToasts(prev => [...prev, { id, message, tone, action: opts?.action }]);
+      const duration =
+        opts?.durationMs ?? (opts?.action ? TOAST_ACTION_DURATION_MS : TOAST_DURATION_MS);
+      setTimeout(() => dismiss(id), duration);
     },
     [dismiss]
   );
@@ -77,7 +109,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className={styles.stack} aria-live="polite">
         {toasts.map(t => (
-          <Toast key={t.id} message={t.message} tone={t.tone} />
+          <Toast
+            key={t.id}
+            message={t.message}
+            tone={t.tone}
+            action={t.action}
+            onAction={() => dismiss(t.id)}
+          />
         ))}
       </div>
     </ToastContext.Provider>

@@ -21,12 +21,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
-  box-shadow: var(--shadow-neutral);
-  animation: toast-in var(--dur-slow) var(--ease);
+  box-shadow: var(--elevation-1);
+  animation: toast-in var(--motion-slow) var(--ease);
 }
 
 .icon {
@@ -34,30 +34,32 @@
 }
 
 .message {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-body);
   font-size: var(--fs-body);
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 .success {
-  border-color: var(--success);
+  border-color: var(--color-success-text);
 }
 .success .icon {
-  color: var(--success);
+  color: var(--color-success-text);
 }
 
 .error {
-  border-color: var(--danger);
+  border-color: var(--color-error-text);
 }
 .error .icon {
-  color: var(--danger);
+  color: var(--color-error-text);
 }
 
 .info {
-  border-color: var(--info);
+  border-color: var(--color-info-text);
 }
 .info .icon {
-  color: var(--info);
+  color: var(--color-info-text);
 }
 
 @keyframes toast-in {
