@@ -10,7 +10,7 @@ function Harness({ presentation }: { presentation?: 'bottom' | 'center' }) {
   return (
     <>
       <button onClick={() => setOpen(true)}>Abrir</button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Trocar endereÃ§o" presentation={presentation}>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Trocar endereço" presentation={presentation}>
         <button>Dentro</button>
       </Sheet>
     </>
@@ -22,7 +22,7 @@ it('abre em portal como dialog modal, Esc fecha e o foco volta', () => {
   const opener = screen.getByRole('button', { name: 'Abrir' });
   opener.focus();
   fireEvent.click(opener);
-  const dialog = screen.getByRole('dialog', { name: 'Trocar endereÃ§o' });
+  const dialog = screen.getByRole('dialog', { name: 'Trocar endereço' });
   expect(dialog).toHaveAttribute('aria-modal', 'true');
   expect(dialog.closest('body')).toBe(document.body);
   expect(dialog.parentElement?.parentElement).toBe(document.body);
@@ -46,7 +46,7 @@ it('presentation="bottom" usa a classe bottom', () => {
   expect(screen.getByRole('dialog').className).toMatch(/bottom/);
   expect(screen.getByRole('dialog').className).not.toMatch(/center/);
 });
-it('CSS do Sheet sÃ³ usa tokens semÃ¢nticos', () => {
+it('CSS do Sheet só usa tokens semânticos', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'Sheet.module.css'), 'utf8');
   expect(cssViolations(css)).toEqual([]);
 });
