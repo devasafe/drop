@@ -7,8 +7,10 @@ import { confirmOrderPaidByPayment, markOrderRefunded } from '../services/asaas/
 import { creditWalletTopupByPayment } from '../services/asaas/walletTopup';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { markDirectRefundDone } from '../services/asaasLoja/refund';
+import { emitAdminNotification } from '../utils/socketEmitter';
 import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
+import { handleSaasBillingEvent } from '../services/saasBilling/webhook';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -137,6 +139,7 @@ export const handleStoreAsaasWebhook = async (req: Request, res: Response) => {
  * Eventos da conta da loja. Nada aqui toca carteira/Payout (sem custódia).
  *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → pedido pago (só se for DESTA loja);
  *  - PAYMENT_REFUNDED → pedido estornado (só se for desta loja);
+ *  - PAYMENT_PARTIALLY_REFUNDED → conclui o DirectRefund só se o valor estornado bater;
  *  - TRANSFER_DONE / TRANSFER_FAILED / TRANSFER_CANCELLED → Pix da loja ao motoboy (MotoboyTransfer);
  *  - PAYMENT_REFUND_IN_PROGRESS e demais → registrados e ignorados.
  */
@@ -147,6 +150,74 @@ async function reconcileDirectRefundFromWebhook(storeId: string, paymentId: stri
     select: { orderId: true },
   });
   if (refund) await markDirectRefundDone(refund.orderId, 'webhook');
+  else await alertFinalRefundConfirmed(storeId, paymentId, 'PAYMENT_REFUNDED');
+}
+
+/**
+ * M-a: estorno confirmado pelo Asaas para um DirectRefund em `failed_final` (o admin assumiu).
+ * Não conclui sozinho — o admin confere e resolve —, mas avisa (antes era silencioso).
+ */
+async function alertFinalRefundConfirmed(storeId: string, paymentId: string, event: string): Promise<void> {
+  const row = await prisma.directRefund.findFirst({
+    where: { storeId, asaasPaymentId: paymentId, status: 'failed_final' },
+    select: { id: true, orderId: true },
+  });
+  if (!row) return;
+  logger.warn('[asaasLoja] estorno confirmado pelo Asaas com DirectRefund em failed_final (não concluído)', { storeId, paymentId, refundId: row.id, event });
+  emitAdminNotification({
+    title: 'Estorno confirmado no Asaas (falha final)',
+    body: `Pedido ${String(row.orderId).slice(-6)}: o Asaas confirmou um estorno (${event}) de uma linha em falha final; conferir e resolver.`,
+    url: '/admin/estornos',
+    tag: `refund:final-confirmed:${row.id}`,
+  });
+}
+
+/**
+ * Estorno parcial confere com o DirectRefund? CONFIRMAR NO SANDBOX o formato do
+ * PAYMENT_PARTIALLY_REFUNDED. Regras (fail closed):
+ *  - com `payment.refunds[]`: só itens com status DONE e valor > 0 contam; se a linha já tem o
+ *    id do estorno vinculado pela trava (asaasRefundId), o item precisa ter o MESMO id;
+ *  - sem `refunds[]`: usa `payment.refundedValue` (> 0), só se a linha não tem id vinculado;
+ *  - nunca `payment.value` (é o valor original da cobrança).
+ */
+function partialRefundMatches(payment: any, expectedCents: number, boundRefundId: string | null): boolean {
+  const cents = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+  };
+  if (Array.isArray(payment?.refunds)) {
+    return payment.refunds.some((r: any) =>
+      String(r?.status ?? '').toUpperCase() === 'DONE'
+      && cents(r?.value) === expectedCents
+      && (!boundRefundId || String(r?.id ?? '') === boundRefundId));
+  }
+  if (boundRefundId) return false; // sem refunds[] não há como conferir o id vinculado
+  return cents(payment?.refundedValue) === expectedCents;
+}
+
+async function reconcilePartialRefundFromWebhook(storeId: string, payment: any): Promise<void> {
+  const paymentId = String(payment.id);
+  const refund = await prisma.directRefund.findFirst({
+    where: { storeId, asaasPaymentId: paymentId, status: { in: ['uncertain', 'failed', 'requested', 'pending'] } },
+    select: { id: true, orderId: true, amount: true, asaasRefundId: true },
+  });
+  if (!refund) {
+    await alertFinalRefundConfirmed(storeId, paymentId, 'PAYMENT_PARTIALLY_REFUNDED');
+    return;
+  }
+  const expected = Math.round(Number(refund.amount) * 100);
+  if (partialRefundMatches(payment, expected, refund.asaasRefundId ?? null)) {
+    await markDirectRefundDone(refund.orderId, 'webhook');
+    return;
+  }
+  logger.warn('[asaasLoja] estorno parcial sem valor correspondente ao DirectRefund (ignorado)', { storeId, paymentId, refundId: refund.id });
+  emitAdminNotification({
+    title: 'Estorno parcial sem valor conferido',
+    body: `Pedido ${String(refund.orderId).slice(-6)}: o Asaas avisou estorno parcial sem o valor esperado; conferir no Asaas.`,
+    url: '/admin/estornos',
+    tag: `refund:partial:${refund.id}`,
+  });
 }
 
 async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: any): Promise<void> {
@@ -166,6 +237,10 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
           await markDirectOrderRefunded(storeId, String(payment.id));
           await reconcileDirectRefundFromWebhook(storeId, String(payment.id));
         }
+        break;
+      case 'PAYMENT_PARTIALLY_REFUNDED':
+        // Nunca marca o pedido inteiro como estornado sem conferir o valor (markDirectRefundDone faz isso).
+        if (payment.id) await reconcilePartialRefundFromWebhook(storeId, payment);
         break;
       case 'TRANSFER_DONE':
       case 'TRANSFER_FAILED':
@@ -192,6 +267,7 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
 
 /**
  * Roteador de eventos do Asaas.
+ *  - fatura da mensalidade SaaS (assinatura na conta-mãe) → handleSaasBillingEvent, e PARA aí;
  *  - PAYMENT_RECEIVED / PAYMENT_CONFIRMED → confirma pedido pago + cria Payout (Fase 2)
  *  - PAYMENT_REFUNDED → estorno (Fase 5) [TODO]
  *  - PAYMENT_CHARGEBACK* → reserva/débito (Fase 6) [TODO]
@@ -203,6 +279,9 @@ async function dispatchAsaasEvent(eventId: string, body: any): Promise<void> {
 
   let processError: string | undefined;
   try {
+    // Mensalidade SaaS primeiro: uma fatura da assinatura nunca pode ser tratada como pedido/recarga.
+    if (await handleSaasBillingEvent(event, payment)) return;
+
     switch (event) {
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_CONFIRMED':

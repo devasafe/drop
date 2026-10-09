@@ -71,6 +71,9 @@ winston.addColors(colors);
 
 // Transportes para produção
 const productionTransports = [
+  // stdout em JSON: é o que aparece nos Runtime Logs do Coolify (os arquivos ficam presos no
+  // container e somem a cada deploy).
+  new winston.transports.Console({ format: json() }),
   // Log de erros em arquivo separado
   new winston.transports.File({
     filename: path.join('logs', 'error.log'),

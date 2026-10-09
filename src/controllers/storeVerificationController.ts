@@ -12,6 +12,7 @@ import {
   recomputeStoresForOwner,
 } from '../utils/storeVerification';
 import logger from '../config/logger';
+import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
 
 const ensureUserVerification = (u: any) => {
@@ -141,9 +142,11 @@ export const getStoreVerification = async (req: AuthenticatedRequest, res: Respo
     const isAdmin = ['ceo', 'gerente_geral', 'gerente_lojistas'].includes(role);
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Sem permissão' });
 
+    const { settlementMode } = await getSaasConfig();
     return res.json({
       isVerified: store.isVerified === true,
-      missing: missingStoreVerifications(store, owner),
+      mode: settlementMode,
+      missing: missingStoreVerifications(store, owner, settlementMode),
       facial: owner?.verification?.facial || { status: 'none' },
       cnpj: store.verification?.cnpj || { status: 'none' },
       address: store.verification?.address || { status: 'none' },

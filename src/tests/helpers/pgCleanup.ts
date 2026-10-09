@@ -49,9 +49,27 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   await prisma.order.deleteMany({
     where: { OR: [{ customerId: { in: ids } }, { storeId: { in: storeIds } }] },
   });
+  await purgeStoreConsentsForTests(storeIds);
   await prisma.store.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
+}
+
+/**
+ * Apaga a prova do aceite do termo (StoreAsaasConsent) das lojas da suíte — SÓ em teste.
+ *
+ * Em produção a tabela é só-INSERT (trigger recusa UPDATE/DELETE) e a FK com Store é
+ * Restrict: a loja com termo aceito não sai. Para o cleanup conseguir apagar as lojas de
+ * teste, desligamos os triggers de forma explícita e LOCAL à transação
+ * (`session_replication_role = replica`, que exige superusuário — o banco de teste usa
+ * `postgres`). Fora desta transação o trigger continua valendo.
+ */
+export async function purgeStoreConsentsForTests(storeIds: string[]): Promise<void> {
+  if (storeIds.length === 0) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`);
+    await tx.storeAsaasConsent.deleteMany({ where: { storeId: { in: storeIds } } });
+  });
 }
 
 /**

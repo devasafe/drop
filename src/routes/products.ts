@@ -9,7 +9,7 @@ import {
 } from '../controllers/productController';
 import { getTopProducts } from '../controllers/storeController';
 import { getProductReviews, createProductReview } from '../controllers/productReviewController';
-import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
 
 import upload, { uploadProductMedia } from '../middleware/upload';
 import { validate } from '../middleware/validate';
@@ -21,7 +21,8 @@ const router = Router();
 router.get('/', listProducts);
 router.get('/top', getTopProducts);
 router.get('/:id/reviews', getProductReviews);
-router.get('/:id', getProduct);
+// optionalAuth: o dono de loja pausada ainda abre o próprio produto (tela de edição)
+router.get('/:id', optionalAuth, getProduct);
 
 // Avaliação de produto (cliente que comprou)
 router.post('/:id/reviews', authenticate, createProductReview);

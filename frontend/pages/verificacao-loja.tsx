@@ -8,6 +8,7 @@ import OnboardingFooter from '../components/OnboardingFooter';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import styles from './VerificacaoLoja.module.css';
+import ModeGate from '../components/ModeGate';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';
 interface StoreVer {
@@ -18,7 +19,7 @@ interface StoreVer {
   address: { status: St; rejectionReason?: string };
 }
 
-export default function VerificacaoLojaPage() {
+function VerificacaoLojaPageInner() {
   const [storeId, setStoreId] = useState('');
   const [ver, setVer] = useState<StoreVer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -248,4 +249,9 @@ function DropzoneField({ label, file, onChange }: { label: string; file: File | 
       />
     </label>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function VerificacaoLojaPage() {
+  return (<ModeGate mode="custodia"><VerificacaoLojaPageInner /></ModeGate>);
 }

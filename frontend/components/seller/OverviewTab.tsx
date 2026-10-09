@@ -14,13 +14,15 @@ interface OverviewTabProps {
   onGoToTab: (tab: string) => void;
   onToggleOpen: (nextIsOpen: boolean) => void;
   onQuickAction: (href: string) => void;
+  /** Atalho Financeiro (/seller/wallet): só na custódia ou com saldo antigo dela. Default: mostra. */
+  showFinanceiro?: boolean;
 }
 
 const BRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const shortId = (id: string) => (id || '').toString().slice(0, 8).toUpperCase();
 
 export default function OverviewTab({
-  store, orders, history, metrics, returnRequests, onGoToTab, onToggleOpen, onQuickAction,
+  store, orders, history, metrics, returnRequests, onGoToTab, onToggleOpen, onQuickAction, showFinanceiro = true,
 }: OverviewTabProps) {
   const open = isStoreOpen(store);
   const counts = countByBucket(orders);
@@ -106,9 +108,11 @@ export default function OverviewTab({
         <Button variant="ghost" size="sm" leftIcon={<Icon name="tag" size={14} />} onClick={() => onQuickAction('/seller/coupons')}>
           Marketing
         </Button>
-        <Button variant="ghost" size="sm" leftIcon={<Icon name="wallet" size={14} />} onClick={() => onQuickAction('/seller/wallet')}>
-          Financeiro
-        </Button>
+        {showFinanceiro && (
+          <Button variant="ghost" size="sm" leftIcon={<Icon name="wallet" size={14} />} onClick={() => onQuickAction('/seller/wallet')}>
+            Financeiro
+          </Button>
+        )}
       </div>
     </div>
   );

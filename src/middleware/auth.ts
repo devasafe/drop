@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import env from '../config/env';
 import { extractTokenFromCookie } from '../utils/cookieManager';
 import { prisma } from '../lib/prisma';
+import logger from '../config/logger';
 
 interface JwtPayload {
   id: string;
@@ -20,8 +21,8 @@ const isDev = process.env.NODE_ENV === 'development';
 
 export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (isDev) {
-    console.log(`🔐 [AUTH] ${req.method} ${req.path}`);
-    console.log(`🔐 [AUTH] Headers:`, {
+    logger.debug(`🔐 [AUTH] ${req.method} ${req.path}`);
+    logger.debug(`🔐 [AUTH] Headers:`, {
       authorization: req.headers.authorization ? `${req.headers.authorization.substring(0, 20)}...` : 'NOT PROVIDED',
       contentType: req.headers['content-type']
     });
@@ -81,7 +82,25 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
   }
 
   req.user = decoded;
-  if (isDev) console.log(`✅ [AUTH OK] ${req.path} - User: ${decoded.id}`);
+  if (isDev) logger.debug(`✅ [AUTH OK] ${req.path} - User: ${decoded.id}`);
+  return next();
+};
+
+/**
+ * Autenticação OPCIONAL para rotas públicas: se houver token válido, preenche `req.user`;
+ * sem token ou com token inválido, segue anônimo (nunca responde 401). Serve só para a rota
+ * decidir o que mostrar ao dono — não substitui `authenticate` em rota protegida.
+ */
+export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+  try {
+    let token: string | undefined;
+    const parts = (req.headers.authorization || '').split(' ');
+    if (parts.length === 2) token = parts[1];
+    if (!token) token = extractTokenFromCookie(req) || undefined;
+    if (token && JWT_SECRET) req.user = jwt.verify(token, JWT_SECRET) as JwtPayload as any;
+  } catch {
+    // token inválido/expirado → anônimo
+  }
   return next();
 };
 

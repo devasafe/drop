@@ -8,6 +8,7 @@ import { isStoreOwner } from '../utils/storeOwnership';
 import { getEffectivePermissions } from './rolePermissionsController';
 import { executeDirectRefund, markDirectRefundDone } from '../services/asaasLoja/refund';
 import { storeSafeLastError } from '../utils/safeErrorText';
+import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
 
 /** Task 3.4 — botão "Estornar" (loja e admin) do pedido no modo direto. */
 
@@ -92,17 +93,24 @@ export async function refundDirect(req: any, res: Response) {
 /** GET /api/admin/direct-refunds?status= */
 export async function listDirectRefunds(req: any, res: Response) {
   const status = typeof req.query.status === 'string' && req.query.status ? req.query.status : undefined;
+  // Sem `limit`, devolve os mesmos 200 de antes da paginação (teto 200).
+  const page = parseCursorPage(req.query, { defaultLimit: 200, maxLimit: 200 });
   const rows = await prisma.directRefund.findMany({
-    where: status ? { status } : {},
-    orderBy: { createdAt: 'desc' },
-    take: 200,
+    where: { AND: [status ? { status } : {}, page.where] },
+    orderBy: page.orderBy,
+    take: page.take,
   });
+  const { items, nextCursor } = sliceCursorPage(rows, page);
   const stores = await prisma.store.findMany({
-    where: { id: { in: [...new Set(rows.map((r) => r.storeId))] } },
+    where: { id: { in: [...new Set(items.map((r) => r.storeId))] } },
     select: { id: true, name: true },
   });
   const names = new Map(stores.map((s) => [s.id, s.name]));
-  return res.json({ success: true, data: rows.map((r) => ({ ...serializeDirectRefund(r), storeName: names.get(r.storeId) ?? null })) });
+  return res.json({
+    success: true,
+    data: items.map((r) => ({ ...serializeDirectRefund(r), storeName: names.get(r.storeId) ?? null })),
+    nextCursor,
+  });
 }
 
 /** POST /api/admin/direct-refunds/:id/resolve — admin conferiu no Asaas e marca como concluído. */

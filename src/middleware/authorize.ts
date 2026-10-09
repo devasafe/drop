@@ -5,6 +5,7 @@ import { hasPermission } from '../utils/walletCalculations';
 import { getEffectivePermissions } from '../controllers/rolePermissionsController';
 import { hasValidWalletAccess } from '../controllers/walletAccessController';
 import { prisma } from '../lib/prisma';
+import logger from '../config/logger';
 
 const ADMIN_ROLES = ['ceo', 'gerente_geral'];
 
@@ -140,7 +141,7 @@ export async function authorizeWalletOwner(req: Request, res: Response, next: Ne
         message: 'Você precisa solicitar e ter aprovação do dono da carteira para acessar.',
       });
     }
-    console.log(`[wallet-access][AUDIT] user=${user.id} role=${userRole} acessou wallet=${userId} em ${new Date().toISOString()}`);
+    logger.debug(`[wallet-access][AUDIT] user=${user.id} role=${userRole} acessou wallet=${userId} em ${new Date().toISOString()}`);
     return next();
   } catch (err) {
     console.error('[authorizeWalletOwner] erro:', err);

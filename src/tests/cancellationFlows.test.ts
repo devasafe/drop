@@ -42,6 +42,13 @@ afterAll(async () => {
   await restorePlatformConfig();
 });
 
+// AppCashbox é singleton global e ensureAppCashbox usa findFirst() sem ordem: com um caixa
+// residual deixado pela suíte anterior, a taxa ia para um caixa e o teste lia outro (só o 1º
+// teste da suíte falhava, e só quando outra suíte rodou antes — flaky de ordem). Zera antes.
+beforeAll(async () => {
+  await wipeAppCashbox();
+});
+
 afterEach(async () => {
   await cleanupUsersByEmailDomain('@cancel.test');
   await wipeAppCashbox();

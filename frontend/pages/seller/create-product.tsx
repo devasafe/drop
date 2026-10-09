@@ -3,18 +3,16 @@ import api from '../../lib/api';
 import { useRouter } from 'next/router';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { useStores, useCategories } from '../../hooks/useSync';
-import { useAuth } from '../../contexts/AuthContext';
+import { useCategories } from '../../hooks/useSync';
+import { useMyStore } from '../../hooks/useMyStore';
 import ImageCropUploader from '../../components/ImageCropUploader';
 import RichTextEditor from '../../components/RichTextEditor';
 import styles from './ProductForm.module.css';
 
 export default function CreateProduct() {
   useRequireAuth(['lojista']);
-  const { user } = useAuth();
-  const { stores } = useStores();
-  const userId = user?.id?.toString() || user?._id?.toString() || '';
-  const myStore = stores?.find((s: any) => s.ownerId?.toString() === userId);
+  // Rota autenticada do dono: loja pausada some da vitrine pública (GET /stores).
+  const { store: myStore } = useMyStore();
 
   const { categories } = useCategories(myStore?._id);
 

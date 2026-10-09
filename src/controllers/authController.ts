@@ -12,6 +12,7 @@ import { getDefaultAddress } from '../utils/userHelpers';
 import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
 import { recordConsent } from '../services/consent.service';
+import logger from '../config/logger';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -70,7 +71,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     // carteira também é criada sob demanda depois (getOrCreate).
     try {
       await walletService.getOrCreate(user.id, 'user');
-      console.log(`✅ Carteira criada automaticamente para usuário: ${user.id}`);
+      logger.debug(`✅ Carteira criada automaticamente para usuário: ${user.id}`);
     } catch (err) {
       console.warn(`⚠️ Erro ao criar carteira para ${user.id}:`, err);
     }
@@ -129,7 +130,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       allRoles.push('cliente');
       user.roles = allRoles;
       await userRepository.update(user.id, { roles: allRoles });
-      if (process.env.NODE_ENV === 'development') console.log('✅ Updated user roles in login. Now has:', allRoles);
+      if (process.env.NODE_ENV === 'development') logger.debug('✅ Updated user roles in login. Now has:', allRoles);
     }
 
     if (!JWT_SECRET) {
@@ -271,7 +272,7 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
     const { newRole } = req.body;
     const userId = req.user?.id || (req as any).userId;
 
-    if (process.env.NODE_ENV === 'development') console.log('🔄 Switch role request:', { userId, newRole });
+    if (process.env.NODE_ENV === 'development') logger.debug('🔄 Switch role request:', { userId, newRole });
 
     if (!newRole) {
       return res.status(400).json({ error: 'Missing newRole' });
@@ -365,7 +366,7 @@ export const migrateUsersToMultiRole = async (req: AuthenticatedRequest, res: Re
       updated++;
     }
 
-    console.log(`✅ Migration completed: Updated ${updated} users to have 'cliente' role`);
+    logger.debug(`✅ Migration completed: Updated ${updated} users to have 'cliente' role`);
     return res.json({
       message: `Successfully migrated ${updated} users`,
       updated

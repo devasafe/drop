@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import api from '../../lib/api';
 import styles from './SelectPlan.module.css';
+import ModeGate from '../../components/ModeGate';
 
 const PlanFeatures = {
   plan1: [
@@ -42,7 +43,7 @@ const PlanFeatures = {
   ],
 };
 
-export default function SelectPlan() {
+function SelectPlanInner() {
   const router = useRouter();
   const onboarding = router.query.onboarding === '1';
   const { user, loading: authLoading } = useAuth() || {};
@@ -284,4 +285,9 @@ export default function SelectPlan() {
       <OnboardingFooter />
     </div>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function SelectPlan() {
+  return (<ModeGate mode="custodia"><SelectPlanInner /></ModeGate>);
 }

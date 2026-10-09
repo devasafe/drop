@@ -20,6 +20,8 @@ function mockGet(statusData: any, saas: any = { egressIp: '203.0.113.7' }) {
   (api.get as jest.Mock).mockImplementation((url: string) => {
     if (url === '/stores/dashboard') return Promise.resolve({ data: { store: { _id: 's1' } } });
     if (url === '/settings/saas') return Promise.resolve({ data: saas });
+    // Termo carregado (sem texto o aceite fica desabilitado — fail closed).
+    if (url === '/settings/store-asaas-terms') return Promise.resolve({ data: { version: '2026-10-08', text: 'Termo de teste.' } });
     return Promise.resolve({ data: { success: true, data: statusData } });
   });
 }
@@ -40,7 +42,7 @@ test('campo da chave é password; conectar limpa a chave e ela não aparece na t
   fireEvent.change(input, { target: { value: KEY } });
   fireEvent.click(screen.getByLabelText('Li e aceito o termo'));
   fireEvent.click(screen.getByText('Conectar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY, acceptTerms: true }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/stores/s1/asaas', { apiKey: KEY, acceptTerms: true, termsVersion: '2026-10-08' }));
   await screen.findByText('Chave válida');
   expect(input.value).toBe('');
   expect(screen.getByText('Chave ••••3456')).toBeInTheDocument();

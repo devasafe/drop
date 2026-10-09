@@ -18,6 +18,7 @@ import notificationsRoutes from './routes/notifications';
 import storesRoutes from './routes/stores';
 import storeAsaasRoutes from './routes/storeAsaas';
 import adminStoreAsaasRoutes from './routes/adminStoreAsaas';
+import { adminSaasBillingRouter, storeSaasBillingRouter } from './routes/saasBilling';
 import directRefundsRoutes from './routes/directRefunds';
 import motoboyTransfersRoutes from './routes/motoboyTransfers';
 import storeRoutes from './routes/storeRoutes'; // ✅ NOVO - Store endpoints
@@ -41,6 +42,7 @@ import analyticsRoutes from './routes/analytics'; // ✅ NOVO - Analytics
 import walletAccessRoutes from './routes/walletAccess'; // ✅ NOVO - Wallet access requests
 import payoutsRoutes from './routes/payouts'; // ✅ NOVO - Payout management
 import deliveryInvoicesRoutes from './routes/deliveryInvoices';
+import logger from './config/logger';
 import verificationRoutes from './routes/verification'; // ✅ NOVO - KYC/verificação de conta
 import webhooksRoutes from './routes/webhooks'; // ✅ NOVO - Webhooks de gateways (Asaas)
 import integrationsRoutes from './routes/integrations'; // Integração de estoque do lojista (API key + webhooks)
@@ -103,7 +105,7 @@ if (env.NODE_ENV !== 'production') {
 		const start = Date.now();
 		res.on('finish', () => {
 			const duration = Date.now() - start;
-			console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+			logger.debug(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
 		});
 		next();
 	});
@@ -131,11 +133,13 @@ app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/stores/:storeId/asaas', storeAsaasRoutes);
 app.use('/api/admin/stores', adminStoreAsaasRoutes);
+app.use('/api/stores/:storeId/saas-billing', storeSaasBillingRouter);
+app.use('/api/admin/stores', adminSaasBillingRouter);
 app.use('/api/stores', storesRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/chat', chatRoutes); // ✅ CHAT ROUTES
-console.log('✅ [APP] Chat routes mounted at /api/chat');
+logger.debug('✅ [APP] Chat routes mounted at /api/chat');
 app.use('/api/wallets', walletsRoutes);
 app.use('/api/debts', debtsRoutes);
 app.use('/api/withdrawals', withdrawalsRoutes);

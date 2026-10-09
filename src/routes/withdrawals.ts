@@ -3,6 +3,8 @@ import { requireCustodyOrLeftover } from '../middleware/requireSettlement';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
+import { validate } from '../middleware/validate';
+import { z } from 'zod';
 import {
   requestWithdrawal,
   requestUserWithdrawal,
@@ -10,6 +12,7 @@ import {
   getAllWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
+  resolveUncertainWithdrawal,
   getMyWithdrawals,
   getCEOWallet,
   toggleAutoApproveWithdrawals,
@@ -38,6 +41,13 @@ router.post('/approve', authenticate, authorizePermission('withdrawal:approve'),
 
 // Admin - Rejeitar saque
 router.post('/reject', authenticate, authorizePermission('withdrawal:approve'), rejectWithdrawal);
+
+// Admin - Resolver saque incerto/travado em processamento (R27), depois de conferir no Asaas
+const resolveUncertainSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('paid'), asaasTransferId: z.string().trim().min(1).max(100).optional(), note: z.string().trim().min(10).max(1000) }).strict(),
+  z.object({ outcome: z.literal('not_sent'), note: z.string().trim().min(10).max(1000) }).strict(),
+]);
+router.post('/:id/resolve-uncertain', authenticate, authorizePermission('withdrawal:approve'), validate(resolveUncertainSchema), resolveUncertainWithdrawal);
 
 // Admin - Ver carteira CEO
 router.get('/ceo-wallet', authenticate, authorizePermission('withdrawal:view'), getCEOWallet);

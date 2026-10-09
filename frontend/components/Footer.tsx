@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import styles from './Footer.module.css';
 
 export default function Footer() {
   const year = new Date().getFullYear();
+  const { settlementMode } = useSaasConfig();
 
   return (
     <footer className={styles.footer}>
@@ -28,7 +30,7 @@ export default function Footer() {
             <div className={styles.colTitle}>Para Lojistas</div>
             <Link href="/seller/create-store" className={styles.link}>Abrir minha loja</Link>
             <Link href="/seller/dashboard" className={styles.link}>Painel do Lojista</Link>
-            <Link href="/seller/select-plan" className={styles.link}>Planos</Link>
+            {settlementMode === 'custodia' && <Link href="/seller/select-plan" className={styles.link}>Planos</Link>}
           </div>
 
           <div className={styles.col}>

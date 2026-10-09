@@ -21,6 +21,13 @@ import { refundOrderCharge } from '../services/asaas/refund';
 const refundMock = refundOrderCharge as jest.Mock;
 const JWT_SECRET = process.env.JWT_SECRET || 'test_secret_key_with_minimum_32_characters_length_ok';
 
+// Ids de evento fixos: o WebhookEvent (idempotência) persiste no Postgres entre execuções,
+// então a 2ª rodada no mesmo banco veria o evento como "já processado". Limpa antes de cada teste.
+const FIXED_EVENT_IDS = ['evt_refund_1'];
+beforeEach(async () => {
+  await prisma.webhookEvent.deleteMany({ where: { eventId: { in: FIXED_EVENT_IDS } } });
+});
+
 beforeAll(async () => {
   env.ASAAS_WEBHOOK_TOKEN = WEBHOOK_TOKEN;
   env.PAYMENT_GATEWAY = 'asaas';

@@ -1,33 +1,17 @@
-import { useEffect, useMemo } from 'react';
 import api from '../../lib/api';
 import { useRouter } from 'next/router';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { imageUrl } from '../../lib/config';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProducts } from '../../hooks/useSync';
-import { useStores } from '../../hooks/useSync';
+import { useMyStore } from '../../hooks/useMyStore';
 import { List, Row } from '../../components/ui/List';
 import styles from './SellerProducts.module.css';
 
 export default function SellerProducts() {
   useRequireAuth(['lojista']);
-  const { user } = useAuth();
-  const { products: allProducts, loading: productsLoading } = useProducts();
-  const { stores, loading: storesLoading } = useStores();
+  // Rota autenticada do dono: loja pausada some da vitrine pública, mas o painel segue funcionando.
+  const { products, loading } = useMyStore();
   const router = useRouter();
-
-  const myStore = useMemo(() => {
-    if (!user || !stores) return null;
-    return stores.find((s: any) => s.ownerId === user.id || s.ownerId === user._id);
-  }, [user, stores]);
-
-  const products = useMemo(() => {
-    if (!myStore || !allProducts) return [];
-    return allProducts.filter((p: any) => p.storeId === myStore._id);
-  }, [myStore, allProducts]);
-
-  const loading = productsLoading || storesLoading;
 
   const handleEdit = (id: string) => {
     router.push(`/seller/edit-product?edit=${id}`);

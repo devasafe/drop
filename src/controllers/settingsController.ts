@@ -11,6 +11,7 @@ import {
   listAllSubs,
   syncCommissionForPlan,
 } from '../repositories/storeSubscription.repository';
+import logger from '../config/logger';
 
 // ✅ GET Current Platform Config
 export const getPlatformConfig = async (req: Request, res: Response) => {
@@ -84,8 +85,8 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
     ]);
     const synced = c1 + c2 + c3;
 
-    console.log('✅ Platform config updated:', config);
-    console.log(`📊 Sincronizadas ${synced} lojas com novas comissões`);
+    logger.debug('✅ Platform config updated:', config);
+    logger.debug(`📊 Sincronizadas ${synced} lojas com novas comissões`);
 
     return res.json({
       config,
@@ -147,7 +148,7 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
       requestedAt: new Date(),
     });
 
-    console.log('✅ Plan change requested:', { storeId: store.id, newPlan });
+    logger.debug('✅ Plan change requested:', { storeId: store.id, newPlan });
     emitAdminNotification({
       title: 'Solicitação de mudança de plano',
       body: `Loja "${store.name}" solicitou mudança para ${newPlan}.`,
@@ -213,7 +214,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
     const planNumber = planNumberMap[newPlan] ?? 1;
     await prisma.store.update({ where: { id: String(updated.storeId) }, data: { plan: planNumber } });
 
-    console.log('✅ Plan change approved:', { subscriptionId, newPlan, planNumber });
+    logger.debug('✅ Plan change approved:', { subscriptionId, newPlan, planNumber });
     return res.json({
       message: 'Plano alterado com sucesso',
       subscription: updated,
@@ -239,7 +240,7 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
       rejectionReason: reason || 'Rejeitado pelo CEO',
     });
 
-    console.log('✅ Plan change rejected:', { subscriptionId, reason });
+    logger.debug('✅ Plan change rejected:', { subscriptionId, reason });
     return res.json({
       message: 'Solicitação rejeitada',
       subscription: updated,
@@ -281,7 +282,7 @@ export const updateStorePlan = async (req: Request & { user?: any }, res: Respon
       approvedBy: userId,
       commissionRate,
     });
-    console.log(`💰 [updateStorePlan] ${updated.storeName}: ${oldPlan} → ${newPlan} (${commissionRate}%)`);
+    logger.debug(`💰 [updateStorePlan] ${updated.storeName}: ${oldPlan} → ${newPlan} (${commissionRate}%)`);
 
     // Sincronizar Store.plan com o novo plano
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };

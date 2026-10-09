@@ -303,3 +303,100 @@ describe('C1 — webhook concluiu antes da resposta em andamento', () => {
     expect((await rowOf(s.refund.id)).acceptedAt).toBeNull();
   });
 });
+
+describe('I6 — PAYMENT_PARTIALLY_REFUNDED conclui o DirectRefund quando o valor bate', () => {
+  const partial = (storeId: string, paymentId: string, payment: any) =>
+    request(app).post(`/webhooks/asaas/loja/${storeId}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: 'PAYMENT_PARTIALLY_REFUNDED', payment: { id: paymentId, status: 'RECEIVED', value: 50, ...payment } });
+
+  it.each(['requested', 'uncertain', 'pending'])('%s + refunds[] com o valor do estorno (30) → done, cancelamento processed', async (st) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: st } });
+    const res = await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p1', status: 'DONE', value: 30 }] });
+    expect(res.status).toBe(200);
+    const row = await rowOf(s.refund.id);
+    expect(row.status).toBe('done');
+    expect(row.resolvedBy).toBe('webhook');
+    expect((await prisma.cancellation.findUnique({ where: { id: s.cancellation.id } }))!.refundStatus).toBe('processed');
+  });
+
+  it('refundedValue igual ao estorno também conclui', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refundedValue: 30 });
+    expect((await rowOf(s.refund.id)).status).toBe('done');
+  });
+
+  it('valor diferente → não conclui, pedido intacto, alerta o admin', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p2', status: 'DONE', value: 20 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect((await prisma.order.findUnique({ where: { id: s.order.id } }))!.paymentStatus).toBe('paid');
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ url: '/admin/estornos' }));
+  });
+
+  it('sem valor no payload → não conclui (fail closed) e alerta', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'uncertain' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, {});
+    expect((await rowOf(s.refund.id)).status).toBe('uncertain');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('pagamento de OUTRA loja → ignorado', async () => {
+    const a = await setup();
+    const b = await setup();
+    await prisma.directRefund.update({ where: { id: a.refund.id }, data: { status: 'requested' } });
+    await partial(b.store.id, a.order.asaasPaymentId!, { refunds: [{ id: 'rfd_p3', status: 'DONE', value: 30 }] });
+    expect((await rowOf(a.refund.id)).status).toBe('requested');
+  });
+});
+
+describe('re-revisão I-1 — estorno parcial só conclui com refund DONE (e o mesmo id, se vinculado)', () => {
+  const partial = (storeId: string, paymentId: string, payment: any) =>
+    request(app).post(`/webhooks/asaas/loja/${storeId}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: 'PAYMENT_PARTIALLY_REFUNDED', payment: { id: paymentId, status: 'RECEIVED', value: 50, ...payment } });
+
+  it.each(['PENDING', 'AWAITING_CRITICAL_ACTION_AUTHORIZATION'])('refund %s com valor igual → não conclui e alerta', async (st) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_q1', status: st, value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('asaasRefundId vinculado diferente do refund DONE → não conclui e alerta', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested', asaasRefundId: 'rfd_bound' } as any });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_other', status: 'DONE', value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+    expect(adminNotify).toHaveBeenCalled();
+  });
+
+  it('asaasRefundId vinculado igual ao refund DONE → conclui', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested', asaasRefundId: 'rfd_bound' } as any });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_bound', status: 'DONE', value: 30 }] });
+    expect((await rowOf(s.refund.id)).status).toBe('done');
+  });
+
+  it('com refunds[] presente, refundedValue (acumulado) é ignorado', async () => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'requested' } });
+    await partial(s.store.id, s.order.asaasPaymentId!, { refunds: [{ id: 'rfd_q2', status: 'DONE', value: 20 }], refundedValue: 30 });
+    expect((await rowOf(s.refund.id)).status).toBe('requested');
+  });
+});
+
+describe('re-revisão M-a — estorno confirmado com DirectRefund em failed_final', () => {
+  it.each(['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'])('%s → não conclui, mas alerta o admin', async (ev) => {
+    const s = await setup();
+    await prisma.directRefund.update({ where: { id: s.refund.id }, data: { status: 'failed_final', attempts: 6 } });
+    const res = await request(app).post(`/webhooks/asaas/loja/${s.store.id}`).set('asaas-access-token', WH_TOKEN)
+      .send({ id: `evt_t41_${Math.random().toString(36).slice(2, 10)}`, event: ev, payment: { id: s.order.asaasPaymentId, status: 'REFUNDED', value: 50, refunds: [{ id: 'rfd_f', status: 'DONE', value: 30 }] } });
+    expect(res.status).toBe(200);
+    expect((await rowOf(s.refund.id)).status).toBe('failed_final');
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ url: '/admin/estornos', tag: expect.stringContaining(s.refund.id) }));
+  });
+});

@@ -8,6 +8,10 @@ import { isStoreOwner } from '../utils/storeOwnership';
 import { decryptSensitiveData } from '../utils/encryption';
 import { maskPixKey } from '../services/asaasLoja/motoboyTransfer';
 import { storeSafeLastError } from '../utils/safeErrorText';
+import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
+
+/** Sem `limit`, cada lista devolve o mesmo tamanho de antes da paginação; teto de 200. */
+const MAX_LIMIT = 200;
 
 /** Task 2.4 — visões das transferências Pix da loja ao motoboy (modo direto). */
 
@@ -70,35 +74,46 @@ async function withNames<T extends { storeId: string; motoboyId: string }>(rows:
 
 /** GET /api/motoboy/transfers — SEMPRE os do usuário autenticado. */
 export async function listMyTransfers(req: any, res: Response) {
+  const page = parseCursorPage(req.query, { defaultLimit: 100, maxLimit: MAX_LIMIT });
   const rows = await prisma.motoboyTransfer.findMany({
-    where: { motoboyId: String(req.user.id) },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
+    where: { AND: [{ motoboyId: String(req.user.id) }, page.where] },
+    orderBy: page.orderBy,
+    take: page.take,
   });
-  return res.json({ success: true, data: rows.map(serializeForMotoboy) });
+  const { items, nextCursor } = sliceCursorPage(rows, page);
+  return res.json({ success: true, data: items.map(serializeForMotoboy), nextCursor });
 }
 
 /** GET /api/stores/:storeId/transfers — só o dono da loja. */
 export async function listStoreTransfers(req: any, res: Response) {
   const storeId = String(req.params.storeId);
   if (!(await isStoreOwner(storeId, req.user?.id))) throw new AppError('Sem permissão para esta loja', 403, true, 'FORBIDDEN');
-  const rows = await prisma.motoboyTransfer.findMany({ where: { storeId }, orderBy: { createdAt: 'desc' }, take: 100 });
-  const names = await withNames(rows);
-  return res.json({ success: true, data: rows.map((r) => ({ ...serializeForStore(r), motoboyName: names.motoboyName(r.motoboyId) })) });
+  const page = parseCursorPage(req.query, { defaultLimit: 100, maxLimit: MAX_LIMIT });
+  const rows = await prisma.motoboyTransfer.findMany({ where: { AND: [{ storeId }, page.where] }, orderBy: page.orderBy, take: page.take });
+  const { items, nextCursor } = sliceCursorPage(rows, page);
+  const names = await withNames(items);
+  return res.json({
+    success: true,
+    data: items.map((r) => ({ ...serializeForStore(r), motoboyName: names.motoboyName(r.motoboyId) })),
+    nextCursor,
+  });
 }
 
 /** GET /api/admin/transfers?status= */
 export async function listAdminTransfers(req: any, res: Response) {
   const status = typeof req.query.status === 'string' && req.query.status ? req.query.status : undefined;
+  const page = parseCursorPage(req.query, { defaultLimit: 200, maxLimit: MAX_LIMIT });
   const rows = await prisma.motoboyTransfer.findMany({
-    where: status ? { status } : {},
-    orderBy: { createdAt: 'desc' },
-    take: 200,
+    where: { AND: [status ? { status } : {}, page.where] },
+    orderBy: page.orderBy,
+    take: page.take,
   });
-  const names = await withNames(rows);
+  const { items, nextCursor } = sliceCursorPage(rows, page);
+  const names = await withNames(items);
   return res.json({
     success: true,
-    data: rows.map((r) => ({ ...serialize(r), storeName: names.storeName(r.storeId), motoboyName: names.motoboyName(r.motoboyId) })),
+    data: items.map((r) => ({ ...serialize(r), storeName: names.storeName(r.storeId), motoboyName: names.motoboyName(r.motoboyId) })),
+    nextCursor,
   });
 }
 

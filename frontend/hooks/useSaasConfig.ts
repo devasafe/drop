@@ -31,6 +31,9 @@ function load(): Promise<Loaded | null> {
   return inflight;
 }
 
+/** Versão sem hook (para código assíncrono fora de componente). null se a leitura falhar. */
+export const loadSaasConfig = load;
+
 /** Só para testes. */
 export function __resetSaasConfigCache() { cached = null; inflight = null; }
 

@@ -22,6 +22,9 @@ export const STORE_WEBHOOK_EVENTS = [
   'TRANSFER_DONE',
   'TRANSFER_FAILED',
   'TRANSFER_CANCELLED',
+  // I6: estorno parcial (cancelamento com taxa retida). Nome a CONFIRMAR NO SANDBOX; lojas já
+  // conectadas só recebem depois de regravar o webhook.
+  'PAYMENT_PARTIALLY_REFUNDED',
 ] as const;
 
 export const sha256Hex = (s: string) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
@@ -69,6 +72,26 @@ export async function registerPaymentWebhook(storeId: string): Promise<void> {
   await prisma.storeAsaasAccount.update({
     where: { storeId },
     data: { paymentWebhookId: String(created.id), paymentWebhookTokenHash: sha256Hex(authToken) },
+  });
+}
+
+/**
+ * Regrava o webhook de pagamentos JÁ existente (PUT /webhooks/{id}) com a URL certa e um token
+ * novo — quando alguém editou o webhook no painel do Asaas (ex.: colou a URL de /autorizacao).
+ * O hash só é trocado depois de o Asaas aceitar. Lança em qualquer falha.
+ */
+export async function repairPaymentWebhook(storeId: string, apiKey: string, webhookId: string): Promise<void> {
+  const authToken = crypto.randomBytes(24).toString('hex');
+  await asaasClient.putAs(apiKey, `/webhooks/${encodeURIComponent(webhookId)}`, {
+    url: storeWebhookUrl(storeId),
+    enabled: true,
+    interrupted: false,
+    authToken,
+    events: [...STORE_WEBHOOK_EVENTS],
+  });
+  await prisma.storeAsaasAccount.update({
+    where: { storeId },
+    data: { paymentWebhookTokenHash: sha256Hex(authToken) },
   });
 }
 

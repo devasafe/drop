@@ -17,6 +17,8 @@ export interface TransferResult {
   status: 'pending' | 'paid' | 'failed';
   gatewayTransferId: string;
   errorMessage?: string;
+  /** Sem resposta clara (timeout, rede, 5xx): a transferência pode ter saído. Nunca reenviar às cegas. */
+  uncertain?: boolean;
 }
 
 export interface IPayoutGateway {

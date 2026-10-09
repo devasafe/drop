@@ -15,6 +15,7 @@ import ClientWalletMetrics, { ClientWalletSummary } from '../components/wallet/C
 import WalletTopupSheet from '../components/wallet/WalletTopupSheet';
 import { Sparkles } from 'lucide-react';
 import styles from './Wallet.module.css';
+import ModeGate from '../components/ModeGate';
 
 interface WalletData {
   _id: string;
@@ -49,7 +50,7 @@ function movementView(tx: { category?: string; type: string }): { typeLabel: str
   }
 }
 
-export default function WalletPage() {
+function WalletPageInner() {
   const { user } = useAuth();
   const uid = user?._id || (user as any)?.id || ''; // AuthUser tem `id`; `_id` é opcional
   const { showToast } = useToast();
@@ -287,4 +288,9 @@ export default function WalletPage() {
       </Sheet>
     </ProtectedRoute>
   );
+}
+
+// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+export default function WalletPage() {
+  return (<ModeGate mode="custodia" allowLeftover><WalletPageInner /></ModeGate>);
 }

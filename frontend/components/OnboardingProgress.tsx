@@ -2,17 +2,19 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import { getFlow, getStepIndexByPath } from '../lib/onboardingFlow';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import styles from './OnboardingProgress.module.css';
 
 export default function OnboardingProgress() {
   const router = useRouter();
   const { user } = useAuth();
+  const { settlementMode } = useSaasConfig();
   const role = user?.activeRole;
   const onboarding = router.query.onboarding === '1';
 
   if (!onboarding) return null;
-  const flow = getFlow(role);
-  const idx = getStepIndexByPath(role, router.pathname);
+  const flow = getFlow(role, settlementMode);
+  const idx = getStepIndexByPath(role, router.pathname, settlementMode);
   if (idx === -1 || flow.length === 0) return null;
 
   return (

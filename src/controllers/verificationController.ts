@@ -9,6 +9,7 @@ import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinar
 import { isValidCPF, isValidRG, toE164BR } from '../utils/documentValidation';
 import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
+import { recomputeStoresForOwner } from '../utils/storeVerification';
 import { emitAdminNotification } from '../utils/socketEmitter';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
@@ -81,6 +82,15 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
   }
 };
 
+// Mudou o KYC do dono → recalcula as lojas dele. Falha aqui não pode quebrar a resposta.
+async function recomputeOwnerStoresSafe(userId: string) {
+  try {
+    await recomputeStoresForOwner(String(userId));
+  } catch (err) {
+    logger.error('Falha ao recalcular lojas do dono após verificação', err as Error, { userId });
+  }
+}
+
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { code } = req.body;
@@ -102,6 +112,7 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
     user.verification!.email = { status: 'verified', verifiedAt: new Date() };
     await userRepository.update(user.id, { verification: user.verification });
     await prisma.emailVerificationToken.deleteMany({ where: { userId } });
+    await recomputeOwnerStoresSafe(userId);
 
     return res.json({ message: 'Email verificado com sucesso' });
   } catch (err) {
@@ -288,6 +299,7 @@ export const approveDocument = async (req: AuthenticatedRequest, res: Response) 
     user.verification!.document.rejectionReason = undefined;
     await userRepository.update(user.id, { verification: user.verification });
     logger.info('[verification][AUDIT] documento aprovado', { userId, by: req.user?.id });
+    await recomputeOwnerStoresSafe(userId);
     return res.json({ message: 'Documento aprovado' });
   } catch (err) {
     logger.error('Erro ao aprovar documento', err as Error);
@@ -311,6 +323,7 @@ export const rejectDocument = async (req: AuthenticatedRequest, res: Response) =
     user.verification!.document.rejectionReason = reason || 'Documento não aprovado';
     await userRepository.update(user.id, { verification: user.verification });
     logger.info('[verification][AUDIT] documento rejeitado', { userId, by: req.user?.id, reason });
+    await recomputeOwnerStoresSafe(userId);
     return res.json({ message: 'Documento rejeitado' });
   } catch (err) {
     logger.error('Erro ao rejeitar documento', err as Error);

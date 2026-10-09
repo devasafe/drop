@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { decryptSensitiveData } from '../utils/encryption';
+import env from '../config/env';
+import { emitAdminNotification } from '../utils/socketEmitter';
 
 /**
  * Webhook de autorização de saques/transferências do Asaas ("Mecanismo para validação de
@@ -62,6 +64,33 @@ export function parseAuthorizationRequest(body: any): AuthRequest {
   }
   return { kind: 'unsupported', type };
 }
+
+/** Campos do corpo da autorização que saem no log como vieram (ids, valores e status). */
+const SHAPE_PLAIN_KEYS = new Set([
+  'type', 'id', 'transferId', 'externalReference', 'payment', 'paymentId', 'refundId', 'status',
+  'operationType', 'dateCreated', 'effectiveDate', 'scheduleDate', 'canBeCancelled', 'refundDisabledReason',
+]);
+
+/**
+ * Formato do corpo da autorização para o log do sandbox: mantém todos os nomes de campo,
+ * números, booleanos e os campos de SHAPE_PLAIN_KEYS; qualquer outro texto (chave Pix,
+ * documento, nome, conta) sai mascarado.
+ */
+export function authPayloadShape(value: unknown, key = ''): unknown {
+  if (Array.isArray(value)) return value.map((v) => authPayloadShape(v, key));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = authPayloadShape(v, k);
+    return out;
+  }
+  if (typeof value === 'string') {
+    if (SHAPE_PLAIN_KEYS.has(key)) return value;
+    return value ? `*** (${value.length})` : value;
+  }
+  return value;
+}
+
+const isAsaasSandbox = () => String(env.ASAAS_API_URL || '').includes('sandbox');
 
 /** Normaliza chave Pix: e-mail minúsculo; CPF/CNPJ/telefone só dígitos; demais (EVP) minúsculo. */
 export function normalizePixKey(key: string): string {
@@ -160,10 +189,25 @@ async function decidePixRefund(storeId: string, req: Extract<AuthRequest, { kind
 export const handleTransferAuthorization = async (req: Request, res: Response) => {
   const storeId = String(req.params.storeId || '');
   let decision: Decision = refuse('INTERNAL_ERROR');
+  // Só no sandbox: o formato real do corpo ainda precisa ser confirmado (ver fixture).
+  if (isAsaasSandbox()) {
+    logger.info('[transfer-auth][sandbox] corpo recebido', { storeId, body: authPayloadShape(req.body) });
+  }
   try {
     const tokenOk = await verifyStoreWebhookToken(storeId, req.header('asaas-access-token'), 'auth');
     if (!tokenOk) {
       decision = refuse('INVALID_TOKEN');
+    } else if (req.body && typeof req.body === 'object' && typeof req.body.event === 'string') {
+      // Aviso comum de webhook (PAYMENT_*/TRANSFER_*) nesta URL: o lojista cadastrou o endereço
+      // da trava em Integrações → Webhooks em vez de Mecanismos de segurança.
+      decision = refuse('WRONG_ENDPOINT');
+      logger.warn('[transfer-auth] aviso de webhook comum na URL de autorização (configuração errada no Asaas)', { storeId, event: req.body.event });
+      emitAdminNotification({
+        title: 'Loja com webhook do Asaas no lugar errado',
+        body: `A loja ${storeId.slice(-6)} cadastrou a URL de autorização em Integrações → Webhooks. Ela deve ficar em Mecanismos de segurança (validação de saque via webhook); depois, "Testar configuração" regrava o webhook de pagamentos.`,
+        url: '/admin/lojas-asaas',
+        tag: `transfer-auth-wrong-endpoint-${storeId}`,
+      });
     } else {
       const parsed = parseAuthorizationRequest(req.body);
       if (parsed.kind === 'transfer') decision = await decideTransfer(storeId, parsed);

@@ -117,9 +117,18 @@ export class AsaasGateway implements IPayoutGateway {
         pixAddressKey: pixKey,
         pixAddressKeyType: resolvedType,
       });
+      if (!transfer?.id) {
+        return { status: 'failed', uncertain: true, gatewayTransferId: '', errorMessage: 'Asaas respondeu sem o id da transferência' };
+      }
       return { status: mapStatus(transfer.status), gatewayTransferId: transfer.id };
     } catch (err: any) {
       logger.error('Falha no saque PIX via Asaas', err as Error, { payoutId });
+      // Só um 4xx do Asaas garante que nada saiu. Timeout, rede, 5xx → o Pix pode ter saído.
+      const definite = err?.name === 'AsaasApiError' && typeof err.status === 'number'
+        && err.status >= 400 && err.status < 500 && err.status !== 408;
+      if (!definite) {
+        return { status: 'failed', uncertain: true, gatewayTransferId: '', errorMessage: String(err?.message || 'sem resposta do Asaas').slice(0, 300) };
+      }
       const raw = (err?.message || '').toLowerCase();
       // Mensagem mais clara para o caso mais comum (chave de destino inexistente).
       const friendly = raw.includes('não foi encontrada') || raw.includes('not found') || raw.includes('chave')

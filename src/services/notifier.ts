@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedStoreIds, ADMIN_ROLES } from './socketRooms';
 import { isOriginAllowed } from '../config/corsOrigins';
 import { isValidCoordinate } from '../utils/geo';
+import logger from '../config/logger';
 
 const PRESENCE_MIN_INTERVAL_MS = 10_000;
 
@@ -49,7 +50,7 @@ export const notifyMotoboys = (payload: any) => {
     try {
       io.to('motoboys').emit('notification', payload);
       // eslint-disable-next-line no-console
-      console.log('[notifier] notification sent to motoboys room');
+      logger.debug('[notifier] notification sent to motoboys room');
       return;
     } catch (e) {
       // fallback to SSE
@@ -78,7 +79,7 @@ export const emitChatMessage = (conversationId: string, messageData: any) => {
 
   try {
     const roomName = `conversation:${conversationId}`;
-    console.log(`📨 [NOTIFIER] Emitindo chat:new_message para sala: ${roomName}`);
+    logger.debug(`📨 [NOTIFIER] Emitindo chat:new_message para sala: ${roomName}`);
     io.to(roomName).emit('chat:new_message', messageData);
   } catch (e) {
     console.error('[notifier] Error emitting chat message:', e);
@@ -92,7 +93,7 @@ export const emitNewConversation = (userId1: string, userId2: string, conversati
   }
 
   try {
-    console.log(`📢 [NOTIFIER] Emitindo nova conversa aos usuários: ${userId1}, ${userId2}`);
+    logger.debug(`📢 [NOTIFIER] Emitindo nova conversa aos usuários: ${userId1}, ${userId2}`);
     // Emitir para ambos os usuários
     io.to(`user:${userId1}`).emit('chat:new_conversation', conversationData);
     io.to(`user:${userId2}`).emit('chat:new_conversation', conversationData);
@@ -111,7 +112,7 @@ export const emitConversationReactivated = (userId: string, conversationData: an
   }
 
   try {
-    console.log(`🔄 [NOTIFIER] Emitindo reativação de conversa para usuário: ${userId}`);
+    logger.debug(`🔄 [NOTIFIER] Emitindo reativação de conversa para usuário: ${userId}`);
     // Emitir apenas para o usuário que a deletou (agora pode ver novamente)
     io.to(`user:${userId}`).emit('chat:conversation_reactivated', conversationData);
   } catch (e) {
@@ -126,7 +127,7 @@ export const emitConversationDeleted = (userId1: string, userId2: string, conver
   }
 
   try {
-    console.log(`🗑️ [NOTIFIER] Emitindo deleção permanente de conversa aos usuários: ${userId1}, ${userId2}`);
+    logger.debug(`🗑️ [NOTIFIER] Emitindo deleção permanente de conversa aos usuários: ${userId1}, ${userId2}`);
     // Emitir para ambos os usuários que a conversa foi deletada
     io.to(`user:${userId1}`).emit('chat:conversation_deleted', { conversationId });
     io.to(`user:${userId2}`).emit('chat:conversation_deleted', { conversationId });
@@ -142,7 +143,7 @@ export const emitConversationDeletedForUser = (userId: string, conversationId: s
   }
 
   try {
-    console.log(`🗑️ [NOTIFIER] Emitindo deleção de conversa para um usuário: ${userId}`);
+    logger.debug(`🗑️ [NOTIFIER] Emitindo deleção de conversa para um usuário: ${userId}`);
     // Emitir apenas para o usuário que deletou
     io.to(`user:${userId}`).emit('chat:conversation_deleted', { conversationId });
   } catch (e) {
@@ -157,7 +158,7 @@ export const emitMessagesRead = (conversationId: string, messageIds: string[], u
   }
 
   try {
-    console.log(`✓✓ [NOTIFIER] Emitindo mensagens como lidas em conversa: ${conversationId}`);
+    logger.debug(`✓✓ [NOTIFIER] Emitindo mensagens como lidas em conversa: ${conversationId}`);
     // Emitir para todos na sala da conversa
     io.to(`conversation:${conversationId}`).emit('chat:messages_read', { 
       messageIds, 
@@ -237,7 +238,7 @@ export const initSocket = (server: any) => {
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.user?.id;
     const role = socket.data.user?.role;
-    console.log(`✅ [Socket.io] Conectado: userId=${userId}, role=${role}`);
+    logger.debug(`✅ [Socket.io] Conectado: userId=${userId}, role=${role}`);
 
     // 📊 Registrar no tracker de presença em tempo real (para analytics do CEO)
     if (userId && role) {
@@ -248,14 +249,14 @@ export const initSocket = (server: any) => {
     // 📍 Entrar automaticamente na sala do usuário para receber notificações pessoais
     if (userId) {
       socket.join(`user:${userId}`);
-      console.log(`🔌 [Socket.io] Usuário ${userId} entrou na sala user:${userId}`);
+      logger.debug(`🔌 [Socket.io] Usuário ${userId} entrou na sala user:${userId}`);
     }
     
     if (userId && role) {
       // CLIENTE (customer)
       if (role === 'cliente') {
         socket.join(`user:${userId}`);
-        console.log(`   └─ Sala: user:${userId}`);
+        logger.debug(`   └─ Sala: user:${userId}`);
       }
       // MOTOBOY — o pool (sala `motoboys`) só para quem tem KYC aprovado
       if (role === 'motoboy') {
@@ -274,9 +275,9 @@ export const initSocket = (server: any) => {
         socket.join('admin');
         socket.join(`admin:${role}`);
         socket.join(`user:${userId}`);
-        console.log(`   ├─ Sala: admin`);
-        console.log(`   ├─ Sala: admin:${role}`);
-        console.log(`   └─ Sala: user:${userId}`);
+        logger.debug(`   ├─ Sala: admin`);
+        logger.debug(`   ├─ Sala: admin:${role}`);
+        logger.debug(`   └─ Sala: user:${userId}`);
       }
     }
 
@@ -373,7 +374,7 @@ export const initSocket = (server: any) => {
         // Enviar para loja
         io!.to(`store:${order.storeId}`).emit('delivery:location_updated', locationPayload);
 
-        console.log(`📍 [Socket] Location relayed: delivery=${deliveryId} lat=${latitude} lng=${longitude}`);
+        logger.debug(`📍 [Socket] Location relayed: delivery=${deliveryId} lat=${latitude} lng=${longitude}`);
       } catch (err) {
         console.error('[Socket] Error relaying location:', err);
       }
@@ -393,7 +394,7 @@ export const initSocket = (server: any) => {
     });
 
     socket.on('disconnect', () => {
-      console.log(`❌ [Socket.io] Desconectado: userId=${userId}`);
+      logger.debug(`❌ [Socket.io] Desconectado: userId=${userId}`);
       if (userId) {
         onlineTracker.remove(userId);
         emitPresenceUpdateThrottled();

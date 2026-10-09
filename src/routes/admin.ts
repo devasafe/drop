@@ -830,6 +830,11 @@ const switchesSchema = z
     motoboyShareDirect: z.number().min(0).max(100),
     directCardEnabled: z.boolean(),
     transferBlockHours: z.number().int().min(1).max(720),
+    // Mensalidade SaaS (CEO-only): valor padrão em R$ (2 casas), dias de teste e de tolerância.
+    saasMonthlyFee: z.number().min(0).max(100000).refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, 'no máximo 2 casas'),
+    saasTrialDays: z.number().int().min(0).max(365),
+    saasGraceDays: z.number().int().min(0).max(60),
+    directTransfersEnabled: z.boolean(),
     confirmSettlement: z.string().max(60),
   })
   .partial()
@@ -843,6 +848,10 @@ function switchesView(cfg: any) {
   out.motoboyShareDirect = Number(cfg?.motoboyShareDirect ?? 100);
   out.directCardEnabled = !!cfg?.directCardEnabled;
   out.transferBlockHours = Number(cfg?.transferBlockHours ?? 24);
+  out.saasMonthlyFee = Number(cfg?.saasMonthlyFee ?? 0);
+  out.saasTrialDays = Number(cfg?.saasTrialDays ?? 14);
+  out.saasGraceDays = Number(cfg?.saasGraceDays ?? 5);
+  out.directTransfersEnabled = !!cfg?.directTransfersEnabled;
   return out;
 }
 
@@ -892,9 +901,9 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
     // Modo de liquidação e cartão direto decidem para onde vai o dinheiro dos pedidos:
     // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
-    const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled'];
+    const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled', 'saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled'];
     if (CEO_ONLY_SWITCHES.some((k) => k in patch) && !isCeo(req)) {
-      return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação e o cartão direto', code: 'CEO_ONLY' });
+      return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação, o cartão direto e a mensalidade', code: 'CEO_ONLY' });
     }
     // Trocar o modo muda para onde vai o dinheiro dos pedidos novos: bloqueios primeiro,
     // depois a frase exata (o CEO viu os riscos no preview).
@@ -921,7 +930,33 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     }
     const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
     const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
-    if (settlementChange) logger.warn('[settlement][AUDIT] modo de liquidação trocado', { by: req.user?.id, ...settlementChange });
+    const billingKeys = ['saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled'];
+    if (billingKeys.some((k) => k in patch)) {
+      const billingPatch = Object.fromEntries(Object.entries(patch).filter(([k]) => billingKeys.includes(k)));
+      logger.info('[saas-billing][AUDIT] config alterada', { by: req.user?.id, patch: billingPatch });
+    }
+    if (settlementChange) {
+      logger.warn('[settlement][AUDIT] modo de liquidação trocado', { by: req.user?.id, ...settlementChange });
+      // O KYC da loja depende do modo: recalcula todas (a troca já foi gravada, falha não a desfaz).
+      try {
+        const { recomputeAllStores } = await import('../utils/storeVerification');
+        await recomputeAllStores();
+      } catch (err) {
+        logger.error('Falha ao recalcular lojas após troca de modo', err as Error);
+      }
+      // Mensalidade SaaS: na custódia ela não existe → apaga as assinaturas no Asaas (falha vira
+      // aviso para o CEO; o job tenta de novo). De volta ao direto → reabre a contagem do teste.
+      let saasBillingWarnings: Array<{ storeId: string; error: string }> | undefined;
+      try {
+        const { cancelSaasSubscriptions, reopenSaasTrials } = await import('../services/saasBilling/modeSwitch');
+        if (settlementChange.to === 'custodia') saasBillingWarnings = await cancelSaasSubscriptions();
+        else await reopenSaasTrials(new Date(), Number(cfg?.saasTrialDays ?? 14));
+      } catch (err) {
+        logger.error('[saas-billing] falha ao ajustar a mensalidade após troca de modo', err as Error);
+        if (settlementChange.to === 'custodia') saasBillingWarnings = [{ storeId: '*', error: (err as Error)?.message || 'Erro desconhecido' }];
+      }
+      if (saasBillingWarnings) return res.json({ ...switchesView(cfg), saasBillingWarnings });
+    }
     return res.json(switchesView(cfg));
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro ao salvar os freios' });

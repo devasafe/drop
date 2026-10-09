@@ -4,7 +4,21 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import { Sheet } from '../../components/ui/Sheet';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import styles from './AdminWithdrawals.module.css';
+
+/** Saque em `approved` sem marca de incerteza só é resolvível depois disso (processo caiu). */
+const STALE_IN_FLIGHT_MS = 10 * 60 * 1000;
+
+/** Saque incerto (resposta incerta do gateway) ou travado em processamento há mais de 10 min. */
+export function isResolvable(w: any, now = Date.now()): boolean {
+  if (w?.status !== 'approved') return false;
+  if (w.uncertainAt) return true;
+  const at = w.approvedAt ? new Date(w.approvedAt).getTime() : NaN;
+  return Number.isFinite(at) && now - at > STALE_IN_FLIGHT_MS;
+}
 
 export default function WithdrawalApprovals() {
   const router = useRouter();
@@ -19,6 +33,13 @@ export default function WithdrawalApprovals() {
   const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
   const [tab, setTab] = useState<'pending' | 'all' | 'wallet'>('pending');
   const [autoApprove, setAutoApprove] = useState(false);
+  // R27: resolução de saque incerto (conferido no painel do Asaas).
+  const [resolving, setResolving] = useState<any | null>(null);
+  const [resolveOutcome, setResolveOutcome] = useState<'paid' | 'not_sent' | ''>('');
+  const [resolveTransferId, setResolveTransferId] = useState('');
+  const [resolveNote, setResolveNote] = useState('');
+  const [resolveError, setResolveError] = useState('');
+  const [resolveBusy, setResolveBusy] = useState(false);
 
   // Ferramentas Asaas (teste)
   const [asaasBalance, setAsaasBalance] = useState<number | null>(null);
@@ -144,19 +165,31 @@ export default function WithdrawalApprovals() {
     }
   };
 
-  const handleMarkPaid = async (withdrawalId: string) => {
-    if (!confirm('Confirmar que o pagamento manual (Pix/transferência) já foi feito? Isso vai marcar os payouts como pagos e debitar do AppCashbox.')) return;
-    setProcessing(withdrawalId);
+  const openResolve = (w: any) => {
+    setResolving(w);
+    setResolveOutcome('');
+    setResolveTransferId('');
+    setResolveNote('');
+    setResolveError('');
+  };
+
+  const handleResolve = async () => {
+    if (!resolving) return;
+    if (!resolveOutcome) { setResolveError('Escolha o que o painel do Asaas mostra.'); return; }
+    if (resolveNote.trim().length < 10) { setResolveError('Escreva uma nota com pelo menos 10 caracteres.'); return; }
+    setResolveBusy(true);
+    setResolveError('');
     try {
-      await api.post(`/withdrawals/${withdrawalId}/mark-paid`);
-      setMessage({ type: 'success', text: 'Saque marcado como pago!' });
+      const body: any = { outcome: resolveOutcome, note: resolveNote.trim() };
+      if (resolveOutcome === 'paid' && resolveTransferId.trim()) body.asaasTransferId = resolveTransferId.trim();
+      await api.post(`/withdrawals/${resolving._id}/resolve-uncertain`, body);
+      setResolving(null);
+      setMessage({ type: 'success', text: resolveOutcome === 'paid' ? 'Saque concluído.' : 'Saque voltou para pendente.' });
       await loadData();
-      setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      console.error('Erro:', err);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao marcar como pago' });
+      setResolveError(err?.response?.data?.error || 'Erro ao resolver o saque');
     } finally {
-      setProcessing(null);
+      setResolveBusy(false);
     }
   };
 
@@ -442,7 +475,7 @@ export default function WithdrawalApprovals() {
                             styles.statusRejected
                           }`}>
                             {w.status === 'pending' ? 'Pendente' :
-                             w.status === 'approved' ? 'Aprovado' :
+                             w.status === 'approved' ? (w.uncertainAt ? 'Incerto — conferir no painel Asaas' : 'Em processamento') :
                              w.status === 'processed' ? 'Pago' :
                              'Rejeitado'}
                           </span>
@@ -451,14 +484,13 @@ export default function WithdrawalApprovals() {
                           {new Date(w.requestedAt).toLocaleDateString('pt-BR')}
                         </td>
                         <td className={styles.td}>
-                          {w.status === 'approved' && (
+                          {isResolvable(w) && can('withdrawal:approve') && (
                             <button
-                              onClick={() => handleMarkPaid(w._id)}
-                              disabled={processing === w._id}
+                              onClick={() => openResolve(w)}
                               className={styles.btnApprove}
                               style={{ fontSize: 12, padding: '6px 12px' }}
                             >
-                              Marcar Pago
+                              Resolver saque incerto
                             </button>
                           )}
                         </td>
@@ -471,6 +503,35 @@ export default function WithdrawalApprovals() {
           </div>
         )}
       </div>
+      <Sheet open={!!resolving} onClose={() => !resolveBusy && setResolving(null)} title="Resolver saque incerto">
+        {resolving && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              {resolving.motoboyName} · R$ {Number(resolving.amount).toFixed(2)}. Confira a transferência no painel do Asaas antes de escolher.
+            </p>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="radio" name="resolve-outcome" checked={resolveOutcome === 'paid'} onChange={() => setResolveOutcome('paid')} />
+              O Pix saiu (concluir o saque)
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="radio" name="resolve-outcome" checked={resolveOutcome === 'not_sent'} onChange={() => setResolveOutcome('not_sent')} />
+              O Pix não saiu (voltar para pendente)
+            </label>
+            {resolveOutcome === 'paid' && (
+              <Input value={resolveTransferId} onChange={setResolveTransferId} aria-label="Id da transferência no Asaas" placeholder="Id da transferência no Asaas (opcional)" />
+            )}
+            <textarea
+              aria-label="Nota da conferência"
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+              placeholder="O que você conferiu no painel do Asaas (mínimo 10 caracteres)"
+              rows={3}
+            />
+            {resolveError && <p role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{resolveError}</p>}
+            <Button variant="primary" loading={resolveBusy} onClick={handleResolve}>Confirmar resolução</Button>
+          </div>
+        )}
+      </Sheet>
     </div>
   );
 }

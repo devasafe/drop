@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import { prisma } from '../lib/prisma';
+import logger from '../config/logger';
 
 /**
  * Web Push (notificações com o app fechado / celular bloqueado).
@@ -21,7 +22,7 @@ if (PUBLIC_KEY && PRIVATE_KEY) {
   try {
     webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
     enabled = true;
-    console.log('[push] Web Push habilitado (VAPID configurado).');
+    logger.debug('[push] Web Push habilitado (VAPID configurado).');
   } catch (err: any) {
     console.warn('[push] VAPID inválido — push desativado:', err?.message);
   }

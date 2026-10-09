@@ -34,6 +34,7 @@ function baseHook(overrides: Partial<ReturnType<typeof useCheckout>> = {}) {
     subtotal: 0, deliveryFee: 0, discount: 0, total: 0,
     isPlan1: false, canPlace: true, placing: false, isWalletInsufficient: false,
     placeOrder: jest.fn(), pixData: null, closePix: jest.fn(),
+    pixNotice: { paymentProvider: null, recipientName: null },
     ...overrides,
   } as unknown as ReturnType<typeof useCheckout>;
 }

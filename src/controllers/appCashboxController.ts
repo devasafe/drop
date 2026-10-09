@@ -9,6 +9,7 @@ import {
   updateWithdrawal,
 } from '../repositories/withdrawal.repository';
 import payoutService from '../services/payout.service';
+import logger from '../config/logger';
 
 /**
  * Carrega o extrato (ledger) do caixa na forma { type, source, amount, date, ... }
@@ -215,7 +216,7 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
     });
 
     // ✅ Registrar no histórico (apenas o débito vai quando aprovado)
-    console.log('✅ Solicitação de saque criada:', withdrawal._id);
+    logger.debug('✅ Solicitação de saque criada:', withdrawal._id);
 
     return res.json({
       success: true,
@@ -281,23 +282,29 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Saldo insuficiente para aprovar saque' });
     }
 
-    // ✅ Atualizar status
-    const updated = await updateWithdrawal(withdrawal._id, {
-      status: 'approved',
-      approvedAt: new Date(),
-      processedBy: userId,
+    // ✅ Status (pending → approved, condicional) + débito no caixa na MESMA transação:
+    // duas aprovações concorrentes não debitam o caixa duas vezes.
+    const approved = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.withdrawal.updateMany({
+        where: { id: String(withdrawal._id), status: 'pending' },
+        data: { status: 'approved', approvedAt: new Date(), processedBy: userId },
+      });
+      if (count !== 1) return false;
+      await recordCashboxEntry(tx, {
+        type: 'withdrawal',
+        source: 'manual_withdrawal',
+        amount: withdrawal.amount,
+        withdrawalId: String(withdrawal._id),
+        reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
+      });
+      return true;
     });
+    if (!approved) {
+      return res.status(409).json({ error: 'Saque não está mais pendente' });
+    }
+    const updated = await findWithdrawalById(id);
 
-    // ✅ Registrar no caixa (débito manual)
-    await recordCashboxEntry(prisma, {
-      type: 'withdrawal',
-      source: 'manual_withdrawal',
-      amount: updated.amount,
-      withdrawalId: String(updated._id),
-      reason: `Saque aprovado - ${updated.reason || 'Sem motivo'}`,
-    });
-
-    console.log('✅ Saque aprovado:', updated._id);
+    logger.debug('✅ Saque aprovado:', updated._id);
 
     return res.json({
       success: true,
@@ -337,7 +344,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       processedBy: userId,
     });
 
-    console.log('✅ Saque rejeitado:', updated._id);
+    logger.debug('✅ Saque rejeitado:', updated._id);
 
     return res.json({
       success: true,
@@ -370,7 +377,7 @@ export const registerDeposit = async (req: Request & { user?: any }, res: Respon
     });
     const cashbox = await ensureAppCashbox();
 
-    console.log('✅ Depósito registrado:', amount);
+    logger.debug('✅ Depósito registrado:', amount);
 
     return res.json({
       success: true,
@@ -438,7 +445,7 @@ export async function addCommissionToAppCashbox(
       reason,
       affectsBalance,
     });
-    console.log(`✅ Comissão adicionada ao caixa: ${type} = R$ ${amount} (affectsBalance=${affectsBalance})`);
+    logger.debug(`✅ Comissão adicionada ao caixa: ${type} = R$ ${amount} (affectsBalance=${affectsBalance})`);
   } catch (err) {
     console.error(`❌ Erro ao adicionar comissão ao caixa:`, err);
   }

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from '../config/logger';
 
 /**
  * Calcula a rota entre dois pontos usando Google Maps Directions API
@@ -36,7 +37,7 @@ export const calculateRoute = async (
     const origin = `${originLat},${originLng}`;
     const destination = `${destinationLat},${destinationLng}`;
 
-    console.log(`🗺️ Calculando rota:`, {
+    logger.debug(`🗺️ Calculando rota:`, {
       origin,
       destination,
       originLabel,

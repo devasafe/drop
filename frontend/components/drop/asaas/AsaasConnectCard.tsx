@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../../lib/api';
 import { Section } from '../../ui/Section';
 import { Button } from '../../ui/Button';
@@ -31,6 +31,8 @@ export interface AsaasConnectCardProps {
 }
 
 const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message || fallback;
+const TERMS_OUTDATED_MSG = 'O termo foi atualizado, recarregue';
+const isTermsOutdated = (e: any) => e?.response?.data?.error?.code === 'TERMS_VERSION_OUTDATED';
 
 /**
  * Cartão de conexão da conta Asaas da loja. A chave de API só vive no estado
@@ -47,16 +49,42 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [terms, setTerms] = useState('');
+  // Versão do texto EXIBIDO: é ela que o aceite envia (o servidor recusa se não for a vigente).
+  const [termsVersion, setTermsVersion] = useState('');
+  // 'loading' → 'ok' (texto exibido) | 'error' (falhou ou veio sem texto). Fail closed: sem
+  // o texto na tela, ninguém aceita um termo que não leu.
+  const [termsState, setTermsState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [accepted, setAccepted] = useState(false);
 
-  // Texto do termo vindo do backend (fonte única; a versão é a que o aceite grava).
+  // Texto do termo vindo do backend (fonte única; a versão exibida é a que o aceite envia).
+  const aliveRef = useRef(true);
+  // Volta a true no (re)mount: em StrictMode o React monta, desmonta e monta de novo.
   useEffect(() => {
-    let alive = true;
-    api.get('/settings/store-asaas-terms')
-      .then((r) => { if (alive) setTerms(typeof r.data?.text === 'string' ? r.data.text : ''); })
-      .catch(() => { /* sem texto, o aceite continua exigido pelo backend */ });
-    return () => { alive = false; };
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
   }, []);
+  const loadTerms = useCallback(() => {
+    setTermsState('loading');
+    return api.get('/settings/store-asaas-terms')
+      .then((r) => {
+        if (!aliveRef.current) return;
+        const text = typeof r.data?.text === 'string' ? r.data.text.trim() : '';
+        const version = typeof r.data?.version === 'string' ? r.data.version.trim() : '';
+        setTerms(text);
+        setTermsVersion(version);
+        setTermsState(text && version ? 'ok' : 'error');
+      })
+      .catch(() => { if (aliveRef.current) setTermsState('error'); });
+  }, []);
+  useEffect(() => { loadTerms(); }, [loadTerms]);
+
+  // Termo mudou entre a leitura e o aceite: desmarca, avisa e recarrega o texto novo.
+  const onTermsOutdated = () => {
+    setAccepted(false);
+    showToast(TERMS_OUTDATED_MSG, 'error');
+    loadTerms();
+  };
+  const termsReady = termsState === 'ok';
 
   const load = useCallback(async () => {
     try {
@@ -72,13 +100,18 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
     setBusy(true);
     setError('');
     try {
-      const r = await api.put(apiBase, { apiKey, acceptTerms: true });
+      const r = await api.put(apiBase, { apiKey, acceptTerms: true, termsVersion });
       setStatus(r.data?.data ?? null);
       setApiKey(''); // a chave não fica em estado nem em tela
       setAccepted(false);
       showToast('Conta Asaas conectada.', 'success');
     } catch (e: any) {
-      setError(errMsg(e, 'Não foi possível conectar.'));
+      if (isTermsOutdated(e)) {
+        setError(TERMS_OUTDATED_MSG);
+        onTermsOutdated();
+      } else {
+        setError(errMsg(e, 'Não foi possível conectar.'));
+      }
     } finally {
       setBusy(false);
     }
@@ -87,12 +120,13 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const acceptTermsOnly = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`${apiBase}/consent`, { acceptTerms: true });
+      const r = await api.post(`${apiBase}/consent`, { acceptTerms: true, termsVersion });
       setStatus(r.data?.data ?? null);
       setAccepted(false);
       showToast('Termo aceito.', 'success');
     } catch (e: any) {
-      showToast(errMsg(e, 'Não foi possível registrar o aceite.'), 'error');
+      if (isTermsOutdated(e)) onTermsOutdated();
+      else showToast(errMsg(e, 'Não foi possível registrar o aceite.'), 'error');
     } finally {
       setBusy(false);
     }
@@ -182,18 +216,21 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
         )}
         <div className={styles.terms}>
           <strong>Termo de autorização</strong>
-          {terms && <pre className={styles.termsText}>{terms}</pre>}
+          {termsReady && <pre className={styles.termsText}>{terms}</pre>}
+          {termsState === 'error' && (
+            <p className={`${styles.hint} ${styles.warn}`} role="alert">Não foi possível carregar o termo. Recarregue a página para ler e aceitar.</p>
+          )}
           <label className={styles.accept}>
-            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <input type="checkbox" checked={accepted && termsReady} disabled={!termsReady} onChange={(e) => setAccepted(e.target.checked)} />
             <span>{acceptLabel}</span>
           </label>
           {(needsConsent || outdatedConsent) && (
             <div className={styles.actions}>
-              <Button size="sm" variant="primary" loading={busy} disabled={!accepted} onClick={acceptTermsOnly}>Aceitar o termo</Button>
+              <Button size="sm" variant="primary" loading={busy} disabled={!accepted || !termsReady} onClick={acceptTermsOnly}>Aceitar o termo</Button>
             </div>
           )}
         </div>
-        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey && accepted) connect(); }}>
+        <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (apiKey && accepted && termsReady) connect(); }}>
           <Input
             className={styles.formField}
             type="password"
@@ -204,7 +241,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
             aria-label="Chave de API do Asaas"
             error={error || undefined}
           />
-          <Button variant="primary" loading={busy} disabled={!apiKey || !accepted} onClick={connect}>
+          <Button variant="primary" loading={busy} disabled={!apiKey || !accepted || !termsReady} onClick={connect}>
             {connected ? 'Trocar chave' : 'Conectar'}
           </Button>
           {allowDisconnect && connected && (
@@ -237,7 +274,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
             </li>
             <li className={styles.item}>
               <div className={styles.itemHead}>{mark(c?.authWebhookConfirmed)} 4. Gerar token da trava de autorização</div>
-              <p className={styles.hint}>No Asaas, cadastre este endereço como webhook de autorização de transferências e cole o token gerado aqui.</p>
+              <p className={styles.hint}>No Asaas, abra Menu do usuário → Integrações → Mecanismos de segurança → Validação de saque via webhook. Cole este endereço, o token gerado aqui e seu e-mail. É nessa tela, não em Integrações → Webhooks.</p>
               <code className={styles.code}>{urlShown}</code>
               {authToken && (
                 <div className={styles.tokenBox}>

@@ -29,6 +29,8 @@ beforeEach(() => {
   (api.get as jest.Mock).mockImplementation((url: string) => {
     if (url === '/admin/stores/asaas') return Promise.resolve({ data: { success: true, data: lojas } });
     if (url === '/settings/saas') return Promise.resolve({ data: { egressIp: '203.0.113.7' } });
+    // Termo carregado (sem texto o aceite fica desabilitado — fail closed).
+    if (url === '/settings/store-asaas-terms') return Promise.resolve({ data: { version: '2026-10-08', text: 'Termo de teste.' } });
     return Promise.resolve({ data: { success: true, data: none } });
   });
   (api.put as jest.Mock).mockResolvedValue({ data: { success: true, data: valid } });
@@ -42,7 +44,7 @@ test('lista as lojas e, ao selecionar, usa apiBase /admin/stores/<id>/asaas para
   fireEvent.change(input, { target: { value: KEY } });
   fireEvent.click(screen.getByLabelText('O lojista assinou este termo'));
   fireEvent.click(screen.getByText('Conectar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY, acceptTerms: true }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s2/asaas', { apiKey: KEY, acceptTerms: true, termsVersion: '2026-10-08' }));
   expect(document.body.innerHTML).not.toContain('SEGREDO123456');
 });
 

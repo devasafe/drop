@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSaasConfig } from '../hooks/useSaasConfig';
 import { Button } from './ui/Button';
 import styles from './VerificationHub.module.css';
 
@@ -35,16 +36,17 @@ export default function VerificationHub() {
   const { user } = useAuth() || ({} as any);
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
+  const { settlementMode, loading: saasLoading } = useSaasConfig();
   const role = user?.activeRole || user?.role;
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || saasLoading) return;
     load();
-  }, [user]);
+  }, [user, saasLoading, settlementMode]);
 
   const receivingSection = async (): Promise<Section> => {
     const ob = await api.get('/onboarding/status').then((r) => r.data).catch(() => null);
-    const direct = (await api.get('/settings/saas').then((r) => r.data?.settlementMode).catch(() => null)) === 'direto';
+    const direct = settlementMode === 'direto';
     const step: Step = direct ? (ob?.hasPixKey ? 'done' : 'todo') : ob?.accountStatus === 'active' ? 'done' : ob?.accountStatus === 'pending' ? 'pending' : 'todo';
     return { title: 'Dados de recebimento', desc: 'Chave PIX e endereço para receber e sacar seu dinheiro.', step, href: '/dados-recebimento', cta: step === 'done' ? 'Ver' : 'Configurar' };
   };
@@ -70,6 +72,16 @@ export default function VerificationHub() {
           const dash = await api.get('/stores/dashboard').then((r) => r.data);
           storeId = dash?.store?._id || dash?._id || dash?.storeId || '';
         } catch {}
+        if (settlementMode === 'direto') {
+          // Modo direto (SaaS): sem verificação de loja nem Pix do lojista; só a conta Asaas.
+          let asaasStep: Step = 'todo';
+          if (storeId) {
+            const as = await api.get(`/stores/${storeId}/asaas`).then((r) => r.data?.data).catch(() => null);
+            asaasStep = as?.status === 'valid' && as?.consent ? 'done' : 'todo';
+          }
+          secs.push({ title: 'Conta Asaas', desc: 'Conecte a sua conta Asaas para receber os pagamentos dos pedidos.', step: asaasStep, href: '/seller/pagamentos', cta: asaasStep === 'done' ? 'Ver' : 'Conectar' });
+          return;
+        }
         let storeStep: Step = 'todo';
         if (storeId) {
           const sv = await api.get(`/verification/store/${storeId}`).then((r) => r.data).catch(() => null);

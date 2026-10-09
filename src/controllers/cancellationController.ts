@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { generatePin } from '../services/pinGuard';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
@@ -41,6 +42,8 @@ import {
 import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Pedido encerrado: nada de reembolso/reentrega/reatribuição depois disso. */
+const CLOSED_ORDER_STATUSES = ['cancelado', 'rejeitado'];
 
 /**
  * Cancelamento de pedido do modo direto (asaas_loja): o dinheiro está na conta Asaas DA
@@ -69,6 +72,15 @@ const validateOrderOwnership = async (orderId: string, userId: string) => {
   if (String(order.customerId) !== userId) throw new Error('Permissão negada');
   return order;
 };
+
+/** Cancelamento do cliente (pedido direto): devolução em andamento descoberta depois da trava. */
+class CancelReturnInProgressError extends Error {
+  constructor() { super('RETURN_IN_PROGRESS'); this.name = 'CancelReturnInProgressError'; }
+}
+/** Cancelamento do cliente (pedido direto): o envolvimento do motoboy mudou depois da leitura. */
+class CancelDeliveryChangedError extends Error {
+  constructor() { super('DELIVERY_CHANGED'); this.name = 'CancelDeliveryChangedError'; }
+}
 
 const validateStoreOwnership = async (storeId: string, userId: string) => {
   const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
@@ -170,7 +182,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // cancelamento é GRÁTIS (reembolso cheio). Quando cobra, a entrega vai inteira pro
     // motoboy (a volta ele absorve) — ver calculateCancellationFee (actor 'customer').
     const motoboyEnRoute = order.status === 'enviado' && motoboyInvolved;
-    const fee = calculateCancellationFee({
+    let fee = calculateCancellationFee({
       actor: 'customer',
       motoboyInvolved: motoboyEnRoute,
       orderTotal: order.totalValue || 0,
@@ -178,7 +190,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
       config: feeConfig,
     });
     // Refund DESCONTADO: o cliente recebe o total menos a taxa (o desconto é a "cobrança").
-    const refundAmount = fee.refundToCustomer;
+    let refundAmount = fee.refundToCustomer;
     let refundStatus: 'pending' | 'processed' | 'failed' = 'pending';
 
     // ✅ IDEMPOTÊNCIA/ATÔMICO: "reivindica" o cancelamento de forma atômica.
@@ -192,12 +204,51 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // se ela falhar, o pedido continua cancelável e o estorno não se perde atrás de um 409.
     const direct = isDirectOrder(order);
     if (!direct) {
-      const claim = await prisma.order.updateMany({
-        where: { id: orderId, status: { in: cancellableStatuses as any } },
-        data: { status: 'cancelado', cancelledAt: new Date() },
-      });
-      if (claim.count === 0) {
-        return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      // Trava + releitura da entrega na MESMA transação: devolução em andamento descoberta
+      // depois da leitura desfaz a trava (como no pedido direto) — antes de qualquer dinheiro
+      // se mover. Sem isso, o pedido era cancelado com reembolso de 100% e a entrega ficava
+      // em devolução num pedido 'cancelado'.
+      let fresh: { motoboyId: string | null; statusDevolucao: string | null } | null = null;
+      try {
+        const claimed = await prisma.$transaction(async (tx) => {
+          const claim = await tx.order.updateMany({
+            where: { id: orderId, status: { in: cancellableStatuses as any } },
+            data: { status: 'cancelado', cancelledAt: new Date() },
+          });
+          if (claim.count === 0) return false;
+          if (order.deliveryId) {
+            fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+            if (fresh?.statusDevolucao === 'aguardando_confirmacao') throw new CancelReturnInProgressError();
+          }
+          return true;
+        });
+        if (!claimed) {
+          return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+        }
+      } catch (err) {
+        if (err instanceof CancelReturnInProgressError) {
+          return res.status(409).json({ error: 'RETURN_IN_PROGRESS', message: 'Devolução em andamento; use a decisão pós-devolução.' });
+        }
+        throw err;
+      }
+
+      // Entrega relida DEPOIS da trava: quem assumiu a entrega no meio é compensado. Se o
+      // envolvimento do motoboy mudou, a taxa/reembolso são recalculados (o reembolso da
+      // custódia só sai abaixo).
+      if (order.deliveryId) {
+        const freshMotoboy = (fresh as { motoboyId: string | null } | null)?.motoboyId ?? null;
+        if (freshMotoboy !== compMotoboyId) {
+          logger.warn('[cancelOrder] entrega mudou entre a leitura e a trava — relida', { orderId, before: compMotoboyId, after: freshMotoboy });
+          compMotoboyId = freshMotoboy;
+          fee = calculateCancellationFee({
+            actor: 'customer',
+            motoboyInvolved: order.status === 'enviado' && !!freshMotoboy,
+            orderTotal: order.totalValue || 0,
+            deliveryFee: order.deliveryFee || 0,
+            config: feeConfig,
+          });
+          refundAmount = fee.refundToCustomer;
+        }
       }
 
       // ✅ Devolver estoque (createOrder decrementa sempre, COD ou não).
@@ -379,11 +430,30 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         isLateCancellation: isLate,
         lateCancellationFee: cancellationFeeCharged > 0 ? cancellationFeeCharged : undefined,
       },
-      direct ? { order, deliveryId: order.deliveryId, motoboyId: compMotoboyId, motoboyShare: fee.motoboyShare } : null,
+      // Pedido direto: a entrega é relida pelo `tx` DEPOIS da trava (como na recusa da loja).
+      // Devolução em andamento → desfaz tudo (409 RETURN_IN_PROGRESS); envolvimento do
+      // motoboy mudou com o pedido em rota (a taxa/reembolso já calculados não valem mais)
+      // → desfaz tudo (409 DELIVERY_CHANGED, o cliente tenta de novo); senão, a compensação
+      // vai a quem está na entrega agora.
+      direct ? (async (tx: Prisma.TransactionClient) => {
+        if (!order.deliveryId) return null;
+        const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+        if (fresh?.statusDevolucao === 'aguardando_confirmacao') throw new CancelReturnInProgressError();
+        if (order.status === 'enviado' && !!fresh?.motoboyId !== motoboyInvolved) throw new CancelDeliveryChangedError();
+        return fresh?.motoboyId
+          ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: fee.motoboyShare }
+          : null;
+      }) : null,
       direct ? { orderId: order.id, from: cancellableStatuses, to: 'cancelado', restock: order.products || [] } : undefined));
     } catch (err) {
       if (err instanceof CancellationClaimLostError) {
         return res.status(409).json({ error: 'Pedido já foi cancelado ou está em processamento' });
+      }
+      if (err instanceof CancelReturnInProgressError) {
+        return res.status(409).json({ error: 'RETURN_IN_PROGRESS', message: 'Devolução em andamento; use a decisão pós-devolução.' });
+      }
+      if (err instanceof CancelDeliveryChangedError) {
+        return res.status(409).json({ error: 'A entrega mudou enquanto o cancelamento era processado. Tente de novo.', code: 'DELIVERY_CHANGED' });
       }
       throw err;
     }
@@ -1150,6 +1220,10 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
     const delivery: any = order.deliveryId
       ? toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) } }))
       : null;
+    // Pedido já encerrado: nenhuma decisão pós-devolução vale (nada é gravado).
+    if (CLOSED_ORDER_STATUSES.includes(order.status)) {
+      return res.status(409).json({ error: 'Pedido já foi encerrado', code: 'ORDER_CLOSED' });
+    }
     if (!delivery || delivery.statusDevolucao !== 'aguardando_confirmacao') {
       return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
     }
@@ -1172,8 +1246,18 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
     }
 
     // reentrega → produto volta à loja (confirmReturn) e daí ao pool via 'reassign'.
-    delivery.pendingReturnAction = 'reassign';
-    await persistDelivery(delivery);
+    // Pedido travado: um cancelamento concorrente não deixa 'reassign' num pedido encerrado.
+    const marked = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
+      if (!rows.length || CLOSED_ORDER_STATUSES.includes(rows[0].status)) return 'closed';
+      const { count } = await tx.delivery.updateMany({
+        where: { id: String(delivery._id), statusDevolucao: 'aguardando_confirmacao' },
+        data: { pendingReturnAction: 'reassign' },
+      });
+      return count === 1 ? 'ok' : 'no_return';
+    });
+    if (marked === 'closed') return res.status(409).json({ error: 'Pedido já foi encerrado', code: 'ORDER_CLOSED' });
+    if (marked === 'no_return') return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
 
     emitToRoom(`store:${order.storeId}`, 'delivery:return_requested', {
       deliveryId: delivery._id,
@@ -1427,24 +1511,24 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
       // 🔴 REGISTRAR COMISSÃO DE ENTREGA NO APPCASHBOX
       try {
         const productTotal = (order.products || []).reduce((sum: number, it: any) => sum + (it.price || 0) * (it.quantity || 1), 0);
-        console.log(`\n🔍 [rejectOrder] REGISTRANDO COMISSÃO DE ENTREGA:`);
-        console.log(`   📦 Produto total: R$ ${productTotal}`);
-        console.log(`   🚗 Taxa de entrega: R$ ${fee}`);
-        console.log(`   📍 Distância: ${distance}km`);
-        console.log(`   🏪 Store ID: ${order.storeId.toString()}`);
+        logger.debug(`\n🔍 [rejectOrder] REGISTRANDO COMISSÃO DE ENTREGA:`);
+        logger.debug(`   📦 Produto total: R$ ${productTotal}`);
+        logger.debug(`   🚗 Taxa de entrega: R$ ${fee}`);
+        logger.debug(`   📍 Distância: ${distance}km`);
+        logger.debug(`   🏪 Store ID: ${order.storeId.toString()}`);
         
         const distribution = await calculateOrderDistribution(productTotal, fee, order.storeId.toString(), Number(distance || 0));
         
-        console.log(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
-        console.log(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
-        console.log(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
-        console.log(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
+        logger.debug(`\n✅ DISTRIBUIÇÃO CALCULADA:`);
+        logger.debug(`   💳 Produto App Commission: R$ ${distribution.product.appCommission}`);
+        logger.debug(`   🚗 Entrega App Commission: R$ ${distribution.delivery?.appCommission}`);
+        logger.debug(`   👤 Motoboy Amount (líquido): R$ ${distribution.delivery?.motoboyAmount}`);
 
         if (order.paymentMethod === 'cash_on_delivery' && distribution.delivery) {
           await addCommissionToAppCashbox('delivery_commission', distribution.delivery.appCommission, order._id.toString(), delivery._id.toString(), 'Comissão de entrega');
         }
 
-        console.log(`✅ COMISSÃO REGISTRADA COM SUCESSO!\n`);
+        logger.debug(`✅ COMISSÃO REGISTRADA COM SUCESSO!\n`);
       } catch (err) {
         console.error('\n❌ ERRO ao registrar comissão de entrega no caixa do app:', err);
         console.error(`   Pedido: ${order._id}`);
@@ -1537,6 +1621,8 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // UPDATE condicional por status — bloqueia duplo-reembolso concorrente.
     // Pedido direto (R19-a): trava + estoque dentro da transação do registro (abaixo).
     const direct = isDirectOrder(order);
+    // Motoboy que aceitou entre o guard e a trava (relido depois da trava).
+    let acceptedMidwayMotoboyId: string | null = null;
     if (!direct) {
       const claim = await prisma.order.updateMany({
         where: { id: orderId, status: { in: CANCELLABLE_BEFORE_MOTOBOY as any } },
@@ -1544,6 +1630,21 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
       });
       if (claim.count === 0) {
         return res.status(409).json({ error: 'Pedido já foi rejeitado/cancelado ou está em processamento' });
+      }
+
+      // Entrega ainda no pool: cancela de forma condicional (`motoboyId: null`). count 0 =
+      // um motoboy aceitou entre o guard acima e a trava → ele segue o caminho de
+      // compensação (taxa da loja com motoboy envolvido). Depois da trava, o aceite não
+      // passa mais (claimDelivery exige o pedido aberto).
+      if (order.deliveryId) {
+        const cancelPending = await prisma.delivery.updateMany({
+          where: { id: String(order.deliveryId), status: 'pending', motoboyId: null },
+          data: { status: 'cancelled', cancelledAt: new Date() },
+        });
+        if (cancelPending.count === 0) {
+          const fresh = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+          acceptedMidwayMotoboyId = fresh?.motoboyId ?? null;
+        }
       }
 
       // ✅ Devolver estoque (uma única vez, graças à trava atômica acima)
@@ -1640,7 +1741,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
           cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
           lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
         };
-        const compMotoboyId: string | null = delivery?.motoboyId ?? null;
+        const compMotoboyId: string | null = delivery?.motoboyId ?? acceptedMidwayMotoboyId;
         const fee = calculateCancellationFee({
           actor: 'store',
           motoboyInvolved: !!compMotoboyId,
@@ -1691,25 +1792,36 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
     // corrida na janela entre o guard MOTOBOY_ACCEPTED_CANNOT_CANCEL e a trava do pedido, ele
     // recebe a parte da fórmula (calculateCancellationFee actor 'store') pela conta da loja.
     // A entrega é relida pelo `tx`, depois da trava, dentro da transação do registro.
+    // A entrega `pending` é cancelada na MESMA transação da trava, por updateMany condicional
+    // (`motoboyId: null`): count 1 = ninguém aceitou (sem compensação); count 0 = um motoboy
+    // aceitou no meio → relida pelo `tx` e compensada (se a loja já tinha aceitado o pedido).
     let directCompensation: Parameters<typeof recordCancellationWithCompensation>[1] = null;
-    if (direct && storeAccepted && order.deliveryId) {
-      const config = await getPlatformConfig();
-      const storeFee = calculateCancellationFee({
-        actor: 'store',
-        motoboyInvolved: true,
-        orderTotal: order.totalValue || 0,
-        deliveryFee: order.deliveryFee || 0,
-        config: {
-          cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
-          cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
-          cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
-          lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
-        },
-      });
+    if (direct && order.deliveryId) {
+      let storeShare = 0;
+      if (storeAccepted) {
+        const config = await getPlatformConfig();
+        storeShare = calculateCancellationFee({
+          actor: 'store',
+          motoboyInvolved: true,
+          orderTotal: order.totalValue || 0,
+          deliveryFee: order.deliveryFee || 0,
+          config: {
+            cancelFeeCustomerPercent: config?.cancelFeeCustomerPercent ?? 10,
+            cancelFeeStorePercent: config?.cancelFeeStorePercent ?? 10,
+            cancelFeeMotoboyPercent: config?.cancelFeeMotoboyPercent ?? 10,
+            lateCancellationMotoboyShare: config?.lateCancellationMotoboyShare ?? 50,
+          },
+        }).motoboyShare;
+      }
       directCompensation = async (tx) => {
+        const cancelPending = await tx.delivery.updateMany({
+          where: { id: String(order.deliveryId), status: 'pending', motoboyId: null },
+          data: { status: 'cancelled', cancelledAt: new Date() },
+        });
+        if (cancelPending.count === 1 || !storeAccepted) return null;
         const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
         return fresh?.motoboyId
-          ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: storeFee.motoboyShare }
+          ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: storeShare }
           : null;
       };
     }

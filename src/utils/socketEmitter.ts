@@ -2,6 +2,7 @@ import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
 import { notifyOnlineMotoboysNewDelivery, notifyStoreOwner, notifyAdmins } from '../services/pushService';
 import { toPublicStore } from '../repositories/store.repository';
+import logger from '../config/logger';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -17,7 +18,7 @@ export const emitToAll = (event: string, data: any) => {
     return;
   }
   try {
-    if (DEBUG) console.log(`[SOCKET][EMIT] Broadcasting "${event}" to all clients`);
+    if (DEBUG) logger.debug(`[SOCKET][EMIT] Broadcasting "${event}" to all clients`);
     io.emit(event, data);
   } catch (err) {
     console.error(`[SOCKET][ERROR] Erro ao emitir "${event}":`, err);
@@ -32,7 +33,7 @@ export const emitToRoom = (room: string, event: string, data: any) => {
     return;
   }
   try {
-    if (DEBUG) console.log(`[SOCKET.EMIT] "${event}" → ${room}`);
+    if (DEBUG) logger.debug(`[SOCKET.EMIT] "${event}" → ${room}`);
     io.to(room).emit(event, data);
   } catch (err) {
     console.error(`❌ [SOCKET.EMIT] Erro ao emitir para sala "${room}":`, err);
@@ -78,7 +79,7 @@ export const emitProductDeleted = (productId: string) => {
 };
 
 export const emitOrderCreated = (order: any) => {
-  console.log('[SOCKET][emitOrderCreated] Novo pedido:', {
+  logger.debug('[SOCKET][emitOrderCreated] Novo pedido:', {
     orderId: order._id,
     storeId: order.storeId,
     totalValue: order.totalValue,
@@ -116,7 +117,7 @@ export const emitOrderCreated = (order: any) => {
       createdAt: order.createdAt
     };
     
-    console.log('[SOCKET][emitOrderCreated] Enviando new_order para loja:', order.storeId, storePayload);
+    logger.debug('[SOCKET][emitOrderCreated] Enviando new_order para loja:', order.storeId, storePayload);
     emitToRoom(`store:${order.storeId}`, 'new_order', storePayload);
 
     // Também emitir order:created para consistency
@@ -416,7 +417,7 @@ export const emitDeliveryRejected = (delivery: any, rejectedBy: 'motoboy' | 'sto
         : `Loja rejeitou a entrega: ${reason}`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryRejected] Event sent to client ${order.customerId}`);
+    logger.debug(`📡 [emitDeliveryRejected] Event sent to client ${order.customerId}`);
 
     // 🔴 Notificar LOJA
     emitToRoom(`store:${order.storeId}`, 'delivery:rejected', {
@@ -429,7 +430,7 @@ export const emitDeliveryRejected = (delivery: any, rejectedBy: 'motoboy' | 'sto
         : `Entrega foi rejeitada: ${reason}`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryRejected] Event sent to store ${order.storeId}`);
+    logger.debug(`📡 [emitDeliveryRejected] Event sent to store ${order.storeId}`);
 
     // 🔴 Notificar MOTOBOY
     if (delivery.motoboyId) {
@@ -441,7 +442,7 @@ export const emitDeliveryRejected = (delivery: any, rejectedBy: 'motoboy' | 'sto
         message: `Entrega foi rejeitada: ${reason}`,
         timestamp: new Date().toISOString()
       });
-      console.log(`📡 [emitDeliveryRejected] Event sent to motoboy ${delivery.motoboyId}`);
+      logger.debug(`📡 [emitDeliveryRejected] Event sent to motoboy ${delivery.motoboyId}`);
     }
   }).catch((err: any) => {
     console.warn('[emitDeliveryRejected] Erro ao buscar order:', err.message);
@@ -457,7 +458,7 @@ export const emitOrderRejectedByStore = (order: any, reason: string) => {
       message: `Sua loja rejeitou seu pedido: ${reason}`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitOrderRejectedByStore] Event sent to client ${order.customerId}`);
+    logger.debug(`📡 [emitOrderRejectedByStore] Event sent to client ${order.customerId}`);
   }
 
   // 🔴 Notificar LOJA
@@ -468,7 +469,7 @@ export const emitOrderRejectedByStore = (order: any, reason: string) => {
       message: `Pedido rejeitado com sucesso`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitOrderRejectedByStore] Event sent to store ${order.storeId}`);
+    logger.debug(`📡 [emitOrderRejectedByStore] Event sent to store ${order.storeId}`);
   }
 
   // 🔴 Notificar MOTOBOY (se já foi atribuído)
@@ -482,7 +483,7 @@ export const emitOrderRejectedByStore = (order: any, reason: string) => {
           message: `O pedido que você aceitou foi rejeitado pela loja: ${reason}`,
           timestamp: new Date().toISOString()
         });
-        console.log(`📡 [emitOrderRejectedByStore] Event sent to motoboy ${delivery.motoboyId}`);
+        logger.debug(`📡 [emitOrderRejectedByStore] Event sent to motoboy ${delivery.motoboyId}`);
       }
     }).catch((err: any) => {
       console.warn('[emitOrderRejectedByStore] Erro ao buscar delivery:', err.message);
@@ -513,7 +514,7 @@ export const emitOrderAcceptedByStore = (order: any) => {
 
 // 🎉 Entrega foi COMPLETADA - Notificar TODAS as partes
 export const emitDeliveryCompleted = (delivery: any, order: any) => {
-  console.log(`✅ [emitDeliveryCompleted] Broadcasting delivery completion for order ${order._id}`);
+  logger.debug(`✅ [emitDeliveryCompleted] Broadcasting delivery completion for order ${order._id}`);
   
   // 🔴 Notificar CLIENTE
   if (order.customerId) {
@@ -525,7 +526,7 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
       completedAt: delivery.updatedAt,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryCompleted] Event sent to client ${order.customerId}`);
+    logger.debug(`📡 [emitDeliveryCompleted] Event sent to client ${order.customerId}`);
   }
 
   // 🔴 Notificar LOJA
@@ -538,7 +539,7 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
       completedAt: delivery.updatedAt,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryCompleted] Event sent to store ${order.storeId}`);
+    logger.debug(`📡 [emitDeliveryCompleted] Event sent to store ${order.storeId}`);
   }
 
   // 🔴 Notificar MOTOBOY
@@ -551,7 +552,7 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
       completedAt: delivery.updatedAt,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryCompleted] Event sent to motoboy ${delivery.motoboyId}`);
+    logger.debug(`📡 [emitDeliveryCompleted] Event sent to motoboy ${delivery.motoboyId}`);
   }
   // Sem broadcast global: as três partes já foram avisadas nas salas acima.
 };
@@ -559,7 +560,7 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
 // ========== WALLET EVENTS ==========
 
 export const emitWalletUpdated = (userId: string, userType: 'cliente' | 'lojista' | 'motoboy', wallet: any) => {
-  console.log(`💰 [emitWalletUpdated] Wallet updated for ${userType} ${userId}`, {
+  logger.debug(`💰 [emitWalletUpdated] Wallet updated for ${userType} ${userId}`, {
     balance: wallet.balance,
     totalIncome: wallet.totalIncome,
     totalSpent: wallet.totalSpent
@@ -578,7 +579,7 @@ export const emitWalletUpdated = (userId: string, userType: 'cliente' | 'lojista
 };
 
 export const emitWalletTransferCompleted = (fromUser: string, toUser: string, amount: number, reference: string) => {
-  console.log(`💸 [emitWalletTransferCompleted] Transfer completed: ${fromUser} → ${toUser}: R$${amount}`);
+  logger.debug(`💸 [emitWalletTransferCompleted] Transfer completed: ${fromUser} → ${toUser}: R$${amount}`);
   
   // Notificar remetente
   emitToRoom(`user:${fromUser}`, 'wallet:transfer_completed', {
@@ -600,7 +601,7 @@ export const emitWalletTransferCompleted = (fromUser: string, toUser: string, am
 };
 
 export const emitWalletRefund = (userId: string, userType: string, amount: number, reason: string) => {
-  console.log(`💵 [emitWalletRefund] Refund issued: ${userType} ${userId}: R$${amount} - ${reason}`);
+  logger.debug(`💵 [emitWalletRefund] Refund issued: ${userType} ${userId}: R$${amount} - ${reason}`);
   
   emitToRoom(`user:${userId}`, 'wallet:refund', {
     userId,
@@ -612,7 +613,7 @@ export const emitWalletRefund = (userId: string, userType: string, amount: numbe
 };
 
 export const emitDeliveryAssigned = (delivery: any, motoboy: any) => {
-  console.log(`🏍️ [emitDeliveryAssigned] Delivery ${delivery._id} assigned to motoboy ${motoboy._id}`);
+  logger.debug(`🏍️ [emitDeliveryAssigned] Delivery ${delivery._id} assigned to motoboy ${motoboy._id}`);
   
   prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
     if (!order) return;
@@ -630,7 +631,7 @@ export const emitDeliveryAssigned = (delivery: any, motoboy: any) => {
         eta: '15-20 minutos',
         timestamp: new Date().toISOString()
       });
-      console.log(`📡 [emitDeliveryAssigned] Event sent to client ${order.customerId}`);
+      logger.debug(`📡 [emitDeliveryAssigned] Event sent to client ${order.customerId}`);
     }
   }).catch((err: any) => {
     console.warn('[emitDeliveryAssigned] Erro ao buscar order:', err.message);
@@ -647,6 +648,6 @@ export const emitDeliveryAssigned = (delivery: any, motoboy: any) => {
       message: `✅ Entrega atribuída com sucesso! R$${delivery.fee}`,
       timestamp: new Date().toISOString()
     });
-    console.log(`📡 [emitDeliveryAssigned] Event sent to motoboy ${motoboy._id}`);
+    logger.debug(`📡 [emitDeliveryAssigned] Event sent to motoboy ${motoboy._id}`);
   }
 };

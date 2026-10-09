@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
 import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 
@@ -14,6 +15,8 @@ import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { toApiProduct } from './productController';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -141,7 +144,9 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       orders: ongoingOrders,
       history: historyOrders,
       store: storeWithPlan,
-      categories
+      categories,
+      // Produtos do dono: o painel não pode depender de GET /products (loja pausada some da vitrine).
+      products: products.map(toApiProduct),
     });
   } catch (err) {
     console.error('[dashboard] error:', err);
@@ -256,6 +261,16 @@ export const listarAvaliacoesLoja = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Deletar loja e remover usuário lojista e dados relacionados
+const STORE_HAS_CONSENT_BODY = {
+  success: false,
+  error: {
+    message: 'Esta loja aceitou o termo de autorização do Asaas e não pode ser excluída. Fale com o suporte.',
+    statusCode: 409,
+    code: 'STORE_HAS_CONSENT',
+  },
+};
+const storeHasConsent = () => Object.assign(new Error('STORE_HAS_CONSENT'), { storeHasConsent: true });
+
 export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params; // id da loja
@@ -264,15 +279,32 @@ export const deleteStoreAndUser = async (req: AuthenticatedRequest, res: Respons
     if (!req.user || String(store.ownerId) !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
     }
-    // Remove produtos e categorias da loja
-    await prisma.product.deleteMany({ where: { storeId: store.id } });
-    await prisma.category.deleteMany({ where: { storeId: store.id } });
-    // Remove loja
-    await prisma.store.delete({ where: { id: store.id } });
-    // Remove usuário lojista
-    await prisma.user.delete({ where: { id: String(store.ownerId) } });
+    // Fail closed: a prova do aceite do termo Asaas (StoreAsaasConsent) é imutável e não
+    // sai em cascata. Loja com termo aceito não é apagada. Checagem + remoções na MESMA
+    // transação, com a loja travada antes da checagem: o aceite (que também trava a loja)
+    // não entra entre a checagem e o delete — nada é apagado pela metade.
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Store" WHERE id = ${store.id} FOR UPDATE`;
+      if (locked.length === 0) throw Object.assign(new Error('Store not found'), { storeGone: true });
+      const consents = await tx.storeAsaasConsent.count({ where: { storeId: store.id } });
+      if (consents > 0) throw storeHasConsent();
+      // Remove produtos e categorias da loja
+      await tx.product.deleteMany({ where: { storeId: store.id } });
+      await tx.category.deleteMany({ where: { storeId: store.id } });
+      // Remove loja
+      await tx.store.delete({ where: { id: store.id } });
+      // Remove usuário lojista
+      await tx.user.delete({ where: { id: String(store.ownerId) } });
+    });
     return res.json({ ok: true });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.storeHasConsent) return res.status(409).json(STORE_HAS_CONSENT_BODY);
+    if (err?.storeGone) return res.status(404).json({ error: 'Store not found' });
+    // Defesa extra: a FK Restrict do aceite recusou o delete da loja → a transação inteira voltou.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003'
+      && String((err.meta as any)?.field_name || '').includes('StoreAsaasConsent')) {
+      return res.status(409).json(STORE_HAS_CONSENT_BODY);
+    }
     console.error(err);
     return res.status(500).json({ error: 'Failed to delete store and user' });
   }
@@ -322,7 +354,7 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 
     // ✅ FIX: Atualizar user.storeId para que o wallet funcione
     await prisma.user.update({ where: { id: String(ownerId) }, data: { storeId: store.id } });
-    console.log('✅ [CREATE_STORE] User.storeId atualizado:', { ownerId, storeId: store.id });
+    logger.debug('✅ [CREATE_STORE] User.storeId atualizado:', { ownerId, storeId: store.id });
 
     // Broadcast store creation
     emitStoreCreated(store);
@@ -420,6 +452,9 @@ export const listStores = async (_req: Request, res: Response) => {
     // ✅ GATE KYC (Fase 2): com KYC_ENFORCED, só lojas verificadas aparecem.
     const filter: any = {};
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    // Modo direto: loja pausada/cancelada pela mensalidade some da vitrine.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere) filter.AND = [billingWhere];
     const found = await prisma.store.findMany({ where: filter });
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
     return res.json(found.map(toPublicStore));
@@ -463,7 +498,7 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 // [Plan1] Retorna lojas em destaque (Plano 3 com featuredBannerUrl preenchido)
 export const getFeaturedStores = async (_req: Request, res: Response) => {
   try {
-    console.log('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
+    logger.debug('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
     // `{ $exists: true, $ne: '' }` vira "não nulo e diferente de vazio" no Prisma.
     const featuredFilter: any = {
       plan: 3,
@@ -471,6 +506,8 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
       NOT: { featuredBannerUrl: '' },
     };
     if (process.env.KYC_ENFORCED === 'true') featuredFilter.isVerified = true; // ✅ GATE KYC Fase 2
+    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
+    if (billingWhere) featuredFilter.AND = [billingWhere];
 
     const rows = await prisma.store.findMany({
       where: featuredFilter,
@@ -501,6 +538,9 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
       select: { id: true, plan: true },
     });
     if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    // Modo direto: loja pausada/cancelada pela mensalidade está fora do ar → sem top produtos.
+    if (await isStoreHiddenByBilling(store.id)) return res.json({ products: [] });
 
     // Feature exclusiva de lojas Plano 3 (premium)
     const storePlan = Number(store.plan) || 1;
@@ -569,6 +609,8 @@ export const getTopStores = async (req: Request, res: Response) => {
     const counts = new Map(grouped.map((g) => [g.storeId, g._count._all]));
     const filter: any = { id: { in: grouped.map((g) => g.storeId) } };
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
+    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
+    if (billingWhere) filter.AND = [billingWhere];
     const stores = await prisma.store.findMany({ where: filter });
     const out = stores
       .map((s) => ({ ...toPublicStore(s), salesCount: counts.get(s.id) ?? 0 }))
@@ -595,9 +637,13 @@ export const getTopProducts = async (req: Request, res: Response) => {
     const sold = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
     const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } });
     const storeIds = [...new Set(products.map((p) => p.storeId))];
-    const stores = await prisma.store.findMany({ where: { id: { in: storeIds } }, select: { id: true, name: true, plan: true } });
+    // Modo direto: produto de loja pausada/cancelada pela mensalidade não aparece.
+    const billingWhere = await publicStoreBillingWhere();
+    const storeWhere: Prisma.StoreWhereInput = { id: { in: storeIds }, ...(billingWhere ? { AND: [billingWhere] } : {}) };
+    const stores = await prisma.store.findMany({ where: storeWhere, select: { id: true, name: true, plan: true } });
     const storeMap = new Map(stores.map((s) => [s.id, s]));
     const out = products
+      .filter((p: any) => storeMap.has(p.storeId))
       .map((p: any) => {
         const st = storeMap.get(p.storeId) as any;
         return {
@@ -625,6 +671,11 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (!store) return res.status(404).json({ error: 'Store not found' });
     // ✅ GATE KYC Fase 2: loja não verificada não aparece publicamente
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+    // Modo direto: loja pausada/cancelada pela mensalidade responde como inexistente.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
     return res.json(toPublicStore(store));

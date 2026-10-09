@@ -6,7 +6,7 @@ import asaasClient, { AsaasApiError } from '../asaas/client';
 import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encryption';
 import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
-import { registerPaymentWebhook } from './webhook';
+import { registerPaymentWebhook, repairPaymentWebhook, storeWebhookUrl } from './webhook';
 import { STORE_ASAAS_TERMS_VERSION } from '../../legal/storeAsaasTerms';
 
 /**
@@ -31,7 +31,19 @@ export type StoreAsaasStatus = {
 export type StoreConsentActorRole = 'lojista' | 'admin';
 
 /** Quem/como aceitou: origem da requisição, para a comprovação. */
-export type StoreConsentContext = { ip: string | null; userAgent: string | null; actorRole: StoreConsentActorRole };
+/** `termsVersion`: a versão que a tela exibiu (o controller já recusou versão diferente da vigente). */
+export type StoreConsentContext = {
+  ip: string | null; userAgent: string | null; actorRole: StoreConsentActorRole; termsVersion?: string;
+};
+
+/** Grava só a versão vigente: qualquer outra é recusada antes de tocar no banco (fail closed). */
+function consentVersion(received?: string): string {
+  const version = received ?? STORE_ASAAS_TERMS_VERSION;
+  if (version !== STORE_ASAAS_TERMS_VERSION) {
+    throw new AppError('O termo foi atualizado. Recarregue para ler e aceitar a nova versão.', 409, true, 'TERMS_VERSION_OUTDATED');
+  }
+  return version;
+}
 
 export class StoreAsaasNotReadyError extends AppError {
   constructor() {
@@ -87,16 +99,28 @@ export async function getStoreConsent(storeId: string): Promise<{ version: strin
   return row ? { version: row.termsVersion, acceptedAt: row.acceptedAt, actorRole: row.actorRole } : null;
 }
 
-/** Registra o aceite da versão vigente do termo (comprovação: INSERT puro). */
+/**
+ * Registra o aceite da versão vigente do termo (comprovação: INSERT puro).
+ * Idempotente: a mesma versão já aceita pela loja não gera segunda linha (unique
+ * storeId+termsVersion + ON CONFLICT DO NOTHING); vale a prova do primeiro aceite.
+ */
 export async function recordStoreConsent(params: {
   storeId: string; actorId: string; actorRole: StoreConsentActorRole; ip: string | null; userAgent: string | null;
+  termsVersion?: string;
 }): Promise<void> {
-  await prisma.storeAsaasConsent.create({
-    data: {
-      storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
-      termsVersion: STORE_ASAAS_TERMS_VERSION,
-      ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
-    },
+  const termsVersion = consentVersion(params.termsVersion);
+  // Trava a loja (como a exclusão e a conexão): o aceite não entra no meio de uma exclusão.
+  await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Store" WHERE id = ${params.storeId} FOR UPDATE`;
+    if (locked.length === 0) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+    await tx.storeAsaasConsent.createMany({
+      skipDuplicates: true,
+      data: {
+        storeId: params.storeId, actorId: params.actorId, actorRole: params.actorRole,
+        termsVersion,
+        ip: params.ip, userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
+      },
+    });
   });
 }
 
@@ -118,6 +142,7 @@ async function probeKey(storeId: string, key: string): Promise<boolean> {
 export async function connectStoreAsaas(
   storeId: string, rawApiKey: string, actorId: string, consent: StoreConsentContext,
 ): Promise<StoreAsaasStatus> {
+  const termsVersion = consentVersion(consent.termsVersion);
   const key = String(rawApiKey || '').trim();
   let keyEnv: 'sandbox' | 'production';
   if (key.startsWith('$aact_hmlg_')) keyEnv = 'sandbox';
@@ -184,9 +209,11 @@ export async function connectStoreAsaas(
       data: { storeId, actorId, action: existing ? 'replace' : 'connect', apiKeyLast4: data.apiKeyLast4 },
     });
     // Aceite do termo na MESMA transação: não existe conta conectada sem a comprovação.
-    await tx.storeAsaasConsent.create({
+    // Mesma versão já aceita (reconexão): ON CONFLICT DO NOTHING — não aborta a transação.
+    await tx.storeAsaasConsent.createMany({
+      skipDuplicates: true,
       data: {
-        storeId, actorId, actorRole: consent.actorRole, termsVersion: STORE_ASAAS_TERMS_VERSION,
+        storeId, actorId, actorRole: consent.actorRole, termsVersion,
         ip: consent.ip, userAgent: consent.userAgent ? consent.userAgent.slice(0, 500) : null,
       },
     });
@@ -317,6 +344,11 @@ export async function testStoreAsaas(storeId: string): Promise<StoreAsaasStatus>
     try {
       const wh: any = await asaasClient.getAs(key, `/webhooks/${encodeURIComponent(row.paymentWebhookId)}`);
       paymentWebhook = !!wh && wh.enabled === true && wh.interrupted !== true;
+      // URL trocada no painel do Asaas (ex.: a de /autorizacao) → nenhum aviso chega: regrava.
+      if (paymentWebhook && typeof wh.url === 'string' && wh.url !== storeWebhookUrl(storeId)) {
+        logger.warn('[asaasLoja] webhook de pagamentos com URL errada — regravando', { storeId });
+        await repairPaymentWebhook(storeId, key, row.paymentWebhookId);
+      }
     } catch {
       paymentWebhook = false;
     }

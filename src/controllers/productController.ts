@@ -9,10 +9,12 @@ import {
   emitProductDeleted,
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
+import logger from '../config/logger';
+import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
-const toApiProduct = (p: any) => {
+export const toApiProduct = (p: any) => {
   // Remove a RELAÇÃO `category` ({ name }) do payload — ela é um objeto e
   // quebrava o front que renderiza `product.category` como texto (React #31).
   // O nome vai em `categoryName`; o `categoryId` (string) continua no `...rest`.
@@ -98,7 +100,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
       // Não falha a requisição se socket falhar
     }
     
-    console.log(`[createProduct] Produto criado: ${product.id} (${name})`);
+    logger.debug(`[createProduct] Produto criado: ${product.id} (${name})`);
     return res.status(201).json(toApiProduct(product));
   } catch (err: any) {
     console.error('[createProduct] Erro:', err);
@@ -117,6 +119,10 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
       const verifiedStores = await prisma.store.findMany({ where: { isVerified: true }, select: { id: true } });
       filter.storeId = { in: verifiedStores.map((st) => st.id) };
     }
+
+    // Modo direto: produtos de loja pausada/cancelada pela mensalidade somem da vitrine.
+    const billingWhere = await publicStoreBillingWhere();
+    if (billingWhere) filter.store = billingWhere;
 
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -147,7 +153,7 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
   }
 };
 
-export const getProduct = async (req: Request<{ id: string }>, res: Response) => {
+export const getProduct = async (req: AuthenticatedRequest & Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({
@@ -155,6 +161,14 @@ export const getProduct = async (req: Request<{ id: string }>, res: Response) =>
       include: { category: { select: { name: true } } },
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    // Modo direto: produto de loja pausada/cancelada pela mensalidade fica fora do ar
+    // (link direto incluso) — exceto para o próprio dono, que gerencia o catálogo.
+    if (await isStoreHiddenByBilling(String(product.storeId))) {
+      const owner = req.user?.id
+        ? await prisma.store.count({ where: { id: String(product.storeId), ownerId: String(req.user.id) } })
+        : 0;
+      if (!owner) return res.status(404).json({ error: 'Product not found' });
+    }
     return res.json(toApiProduct(product));
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -235,7 +249,7 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     // Emit socket event
     emitProductUpdated(toApiProduct(updated));
 
-    console.log(`[updateProduct] Produto atualizado: ${updated.id}`);
+    logger.debug(`[updateProduct] Produto atualizado: ${updated.id}`);
     return res.json(toApiProduct(updated));
   } catch (err) {
     // eslint-disable-next-line no-console

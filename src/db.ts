@@ -1,4 +1,5 @@
 import { prisma } from './lib/prisma';
+import logger from './config/logger';
 
 // Migração concluída: o backend usa exclusivamente PostgreSQL via Prisma.
 // (O Mongoose foi removido na Fase 6 — nenhum dado de domínio vive mais no Mongo.)
@@ -19,7 +20,7 @@ export async function connectDB(): Promise<void> {
   try {
     await prisma.$connect();
     // eslint-disable-next-line no-console
-    console.log('✅ PostgreSQL (Prisma) conectado');
+    logger.info('✅ PostgreSQL (Prisma) conectado');
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(

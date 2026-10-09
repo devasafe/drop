@@ -11,6 +11,7 @@ import { emitStockChanged } from '../storeIntegration';
 import { compensateFailedOrder } from '../orderCompensation';
 import { getPaymentProvider } from '../paymentProvider';
 import { isStorePaymentsReady, resolveBuyerCpf, StorePaymentsNotReadyError } from './charge';
+import { isStoreBillingBlocked } from '../saasBilling/gate';
 
 /**
  * Checkout do modo SaaS "direto" (Task 1.5). Chamado de dentro do createOrder
@@ -34,7 +35,7 @@ export function sendAppError(res: Response, err: AppError) {
 
 /**
  * Pré-checagens do modo direto, ANTES de baixar estoque ou criar qualquer coisa.
- * Ordem: método → cupom → conta da loja → CPF (o único passo que grava algo: User.cpf).
+ * Ordem: método → cupom → conta da loja → mensalidade → CPF (o único passo que grava algo: User.cpf).
  * Devolve o CPF de cobrança já validado.
  */
 export async function precheckDirectOrder(params: {
@@ -60,6 +61,11 @@ export async function precheckDirectOrder(params: {
   }
 
   if (!(await isStorePaymentsReady(params.storeId))) throw new StorePaymentsNotReadyError();
+
+  // Loja pausada pela mensalidade não recebe pedido novo. A mensagem não expõe o motivo ao cliente.
+  if (await isStoreBillingBlocked(params.storeId)) {
+    throw fail('Esta loja está temporariamente indisponível.', 409, 'STORE_BILLING_PAUSED');
+  }
 
   return { cpf: await resolveBuyerCpf(params.customerId, params.cpf) };
 }
