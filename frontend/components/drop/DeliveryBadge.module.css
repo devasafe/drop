@@ -49,9 +49,8 @@
   width: 16px;
   height: 16px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, var(--color-surface-sunken), var(--color-border-default), var(--color-surface-sunken));
-  background-size: 200% 100%;
-  animation: delivery-shimmer 1.2s linear infinite;
+  background: var(--color-surface-sunken);
+  animation: delivery-pulse 1.2s ease-in-out infinite;
 }
-@keyframes delivery-shimmer { to { background-position: -200% 0; } }
+@keyframes delivery-pulse { 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) { .shimmer { animation: none; } }

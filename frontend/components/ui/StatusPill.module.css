@@ -8,8 +8,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  font: var(--text-caption);
   font-family: var(--font-body);
-  font-size: var(--fs-xs);
   font-weight: 600;
 }
 

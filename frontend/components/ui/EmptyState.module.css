@@ -26,16 +26,16 @@
 }
 
 .title {
+  font: var(--text-label);
   font-family: var(--font-display);
-  font-size: var(--fs-h3);
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0;
 }
 
 .description {
+  font: var(--text-meta);
   font-family: var(--font-body);
-  font-size: var(--fs-body);
   color: var(--color-text-secondary);
   margin: 0;
   max-width: 280px;

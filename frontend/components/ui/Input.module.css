@@ -42,8 +42,8 @@
   border: none;
   outline: none;
   background: transparent;
+  font: var(--text-meta);
   font-family: var(--font-body);
-  font-size: var(--fs-body);
   color: var(--color-text-primary);
 }
 
@@ -64,13 +64,13 @@
   align-items: center;
   gap: var(--space-1);
   margin-top: var(--space-1);
-  font-size: var(--fs-sm);
+  font: var(--text-caption);
   color: var(--color-error-text);
 }
 
 .hint {
   margin-top: var(--space-1);
-  font-size: var(--fs-sm);
+  font: var(--text-caption);
   color: var(--color-text-secondary);
 }
 

@@ -36,8 +36,8 @@
 .message {
   flex: 1;
   min-width: 0;
+  font: var(--text-meta);
   font-family: var(--font-body);
-  font-size: var(--fs-body);
   color: var(--color-text-primary);
 }
 

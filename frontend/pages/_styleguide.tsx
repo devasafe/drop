@@ -74,12 +74,15 @@ function Row({ children }: { children: ReactNode }) {
 }
 
 /* ---------- dados de exemplo ---------- */
-const COLOR_TOKENS = [
-  ['--brand', '#6C2BD9'], ['--brand-2', '#8B5CF6'], ['--bg', '#0A0A0A'],
-  ['--surface', '#151021'], ['--surface-2', '#1b1526'], ['--text', '#EDEBF2'],
-  ['--text-muted', '#8f8aa0'], ['--success', '#3ddc84'], ['--rating', '#ffb020'], ['--danger', '#ff5a5f'],
+const COLOR_GROUPS: [string, string[]][] = [
+  ['Fundo e superfície', ['--color-bg-primary', '--color-bg-secondary', '--color-surface-default', '--color-surface-elevated', '--color-surface-sunken']],
+  ['Texto', ['--color-text-primary', '--color-text-secondary', '--color-text-muted', '--color-text-disabled', '--color-text-link']],
+  ['Borda', ['--color-border-default', '--color-border-strong', '--color-border-input']],
+  ['Ação', ['--color-action-primary', '--color-action-primary-hover', '--color-action-primary-subtle', '--color-action-disabled', '--color-on-action']],
+  ['Estado', ['--color-success', '--color-warning', '--color-error', '--color-info', '--color-rating']],
 ];
-const RADII = ['--r-sm', '--r-md', '--r-lg', '--r-xl', '--r-2xl', '--r-pill'];
+const TYPE_TOKENS = ['--text-display', '--text-title-lg', '--text-title', '--text-body-lg', '--text-body', '--text-label', '--text-meta', '--text-caption', '--text-price-lg', '--text-price', '--text-price-sm'];
+const RADII = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill'];
 const store = { name: 'TechStore', imageUrl: undefined, status: 'aberta' as const, category: 'Eletrônicos • Acessórios', rating: 4.8, etaMin: [25, 35] as [number, number], fee: 5.9 };
 const product = { name: 'Fone Bluetooth', store: 'TechStore', imageUrl: undefined, price: 129.9, oldPrice: 189.9, discountPercent: 31 };
 const longProduct = { name: 'Fone Bluetooth Over-Ear com Cancelamento de Ruído e Estojo', store: 'TechStore', imageUrl: undefined, price: 129.9, discountPercent: 20 };
@@ -202,6 +205,7 @@ export default function Styleguide() {
   const [selectVal, setSelectVal] = useState('a');
   const [activeCat, setActiveCat] = useState('todos');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [foundationTheme, setFoundationTheme] = useState<'light' | 'dark'>('light');
 
   // Página só de desenvolvimento — não renderiza em produção (depois dos hooks).
   if (process.env.NODE_ENV === 'production') return null;
@@ -222,36 +226,47 @@ export default function Styleguide() {
         </div>
       </Section>
 
-      {/* ============ FUNDAÇÃO ============ */}
-      <Section title="Cores">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 'var(--space-3)' }}>
-          {COLOR_TOKENS.map(([tok, hex]) => (
-            <div key={tok}>
-              <div style={{ height: 48, borderRadius: 'var(--r-md)', background: `var(${tok})`, border: '1px solid var(--line)' }} />
-              <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text)' }}>{tok}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-subtle)' }}>{hex}</div>
+      {/* ============ FUNDAÇÃO (tokens v2, com chave claro/escuro local) ============ */}
+      <div role="group" aria-label="Tema da fundação" style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+        <Button variant={foundationTheme === 'light' ? 'primary' : 'secondary'} size="sm" onClick={() => setFoundationTheme('light')}>Claro</Button>
+        <Button variant={foundationTheme === 'dark' ? 'primary' : 'secondary'} size="sm" onClick={() => setFoundationTheme('dark')}>Escuro</Button>
+      </div>
+      <div data-theme={foundationTheme} style={{ background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', padding: 'var(--space-5)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-default)', marginBottom: 'var(--space-10)' }}>
+        <Section title="Cores">
+          {COLOR_GROUPS.map(([group, toks]) => (
+            <Sub key={group} title={group}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--space-3)' }}>
+                {toks.map((tok) => (
+                  <div key={tok}>
+                    <div style={{ height: 48, borderRadius: 'var(--radius-md)', background: `var(${tok})`, border: '1px solid var(--color-border-default)' }} />
+                    <div style={{ font: 'var(--text-caption)', marginTop: 4, color: 'var(--color-text-primary)' }}>{tok}</div>
+                  </div>
+                ))}
+              </div>
+            </Sub>
+          ))}
+        </Section>
+
+        <Section title="Tipografia">
+          {TYPE_TOKENS.map((t) => (
+            <div key={t} style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>
+              <code style={{ font: 'var(--text-caption)', color: 'var(--color-text-muted)', width: 150, flexShrink: 0 }}>{t}</code>
+              <span style={{ font: `var(${t})`, color: 'var(--color-text-primary)' }}>{t.includes('price') ? 'R$ 129,90' : 'Pedido a caminho, chega em 25 min'}</span>
             </div>
           ))}
-        </div>
-      </Section>
+        </Section>
 
-      <Section title="Tipografia">
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: 'var(--text-strong)' }}>Space Grotesk 700 — títulos / DROP</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)' }}>Space Grotesk 600 — seção</div>
-        <div style={{ fontFamily: 'var(--font-body)', fontSize: 13.5, color: 'var(--text)' }}>Inter 400 — corpo do app, texto de leitura.</div>
-        <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-muted)' }}>Inter — meta (nota, tempo, taxa).</div>
-      </Section>
-
-      <Section title="Raio & Espaçamento">
-        <Row>
-          {RADII.map((r) => (
-            <div key={r} style={{ textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: `var(${r})` }} />
-              <div style={{ fontSize: 10, color: 'var(--text-subtle)', marginTop: 4 }}>{r}</div>
-            </div>
-          ))}
-        </Row>
-      </Section>
+        <Section title="Raio & Espaçamento">
+          <Row>
+            {RADII.map((r) => (
+              <div key={r} style={{ textAlign: 'center' }}>
+                <div style={{ width: 56, height: 56, background: 'var(--color-surface-default)', border: '1px solid var(--color-border-strong)', borderRadius: `var(${r})` }} />
+                <div style={{ font: 'var(--text-caption)', color: 'var(--color-text-muted)', marginTop: 4 }}>{r}</div>
+              </div>
+            ))}
+          </Row>
+        </Section>
+      </div>
 
       {/* ============ PRIMITIVOS ============ */}
       <Section title="Primitivos">
