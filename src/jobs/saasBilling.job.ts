@@ -6,10 +6,12 @@ import { saoPauloToday } from '../services/asaasLoja/charge';
 import { effectiveFee, shouldPause } from '../services/saasBilling/policy';
 import { ensureBillingCustomer } from '../services/saasBilling/customer';
 import { applySaasPayment } from '../services/saasBilling/payments';
+import { cancelSaasSubscriptions } from '../services/saasBilling/modeSwitch';
 import { createSubscription, deleteSubscription, listSubscriptionPayments } from '../services/asaas/subscription';
 
 /**
- * JOB: mensalidade SaaS do modo direto (a cada 1 h). Fora do modo direto não faz nada.
+ * JOB: mensalidade SaaS do modo direto (a cada 1 h). Fora do modo direto só reapaga no Asaas
+ * as assinaturas que sobraram da troca de modo (cancelSaasSubscriptions).
  * Cada passo é idempotente e isolado por loja (erro de uma não para as outras):
  *  a) backfill: loja sem StoreSaasBilling ganha linha `trialing` (fim do teste = now + saasTrialDays);
  *  b) assinatura: dono com documento aprovado e fee > 0 → customer dedicado + assinatura na
@@ -29,7 +31,12 @@ const docApproved = (verification: any) => verification?.document?.status === 'a
 
 export async function runSaasBillingCycle(now: Date = new Date()): Promise<void> {
   const cfg = await getSaasConfig();
-  if (cfg.settlementMode !== 'direto') return;
+  if (cfg.settlementMode !== 'direto') {
+    // Custódia: a mensalidade não existe. Repete com segurança o cancelamento das assinaturas
+    // que a troca de modo não conseguiu apagar no Asaas (sem assinatura → nada a fazer).
+    await cancelSaasSubscriptions();
+    return;
+  }
 
   // a) Backfill (storeId é unique: skipDuplicates evita duplicar em corrida).
   const missing = await prisma.store.findMany({ where: { saasBilling: null }, select: { id: true } });

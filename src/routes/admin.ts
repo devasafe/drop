@@ -944,6 +944,18 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
       } catch (err) {
         logger.error('Falha ao recalcular lojas após troca de modo', err as Error);
       }
+      // Mensalidade SaaS: na custódia ela não existe → apaga as assinaturas no Asaas (falha vira
+      // aviso para o CEO; o job tenta de novo). De volta ao direto → reabre a contagem do teste.
+      let saasBillingWarnings: Array<{ storeId: string; error: string }> | undefined;
+      try {
+        const { cancelSaasSubscriptions, reopenSaasTrials } = await import('../services/saasBilling/modeSwitch');
+        if (settlementChange.to === 'custodia') saasBillingWarnings = await cancelSaasSubscriptions();
+        else await reopenSaasTrials(new Date(), Number(cfg?.saasTrialDays ?? 14));
+      } catch (err) {
+        logger.error('[saas-billing] falha ao ajustar a mensalidade após troca de modo', err as Error);
+        if (settlementChange.to === 'custodia') saasBillingWarnings = [{ storeId: '*', error: (err as Error)?.message || 'Erro desconhecido' }];
+      }
+      if (saasBillingWarnings) return res.json({ ...switchesView(cfg), saasBillingWarnings });
     }
     return res.json(switchesView(cfg));
   } catch (err: any) {

@@ -20,6 +20,7 @@ import { updatePlatformConfig } from '../repositories/platformConfig.repository'
 import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import { isStoreBillingBlocked } from '../services/saasBilling/gate';
 import { isStoreBlocked } from '../services/saasBilling/policy';
+import env from '../config/env';
 
 const DOMAIN = '@saas66.test';
 const DAY = 24 * 60 * 60 * 1000;
@@ -120,5 +121,81 @@ describe('F1 — loja com mensalidade 0 nunca é pausada', () => {
     // Controle: com fee > 0 a mesma loja fica bloqueada.
     await updatePlatformConfig({ saasMonthlyFee: 49.9 } as any, 'test');
     expect(await isStoreBillingBlocked(store.id)).toBe(true);
+  });
+});
+
+describe('F2 — troca de modo cancela/reabre as assinaturas', () => {
+  const ORIGINAL = { pay: env.PAYMENT_GATEWAY, out: env.PAYOUT_GATEWAY };
+  beforeEach(() => {
+    (env as any).PAYMENT_GATEWAY = 'asaas';
+    (env as any).PAYOUT_GATEWAY = 'asaas';
+  });
+  afterEach(() => {
+    (env as any).PAYMENT_GATEWAY = ORIGINAL.pay;
+    (env as any).PAYOUT_GATEWAY = ORIGINAL.out;
+  });
+  const putSwitch = (u: any, body: object) => request(app).put('/api/admin/switches').set('Authorization', bearer(u)).send(body);
+
+  it('direto → custódia: apaga as assinaturas no Asaas e limpa o id; falha vira aviso e o job tenta de novo', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const { store: ok } = await makeStore();
+    const { store: falha } = await makeStore();
+    const subOk = `sub_t66_${rand()}`;
+    const subFalha = `sub_t66_${rand()}`;
+    await prisma.storeSaasBilling.create({ data: { storeId: ok.id, trialEndsAt: NOW, asaasSubscriptionId: subOk } });
+    await prisma.storeSaasBilling.create({ data: { storeId: falha.id, trialEndsAt: NOW, asaasSubscriptionId: subFalha } });
+    (asaasClient.delete as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === `/subscriptions/${subFalha}`) throw new Error('Asaas fora do ar');
+      return { deleted: true };
+    });
+
+    const res = await putSwitch(ceo, { settlementMode: 'custodia', confirmSettlement: 'TROCAR PARA APP' });
+    expect(res.status).toBe(200);
+    expect(res.body.settlementMode).toBe('custodia');
+    expect(asaasClient.delete).toHaveBeenCalledWith(`/subscriptions/${subOk}`);
+    expect(asaasClient.delete).toHaveBeenCalledWith(`/subscriptions/${subFalha}`);
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: ok.id } }))!.asaasSubscriptionId).toBeNull();
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: falha.id } }))!.asaasSubscriptionId).toBe(subFalha);
+    expect(res.body.saasBillingWarnings).toEqual(expect.arrayContaining([{ storeId: falha.id, error: 'Asaas fora do ar' }]));
+    expect(res.body.saasBillingWarnings.find((w: any) => w.storeId === ok.id)).toBeUndefined();
+
+    // Job no modo custódia: tenta de novo e, agora com o Asaas de volta, limpa.
+    (asaasClient.delete as jest.Mock).mockResolvedValue({ deleted: true });
+    await runSaasBillingCycle(NOW);
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: falha.id } }))!.asaasSubscriptionId).toBeNull();
+    expect(asaasClient.post).not.toHaveBeenCalled();
+  });
+
+  it('custódia → direto: reabre o teste, volta a trialing e limpa overdue/pausa; paidUntil e cancelled ficam', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia', saasTrialDays: 14 } as any, 'test');
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const { store: pausada } = await makeStore();
+    const { store: longa } = await makeStore();
+    const { store: cancelada } = await makeStore();
+    const paidUntil = new Date(Date.now() - 40 * DAY);
+    const longe = new Date(Date.now() + 100 * DAY);
+    await prisma.storeSaasBilling.create({
+      data: { storeId: pausada.id, trialEndsAt: new Date(Date.now() - 90 * DAY), paidUntil, status: 'paused', pausedAt: new Date(), overdueSince: new Date(Date.now() - 45 * DAY) },
+    });
+    await prisma.storeSaasBilling.create({ data: { storeId: longa.id, trialEndsAt: longe, status: 'active' } });
+    await prisma.storeSaasBilling.create({ data: { storeId: cancelada.id, trialEndsAt: new Date(Date.now() - 90 * DAY), status: 'cancelled' } });
+
+    const before = Date.now();
+    const res = await putSwitch(ceo, { settlementMode: 'direto', confirmSettlement: 'TROCAR PARA SAAS' });
+    expect(res.status).toBe(200);
+    expect(res.body.settlementMode).toBe('direto');
+
+    const p = await prisma.storeSaasBilling.findUnique({ where: { storeId: pausada.id } });
+    expect(p!.status).toBe('trialing');
+    expect(p!.pausedAt).toBeNull();
+    expect(p!.overdueSince).toBeNull();
+    expect(p!.paidUntil!.getTime()).toBe(paidUntil.getTime());
+    expect(p!.trialEndsAt.getTime()).toBeGreaterThanOrEqual(before + 14 * DAY);
+    expect(p!.trialEndsAt.getTime()).toBeLessThanOrEqual(Date.now() + 14 * DAY);
+    expect(await isStoreBillingBlocked(pausada.id)).toBe(false);
+
+    const l = await prisma.storeSaasBilling.findUnique({ where: { storeId: longa.id } });
+    expect(l!.trialEndsAt.getTime()).toBe(longe.getTime());
+    expect((await prisma.storeSaasBilling.findUnique({ where: { storeId: cancelada.id } }))!.status).toBe('cancelled');
   });
 });
