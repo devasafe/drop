@@ -10,7 +10,7 @@ import {
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
 import logger from '../config/logger';
-import { publicStoreBillingWhere } from '../services/saasBilling/gate';
+import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
@@ -153,7 +153,7 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
   }
 };
 
-export const getProduct = async (req: Request<{ id: string }>, res: Response) => {
+export const getProduct = async (req: AuthenticatedRequest & Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({
@@ -161,6 +161,14 @@ export const getProduct = async (req: Request<{ id: string }>, res: Response) =>
       include: { category: { select: { name: true } } },
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    // Modo direto: produto de loja pausada/cancelada pela mensalidade fica fora do ar
+    // (link direto incluso) — exceto para o próprio dono, que gerencia o catálogo.
+    if (await isStoreHiddenByBilling(String(product.storeId))) {
+      const owner = req.user?.id
+        ? await prisma.store.count({ where: { id: String(product.storeId), ownerId: String(req.user.id) } })
+        : 0;
+      if (!owner) return res.status(404).json({ error: 'Product not found' });
+    }
     return res.json(toApiProduct(product));
   } catch (err) {
     // eslint-disable-next-line no-console

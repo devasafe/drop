@@ -37,3 +37,10 @@ export function billingVisibleWhere(): Prisma.StoreWhereInput {
 export async function publicStoreBillingWhere(): Promise<Prisma.StoreWhereInput | null> {
   return (await isDirectMode()) ? billingVisibleWhere() : null;
 }
+
+/** A loja está escondida da vitrine pela mensalidade? (modo direto + paused/cancelled; custódia → nunca) */
+export async function isStoreHiddenByBilling(storeId: string): Promise<boolean> {
+  const where = await publicStoreBillingWhere();
+  if (!where) return false;
+  return (await prisma.store.count({ where: { id: storeId, AND: [where] } })) === 0;
+}

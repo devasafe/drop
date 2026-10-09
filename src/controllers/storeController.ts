@@ -15,7 +15,7 @@ import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { publicStoreBillingWhere } from '../services/saasBilling/gate';
+import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { toApiProduct } from './productController';
 
 // Painel do lojista: métricas e pedidos
@@ -538,6 +538,9 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
       select: { id: true, plan: true },
     });
     if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    // Modo direto: loja pausada/cancelada pela mensalidade está fora do ar → sem top produtos.
+    if (await isStoreHiddenByBilling(store.id)) return res.json({ products: [] });
 
     // Feature exclusiva de lojas Plano 3 (premium)
     const storePlan = Number(store.plan) || 1;

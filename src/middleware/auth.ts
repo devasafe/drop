@@ -86,6 +86,24 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
   return next();
 };
 
+/**
+ * Autenticação OPCIONAL para rotas públicas: se houver token válido, preenche `req.user`;
+ * sem token ou com token inválido, segue anônimo (nunca responde 401). Serve só para a rota
+ * decidir o que mostrar ao dono — não substitui `authenticate` em rota protegida.
+ */
+export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+  try {
+    let token: string | undefined;
+    const parts = (req.headers.authorization || '').split(' ');
+    if (parts.length === 2) token = parts[1];
+    if (!token) token = extractTokenFromCookie(req) || undefined;
+    if (token && JWT_SECRET) req.user = jwt.verify(token, JWT_SECRET) as JwtPayload as any;
+  } catch {
+    // token inválido/expirado → anônimo
+  }
+  return next();
+};
+
 export const authorizeRoles = (...allowed: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
