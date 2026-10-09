@@ -27,6 +27,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ROLE_HOME } from '../lib/navConfig';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
+import { useRouteTheme } from '../lib/routeTheme';
 
 // Pequeno componente renderizado DENTRO do SocketProvider para que o hook
 // de presença consiga acessar o contexto do socket.
@@ -38,6 +39,7 @@ function LivePresenceMount() {
 function AppWrapper({ Component, pageProps }: AppProps) {
   const { user } = useAuth() || {};
   const router = useRouter();
+  useRouteTheme();
   const [isSeller, setIsSeller] = useState(false);
 
   // Detectar se é lojista ou cliente

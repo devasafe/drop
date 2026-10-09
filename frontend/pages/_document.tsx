@@ -1,13 +1,15 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 import Script from 'next/script';
 import { spaceGrotesk, inter } from '../lib/fonts';
+import { THEME_BOOT_SCRIPT } from '../lib/routeTheme';
 
 export default function Document() {
-  // Tema do DS v2 (tokens --color-*). Fica "dark" para tudo até o tema por rota:
-  // as telas atuais são escuras e os componentes novos precisam casar com elas.
+  // Tema do DS v2 (tokens --color-*) por rota: o script inline (primeiro filho do <Head>)
+  // define data-theme antes da pintura; rotas fora de LIGHT_ROUTES ficam "dark".
   return (
-    <Html data-theme="dark" className={`${spaceGrotesk.variable} ${inter.variable}`}>
+    <Html className={`${spaceGrotesk.variable} ${inter.variable}`}>
       <Head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         {/* Favicon (ícone da aba) */}
         <link rel="icon" type="image/png" href="/images/drop_png.png" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
