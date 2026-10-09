@@ -1,6 +1,11 @@
-/* Sheet — modal padrão do app: dialog CENTRALIZADO (mobile e desktop), flat.
- * Aparece com fade + leve zoom (não sobe de baixo — evita o bug de botão
- * tapado pela TabBar). Fecha no backdrop ou Esc. Rola por dentro se for alto.
+/* Sheet — modal em portal no body. Duas apresentações:
+ *  .bottom (padrão): sobe do rodapé, --radius-xl só nos cantos de cima.
+ *  .center: dialog centralizado, --radius-xl em todos os cantos.
+ * Fecha no backdrop ou Esc. Rola por dentro se for alto.
+ *
+ * z-index: 1000 — ACIMA da TabBar do cliente (CustomerAppChrome: 30) e da
+ * PanelBottomNav (60). Ao migrar esses CSS, NÃO baixe este valor nem suba os
+ * deles acima de 1000.
  */
 
 .wrapper {
@@ -8,17 +13,23 @@
   inset: 0;
   z-index: 1000;
   display: flex;
-  align-items: center;
   justify-content: center;
+}
+
+.wrapper.bottom {
+  align-items: flex-end;
+}
+
+.wrapper.center {
+  align-items: center;
   padding: var(--space-4);
 }
 
 .backdrop {
   position: absolute;
   inset: 0;
-  background: var(--scrim-strong);
-  backdrop-filter: blur(2px);
-  animation: backdrop-in var(--dur-base) var(--ease);
+  background: var(--color-scrim);
+  animation: backdrop-in var(--motion-slow) var(--ease-in);
 }
 
 .sheet {
@@ -27,11 +38,20 @@
   max-width: 480px;
   max-height: 88vh;
   overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--elevation-3);
   padding: var(--space-5);
-  animation: dialog-in var(--dur-base) var(--ease);
+  outline: none;
+}
+
+.sheet.bottom {
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  animation: sheet-up var(--motion-slow) var(--ease-in);
+}
+
+.sheet.center {
+  border-radius: var(--radius-xl);
+  animation: dialog-in var(--motion-slow) var(--ease-in);
 }
 
 .header {
@@ -42,10 +62,8 @@
 }
 
 .title {
-  font-family: var(--font-display);
-  font-size: var(--fs-h2);
-  font-weight: 700;
-  color: var(--text-strong);
+  font: var(--text-title);
+  color: var(--color-text-primary);
   margin: 0;
 }
 
@@ -55,23 +73,33 @@
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   width: 32px;
   height: 32px;
-  color: var(--text-muted);
+  color: var(--color-text-secondary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  transition: color var(--motion-fast) var(--ease-in), background var(--motion-fast) var(--ease-in);
 }
 
 .close:hover {
-  color: var(--text-strong);
-  background: var(--surface-2);
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
+}
+
+.close:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .content {
-  font-family: var(--font-body);
-  color: var(--text);
+  font: var(--text-body);
+  color: var(--color-text-primary);
+}
+
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes dialog-in {
