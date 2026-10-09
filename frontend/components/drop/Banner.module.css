@@ -26,6 +26,12 @@
   text-decoration: none;
 }
 
+/* com imagem: a arte 2:1 aparece inteira, sem faixa cortada */
+.hasImage {
+  min-height: 0;
+  aspect-ratio: 2 / 1;
+}
+
 /* mais de um item: o próximo aparece na borda, indicando que há mais */
 .multi .item {
   flex-basis: 88%;

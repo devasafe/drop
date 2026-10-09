@@ -85,6 +85,7 @@ export default function Inicio() {
       title: b.title || '',
       imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined,
       href: b.linkUrl || undefined,
+      hideCaption: true,
     })),
     [promoBanners]
   );

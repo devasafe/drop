@@ -8,6 +8,8 @@ export interface BannerItem {
   imageUrl?: string;
   href?: string;
   tone?: 'brand' | 'neutral';
+  /** Arte que já traz o texto: sem legenda visível; o título vira aria-label do link e alt da imagem. */
+  hideCaption?: boolean;
 }
 
 /**
@@ -28,8 +30,8 @@ export function Banner({ items, label = 'Destaques' }: { items: BannerItem[]; la
         const cls = `${styles.item} ${tone} ${it.imageUrl ? styles.hasImage : ''}`;
         const content = (
           <>
-            {it.imageUrl && <img className={styles.image} src={it.imageUrl} alt="" draggable={false} />}
-            {(it.title || it.subtitle) && (
+            {it.imageUrl && <img className={styles.image} src={it.imageUrl} alt={it.hideCaption ? it.title : ''} draggable={false} />}
+            {!it.hideCaption && (it.title || it.subtitle) && (
               <span className={styles.caption}>
                 {it.title && <span className={styles.title}>{it.title}</span>}
                 {it.subtitle && <span className={styles.subtitle}>{it.subtitle}</span>}

@@ -39,6 +39,20 @@ describe('Banner', () => {
     expect(screen.getByRole('region', { name: 'Avisos' })).toBeInTheDocument();
   });
 
+  it('hideCaption não mostra o título como texto, mas o link e a imagem o levam como nome', () => {
+    const { container } = render(
+      <Banner items={[{ id: 'p1', title: 'Promo de outubro', href: '/produtos', imageUrl: 'a.jpg', hideCaption: true }]} />,
+    );
+    expect(screen.queryByText('Promo de outubro')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Promo de outubro' })).toHaveAttribute('href', '/produtos');
+    expect(container.querySelector('img')).toHaveAttribute('alt', 'Promo de outubro');
+  });
+
+  it('item com imagem usa aspect-ratio 2/1 no CSS', () => {
+    const css = read('Banner.module.css');
+    expect(css).toMatch(/\.hasImage\s*\{[^}]*aspect-ratio:\s*2\s*\/\s*1/);
+  });
+
   it('não tem autoplay nem dots', () => {
     render(<Banner items={items} />);
     expect(screen.queryByRole('tab')).toBeNull();
@@ -98,6 +112,7 @@ describe('CSS do domínio v2', () => {
   it.each(['Banner.module.css', 'OrderRow.module.css', 'chat/ChatFab.module.css'])('%s sem gradiente, hex nem token antigo', (f) => {
     expect(cssViolations(read(f))).toEqual([]);
   });
+
 
   it('ChatFab usa ação primária e elevation-2', () => {
     const css = read('chat/ChatFab.module.css');
