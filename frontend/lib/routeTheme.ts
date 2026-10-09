@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useRouter } from 'next/router';
 
 export type Theme = 'light' | 'dark';
@@ -31,10 +31,13 @@ export const THEME_BOOT_SCRIPT = `(function(){try{var r=${JSON.stringify(
   LIGHT_ROUTES.map((p) => patternToRegex(p).source),
 )};var p=location.pathname;var t='dark';for(var i=0;i<r.length;i++){if(new RegExp(r[i]).test(p)){t='light';break;}}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
 
+/** Layout effect no browser (antes da pintura e dos efeitos dos filhos); effect comum no SSR. */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 /** Mantém o data-theme certo em navegação client-side. */
 export function useRouteTheme(): void {
   const router = useRouter();
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     document.documentElement.setAttribute('data-theme', themeForPath(router.pathname));
   }, [router.pathname]);
 }
