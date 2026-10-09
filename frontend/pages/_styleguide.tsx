@@ -23,8 +23,9 @@ import { Logo } from '../components/drop/Logo';
 import { AppHeader } from '../components/drop/AppHeader';
 import { AddressBar } from '../components/drop/AddressBar';
 import { CategoryRail } from '../components/drop/CategoryRail';
-import { PromoHero } from '../components/drop/PromoHero';
-import { FreteBanner } from '../components/drop/FreteBanner';
+import { Banner } from '../components/drop/Banner';
+import { OrderRow } from '../components/drop/OrderRow';
+import { List } from '../components/ui/List';
 import { OrderTracker } from '../components/drop/OrderTracker';
 import { StoreCard } from '../components/drop/StoreCard';
 import { ProductCard } from '../components/drop/ProductCard';
@@ -332,10 +333,17 @@ export default function Styleguide() {
         <Sub title="CategoryRail">
           <CategoryRail categories={categories} activeId={activeCat} onSelect={setActiveCat} />
         </Sub>
-        <Sub title="PromoHero / FreteBanner">
-          <PromoHero tag="PROMO DA SEMANA" title="Fone + Case + Cabo" subtitle="Kit acessórios em oferta" price={129.9} oldPrice={189.9} discountPercent={31} onCta={noop} ctaLabel="Peça agora" />
-          <div style={{ height: 'var(--space-3)' }} />
-          <FreteBanner title="Frete grátis acima de R$ 40" ctaLabel="Aproveitar" onCta={noop} />
+        <Sub title="Banner">
+          <Banner items={[
+            { id: 'b1', title: 'Frete grátis acima de R$ 40', subtitle: 'Cupom DROP40', href: '/inicio' },
+            { id: 'b2', title: 'Novidades da semana', tone: 'neutral' },
+          ]} />
+        </Sub>
+        <Sub title="OrderRow">
+          <List>
+            <OrderRow order={{ _id: 'o1', status: 'enviado', total: 129.9, storeName: 'TechStore', createdAt: '2026-10-01T12:00:00Z', code: 'A1B2C3D4' }} onClick={noop} />
+            <OrderRow showDate order={{ _id: 'o2', status: 'entregue', total: 42.5, storeName: 'Pizza Place', createdAt: '2026-09-20T12:00:00Z' }} />
+          </List>
         </Sub>
         <Sub title="StoreCard (destaque + resultado)">
           <StoreCard variant="destaque" store={store} onClick={noop} />

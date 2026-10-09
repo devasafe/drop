@@ -10,7 +10,7 @@ import { IconButton } from '../components/ui/IconButton';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { StoreCard, StoreCardData } from '../components/drop/StoreCard';
-import { PremiumCarousel } from '../components/drop/PremiumCarousel';
+import { Banner } from '../components/drop/Banner';
 import { ICON_BUTTON_STROKE_WIDTH } from '../components/ui/Icon';
 
 import styles from './Stores.module.css';
@@ -78,6 +78,17 @@ export default function StoresPage() {
     [featuredStores]
   );
 
+  const featuredBanner = useMemo(
+    () => featuredItems.map((it) => ({
+      id: it.id,
+      title: it.store.name,
+      subtitle: it.store.category,
+      imageUrl: it.store.imageUrl,
+      href: `/stores/${it.id}`,
+    })),
+    [featuredItems]
+  );
+
   const storeHref = (s: Store) => `/stores/${s.slug || s._id}`;
 
   return (
@@ -131,10 +142,7 @@ export default function StoresPage() {
           <>
             {featuredItems.length > 0 && !search.trim() && (
               <div className={styles.carouselWrap}>
-                <PremiumCarousel
-                  items={featuredItems}
-                  onSelect={(id) => router.push(`/stores/${id}`)}
-                />
+                <Banner items={featuredBanner} />
               </div>
             )}
 

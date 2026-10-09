@@ -21,7 +21,7 @@ describe('/stores', () => {
   it('mostra o carrossel de premium e a lista com premium primeiro', () => {
     render(<StoresPage />);
     // carrossel dos banners premium (2 → tem dots)
-    expect(screen.getByRole('tablist', { name: /lojas em destaque/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /destaques/i })).toBeInTheDocument();
     // lista: loja premium antes da comum
     const names = screen.getAllByText(/Premium Um|Loja Comum/).map((n) => n.textContent);
     expect(names[0]).toBe('Premium Um');

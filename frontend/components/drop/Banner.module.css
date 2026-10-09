@@ -1,0 +1,83 @@
+/* Banner v2: faixa com scroll-snap horizontal, fundo sólido ou imagem, sem gradiente. */
+.track {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.track::-webkit-scrollbar {
+  display: none;
+}
+
+.item {
+  position: relative;
+  flex: 0 0 100%;
+  min-width: 0;
+  min-height: 140px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  scroll-snap-align: start;
+  border-radius: var(--radius-xl);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+/* mais de um item: o próximo aparece na borda, indicando que há mais */
+.multi .item {
+  flex-basis: 88%;
+}
+
+.brand {
+  background: var(--color-action-primary-subtle);
+}
+
+.neutral {
+  background: var(--color-surface-sunken);
+}
+
+a.item:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.caption {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-4);
+}
+
+/* sobre imagem: faixa sólida translúcida garante contraste do texto */
+.hasImage .caption {
+  background: var(--color-scrim);
+  color: var(--color-on-action);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--color-text-secondary);
+}
+
+.hasImage .subtitle {
+  color: var(--color-on-action);
+}

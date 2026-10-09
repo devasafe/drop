@@ -17,12 +17,11 @@ import { imageUrl } from '../lib/config';
 import { AddressBar } from '../components/drop/AddressBar';
 import { SearchField } from '../components/ui/SearchField';
 import { StoreCard } from '../components/drop/StoreCard';
-import { PremiumCarousel } from '../components/drop/PremiumCarousel';
 import { mapStore } from '../lib/mapStore';
 import { mapProductCard } from '../lib/searchCatalog';
 import { rankStores, take } from '../lib/catalogRanking';
 import { parseCoords } from '../lib/geo';
-import { BannerCarousel } from '../components/drop/BannerCarousel';
+import { Banner } from '../components/drop/Banner';
 import { ProductCard } from '../components/drop/ProductCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -67,6 +66,27 @@ export default function Inicio() {
   const featuredItems = useMemo(
     () => featuredStores.map((s: any) => ({ id: s._id, store: mapStore(s) })),
     [featuredStores]
+  );
+
+  // Adaptadores para o Banner único: lojas premium e avisos da DROP.
+  const featuredBanner = useMemo(
+    () => featuredItems.map((it: any) => ({
+      id: it.id,
+      title: it.store.name,
+      subtitle: it.store.category,
+      imageUrl: it.store.imageUrl,
+      href: `/stores/${it.id}`,
+    })),
+    [featuredItems]
+  );
+  const promoBannerItems = useMemo(
+    () => promoBanners.map((b: any) => ({
+      id: b._id,
+      title: b.title || '',
+      imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined,
+      href: b.linkUrl || undefined,
+    })),
+    [promoBanners]
   );
 
   // Lojas perto de você: SÓ lojas premium (Plano 3), mais vendidas + raio 20km.
@@ -184,10 +204,7 @@ export default function Inicio() {
           <>
             {featuredItems.length > 0 && (
               <div className={styles.carouselWrap}>
-                <PremiumCarousel
-                  items={featuredItems}
-                  onSelect={(id) => router.push(`/stores/${id}`)}
-                />
+                <Banner items={featuredBanner} />
               </div>
             )}
             {rankedStores.length > 0 && (
@@ -208,12 +225,7 @@ export default function Inicio() {
 
       {promoBanners.length > 0 && (
         <div className={styles.section}>
-          <BannerCarousel
-            banners={promoBanners}
-            onSelect={(url) =>
-              /^https?:\/\//.test(url) ? window.open(url, '_blank', 'noopener') : router.push(url)
-            }
-          />
+          <Banner items={promoBannerItems} />
         </div>
       )}
 

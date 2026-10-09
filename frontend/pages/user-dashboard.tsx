@@ -5,14 +5,14 @@ import AuthContext from '../contexts/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useOrders } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
-import { imageUrl } from '../lib/config';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { Package, FileText } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Select } from '../components/ui/Select';
 import { Chip } from '../components/ui/Chip';
-import { OrderCard, OrderCardData } from '../components/drop/OrderCard';
+import { List } from '../components/ui/List';
+import { OrderRow, OrderRowData } from '../components/drop/OrderRow';
 import AddressManager from '../components/AddressManager';
 import styles from './UserDashboard.module.css';
 
@@ -28,21 +28,18 @@ function itemsSummary(products: any[]): string {
   return `${totalQty} ${unit} · ${names.join(', ')}${more}`;
 }
 
-/** Normaliza um pedido para o OrderCard. `withDate` inclui a data (histórico). */
-function toOrderCard(order: any, withDate: boolean): OrderCardData {
+/** Normaliza um pedido para o OrderRow. */
+function toOrderRow(order: any): OrderRowData {
   const id = order._id || order.id || order.orderId || '';
   return {
-    id: String(id),
+    _id: String(id),
     code: String(id).slice(-8).toUpperCase(),
     storeName: order.storeName || order.storeObj?.name || 'Loja',
     status: order.status,
+    paymentStatus: order.paymentStatus,
     total: order.totalValue || 0,
     itemsLabel: itemsSummary(order.products),
-    imageUrl: imageUrl(order.products?.[0]?.image) || undefined,
-    date:
-      withDate && order.createdAt
-        ? new Date(order.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
-        : undefined,
+    createdAt: order.createdAt,
     paymentMethod: order.paymentMethod,
     installmentCount: order.installmentCount,
   };
@@ -188,18 +185,18 @@ export default function UserDashboard() {
                     action={<Button variant="primary" onClick={() => router.push('/inicio')}>Explorar lojas</Button>}
                   />
                 ) : (
-                  <div className={styles.orderList}>
+                  <List>
                     {pendingOrders.map((order, idx) => {
-                      const card = toOrderCard(order, false);
+                      const row = toOrderRow(order);
                       return (
-                        <OrderCard
-                          key={card.id || idx}
-                          order={card}
-                          onClick={() => router.push(`/store-order/${card.id}`)}
+                        <OrderRow
+                          key={row._id || idx}
+                          order={row}
+                          onClick={() => router.push(`/store-order/${row._id}`)}
                         />
                       );
                     })}
-                  </div>
+                  </List>
                 )
               )}
 
@@ -213,18 +210,19 @@ export default function UserDashboard() {
                 completedOrders.length === 0 ? (
                   <EmptyState icon={<FileText />} title="Nenhum pedido no histórico" description="Seus pedidos concluídos aparecem aqui." />
                 ) : (
-                  <div className={styles.orderList}>
+                  <List>
                     {completedOrders.map((order, idx) => {
-                      const card = toOrderCard(order, true);
+                      const row = toOrderRow(order);
                       return (
-                        <OrderCard
-                          key={card.id || idx}
-                          order={card}
-                          onClick={() => router.push(`/store-order/${card.id}`)}
+                        <OrderRow
+                          key={row._id || idx}
+                          order={row}
+                          showDate
+                          onClick={() => router.push(`/store-order/${row._id}`)}
                         />
                       );
                     })}
-                  </div>
+                  </List>
                 )
               )}
 

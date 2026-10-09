@@ -53,15 +53,6 @@
   margin-bottom: 28px;
 }
 
-/* Lista de pedidos: 1 coluna no mobile, grid multi-coluna no desktop (padrão
-   iFood) — assim a tela não fica com uma coluna fininha centralizada. */
-.orderList {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-  column-gap: var(--space-8);
-  row-gap: 0;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
   .mainGrid {

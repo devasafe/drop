@@ -40,7 +40,7 @@ describe('/inicio', () => {
   it('mostra o banner premium no carrossel', () => {
     render(<Inicio />);
     expect(screen.getByText('Banner Premium')).toBeInTheDocument();
-    expect(screen.getByRole('tablist', { name: /lojas em destaque/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /destaques/i })).toBeInTheDocument();
   });
 
   it('lista só lojas premium (Plano 3) — loja comum não aparece', () => {
