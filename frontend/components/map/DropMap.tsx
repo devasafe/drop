@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { Map as MaplibreMap, AttributionControl } from 'maplibre-gl';
 import { DropMapContext } from './DropMapContext';
-import { buildDropDarkStyle } from './style/dropDark';
+import { mapStyleFor } from './style/dropLight';
 import { mapConfig, hasMapKey } from '../../lib/mapConfig';
 import styles from './DropMap.module.css';
 
@@ -30,9 +30,13 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !hasMapKey()) return;
 
+    const themeNow = (): 'light' | 'dark' =>
+      document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    let theme = themeNow();
+
     const map = new MaplibreMap({
       container: containerRef.current,
-      style: buildDropDarkStyle(mapConfig.maptilerKey),
+      style: mapStyleFor(theme, mapConfig.maptilerKey),
       center: center ?? mapConfig.defaultCenter,
       zoom: zoom ?? mapConfig.defaultZoom,
       attributionControl: false, // adicionada manualmente abaixo (compacta, exigida por ToS)
@@ -54,7 +58,20 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(containerRef.current);
 
+    // Troca de tema em runtime: setStyle descarta as camadas de negócio (rota etc.),
+    // então desmontamos os filhos e os remontamos quando o novo estilo carrega.
+    const mo = new MutationObserver(() => {
+      const next = themeNow();
+      if (next === theme) return;
+      theme = next;
+      setReady(false);
+      map.once('style.load', () => setReady(true));
+      map.setStyle(mapStyleFor(next, mapConfig.maptilerKey));
+    });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     return () => {
+      mo.disconnect();
       ro.disconnect();
       map.remove();
       mapRef.current = null;

@@ -22,6 +22,13 @@ interface ThumbOpts {
   key?: string;
   /** Estilo do mapa (map id do MapTiler). */
   style?: string;
+  /** Tema do mapa; padrão = `data-theme` atual (ou escuro fora do browser). */
+  theme?: 'light' | 'dark';
+}
+
+function currentTheme(): 'light' | 'dark' {
+  if (typeof document === 'undefined') return 'dark';
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 }
 
 const STROKE = '%238b5cf6'; // #8b5cf6 (roxo da marca), '#' url-encoded
@@ -43,7 +50,7 @@ export function buildRouteThumbnailUrl(opts: ThumbOpts): string | null {
 
   const width = opts.width ?? 640;
   const height = opts.height ?? 180;
-  const style = opts.style ?? 'streets-v2-dark';
+  const style = opts.style ?? ((opts.theme ?? currentTheme()) === 'light' ? 'streets-v2' : 'streets-v2-dark');
 
   const markers = [store, customer, motoboy].filter(isPoint) as RoutePoint[];
   const hasPolyline = typeof polyline === 'string' && polyline.length > 0;
