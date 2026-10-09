@@ -6,7 +6,7 @@ import asaasClient, { AsaasApiError } from '../asaas/client';
 import { encryptSensitiveData, decryptSensitiveData } from '../../utils/encryption';
 import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
-import { registerPaymentWebhook } from './webhook';
+import { registerPaymentWebhook, repairPaymentWebhook, storeWebhookUrl } from './webhook';
 import { STORE_ASAAS_TERMS_VERSION } from '../../legal/storeAsaasTerms';
 
 /**
@@ -344,6 +344,11 @@ export async function testStoreAsaas(storeId: string): Promise<StoreAsaasStatus>
     try {
       const wh: any = await asaasClient.getAs(key, `/webhooks/${encodeURIComponent(row.paymentWebhookId)}`);
       paymentWebhook = !!wh && wh.enabled === true && wh.interrupted !== true;
+      // URL trocada no painel do Asaas (ex.: a de /autorizacao) → nenhum aviso chega: regrava.
+      if (paymentWebhook && typeof wh.url === 'string' && wh.url !== storeWebhookUrl(storeId)) {
+        logger.warn('[asaasLoja] webhook de pagamentos com URL errada — regravando', { storeId });
+        await repairPaymentWebhook(storeId, key, row.paymentWebhookId);
+      }
     } catch {
       paymentWebhook = false;
     }

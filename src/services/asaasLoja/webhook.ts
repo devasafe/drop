@@ -76,6 +76,26 @@ export async function registerPaymentWebhook(storeId: string): Promise<void> {
 }
 
 /**
+ * Regrava o webhook de pagamentos JÁ existente (PUT /webhooks/{id}) com a URL certa e um token
+ * novo — quando alguém editou o webhook no painel do Asaas (ex.: colou a URL de /autorizacao).
+ * O hash só é trocado depois de o Asaas aceitar. Lança em qualquer falha.
+ */
+export async function repairPaymentWebhook(storeId: string, apiKey: string, webhookId: string): Promise<void> {
+  const authToken = crypto.randomBytes(24).toString('hex');
+  await asaasClient.putAs(apiKey, `/webhooks/${encodeURIComponent(webhookId)}`, {
+    url: storeWebhookUrl(storeId),
+    enabled: true,
+    interrupted: false,
+    authToken,
+    events: [...STORE_WEBHOOK_EVENTS],
+  });
+  await prisma.storeAsaasAccount.update({
+    where: { storeId },
+    data: { paymentWebhookTokenHash: sha256Hex(authToken) },
+  });
+}
+
+/**
  * Confere o token recebido contra o hash guardado da loja, em tempo constante
  * (timingSafeEqual sobre os dois SHA-256, sempre 32 bytes).
  * Loja inexistente, sem conta, sem hash ou token vazio → false (sem distinguir o motivo).
