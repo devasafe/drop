@@ -23,7 +23,7 @@
 }
 
 .sm .current {
-  font: var(--text-caption);
+  font: var(--text-price-sm);
 }
 
 .sm .old {

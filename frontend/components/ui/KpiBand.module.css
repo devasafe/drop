@@ -16,7 +16,7 @@
 }
 
 .value {
-  font: var(--text-label);
+  font: var(--text-title);
   font-family: var(--font-display);
   font-weight: 700;
   color: var(--color-text-primary);

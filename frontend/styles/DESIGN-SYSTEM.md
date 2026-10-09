@@ -154,4 +154,4 @@ Ao migrar um arquivo da lista, **remova-o do `ALLOW`** (o teste cobra).
 - [ ] `prefers-reduced-motion` respeitado; nenhum hover animado em card.
 - [ ] Componente novo? Justifique por que nenhum existente resolve (princípio 7/10).
 - [ ] Tela migrada entrou em `LIGHT_ROUTES`; arquivos migrados saíram do `ALLOW`.
-- [ ] `npx tsc --noEmit`, `npx jest` e `npm run lint` limpos; sem teste reescrito para "casar" com o código.
+- [ ] `npx tsc --noEmit` e `npx jest` (no frontend) limpos; sem teste reescrito para "casar" com o código.
