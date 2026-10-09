@@ -31,14 +31,20 @@ it('abre em portal como dialog modal, Esc fecha e o foco volta', () => {
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(document.activeElement).toBe(opener);
 });
-it('center usa a classe center; padrÃ£o usa bottom', () => {
-  const { unmount } = render(<Harness presentation="center" />);
+it('sem prop abre centralizado (padrão); center explícito também', () => {
+  const { unmount } = render(<Harness />);
   fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
   expect(screen.getByRole('dialog').className).toMatch(/center/);
   unmount();
-  render(<Harness />);
+  render(<Harness presentation="center" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+  expect(screen.getByRole('dialog').className).toMatch(/center/);
+});
+it('presentation="bottom" usa a classe bottom', () => {
+  render(<Harness presentation="bottom" />);
   fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
   expect(screen.getByRole('dialog').className).toMatch(/bottom/);
+  expect(screen.getByRole('dialog').className).not.toMatch(/center/);
 });
 it('CSS do Sheet sÃ³ usa tokens semÃ¢nticos', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'Sheet.module.css'), 'utf8');

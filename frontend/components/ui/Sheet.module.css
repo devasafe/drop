@@ -1,6 +1,6 @@
 /* Sheet — modal em portal no body. Duas apresentações:
- *  .bottom (padrão): sobe do rodapé, --radius-xl só nos cantos de cima.
- *  .center: dialog centralizado, --radius-xl em todos os cantos.
+ *  .bottom (opt-in): sobe do rodapé, --radius-xl só nos cantos de cima.
+ *  .center (padrão): dialog centralizado, --radius-xl em todos os cantos.
  * Fecha no backdrop ou Esc. Rola por dentro se for alto.
  *
  * z-index: 1000 — ACIMA da TabBar do cliente (CustomerAppChrome: 30) e da

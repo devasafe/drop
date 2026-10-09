@@ -9,7 +9,7 @@ export interface SheetProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  /** `bottom` (padrão): sobe do rodapé, cantos arredondados só no topo. `center`: dialog centralizado. */
+  /** `center` (padrão, visual atual): dialog centralizado. `bottom` (opt-in): sobe do rodapé, cantos arredondados só no topo. */
   presentation?: 'bottom' | 'center';
 }
 
@@ -19,7 +19,7 @@ export interface SheetProps {
  * para quem o abriu ao fechar. Fechado (`open={false}`) não monta o conteúdo.
  * No SSR não renderiza nada (o portal só existe depois de montado no cliente).
  */
-export function Sheet({ open, onClose, title, children, presentation = 'bottom' }: SheetProps) {
+export function Sheet({ open, onClose, title, children, presentation = 'center' }: SheetProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
