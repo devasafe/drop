@@ -37,7 +37,7 @@
   width: 22px;
   height: 22px;
   border-radius: var(--radius-pill);
-  background: var(--color-error-text);
+  background: var(--color-error);
   color: var(--color-on-action);
   font-size: 12px;
   font-weight: 700;

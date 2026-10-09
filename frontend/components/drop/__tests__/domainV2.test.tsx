@@ -113,6 +113,12 @@ describe('CSS do domínio v2', () => {
     expect(cssViolations(read(f))).toEqual([]);
   });
 
+  it('badge do ChatFab usa --color-error (não -text) como fundo', () => {
+    const css = read('chat/ChatFab.module.css');
+    const badge = (css.match(/\.badge\s*\{([^}]*)\}/) || [])[1] || '';
+    expect(badge).toMatch(/background:\s*var\(--color-error\)/);
+    expect(badge).not.toMatch(/--color-error-text/);
+  });
 
   it('ChatFab usa ação primária e elevation-2', () => {
     const css = read('chat/ChatFab.module.css');
