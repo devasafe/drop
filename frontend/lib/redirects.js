@@ -6,4 +6,12 @@
  * Rotas COMPARTILHADAS com os painéis não entram aqui: redirecionam só o cliente, na página.
  * @type {Array<{source:string,destination:string,permanent:boolean,has?:Array<{type:'query',key:string,value?:string}>}>}
  */
-module.exports = [];
+module.exports = [
+  // Task 4 — abas (Buscar, Pedidos, Conta)
+  { source: '/', has: [{ type: 'query', key: 'q' }], destination: '/buscar', permanent: false },
+  { source: '/', destination: '/inicio', permanent: false },
+  { source: '/user-dashboard', has: [{ type: 'query', key: 'tab', value: 'addresses' }], destination: '/conta?secao=enderecos', permanent: true },
+  { source: '/user-dashboard', destination: '/pedidos', permanent: true },
+  { source: '/wallet', destination: '/conta/carteira', permanent: true },
+  { source: '/my-wallet', destination: '/conta/carteira', permanent: true },
+];

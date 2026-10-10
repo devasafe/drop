@@ -26,3 +26,17 @@ describe('lib/redirects.js', () => {
     }
   });
 });
+
+describe('Task 4 — abas', () => {
+  const go = (u: string) => resolveRedirect(rules, u)?.location;
+  it('raiz: com q vai para Buscar; sem q, Início; não permanente', () => {
+    expect(resolveRedirect(rules, '/?q=fone')).toEqual({ location: '/buscar?q=fone', permanent: false });
+    expect(resolveRedirect(rules, '/')).toEqual({ location: '/inicio', permanent: false });
+  });
+  it('Pedidos, endereços e carteira', () => {
+    expect(go('/user-dashboard')).toBe('/pedidos');
+    expect(go('/user-dashboard?tab=addresses')).toMatch(/^\/conta\?secao=enderecos/);
+    expect(go('/wallet')).toBe('/conta/carteira');
+    expect(go('/my-wallet')).toBe('/conta/carteira');
+  });
+});

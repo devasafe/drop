@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Receipt, ChevronRight, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import api from '../lib/api';
-import ProtectedRoute from '../components/ProtectedRoute';
-import { useAutoRefetch } from '../hooks/useAutoRefetch';
-import { useToast } from '../components/ui/Toast';
-import { formatBRL } from '../components/ui/PriceTag';
-import { Sheet } from '../components/ui/Sheet';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Chip } from '../components/ui/Chip';
-import { EmptyState } from '../components/ui/EmptyState';
-import ClientWalletMetrics, { ClientWalletSummary } from '../components/wallet/ClientWalletMetrics';
-import WalletTopupSheet from '../components/wallet/WalletTopupSheet';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../lib/api';
+import ProtectedRoute from '../../components/ProtectedRoute';
+import { useAutoRefetch } from '../../hooks/useAutoRefetch';
+import { useToast } from '../../components/ui/Toast';
+import { formatBRL } from '../../components/ui/PriceTag';
+import { Sheet } from '../../components/ui/Sheet';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Chip } from '../../components/ui/Chip';
+import { EmptyState } from '../../components/ui/EmptyState';
+import ClientWalletMetrics, { ClientWalletSummary } from '../../components/wallet/ClientWalletMetrics';
+import WalletTopupSheet from '../../components/wallet/WalletTopupSheet';
 import { Sparkles } from 'lucide-react';
-import styles from './Wallet.module.css';
-import ModeGate from '../components/ModeGate';
+import styles from './Carteira.module.css';
+import ModeGate from '../../components/ModeGate';
 
 interface WalletData {
   _id: string;

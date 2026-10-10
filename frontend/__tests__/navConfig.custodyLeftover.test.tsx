@@ -36,7 +36,7 @@ describe('navConfig — Saldo do modo anterior', () => {
 
   it('leva à tela de saldo/saque da custódia de cada papel', () => {
     const route = (role: any) => getNavItems(role, allow, false, { settlementMode: 'direto', custodyLeftover: true }).find((i) => i.label === LABEL)!.route;
-    expect(route('cliente')).toBe('/wallet');
+    expect(route('cliente')).toBe('/conta/carteira');
     expect(route('lojista')).toBe('/seller/wallet');
     expect(route('motoboy')).toBe('/motoboy/wallet');
   });

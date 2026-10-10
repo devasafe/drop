@@ -13,6 +13,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { CategoryRail } from '../components/drop/CategoryRail';
 import { StoreCard } from '../components/drop/StoreCard';
 import { ProductCard } from '../components/drop/ProductCard';
+import { lojaHref, produtoHref, buscarHref } from '../lib/routes';
 import styles from './Buscar.module.css';
 
 /** Buscar (/) — vitrine (mais vendidos, premium+perto) + busca por texto. */
@@ -118,7 +119,7 @@ export default function BuscarPage() {
                   <h2 className={styles.sectionTitle}>Lojas</h2>
                   <div className={styles.storeList}>
                     {foundStores.map((s: any) => (
-                      <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(`/stores/${s._id}`)} />
+                      <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(lojaHref(s._id))} />
                     ))}
                   </div>
                 </section>
@@ -128,7 +129,7 @@ export default function BuscarPage() {
                   <h2 className={styles.sectionTitle}>Produtos</h2>
                   <div className={styles.productList}>
                     {foundProducts.map((p: any) => (
-                      <div key={p._id} className={styles.productItem} onClick={() => router.push(`/product/${p._id}`)}>
+                      <div key={p._id} className={styles.productItem} onClick={() => router.push(produtoHref(p._id))}>
                         <ProductCard variant="busca" product={mapProductCard(p, storeName.get(p.storeId))} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
                       </div>
                     ))}
@@ -144,7 +145,7 @@ export default function BuscarPage() {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Lojas em destaque</h2>
-              <Button variant="tertiary" size="sm" onClick={() => router.push('/stores')}>Ver mais</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push(buscarHref({ tab: 'lojas' }))}>Ver mais</Button>
             </div>
             {topStoresLoading ? (
               <p className={styles.muted}>Carregando…</p>
@@ -153,7 +154,7 @@ export default function BuscarPage() {
             ) : (
               <div className={styles.storeList}>
                 {vitrineStores.map((s: any) => (
-                  <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(`/stores/${s._id}`)} />
+                  <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(lojaHref(s._id))} />
                 ))}
               </div>
             )}
@@ -162,7 +163,7 @@ export default function BuscarPage() {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Produtos mais vendidos</h2>
-              <Button variant="tertiary" size="sm" onClick={() => router.push('/produtos')}>Ver todos</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push(buscarHref({ tab: 'produtos' }))}>Ver todos</Button>
             </div>
             {topProductsLoading ? (
               <p className={styles.muted}>Carregando…</p>
@@ -171,7 +172,7 @@ export default function BuscarPage() {
             ) : (
               <div className={styles.productList}>
                 {vitrineProducts.map((p: any) => (
-                  <div key={p._id} className={styles.productItem} onClick={() => router.push(`/product/${p._id}`)}>
+                  <div key={p._id} className={styles.productItem} onClick={() => router.push(produtoHref(p._id))}>
                     <ProductCard variant="busca" product={mapProductCard(p, p.storeName || storeName.get(p.storeId))} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
                   </div>
                 ))}

@@ -8,6 +8,7 @@ import { useSaasConfig } from '../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../hooks/useCustodyLeftover';
 import AccountMenuButton from './nav/AccountMenuButton';
 import { getNavItems, ROLE_HOME, Role, GUEST_BOTTOM_NAV, isItemActive } from '../lib/navConfig';
+import { ROUTES } from '../lib/routes';
 import Icon from './Icon';
 import styles from './Nav.module.css';
 
@@ -98,7 +99,7 @@ export default function Nav() {
           {/* Carrinho — contexto de compra (cliente/deslogado). Badge com a
               quantidade; leva ao checkout (mesmo destino do StickyCart). */}
           {showCustomerLinks && (
-            <Link href="/checkout" className={styles.iconBtn} title="Carrinho" aria-label="Carrinho">
+            <Link href={ROUTES.sacola} className={styles.iconBtn} title="Carrinho" aria-label="Carrinho">
               <Icon name="shopping-cart" size={17} />
               {cartCount > 0 && <span className={styles.badge}>{cartCount > 9 ? '9+' : cartCount}</span>}
             </Link>

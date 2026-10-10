@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import BuscarPage from '../pages/index';
+import BuscarPage from '../pages/buscar';
 
 const add = jest.fn();
 let mockQuery: any = {};

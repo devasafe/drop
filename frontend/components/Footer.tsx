@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useSaasConfig } from '../hooks/useSaasConfig';
+import { ROUTES, buscarHref } from '../lib/routes';
 import styles from './Footer.module.css';
 
 export default function Footer() {
@@ -22,8 +23,8 @@ export default function Footer() {
         <div className={styles.linksGrid}>
           <div className={styles.col}>
             <div className={styles.colTitle}>Explorar</div>
-            <Link href="/" className={styles.link}>Produtos</Link>
-            <Link href="/stores" className={styles.link}>Lojas</Link>
+            <Link href={buscarHref({ tab: 'produtos' })} className={styles.link}>Produtos</Link>
+            <Link href={buscarHref({ tab: 'lojas' })} className={styles.link}>Lojas</Link>
           </div>
 
           <div className={styles.col}>
@@ -43,8 +44,8 @@ export default function Footer() {
             <div className={styles.colTitle}>Conta</div>
             <Link href="/login" className={styles.link}>Entrar</Link>
             <Link href="/register" className={styles.link}>Cadastrar</Link>
-            <Link href="/user-dashboard" className={styles.link}>Meus Pedidos</Link>
-            <Link href="/wallet" className={styles.link}>Minha Carteira</Link>
+            <Link href={ROUTES.pedidos} className={styles.link}>Meus Pedidos</Link>
+            <Link href={ROUTES.carteira} className={styles.link}>Minha Carteira</Link>
           </div>
 
           <div className={styles.col}>

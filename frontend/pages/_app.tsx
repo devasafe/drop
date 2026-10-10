@@ -16,6 +16,8 @@ import SeasonalBanner from '../components/SeasonalBanner';
 import PageTransition from '../components/PageTransition';
 import ChatWidgetWithTabs from '../components/ChatWidgetWithTabs';
 import { CustomerAppChrome } from '../components/drop/CustomerAppChrome';
+import { OfflineBanner } from '../components/drop/OfflineBanner';
+import { CUSTOMER_TAB_ROUTES, CUSTOMER_HEADERLESS_ROUTES, CUSTOMER_ROUTES } from '../lib/routes';
 import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
 import RealtimeNotifier from '../components/RealtimeNotifier';
@@ -80,23 +82,11 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // TabBar do Design System (Fase 0/1), não o chrome de marketing (Nav
   // global + Footer).
   // Páginas do cliente que têm a bottom-nav (TabBar) do design system.
-  const showBottomChrome =
-    router.pathname === '/' ||
-    router.pathname === '/inicio' ||
-    router.pathname === '/wallet' ||
-    router.pathname === '/user-dashboard' ||
-    router.pathname === '/user-profile' ||
-    router.pathname === '/produtos' ||
-    router.pathname === '/stores' ||
-    router.pathname === '/stores/[id]' ||
-    router.pathname === '/product/[id]';
-  // Páginas que escondem a Nav global (usam header próprio do DS). O /inicio
-  // agora usa a Nav global; só /stores e /product mantêm header próprio.
-  const hideChrome =
-    router.pathname === '/stores' ||
-    router.pathname === '/stores/[id]' ||
-    router.pathname === '/product/[id]';
-  const shouldShowFooter = !isDashboard && !showBottomChrome;
+  const showBottomChrome = CUSTOMER_TAB_ROUTES.includes(router.pathname);
+  // Telas com header próprio no mobile (loja e produto): a Nav global só aparece no desktop.
+  const hideChrome = CUSTOMER_HEADERLESS_ROUTES.includes(router.pathname);
+  // As telas do app do cliente não têm o rodapé de marketing.
+  const shouldShowFooter = !isDashboard && !CUSTOMER_ROUTES.includes(router.pathname);
 
   return (
     <SocketProvider enabled={!!user}>
@@ -123,6 +113,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         )}
         {user && isDashboard && <AppSidebar />}
         {user && isDashboard && <PanelBottomNav />}
+        {CUSTOMER_ROUTES.includes(router.pathname) && <OfflineBanner />}
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main

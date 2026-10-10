@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import BuscarPage from '../pages/index';
+import BuscarPage from '../pages/buscar';
 
 // Marketplace novo: nada vendeu ainda (top vazio). A vitrine deve preencher
 // com o catálogo — lojas premium primeiro e produtos de loja premium.

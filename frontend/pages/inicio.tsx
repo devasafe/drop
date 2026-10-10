@@ -30,6 +30,7 @@ import { useActiveOrders } from '../hooks/useActiveOrders';
 import { ActiveOrdersSection } from '../components/drop/ActiveOrdersSection';
 
 import styles from './Inicio.module.css';
+import { lojaHref, produtoHref, pedidoHref, buscarHref, contaHref } from '../lib/routes';
 
 export default function Inicio() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function Inicio() {
       title: it.store.name,
       subtitle: it.store.category,
       imageUrl: it.store.imageUrl,
-      href: `/stores/${it.id}`,
+      href: lojaHref(it.id),
     })),
     [featuredItems]
   );
@@ -141,7 +142,7 @@ export default function Inicio() {
 
   const handleSearch = () => {
     const q = query.trim();
-    router.push(q ? `/?q=${encodeURIComponent(q)}` : '/');
+    router.push(buscarHref(q ? { q } : { focus: true }));
   };
 
   return (
@@ -161,13 +162,13 @@ export default function Inicio() {
           <AddressBar
             label={defaultAddress.label || 'Entregar em'}
             address={`${defaultAddress.street}, ${defaultAddress.number}`}
-            onClick={() => router.push('/minha-conta')}
+            onClick={() => router.push(contaHref('enderecos'))}
           />
         ) : (
           <AddressBar
             label="Adicionar"
             address="endereço de entrega"
-            onClick={() => router.push('/minha-conta')}
+            onClick={() => router.push(contaHref('enderecos'))}
           />
         )}
 
@@ -183,7 +184,7 @@ export default function Inicio() {
 
       {user && activeOrders.length > 0 && (
         <div className={styles.section}>
-          <ActiveOrdersSection orders={activeOrders} onOpen={(id) => router.push('/store-order/' + id)} />
+          <ActiveOrdersSection orders={activeOrders} onOpen={(id) => router.push(pedidoHref(id))} />
         </div>
       )}
 
@@ -222,7 +223,7 @@ export default function Inicio() {
                     key={s._id}
                     variant="resultado"
                     store={mapStore(s)}
-                    onClick={() => router.push(`/stores/${s._id}`)}
+                    onClick={() => router.push(lojaHref(s._id))}
                   />
                 ))}
               </div>
@@ -251,7 +252,7 @@ export default function Inicio() {
                 <div
                   key={p._id}
                   className={styles.offerItem}
-                  onClick={() => router.push(`/product/${p._id}`)}
+                  onClick={() => router.push(produtoHref(p._id))}
                 >
                   <ProductCard
                     variant="home"

@@ -14,6 +14,7 @@ import { Chip } from '../components/ui/Chip';
 import { List } from '../components/ui/List';
 import { OrderRow, OrderRowData } from '../components/drop/OrderRow';
 import AddressManager from '../components/AddressManager';
+import { ROUTES, pedidoHref } from '../lib/routes';
 import styles from './UserDashboard.module.css';
 
 /** Resumo de itens do pedido: "3 itens · Pizza, Refri…". */
@@ -182,7 +183,7 @@ export default function UserDashboard() {
                     icon={<Package />}
                     title="Nenhum pedido em andamento"
                     description="Quando você fizer um pedido, ele aparecerá aqui."
-                    action={<Button variant="primary" onClick={() => router.push('/inicio')}>Explorar lojas</Button>}
+                    action={<Button variant="primary" onClick={() => router.push(ROUTES.inicio)}>Explorar lojas</Button>}
                   />
                 ) : (
                   <List>
@@ -192,7 +193,7 @@ export default function UserDashboard() {
                         <OrderRow
                           key={row._id || idx}
                           order={row}
-                          onClick={() => router.push(`/store-order/${row._id}`)}
+                          onClick={() => router.push(pedidoHref(row._id))}
                         />
                       );
                     })}
@@ -218,7 +219,7 @@ export default function UserDashboard() {
                           key={row._id || idx}
                           order={row}
                           showDate
-                          onClick={() => router.push(`/store-order/${row._id}`)}
+                          onClick={() => router.push(pedidoHref(row._id))}
                         />
                       );
                     })}

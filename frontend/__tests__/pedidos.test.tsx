@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import UserDashboard from '../pages/user-dashboard';
+import UserDashboard from '../pages/pedidos';
 
 const orders = [
   { _id: 'p1', storeName: 'Loja Ativa', status: 'enviado', totalValue: 30, products: [{ name: 'Pizza', quantity: 2 }] },
@@ -18,7 +18,7 @@ jest.mock('../hooks/useSync', () => ({
 }));
 jest.mock('../hooks/useAutoRefetch', () => ({ useAutoRefetch: () => {} }));
 
-describe('Pedidos (/user-dashboard)', () => {
+describe('Pedidos (/pedidos)', () => {
   it('mostra cabeçalho Pedidos e o pedido em andamento como card', async () => {
     render(<UserDashboard />);
     expect(await screen.findByText('Pedidos')).toBeInTheDocument();

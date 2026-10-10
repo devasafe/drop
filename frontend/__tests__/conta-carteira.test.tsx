@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import WalletPage from '../pages/wallet';
+import WalletPage from '../pages/conta/carteira';
 
 const showToast = jest.fn();
 const post = jest.fn().mockResolvedValue({ data: { wallet: { balance: 130, totalIncome: 200, totalSpent: 70 } } });

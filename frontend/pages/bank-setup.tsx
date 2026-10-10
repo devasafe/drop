@@ -6,6 +6,7 @@ import Icon from '@/components/Icon';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import styles from './BankSetup.module.css';
 import ModeGate from '../components/ModeGate';
+import { ROUTES } from '../lib/routes';
 
 interface BankInfo {
   banco: string;
@@ -109,7 +110,7 @@ function BankSetupInner() {
       setIsConfigured(true);
 
       setTimeout(() => {
-        router.push('/my-wallet');
+        router.push(ROUTES.carteira);
       }, 2000);
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Erro ao salvar dados bancários';
@@ -140,7 +141,7 @@ function BankSetupInner() {
           Seus dados bancários já foram configurados. Você será direcionado para sua carteira em breve...
         </p>
         <button
-          onClick={() => router.push('/my-wallet')}
+          onClick={() => router.push(ROUTES.carteira)}
           className={styles.btnGoToWallet}
         >
           Ir para Minha Carteira
@@ -268,7 +269,7 @@ function BankSetupInner() {
         <div className={styles.formActions}>
           <button
             type="button"
-            onClick={() => router.push('/my-wallet')}
+            onClick={() => router.push(ROUTES.carteira)}
             disabled={saving}
             className={styles.btnBack}
           >

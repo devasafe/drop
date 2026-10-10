@@ -15,8 +15,8 @@ test('Logo mostra DROP em caixa alta', () => {
   expect(screen.getByText('DROP')).toBeInTheDocument();
 });
 test('TabBar marca o item ativo', () => {
-  render(<TabBar active="carteira" onNavigate={()=>{}} />);
-  expect(screen.getByRole('button', { name: /Carteira/ })).toHaveClass('on');
+  render(<TabBar active="conta" onNavigate={()=>{}} />);
+  expect(screen.getByRole('button', { name: /Conta/ })).toHaveClass('on');
 });
 
 describe('CustomerAppChrome (navegação derivada da navConfig)', () => {
@@ -26,22 +26,16 @@ describe('CustomerAppChrome (navegação derivada da navConfig)', () => {
     mockUser = { id: 'u1', role: 'cliente' };
   });
 
-  it('Carteira navega para /wallet', () => {
+  it('Conta navega para /conta', () => {
     render(<CustomerAppChrome />);
-    fireEvent.click(screen.getByRole('button', { name: 'Carteira' }));
-    expect(mockPush).toHaveBeenCalledWith('/wallet');
+    fireEvent.click(screen.getByRole('button', { name: 'Conta' }));
+    expect(mockPush).toHaveBeenCalledWith('/conta');
   });
 
-  it('Perfil navega para /minha-conta', () => {
-    render(<CustomerAppChrome />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
-    expect(mockPush).toHaveBeenCalledWith('/minha-conta');
-  });
-
-  it('Pedidos navega para /user-dashboard', () => {
+  it('Pedidos navega para /pedidos', () => {
     render(<CustomerAppChrome />);
     fireEvent.click(screen.getByRole('button', { name: 'Pedidos' }));
-    expect(mockPush).toHaveBeenCalledWith('/user-dashboard');
+    expect(mockPush).toHaveBeenCalledWith('/pedidos');
   });
 
   it('marca "Início" como ativo quando pathname é /inicio', () => {
