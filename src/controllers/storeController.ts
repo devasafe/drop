@@ -17,6 +17,7 @@ import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
 
 // Painel do lojista: métricas e pedidos
@@ -344,7 +345,6 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
       }
       const radius = parsedSettings.data.deliveryRadiusKm;
       if (radius != null) {
-        const { getDeliveryConfig } = await import('../services/deliveryQuote/config');
         const { defaultRadiusKm } = await getDeliveryConfig();
         if (radius > defaultRadiusKm) {
           return res.status(400).json({ error: `O raio de entrega não pode passar de ${defaultRadiusKm} km (limite da plataforma)` });

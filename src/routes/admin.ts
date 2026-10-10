@@ -912,7 +912,7 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
     const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled', 'saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled', 'defaultDeliveryRadiusKm', 'defaultPrepMinutes', 'courierAvgSpeedKmh', 'routeDetourFactor'];
     if (CEO_ONLY_SWITCHES.some((k) => k in patch) && !isCeo(req)) {
-      return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação, o cartão direto e a mensalidade', code: 'CEO_ONLY' });
+      return res.status(403).json({ error: 'Só o CEO altera estas configurações.', code: 'CEO_ONLY' });
     }
     // Trocar o modo muda para onde vai o dinheiro dos pedidos novos: bloqueios primeiro,
     // depois a frase exata (o CEO viu os riscos no preview).

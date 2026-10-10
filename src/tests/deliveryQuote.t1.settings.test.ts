@@ -140,3 +140,17 @@ describe('deliveryQuote t1 — helpers efetivos', () => {
     expect(effectivePrepMinutes({ prepMinutes: 0 }, cfg)).toBe(0);
   });
 });
+
+describe('lote final F5 — mensagem do CEO_ONLY', () => {
+  it('é genérica (vale para entrega, liquidação e mensalidade)', async () => {
+    await prisma.rolePermissions.upsert({
+      where: { role: 'gerente_geral' },
+      create: { role: 'gerente_geral', permissions: ['settings:manage'], notificationTargets: [], updatedBy: 'test' },
+      update: { permissions: ['settings:manage'] },
+    });
+    const gerente = await createTestUser('gerente_geral', DOMAIN);
+    const r = await request(app).put('/api/admin/switches').set('Authorization', bearer(gerente)).send({ defaultPrepMinutes: 10 });
+    expect(r.status).toBe(403);
+    expect(r.body).toEqual({ error: 'Só o CEO altera estas configurações.', code: 'CEO_ONLY' });
+  });
+});
