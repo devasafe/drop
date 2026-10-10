@@ -32,4 +32,8 @@ BEGIN
   ELSE
     RAISE NOTICE 'busca: sem pg_trgm/unaccent, índices trigram não criados';
   END IF;
+-- Falha ao criar função/índices (permissão em public, gin_trgm_ops fora do search_path, lock)
+-- não pode derrubar o `migrate deploy` do boot: o bloco desfaz tudo e a busca usa o fallback.
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'busca: índices não criados (%)', SQLERRM;
 END $$;
