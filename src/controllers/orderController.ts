@@ -4,7 +4,7 @@ import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
-import { routeQuoteWithRoute, storePoint, straightKm, validPoint } from '../services/deliveryQuote/quote';
+import { routeQuoteWithRoute, storePoint, straightKm, validPoint, resolvePlan1Free } from '../services/deliveryQuote/quote';
 import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
 import { publicStoreVisibilityWhere } from '../services/catalog/visibility';
@@ -185,9 +185,13 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     let routePolyline: string | undefined;
     const storeLoc = storePoint(storeForCheck);
     const customerLoc = { lat: Number(latitude), lng: Number(longitude) };
+    // Plano 1 da custódia (vitrine, sem entrega integrada, taxa 0) fica FORA da área e do
+    // NO_ADDRESS — o /checkout-vitrine nem manda coordenadas. Mesma regra da cotação
+    // (resolvePlan1Free); no modo direto o plano não existe e a checagem vale sempre.
+    const plan1Free = await resolvePlan1Free(storeIdStr);
     if (storeLoc && validPoint(customerLoc)) {
       const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
-      if (straightKm(storeLoc, customerLoc) > radiusKm) {
+      if (!plan1Free && straightKm(storeLoc, customerLoc) > radiusKm) {
         return sendAppError(res, new AppError('Esta loja não entrega nesse endereço.', 409, true, 'OUT_OF_AREA'));
       }
       const route = await getRoute({ origin: storeLoc, destination: customerLoc });
@@ -199,7 +203,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           logger.warn('Taxa calculada por estimativa (haversine) — gateway de rota indisponível', { storeId: storeIdStr, distanceKm: serverDistanceKm });
         }
       }
-    } else if (storeLoc) {
+    } else if (storeLoc && !plan1Free) {
       // Fail closed: loja com localização e pedido sem coordenadas válidas cobraria km 0 e
       // escaparia da área. Sem localização da loja não há o que medir (segue como antes).
       return sendAppError(res, new AppError('Informe o endereço de entrega.', 400, true, 'NO_ADDRESS'));

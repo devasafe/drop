@@ -31,6 +31,7 @@ import env from '../config/env';
 import { encryptSensitiveData } from '../utils/encryption';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { calculateDeliveryFeeWithConfig } from '../utils/walletCalculations';
+import walletService from '../services/wallet.prisma.service';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { ownerIdForStore } from './helpers/storeOwner';
@@ -352,5 +353,71 @@ describe('createOrder — área de entrega', () => {
     expect(Number(order!.deliveryFee)).toBe(fee);
     expect(Number(order!.totalValue)).toBe(Number((40 + fee).toFixed(2)));
     expect(await qty(product.id)).toBe(8);
+  });
+});
+
+// ─────────────── createOrder — custódia (lote final F1) ───────────────
+describe('createOrder — custódia: Plano 1 sem entrega integrada', () => {
+  async function custodyStore(plan: 'plan1' | 'plan2' | null, data: Record<string, unknown> = {}) {
+    const store = await makeStore(data);
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);
+    if (plan) await prisma.storeSubscription.create({ data: { storeId: store.id, storeName: 'sub', currentPlan: plan } as any });
+    return { store, product };
+  }
+  async function fundedBuyer() {
+    const cliente = await buyer();
+    await walletService.credit({ owner: cliente.userId, ownerType: 'user', amount: 500, reason: 'teste F1', category: 'transfer' } as any);
+    return cliente;
+  }
+  // Payload do /checkout-vitrine: coordenadas fixas em 0.
+  const vitrineBody = (storeId: string, productId: string, extra: Record<string, unknown> = {}) => ({
+    storeId, products: [{ productId, quantity: 2 }], paymentMethod: 'pix', deliveryDistanceKm: 0,
+    address: 'Rua X, 1 - Centro', latitude: 0, longitude: 0, ...extra,
+  });
+
+  beforeEach(async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' } as any, 'test');
+  });
+
+  it('Plano 1 com lat/lng 0 (payload do vitrine) → pedido criado, taxa 0, sem rotear', async () => {
+    const cliente = await fundedBuyer();
+    const { store, product } = await custodyStore('plan1');
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(vitrineBody(store.id, product.id));
+    expect(res.status).toBe(201);
+    const order = await prisma.order.findFirst({ where: { storeId: store.id } });
+    expect(order).not.toBeNull();
+    expect(Number(order!.deliveryFee)).toBe(0);
+    expect(await qty(product.id)).toBe(8);
+    expect(routeMock).not.toHaveBeenCalled();
+  });
+
+  it('Plano 1 sem assinatura e fora do raio → pedido criado (sem checagem de área)', async () => {
+    const cliente = await fundedBuyer();
+    const { store, product } = await custodyStore(null);
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente))
+      .send(vitrineBody(store.id, product.id, north(30)));
+    expect(res.status).toBe(201);
+    const order = await prisma.order.findFirst({ where: { storeId: store.id } });
+    expect(Number(order!.deliveryFee)).toBe(0);
+  });
+
+  it('Plano 2 sem coordenadas → 400 NO_ADDRESS, sem baixar estoque', async () => {
+    const cliente = await fundedBuyer();
+    const { store, product } = await custodyStore('plan2');
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(vitrineBody(store.id, product.id));
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('NO_ADDRESS');
+    expect(await qty(product.id)).toBe(10);
+  });
+
+  it('Plano 2 fora da área → 409 OUT_OF_AREA, sem baixar estoque', async () => {
+    const cliente = await fundedBuyer();
+    const { store, product } = await custodyStore('plan2');
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente))
+      .send(vitrineBody(store.id, product.id, north(12.5)));
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('OUT_OF_AREA');
+    expect(await qty(product.id)).toBe(10);
+    expect(routeMock).not.toHaveBeenCalled();
   });
 });
