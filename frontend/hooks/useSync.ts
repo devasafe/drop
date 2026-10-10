@@ -10,7 +10,10 @@ export const useProducts = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get('/products');
+        // limit=100 é o teto do backend (o padrão era 20). Paliativo: o catálogo completo
+        // com busca/paginação no servidor é o próximo plano. A página da loja usa
+        // useStoreProducts (todas as páginas de GET /products?storeId=…).
+        const res = await api.get('/products?limit=100');
         // ✅ FIX: API retorna { products: [...], pagination: {...} }
         // não apenas um array
         const productsData = res.data?.products || res.data || [];
