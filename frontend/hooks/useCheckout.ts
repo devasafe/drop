@@ -10,6 +10,7 @@ import { useDeliveryQuote } from './useDeliveryQuote';
 import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
+import { isValidCPF } from '../lib/cpf';
 import { useSaasConfig } from './useSaasConfig';
 
 const DRAFT_KEY = 'checkout_draft';
@@ -65,6 +66,8 @@ interface PendingDebtResponse {
 interface UserProfileResponse {
   cpf?: string;
   telefone?: string;
+  // Task 8: situação do CPF de cobrança (perfil → KYC). Ausente em respostas antigas.
+  cpfStatus?: 'valid' | 'missing' | 'invalid';
 }
 
 export function useCheckout() {
@@ -113,13 +116,17 @@ export function useCheckout() {
   const [installmentCount, setInstallmentCount] = useState(1);
   const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
   const [blocked, setBlocked] = useState(false);
-  // Modo direto (Task 1.5): o Asaas da loja exige CPF. Só pedimos quando o backend
-  // responde CPF_REQUIRED (perfil sem CPF); o reenvio leva `cpf` e o backend grava no perfil.
-  const [cpfRequired, setCpfRequired] = useState(false);
+  // O Pix exige CPF (custódia e modo direto). Pedimos ANTES do primeiro envio quando
+  // /user/me diz 'missing'/'invalid' (Task 8); o CPF_REQUIRED do servidor continua como
+  // rede de segurança. O envio leva `cpf` e o backend grava no perfil.
+  const [cpfRequiredByServer, setCpfRequired] = useState(false);
   const [cpf, setCpf] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
+  const cpfMissingForPix = paymentMethod === 'pix' && (userProfile.cpfStatus === 'missing' || userProfile.cpfStatus === 'invalid');
+  const cpfRequired = cpfRequiredByServer || cpfMissingForPix;
+  const cpfValid = isValidCPF(cpf);
   // PIX e cartão de crédito são cobranças externas (Asaas) — não dependem de
   // saldo de carteira. Só métodos que efetivamente debitam a carteira exigem saldo.
   const isWalletInsufficient = paymentMethod !== 'pix' && paymentMethod !== 'credit_card' && walletBalance < total;
@@ -206,7 +213,7 @@ export function useCheckout() {
     let cancelled = false;
     if (!user?.id) return;
     api.get<UserProfileResponse>('/user/me')
-      .then(r => { if (!cancelled) setUserProfile({ cpf: r.data.cpf, telefone: r.data.telefone }); })
+      .then(r => { if (!cancelled) setUserProfile({ cpf: r.data.cpf, telefone: r.data.telefone, cpfStatus: r.data.cpfStatus }); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -247,6 +254,7 @@ export function useCheckout() {
     if (placing) return { ok: false };
     const cpfDigits = onlyDigits(cpf);
     if (cpfRequired && cpfDigits.length !== 11) return { ok: false, error: 'Informe um CPF válido (11 dígitos)' };
+    if (cpfMissingForPix && !cpfValid) return { ok: false, error: 'CPF inválido. Confira os números.' };
     setPlacing(true);
     try {
       const sel = address.selected;
@@ -311,6 +319,6 @@ export function useCheckout() {
     isWalletInsufficient, distanceKm, etaMinutes, outOfArea, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
-    cpfRequired, cpf, setCpf,
+    cpfRequired, cpf, setCpf, cpfValid,
   };
 }

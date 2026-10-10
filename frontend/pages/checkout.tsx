@@ -220,7 +220,7 @@ export default function CheckoutPage() {
               c.placing ||
               c.isWalletInsufficient ||
               (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid) ||
-              (c.cpfRequired && onlyDigits(c.cpf).length !== 11)
+              (c.cpfRequired && (onlyDigits(c.cpf).length !== 11 || c.cpfValid === false))
             }
             loading={c.placing}
             hint={
@@ -230,7 +230,7 @@ export default function CheckoutPage() {
                   ? 'Saldo insuficiente'
                   : (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
                     ? 'Preencha os dados do cartão'
-                    : (c.cpfRequired && onlyDigits(c.cpf).length !== 11)
+                    : (c.cpfRequired && (onlyDigits(c.cpf).length !== 11 || c.cpfValid === false))
                       ? 'Informe seu CPF'
                       : undefined
             }
