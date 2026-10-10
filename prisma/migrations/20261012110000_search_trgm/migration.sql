@@ -1,11 +1,11 @@
 -- Busca no servidor (Task 5 DS v2): pg_trgm + unaccent quando o banco permitir.
--- Tolerante: sem privilégio ou sem o pacote contrib, só avisa e a API usa o fallback
--- (ILIKE sobre translate()). A API detecta as extensões no boot (uma vez por processo).
+-- Tolerante a QUALQUER erro de extensão (privilégio, contrib ausente, allow-list do provedor): só avisa e a API usa o fallback
+-- (ILIKE sobre translate()). A API detecta as extensões na primeira busca (uma vez por processo).
 DO $$ BEGIN
   CREATE EXTENSION IF NOT EXISTS pg_trgm;
   CREATE EXTENSION IF NOT EXISTS unaccent;
-EXCEPTION WHEN insufficient_privilege OR undefined_file THEN
-  RAISE NOTICE 'busca: extensões indisponíveis, usando fallback';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'busca: extensões indisponíveis (%), usando fallback', SQLERRM;
 END $$;
 
 -- Só com as DUAS extensões: função IMMUTABLE (unaccent é STABLE e não entra em índice)
@@ -23,7 +23,7 @@ BEGIN
       'CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text
          LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
          AS $f$ SELECT %1$I.unaccent(%2$L::regdictionary, $1) $f$',
-      unaccent_schema, unaccent_schema || '.unaccent');
+      unaccent_schema, quote_ident(unaccent_schema) || '.unaccent');
 
     CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx"
       ON "Product" USING gin (lower(immutable_unaccent("name")) gin_trgm_ops);

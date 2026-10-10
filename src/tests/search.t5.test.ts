@@ -281,6 +281,19 @@ describe('detecção das extensões', () => {
     const fn = await prisma.$queryRaw<{ n: number }[]>`SELECT 1 AS n FROM pg_proc WHERE proname = 'immutable_unaccent'`;
     expect(await extensions.hasSearchExtensions()).toBe(exts.length === 2 && fn.length > 0);
   });
+
+  it('falha na detecção não fica em cache: a próxima chamada tenta de novo', async () => {
+    extensions.resetSearchExtensionsCache();
+    const spy = jest.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('banco fora do ar'));
+    expect(await extensions.hasSearchExtensions()).toBe(false);
+    spy.mockRestore();
+    // A migration criou extensões e função neste banco: a 2ª detecção as encontra.
+    expect(await extensions.hasSearchExtensions()).toBe(true);
+    // E agora o sucesso fica em cache (não consulta de novo).
+    const again = jest.spyOn(prisma, '$queryRaw');
+    expect(await extensions.hasSearchExtensions()).toBe(true);
+    expect(again).not.toHaveBeenCalled();
+  });
 });
 
 describe('fallback sem pg_trgm/unaccent (detecção mockada)', () => {
