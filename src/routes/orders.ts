@@ -1,7 +1,7 @@
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order, quoteDelivery } from '../controllers/orderController';
+import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order, quoteDelivery, getReorder } from '../controllers/orderController';
 import {
   cancelOrderByCustomer,
   acceptOrderByStore,
@@ -49,6 +49,8 @@ router.get('/:id', authenticate, getOrder);
 router.get('/:id/my-product-reviews', authenticate, getMyProductReviewsForOrder);
 // Retomar pagamento PIX de um pedido pendente
 router.get('/:id/pix', authenticate, getOrderPix);
+// Comprar de novo: itens do pedido com preço e estoque atuais (só o dono)
+router.get('/:id/reorder', authenticate, getReorder);
 
 // ========== STORE OPERATIONS ==========
 // store accepts order -> moves to processing

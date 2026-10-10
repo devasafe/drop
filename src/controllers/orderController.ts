@@ -7,6 +7,7 @@ import { getRoute } from '../services/routeService';
 import { routeQuoteWithRoute, storePoint, straightKm, validPoint } from '../services/deliveryQuote/quote';
 import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
+import { publicStoreVisibilityWhere } from '../services/catalog/visibility';
 import { emitStockChanged } from '../services/storeIntegration';
 import userRepository from '../repositories/user.repository';
 
@@ -1167,6 +1168,62 @@ export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) =>
     return res.json({ ...legacy, ...quote });
   } catch (err: any) {
     logger.error('Erro ao gerar orçamento de entrega', err);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * GET /orders/:id/reorder — "Comprar de novo". Só o dono (cliente) do pedido.
+ * Preço e estoque vêm do banco AGORA; o snapshot do OrderItem só serve para `previousPrice`.
+ * Loja invisível na vitrine (KYC e/ou mensalidade) deixa todos os itens como STORE_UNAVAILABLE.
+ */
+export const getReorder = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } });
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (order.customerId !== userId) return res.status(403).json({ error: 'Sem permissão para acessar este pedido' });
+
+    const visibility = await publicStoreVisibilityWhere();
+    const [store, visible, products] = await Promise.all([
+      prisma.store.findUnique({ where: { id: order.storeId }, select: { id: true, name: true } }),
+      prisma.store.count({ where: { AND: [{ id: order.storeId }, visibility] } }),
+      prisma.product.findMany({ where: { id: { in: order.items.map((i) => i.productId) } } }),
+    ]);
+    const storeAvailable = Boolean(store) && visible > 0;
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    const items = order.items.map((it) => {
+      const p = productMap.get(it.productId);
+      const previousPrice = Number(it.price);
+      const stock = p ? Math.max(0, p.quantity) : 0;
+      let reason: 'DELETED' | 'OUT_OF_STOCK' | 'STORE_UNAVAILABLE' | null = null;
+      if (!storeAvailable) reason = 'STORE_UNAVAILABLE';
+      else if (!p) reason = 'DELETED';
+      else if (stock <= 0) reason = 'OUT_OF_STOCK';
+      const price = p ? Number(p.price) : previousPrice;
+      return {
+        productId: it.productId,
+        name: p?.name ?? 'Produto removido',
+        image: p?.image ?? p?.images?.[0] ?? null,
+        price,
+        previousPrice,
+        quantity: reason ? 0 : Math.min(it.quantity, stock),
+        requestedQuantity: it.quantity,
+        available: reason === null,
+        priceChanged: Boolean(p) && price !== previousPrice,
+        reason,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: { storeId: order.storeId, storeName: store?.name ?? '', storeAvailable, items },
+    });
+  } catch (err: any) {
+    logger.error('Erro ao montar "comprar de novo"', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

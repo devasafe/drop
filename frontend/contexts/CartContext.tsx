@@ -52,6 +52,16 @@ export const CartProvider = ({ children }: any) => {
     save(cart.filter((x) => x.productId !== productId));
   };
 
+  /**
+   * Substitui a sacola inteira de uma vez (um único setState, sem o estado velho do add em
+   * sequência). Como troca tudo, a regra de uma loja por sacola vale por construção: todo item
+   * leva o storeId recebido e o que havia de outra loja some.
+   */
+  const replaceCart = (storeId: string, items: Array<{ productId: string; quantity: number; name: string; price: number; [k: string]: any }>) => {
+    setPendingSwap(null);
+    save(items.map((i) => ({ ...i, storeId })));
+  };
+
   const confirmSwap = () => {
     save([pendingSwap]);
     setPendingSwap(null);
@@ -60,7 +70,7 @@ export const CartProvider = ({ children }: any) => {
   const cancelSwap = () => setPendingSwap(null);
 
   return (
-    <CartContext.Provider value={{ cart, add, clear, updateQuantity, removeItem }}>
+    <CartContext.Provider value={{ cart, add, clear, updateQuantity, removeItem, replaceCart }}>
       {children}
       <Sheet open={pendingSwap !== null} onClose={cancelSwap} title="Trocar de loja?">
         <p>
