@@ -114,7 +114,9 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     // Cada restrição entra como um termo do AND — nenhuma sobrescreve a outra
     // (o filtro por loja não pode furar o gate de KYC nem o da mensalidade).
     const and: any[] = [];
-    if (category) and.push({ category });
+    // `category` na query é o id da Category (Product só tem `categoryId`; filtrar pela
+    // relação `category` com uma string fazia o Prisma lançar → 500).
+    if (category) and.push({ categoryId: String(category) });
     if (storeId) and.push({ storeId: String(storeId) });
 
     // ✅ GATE KYC Fase 2: com KYC_ENFORCED, só produtos de lojas verificadas
