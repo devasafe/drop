@@ -6,6 +6,7 @@ import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repos
 import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { z } from 'zod';
 import userRepository from '../repositories/user.repository';
 
 
@@ -367,6 +368,11 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+const storeDeliverySettingsSchema = z.object({
+  deliveryRadiusKm: z.number({ invalid_type_error: 'Raio de entrega inválido' }).min(1, 'O raio de entrega mínimo é 1 km').max(50, 'O raio de entrega máximo é 50 km').nullable().optional(),
+  prepMinutes: z.number({ invalid_type_error: 'Tempo de preparo inválido' }).int('O tempo de preparo deve ser em minutos inteiros').min(0, 'O tempo de preparo mínimo é 0 min').max(180, 'O tempo de preparo máximo é 180 min').nullable().optional(),
+});
+
 // Atualizar endereço e dados da loja
 export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -382,6 +388,29 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     // Verificar se o usuário é o dono da loja
     if (String(store.ownerId) !== ownerId) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
+    }
+
+    // Raio de entrega e tempo de preparo (null = volta ao padrão da plataforma).
+    // O raio só pode diminuir o padrão; o servidor valida, o front só sugere.
+    const deliverySettings: { deliveryRadiusKm?: number | null; prepMinutes?: number | null } = {};
+    if (req.body.deliveryRadiusKm !== undefined || req.body.prepMinutes !== undefined) {
+      const parsedSettings = storeDeliverySettingsSchema.safeParse({
+        deliveryRadiusKm: req.body.deliveryRadiusKm,
+        prepMinutes: req.body.prepMinutes,
+      });
+      if (!parsedSettings.success) {
+        return res.status(400).json({ error: parsedSettings.error.issues[0]?.message || 'Configuração de entrega inválida' });
+      }
+      const radius = parsedSettings.data.deliveryRadiusKm;
+      if (radius != null) {
+        const { getDeliveryConfig } = await import('../services/deliveryQuote/config');
+        const { defaultRadiusKm } = await getDeliveryConfig();
+        if (radius > defaultRadiusKm) {
+          return res.status(400).json({ error: `O raio de entrega não pode passar de ${defaultRadiusKm} km (limite da plataforma)` });
+        }
+      }
+      if (radius !== undefined) deliverySettings.deliveryRadiusKm = radius;
+      if (parsedSettings.data.prepMinutes !== undefined) deliverySettings.prepMinutes = parsedSettings.data.prepMinutes;
     }
 
     // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente.
@@ -423,6 +452,7 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (zip) data.zip = zip;
     if (latitude) data.latitude = String(latitude);
     if (longitude) data.longitude = String(longitude);
+    Object.assign(data, deliverySettings);
 
     // Construir endereço completo para o campo address (com os valores já atualizados)
     const merged = { ...store, ...data };

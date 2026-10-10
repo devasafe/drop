@@ -438,6 +438,8 @@ model Store {
   isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
+  deliveryRadiusKm     Float?
+  prepMinutes          Int?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -1045,6 +1047,10 @@ model PlatformConfig {
   cardInstallmentMaxCount      Int     @default(12)
   cardInstallmentMinValue      Decimal @default(5) @db.Decimal(12, 2)
   paymentProvider              PaymentProviderName @default(asaas)
+  defaultDeliveryRadiusKm      Float   @default(12)
+  defaultPrepMinutes           Int     @default(15)
+  courierAvgSpeedKmh           Float   @default(25)
+  routeDetourFactor            Float   @default(1.3)
   updatedBy                   String
   updatedAt                   DateTime      @updatedAt
 }
