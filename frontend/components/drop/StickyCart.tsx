@@ -9,26 +9,15 @@ export interface StickyCartProps {
 }
 
 /**
- * Barra fixa de carrinho, flutuando sobre o conteúdo. Replica `.cart` do
- * mock canônico (fundo `--brand` sólido, `--shadow-float`). A visibilidade
- * fica a cargo de quem consome (renderize só quando `count > 0`).
+ * Barra fixa da sacola, flutuando sobre o conteúdo ("Ver sacola · N itens" + total).
+ * A visibilidade fica a cargo de quem consome (renderize só quando `count > 0`).
  */
 export function StickyCart({ count, total, onOpen }: StickyCartProps) {
+  const word = count === 1 ? 'item' : 'itens';
   return (
-    <button
-      type="button"
-      className={styles.cart}
-      aria-label={`Ver carrinho, ${count} itens, total ${formatBRL(total)}`}
-      onClick={onOpen}
-    >
-      <span className={styles.left}>
-        <span className={styles.count}>{count}</span>
-        Ver carrinho
-      </span>
-      <span className={styles.right}>
-        {formatBRL(total)}
-        <ArrowRight size={16} strokeWidth={2.4} aria-hidden="true" />
-      </span>
+    <button type="button" className={styles.cart} aria-label={`Ver sacola, ${count} ${word}, total ${formatBRL(total)}`} onClick={onOpen}>
+      <span className={styles.left} aria-live="polite">Ver sacola · {count} {word}</span>
+      <span className={styles.right}>{formatBRL(total)}<ArrowRight size={18} strokeWidth={2} aria-hidden="true" /></span>
     </button>
   );
 }
