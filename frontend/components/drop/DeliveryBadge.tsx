@@ -1,4 +1,4 @@
-import { Bike, CalendarClock, MapPin, MapPinOff, Truck, Zap } from 'lucide-react';
+import { Bike, CalendarClock, Clock, MapPin, MapPinOff, Truck, Zap } from 'lucide-react';
 import { formatMoney } from '../../lib/money';
 import styles from './DeliveryBadge.module.css';
 
@@ -8,6 +8,7 @@ export type DeliveryState =
   | { kind: 'tomorrow' }
   | { kind: 'free' }
   | { kind: 'fee'; fee: number }
+  | { kind: 'closed'; opensAt?: string }
   | { kind: 'noAddress'; onSetAddress: () => void }
   | { kind: 'loading' }
   | { kind: 'outOfArea'; address: string; onChangeAddress: () => void };
@@ -21,8 +22,8 @@ export interface DeliveryBadgeProps {
  * a qualidade da entrega, não enfeita: verde = rápido/grátis, neutro =
  * normal, link = falta uma ação, erro = não entrega.
  *
- * Enquanto o backend não cota prazo/frete antes do checkout, as telas usam
- * `noAddress` ou `loading` — nunca um prazo inventado.
+ * As telas traduzem a cotação com `deliveryStates()` (`lib/deliveryView.ts`)
+ * — nunca um prazo inventado.
  */
 export function DeliveryBadge({ state }: DeliveryBadgeProps) {
   switch (state.kind) {
@@ -36,6 +37,8 @@ export function DeliveryBadge({ state }: DeliveryBadgeProps) {
       return <Line tone="fast" icon={<Truck size={16} strokeWidth={1.75} />}>Frete grátis</Line>;
     case 'fee':
       return <Line tone="normal" icon={<Truck size={16} strokeWidth={1.75} />}>Frete {formatMoney(state.fee)}</Line>;
+    case 'closed':
+      return <Line tone="normal" icon={<Clock size={16} strokeWidth={1.75} />}>{state.opensAt ? `Loja fechada · abre às ${state.opensAt}` : 'Loja fechada'}</Line>;
     case 'noAddress':
       return (
         <button type="button" className={[styles.line, styles.link].join(' ')} onClick={state.onSetAddress}>

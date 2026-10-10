@@ -7,7 +7,6 @@ import { cssViolations } from './helpers/dsTokens';
 const ROOT = path.join(__dirname, '..');
 const ALLOW = new Set<string>([
   'components/drop/checkout/AddressSelector.module.css', // fase C: checkout
-  'components/drop/checkout/AddressSheet.module.css', // fase C: checkout
   'components/drop/checkout/CheckoutBar.module.css', // fase C: checkout
   'components/drop/checkout/CheckoutItems.module.css', // fase C: checkout
   'components/drop/checkout/CouponField.module.css', // fase C: checkout
