@@ -22,6 +22,6 @@ describe('rotas do cliente', () => {
     expect(lojaHref('a/b')).toMatch(/a%2Fb$/);
     expect(lojaHref('s1')).toBe('/loja/s1');
     expect(produtoHref('p1')).toBe('/produto/p1');
-    expect(pedidoHref('o1')).toMatch(/\/o1$/);
+    expect(pedidoHref('o1')).toBe('/pedido/o1');
   });
 });

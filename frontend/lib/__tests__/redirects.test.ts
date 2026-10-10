@@ -68,3 +68,9 @@ describe('Task 13 — sacola', () => {
     expect(resolveRedirect(rules, '/checkout-vitrine')?.location).toBe('/sacola');
   });
 });
+
+describe('Task 15 — pedido', () => {
+  it('/store-order/:id vira /pedido/:id (com a query)', () => {
+    expect(resolveRedirect(rules, '/store-order/abc?from=push')?.location).toBe('/pedido/abc?from=push');
+  });
+});

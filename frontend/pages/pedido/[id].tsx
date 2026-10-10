@@ -1,27 +1,29 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { AlertTriangle, PackageSearch } from 'lucide-react';
+import { Map as MapIcon, PackageSearch } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
+import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { ICON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { useToast } from '../../components/ui/Toast';
 import { useOrderTracking } from '../../hooks/useOrderTracking';
 import { useCancellation } from '../../hooks/useCancellation';
-import type { OrderTrackerStep } from '../../components/drop/OrderTracker';
-import { OrderStatusHero } from '../../components/drop/order/OrderStatusHero';
-import { OrderTimeline } from '../../components/drop/order/OrderTimeline';
+import { OrderStatusBadge, orderStatusView } from '../../components/drop/OrderStatusBadge';
+import { OrderTimeline } from '../../components/drop/OrderTimeline';
 import { DeliveryPin } from '../../components/drop/order/DeliveryPin';
-import { MotoboyMap } from '../../components/drop/order/MotoboyMap';
 import { OrderItemsSummary } from '../../components/drop/order/OrderItemsSummary';
 import { OrderActions } from '../../components/drop/order/OrderActions';
 import { RatingForm } from '../../components/drop/order/RatingForm';
 import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet';
 import { CancelOrderSheet } from '../../components/drop/order/CancelOrderSheet';
 import { CancellationStatus, type CancellationInfo } from '../../components/drop/order/CancellationStatus';
-import styles from './StoreOrderStatus.module.css';
+import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
+import { ROUTES } from '../../lib/routes';
+import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
 
 // Drop Maps (MapLibre/WebGL) só no client.
@@ -34,21 +36,12 @@ const ClienteTrackingMap = dynamic(
 // `CancelOrderModal`, mantida aqui só pra decidir se o botão aparece.
 const CANCELABLE_STATUSES = ['criado', 'pago', 'aguardando_motoboy', 'enviado'];
 
-/** Rótulo curto do passo atual (mesmo fallback que `OrderTracker` usa
- * quando `statusLabel` não é informado), pra `OrderStatusHero` e
- * `OrderTimeline` mostrarem o mesmo rótulo. */
-function currentStepLabel(steps: OrderTrackerStep[]): string {
-  const done = steps.filter((s) => s.done);
-  return done.length > 0 ? done[done.length - 1].label : 'Em andamento';
-}
-
 /**
- * Acompanhamento de pedido — orquestração pura: toda a lógica (order/
+ * Pedido do cliente (DS v2) — orquestração pura: toda a lógica (order/
  * delivery, sockets, PIX sob demanda, avaliações) vive em `useOrderTracking`.
- * Esta página só decide QUAL estado mostrar (carregando / não encontrado /
- * conteúdo) e conecta os componentes do DS aos dados e callbacks do hook.
+ * O status e a timeline vêm de `lib/customerOrder` (pedido + entrega).
  */
-export default function StoreOrderStatus() {
+export default function PedidoPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
   const { showToast } = useToast();
@@ -222,15 +215,21 @@ export default function StoreOrderStatus() {
       ? { lat: Number(delivery.deliveryLat), lng: Number(delivery.deliveryLng) }
       : undefined;
 
+  const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
+  const steps = order ? orderTimelineSteps(order, delivery) : [];
+  const view = orderStatusView(status);
+  const tripMin = order && status === 'out_for_delivery' && Number(order.deliveryDuration) > 0 ? Math.round(Number(order.deliveryDuration) / 60) : null;
+  const mb = delivery?.motoboyObj;
+
   return (
     <ProtectedRoute required_role="cliente">
-      <div className={styles.page}>
+      <div className={styles.shell}>
         {t.loading ? (
-          <div className={styles.container}>
+          <div className={styles.page}>
             <div className={styles.loadingWrap}>
-              <Skeleton height={140} radius="var(--r-lg)" />
-              <Skeleton height={120} radius="var(--r-lg)" />
-              <Skeleton height={200} radius="var(--r-lg)" />
+              <Skeleton height={140} radius="var(--radius-lg)" />
+              <Skeleton height={120} radius="var(--radius-lg)" />
+              <Skeleton height={200} radius="var(--radius-lg)" />
             </div>
           </div>
         ) : !order ? (
@@ -239,93 +238,70 @@ export default function StoreOrderStatus() {
               icon={<PackageSearch size={22} strokeWidth={ICON_STROKE_WIDTH} />}
               title="Pedido não encontrado"
               description="Verifique o link ou volte para seus pedidos."
-              action={<Button onClick={() => router.push('/')}>Voltar para o início</Button>}
+              action={<Button onClick={() => router.push(ROUTES.pedidos)}>Ver meus pedidos</Button>}
             />
           </div>
         ) : (
-          <div className={styles.container}>
-            <div className={styles.header}>
-              <h1 className={styles.title}>Acompanhar pedido</h1>
-              <p className={styles.orderId}>Pedido #{order._id}</p>
-            </div>
+          <main className={styles.page}>
+            <header className={styles.header}>
+              <h1 className={styles.title}>Pedido #{shortOrderCode(order._id)}</h1>
+              <p className={styles.meta}>{order.storeName || 'Loja'}</p>
+            </header>
 
-            {/* Desktop: 2 colunas (rastreio | resumo+ações sticky). Mobile: os
-                wrappers usam display:contents e as seções fluem em coluna única
-                (layout idêntico ao anterior). */}
-            <div className={styles.grid}>
-            <div className={styles.colMain}>
-            <section className={styles.section}>
-              <OrderStatusHero
-                statusLabel={
-                  order.status === 'cancelado'
-                    ? 'Cancelado'
-                    : order.status === 'rejeitado'
-                      ? 'Rejeitado'
-                      : currentStepLabel(t.steps)
-                }
-                statusTone={t.statusTone}
-                message={t.statusLabel}
-              />
-              <OrderTimeline
-                orderId={order._id}
-                storeName={order.storeName || 'Loja'}
-                progress={t.progress}
-                steps={t.steps}
-              />
+            <section className={styles.status} aria-live="polite">
+              <OrderStatusBadge status={status} />
+              <p className={styles.statusBig}>{view.label}</p>
+              {tripMin && <p className={styles.statusSub}>{`Trajeto de cerca de ${tripMin} min`}</p>}
+              {status === 'problem' && (
+                <Alert tone="error" title="Tivemos um problema na entrega" action={{ label: 'Falar com suporte', onClick: () => router.push('/suporte') }}>
+                  Já estamos olhando o seu pedido.
+                </Alert>
+              )}
             </section>
 
-            {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
-              <section className={styles.section}>
-                <button
-                  type="button"
-                  onClick={() => setMapOpen(true)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    width: '100%', padding: '14px 16px', borderRadius: 14,
-                    border: '1px solid rgba(139,92,246,0.35)',
-                    background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#fff',
-                    fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                    boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
-                    <path d="M9 20l-6 2V6l6-2 6 2 6-2v16l-6 2-6-2zM9 4v16M15 6v16" />
-                  </svg>
-                  Acompanhar no mapa
-                </button>
-              </section>
-            )}
-            {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
-
-            {showPixButton && (
-              <section className={styles.section}>
-                <div className={styles.pixBanner}>
-                  <AlertTriangle size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-                  <p className={styles.pixHint}>
-                    Pagamento pendente. Seu pedido só é confirmado após o pagamento PIX.
+            {mb && (
+              <section className={styles.courier}>
+                <Avatar name={mb.name} src={mb.photo} />
+                <div>
+                  <p className={styles.courierName}>{mb.name}</p>
+                  <p className={styles.meta}>
+                    {[mb.rating ? `★ ${String(mb.rating).replace('.', ',')}` : null, mb.plate ? `moto ${mb.plate}` : null].filter(Boolean).join(' · ')}
                   </p>
-                  <Button loading={payingPix} onClick={handleOpenPix}>
-                    Pagar com PIX
-                  </Button>
                 </div>
               </section>
             )}
 
             {t.showPin && delivery?.pin && (
-              <section className={styles.section}>
+              <section className={styles.block} aria-label="Código de entrega">
+                <p className={styles.blockLabel}>Código de entrega</p>
                 <DeliveryPin pin={delivery.pin} />
               </section>
             )}
 
+            {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
+              <Button variant="secondary" leftIcon={<MapIcon size={18} strokeWidth={ICON_STROKE_WIDTH} />} onClick={() => setMapOpen(true)}>
+                Acompanhar no mapa
+              </Button>
+            )}
+            {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
+
+            {showPixButton && (
+              <Alert tone="warning" title="Pagamento pendente" action={{ label: 'Pagar com Pix', onClick: handleOpenPix }}>
+                Seu pedido só vai para a loja depois do Pix.
+              </Alert>
+            )}
+
+            <section className={styles.block}>
+              <OrderTimeline steps={steps} />
+            </section>
+
             {order.status === 'cancelado' && cancellation && (
-              <section className={styles.section}>
+              <section className={styles.block}>
                 <CancellationStatus cancellation={cancellation} />
               </section>
             )}
-            </div>
 
-            <div className={styles.colSide}>
-            <section className={styles.section}>
+            <section className={styles.block}>
               <OrderItemsSummary
                 items={(order.products || []).map((p: any) => ({
                   name: p.productName,
@@ -355,7 +331,7 @@ export default function StoreOrderStatus() {
             />
 
             {showMotoboyRating && (
-              <section className={styles.section}>
+              <section className={styles.block}>
                 <RatingForm
                   title="Avaliar motoboy"
                   onSubmit={handleMotoboyRating}
@@ -366,7 +342,7 @@ export default function StoreOrderStatus() {
             )}
 
             {showStoreRating && (
-              <section className={styles.section}>
+              <section className={styles.block}>
                 <RatingForm
                   title="Avaliar loja"
                   onSubmit={handleStoreRating}
@@ -380,7 +356,7 @@ export default function StoreOrderStatus() {
               const pid = p.productId || p.product?._id || p.product?.id;
               if (!pid) return null;
               return (
-                <section key={pid} className={styles.section}>
+                <section key={pid} className={styles.block}>
                   <RatingForm
                     title={`Avaliar: ${p.productName || 'Produto'}`}
                     onSubmit={handleProductRating(pid)}
@@ -391,16 +367,13 @@ export default function StoreOrderStatus() {
               );
             })}
 
-            </div>
-            </div>
-
             <CancelOrderSheet
               open={cancelOpen}
               onClose={() => setCancelOpen(false)}
               onConfirm={handleCancelConfirm}
               submitting={cancelling}
             />
-          </div>
+          </main>
         )}
 
         {/* Sheet de pagamento PIX: overlay que precisa aparecer sobre QUALQUER

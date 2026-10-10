@@ -1,8 +1,6 @@
 /**
  * Rotas do app do cliente (DS v2, fase C) — fonte única. Telas e componentes do cliente
- * navegam por aqui, nunca por literal. Pedido ainda aponta para a rota antiga até a task que
- * cria a tela nova trocar o destino (e acrescentar o redirect em lib/redirects.js): assim
- * todo commit intermediário navega para uma tela que existe.
+ * navegam por aqui, nunca por literal.
  */
 export const ROUTES = {
   inicio: '/inicio',
@@ -32,11 +30,11 @@ export const contaHref = (secao?: ContaSecao): string => (secao ? `${ROUTES.cont
 const enc = encodeURIComponent;
 export const lojaHref = (id: string): string => `/loja/${enc(id)}`;
 export const produtoHref = (id: string): string => `/produto/${enc(id)}`;
-export const pedidoHref = (id: string): string => `/store-order/${enc(id)}`;
+export const pedidoHref = (id: string): string => `/pedido/${enc(id)}`;
 
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
-export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/user-profile', '/loja/[id]'];
+export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/user-profile', '/loja/[id]', '/pedido/[id]'];
 /** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
 export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
-export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola', '/store-order/[id]'];
+export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola'];

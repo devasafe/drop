@@ -20,7 +20,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 // Ordem cronológica; cada step "done" conforme order.status / delivery.status.
-// Portado de `pages/store-order/[id].tsx` (getStatusIcon/getStatusText).
+// Portado de `pages/pedido/[id].tsx` (getStatusIcon/getStatusText).
 function deriveSteps(order: any, delivery: any): OrderTrackerStep[] {
   const os = order?.status;
   const ds = delivery?.status;
@@ -85,7 +85,7 @@ function deriveStatusLabel(order: any, delivery: any): string {
  * `useDelivery`, os listeners de socket que mantêm os dois em sincronia em
  * tempo real, a derivação de steps/progresso/tom de status e as ações
  * (confirmar recebimento, avaliar motoboy/loja, retomar PIX pendente).
- * Portado de `pages/store-order/[id].tsx`.
+ * Portado de `pages/pedido/[id].tsx`.
  */
 export function useOrderTracking(orderId?: string) {
   const { order, loading: orderLoading, setOrder } = useOrder(orderId);
@@ -210,7 +210,7 @@ export function useOrderTracking(orderId?: string) {
 
   // PIX pendente: SOB DEMANDA, só ao chamar `openPix()` (ex.: clique em
   // "Pagar com PIX"). Não busca automaticamente no mount — o original
-  // (`openPix` em store-order/[id].tsx:34-49) só populava `pixData` quando o
+  // (`openPix` em pedido/[id].tsx:34-49) só populava `pixData` quando o
   // cliente pedia explicitamente, e como a página renderiza
   // `{pixData && <PixPaymentSheet/>}`, popular sozinho faria o sheet abrir
   // por conta própria. O polling de confirmação fica no PixPaymentSheet.

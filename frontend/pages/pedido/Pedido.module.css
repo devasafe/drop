@@ -1,0 +1,100 @@
+/* Pedido (/pedido/[id]) — acompanhamento claro. Só tokens semânticos. */
+
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 720px;
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) 120px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+
+.meta {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.statusBig {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+
+.statusSub {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-delivery-fast);
+}
+
+.courier {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.courierName {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.blockLabel {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+
+/* estados de página inteira (carregando / não encontrado) */
+.emptyWrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+}
+
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

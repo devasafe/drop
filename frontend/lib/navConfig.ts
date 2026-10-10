@@ -69,7 +69,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   cliente: [
     { label: 'Início',  icon: 'home',    route: '/inicio',  placement: ['bottomNav'] },
     { label: 'Buscar',  icon: 'search',  route: '/buscar',  placement: ['bottomNav'], activeMatch: ['/', '/buscar', '/stores', '/loja', '/product', '/produto', '/produtos'] },
-    { label: 'Pedidos', icon: 'receipt', route: '/pedidos', placement: ['bottomNav'], activeMatch: ['/pedidos', '/pedido', '/store-order'] },
+    { label: 'Pedidos', icon: 'receipt', route: '/pedidos', placement: ['bottomNav'], activeMatch: ['/pedidos', '/pedido'] },
     { label: 'Conta',   icon: 'user',    route: '/conta',   placement: ['bottomNav'], activeMatch: ['/conta', '/minha-conta', '/user-profile', '/editar-conta'] },
     // Carteira saiu das abas (spec §9): vira linha da tela Conta. A regra P16 decide qual aparece.
     { label: 'Carteira', icon: 'wallet', route: '/conta/carteira', placement: ['account'], custodyOnly: true },
