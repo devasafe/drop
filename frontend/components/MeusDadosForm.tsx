@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { maskCPF, maskRG, maskPhone, onlyDigits, cleanRG } from '../lib/masks';
+import { isValidCPF } from '../lib/cpf';
 import { useAuth } from '../contexts/AuthContext';
 import StoreSettingsEditor from './StoreSettingsEditor';
 import { Button } from './ui/Button';
@@ -23,6 +24,7 @@ export default function MeusDadosForm() {
   const [store, setStore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [cpfErr, setCpfErr] = useState('');
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
@@ -49,7 +51,12 @@ export default function MeusDadosForm() {
   }, [isLojista]);
 
   const salvar = async () => {
-    setMsg(''); setErr('');
+    setMsg(''); setErr(''); setCpfErr('');
+    // Confere o dígito verificador antes de enviar (o backend também recusa com 400).
+    if (!docApproved && onlyDigits(cpf) && !isValidCPF(cpf)) {
+      setCpfErr('CPF inválido');
+      return;
+    }
     try {
       const payload: any = { name, email, telefone: onlyDigits(telefone) };
       if (!docApproved) { payload.cpf = onlyDigits(cpf); payload.rg = cleanRG(rg); }
@@ -87,7 +94,7 @@ export default function MeusDadosForm() {
         </label>
         <label className={styles.field}>
           <span className={styles.hint}>CPF</span>
-          <Input value={cpf} onChange={(v) => setCpf(maskCPF(v))} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} disabled={docApproved} />
+          <Input value={cpf} onChange={(v) => { setCpf(maskCPF(v)); setCpfErr(''); }} placeholder="000.000.000-00" inputMode="numeric" maxLength={14} disabled={docApproved} error={cpfErr || undefined} />
         </label>
         <label className={styles.field}>
           <span className={styles.hint}>RG</span>
