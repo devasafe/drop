@@ -189,6 +189,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // NO_ADDRESS — o /checkout-vitrine nem manda coordenadas. Mesma regra da cotação
     // (resolvePlan1Free); no modo direto o plano não existe e a checagem vale sempre.
     const plan1Free = await resolvePlan1Free(storeIdStr);
+    if (!storeLoc && !plan1Free) {
+      // Sem localização da loja não há área nem rota: o card e a sacola já dizem
+      // STORE_NO_LOCATION; aceitar aqui cobraria só a base (km 0).
+      return sendAppError(res, new AppError('Esta loja ainda não configurou a localização.', 409, true, 'STORE_NO_LOCATION'));
+    }
     if (storeLoc && validPoint(customerLoc)) {
       const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
       if (!plan1Free && straightKm(storeLoc, customerLoc) > radiusKm) {
@@ -205,7 +210,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     } else if (storeLoc && !plan1Free) {
       // Fail closed: loja com localização e pedido sem coordenadas válidas cobraria km 0 e
-      // escaparia da área. Sem localização da loja não há o que medir (segue como antes).
+      // escaparia da área. (Loja sem localização já saiu acima, salvo o Plano 1 da custódia.)
       return sendAppError(res, new AppError('Informe o endereço de entrega.', 400, true, 'NO_ADDRESS'));
     } else if (deliveryDistanceKm) {
       logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });

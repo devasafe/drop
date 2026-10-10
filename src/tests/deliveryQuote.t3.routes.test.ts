@@ -421,3 +421,45 @@ describe('createOrder — custódia: Plano 1 sem entrega integrada', () => {
     expect(routeMock).not.toHaveBeenCalled();
   });
 });
+
+// ─────────────── createOrder — loja sem localização (lote final F4) ───────────────
+describe('createOrder — loja sem localização', () => {
+  const body = (storeId: string, productId: string) => ({
+    storeId, products: [{ productId, quantity: 2 }], paymentMethod: 'pix', deliveryDistanceKm: 0,
+    address: 'Rua X, 1 - Centro', ...north(3),
+  });
+
+  it('modo direto: 409 STORE_NO_LOCATION antes do estoque e da cobrança', async () => {
+    const cliente = await buyer();
+    const { store, product } = await storeWithAccount({ latitude: null, longitude: null });
+    mockHappyAsaas();
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(body(store.id, product.id));
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Esta loja ainda não configurou a localização.', code: 'STORE_NO_LOCATION' });
+    expect(await qty(product.id)).toBe(10);
+    expect(postAs).not.toHaveBeenCalled();
+  });
+
+  it('custódia Plano 2: 409 STORE_NO_LOCATION', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' } as any, 'test');
+    const cliente = await buyer();
+    const store = await makeStore({ latitude: null, longitude: null });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);
+    await prisma.storeSubscription.create({ data: { storeId: store.id, storeName: 'p2', currentPlan: 'plan2' } as any });
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(body(store.id, product.id));
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('STORE_NO_LOCATION');
+    expect(await qty(product.id)).toBe(10);
+  });
+
+  it('custódia Plano 1: segue aceitando (sem entrega integrada)', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' } as any, 'test');
+    const cliente = await buyer();
+    await walletService.credit({ owner: cliente.userId, ownerType: 'user', amount: 500, reason: 'teste F4', category: 'transfer' } as any);
+    const store = await makeStore({ latitude: null, longitude: null });
+    const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(body(store.id, product.id));
+    expect(res.status).toBe(201);
+    expect(await qty(product.id)).toBe(8);
+  });
+});
