@@ -40,3 +40,11 @@ describe('Task 4 — abas', () => {
     expect(go('/my-wallet')).toBe('/conta/carteira');
   });
 });
+
+describe('Task 10 — vitrines viram Buscar', () => {
+  it('stores e produtos', () => {
+    expect(resolveRedirect(rules, '/stores')?.location).toBe('/buscar?tab=lojas');
+    expect(resolveRedirect(rules, '/produtos')?.location).toBe('/buscar?tab=produtos');
+    expect(resolveRedirect(rules, '/produtos?q=fone')?.location).toBe('/buscar?tab=produtos&q=fone');
+  });
+});

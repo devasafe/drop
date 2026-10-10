@@ -18,6 +18,7 @@ import { StoreCartPanel } from '../../components/drop/StoreCartPanel';
 import { useStores } from '../../hooks/useSync';
 import { useStoreProducts } from '../../hooks/useStoreProducts';
 import { imageUrl } from '../../lib/config';
+import { buscarHref } from '../../lib/routes';
 
 import { IconButton } from '../../components/ui/IconButton';
 import { Button } from '../../components/ui/Button';
@@ -209,7 +210,7 @@ export default function StorePage() {
             title="Loja não encontrada"
             description="Essa loja pode ter sido removida ou o link está incorreto."
             action={
-              <Button variant="primary" onClick={() => router.push('/stores')}>Ver lojas</Button>
+              <Button variant="primary" onClick={() => router.push(buscarHref({ tab: 'lojas' }))}>Ver lojas</Button>
             }
           />
         </div>

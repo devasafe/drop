@@ -24,14 +24,14 @@ function useList<T>(url: string | null) {
 }
 
 /** Ofertas reais (oldPrice > price), as que chegam no ponto primeiro quando há endereço. */
-export function useOffers(point: GeoPoint | null, limit = 10) {
+export function useOffers(point: GeoPoint | null, limit = 10, opts: { enabled?: boolean } = {}) {
   const qs = point ? `lat=${point.lat}&lng=${point.lng}&limit=${limit}` : `limit=${limit}`;
-  const { items, ...rest } = useList<any>(`/products/offers?${qs}`);
+  const { items, ...rest } = useList<any>(opts.enabled === false ? null : `/products/offers?${qs}`);
   return { products: items, ...rest };
 }
 
 /** Lojas que entregam no ponto, de todos os planos, já com a estimativa (quote). Sem ponto: nada. */
-export function useNearbyStores(point: GeoPoint | null, limit = 12) {
-  const { items, ...rest } = useList<any & { quote: DeliveryQuote }>(point ? `/stores/nearby?lat=${point.lat}&lng=${point.lng}&limit=${limit}` : null);
+export function useNearbyStores(point: GeoPoint | null, limit = 12, opts: { enabled?: boolean } = {}) {
+  const { items, ...rest } = useList<any & { quote: DeliveryQuote }>(point && opts.enabled !== false ? `/stores/nearby?lat=${point.lat}&lng=${point.lng}&limit=${limit}` : null);
   return { stores: items, ...rest };
 }

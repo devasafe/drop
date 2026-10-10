@@ -14,4 +14,8 @@ module.exports = [
   { source: '/user-dashboard', destination: '/pedidos', permanent: true },
   { source: '/wallet', destination: '/conta/carteira', permanent: true },
   { source: '/my-wallet', destination: '/conta/carteira', permanent: true },
+
+  // Task 10 — /stores e /produtos viram abas de Buscar
+  { source: '/stores', destination: '/buscar?tab=lojas', permanent: true },
+  { source: '/produtos', destination: '/buscar?tab=produtos', permanent: true },
 ];
