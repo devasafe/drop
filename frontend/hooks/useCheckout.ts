@@ -14,6 +14,7 @@ import { isValidCPF } from '../lib/cpf';
 import { useSaasConfig } from './useSaasConfig';
 
 const DRAFT_KEY = 'checkout_draft';
+const QUOTE_FAILED_MSG = 'Não conseguimos calcular a entrega agora.';
 
 interface CheckoutDraft {
   fields: Address;
@@ -98,7 +99,12 @@ export function useCheckout() {
     const lng = Number(selForQuote?.longitude);
     return selForQuote?.latitude && selForQuote?.longitude && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   }, [selForQuote?.latitude, selForQuote?.longitude]);
-  const { quote } = useDeliveryQuote(storeId, quotePoint, !isPlan1 && !!store?.latitude);
+  const quoteEnabled = !isPlan1 && !!store?.latitude;
+  const { quote, loading: quoteLoading, failed: quoteFailed, retry: retryQuote } = useDeliveryQuote(storeId, quotePoint, quoteEnabled);
+  // Rota indisponível ou erro de rede: não é culpa do endereço — mensagem própria + retry.
+  const quoteError = quoteEnabled && quotePoint && !quoteLoading && (quoteFailed || quote?.reason === 'ROUTE_FAILED')
+    ? QUOTE_FAILED_MSG
+    : null;
   const deliveryFee = isPlan1 ? 0 : (quote?.deliveryFee ?? 0);
   const distanceKm = quote?.distanceKm ?? 0;
   const etaMinutes = quote?.etaMinutes ?? null;
@@ -124,7 +130,10 @@ export function useCheckout() {
   const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
-  const cpfMissingForPix = paymentMethod === 'pix' && (userProfile.cpfStatus === 'missing' || userProfile.cpfStatus === 'invalid');
+  // Saldo cobrindo o total: o Pix não vai ao Asaas e o servidor não exige CPF.
+  const walletCoversTotal = useWallet && walletBalance >= total;
+  const cpfMissingForPix = paymentMethod === 'pix' && !walletCoversTotal
+    && (userProfile.cpfStatus === 'missing' || userProfile.cpfStatus === 'invalid');
   const cpfRequired = cpfRequiredByServer || cpfMissingForPix;
   const cpfValid = isValidCPF(cpf);
   // PIX e cartão de crédito são cobranças externas (Asaas) — não dependem de
@@ -249,7 +258,7 @@ export function useCheckout() {
 
   const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
     if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
-    if (!canPlace) return { ok: false, error: 'Confirme o endereço no mapa' };
+    if (!canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
     const cpfDigits = onlyDigits(cpf);
@@ -318,7 +327,7 @@ export function useCheckout() {
   return {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
-    isWalletInsufficient, distanceKm, etaMinutes, outOfArea, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
+    isWalletInsufficient, distanceKm, etaMinutes, outOfArea, canPlace, quoteError, retryQuote, placing, placeOrder, pixData, pixNotice, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf, cpfValid,

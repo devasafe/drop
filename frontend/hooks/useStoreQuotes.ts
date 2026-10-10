@@ -6,7 +6,9 @@ const DEBOUNCE_MS = 300;
 const MAX_BATCH = 50;
 
 // Cache em memória por ponto (4 casas) + loja: o mesmo ponto não repete chamada.
-const cache = new Map<string, DeliveryQuote>();
+// Vale 2 min: a cotação traz aberta/fechada e taxa, que não podem ficar velhas na SPA.
+const CACHE_TTL_MS = 2 * 60 * 1000;
+const cache = new Map<string, { quote: DeliveryQuote; at: number }>();
 const pointKey = (p: GeoPoint) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
 const cacheKey = (p: GeoPoint, storeId: string) => `${pointKey(p)}|${storeId}`;
 
@@ -17,8 +19,11 @@ export function __resetStoreQuotesCache() {
 function collect(storeIds: string[], point: GeoPoint): Record<string, DeliveryQuote> {
   const out: Record<string, DeliveryQuote> = {};
   for (const id of storeIds) {
-    const hit = cache.get(cacheKey(point, id));
-    if (hit) out[id] = hit;
+    const key = cacheKey(point, id);
+    const hit = cache.get(key);
+    if (!hit) continue;
+    if (Date.now() - hit.at >= CACHE_TTL_MS) cache.delete(key);
+    else out[id] = hit.quote;
   }
   return out;
 }
@@ -62,7 +67,8 @@ export function useStoreQuotes(
             storeIds: chunk,
           });
           const list = Array.isArray(res.data?.data) ? res.data.data : [];
-          for (const q of list) cache.set(cacheKey(p, q.storeId), q);
+          const at = Date.now();
+          for (const q of list) cache.set(cacheKey(p, q.storeId), { quote: q, at });
         }
       } catch {
         // sem cotação: os cards caem na estimativa/ausência de taxa

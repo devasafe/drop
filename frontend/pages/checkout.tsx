@@ -188,6 +188,12 @@ export default function CheckoutPage() {
               </div>
 
               <div className={styles.colSide}>
+              {c.quoteError && (
+              <section className={styles.section} role="status">
+                <p className={styles.fieldHint}>{c.quoteError}</p>
+                <Button variant="secondary" size="sm" onClick={c.retryQuote}>Tentar de novo</Button>
+              </section>
+              )}
               <section className={styles.section}>
                 <OrderSummary
                   subtotal={c.subtotal}
@@ -226,7 +232,7 @@ export default function CheckoutPage() {
             loading={c.placing}
             hint={
               !c.canPlace
-                ? 'Confirme o endereço no mapa'
+                ? (c.quoteError ?? 'Confirme o endereço no mapa')
                 : c.isWalletInsufficient
                   ? 'Saldo insuficiente'
                   : (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
