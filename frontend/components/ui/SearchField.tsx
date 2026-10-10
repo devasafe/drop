@@ -1,3 +1,4 @@
+import { InputHTMLAttributes } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { Input } from './Input';
 import { IconButton } from './IconButton';
@@ -9,6 +10,9 @@ export interface SearchFieldProps {
   onChange: (value: string) => void;
   placeholder?: string;
   onFilter?: () => void;
+  /** Enter no campo. */
+  onSubmit?: (value: string) => void;
+  inputProps?: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'placeholder' | 'type' | 'disabled'>;
 }
 
 /**
@@ -18,7 +22,7 @@ export interface SearchFieldProps {
  * Botão de filtro exige nome acessível (`aria-label="Filtrar"`) por não ter
  * texto visível.
  */
-export function SearchField({ value, onChange, placeholder, onFilter }: SearchFieldProps) {
+export function SearchField({ value, onChange, placeholder, onFilter, onSubmit, inputProps }: SearchFieldProps) {
   return (
     <div className={styles.searchField}>
       <Input
@@ -26,6 +30,13 @@ export function SearchField({ value, onChange, placeholder, onFilter }: SearchFi
         value={value}
         onChange={onChange}
         placeholder={placeholder}
+        type="search"
+        enterKeyHint="search"
+        {...inputProps}
+        onKeyDown={(e) => {
+          inputProps?.onKeyDown?.(e);
+          if (e.key === 'Enter') onSubmit?.(value);
+        }}
         leftIcon={<Search size={17} strokeWidth={ICON_STROKE_WIDTH} />}
       />
       {onFilter && (

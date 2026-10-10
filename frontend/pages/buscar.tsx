@@ -1,185 +1,110 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Tag, LayoutGrid } from 'lucide-react';
-import { useCart } from '../contexts/CartContext';
-import { useStores, useProducts, useTopStores, useTopProducts, useAddresses } from '../hooks/useSync';
-import { mapStore } from '../lib/mapStore';
-import { filterStores, filterProducts, productCategories, mapProductCard } from '../lib/searchCatalog';
-import { rankStores, rankPremiumProducts, take } from '../lib/catalogRanking';
-import { parseCoords } from '../lib/geo';
+import { SearchX } from 'lucide-react';
 import { SearchField } from '../components/ui/SearchField';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
-import { CategoryRail } from '../components/drop/CategoryRail';
-import { StoreCard } from '../components/drop/StoreCard';
+import { Skeleton } from '../components/ui/Skeleton';
 import { ProductCard } from '../components/drop/ProductCard';
-import { lojaHref, produtoHref, buscarHref } from '../lib/routes';
+import { SearchSuggestions } from '../components/drop/SearchSuggestions';
+import { DeliveryAddressControl } from '../components/drop/DeliveryAddressControl';
+import { useDeliveryAddress } from '../hooks/useDeliveryAddress';
+import { useAddressPicker } from '../hooks/useAddressPicker';
+import { useSearchSuggest } from '../hooks/useSearchSuggest';
+import { useSearch } from '../hooks/useSearch';
+import { useStoreQuotes } from '../hooks/useStoreQuotes';
+import { useAddToCart } from '../hooks/useAddToCart';
+import { productCardData } from '../lib/catalogCards';
+import { addRecentSearch, clearRecentSearches, getRecentSearches } from '../lib/recentSearches';
+import { buscarHref, lojaHref, produtoHref, type BuscarTab } from '../lib/routes';
+import type { SearchQuery } from '../types/search';
 import styles from './Buscar.module.css';
 
-/** Buscar (/) — vitrine (mais vendidos, premium+perto) + busca por texto. */
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
 export default function BuscarPage() {
   const router = useRouter();
-  const { add } = useCart();
-  const { stores } = useStores();
-  const { products } = useProducts();
-  const { stores: topStores, loading: topStoresLoading } = useTopStores();
-  const { products: topProducts, loading: topProductsLoading } = useTopProducts();
-  const { addresses } = useAddresses();
+  const q = str(router.query.q).trim();
+  const categoria = str(router.query.categoria) || undefined;
+  const tab: BuscarTab = router.query.tab === 'lojas' ? 'lojas' : 'produtos';
+  const [input, setInput] = useState(q);
+  const [recent, setRecent] = useState<string[]>([]);
+  const address = useDeliveryAddress();
+  const picker = useAddressPicker();
+  const addToCart = useAddToCart();
 
-  const initialQ = typeof router.query.q === 'string' ? router.query.q : '';
-  const [query, setQuery] = useState(initialQ);
-  const [category, setCategory] = useState('all');
-  useEffect(() => {
-    if (typeof router.query.q === 'string') setQuery(router.query.q);
-  }, [router.query.q]);
+  useEffect(() => { setInput(q); }, [q]);
+  useEffect(() => { setRecent(getRecentSearches()); }, []);
 
-  const isSearch = query.trim().length > 0;
+  const typing = input.trim().length >= 2 && input.trim() !== q;
+  const suggest = useSearchSuggest(typing ? input : '');
+  const query: SearchQuery | null = q.length >= 2
+    ? { q, type: 'products', point: address.point, filters: { sort: 'relevance', categoryName: categoria } }
+    : null;
+  const results = useSearch(typing ? null : query);
+  const storeIds = useMemo(() => [
+    ...(suggest.data?.products ?? []).map((p) => p.storeId),
+    ...results.items.map((p: any) => p.storeId),
+  ].filter(Boolean), [suggest.data, results.items]);
+  const { quotes } = useStoreQuotes(storeIds, address.point);
 
-  // Coords do usuário (endereço padrão) para o filtro de proximidade.
-  const userCoords = useMemo(() => {
-    const a = (addresses || []).find((x: any) => x.isDefault) || (addresses || [])[0];
-    return a ? parseCoords(a.latitude, a.longitude) : null;
-  }, [addresses]);
-
-  // storeId → loja (coords p/ proximidade, plan p/ premium, name p/ o card).
-  const storeById = useMemo(() => {
-    const m = new Map<string, any>();
-    (stores || []).forEach((s: any) => m.set(s._id, s));
-    return m;
-  }, [stores]);
-  const storeName = useMemo(() => {
-    const m = new Map<string, string>();
-    (stores || []).forEach((s: any) => m.set(s._id, s.name));
-    return m;
-  }, [stores]);
-
-  // Produtos do catálogo com storePlan derivado (p/ preencher a vitrine premium).
-  const catalogPremium = useMemo(
-    () => (products || []).map((p: any) => ({ ...p, storePlan: storeById.get(p.storeId)?.plan })),
-    [products, storeById],
-  );
-
-  // Vitrine (query vazia): até 5 lojas + 5 produtos, premium+perto+mais vendidos.
-  // Preenche em camadas: mais vendidos perto → catálogo perto → (fallback) sem raio,
-  // pra nunca ficar quase vazio num marketplace novo (bug "1 loja / 1 produto").
-  const vitrineStores = useMemo(
-    () => take([
-      rankStores(topStores, userCoords, { premiumOnly: true }),
-      rankStores(stores, userCoords, { premiumOnly: true }),
-      rankStores(topStores, null, { premiumOnly: true }),
-      rankStores(stores, null, { premiumOnly: true }),
-    ], 5),
-    [topStores, stores, userCoords],
-  );
-  const vitrineProducts = useMemo(
-    () => take([
-      rankPremiumProducts(topProducts, storeById, userCoords),
-      rankPremiumProducts(catalogPremium, storeById, userCoords),
-      rankPremiumProducts(topProducts, storeById, null),
-      rankPremiumProducts(catalogPremium, storeById, null),
-    ], 5),
-    [topProducts, catalogPremium, storeById, userCoords],
-  );
-
-  // Busca por texto.
-  const foundStores = useMemo(() => filterStores(stores, query), [stores, query]);
-  const foundProducts = useMemo(
-    () => filterProducts(products, query, category === 'all' ? undefined : category),
-    [products, query, category],
-  );
-  const categories = useMemo(() => {
-    const base = productCategories(products).map((c) => ({ id: c.id, label: c.label, icon: <Tag size={15} /> }));
-    return [{ id: 'all', label: 'Tudo', icon: <LayoutGrid size={15} /> }, ...base];
-  }, [products]);
-
-  const addToCart = (p: any, e?: any) => {
-    e?.stopPropagation?.();
-    add({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId });
+  const submit = (term: string, extra: { categoria?: string } = {}) => {
+    const t = term.trim();
+    if (t.length < 2) return;
+    setRecent(addRecentSearch(t));
+    router.push(buscarHref({ q: t, ...(tab !== 'produtos' ? { tab } : {}), ...extra }));
   };
+  const remember = () => setRecent(addRecentSearch(input));
 
   return (
     <div className={styles.page}>
-      <div className={styles.top}>
-        <SearchField value={query} onChange={setQuery} placeholder="Buscar lojas e produtos…" />
-      </div>
+      <header className={styles.top}>
+        <DeliveryAddressControl address={address} picker={picker} />
+        <SearchField
+          value={input}
+          onChange={setInput}
+          onSubmit={submit}
+          placeholder="Buscar produtos e lojas"
+          inputProps={{ 'aria-label': 'Buscar produtos e lojas', autoFocus: !q || router.query.focus === '1', 'aria-controls': 'busca-sugestoes' }}
+        />
+      </header>
 
-      {isSearch ? (
-        <>
-          {categories.length > 1 && (
-            <div className={styles.rail}>
-              <CategoryRail categories={categories} activeId={category} onSelect={setCategory} />
+      {typing ? (
+        <SearchSuggestions id="busca-sugestoes" term={input.trim()} data={suggest.data} loading={suggest.loading} quotes={quotes}
+          onProduct={(id) => { remember(); router.push(produtoHref(id)); }}
+          onStore={(id) => { remember(); router.push(lojaHref(id)); }}
+          onCategory={(c) => submit(input, { categoria: c })}
+          onSearch={(t) => submit(t)} />
+      ) : !q ? (
+        recent.length > 0 && (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Buscas recentes</h2>
+              <button type="button" className={styles.sectionLink} onClick={() => { clearRecentSearches(); setRecent([]); }}>Limpar</button>
             </div>
-          )}
-          {foundStores.length === 0 && foundProducts.length === 0 ? (
-            <EmptyState icon={<LayoutGrid />} title={`Nada encontrado para “${query}”`} />
-          ) : (
-            <>
-              {foundStores.length > 0 && (
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Lojas</h2>
-                  <div className={styles.storeList}>
-                    {foundStores.map((s: any) => (
-                      <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(lojaHref(s._id))} />
-                    ))}
-                  </div>
-                </section>
-              )}
-              {foundProducts.length > 0 && (
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Produtos</h2>
-                  <div className={styles.productList}>
-                    {foundProducts.map((p: any) => (
-                      <div key={p._id} className={styles.productItem} onClick={() => router.push(produtoHref(p._id))}>
-                        <ProductCard variant="busca" product={mapProductCard(p, storeName.get(p.storeId))} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-        </>
+            <div className={styles.recent}>
+              {recent.map((r) => <button key={r} type="button" className={styles.recentItem} onClick={() => submit(r)}>{r}</button>)}
+            </div>
+          </section>
+        )
+      ) : results.loading ? (
+        <div className={styles.list} role="status" aria-label="Carregando resultados"><Skeleton height={88} /><Skeleton height={88} /><Skeleton height={88} /></div>
+      ) : results.failed ? (
+        <EmptyState variant="error" icon={<SearchX />} title="Não conseguimos buscar agora" description="Confira sua conexão." onRetry={results.retry} />
+      ) : results.items.length === 0 ? (
+        <EmptyState icon={<SearchX />} title={`Nada encontrado para "${q}"`} description="Confira a ortografia ou tente um termo mais curto." />
       ) : (
-        /* Vitrine */
-        <>
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Lojas em destaque</h2>
-              <Button variant="tertiary" size="sm" onClick={() => router.push(buscarHref({ tab: 'lojas' }))}>Ver mais</Button>
+        <section className={styles.list} aria-label={`Resultados para ${q}`}>
+          {results.items.map((p: any) => (
+            <div key={p._id} className={styles.item} onClick={() => router.push(produtoHref(p._id))}>
+              <ProductCard variant="busca" product={productCardData(p, quotes[p.storeId])}
+                onAdd={() => addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId, storeName: p.storeName, image: p.image })} />
             </div>
-            {topStoresLoading ? (
-              <p className={styles.muted}>Carregando…</p>
-            ) : vitrineStores.length === 0 ? (
-              <EmptyState icon={<LayoutGrid />} title="Nenhuma loja por perto ainda" />
-            ) : (
-              <div className={styles.storeList}>
-                {vitrineStores.map((s: any) => (
-                  <StoreCard key={s._id} variant="resultado" store={mapStore(s)} onClick={() => router.push(lojaHref(s._id))} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>Produtos mais vendidos</h2>
-              <Button variant="tertiary" size="sm" onClick={() => router.push(buscarHref({ tab: 'produtos' }))}>Ver todos</Button>
-            </div>
-            {topProductsLoading ? (
-              <p className={styles.muted}>Carregando…</p>
-            ) : vitrineProducts.length === 0 ? (
-              <EmptyState icon={<Tag />} title="Sem produtos em destaque ainda" description="Veja todos os produtos em Ver todos." />
-            ) : (
-              <div className={styles.productList}>
-                {vitrineProducts.map((p: any) => (
-                  <div key={p._id} className={styles.productItem} onClick={() => router.push(produtoHref(p._id))}>
-                    <ProductCard variant="busca" product={mapProductCard(p, p.storeName || storeName.get(p.storeId))} soldOut={Number(p.quantity) <= 0} onAdd={(e?: any) => addToCart(p, e)} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </>
+          ))}
+          {results.hasMore && (
+            <Button variant="secondary" loading={results.loadingMore} onClick={results.loadMore}>Carregar mais</Button>
+          )}
+        </section>
       )}
     </div>
   );
