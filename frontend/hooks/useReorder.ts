@@ -18,6 +18,8 @@ export interface ReorderItem {
 }
 
 export interface ReorderResult {
+  storeId: string;
+  storeName: string;
   added: number;
   skipped: ReorderItem[];
   priceChanged: ReorderItem[];
@@ -31,8 +33,8 @@ export function useReorder() {
   const { replaceCart } = useCart();
 
   const reorder = useCallback(async (orderId: string): Promise<ReorderResult> => {
-    const res = await api.get<{ data: { storeId: string; items: ReorderItem[] } }>(`/orders/${orderId}/reorder`);
-    const { storeId, items } = res.data.data;
+    const res = await api.get<{ data: { storeId: string; storeName: string; storeAvailable: boolean; items: ReorderItem[] } }>(`/orders/${orderId}/reorder`);
+    const { storeId, storeName, items } = res.data.data;
     const available = items.filter((i) => i.available);
     const skipped = items.filter((i) => !i.available);
     if (available.length > 0) {
@@ -41,7 +43,7 @@ export function useReorder() {
         available.map((i) => ({ productId: i.productId, quantity: i.quantity, name: i.name, price: i.price, image: i.image })),
       );
     }
-    return { added: available.length, skipped, priceChanged: available.filter((i) => i.priceChanged) };
+    return { storeId, storeName, added: available.length, skipped, priceChanged: available.filter((i) => i.priceChanged) };
   }, [replaceCart]);
 
   return { reorder };

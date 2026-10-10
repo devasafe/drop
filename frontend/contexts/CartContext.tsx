@@ -21,7 +21,12 @@ export const CartProvider = ({ children }: any) => {
 
   const save = (c: any[]) => {
     setCart(c);
-    localStorage.setItem('cart', JSON.stringify(c));
+    try {
+      localStorage.setItem('cart', JSON.stringify(c));
+    } catch (err) {
+      // Modo privado / storage cheio: a sacola em memória continua valendo.
+      console.warn('[cart] não foi possível persistir a sacola:', err);
+    }
   };
 
   const add = (item: any) => {

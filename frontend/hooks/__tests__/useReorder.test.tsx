@@ -47,3 +47,24 @@ test('loja indisponível: nada entra na sacola e a sacola atual fica intacta', a
   expect(out.skipped).toHaveLength(1);
   expect(result.current.c.cart.map((i: any) => i.productId)).toEqual(['x']);
 });
+
+test('erro de rede: reorder rejeita e a sacola antiga fica intacta', async () => {
+  mockedApi.get.mockRejectedValueOnce(new Error('network'));
+  const { result } = setup();
+  act(() => result.current.c.add({ productId: 'x', name: 'X', price: 1, quantity: 1, storeId: 's9' }));
+  await act(async () => { await expect(result.current.r.reorder('o1')).rejects.toThrow('network'); });
+  expect(result.current.c.cart.map((i: any) => i.productId)).toEqual(['x']);
+});
+
+test('localStorage.setItem lançando não faz reorder rejeitar e a sacola é trocada; devolve storeId/storeName', async () => {
+  const items = [item({ productId: 'a', name: 'A', price: 10 })];
+  mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { storeId: 's1', storeName: 'Loja Um', storeAvailable: true, items } } } as any);
+  const { result } = setup();
+  const setItem = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  let out: any;
+  await act(async () => { out = await result.current.r.reorder('o1'); });
+  setItem.mockRestore(); warn.mockRestore();
+  expect(out).toMatchObject({ added: 1, storeId: 's1', storeName: 'Loja Um' });
+  expect(result.current.c.cart.map((i: any) => i.productId)).toEqual(['a']);
+});
