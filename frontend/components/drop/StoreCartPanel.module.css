@@ -1,5 +1,4 @@
-/* Painel de carrinho da loja (desktop). No mobile fica oculto — o StickyCart
-   global (CustomerAppChrome) já cobre esse caso. Estética flat do DS (tokens). */
+/* Sacola da loja (desktop). No mobile fica oculta: a barra da sacola global já cobre. */
 .panel {
   display: none;
 }
@@ -8,27 +7,24 @@
   .panel {
     display: block;
     position: sticky;
-    top: 16px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r-lg);
+    top: var(--space-4);
+    background: var(--color-surface-default);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
     padding: var(--space-4);
   }
 }
 
 .title {
   margin: 0 0 var(--space-3);
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: var(--text-strong);
+  font: var(--text-title);
+  color: var(--color-text-primary);
 }
 
 .empty {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.5;
+  font: var(--text-body);
+  color: var(--color-text-secondary);
 }
 
 .subtotalRow {
@@ -37,12 +33,12 @@
   justify-content: space-between;
   padding: var(--space-3) 0 var(--space-4);
   margin-top: var(--space-2);
-  border-top: 1px solid var(--line);
-  color: var(--text);
-  font-size: 15px;
+  border-top: 1px solid var(--color-border-default);
+  font: var(--text-body);
+  color: var(--color-text-primary);
 }
+
 .subtotalRow strong {
-  font-size: 18px;
-  color: var(--text-strong);
+  font: var(--text-price-sm);
   font-variant-numeric: tabular-nums;
 }

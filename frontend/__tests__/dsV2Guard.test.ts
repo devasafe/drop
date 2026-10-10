@@ -21,13 +21,12 @@ const ALLOW = new Set<string>([
   'components/drop/order/OrderItemsSummary.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/OrderStatusHero.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/RatingForm.module.css', // fase C: página do pedido (store-order)
-  'components/drop/StoreCartPanel.module.css', // fase C: home e loja do cliente (cards, trilhos, sacola)
   'components/drop/asaas/AsaasConnectCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
   'components/drop/settlement/SettlementSwitchCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
 ]);
 
 // CSS de página do cliente já redesenhada (fase C). Cada task de tela acrescenta o seu.
-const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css'];
+const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css'];
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

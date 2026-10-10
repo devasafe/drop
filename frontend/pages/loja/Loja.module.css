@@ -1,0 +1,254 @@
+/* Loja (DS v2, tema claro). Só tokens semânticos; sem hex, gradiente ou glow. */
+
+.page {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  /* espaço para a barra da sacola global e a TabBar, fixas no fim da tela */
+  padding-bottom: 170px;
+  max-width: var(--app-max);
+  margin-inline: auto;
+}
+
+/* ---- carregando / não encontrada ---- */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.loadingList {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+.notFoundWrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- cabeçalho ---- */
+.hero {
+  position: relative;
+}
+
+.cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  background-color: var(--color-action-primary-subtle);
+  background-position: center;
+  background-size: cover;
+}
+
+.initials {
+  font: var(--text-display);
+  color: var(--color-action-primary-subtle-text);
+}
+
+.back {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 1;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+
+.meta {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.delivery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.notice {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.desc {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+
+/* ---- mapa ---- */
+.mapSection {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.mapWrap {
+  height: 180px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.mapIframe {
+  border: 0;
+  display: block;
+}
+
+.mapAddress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+/* ---- mais vendidos ---- */
+.section {
+  padding: var(--space-4) 0 0;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-4);
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+
+.bestSellersRail {
+  display: flex;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bestSellersRail::-webkit-scrollbar {
+  height: 0;
+}
+
+.bestSellerItem {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rankBadge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+}
+
+.soldCaption {
+  margin-top: var(--space-1);
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+/* ---- categorias + busca ---- */
+.navSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  height: 0;
+}
+
+.chips > * {
+  flex-shrink: 0;
+}
+
+/* ---- produtos + sacola (desktop) ---- */
+.contentGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    padding-right: var(--space-4);
+  }
+}
+
+.productsSection {
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.sortRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.countText {
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.productList {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.productRow {
+  position: relative;
+}
+
+.ownerBadge {
+  position: absolute;
+  top: var(--space-1);
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+  font: var(--text-caption);
+  cursor: pointer;
+}
+
+.ownerBadge:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

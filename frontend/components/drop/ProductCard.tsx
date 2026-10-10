@@ -3,6 +3,7 @@ import { ImageOff, Plus, Zap } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { PriceTag, PriceTagSize } from '../ui/PriceTag';
 import { IconButton } from '../ui/IconButton';
+import { QuantitySelector } from '../ui/QuantitySelector';
 import { ICON_BUTTON_STROKE_WIDTH, ICON_STROKE_WIDTH } from '../ui/Icon';
 import styles from './ProductCard.module.css';
 
@@ -43,6 +44,9 @@ export interface ProductCardProps {
   /** Rótulo de estoque baixo (ex.: "Restam 2") — só quando fizer sentido mostrar;
    * omitido = nada renderizado (nunca um valor inventado). Ignorado se `soldOut`. */
   stockLabel?: string;
+  /** Já na sacola: troca o "+" pelo seletor de quantidade (0 = remover). */
+  quantity?: number;
+  onQuantityChange?: (quantity: number) => void;
 }
 
 type LayoutKind = 'tile' | 'line';
@@ -102,7 +106,7 @@ const VARIANT_CONFIG: Record<ProductCardVariant, VariantConfig> = {
  * `--rating` (mesma linguagem de `StatusPill`) abaixo do nome — só chega
  * preenchido quando o estoque é baixo, nunca para estoque farto.
  */
-export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = false, stockLabel }: ProductCardProps) {
+export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = false, stockLabel, quantity, onQuantityChange }: ProductCardProps) {
   const config = VARIANT_CONFIG[variant];
   const soldOut = soldOutProp || (product.stock !== undefined && product.stock <= 0);
   const badges = config.showPromo && !soldOut ? productBadges(product, { stockLabel }) : [];
@@ -123,7 +127,21 @@ export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = fa
     (onAdd as (ev?: MouseEvent<HTMLButtonElement>) => void)(e);
   };
 
-  const addButton = (
+  const stopRow = (e: MouseEvent<HTMLElement>) => e.stopPropagation();
+  const showSelector = !soldOut && !!onQuantityChange && (quantity ?? 0) > 0;
+
+  const addButton = showSelector ? (
+    <span onClick={stopRow}>
+      <QuantitySelector
+        size="sm"
+        min={0}
+        itemName={product.name}
+        value={quantity as number}
+        max={product.stock}
+        onChange={onQuantityChange as (q: number) => void}
+      />
+    </span>
+  ) : (
     <IconButton
       icon={<Plus size={config.addOnImage ? 17 : 15} strokeWidth={ICON_BUTTON_STROKE_WIDTH} />}
       variant={config.addOnImage ? 'brand' : 'soft'}

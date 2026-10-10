@@ -1,15 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowLeft,
-  LayoutGrid,
-  MapPin,
-  MessageCircle,
-  Package,
-  Pencil,
-  Store as StoreIcon,
-  Tag as TagIcon,
-} from 'lucide-react';
+import { ArrowLeft, MapPin, MessageCircle, Package, Pencil, Store as StoreIcon } from 'lucide-react';
 
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,22 +8,33 @@ import { useCart } from '../../contexts/CartContext';
 import { StoreCartPanel } from '../../components/drop/StoreCartPanel';
 import { useStores } from '../../hooks/useSync';
 import { useStoreProducts } from '../../hooks/useStoreProducts';
+import { useStoreQuotes } from '../../hooks/useStoreQuotes';
+import { useDeliveryAddress } from '../../hooks/useDeliveryAddress';
+import { useAddressPicker } from '../../hooks/useAddressPicker';
+import { useAddToCart } from '../../hooks/useAddToCart';
+import { useToast } from '../../components/ui/Toast';
 import { imageUrl } from '../../lib/config';
-import { buscarHref } from '../../lib/routes';
+import { buscarHref, produtoHref } from '../../lib/routes';
+import { deliveryStates } from '../../lib/deliveryView';
+import { productCardData } from '../../lib/catalogCards';
 
 import { IconButton } from '../../components/ui/IconButton';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Tag } from '../../components/ui/Tag';
+import { Chip } from '../../components/ui/Chip';
+import { Alert } from '../../components/ui/Alert';
+import { initials } from '../../components/ui/Avatar';
 import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SearchField } from '../../components/ui/SearchField';
 import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
-import { CategoryRail, Category as CategoryChip } from '../../components/drop/CategoryRail';
 import { ProductCard } from '../../components/drop/ProductCard';
+import { DeliveryBadge } from '../../components/drop/DeliveryBadge';
+import { DeliveryAddressControl } from '../../components/drop/DeliveryAddressControl';
 
-import styles from '../StoreDetail.module.css';
+import styles from './Loja.module.css';
 
 type DayConfig = { open: string; close: string; closed: boolean };
 type OperatingHours = Partial<Record<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday', DayConfig>>;
@@ -90,19 +92,15 @@ function getStoreOpenStatus(store: StoreWithPlan): { open: boolean; label: strin
   return { open: false, label: `Fechada · ${day.open}` };
 }
 
-/** Estoque de um item do catálogo → estado visual do ProductCard (spec §"estoque").
- * Estoque farto não ganha rótulo (nada inventado) — só esgotado ou baixo (<=3). */
-function getStockState(quantity: number): { soldOut: boolean; stockLabel?: string } {
-  if (quantity <= 0) return { soldOut: true };
-  if (quantity <= 3) return { soldOut: false, stockLabel: `Restam ${quantity}` };
-  return { soldOut: false };
-}
-
 export default function StorePage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
   const { user } = useAuth();
-  const { add } = useCart();
+  const { cart = [], updateQuantity, removeItem } = useCart();
+  const addToCart = useAddToCart();
+  const { showToast } = useToast();
+  const address = useDeliveryAddress();
+  const picker = useAddressPicker();
 
   const { stores, loading: storesLoading } = useStores();
 
@@ -129,11 +127,11 @@ export default function StorePage() {
     }
     setStore(found);
     setNotFound(false);
+    setDetailLoading(false); // a vitrine não espera as categorias
     let cancelled = false;
     api.get(`/categories?storeId=${found._id}`)
       .then((res) => { if (!cancelled) setCategories(res.data || []); })
-      .catch((err) => { console.error(err); if (!cancelled) setCategories([]); })
-      .finally(() => { if (!cancelled) setDetailLoading(false); });
+      .catch((err) => { console.error(err); if (!cancelled) setCategories([]); });
     return () => { cancelled = true; };
   }, [id, stores, storesLoading]);
 
@@ -171,14 +169,32 @@ export default function StorePage() {
     });
   }, [products, search, selectedCategory, sort]);
 
-  const addToCart = (p: any) => {
+  const { quotes } = useStoreQuotes(store ? [store._id] : [], address.point);
+  const quote = store ? quotes[store._id] : undefined;
+  const lines = deliveryStates({
+    quote, loading: !!address.point && !quote, hasPoint: !!address.point, address: address.label,
+    onSetAddress: picker.request, onChangeAddress: picker.request,
+  });
+  const closed = quote ? quote.open === false : (store ? !getStoreOpenStatus(store).open : false);
+  const opensAt = quote?.opensAt;
+  const qtyById = useMemo(
+    () => Object.fromEntries(cart.filter((i: any) => i.storeId === store?._id).map((i: any) => [i.productId, i.quantity])),
+    [cart, store?._id],
+  );
+  // Esgotados no fim, mantendo a ordenação escolhida entre os disponíveis.
+  const ordered = useMemo(
+    () => [...filteredSorted.filter((p: any) => Number(p.quantity) > 0), ...filteredSorted.filter((p: any) => !(Number(p.quantity) > 0))],
+    [filteredSorted],
+  );
+  const changeQty = (p: any) => (q: number) => (q <= 0 ? removeItem(p._id) : updateQuantity(p._id, q));
+  const addProduct = (p: any) => {
     if (!store) return;
-    add({ productId: p._id, quantity: 1, name: p.name, price: p.price, storeId: store._id });
+    addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: store._id, storeName: store.name, image: p.image });
   };
 
   const handleMessage = () => {
     if (!store) return;
-    if (!user) { alert('Por favor, faça login para iniciar um chat'); return; }
+    if (!user) { showToast('Entre na sua conta para conversar com a loja.', 'info'); return; }
     window.dispatchEvent(new CustomEvent('openChat', {
       detail: { storeId: store._id, storeName: store.name || 'Loja', role: 'lojista' },
     }));
@@ -218,19 +234,10 @@ export default function StorePage() {
     );
   }
 
-  const isOwner = !!user && (user.id === store.ownerId || user._id === store.ownerId);
-  const status = getStoreOpenStatus(store);
-  const bannerUrl = imageUrl(store.coverBannerUrl || store.featuredBannerUrl, { w: 1600 });
-  const hasLocation = !!store.latitude && !!store.longitude;
 
-  const categoryChips: CategoryChip[] = [
-    { id: ALL_CATEGORY, label: 'Todos', icon: <LayoutGrid size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /> },
-    ...categories.map((c) => ({
-      id: c._id,
-      label: c.name,
-      icon: <TagIcon size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />,
-    })),
-  ];
+  const isOwner = !!user && (user.id === store.ownerId || user._id === store.ownerId);
+  const cover = imageUrl(store.coverBannerUrl || store.featuredBannerUrl, { w: 1200 });
+  const hasLocation = !!store.latitude && !!store.longitude;
 
   const emptyDescription = search
     ? `Não encontramos produtos para "${search}".`
@@ -240,52 +247,29 @@ export default function StorePage() {
 
   return (
     <div className={styles.page}>
-      {/* Hero */}
-      <section className={styles.hero}>
-        <span
-          className={styles.heroImage}
-          style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
-          aria-hidden="true"
-        >
-          {!bannerUrl && <StoreIcon size={32} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
-        </span>
-        <span className={styles.heroGradient} aria-hidden="true" />
-
-        <span className={styles.backBtn}>
+      <header className={styles.hero}>
+        <div className={styles.cover} style={cover ? { backgroundImage: `url(${cover})` } : undefined} aria-hidden="true">
+          {!cover && <span className={styles.initials}>{initials(store.name)}</span>}
+        </div>
+        <span className={styles.back}>
           <IconButton
-            icon={<ArrowLeft size={18} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
             variant="onImage"
             aria-label="Voltar"
+            icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
             onClick={() => router.back()}
           />
         </span>
-
-        <div className={styles.heroBottom}>
-          <div className={styles.heroProfile}>
-            <span className={styles.heroAvatar} aria-hidden="true">{store.name.charAt(0).toUpperCase()}</span>
-            <div className={styles.heroMeta}>
-              <div className={styles.heroNameRow}>
-                <h1 className={styles.heroName}>{store.name}</h1>
-                <span className={status.open ? styles.statusOpen : styles.statusClosed}>
-                  <span className={styles.statusDot} aria-hidden="true" />
-                  {status.label}
-                </span>
-              </div>
-              <div className={styles.heroStats}>
-                <span className={styles.heroStat}>
-                  <b>{products.length}</b> produto{products.length !== 1 ? 's' : ''}
-                </span>
-                <span className={styles.heroStat}>
-                  <b>{categories.length}</b> categoria{categories.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
+        <div className={styles.head}>
+          <h1 className={styles.title}>{store.name}</h1>
+          <p className={styles.meta}>{[store.neighborhood, store.city].filter(Boolean).join(' · ')}</p>
+          <div className={styles.delivery} aria-live="polite">
+            {lines.map((s, i) => <DeliveryBadge key={i} state={s} />)}
           </div>
-
-          <div className={styles.heroActions}>
+          <DeliveryAddressControl address={address} picker={picker} storeId={store._id} storeName={store.name} />
+          <div className={styles.actions}>
             {hasLocation && (
               <Button
-                variant="onImage"
+                variant="tertiary"
                 size="sm"
                 leftIcon={<MapPin size={15} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
                 onClick={() => setShowMap((v) => !v)}
@@ -294,7 +278,7 @@ export default function StorePage() {
               </Button>
             )}
             <Button
-              variant="onImage"
+              variant="tertiary"
               size="sm"
               leftIcon={<MessageCircle size={15} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
               onClick={handleMessage}
@@ -303,16 +287,18 @@ export default function StorePage() {
             </Button>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* Descrição */}
-      {store.description && (
-        <div className={styles.descSection}>
-          <p className={styles.descText}>{store.description}</p>
+      {closed && (
+        <div className={styles.notice}>
+          <Alert tone="warning" title="Loja fechada agora">
+            {opensAt ? `Abre às ${opensAt}. ` : ''}Você pode montar a sacola e pagar quando ela abrir.
+          </Alert>
         </div>
       )}
 
-      {/* Mapa (toggle) */}
+      {store.description && <p className={styles.desc}>{store.description}</p>}
+
       {showMap && hasLocation && (
         <div className={styles.mapSection}>
           <div className={styles.mapWrap}>
@@ -334,7 +320,7 @@ export default function StorePage() {
         </div>
       )}
 
-      {/* Mais Vendidos (plano 3) */}
+      {/* Mais vendidos (plano 3) */}
       {topProducts.length >= 3 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Mais vendidos</h2>
@@ -342,21 +328,13 @@ export default function StorePage() {
             {topProducts.map((product: any, idx: number) => (
               <div key={product._id} className={styles.bestSellerItem}>
                 <span className={styles.rankBadge}><Badge tone="count">#{idx + 1}</Badge></span>
-                <div
-                  className={styles.bestSellerCard}
-                  onClick={() => router.push(`/product/${product._id}`)}
-                >
+                <div className={styles.clickable} onClick={() => router.push(produtoHref(product._id))}>
                   <ProductCard
                     variant="recomendado"
-                    product={{
-                      name: product.name,
-                      imageUrl: imageUrl(product.image) || undefined,
-                      price: Number(product.price),
-                    }}
-                    onAdd={(e?: any) => {
-                      e?.stopPropagation?.();
-                      addToCart(product);
-                    }}
+                    product={productCardData(product, quote)}
+                    quantity={qtyById[product._id]}
+                    onQuantityChange={changeQty(product)}
+                    onAdd={() => addProduct(product)}
                   />
                 </div>
                 <div className={styles.soldCaption}>
@@ -368,59 +346,42 @@ export default function StorePage() {
         </section>
       )}
 
-      {/* Categorias + busca */}
+      {/* Categorias + busca na loja */}
       <div className={styles.navSection}>
         {categories.length > 0 && (
-          <CategoryRail
-            categories={categoryChips}
-            activeId={selectedCategory}
-            onSelect={setSelectedCategory}
-          />
+          <div className={styles.chips}>
+            <Chip label="Todos" active={selectedCategory === ALL_CATEGORY} onClick={() => setSelectedCategory(ALL_CATEGORY)} />
+            {categories.map((c) => (
+              <Chip key={c._id} label={c.name} active={selectedCategory === c._id} onClick={() => setSelectedCategory(c._id)} />
+            ))}
+          </div>
         )}
-        <div className={styles.searchRow}>
-          <SearchField
-            value={search}
-            onChange={setSearch}
-            placeholder={`Buscar em ${store.name}…`}
-          />
-        </div>
+        <SearchField value={search} onChange={setSearch} placeholder={`Buscar em ${store.name}…`} />
       </div>
 
-      {/* Produtos + carrinho (desktop 2-col estilo iFood) */}
       <div className={styles.contentGrid}>
-      <section className={styles.productsSection}>
-        <div className={styles.sortRow}>
-          <span className={styles.countText}>
-            {filteredSorted.length} produto{filteredSorted.length !== 1 ? 's' : ''}
-          </span>
-          <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} />
-        </div>
+        <section className={styles.productsSection}>
+          <div className={styles.sortRow}>
+            <span className={styles.countText}>
+              {filteredSorted.length} produto{filteredSorted.length !== 1 ? 's' : ''}
+            </span>
+            <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} />
+          </div>
 
-        {filteredSorted.length === 0 ? (
-          <EmptyState icon={<Package />} title="Nenhum produto encontrado" description={emptyDescription} />
-        ) : (
-          <div className={styles.productList}>
-            {filteredSorted.map((product: any) => {
-              const stock = getStockState(Number(product.quantity) || 0);
-              return (
+          {ordered.length === 0 ? (
+            <EmptyState icon={<Package />} title="Nenhum produto encontrado" description={emptyDescription} />
+          ) : (
+            <div className={styles.productList}>
+              {ordered.map((product: any) => (
                 <div key={product._id} className={styles.productRow}>
-                  <div
-                    className={styles.productClickable}
-                    onClick={() => router.push(`/product/${product._id}`)}
-                  >
+                  <div className={styles.clickable} onClick={() => router.push(produtoHref(product._id))}>
                     <ProductCard
                       variant="loja"
-                      product={{
-                        name: product.name,
-                        imageUrl: imageUrl(product.image) || undefined,
-                        price: Number(product.price),
-                      }}
-                      soldOut={stock.soldOut}
-                      stockLabel={stock.stockLabel}
-                      onAdd={(e?: any) => {
-                        e?.stopPropagation?.();
-                        addToCart(product);
-                      }}
+                      product={productCardData(product, quote)}
+                      soldOut={!(Number(product.quantity) > 0)}
+                      quantity={qtyById[product._id]}
+                      onQuantityChange={changeQty(product)}
+                      onAdd={() => addProduct(product)}
                     />
                   </div>
                   {isOwner && (
@@ -437,14 +398,12 @@ export default function StorePage() {
                     </button>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
         <StoreCartPanel storeId={store._id} />
       </div>
-
     </div>
   );
 }

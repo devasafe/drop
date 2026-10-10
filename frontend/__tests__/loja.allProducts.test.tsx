@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import StorePage from '../pages/stores/[id]';
+import StorePage from '../pages/loja/[id]';
 import api from '../lib/api';
 
 // H1 — a página da loja busca os produtos DELA (GET /products?storeId=…) percorrendo as
@@ -7,7 +7,8 @@ import api from '../lib/api';
 
 jest.mock('next/router', () => ({ useRouter: () => ({ query: { id: 's1' }, push: jest.fn(), back: jest.fn() }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
-jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ add: jest.fn() }) }));
+jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [], add: jest.fn(), updateQuantity: jest.fn(), removeItem: jest.fn() }) }));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('../contexts/SocketContext', () => ({ useSocket: () => ({ on: () => () => {}, isConnected: false }) }));
 jest.mock('../components/drop/StoreCartPanel', () => ({ StoreCartPanel: () => null }));
 
@@ -17,9 +18,10 @@ const vinte = Array.from({ length: 20 }, (_, i) => ({ _id: `g${i}`, name: `Globa
 jest.mock('../hooks/useSync', () => ({
   useStores: () => ({ stores, loading: false }),
   useProducts: () => ({ products: vinte, loading: false }),
+  useAddresses: () => ({ addresses: [], loading: false, setAddresses: jest.fn() }),
 }));
 
-jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
+jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
 
 const prod = (i: number) => ({ _id: `p${i}`, name: `Produto ${String(i).padStart(3, '0')}`, price: 10, storeId: 's1', quantity: 5 });
 

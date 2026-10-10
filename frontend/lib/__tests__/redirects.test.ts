@@ -48,3 +48,10 @@ describe('Task 10 — vitrines viram Buscar', () => {
     expect(resolveRedirect(rules, '/produtos?q=fone')?.location).toBe('/buscar?tab=produtos&q=fone');
   });
 });
+
+describe('Task 11 — loja', () => {
+  it('/stores/:id vira /loja/:id; /stores continua em Buscar', () => {
+    expect(resolveRedirect(rules, '/stores/abc?utm=qr')?.location).toBe('/loja/abc?utm=qr');
+    expect(resolveRedirect(rules, '/stores')?.location).toBe('/buscar?tab=lojas');
+  });
+});

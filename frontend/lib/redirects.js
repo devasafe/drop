@@ -18,4 +18,7 @@ module.exports = [
   // Task 10 — /stores e /produtos viram abas de Buscar
   { source: '/stores', destination: '/buscar?tab=lojas', permanent: true },
   { source: '/produtos', destination: '/buscar?tab=produtos', permanent: true },
+
+  // Task 11 — loja
+  { source: '/stores/:id', destination: '/loja/:id', permanent: true },
 ];

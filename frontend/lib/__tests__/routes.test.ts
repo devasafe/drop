@@ -20,6 +20,7 @@ describe('rotas do cliente', () => {
   });
   it('helpers escapam o id', () => {
     expect(lojaHref('a/b')).toMatch(/a%2Fb$/);
+    expect(lojaHref('s1')).toBe('/loja/s1');
     expect(produtoHref('p1')).toMatch(/\/p1$/);
     expect(pedidoHref('o1')).toMatch(/\/o1$/);
   });
