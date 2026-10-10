@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { SearchX } from 'lucide-react';
 import { SearchField } from '../components/ui/SearchField';
@@ -27,6 +27,9 @@ export default function BuscarPage() {
   const q = str(router.query.q).trim();
   const categoria = str(router.query.categoria) || undefined;
   const tab: BuscarTab = router.query.tab === 'lojas' ? 'lojas' : 'produtos';
+  const ready = router.isReady !== false;
+  const focusDone = useRef(false);
+  const topRef = useRef<HTMLElement>(null);
   const [input, setInput] = useState(q);
   const [recent, setRecent] = useState<string[]>([]);
   const address = useDeliveryAddress();
@@ -36,12 +39,21 @@ export default function BuscarPage() {
   useEffect(() => { setInput(q); }, [q]);
   useEffect(() => { setRecent(getRecentSearches()); }, []);
 
-  const typing = input.trim().length >= 2 && input.trim() !== q;
+  // Foco só depois de o router hidratar: antes disso `query` vem vazio e `?q=` pareceria "sem termo".
+  useEffect(() => {
+    if (!ready || focusDone.current) return;
+    focusDone.current = true;
+    if (!q || router.query.focus === '1') topRef.current?.querySelector('input')?.focus();
+  }, [ready, q, router.query.focus]);
+
+  const editing = input.trim() !== q;
+  const typing = editing && input.trim().length >= 2;
+  const initial = ready && (!q || (editing && !typing));
   const suggest = useSearchSuggest(typing ? input : '');
   const query: SearchQuery | null = q.length >= 2
     ? { q, type: 'products', point: address.point, filters: { sort: 'relevance', categoryName: categoria } }
     : null;
-  const results = useSearch(typing ? null : query);
+  const results = useSearch(editing ? null : query);
   const storeIds = useMemo(() => [
     ...(suggest.data?.products ?? []).map((p) => p.storeId),
     ...results.items.map((p: any) => p.storeId),
@@ -58,14 +70,14 @@ export default function BuscarPage() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.top}>
+      <header className={styles.top} ref={topRef}>
         <DeliveryAddressControl address={address} picker={picker} />
         <SearchField
           value={input}
           onChange={setInput}
           onSubmit={submit}
           placeholder="Buscar produtos e lojas"
-          inputProps={{ 'aria-label': 'Buscar produtos e lojas', autoFocus: !q || router.query.focus === '1', 'aria-controls': 'busca-sugestoes' }}
+          inputProps={{ 'aria-label': 'Buscar produtos e lojas', ...(typing ? { 'aria-controls': 'busca-sugestoes' } : {}) }}
         />
       </header>
 
@@ -75,7 +87,7 @@ export default function BuscarPage() {
           onStore={(id) => { remember(); router.push(lojaHref(id)); }}
           onCategory={(c) => submit(input, { categoria: c })}
           onSearch={(t) => submit(t)} />
-      ) : !q ? (
+      ) : initial ? (
         recent.length > 0 && (
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
@@ -87,7 +99,7 @@ export default function BuscarPage() {
             </div>
           </section>
         )
-      ) : results.loading ? (
+      ) : !ready ? null : results.loading ? (
         <div className={styles.list} role="status" aria-label="Carregando resultados"><Skeleton height={88} /><Skeleton height={88} /><Skeleton height={88} /></div>
       ) : results.failed ? (
         <EmptyState variant="error" icon={<SearchX />} title="Não conseguimos buscar agora" description="Confira sua conexão." onRetry={results.retry} />
@@ -95,13 +107,22 @@ export default function BuscarPage() {
         <EmptyState icon={<SearchX />} title={`Nada encontrado para "${q}"`} description="Confira a ortografia ou tente um termo mais curto." />
       ) : (
         <section className={styles.list} aria-label={`Resultados para ${q}`}>
+          <p className={styles.srOnly} aria-live="polite">{`${results.items.length}${results.hasMore ? '+' : ''} resultados para ${q}`}</p>
           {results.items.map((p: any) => (
-            <div key={p._id} className={styles.item} onClick={() => router.push(produtoHref(p._id))}>
+            <div key={p._id} className={styles.item}>
+              <a href={produtoHref(p._id)} className={styles.itemLink} aria-label={p.name}
+                onClick={(e) => { e.preventDefault(); router.push(produtoHref(p._id)); }} />
               <ProductCard variant="busca" product={productCardData(p, quotes[p.storeId])}
                 onAdd={() => addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId, storeName: p.storeName, image: p.image })} />
             </div>
           ))}
-          {results.hasMore && (
+          {results.failedMore && (
+            <p className={styles.moreError} role="alert">
+              Não carregamos mais resultados.{' '}
+              <button type="button" className={styles.sectionLink} onClick={results.loadMore}>Tentar de novo</button>
+            </p>
+          )}
+          {results.hasMore && !results.failedMore && (
             <Button variant="secondary" loading={results.loadingMore} onClick={results.loadMore}>Carregar mais</Button>
           )}
         </section>

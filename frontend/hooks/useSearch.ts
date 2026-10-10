@@ -29,13 +29,14 @@ export function useSearch(query: SearchQuery | null) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [failedMore, setFailedMore] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const seq = useRef(0);
   const key = query ? buildSearchUrl(query) : '';
 
   useEffect(() => {
     const run = ++seq.current;
-    setItems([]); setCursor(null); setFailed(false);
+    setItems([]); setCursor(null); setFailed(false); setFailedMore(false); setLoadingMore(false);
     if (!query || query.q.trim().length < 2) { setLoading(false); return; }
     setLoading(true);
     api.get<{ data?: { items: any[]; nextCursor: string | null } }>(key)
@@ -49,12 +50,13 @@ export function useSearch(query: SearchQuery | null) {
     if (!query || !cursor || loadingMore) return;
     const run = seq.current;
     setLoadingMore(true);
+    setFailedMore(false);
     api.get<{ data?: { items: any[]; nextCursor: string | null } }>(buildSearchUrl(query, cursor))
       .then((r) => { if (run === seq.current) { setItems((prev) => [...prev, ...(r.data?.data?.items ?? [])]); setCursor(r.data?.data?.nextCursor ?? null); } })
-      .catch(() => { /* mantém o que já veio; o botão continua disponível */ })
+      .catch(() => { if (run === seq.current) setFailedMore(true); })
       .finally(() => { if (run === seq.current) setLoadingMore(false); });
   }, [query, cursor, loadingMore]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  return { items, loading, loadingMore, failed, hasMore: !!cursor, loadMore, retry };
+  return { items, loading, loadingMore, failed, failedMore, hasMore: !!cursor, loadMore, retry };
 }

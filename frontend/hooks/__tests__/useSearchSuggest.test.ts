@@ -9,6 +9,13 @@ const data = { products: [{ id: 'p1', name: 'Fone', image: null, price: 10, oldP
 beforeEach(() => { jest.useFakeTimers(); get.mockReset(); get.mockResolvedValue({ data: { success: true, data } }); });
 afterEach(() => jest.useRealTimers());
 
+it('durante o debounce não devolve a resposta do termo anterior', async () => {
+  const { result, rerender } = renderHook(({ t }) => useSearchSuggest(t), { initialProps: { t: 'fone' } });
+  await act(async () => { jest.advanceTimersByTime(250); });
+  expect(result.current.data).toEqual(data);
+  rerender({ t: 'fones' });
+  expect(result.current.data).toBeNull();
+});
 it('não busca com menos de 2 caracteres', () => {
   renderHook(() => useSearchSuggest('f'));
   act(() => { jest.advanceTimersByTime(500); });

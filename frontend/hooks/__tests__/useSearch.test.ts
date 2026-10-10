@@ -30,6 +30,34 @@ describe('useSearch', () => {
     expect(get).toHaveBeenLastCalledWith(expect.stringContaining('cursor=c1'));
     expect(result.current.hasMore).toBe(false);
   });
+  it('troca de query durante "carregar mais" não deixa loadingMore preso', async () => {
+    let resolveMore: (v: any) => void = () => {};
+    get.mockResolvedValueOnce({ data: { success: true, data: { items: [{ _id: 'a' }], nextCursor: 'c1' } } })
+       .mockImplementationOnce(() => new Promise((r) => { resolveMore = r; }))
+       .mockResolvedValue({ data: { success: true, data: { items: [{ _id: 'z' }], nextCursor: 'c9' } } });
+    const mk = (t: string) => ({ q: t, type: 'products' as const, point: null, filters: { sort: 'relevance' as const } });
+    const { result, rerender } = renderHook(({ q }) => useSearch(q), { initialProps: { q: mk('fone') } });
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+    act(() => { result.current.loadMore(); });
+    await waitFor(() => expect(result.current.loadingMore).toBe(true));
+    rerender({ q: mk('cabo') });
+    await waitFor(() => expect(result.current.items.map((i) => i._id)).toEqual(['z']));
+    expect(result.current.loadingMore).toBe(false);
+    await act(async () => { resolveMore({ data: { success: true, data: { items: [], nextCursor: null } } }); });
+  });
+  it('falha no carregar mais vira failedMore e some ao tentar de novo', async () => {
+    get.mockResolvedValueOnce({ data: { success: true, data: { items: [{ _id: 'a' }], nextCursor: 'c1' } } })
+       .mockRejectedValueOnce(new Error('500'))
+       .mockResolvedValueOnce({ data: { success: true, data: { items: [{ _id: 'b' }], nextCursor: null } } });
+    const q = { q: 'fone', type: 'products' as const, point: null, filters: { sort: 'relevance' as const } };
+    const { result } = renderHook(() => useSearch(q));
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+    await act(async () => { result.current.loadMore(); });
+    await waitFor(() => expect(result.current.failedMore).toBe(true));
+    await act(async () => { result.current.loadMore(); });
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.failedMore).toBe(false);
+  });
   it('erro vira failed, e retry busca de novo', async () => {
     get.mockRejectedValueOnce(new Error('500')).mockResolvedValueOnce({ data: { success: true, data: { items: [], nextCursor: null } } });
     const q = { q: 'fone', type: 'products' as const, point: null, filters: { sort: 'relevance' as const } };

@@ -35,7 +35,7 @@ export function SearchField({ value, onChange, placeholder, onFilter, onSubmit, 
         {...inputProps}
         onKeyDown={(e) => {
           inputProps?.onKeyDown?.(e);
-          if (e.key === 'Enter') onSubmit?.(value);
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSubmit?.(value);
         }}
         leftIcon={<Search size={17} strokeWidth={ICON_STROKE_WIDTH} />}
       />
