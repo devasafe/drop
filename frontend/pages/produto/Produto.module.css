@@ -1,0 +1,377 @@
+/* Produto (DS v2, tema claro). Só tokens semânticos; sem hex, gradiente ou glow. */
+
+.page {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  /* espaço para a barra de ação fixa */
+  padding-bottom: 96px;
+  max-width: var(--app-max);
+  margin-inline: auto;
+}
+
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.loadingBody {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+.notFoundWrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- galeria ---- */
+.hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--color-surface-sunken);
+}
+
+.heroImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-position: center;
+  background-size: cover;
+  color: var(--color-text-muted);
+}
+
+.backBtn {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 1;
+}
+
+.soldOutOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-surface-default) 70%, transparent);
+}
+
+.soldOutPill {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font: var(--text-label);
+}
+
+.thumbsRow {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.thumbsRow::-webkit-scrollbar {
+  height: 0;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.thumbActive {
+  border-color: var(--color-action-primary);
+}
+
+/* ---- breadcrumb: só no desktop ---- */
+.breadcrumb {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.breadcrumbLink {
+  color: var(--color-text-link);
+  text-decoration: none;
+}
+
+.breadcrumbLink:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbCurrent {
+  color: var(--color-text-primary);
+}
+
+/* ---- informações ---- */
+.top,
+.media,
+.detail {
+  display: block;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.storeLink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  font: var(--text-label);
+  color: var(--color-text-link);
+  text-decoration: none;
+}
+
+.storeLink:hover {
+  text-decoration: underline;
+}
+
+.storeLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.title {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+
+.delivery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+
+.descHtml {
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+
+.descHtml p {
+  margin: 0 0 var(--space-2);
+}
+
+.descHtml ul,
+.descHtml ol {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-5);
+}
+
+.descHtml a {
+  color: var(--color-text-link);
+}
+
+.descClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.descToggle {
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-link);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.descToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.tagsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- blocos abaixo: vídeo, avaliações, relacionados ---- */
+.block {
+  padding: var(--space-4) var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.videoPlayer {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.reviewsList {
+  display: flex;
+  flex-direction: column;
+}
+
+.reviewItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.reviewItem:last-child {
+  border-bottom: 0;
+}
+
+.reviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.reviewName {
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+
+.reviewComment {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+
+.relatedRail {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.relatedRail::-webkit-scrollbar {
+  height: 0;
+}
+
+.relatedItem {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ---- barra de ação: fixa no rodapé (mobile; vai por portal ao body) ---- */
+.actionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--color-surface-elevated);
+  box-shadow: var(--elevation-2);
+}
+
+.actionBar > button:last-child {
+  flex: 1;
+}
+
+/* ---- desktop: galeria | info; a barra vira bloco sticky na coluna de info ---- */
+@media (min-width: 900px) {
+  .top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+    gap: 0 var(--space-6);
+    align-items: start;
+    padding: var(--space-5) var(--space-4) 0;
+  }
+
+  .breadcrumb {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin-bottom: var(--space-4);
+  }
+
+  .media {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .hero {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .backBtn {
+    display: none;
+  }
+
+  .detail {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .info {
+    padding: 0;
+  }
+
+  .actionBar {
+    position: sticky;
+    bottom: var(--space-4);
+    left: auto;
+    right: auto;
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+  }
+}

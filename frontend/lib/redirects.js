@@ -21,4 +21,7 @@ module.exports = [
 
   // Task 11 — loja
   { source: '/stores/:id', destination: '/loja/:id', permanent: true },
+
+  // Task 12 — produto
+  { source: '/product/:id', destination: '/produto/:id', permanent: true },
 ];

@@ -55,3 +55,9 @@ describe('Task 11 — loja', () => {
     expect(resolveRedirect(rules, '/stores')?.location).toBe('/buscar?tab=lojas');
   });
 });
+
+describe('Task 12 — produto', () => {
+  it('/product/:id vira /produto/:id', () => {
+    expect(resolveRedirect(rules, '/product/p1')?.location).toBe('/produto/p1');
+  });
+});
