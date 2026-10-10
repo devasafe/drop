@@ -4,7 +4,7 @@ import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
-import { routeQuoteWithRoute, storePoint, validPoint } from '../services/deliveryQuote/quote';
+import { routeQuoteWithRoute, storePoint, straightKm, validPoint } from '../services/deliveryQuote/quote';
 import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
 import { emitStockChanged } from '../services/storeIntegration';
@@ -175,21 +175,21 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
     // via RouteService — o mesmo cálculo que o checkout exibe (endpoint /quote).
     // O RouteService já cai em haversine sozinho se o gateway de rota falhar.
-    // Área de entrega: a distância da rota (inclusive a haversine) tem de caber no raio
-    // efetivo da loja. Tudo isso ANTES de qualquer escrita (CPF do modo direto) e da baixa
-    // de estoque: fora da área não toca em nada.
+    // Área de entrega: a distância em LINHA RETA loja→cliente tem de caber no raio efetivo
+    // (a mesma regra de cards e sacola); a rota só define taxa e prazo. Tudo isso ANTES de
+    // qualquer escrita (CPF do modo direto) e da baixa de estoque: fora da área não toca em nada.
     let serverDistanceKm = 0;
     let routeDurationSeconds = 0;
     let routePolyline: string | undefined;
     const storeLoc = storePoint(storeForCheck);
     const customerLoc = { lat: Number(latitude), lng: Number(longitude) };
     if (storeLoc && validPoint(customerLoc)) {
+      const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
+      if (straightKm(storeLoc, customerLoc) > radiusKm) {
+        return sendAppError(res, new AppError('Esta loja não entrega nesse endereço.', 409, true, 'OUT_OF_AREA'));
+      }
       const route = await getRoute({ origin: storeLoc, destination: customerLoc });
       if (route) {
-        const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
-        if (route.distanceKm > radiusKm) {
-          return sendAppError(res, new AppError('Esta loja não entrega nesse endereço.', 409, true, 'OUT_OF_AREA'));
-        }
         serverDistanceKm = route.distanceKm;
         routeDurationSeconds = route.durationSeconds;
         routePolyline = route.polyline;

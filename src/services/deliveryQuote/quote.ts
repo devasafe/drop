@@ -78,7 +78,7 @@ export function storePoint(store: QuoteStore): LatLngPoint | null {
 }
 
 /** Distância em linha reta (haversine), em km. */
-function straightKm(a: LatLngPoint, b: LatLngPoint): number {
+export function straightKm(a: LatLngPoint, b: LatLngPoint): number {
   const R = 6371;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
@@ -195,9 +195,8 @@ export interface RouteQuoteResult {
  * Cotação por rota real (sacola/pedido), devolvendo também a rota usada (polyline, duração),
  * para quem precisa dela sem rotear de novo. Cai na estimativa com ROUTE_FAILED se não houver rota.
  *
- * Área: a reta filtra antes de rotear (barato); com a rota em mãos, a distância DA ROTA também
- * precisa caber no raio efetivo — a mesma regra que o createOrder impõe, para a sacola nunca
- * dizer "entrega" num endereço que o pedido vai recusar.
+ * Área: sempre pela LINHA RETA (via `estimateQuote`), a mesma regra de cards e createOrder; a
+ * rota só preenche distância, taxa e prazo.
  */
 export async function routeQuoteWithRoute(
   store: QuoteStore,
@@ -213,13 +212,6 @@ export async function routeQuoteWithRoute(
   const origin = storePoint(store)!;
   const route = await getRoute({ origin, destination: point! });
   if (!route) return { quote: { ...est, reason: 'ROUTE_FAILED' }, route: null };
-
-  if (route.distanceKm > effectiveRadiusKm(store, cfg)) {
-    return {
-      quote: { ...est, inArea: false, reason: 'OUT_OF_AREA', distanceKm: null, etaMinutes: null, fee: null, freeDelivery: false },
-      route,
-    };
-  }
 
   const distanceKm = round2(route.distanceKm);
   // Taxa sobre a distância crua da rota: o mesmo número que o createOrder cobra.

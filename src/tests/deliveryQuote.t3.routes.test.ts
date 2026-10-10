@@ -2,7 +2,7 @@
  * Task 3 (DS v2) — cotação exposta em endpoints e área de entrega imposta no pedido.
  *  - POST /orders/quote: DeliveryQuote + campos antigos; fora da área = 200 com inArea:false.
  *  - POST /stores/quotes: lote público por estimativa, respeitando KYC e mensalidade.
- *  - createOrder: fora do raio efetivo (distância da ROTA) = 409 OUT_OF_AREA antes de baixar estoque.
+ *  - createOrder: fora do raio efetivo (LINHA RETA) = 409 OUT_OF_AREA antes de baixar estoque; a rota só dá taxa/prazo.
  * Asaas mockado em services/asaas/client (sem rede); rota mockada em routeService.
  */
 jest.mock('../services/asaas/client', () => {
@@ -176,14 +176,16 @@ describe('POST /orders/quote', () => {
     expect(routeMock).not.toHaveBeenCalled();
   });
 
-  it('reta dentro, mas a ROTA passa do raio: fora da área (mesma regra do pedido)', async () => {
+  it('borda: reta dentro do raio e rota acima dele → dentro da área (o raio é linha reta); taxa pela rota', async () => {
     const cliente = await buyer();
     const store = await makeStore();
     routeMock.mockResolvedValue(route(14));
     const res = await request(app).post('/api/orders/quote').set('Authorization', bearer(cliente))
       .send({ storeId: store.id, ...north(9) });
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ inArea: false, reason: 'OUT_OF_AREA', fee: null, deliveryFee: null });
+    const fee = await calculateDeliveryFeeWithConfig(14);
+    expect(res.body).toMatchObject({ inArea: true, fee, deliveryFee: fee, distanceKm: 14, source: 'route' });
+    expect(res.body.reason).toBeUndefined();
   });
 
   it('loja inexistente continua 404', async () => {
@@ -280,32 +282,39 @@ describe('createOrder — área de entrega', () => {
     };
   }
 
-  it('rota além do raio padrão → 409 OUT_OF_AREA, sem baixar estoque nem cobrar', async () => {
+  it('linha reta além do raio padrão → 409 OUT_OF_AREA, sem rotear, baixar estoque nem cobrar', async () => {
     const cliente = await buyer();
     const { store, product } = await storeWithAccount();
     mockHappyAsaas();
-    routeMock.mockResolvedValue(route(12.5));
 
-    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(orderBody(store.id, product.id));
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente))
+      .send(orderBody(store.id, product.id, north(12.5)));
 
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ error: 'Esta loja não entrega nesse endereço.', code: 'OUT_OF_AREA' });
     expect(await qty(product.id)).toBe(10);
     expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect(routeMock).not.toHaveBeenCalled();
     expect(postAs).not.toHaveBeenCalled();
   });
 
-  it('a haversine do routeService também conta como distância (fail closed)', async () => {
+  it('borda: reta dentro do raio e rota acima dele → pedido aceito, taxa pelo km da rota', async () => {
     const cliente = await buyer();
     const { store, product } = await storeWithAccount();
     mockHappyAsaas();
-    routeMock.mockResolvedValue(route(13, 'haversine'));
-    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(orderBody(store.id, product.id));
-    expect(res.status).toBe(409);
-    expect(await qty(product.id)).toBe(10);
+    routeMock.mockResolvedValue(route(14));
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente))
+      .send(orderBody(store.id, product.id, north(9)));
+
+    expect(res.status).toBe(201);
+    const fee = await calculateDeliveryFeeWithConfig(14);
+    const order = await prisma.order.findUnique({ where: { id: res.body.order._id } });
+    expect(Number(order!.deliveryFee)).toBe(fee);
+    expect(await qty(product.id)).toBe(8);
   });
 
-  it('raio menor da loja vale: rota de 7 km com raio de 5 km → 409', async () => {
+  it('raio menor da loja vale: reta de 7 km com raio de 5 km → 409', async () => {
     const cliente = await buyer();
     const { store, product } = await storeWithAccount({ deliveryRadiusKm: 5 });
     mockHappyAsaas();
