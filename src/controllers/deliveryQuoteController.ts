@@ -1,8 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
-import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { publicStoreBillingWhere } from '../services/saasBilling/gate';
+import { publicStoreVisibilityWhere } from '../services/catalog/visibility';
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { estimateQuote, resolvePlan1FreeMany } from '../services/deliveryQuote/quote';
 
@@ -26,10 +25,7 @@ export const quoteStores = async (req: Request, res: Response, next: NextFunctio
   try {
     const { latitude, longitude, storeIds } = req.body as z.infer<typeof StoreQuotesSchema>;
 
-    const where: Prisma.StoreWhereInput = { id: { in: storeIds } };
-    if (process.env.KYC_ENFORCED === 'true') where.isVerified = true;
-    const billingWhere = await publicStoreBillingWhere();
-    if (billingWhere) where.AND = [billingWhere];
+    const where = { AND: [{ id: { in: storeIds } }, await publicStoreVisibilityWhere()] };
 
     const [stores, deliveryCfg] = await Promise.all([
       prisma.store.findMany({
