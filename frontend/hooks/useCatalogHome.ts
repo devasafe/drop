@@ -4,18 +4,20 @@ import type { DeliveryQuote, GeoPoint } from '../types/delivery';
 
 function useList<T>(url: string | null) {
   const [items, setItems] = useState<T[]>([]);
-  const [loading, setLoading] = useState(!!url);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const key = url ? `${url}#${attempt}` : null;
+  const loading = !!key && loadedKey !== key;
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   useEffect(() => {
-    if (!url) { setItems([]); setLoading(false); setFailed(false); return; }
+    if (!url) { setItems([]); setFailed(false); return; }
     let cancelled = false;
-    setLoading(true); setFailed(false);
+    setFailed(false);
     api.get<{ data?: T[] }>(url)
       .then((r) => { if (!cancelled) setItems(Array.isArray(r.data?.data) ? r.data.data : []); })
       .catch(() => { if (!cancelled) { setItems([]); setFailed(true); } })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setLoadedKey(`${url}#${attempt}`); });
     return () => { cancelled = true; };
   }, [url, attempt]);
   return { items, loading, failed, retry };

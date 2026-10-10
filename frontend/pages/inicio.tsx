@@ -23,6 +23,7 @@ import { StoreCard } from '../components/drop/StoreCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Button } from '../components/ui/Button';
 import styles from './Inicio.module.css';
 
 export default function Inicio() {
@@ -92,13 +93,15 @@ export default function Inicio() {
         </section>
       )}
 
-      {(offers.loading || offers.products.length > 0) && (
+      {(offers.loading || offers.failed || offers.products.length > 0) && (
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Ofertas que chegam rápido</h2>
             <button type="button" className={styles.sectionLink} onClick={() => router.push(buscarHref({ tab: 'produtos' }))}>Ver todas</button>
           </div>
-          {offers.loading ? (
+          {offers.failed ? (
+            <EmptyState variant="error" icon={<StoreIcon />} title="Não carregamos as ofertas" description="Confira sua conexão." onRetry={offers.retry} />
+          ) : offers.loading ? (
             <div className={styles.row}><Skeleton width={156} height={220} radius="var(--radius-lg)" /><Skeleton width={156} height={220} radius="var(--radius-lg)" /></div>
           ) : (
             <div className={styles.row}>
@@ -123,6 +126,9 @@ export default function Inicio() {
           <div className={styles.list}><Skeleton height={64} /><Skeleton height={64} /><Skeleton height={64} /></div>
         ) : address.point && nearby.failed ? (
           <EmptyState variant="error" icon={<StoreIcon />} title="Não carregamos as lojas" description="Confira sua conexão." onRetry={nearby.retry} />
+        ) : storeList.length === 0 && !address.point ? (
+          <EmptyState icon={<StoreIcon />} title="Escolha onde entregar para ver as lojas perto de você"
+            action={<Button variant="secondary" onClick={picker.request}>Escolher endereço</Button>} />
         ) : storeList.length === 0 ? (
           <EmptyState icon={<StoreIcon />} title="Nenhuma loja entrega aqui ainda" description="Tente outro endereço." />
         ) : (
