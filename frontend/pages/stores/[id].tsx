@@ -15,7 +15,8 @@ import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { StoreCartPanel } from '../../components/drop/StoreCartPanel';
-import { useProducts, useStores } from '../../hooks/useSync';
+import { useStores } from '../../hooks/useSync';
+import { useStoreProducts } from '../../hooks/useStoreProducts';
 import { imageUrl } from '../../lib/config';
 
 import { IconButton } from '../../components/ui/IconButton';
@@ -103,7 +104,6 @@ export default function StorePage() {
   const { add } = useCart();
 
   const { stores, loading: storesLoading } = useStores();
-  const { products: allProducts } = useProducts();
 
   const [store, setStore] = useState<StoreWithPlan | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -149,10 +149,10 @@ export default function StorePage() {
     return () => { cancelled = true; };
   }, [id, store]);
 
-  const products = useMemo(() => {
-    if (!store) return [];
-    return allProducts.filter((p: any) => String(p.storeId) === String(store._id));
-  }, [store, allProducts]);
+  // Produtos da própria loja (todas as páginas de GET /products?storeId=…) — antes filtrava
+  // os 20 primeiros do app inteiro e a loja grande "perdia" o resto do catálogo.
+  const { products: storeProducts } = useStoreProducts(store?._id);
+  const products = useMemo(() => (store ? storeProducts : []), [store, storeProducts]);
 
   const filteredSorted = useMemo(() => {
     let list = products.filter((p: any) => p.name.toLowerCase().includes(search.toLowerCase()));

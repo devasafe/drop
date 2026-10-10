@@ -551,7 +551,18 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       } else if (paymentMethod === 'credit_card') {
         // NUNCA logar `req.body.card`/`req.body.cardHolder` — só id do pedido/erro.
         const { card, cardHolder } = req.body as any;
-        const asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+        // ensureAsaasCustomer LANÇA com CPF inválido: sem este try o erro caía no catch
+        // externo (500) sem compensar — pedido órfão e estoque baixado. Igual ao PIX:
+        // compensa e devolve 502 com o motivo em `detail`.
+        let asaasCustomerId: string | null;
+        try {
+          asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+        } catch (custErr: any) {
+          logger.error('Falha ao iniciar pagamento com cartão (cliente Asaas)', custErr as Error, { orderId: order.id });
+          await compensateFailedOrder(order.id, items, walletApplied, customerId);
+          const detail = custErr?.errors?.[0]?.description || custErr?.message || 'erro desconhecido';
+          return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.', detail });
+        }
         if (!asaasCustomerId) {
           logger.error('Falha ao iniciar pagamento com cartão (cliente Asaas indisponível)', undefined, { orderId: order.id });
           await compensateFailedOrder(order.id, items, walletApplied, customerId);

@@ -108,21 +108,27 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-export const listProducts = async (req: Request<any, any, any, { category?: string; page?: string; limit?: string }>, res: Response) => {
+export const listProducts = async (req: Request<any, any, any, { category?: string; storeId?: string; page?: string; limit?: string }>, res: Response) => {
   try {
-    const { category } = req.query;
-    const filter: any = {};
-    if (category) filter.category = category;
+    const { category, storeId } = req.query;
+    // Cada restrição entra como um termo do AND — nenhuma sobrescreve a outra
+    // (o filtro por loja não pode furar o gate de KYC nem o da mensalidade).
+    const and: any[] = [];
+    // `category` na query é o id da Category (Product só tem `categoryId`; filtrar pela
+    // relação `category` com uma string fazia o Prisma lançar → 500).
+    if (category) and.push({ categoryId: String(category) });
+    if (storeId) and.push({ storeId: String(storeId) });
 
     // ✅ GATE KYC Fase 2: com KYC_ENFORCED, só produtos de lojas verificadas
     if (process.env.KYC_ENFORCED === 'true') {
       const verifiedStores = await prisma.store.findMany({ where: { isVerified: true }, select: { id: true } });
-      filter.storeId = { in: verifiedStores.map((st) => st.id) };
+      and.push({ storeId: { in: verifiedStores.map((st) => st.id) } });
     }
 
     // Modo direto: produtos de loja pausada/cancelada pela mensalidade somem da vitrine.
     const billingWhere = await publicStoreBillingWhere();
-    if (billingWhere) filter.store = billingWhere;
+    if (billingWhere) and.push({ store: billingWhere });
+    const filter: any = and.length ? { AND: and } : {};
 
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -131,6 +137,8 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
 
     const rows = await prisma.product.findMany({
       where: filter, skip, take: limit,
+      // Ordem estável: sem ela a paginação devolve itens repetidos/pulados entre páginas.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: { category: { select: { name: true } } },
     });
     const products = rows.map(toApiProduct);

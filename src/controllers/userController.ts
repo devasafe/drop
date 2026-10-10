@@ -7,6 +7,7 @@ import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidImageBuffer } from '../middleware/upload';
 import logger from '../config/logger';
+import { isValidCPF } from '../utils/documentValidation';
 
 // Retorna os dados do usuário autenticado
 export const getMe = async (req: AuthenticatedRequest, res: Response) => {
@@ -50,6 +51,12 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
 
     const { name, email, cpf, rg, telefone } = req.body;
     const digits = (v?: string | null) => (v || '').replace(/\D/g, '');
+
+    // CPF não vazio precisa ter dígito verificador válido — antes gravava qualquer
+    // sequência e o pagamento quebrava depois no Asaas. Vazio = limpar o campo.
+    if (cpf !== undefined && cpf !== null && digits(cpf) && !isValidCPF(digits(cpf))) {
+      return res.status(400).json({ error: 'CPF inválido' });
+    }
 
     // `verification` é JSONB: montamos o objeto inteiro e gravamos de uma vez
     // (não há `markModified` como no Mongoose).
