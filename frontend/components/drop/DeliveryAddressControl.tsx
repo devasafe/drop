@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import api from '../../lib/api';
 import { AddressBar } from './AddressBar';
 import { AddressPickerSheet } from './AddressPickerSheet';
@@ -20,6 +20,8 @@ export function DeliveryAddressControl({ address, picker, storeId, storeName }: 
   const { showToast } = useToast();
   const form = useAddressForm();
   const [formOpen, setFormOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   if (user && address.loading) return <Skeleton width={200} height={20} />;
   const bar = !user
@@ -45,13 +47,20 @@ export function DeliveryAddressControl({ address, picker, storeId, storeName }: 
         fields={form.fields}
         onField={form.setField}
         onCepBlur={() => form.lookupCep(form.fields.cep)}
+        saving={saving}
         onSave={async () => {
+          if (savingRef.current) return;
+          savingRef.current = true;
+          setSaving(true);
           try {
             const res = await api.post('/user/addresses', form.fields);
             address.addAddress(res.data);
             setFormOpen(false);
           } catch {
             showToast('Não conseguimos salvar o endereço. Confira o CEP e o número e tente de novo.', 'error');
+          } finally {
+            savingRef.current = false;
+            setSaving(false);
           }
         }}
       />

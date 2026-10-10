@@ -16,6 +16,18 @@ export function __resetStoreQuotesCache() {
   cache.clear();
 }
 
+/** Leitura/escrita do mesmo cache por outros hooks (seletor de endereço), respeitando o TTL. */
+export function readQuoteCache(point: GeoPoint, storeId: string): DeliveryQuote | undefined {
+  const key = cacheKey(point, storeId);
+  const hit = cache.get(key);
+  if (!hit) return undefined;
+  if (Date.now() - hit.at >= CACHE_TTL_MS) { cache.delete(key); return undefined; }
+  return hit.quote;
+}
+export function writeQuoteCache(point: GeoPoint, quote: DeliveryQuote): void {
+  cache.set(cacheKey(point, quote.storeId), { quote, at: Date.now() });
+}
+
 function collect(storeIds: string[], point: GeoPoint): Record<string, DeliveryQuote> {
   const out: Record<string, DeliveryQuote> = {};
   for (const id of storeIds) {

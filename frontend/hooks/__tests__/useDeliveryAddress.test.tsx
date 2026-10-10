@@ -48,3 +48,10 @@ test('storage indisponível não quebra', () => {
   expect(result.current.selectedId).toBe('a2');
   spy.mockRestore();
 });
+
+test('id salvo que não é mais do usuário cai no endereço padrão', () => {
+  localStorage.setItem(DELIVERY_ADDRESS_KEY, 'removido-ou-de-outra-conta');
+  const { result } = renderHook(() => useDeliveryAddress());
+  expect(result.current.selectedId).toBe('a2');
+  expect(result.current.label).toBe('Av. Paulista, 1578');
+});
