@@ -120,7 +120,9 @@ export default function CheckoutVitrinePage() {
       const res = await api.post('/orders', payload);
       localStorage.removeItem('cart');
       clear();
-      router.push(`/store-order/${res.data._id}`);
+      // Asaas responde { order, pix } (ou { order, card }); o fluxo legado, o próprio pedido.
+      const orderId = res.data?.order?._id ?? res.data?._id;
+      router.push(`/store-order/${orderId}`);
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Falha ao criar pedido. Tente novamente.';
       setError(msg);
