@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStores } from './useSync';
 import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
-import { useDeliveryFee } from './useDeliveryFee';
+import { useDeliveryQuote } from './useDeliveryQuote';
 import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
@@ -88,8 +88,18 @@ export function useCheckout() {
   const coupon = useCoupon({ storeId, subtotal });
 
   const [config, setConfig] = useState<PlatformFeeConfig | null>(null);
-  const [distanceKm, setDistanceKm] = useState(0);
-  const { deliveryFee } = useDeliveryFee({ distanceKm, config, isPlan1 });
+  // Taxa, área e prazo vêm do servidor (POST /orders/quote): a mesma fonte da cobrança.
+  const selForQuote = address.selected;
+  const quotePoint = useMemo(() => {
+    const lat = Number(selForQuote?.latitude);
+    const lng = Number(selForQuote?.longitude);
+    return selForQuote?.latitude && selForQuote?.longitude && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }, [selForQuote?.latitude, selForQuote?.longitude]);
+  const { quote } = useDeliveryQuote(storeId, quotePoint, !isPlan1 && !!store?.latitude);
+  const deliveryFee = isPlan1 ? 0 : (quote?.deliveryFee ?? 0);
+  const distanceKm = quote?.distanceKm ?? 0;
+  const etaMinutes = quote?.etaMinutes ?? null;
+  const outOfArea = !isPlan1 && quote?.inArea === false;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [walletBalance, setWalletBalance] = useState(0);
@@ -169,7 +179,7 @@ export function useCheckout() {
       .then(r => {
         if (cancelled) return;
         setConfig({
-          base: r.data.motoboyCutPerDelivery ?? 7,
+          base: r.data.motoboyCutPerDelivery ?? 5,
           perKm: r.data.motoboyCutPerKm ?? 1,
           // Fallbacks batem com os defaults do schema Prisma (platformConfig,
           // ver schema.prisma:925-929) — só entram em jogo se o GET falhar
@@ -212,29 +222,8 @@ export function useCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address.loading, address.selected, address.addresses]);
 
-  // Distância real de rota (loja -> endereço selecionado) vinda do BACKEND (/orders/quote),
-  // que é a MESMA fonte da cobrança final (RouteService). Antes isto era calculado no
-  // browser via Google Directions enquanto o backend cobrava por haversine — os valores
-  // divergiam. Agora o preview e a cobrança usam exatamente a mesma distância de rota.
-  useEffect(() => {
-    const sel = address.selected;
-    if (isPlan1 || !sel?.latitude || !store?.latitude) return;
-    let cancelled = false;
-    api.post('/orders/quote', {
-      storeId,
-      latitude: Number(sel.latitude),
-      longitude: Number(sel.longitude),
-    })
-      .then((res) => {
-        if (cancelled) return;
-        const km = Number((res.data as { distanceKm?: number })?.distanceKm);
-        setDistanceKm(Number.isFinite(km) ? km : 0);
-      })
-      .catch(() => { if (!cancelled) setDistanceKm(0); });
-    return () => { cancelled = true; };
-  }, [address.selected, store, isPlan1, storeId]);
-
-  const canPlace = isPlan1 ? true : distanceKm >= 0.1;
+  // Fail-closed: só libera com área confirmada pelo servidor (ROUTE_FAILED também bloqueia).
+  const canPlace = isPlan1 ? true : quote?.inArea === true;
 
   // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
   // usuário logado, cpf/telefone de `/user/me` (ver effect acima —
@@ -252,6 +241,7 @@ export function useCheckout() {
   }), [user?.name, user?.email, userProfile, address.selected]);
 
   const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
+    if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
     if (!canPlace) return { ok: false, error: 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
@@ -298,7 +288,9 @@ export function useCheckout() {
       }
       return { ok: true };
     } catch (err) {
-      const d = (err as { response?: { data?: { error?: string; detail?: string; code?: string } } })?.response?.data;
+      const raw = (err as { response?: { data?: { error?: string | { message?: string; code?: string }; detail?: string; code?: string } } })?.response?.data;
+      const errMsg = typeof raw?.error === 'object' ? raw.error?.message : raw?.error;
+      const d = raw ? { error: errMsg, detail: raw.detail, code: raw.code ?? (typeof raw.error === 'object' ? raw.error?.code : undefined) } : undefined;
       if (d?.code === 'CPF_REQUIRED') {
         setCpfRequired(true);
         return { ok: false, error: cpfRequired ? 'CPF inválido. Confira os números.' : 'Informe seu CPF para pagar com Pix.' };
@@ -316,7 +308,7 @@ export function useCheckout() {
   return {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
-    isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
+    isWalletInsufficient, distanceKm, etaMinutes, outOfArea, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf,

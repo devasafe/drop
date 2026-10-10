@@ -90,7 +90,7 @@ test('placeOrder envia payload com idempotentKey e abre pix', async () => {
   // que só é calculado via Google Directions após um endereço ser selecionado.
   // Distância vem do servidor (/orders/quote → 1.5km); placeOrder → /orders com pix.
   mockedApi.post.mockImplementation(((url: string) => {
-    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5, inArea: true, deliveryFee: 6.5 } });
     if (url === '/orders') return Promise.resolve({ data: { order: { _id: 'o1' }, pix: { qrCodePayload: 'x', orderId: 'o1' } } });
     return Promise.resolve({ data: {} });
   }) as any);
@@ -125,7 +125,7 @@ test('cardHolderDefaults vem preenchido de GET /user/me, e placeOrder envia card
   });
   // /orders/quote → distância; /orders → confirmação do cartão.
   mockedApi.post.mockImplementation(((url: string) => {
-    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5, inArea: true, deliveryFee: 6.5 } });
     if (url === '/orders') return Promise.resolve({ data: { order: { _id: 'o2' }, card: { status: 'CONFIRMED', approved: true } } });
     return Promise.resolve({ data: {} });
   }) as any);
@@ -237,7 +237,7 @@ test('pendingDebt fica null quando não há dívida pendente', async () => {
 test('CPF_REQUIRED → expõe cpfRequired e o reenvio leva o cpf (só dígitos)', async () => {
   let orderCalls = 0;
   mockedApi.post.mockImplementation(((url: string) => {
-    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5, inArea: true, deliveryFee: 6.5 } });
     if (url === '/orders') {
       orderCalls += 1;
       if (orderCalls === 1) {
