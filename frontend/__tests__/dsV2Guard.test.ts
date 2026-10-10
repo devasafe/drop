@@ -32,6 +32,9 @@ const ALLOW = new Set<string>([
   'components/drop/settlement/SettlementSwitchCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
 ]);
 
+// CSS de página do cliente já redesenhada (fase C). Cada task de tela acrescenta o seu.
+const CLIENT_PAGE_CSS: string[] = [];
+
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const full = path.join(dir, e.name);
@@ -57,6 +60,14 @@ describe('DS v2 guard', () => {
   it('nenhum module.css fora de ALLOW tem cor fixa, token antigo ou gradient', () => {
     const report = files
       .filter((f) => !ALLOW.has(f))
+      .map((f) => ({ f, v: cssViolations(fs.readFileSync(path.join(ROOT, f), 'utf8')) }))
+      .filter((x) => x.v.length)
+      .map((x) => `${x.f}\n  ${x.v.join('\n  ')}`);
+    expect(report.join('\n')).toBe('');
+  });
+
+  it('CSS das páginas do cliente redesenhadas não tem cor fixa, token antigo nem gradient', () => {
+    const report = CLIENT_PAGE_CSS
       .map((f) => ({ f, v: cssViolations(fs.readFileSync(path.join(ROOT, f), 'utf8')) }))
       .filter((x) => x.v.length)
       .map((x) => `${x.f}\n  ${x.v.join('\n  ')}`);

@@ -1,3 +1,5 @@
+const clientRedirects = require('./lib/redirects');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Gera um build auto-contido (server.js + deps mínimas) para a imagem Docker.
@@ -21,6 +23,8 @@ const nextConfig = {
     config.optimization.minimize = !isServer;
     return config;
   },
+  // Rotas antigas do cliente → novas (DS v2, fase C); lista em lib/redirects.js.
+  async redirects() { return clientRedirects; },
   // ✅ SEGURANÇA: headers de proteção em todas as respostas do frontend.
   async headers() {
     return [
