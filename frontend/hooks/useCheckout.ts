@@ -253,8 +253,10 @@ export function useCheckout() {
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
     const cpfDigits = onlyDigits(cpf);
+    // Mesma regra do botão (checkout.tsx): exige CPF válido (dígito verificador), venha a
+    // exigência do /user/me ou do CPF_REQUIRED do servidor.
     if (cpfRequired && cpfDigits.length !== 11) return { ok: false, error: 'Informe um CPF válido (11 dígitos)' };
-    if (cpfMissingForPix && !cpfValid) return { ok: false, error: 'CPF inválido. Confira os números.' };
+    if (cpfRequired && !cpfValid) return { ok: false, error: 'CPF inválido. Confira os números.' };
     setPlacing(true);
     try {
       const sel = address.selected;
@@ -277,7 +279,7 @@ export function useCheckout() {
       }
       if (coupon.code.trim()) payload.cupomCode = coupon.code.trim().toUpperCase();
       if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
-      if (cpfRequired && cpfDigits.length === 11) payload.cpf = cpfDigits;
+      if (cpfRequired && cpfValid) payload.cpf = cpfDigits;
 
       const res = await api.post<PlaceOrderResponse>('/orders', payload);
       const data = res.data;

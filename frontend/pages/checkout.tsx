@@ -22,6 +22,7 @@ import { CardForm } from '../components/drop/checkout/CardForm';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { maskCPF, onlyDigits } from '../lib/masks';
+import { isValidCPF } from '../lib/cpf';
 import { formatBRL } from '../components/ui/PriceTag';
 import { installmentOptions } from '../lib/cardInstallments';
 import styles from './Checkout.module.css';
@@ -220,7 +221,7 @@ export default function CheckoutPage() {
               c.placing ||
               c.isWalletInsufficient ||
               (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid) ||
-              (c.cpfRequired && (onlyDigits(c.cpf).length !== 11 || c.cpfValid === false))
+              (c.cpfRequired && !isValidCPF(c.cpf))
             }
             loading={c.placing}
             hint={
@@ -230,8 +231,8 @@ export default function CheckoutPage() {
                   ? 'Saldo insuficiente'
                   : (c.paymentMethod === 'credit_card' && !c.cardPayload?.valid)
                     ? 'Preencha os dados do cartão'
-                    : (c.cpfRequired && (onlyDigits(c.cpf).length !== 11 || c.cpfValid === false))
-                      ? 'Informe seu CPF'
+                    : (c.cpfRequired && !isValidCPF(c.cpf))
+                      ? (onlyDigits(c.cpf).length === 11 ? 'CPF inválido' : 'Informe seu CPF')
                       : undefined
             }
             onConfirm={async () => {

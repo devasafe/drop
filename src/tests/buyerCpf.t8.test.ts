@@ -78,7 +78,7 @@ afterEach(async () => {
 });
 
 // Documento 'approved' (o gate KYC_ENFORCED do createOrder exige) — com ou sem número.
-async function buyer(data: { cpf?: string | null; docNumber?: string; docStatus?: string; asaas?: any; balance?: number } = {}) {
+async function buyer(data: { cpf?: string | null; docNumber?: string; docStatus?: string; docType?: string; asaas?: any; balance?: number } = {}) {
   const user = await prisma.user.create({
     data: {
       name: 'Comprador T8',
@@ -90,7 +90,7 @@ async function buyer(data: { cpf?: string | null; docNumber?: string; docStatus?
       verification: {
         email: { status: 'verified' },
         phone: { status: 'verified' },
-        document: { status: data.docStatus ?? 'approved', type: 'cpf', ...(data.docNumber ? { number: data.docNumber } : {}) },
+        document: { status: data.docStatus ?? 'approved', type: data.docType ?? 'cpf', ...(data.docNumber ? { number: data.docNumber } : {}) },
       },
     },
   });
@@ -183,6 +183,25 @@ describe('T8: custódia + Pix exige CPF antes de baixar estoque', () => {
     expect(ensureAsaasCustomer).toHaveBeenCalledWith(user.id, cpf);
   });
 
+  it('KYC feito com RG e sem User.cpf → 400 CPF_REQUIRED, estoque intacto (RG não é CPF)', async () => {
+    const { token } = await buyer({ docType: 'rg', docNumber: '123456789' });
+    const { store, product } = await lojaEProduto();
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send(pixPayload(store.id, product.id));
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('CPF_REQUIRED');
+    expect(await stockOf(product.id)).toBe(10);
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+  });
+
+  it('useWalletBalance com saldo zero e sem CPF → 400 CPF_REQUIRED, estoque intacto', async () => {
+    const { token } = await buyer({ balance: 0 });
+    const { store, product } = await lojaEProduto();
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send(pixPayload(store.id, product.id, { useWalletBalance: true }));
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('CPF_REQUIRED');
+    expect(await stockOf(product.id)).toBe(10);
+  });
+
   it('Pix 100% pago com saldo da carteira → não exige CPF', async () => {
     const { token } = await buyer({ balance: 500 });
     const { store, product } = await lojaEProduto();
@@ -199,11 +218,13 @@ describe('T8: GET /user/me expõe cpfStatus', () => {
     const ruim = await buyer({ cpf: '11111111111' });
     const bom = await buyer({ cpf: randomCpf() });
     const kyc = await buyer({ docNumber: randomCpf() });
+    const rg = await buyer({ docType: 'rg', docNumber: '123456789' });
     const get = (t: string) => request(app).get('/api/user/me').set('Authorization', `Bearer ${t}`);
     expect((await get(vazio.token)).body.cpfStatus).toBe('missing');
     expect((await get(ruim.token)).body.cpfStatus).toBe('invalid');
     expect((await get(bom.token)).body.cpfStatus).toBe('valid');
     expect((await get(kyc.token)).body.cpfStatus).toBe('valid');
+    expect((await get(rg.token)).body.cpfStatus).toBe('missing');
   });
 });
 

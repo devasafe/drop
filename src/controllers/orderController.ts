@@ -223,13 +223,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Custódia + Pix (Task 8): CPF de cobrança ANTES de baixar estoque, mesma regra do modo
     // direto (perfil → KYC → body). Diferenças: documento presente porém inválido e sem CPF
     // no body segue o caminho atual (Asaas recusa → pedido compensado, 502); e quem paga com
-    // saldo (`useWalletBalance`) não é barrado aqui — o total só é conhecido depois e o Pix
-    // 100% pago com saldo não cobra no Asaas.
+    // saldo positivo (`useWalletBalance`) não é barrado aqui — o total só é conhecido depois e
+    // o Pix 100% pago com saldo não cobra no Asaas.
     let custodyCpf: string | null = null;
     if (!directMode && env.PAYMENT_GATEWAY === 'asaas' && paymentMethod === 'pix') {
       const bodyCpf = (req.body as any).cpf;
       const hasBodyCpf = typeof bodyCpf === 'string' && bodyCpf.replace(/\D/g, '') !== '';
-      if (!useWalletBalance || hasBodyCpf) {
+      // Só pula com saldo positivo (pode cobrir o total); flag ligada com saldo zero exige CPF.
+      const walletForCpf = useWalletBalance && !hasBodyCpf ? await walletService.getOrCreate(customerId, 'user') : null;
+      if (!walletForCpf || !(Number(walletForCpf.balance) > 0)) {
         try {
           custodyCpf = await precheckBuyerCpf(String(customerId), bodyCpf);
         } catch (e) {

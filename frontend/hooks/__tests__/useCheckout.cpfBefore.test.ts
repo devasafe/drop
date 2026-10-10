@@ -102,3 +102,26 @@ test("cpfStatus 'missing' com cartão → não pede (o CPF do titular vem no car
   act(() => { result.current.setPaymentMethod('pix'); });
   expect(result.current.cpfRequired).toBe(true);
 });
+
+test('CPF_REQUIRED vindo do servidor: 11 dígitos com verificador errado não reenviam (mesma regra do botão)', async () => {
+  mockMe();
+  let calls = 0;
+  mockedApi.post.mockImplementation(((url: string) => {
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5, inArea: true, deliveryFee: 6.5 } });
+    if (url === '/orders') {
+      calls += 1;
+      if (calls === 1) return Promise.reject({ response: { status: 400, data: { error: 'x', code: 'CPF_REQUIRED' } } });
+      return Promise.resolve({ data: { order: { _id: 'o2' }, pix: { qrCodePayload: 'x' } } });
+    }
+    return Promise.resolve({ data: {} });
+  }) as any);
+  const { result } = await mount();
+  let r: { ok: boolean; error?: string } = { ok: true };
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(result.current.cpfRequired).toBe(true);
+  act(() => { result.current.setCpf('123.456.789-00'); });
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(r.ok).toBe(false);
+  expect(r.error).toBe('CPF inválido. Confira os números.');
+  expect(calls).toBe(1);
+});

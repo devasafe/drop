@@ -28,10 +28,21 @@ export function buyerDocument(user: BuyerDocUser): string | null {
   return candidates.find((d) => d && (isValidCPF(d) || isValidCNPJ(d))) || null;
 }
 
+/**
+ * Mesmo usuário sem o documento do KYC quando ele é um RG (`verificationController` grava
+ * `document.number = rg` com `type === 'rg'`): RG não é CPF. Usado na custódia e no
+ * `cpfStatus`; o modo direto segue com `buyerDocument` puro (comportamento inalterado).
+ */
+function withoutRgDocument(user: BuyerDocUser): BuyerDocUser {
+  if (!user || (user.verification as any)?.document?.type !== 'rg') return user;
+  return { cpf: user.cpf, verification: null };
+}
+
 /** Situação do CPF para o checkout: válido, ausente ou presente porém inválido. */
 export function buyerCpfStatus(user: BuyerDocUser): 'valid' | 'missing' | 'invalid' {
-  if (buyerDocument(user)) return 'valid';
-  const anyDoc = onlyDigits(user?.cpf) || onlyDigits((user?.verification as any)?.document?.number);
+  const u = withoutRgDocument(user);
+  if (buyerDocument(u)) return 'valid';
+  const anyDoc = onlyDigits(u?.cpf) || onlyDigits((u?.verification as any)?.document?.number);
   return anyDoc ? 'invalid' : 'missing';
 }
 
@@ -42,7 +53,7 @@ export function buyerCpfStatus(user: BuyerDocUser): 'valid' | 'missing' | 'inval
  */
 async function resolve(userId: string, bodyCpf: unknown, lenientInvalid: boolean): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { cpf: true, verification: true } });
-  const existing = buyerDocument(user);
+  const existing = buyerDocument(lenientInvalid ? withoutRgDocument(user) : user);
   if (existing) return existing;
   const typed = onlyDigits(typeof bodyCpf === 'string' ? bodyCpf : '');
   if (!typed && lenientInvalid && buyerCpfStatus(user) === 'invalid') return null;

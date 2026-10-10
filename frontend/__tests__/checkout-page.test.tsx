@@ -81,3 +81,29 @@ describe('CheckoutPage — CPF no modo direto (Task 1.5)', () => {
     expect(screen.queryByLabelText(/CPF/i)).not.toBeInTheDocument();
   });
 });
+
+describe('CheckoutPage — CPF antes do Pix (Task 8, rodada 1)', () => {
+  const withCpf = (cpf: string) => baseHook({
+    items: [{ productId: 'p1', quantity: 1, price: 10 }],
+    cpfRequired: true, cpf, setCpf: jest.fn(),
+  } as unknown as ReturnType<typeof useCheckout>);
+
+  test('CPF vazio ou incompleto: botão travado e hint "Informe seu CPF"', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('390.533'));
+    render(<CheckoutPage />);
+    expect(screen.getByText('Informe seu CPF')).toBeInTheDocument();
+  });
+
+  test('11 dígitos com verificador errado: botão travado e hint "CPF inválido"', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('123.456.789-00'));
+    render(<CheckoutPage />);
+    expect(screen.getByText('CPF inválido')).toBeInTheDocument();
+  });
+
+  test('CPF válido: sem hint de CPF', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('390.533.447-05'));
+    render(<CheckoutPage />);
+    expect(screen.queryByText('CPF inválido')).not.toBeInTheDocument();
+    expect(screen.queryByText('Informe seu CPF')).not.toBeInTheDocument();
+  });
+});
