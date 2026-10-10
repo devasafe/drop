@@ -11,9 +11,8 @@ export interface StoreCardData {
   imageUrl?: string;
   status: StoreStatus;
   category: string;
-  /** Nota, prazo e frete são opcionais: sem dado, o pedaço não é renderizado
-   * (nunca um valor inventado). Prazo/frete/área vêm da cotação de entrega. */
-  rating?: number;
+  /** Prazo, frete e área são opcionais: sem dado, o pedaço não é renderizado
+   * (nunca um valor inventado). Vêm da cotação de entrega. */
   etaMin?: [number, number];
   fee?: number;
   freeDelivery?: boolean;
@@ -32,7 +31,9 @@ type LineTone = 'fast' | 'off' | 'muted' | 'normal';
 
 function deliveryLineOf(store: StoreCardData): { text: string; tone: LineTone } | null {
   if (store.outOfArea) return { text: 'Não entrega aqui', tone: 'off' };
-  if (store.status === 'fechada' && store.opensAt) return { text: `Loja fechada · abre às ${store.opensAt}`, tone: 'muted' };
+  if (store.status === 'fechada') {
+    return { text: store.opensAt ? `Loja fechada · abre às ${store.opensAt}` : 'Loja fechada', tone: 'muted' };
+  }
   const eta = formatEtaRange(store.etaMin);
   if (!eta) return null;
   const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : '';

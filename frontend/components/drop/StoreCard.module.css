@@ -32,11 +32,19 @@
   justify-content: space-between;
   gap: var(--space-3);
   margin-top: var(--space-2);
+  min-width: 0;
+}
+
+.info > div:first-child {
+  min-width: 0;
 }
 
 .name {
   font: var(--text-label);
   color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delivery {

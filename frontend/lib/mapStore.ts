@@ -16,13 +16,13 @@ export function mapStore(store: any, quote?: DeliveryQuote | null): StoreCardDat
   if (!quote) return base;
   if (quote.inArea === false && quote.reason !== 'STORE_NO_LOCATION') return { ...base, outOfArea: true };
   if (quote.inArea !== true) return base;
+  if (quote.open === false) return { ...base, opensAt: quote.opensAt, distanceKm: quote.distanceKm ?? undefined };
   const free = quote.freeDelivery || quote.fee === 0;
   return {
     ...base,
     etaMin: quote.etaMinutes ?? undefined,
     fee: !free && typeof quote.fee === 'number' ? quote.fee : undefined,
     freeDelivery: free || undefined,
-    opensAt: quote.open === false ? quote.opensAt : undefined,
     distanceKm: quote.distanceKm ?? undefined,
   };
 }

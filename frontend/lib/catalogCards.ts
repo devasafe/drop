@@ -16,7 +16,7 @@ export function productCardData(p: any, quote?: DeliveryQuote | null, opts: { st
     price, oldPrice, discountPercent,
     stock: p?.quantity != null ? Number(p.quantity) : undefined,
     etaMinutes: inArea && quote?.open !== false && quote?.etaMinutes ? quote.etaMinutes[1] : undefined,
-    freeDelivery: inArea && (quote!.freeDelivery || quote!.fee === 0),
+    freeDelivery: inArea && quote!.open !== false && (quote!.freeDelivery || quote!.fee === 0),
     outOfArea: quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION',
   };
 }

@@ -82,3 +82,26 @@ it('CSS dos cards só usa tokens semânticos', () => {
     expect({ f, v: cssViolations(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')) }).toEqual({ f, v: [] });
   }
 });
+
+describe('cards: casos de borda (rodada 1)', () => {
+  it('esgotado não mostra badges; carrinho nunca mostra badge', () => {
+    render(<ProductCard variant="home" product={{ ...p, stock: 0, freeDelivery: true }} onAdd={jest.fn()} />);
+    expect(screen.queryByText('-20%')).toBeNull();
+    expect(screen.queryByText('Frete grátis')).toBeNull();
+    render(<ProductCard variant="carrinho" product={{ ...p, name: 'Cabo', freeDelivery: true, stock: 2 }} onAdd={jest.fn()} />);
+    expect(screen.queryByText('Últimas unidades')).toBeNull();
+    expect(screen.getAllByText('Esgotado')).toHaveLength(1);
+  });
+  it('stockLabel legado conta como "Últimas unidades"', () => {
+    render(<ProductCard variant="busca" product={{ name: 'x', price: 10 }} stockLabel="Restam 2" onAdd={jest.fn()} />);
+    expect(screen.getByText('Últimas unidades')).toBeInTheDocument();
+  });
+  it('loja fechada não promete prazo nem frete, com ou sem opensAt', () => {
+    const s = { name: 'L', status: 'fechada' as const, category: 'c', etaMin: [25, 35] as [number, number], freeDelivery: true };
+    const { rerender } = render(<StoreCard variant="resultado" store={s} onClick={jest.fn()} />);
+    expect(screen.getByText('Loja fechada')).toBeInTheDocument();
+    expect(screen.queryByText(/min/)).toBeNull();
+    rerender(<StoreCard variant="resultado" store={{ ...s, opensAt: '09:00' }} onClick={jest.fn()} />);
+    expect(screen.getByText('Loja fechada · abre às 09:00')).toBeInTheDocument();
+  });
+});

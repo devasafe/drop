@@ -83,7 +83,7 @@ const COLOR_GROUPS: [string, string[]][] = [
 ];
 const TYPE_TOKENS = ['--text-display', '--text-title-lg', '--text-title', '--text-body-lg', '--text-body', '--text-label', '--text-meta', '--text-caption', '--text-price-lg', '--text-price', '--text-price-sm'];
 const RADII = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill'];
-const store = { name: 'TechStore', imageUrl: undefined, status: 'aberta' as const, category: 'Eletrônicos • Acessórios', rating: 4.8, etaMin: [25, 35] as [number, number], fee: 5.9 };
+const store = { name: 'TechStore', imageUrl: undefined, status: 'aberta' as const, category: 'Eletrônicos • Acessórios', etaMin: [25, 35] as [number, number], fee: 5.9 };
 const product = { name: 'Fone Bluetooth', store: 'TechStore', imageUrl: undefined, price: 129.9, oldPrice: 189.9, discountPercent: 31 };
 const longProduct = { name: 'Fone Bluetooth Over-Ear com Cancelamento de Ruído e Estojo', store: 'TechStore', imageUrl: undefined, price: 129.9, discountPercent: 20 };
 const categories = [
@@ -364,7 +364,7 @@ export default function Styleguide() {
           <StoreCard variant="destaque" store={store} onClick={noop} />
           <div style={{ height: 'var(--space-3)' }} />
           <StoreCard variant="resultado" store={store} onClick={noop} />
-          <StoreCard variant="resultado" store={{ ...store, name: 'Papel & Cia', category: 'Papelaria • Escritório', rating: 4.6, fee: 4.9 }} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, name: 'Papel & Cia', category: 'Papelaria • Escritório', fee: 4.9 }} onClick={noop} />
         </Sub>
         <Sub title="ProductCard — todas as variantes por contexto">
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>

@@ -16,3 +16,17 @@ it('mapStore com cotação: status pela cotação, prazo, frete e fora da área'
   expect(mapStore({ name: 'L' }, { ...q, inArea: false, reason: 'OUT_OF_AREA' }).outOfArea).toBe(true);
   expect(mapStore({ name: 'L' }, { ...q, freeDelivery: true, fee: 0 })).toMatchObject({ freeDelivery: true });
 });
+
+it('loja fechada (com ou sem opensAt): sem prazo, frete nem frete grátis', () => {
+  for (const extra of [{ opensAt: '09:00' }, {}]) {
+    const quote = { ...q, open: false, freeDelivery: true, fee: 0, ...extra };
+    const s = mapStore({ name: 'L' }, quote);
+    expect(s.status).toBe('fechada');
+    expect(s.etaMin).toBeUndefined();
+    expect(s.fee).toBeUndefined();
+    expect(s.freeDelivery).toBeUndefined();
+    const d = productCardData({ name: 'x', price: 10 }, quote);
+    expect(d.etaMinutes).toBeUndefined();
+    expect(d.freeDelivery).toBe(false);
+  }
+});

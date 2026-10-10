@@ -38,7 +38,7 @@ export function RepeatRow({ product, onAdd }: RepeatRowProps) {
       <IconButton
         icon={<Plus size={15} strokeWidth={ICON_BUTTON_STROKE_WIDTH} />}
         variant="soft"
-        aria-label="Adicionar"
+        aria-label={`Adicionar ${product.name}`}
         onClick={onAdd}
       />
     </div>
