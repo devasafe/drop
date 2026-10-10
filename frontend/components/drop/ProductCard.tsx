@@ -1,4 +1,5 @@
-import { ImageOff, Plus } from 'lucide-react';
+import { MouseEvent } from 'react';
+import { ImageOff, Plus, Zap } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { PriceTag, PriceTagSize } from '../ui/PriceTag';
 import { IconButton } from '../ui/IconButton';
@@ -14,6 +15,23 @@ export interface ProductCardData {
   price: number;
   oldPrice?: number;
   discountPercent?: number;
+  /** ≤ 0 → Esgotado; 1–3 → "Últimas unidades". */
+  stock?: number;
+  /** Prazo máximo da cotação ("~35 min"). */
+  etaMinutes?: number;
+  freeDelivery?: boolean;
+  /** Fora da área: "Não entrega aqui" no lugar do prazo. */
+  outOfArea?: boolean;
+}
+
+/** No máximo 2 badges, na ordem desconto > frete grátis > últimas unidades. */
+export function productBadges(p: ProductCardData, opts: { stockLabel?: string } = {}): string[] {
+  const out: string[] = [];
+  const pct = p.discountPercent ?? (p.oldPrice && p.oldPrice > p.price ? Math.round((1 - p.price / p.oldPrice) * 100) : 0);
+  if (pct > 0) out.push(`-${pct}%`);
+  if (p.freeDelivery) out.push('Frete grátis');
+  if ((p.stock !== undefined && p.stock > 0 && p.stock <= 3) || opts.stockLabel) out.push('Últimas unidades');
+  return out.slice(0, 2);
 }
 
 export interface ProductCardProps {
@@ -84,25 +102,34 @@ const VARIANT_CONFIG: Record<ProductCardVariant, VariantConfig> = {
  * `--rating` (mesma linguagem de `StatusPill`) abaixo do nome — só chega
  * preenchido quando o estoque é baixo, nunca para estoque farto.
  */
-export function ProductCard({ variant, product, onAdd, soldOut = false, stockLabel }: ProductCardProps) {
+export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = false, stockLabel }: ProductCardProps) {
   const config = VARIANT_CONFIG[variant];
-  const showDiscount = config.showPromo && product.discountPercent !== undefined;
+  const soldOut = soldOutProp || (product.stock !== undefined && product.stock <= 0);
+  const badges = config.showPromo && !soldOut ? productBadges(product, { stockLabel }) : [];
   const oldPrice = config.showPromo ? product.oldPrice : undefined;
-  const badgeOverImage = config.layout === 'tile';
-  const showStockLabel = !soldOut && !!stockLabel;
+  const isTile = config.layout === 'tile';
+  const overImage = isTile ? badges.slice(0, 1) : [];
+  const below = isTile ? badges.slice(1) : badges;
+  const renderBadge = (b: string) => (
+    <Badge key={b} tone={b.startsWith('-') ? 'discount' : 'status'}>
+      {b}
+    </Badge>
+  );
+
+  // Adicionar nunca abre o produto: o card pode ser link ou estar dentro de um.
+  const handleAdd = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (onAdd as (ev?: MouseEvent<HTMLButtonElement>) => void)(e);
+  };
 
   const addButton = (
     <IconButton
-      icon={
-        <Plus
-          size={config.addOnImage ? 17 : 15}
-          strokeWidth={ICON_BUTTON_STROKE_WIDTH}
-        />
-      }
+      icon={<Plus size={config.addOnImage ? 17 : 15} strokeWidth={ICON_BUTTON_STROKE_WIDTH} />}
       variant={config.addOnImage ? 'brand' : 'soft'}
-      aria-label="Adicionar"
+      aria-label={`Adicionar ${product.name}`}
       disabled={soldOut}
-      onClick={soldOut ? undefined : onAdd}
+      onClick={soldOut ? undefined : handleAdd}
     />
   );
 
@@ -114,15 +141,9 @@ export function ProductCard({ variant, product, onAdd, soldOut = false, stockLab
           style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}
           aria-hidden="true"
         >
-          {!product.imageUrl && (
-            <ImageOff size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-          )}
+          {!product.imageUrl && <ImageOff size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
         </span>
-        {showDiscount && badgeOverImage && (
-          <span className={styles.discountBadge}>
-            <Badge tone="discount">{product.discountPercent}% OFF</Badge>
-          </span>
-        )}
+        {overImage.length > 0 && <span className={styles.discountBadge}>{overImage.map(renderBadge)}</span>}
         {soldOut && (
           <span className={styles.soldOutOverlay}>
             <span className={styles.soldOutLabel}>Esgotado</span>
@@ -134,23 +155,22 @@ export function ProductCard({ variant, product, onAdd, soldOut = false, stockLab
       <div className={styles.info}>
         <div className={styles.textBlock}>
           <div className={styles.name}>{product.name}</div>
-          {config.showStore && product.store && (
-            <div className={styles.store}>{product.store}</div>
-          )}
-          {showStockLabel && (
-            <div className={styles.stockLabel}>
-              <span className={styles.stockDot} aria-hidden="true" />
-              {stockLabel}
+          {config.showStore && product.store && <div className={styles.store}>{product.store}</div>}
+          {product.outOfArea ? (
+            <div className={styles.deliveryOff}>Não entrega aqui</div>
+          ) : product.etaMinutes ? (
+            <div className={styles.delivery}>
+              <Zap size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              <span>~{product.etaMinutes} min</span>
             </div>
-          )}
+          ) : null}
         </div>
         <div className={styles.priceRow}>
           <PriceTag price={product.price} oldPrice={oldPrice} size={config.priceSize} />
-          {showDiscount && !badgeOverImage && (
-            <Badge tone="discount">{product.discountPercent}% OFF</Badge>
-          )}
+          {!isTile && below.length > 0 && below.map(renderBadge)}
           {!config.addOnImage && addButton}
         </div>
+        {isTile && below.length > 0 && <div className={styles.badgeRow}>{below.map(renderBadge)}</div>}
       </div>
     </div>
   );

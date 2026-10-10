@@ -11,6 +11,6 @@ test('StoreCard resultado é linha (sem classe de card com borda)', () => {
 test('ProductCard sem imagem usa fallback (não quebra)', () => {
   render(<ProductCard variant="home" product={{ name:'Mouse Gamer com nome bem longo que ocupa duas linhas', price:89.9, discountPercent:20 }} onAdd={()=>{}} />);
   expect(screen.getByText(/Mouse Gamer/)).toBeInTheDocument();
-  expect(screen.getByText('20% OFF')).toBeInTheDocument();
-  expect(screen.getByLabelText('Adicionar')).toBeInTheDocument();
+  expect(screen.getByText('-20%')).toBeInTheDocument();
+  expect(screen.getByLabelText(/^Adicionar Mouse Gamer/)).toBeInTheDocument();
 });

@@ -1,7 +1,6 @@
-/* ProductCard — variantes por contexto (spec §3.2). `tile` (home/recomendado)
- * = card visual, imagem manda, replica `.of` do mock canônico. `line`
- * (busca/loja/carrinho) = linha densa com divisor, de-cardificação
- * (spec §3.1-A) — mesma lógica anti-card de StoreCard `resultado`.
+/* ProductCard — `tile` (home/grade/recomendado) = foto 1:1 + texto; `line`
+ * (busca/loja/carrinho) = linha densa com divisor, sem caixa. Só tokens
+ * semânticos; sem escala nem elevação em hover.
  */
 
 .product {
@@ -18,69 +17,57 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 100%;
-  background-color: var(--surface-2);
+  aspect-ratio: 1 / 1;
+  background-color: var(--color-surface-sunken);
   background-position: center;
   background-size: cover;
-  color: var(--text-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
 }
 
 .discountBadge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: var(--space-2);
+  left: var(--space-2);
 }
 
 .addOnImage {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: var(--space-2);
+  bottom: var(--space-2);
 }
 
-/* ---- estoque (aditivo) ---- */
+.addOnImage button,
+.priceRow button {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+}
+
+.addOnImage button:focus-visible,
+.priceRow button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ---- esgotado ---- */
 .soldOutOverlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--scrim);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface-default) 70%, transparent);
 }
 
 .soldOutLabel {
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.02em;
-  color: var(--text-strong);
-  text-transform: uppercase;
-}
-
-.stockLabel {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--rating);
-}
-
-.stockDot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--r-pill);
-  background: currentColor;
-  flex-shrink: 0;
+  font: var(--text-label);
+  color: var(--color-text-secondary);
 }
 
 .name {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--text-strong);
-  line-height: 1.25;
+  font: var(--text-body);
+  color: var(--color-text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -88,28 +75,45 @@
 }
 
 .store {
-  margin-top: 2px;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.delivery,
+.deliveryOff {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--text-caption);
+}
+
+.delivery {
+  color: var(--color-delivery-fast);
+}
+
+.deliveryOff {
+  color: var(--color-error-text);
 }
 
 .priceRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---- tile: card visual (home / recomendado) ---- */
+.badgeRow {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+/* ---- tile ---- */
 .tile {
   flex-direction: column;
-}
-
-.tile .image {
-  border-radius: var(--r-lg);
 }
 
 .tile .info {
@@ -119,46 +123,38 @@
 }
 
 .tile .priceRow {
-  margin-top: 5px;
+  margin-top: var(--space-1);
 }
 
 .home {
   width: 150px;
 }
 
-.home .image {
-  height: 130px;
+.home .media {
+  width: 100%;
 }
 
-/* ---- grade: tile que preenche a célula (grid de /produtos) ---- */
+/* grade: ocupa a célula (grid responsiva) */
 .grade {
   width: 100%;
 }
 
-.grade .image {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1 / 1;
-}
-
 .grade .name {
-  min-height: 2.5em; /* reserva 2 linhas → cards alinhados na grade */
+  min-height: 2.8em; /* reserva 2 linhas → cards alinhados na grade */
 }
 
 .recomendado {
   width: 118px;
 }
 
-.recomendado .image {
-  height: 96px;
-}
-
-/* ---- line: linha densa com divisor (busca / loja / carrinho) ---- */
+/* ---- line: grid foto | texto | preço+ação, divisor, sem caixa ---- */
 .line {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--divider);
+  border-bottom: 1px solid var(--color-border-default);
 }
 
 .line:last-child {
@@ -166,16 +162,11 @@
 }
 
 .line .image {
-  border-radius: var(--r-md);
+  border-radius: var(--radius-md);
 }
 
 .line .info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex: 1;
-  min-width: 0;
+  display: contents;
 }
 
 .line .textBlock {
@@ -184,19 +175,10 @@
 
 .line .priceRow {
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.busca .media {
-  width: 64px;
-  height: 64px;
-}
-
-.loja .media {
-  width: 72px;
-  height: 72px;
-}
-
-.carrinho .media {
-  width: 52px;
-  height: 52px;
+.carrinho {
+  grid-template-columns: 52px 1fr auto;
 }

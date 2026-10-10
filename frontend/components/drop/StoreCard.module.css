@@ -1,89 +1,70 @@
-/* StoreCard — `destaque` (card de imagem, replica `.feat`) e `resultado`
- * (LINHA com divisor, replica `.lrow`). De-cardificação (spec §3.1-A):
- * `.row` nunca ganha borda/superfície de card — só divisor + espaçamento.
+/* StoreCard — `destaque` (imagem em cima, texto embaixo; sem gradiente nem
+ * overlay) e `resultado` (LINHA com divisor, sem caixa).
  */
 
-/* ---- destaque: único card de imagem real ---- */
+/* ---- destaque ---- */
 .card {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--r-xl);
   cursor: pointer;
 }
 
-.card:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+.card:focus-visible,
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .image {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 130px;
-  background-color: var(--surface-2);
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: var(--color-surface-sunken);
   background-position: center;
   background-size: cover;
-  color: var(--text-subtle);
-}
-
-.gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, var(--scrim-strong) 12%, transparent 60%);
-}
-
-.statusWrap {
-  position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
-  padding: 5px 10px;
-  border-radius: var(--r-pill);
-  background: var(--scrim);
-  backdrop-filter: blur(4px);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
 }
 
 .info {
-  position: absolute;
-  left: var(--space-4);
-  right: var(--space-4);
-  bottom: var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--text-strong);
+  font: var(--text-label);
+  color: var(--color-text-primary);
 }
 
-.stats {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: 5px;
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
-  color: color-mix(in srgb, var(--text-strong) 84%, transparent);
+.delivery {
+  font: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
 }
 
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.fast {
+  color: var(--color-delivery-fast);
 }
 
-.starIcon {
-  color: var(--rating);
+.off {
+  color: var(--color-error-text);
 }
 
-/* ---- resultado: LINHA com divisor, NÃO card com borda ---- */
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* ---- resultado: linha com divisor ---- */
 .row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: var(--touch-min);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--divider);
+  border-bottom: 1px solid var(--color-border-default);
   cursor: pointer;
 }
 
@@ -91,27 +72,18 @@
   border-bottom: 0;
 }
 
-.row:hover {
-  background: var(--surface-2);
-}
-
-.row:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
-
 .photo {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 58px;
-  height: 58px;
-  border-radius: var(--r-lg);
-  background-color: var(--surface-2);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-sunken);
   background-position: center;
   background-size: cover;
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
 }
 
 .meta {
@@ -120,44 +92,25 @@
 }
 
 .rowName {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: var(--fs-body);
-  color: var(--text-strong);
+  font: var(--text-label);
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .category {
-  margin: 2px 0 6px;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rowStats {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
 }
 
 .right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--space-1);
   flex-shrink: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .row {
-    transition: none;
-  }
 }
