@@ -30,7 +30,6 @@ const ALLOW = new Set<string>([
   'components/drop/StoreCartPanel.module.css', // fase C: home e loja do cliente (cards, trilhos, sacola)
   'components/drop/asaas/AsaasConnectCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
   'components/drop/settlement/SettlementSwitchCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
-  'components/drop/Logo.module.css', // fase C: marca (Logo)
 ]);
 
 function walk(dir: string): string[] {

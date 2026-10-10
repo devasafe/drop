@@ -8,7 +8,7 @@ export interface LogoProps {
 }
 
 /**
- * Marca do produto: pin em gradiente de marca + wordmark `DROP` em caixa
+ * Marca do produto: pin sólido da marca + wordmark `DROP` em caixa
  * alta, como `.pin`/`.wm` do mock canônico. `size="sm"` reduz o pin e a
  * fonte proporcionalmente (ex.: dentro de contextos mais compactos que o
  * AppHeader), mantendo a mesma composição.
