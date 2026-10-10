@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { AppError } from '../../utils/AppError';
-import { publicStoreBillingWhere } from '../saasBilling/gate';
+import { publicStoreVisibilityWhere } from '../catalog/visibility';
 import { brazilNow, isOpenAt } from '../../utils/storeHours';
 import { storePoint, straightKm, type LatLngPoint } from '../deliveryQuote/quote';
 import { toApiProduct } from '../../controllers/productController';
@@ -132,12 +132,8 @@ interface VisibleStore {
 
 /** Mesmo filtro do `listStores`: KYC (com KYC_ENFORCED) AND mensalidade (modo direto). */
 async function visibleStores(): Promise<VisibleStore[]> {
-  const where: Prisma.StoreWhereInput = {};
-  if (process.env.KYC_ENFORCED === 'true') where.isVerified = true;
-  const billingWhere = await publicStoreBillingWhere();
-  if (billingWhere) where.AND = [billingWhere];
   return prisma.store.findMany({
-    where,
+    where: await publicStoreVisibilityWhere(),
     select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true },
   });
 }

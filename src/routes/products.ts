@@ -13,6 +13,8 @@ import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
 
 import upload, { uploadProductMedia } from '../middleware/upload';
 import { validate } from '../middleware/validate';
+import { catalogHomeLimiter } from '../middleware/publicRateLimit';
+import { getOffers, OffersQuerySchema } from '../controllers/catalogController';
 import { createProductSchema, updateProductSchema, updateStockSchema } from '../validation/productSchemas';
 
 const router = Router();
@@ -20,6 +22,8 @@ const router = Router();
 // Public listing
 router.get('/', listProducts);
 router.get('/top', getTopProducts);
+// Antes de '/:id': senão "offers" é lido como id
+router.get('/offers', catalogHomeLimiter, validate(OffersQuerySchema, 'query'), getOffers);
 router.get('/:id/reviews', getProductReviews);
 // optionalAuth: o dono de loja pausada ainda abre o próprio produto (tela de edição)
 router.get('/:id', optionalAuth, getProduct);

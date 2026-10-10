@@ -35,3 +35,13 @@ export const searchSuggestLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
 });
+
+/** GET /products/offers e GET /stores/nearby — Home do cliente: 60/min/IP. */
+export const catalogHomeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { success: false, error: { message: 'Muitas consultas. Aguarde um minuto.', statusCode: 429 } },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+});
