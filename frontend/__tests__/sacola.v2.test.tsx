@@ -180,3 +180,14 @@ test('saldo cobre tudo: "Pagar com o saldo da carteira"', () => {
   render(<SacolaPage />);
   expect(screen.getByRole('button', { name: 'Pagar com o saldo da carteira' })).toBeInTheDocument();
 });
+
+test('cartão: parcelas visíveis, acréscimo no resumo e botão com a parcela', () => {
+  mocked.mockReturnValue(hook({
+    paymentMethod: 'credit_card', installmentCount: 3, cardPayload: { valid: true },
+    config: { base: 5, perKm: 1, cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 },
+  }));
+  render(<SacolaPage />);
+  expect(screen.getByText('O acréscimo é a taxa da operadora do cartão. No Pix você paga R$ 277,20.')).toBeInTheDocument();
+  expect(screen.getByText('Acréscimo do cartão 3x')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Pagar 3x de R\$ [\d.,]+$/ })).toBeInTheDocument();
+});

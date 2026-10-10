@@ -105,6 +105,7 @@
   --color-bg-secondary:var(--gray-0);
   --color-surface-default:var(--gray-0);
   --color-surface-elevated:var(--gray-0);
+  --color-qr-bg:#FFFFFF; /* exceção B3: leitores de QR precisam de fundo branco */
   --color-surface-sunken:var(--gray-50);
   --color-text-primary:var(--gray-900);
   --color-text-secondary:var(--gray-600);
@@ -184,6 +185,7 @@
   --color-bg-secondary:var(--gray-950);
   --color-surface-default:#151021;
   --color-surface-elevated:#1b1526;
+  --color-qr-bg:#FFFFFF; /* exceção B3: leitores de QR precisam de fundo branco */
   --color-surface-sunken:#120f19;
   --color-text-primary:#EDEBF2;
   --color-text-secondary:#B9B4C7;

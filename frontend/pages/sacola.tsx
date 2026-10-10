@@ -13,7 +13,6 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { CartItem } from '../components/drop/CartItem';
 import { OrderSummary, type SummaryLine } from '../components/drop/OrderSummary';
 import { DeliveryBadge } from '../components/drop/DeliveryBadge';
@@ -24,6 +23,7 @@ import { CardForm } from '../components/drop/checkout/CardForm';
 import { WalletToggle } from '../components/drop/checkout/WalletToggle';
 import { CouponField } from '../components/drop/checkout/CouponField';
 import { CheckoutBar } from '../components/drop/checkout/CheckoutBar';
+import { InstallmentList } from '../components/drop/checkout/InstallmentList';
 import { PixPaymentSheet } from '../components/drop/checkout/PixPaymentSheet';
 import { readDeliveryAddressId, saveDeliveryAddressId, addressId, shortAddress } from '../hooks/useDeliveryAddress';
 import { formatMoney } from '../lib/money';
@@ -44,6 +44,7 @@ export default function SacolaPage() {
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
   const [pickerOpen, setPickerOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [pixAmount, setPixAmount] = useState<number | undefined>(undefined);
   // A barra de pagar é fixa na viewport no mobile; o PageTransition quebra position:fixed,
   // então no mobile ela vai por portal ao body (só depois da hidratação). No desktop fica inline.
   const [barMode, setBarMode] = useState<'ssr' | 'mobile' | 'desktop'>('ssr');
@@ -75,7 +76,15 @@ export default function SacolaPage() {
   const count = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
   const storeName = c.store?.name || 'Loja';
   const walletUse = c.useWallet && c.paymentMethod === 'pix' ? Math.min(c.walletBalance || 0, c.total) : 0;
-  const toPay = Math.max(0, Math.round((c.total - walletUse) * 100) / 100);
+  const isCard = c.paymentMethod === 'credit_card';
+  // Parcelas: espelho de computeCardTotal/installmentOptions (o servidor recalcula a cobrança).
+  const cardOpts = isCard && c.config ? installmentOptions(c.total, {
+    cardFeePercent: c.config.cardFeePercent ?? 2.99, cardFeeFixed: c.config.cardFeeFixed ?? 0.49,
+    cardAnticipationMonthlyRate: c.config.cardAnticipationMonthlyRate ?? 1.99,
+    cardInstallmentMaxCount: c.config.cardInstallmentMaxCount ?? 12, cardInstallmentMinValue: c.config.cardInstallmentMinValue ?? 5,
+  }) : [];
+  const chosen = cardOpts.find((o) => o.count === c.installmentCount) ?? cardOpts[0];
+  const toPay = isCard && chosen ? chosen.total : Math.max(0, Math.round((c.total - walletUse) * 100) / 100);
   const cardInvalid = c.paymentMethod === 'credit_card' && !c.cardPayload?.valid;
   const cpfBad = c.cpfRequired && !isValidCPF(c.cpf);
   // P11: sem endereço não se paga, nem no Plano 1 (o hook libera o Plano 1 sem cotação;
@@ -91,7 +100,7 @@ export default function SacolaPage() {
     : cpfBad ? (onlyDigits(c.cpf).length === 11 ? 'CPF inválido' : 'Informe seu CPF')
     : undefined;
 
-  const payLabel = c.paymentMethod === 'credit_card' ? `Pagar ${formatMoney(c.total)} no cartão`
+  const payLabel = isCard ? (chosen && chosen.count > 1 ? `Pagar ${chosen.count}x de ${formatMoney(chosen.installmentValue)}` : `Pagar ${formatMoney(chosen?.total ?? c.total)} no cartão`)
     : c.paymentMethod === 'wallet' ? `Pagar ${formatMoney(c.total)} com saldo`
     : toPay === 0 && walletUse > 0 ? 'Pagar com o saldo da carteira'
     : `Pagar ${formatMoney(toPay)} com Pix`;
@@ -102,6 +111,7 @@ export default function SacolaPage() {
       ? { label: 'Entrega pela loja', value: 0, freeLabel: 'Grátis' }
       : { label: c.distanceKm > 0 ? `Entrega · ${String(c.distanceKm).replace('.', ',')} km` : 'Entrega', value: c.deliveryFee, freeLabel: 'Grátis' },
     ...(c.discount > 0 ? [{ label: `Cupom ${c.coupon.code.toUpperCase()}`, value: -c.discount, tone: 'credit' as const }] : []),
+    ...(isCard && chosen ? [{ label: chosen.count === 1 ? 'Acréscimo do cartão (à vista)' : `Acréscimo do cartão ${chosen.count}x`, value: Math.round((chosen.total - c.total) * 100) / 100 }] : []),
     ...(walletUse > 0 ? [{ label: 'Saldo da carteira', value: -walletUse, tone: 'credit' as const }] : []),
   ];
 
@@ -112,6 +122,7 @@ export default function SacolaPage() {
   };
 
   const pay = async () => {
+    setPixAmount(toPay); // o carrinho é limpo ao criar o pedido: guarda o valor a pagar antes
     const r = await c.placeOrder();
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
@@ -191,12 +202,7 @@ export default function SacolaPage() {
               <div className={styles.card}>
                 <CardForm onChange={c.setCardPayload} holderDefaults={c.cardHolderDefaults} />
                 {c.config && (
-                  <Select value={String(c.installmentCount)} onChange={(v) => c.setInstallmentCount(Number(v))}
-                    options={installmentOptions(c.total, {
-                      cardFeePercent: c.config.cardFeePercent ?? 2.99, cardFeeFixed: c.config.cardFeeFixed ?? 0.49,
-                      cardAnticipationMonthlyRate: c.config.cardAnticipationMonthlyRate ?? 1.99,
-                      cardInstallmentMaxCount: c.config.cardInstallmentMaxCount ?? 12, cardInstallmentMinValue: c.config.cardInstallmentMinValue ?? 5,
-                    }).map((o) => ({ value: String(o.count), label: o.count === 1 ? `À vista · ${formatMoney(o.total)}` : `${o.count}x de ${formatMoney(o.installmentValue)} · total ${formatMoney(o.total)}` }))} />
+                  <InstallmentList options={cardOpts} base={c.total} value={chosen?.count ?? c.installmentCount} onChange={c.setInstallmentCount} />
                 )}
               </div>
             )}
@@ -246,7 +252,7 @@ export default function SacolaPage() {
 
       {/* Fora dos ramos de estado: o pedido limpa a sacola ANTES do pixData chegar (teste movido). */}
       {c.pixData && (
-        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName}
+        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={pixAmount}
           onPaid={(id) => router.push(pedidoHref(id))} onClose={c.closePix} />
       )}
     </ProtectedRoute>

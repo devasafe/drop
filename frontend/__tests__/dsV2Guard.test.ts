@@ -6,7 +6,6 @@ import { cssViolations } from './helpers/dsTokens';
 // hex, token antigo (incl. --fs-*) ou gradient/glow. ALLOW lista o que a fase C redesenha.
 const ROOT = path.join(__dirname, '..');
 const ALLOW = new Set<string>([
-  'components/drop/checkout/PixPaymentSheet.module.css', // fase C: checkout
   'components/drop/order/CancellationStatus.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/CancelOrderSheet.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/DeliveryPin.module.css', // fase C: página do pedido (store-order)
