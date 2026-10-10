@@ -49,6 +49,7 @@ import integrationsRoutes from './routes/integrations'; // Integração de estoq
 import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
 import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
 import pushRoutes from './routes/push'; // Web Push (notificações com o app fechado)
+import searchRoutes from './routes/search'; // Busca da vitrine (produtos/lojas) + sugestões
 
 const app = express();
 
@@ -137,6 +138,7 @@ app.use('/api/stores/:storeId/saas-billing', storeSaasBillingRouter);
 app.use('/api/admin/stores', adminSaasBillingRouter);
 app.use('/api/stores', storesRoutes);
 app.use('/api/categories', categoriesRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/chat', chatRoutes); // ✅ CHAT ROUTES
 logger.debug('✅ [APP] Chat routes mounted at /api/chat');
