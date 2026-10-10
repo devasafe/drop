@@ -76,7 +76,14 @@ export function nextOpeningTime(
   if (!hours) return undefined;
   for (let offset = 0; offset <= 7; offset++) {
     const cfg = (hours as any)[DAYS[(dayIndex + offset) % 7]] as { open?: string; close?: string; closed?: boolean } | undefined;
-    if (!cfg || cfg.closed || !cfg.open || !/^\d{2}:\d{2}$/.test(cfg.open)) continue;
+    if (cfg?.closed) continue;
+    // Mesma regra do isOpenAt: dia sem config (ou sem open/close) é "aberta o dia todo",
+    // então abre às 00:00. Hoje (offset 0) já passou de 00:00, logo não serve.
+    if (!cfg || !cfg.open || !cfg.close) {
+      if (offset === 0) continue;
+      return '00:00';
+    }
+    if (!/^\d{2}:\d{2}$/.test(cfg.open)) continue;
     const [h, m] = cfg.open.split(':').map(Number);
     if (offset === 0 && h * 60 + m <= nowMinutes) continue;
     return cfg.open;

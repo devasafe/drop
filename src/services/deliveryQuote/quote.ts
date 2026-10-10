@@ -20,7 +20,7 @@ export interface DeliveryQuote {
   reason?: QuoteReason;
   /** Rota (source 'route') ou linha reta × fator de desvio (source 'estimate'). */
   distanceKm: number | null;
-  /** [min, max] = preparo + deslocamento, arredondado a 5 min; max = min + 10. */
+  /** [min, max] = preparo + deslocamento, arredondado PARA CIMA a 5 min; max = min + 10. */
   etaMinutes: [number, number] | null;
   /** 0 no Plano 1 da custódia; null fora da área/sem endereço. */
   fee: number | null;
@@ -53,7 +53,8 @@ export interface LatLngPoint {
 export type QuoteConfig = DeliveryConfig & { plan1Free?: boolean };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const roundTo5 = (n: number) => Math.round(n / 5) * 5;
+// Para cima: o prazo nunca sai otimista.
+const roundTo5 = (n: number) => Math.ceil(n / 5) * 5;
 
 function validPoint(p: any): p is LatLngPoint {
   if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
@@ -168,7 +169,8 @@ export async function routeQuote(
   point: LatLngPoint | null,
   now: Date = new Date(),
 ): Promise<DeliveryQuote> {
-  const cfg: QuoteConfig = { ...(await getDeliveryConfig()), plan1Free: await resolvePlan1Free(store.id) };
+  const [deliveryCfg, plan1Free] = await Promise.all([getDeliveryConfig(), resolvePlan1Free(store.id)]);
+  const cfg: QuoteConfig = { ...deliveryCfg, plan1Free };
   const est = estimateQuote(store, point, cfg, now);
   // Sem endereço / fora da área / Plano 1 (não roteia, taxa 0): a estimativa já é a resposta.
   if (est.inArea !== true || cfg.plan1Free) return est;

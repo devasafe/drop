@@ -78,12 +78,18 @@ describe('estimateQuote', () => {
   });
 
   it('prazo = preparo + deslocamento arredondado a 5 min; max = min + 10', () => {
-    // 5 km reta -> 6,5 km a 25 km/h = 15,6 min; + 15 de preparo = 30,6 -> 30
-    expect(estimateQuote(store, north(5), cfg, NOW).etaMinutes).toEqual([30, 40]);
-    // preparo da loja 20 + ~0 km -> 20
-    expect(estimateQuote({ ...store, prepMinutes: 20 }, north(0.01), cfg, NOW).etaMinutes).toEqual([20, 30]);
+    // 5 km reta -> 6,5 km a 25 km/h = 15,6 min; + 15 de preparo = 30,6 -> 35 (para cima)
+    expect(estimateQuote(store, north(5), cfg, NOW).etaMinutes).toEqual([35, 45]);
+    // preparo da loja 20 + 0 km -> 20 (já múltiplo de 5)
+    expect(estimateQuote({ ...store, prepMinutes: 20 }, north(0), cfg, NOW).etaMinutes).toEqual([20, 30]);
     // 8 km reta -> 10,4 km = 24,96 min + 15 = 39,96 -> 40
     expect(estimateQuote(store, north(8), cfg, NOW).etaMinutes).toEqual([40, 50]);
+  });
+
+  it('arredonda o prazo para cima: 30,6 -> 35 e 35,1 -> 40', () => {
+    expect(estimateQuote(store, north(5), cfg, NOW).etaMinutes![0]).toBe(35); // 30,6
+    expect(estimateQuote({ ...store, prepMinutes: 19 }, north(0), { ...cfg }, NOW).etaMinutes![0]).toBe(20); // 19 -> 20
+    expect(estimateQuote({ ...store, prepMinutes: 21 }, north(0), { ...cfg }, NOW).etaMinutes![0]).toBe(25); // 21 -> 25
   });
 
   it('Plano 1 na custódia: taxa 0, frete grátis e prazo sem deslocamento', () => {
@@ -105,6 +111,23 @@ describe('estimateQuote', () => {
   it('fechada depois do expediente: opensAt aponta o próximo dia com horário', () => {
     const s = { ...store, operatingHours: { monday: { open: '08:00', close: '10:00' }, tuesday: { open: '09:30', close: '20:00' } } };
     expect(estimateQuote(s, north(2), cfg, NOW)).toMatchObject({ open: false, opensAt: '09:30' });
+  });
+
+  it('dia seguinte sem configuração conta como aberto o dia todo: opensAt 00:00', () => {
+    const s = { ...store, operatingHours: { monday: { open: '08:00', close: '10:00' } } };
+    expect(estimateQuote(s, north(2), cfg, NOW)).toMatchObject({ open: false, opensAt: '00:00' });
+  });
+
+  it('virada de dia: 01:30Z ainda é sexta 22:30 em Brasília (dia da semana e opensAt seguem BRT)', () => {
+    const late = new Date('2026-10-10T01:30:00Z');
+    const s = {
+      ...store,
+      operatingHours: { friday: { open: '23:00', close: '23:59' }, saturday: { open: '09:00', close: '18:00' } },
+    };
+    // Em UTC seria sábado 01:30 e a abertura seria 09:00; em BRT abre hoje (sexta) às 23:00.
+    expect(estimateQuote(s, north(2), cfg, late)).toMatchObject({ open: false, opensAt: '23:00' });
+    // E 23:30 BRT (02:30Z) já está aberta (sexta 23:00-23:59).
+    expect(estimateQuote(s, north(2), cfg, new Date('2026-10-10T02:30:00Z')).open).toBe(true);
   });
 
   it('aberta no horário; toggle manual desligado fecha sem opensAt', () => {
@@ -141,7 +164,7 @@ describe('routeQuote', () => {
     const q = await routeQuote(store, north(5), NOW);
     expect(q).toMatchObject({ inArea: true, reason: 'ROUTE_FAILED', source: 'estimate' });
     expect(q.fee).toBeCloseTo(5 + q.distanceKm!, 2);
-    expect(q.etaMinutes).toEqual([30, 40]);
+    expect(q.etaMinutes).toEqual([35, 45]);
   });
 
   it('fora da área ou sem endereço: não chama a rota', async () => {
