@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { useRouteTheme } from '../routeTheme';
 
-let mockPathname = '/inicio';
+let mockPathname = '/pedidos';
 jest.mock('next/router', () => ({
   useRouter: () => ({ pathname: mockPathname }),
 }));
@@ -13,7 +13,7 @@ function Probe() {
 
 describe('useRouteTheme', () => {
   it('troca o data-theme quando a rota muda (claro no styleguide, escuro de volta)', () => {
-    mockPathname = '/inicio';
+    mockPathname = '/pedidos';
     const { rerender } = render(<Probe />);
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
@@ -21,7 +21,7 @@ describe('useRouteTheme', () => {
     rerender(<Probe />);
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
-    mockPathname = '/inicio';
+    mockPathname = '/pedidos';
     rerender(<Probe />);
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });

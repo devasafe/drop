@@ -1,5 +1,6 @@
 import { Route } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '../ui/Icon';
+import { ProgressBar } from '../ui/ProgressBar';
 import styles from './OrderTracker.module.css';
 
 export interface OrderTrackerStep {
@@ -34,12 +35,7 @@ function deriveStatusLabel(steps: OrderTrackerStep[]): string {
   return done.length > 0 ? done[done.length - 1].label : 'Em andamento';
 }
 
-/**
- * Elemento dominante da home (spec Regra E): pedido em andamento. Replica
- * `.track` do mock canônico — painel `--panel-grad` que quebra a grade,
- * barra lateral roxa via `::before`, barra de progresso em `--brand-grad`
- * (largura = `progress*100%`) e steps com `done` em destaque.
- */
+/** Elemento dominante da Home (spec Regra E): pedido em andamento, flat, com ProgressBar do DS. */
 export function OrderTracker({
   orderId,
   storeName,
@@ -75,7 +71,7 @@ export function OrderTracker({
           aria-hidden="true"
         />
         <div className={styles.meta}>
-          <div className={styles.status}>
+          <div className={styles.status} aria-live="polite">
             <Route size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
             {resolvedLabel}
           </div>
@@ -91,9 +87,7 @@ export function OrderTracker({
         )}
       </div>
 
-      <div className={styles.bar}>
-        <span className={styles.barFill} style={{ width: `${clampedProgress * 100}%` }} />
-      </div>
+      <ProgressBar value={clampedProgress * 100} label={`Progresso do pedido #${orderId}`} valueText={resolvedLabel} />
 
       <div className={styles.steps}>
         {steps.map((step) => (

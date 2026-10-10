@@ -7,7 +7,7 @@ export type Theme = 'light' | 'dark';
  * Rotas já redesenhadas no DS v2 (tema claro). Padrões no formato do router.pathname do Next
  * ("/stores/[id]"). A fase C adiciona cada tela aqui quando ela for migrada; o resto fica escuro.
  */
-export const LIGHT_ROUTES: string[] = ['/_styleguide'];
+export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio'];
 
 export function patternToRegex(pattern: string): RegExp {
   // Escapa cada trecho literal; [slug] vira um segmento, [...slug] vira "o resto".

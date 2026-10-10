@@ -1,267 +1,111 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { Store as StoreIcon } from 'lucide-react';
-
+import { Search, Store as StoreIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useCart } from '../contexts/CartContext';
-import {
-  useAddresses,
-  useProducts,
-  useStores,
-  useTopStores,
-  useFeaturedStores,
-  usePromoBanners,
-} from '../hooks/useSync';
+import { useStores, useFeaturedStores, usePromoBanners } from '../hooks/useSync';
+import { useActiveOrders } from '../hooks/useActiveOrders';
+import { useDeliveryAddress } from '../hooks/useDeliveryAddress';
+import { useAddressPicker } from '../hooks/useAddressPicker';
+import { useStoreQuotes } from '../hooks/useStoreQuotes';
+import { useOffers, useNearbyStores } from '../hooks/useCatalogHome';
+import { useAddToCart } from '../hooks/useAddToCart';
 import { imageUrl } from '../lib/config';
-
-import { AddressBar } from '../components/drop/AddressBar';
-import { SearchField } from '../components/ui/SearchField';
-import { StoreCard } from '../components/drop/StoreCard';
 import { mapStore } from '../lib/mapStore';
-import { mapProductCard } from '../lib/searchCatalog';
-import { rankStores, take } from '../lib/catalogRanking';
-import { parseCoords } from '../lib/geo';
+import { productCardData } from '../lib/catalogCards';
+import { deliveryStates } from '../lib/deliveryView';
+import { ROUTES, buscarHref, lojaHref, produtoHref, pedidoHref } from '../lib/routes';
+import { DeliveryAddressControl } from '../components/drop/DeliveryAddressControl';
+import { DeliveryBadge } from '../components/drop/DeliveryBadge';
+import { ActiveOrdersSection } from '../components/drop/ActiveOrdersSection';
 import { Banner } from '../components/drop/Banner';
 import { ProductCard } from '../components/drop/ProductCard';
+import { StoreCard } from '../components/drop/StoreCard';
 import { RepeatRow } from '../components/drop/RepeatRow';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { useActiveOrders } from '../hooks/useActiveOrders';
-import { ActiveOrdersSection } from '../components/drop/ActiveOrdersSection';
-
 import styles from './Inicio.module.css';
-import { lojaHref, produtoHref, pedidoHref, buscarHref, contaHref } from '../lib/routes';
 
 export default function Inicio() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { add } = useCart();
-
-  const { addresses, loading: addressesLoading } = useAddresses();
+  const { user } = useAuth() || ({} as any);
+  const addToCart = useAddToCart();
+  const address = useDeliveryAddress();
+  const picker = useAddressPicker();
   const { orders, activeOrders } = useActiveOrders();
-  const { stores, loading: storesLoading } = useStores();
-  const { stores: topStores } = useTopStores();
-  const { stores: featuredStores, loading: featuredLoading } = useFeaturedStores();
-  const { banners: promoBanners } = usePromoBanners();
-  const { products, loading: productsLoading } = useProducts();
+  const { banners } = usePromoBanners();
+  const { stores: featured } = useFeaturedStores();
+  const { stores: allStores, loading: storesLoading } = useStores();
+  const nearby = useNearbyStores(address.point);
+  const offers = useOffers(address.point);
+  const offerStoreIds = useMemo(() => offers.products.map((p: any) => p.storeId).filter(Boolean), [offers.products]);
+  const { quotes } = useStoreQuotes(offerStoreIds, address.point);
 
-  const [query, setQuery] = useState('');
-
-  const storeById = useMemo(() => {
-    const map = new Map<string, any>();
-    stores.forEach((s: any) => map.set(s._id, s));
-    return map;
-  }, [stores]);
-
-  const defaultAddress = useMemo(
-    () => addresses.find((a: any) => a.isDefault) || addresses[0],
-    [addresses]
-  );
-
-  const userCoords = useMemo(
-    () => (defaultAddress ? parseCoords(defaultAddress.latitude, defaultAddress.longitude) : null),
-    [defaultAddress]
-  );
-
-  // Banners do carrossel: lojas premium (Plano 3) com featuredBannerUrl.
-  const featuredItems = useMemo(
-    () => featuredStores.map((s: any) => ({ id: s._id, store: mapStore(s) })),
-    [featuredStores]
-  );
-
-  // Adaptadores para o Banner único: lojas premium e avisos da DROP.
-  const featuredBanner = useMemo(
-    () => featuredItems.map((it: any) => ({
-      id: it.id,
-      title: it.store.name,
-      subtitle: it.store.category,
-      imageUrl: it.store.imageUrl,
-      href: lojaHref(it.id),
-    })),
-    [featuredItems]
-  );
-  const promoBannerItems = useMemo(
-    () => promoBanners.map((b: any) => ({
-      id: b._id,
-      title: b.title || '',
-      imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined,
-      href: b.linkUrl || undefined,
-      hideCaption: true,
-    })),
-    [promoBanners]
-  );
-
-  // Um único Banner por tela: avisos da DROP primeiro, depois lojas premium.
-  const bannerItems = useMemo(
-    () => [...promoBannerItems, ...featuredBanner],
-    [promoBannerItems, featuredBanner]
-  );
-
-  // Lojas perto de você: SÓ lojas premium (Plano 3), mais vendidas + raio 20km.
-  // Preenche em camadas (mais vendidas perto → catálogo perto → sem raio) e
-  // nunca mostra loja não-premium.
-  const rankedStores = useMemo(
-    () => take([
-      rankStores(topStores, userCoords, { premiumOnly: true }),
-      rankStores(stores, userCoords, { premiumOnly: true }),
-      rankStores(topStores, null, { premiumOnly: true }),
-      rankStores(stores, null, { premiumOnly: true }),
-    ], 5),
-    [topStores, stores, userCoords]
-  );
-
-  const offerProducts = useMemo(() => products.slice(0, 8), [products]);
+  // Um Banner por tela (spec §4 regra 12): avisos da DROP primeiro, depois lojas em destaque.
+  const bannerItems = useMemo(() => [
+    ...banners.map((b: any) => ({ id: b._id, title: b.title || '', imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined, href: b.linkUrl || undefined, hideCaption: true })),
+    ...featured.map((s: any) => ({ id: s._id, title: s.name, subtitle: s.neighborhood, imageUrl: imageUrl(s.featuredBannerUrl, { w: 1600 }) || undefined, href: lojaHref(s._id) })),
+  ], [banners, featured]);
 
   const repeatItems = useMemo(() => {
     if (!user) return [];
     const seen = new Set<string>();
-    const items: Array<{ key: string; productId: string; storeId?: string; name: string; store?: string; imageUrl?: string; price: number }> = [];
-    for (const order of orders) {
-      for (const item of order.products || []) {
-        if (!item.productId || seen.has(item.productId)) continue;
-        seen.add(item.productId);
-        items.push({
-          key: item.productId,
-          productId: item.productId,
-          storeId: order.storeId,
-          name: item.productName || 'Produto',
-          store: order.storeName,
-          imageUrl: imageUrl(item.image) || undefined,
-          price: item.price,
-        });
-        if (items.length >= 6) break;
-      }
-      if (items.length >= 6) break;
+    const out: any[] = [];
+    for (const o of orders) for (const it of o.products || []) {
+      if (!it.productId || seen.has(it.productId) || out.length >= 4) continue;
+      seen.add(it.productId);
+      out.push({ productId: it.productId, storeId: o.storeId, storeName: o.storeName, name: it.productName || 'Produto', image: it.image, price: Number(it.price) || 0 });
     }
-    return items;
+    return out;
   }, [orders, user]);
 
-  const addToCart = (p: { productId: string; name: string; price: number; storeId?: string }) => {
-    add({ productId: p.productId, quantity: 1, name: p.name, price: p.price, storeId: p.storeId });
-  };
-
-  const handleSearch = () => {
-    const q = query.trim();
-    router.push(buscarHref(q ? { q } : { focus: true }));
-  };
+  const storeList = address.point ? nearby.stores : allStores.slice(0, 8);
+  const noAddress = deliveryStates({ hasPoint: !!address.point, address: address.label, onSetAddress: picker.request, onChangeAddress: picker.request });
 
   return (
     <div className={styles.page}>
-      <div className={styles.top}>
-        {!user ? (
-          <AddressBar
-            label="Entrar para"
-            address="escolher endereço"
-            onClick={() => router.push('/login')}
-          />
-        ) : addressesLoading ? (
-          <div className={styles.addressSkeleton}>
-            <Skeleton width={200} height={15} />
-          </div>
-        ) : defaultAddress ? (
-          <AddressBar
-            label={defaultAddress.label || 'Entregar em'}
-            address={`${defaultAddress.street}, ${defaultAddress.number}`}
-            onClick={() => router.push(contaHref('enderecos'))}
-          />
-        ) : (
-          <AddressBar
-            label="Adicionar"
-            address="endereço de entrega"
-            onClick={() => router.push(contaHref('enderecos'))}
-          />
-        )}
-
-        <div className={styles.searchRow}>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder="Buscar produtos ou lojas…"
-            onFilter={handleSearch}
-          />
-        </div>
-      </div>
+      <header className={styles.top}>
+        <DeliveryAddressControl address={address} picker={picker} />
+        <button type="button" className={styles.searchButton} onClick={() => router.push(buscarHref({ focus: true }))}>
+          <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span>Buscar produtos e lojas</span>
+        </button>
+      </header>
 
       {user && activeOrders.length > 0 && (
-        <div className={styles.section}>
+        <section className={styles.section} aria-label="Pedido em andamento">
           <ActiveOrdersSection orders={activeOrders} onOpen={(id) => router.push(pedidoHref(id))} />
-        </div>
+        </section>
       )}
 
-      {bannerItems.length > 0 && (
-        <div className={styles.section}>
-          <Banner items={bannerItems} />
-        </div>
-      )}
+      {bannerItems.length > 0 && <div className={styles.section}><Banner items={bannerItems} /></div>}
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Lojas perto de você</h2>
-          <button type="button" className={styles.sectionLink} onClick={() => router.push('/stores')}>
-            Ver mais
-          </button>
-        </div>
-
-        {storesLoading || featuredLoading ? (
-          <div className={styles.storesSkeleton}>
-            <Skeleton height={130} radius={20} />
-            <Skeleton height={58} radius={14} />
-            <Skeleton height={58} radius={14} />
-          </div>
-        ) : featuredItems.length === 0 && rankedStores.length === 0 ? (
-          <EmptyState
-            icon={<StoreIcon />}
-            title="Nenhuma loja por perto"
-            description="Ainda não há lojas cadastradas na plataforma."
-          />
-        ) : (
-          <>
-            {rankedStores.length > 0 && (
-              <div className={styles.storeRows}>
-                {rankedStores.map((s: any) => (
-                  <StoreCard
-                    key={s._id}
-                    variant="resultado"
-                    store={mapStore(s)}
-                    onClick={() => router.push(lojaHref(s._id))}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      {(productsLoading || offerProducts.length > 0) && (
+      {repeatItems.length > 0 && (
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Ofertas</h2>
-            <button type="button" className={styles.sectionLink} onClick={() => router.push('/produtos')}>
-              Ver todas
-            </button>
+            <h2 className={styles.sectionTitle}>Pra você repetir</h2>
+            <button type="button" className={styles.sectionLink} onClick={() => router.push(ROUTES.pedidos)}>Ver pedidos</button>
           </div>
+          {repeatItems.map((r) => (
+            <RepeatRow key={r.productId} product={{ name: r.name, store: r.storeName, imageUrl: imageUrl(r.image) || undefined, price: r.price }}
+              onAdd={() => addToCart({ productId: r.productId, quantity: 1, name: r.name, price: r.price, storeId: r.storeId, storeName: r.storeName, image: r.image })} />
+          ))}
+        </section>
+      )}
 
-          {productsLoading ? (
-            <div className={styles.offersRow}>
-              <Skeleton width={150} height={130} radius={14} />
-              <Skeleton width={150} height={130} radius={14} />
-            </div>
+      {(offers.loading || offers.products.length > 0) && (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Ofertas que chegam rápido</h2>
+            <button type="button" className={styles.sectionLink} onClick={() => router.push(buscarHref({ tab: 'produtos' }))}>Ver todas</button>
+          </div>
+          {offers.loading ? (
+            <div className={styles.row}><Skeleton width={156} height={220} radius="var(--radius-lg)" /><Skeleton width={156} height={220} radius="var(--radius-lg)" /></div>
           ) : (
-            <div className={styles.offersRow}>
-              {offerProducts.map((p: any) => (
-                <div
-                  key={p._id}
-                  className={styles.offerItem}
-                  onClick={() => router.push(produtoHref(p._id))}
-                >
-                  <ProductCard
-                    variant="home"
-                    product={mapProductCard(p, storeById.get(p.storeId)?.name)}
-                    onAdd={(e?: any) => {
-                      e?.stopPropagation?.();
-                      addToCart({ productId: p._id, name: p.name, price: Number(p.price), storeId: p.storeId });
-                    }}
-                  />
+            <div className={styles.row}>
+              {offers.products.map((p: any) => (
+                <div key={p._id} className={styles.tile} onClick={() => router.push(produtoHref(p._id))}>
+                  <ProductCard variant="home" product={productCardData(p, quotes[p.storeId])}
+                    onAdd={() => addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId, storeName: p.storeName, image: p.image })} />
                 </div>
               ))}
             </div>
@@ -269,23 +113,26 @@ export default function Inicio() {
         </section>
       )}
 
-      {user && repeatItems.length > 0 && (
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Pra você repetir</h2>
-          </div>
-          <div className={styles.repeatList}>
-            {repeatItems.map((r) => (
-              <RepeatRow
-                key={r.key}
-                product={{ name: r.name, store: r.store, imageUrl: r.imageUrl, price: r.price }}
-                onAdd={() => addToCart({ productId: r.productId, name: r.name, price: r.price, storeId: r.storeId })}
-              />
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Lojas perto de você</h2>
+          <button type="button" className={styles.sectionLink} aria-label="Ver todas as lojas" onClick={() => router.push(buscarHref({ tab: 'lojas' }))}>Ver todas</button>
+        </div>
+        {!address.point && noAddress.map((s, i) => <DeliveryBadge key={i} state={s} />)}
+        {(address.point ? nearby.loading : storesLoading) ? (
+          <div className={styles.list}><Skeleton height={64} /><Skeleton height={64} /><Skeleton height={64} /></div>
+        ) : address.point && nearby.failed ? (
+          <EmptyState variant="error" icon={<StoreIcon />} title="Não carregamos as lojas" description="Confira sua conexão." onRetry={nearby.retry} />
+        ) : storeList.length === 0 ? (
+          <EmptyState icon={<StoreIcon />} title="Nenhuma loja entrega aqui ainda" description="Tente outro endereço." />
+        ) : (
+          <div className={styles.list}>
+            {storeList.map((s: any) => (
+              <StoreCard key={s._id} variant="resultado" store={mapStore(s, s.quote)} onClick={() => router.push(lojaHref(s._id))} />
             ))}
           </div>
-        </section>
-      )}
-
+        )}
+      </section>
     </div>
   );
 }
