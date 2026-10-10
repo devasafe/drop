@@ -12,6 +12,7 @@ import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
 import { isValidCPF } from '../lib/cpf';
 import { useSaasConfig } from './useSaasConfig';
+import { pedidoHref } from '../lib/routes';
 
 const DRAFT_KEY = 'checkout_draft';
 const QUOTE_FAILED_MSG = 'Não conseguimos calcular a entrega agora.';
@@ -71,7 +72,13 @@ interface UserProfileResponse {
   cpfStatus?: 'valid' | 'missing' | 'invalid';
 }
 
-export function useCheckout() {
+export interface UseCheckoutOptions {
+  /** Padrão true (legado): Plano 1 da custódia → /checkout-vitrine. A Sacola passa false. */
+  redirectPlan1?: boolean;
+}
+
+export function useCheckout(opts: UseCheckoutOptions = {}) {
+  const { redirectPlan1 = true } = opts;
   const router = useRouter();
   const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
@@ -109,6 +116,9 @@ export function useCheckout() {
   const distanceKm = quote?.distanceKm ?? 0;
   const etaMinutes = quote?.etaMinutes ?? null;
   const outOfArea = !isPlan1 && quote?.inArea === false;
+  // Aberta/fechada: a cotação traz `open`; no Plano 1 (sem cotação) vale Store.isOpen. Fechada → o servidor recusa.
+  const storeOpen = isPlan1 || !quote ? (store as { isOpen?: boolean } | undefined)?.isOpen !== false : quote.open !== false;
+  const opensAt = !isPlan1 && quote?.open === false ? quote.opensAt ?? null : null;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [walletBalance, setWalletBalance] = useState(0);
@@ -149,8 +159,8 @@ export function useCheckout() {
   // Guard: loja Plano 1 usa checkout-vitrine dedicado (sem motoboy). Espera o modo de
   // liquidação carregar: no modo direto não há plano 1 e o redirect não pode acontecer.
   useEffect(() => {
-    if (isPlan1 && !saasLoading) router.replace('/checkout-vitrine');
-  }, [isPlan1, saasLoading, router]);
+    if (redirectPlan1 && isPlan1 && !saasLoading) router.replace('/checkout-vitrine');
+  }, [redirectPlan1, isPlan1, saasLoading, router]);
 
   // Restaura rascunho (endereço em edição + método de pagamento) salvo em
   // localStorage — uma única vez ao montar. `hydrated` só vira true depois
@@ -303,7 +313,7 @@ export function useCheckout() {
         setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
         setPixData({ ...pix, orderId: order._id });
       } else {
-        router.push(`/store-order/${order._id}`);
+        router.push(pedidoHref(order._id));
       }
       return { ok: true };
     } catch (err) {
@@ -321,7 +331,7 @@ export function useCheckout() {
   };
 
   const closePix = () => {
-    if (pixData) router.push(`/store-order/${pixData.orderId}`);
+    if (pixData) router.push(pedidoHref(pixData.orderId));
   };
 
   return {
@@ -331,5 +341,7 @@ export function useCheckout() {
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf, cpfValid,
+    store: store ? { _id: store._id, name: (store as { name?: string }).name, plan: store.plan } : null,
+    storeOpen, opensAt, quoteLoading,
   };
 }

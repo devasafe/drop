@@ -1,0 +1,254 @@
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { ShoppingBag, XCircle, MapPin } from 'lucide-react';
+import ProtectedRoute from '../components/ProtectedRoute';
+import { useCheckout } from '../hooks/useCheckout';
+import { useSaasConfig } from '../hooks/useSaasConfig';
+import { useCart } from '../contexts/CartContext';
+import { useToast } from '../components/ui/Toast';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { Alert } from '../components/ui/Alert';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { CartItem } from '../components/drop/CartItem';
+import { OrderSummary, type SummaryLine } from '../components/drop/OrderSummary';
+import { DeliveryBadge } from '../components/drop/DeliveryBadge';
+import { AddressPickerSheet } from '../components/drop/AddressPickerSheet';
+import { AddressSheet } from '../components/drop/checkout/AddressSheet';
+import { PaymentSelector } from '../components/drop/checkout/PaymentSelector';
+import { CardForm } from '../components/drop/checkout/CardForm';
+import { WalletToggle } from '../components/drop/checkout/WalletToggle';
+import { CouponField } from '../components/drop/checkout/CouponField';
+import { CheckoutBar } from '../components/drop/checkout/CheckoutBar';
+import { PixPaymentSheet } from '../components/drop/checkout/PixPaymentSheet';
+import { readDeliveryAddressId, saveDeliveryAddressId, addressId, shortAddress } from '../hooks/useDeliveryAddress';
+import { formatMoney } from '../lib/money';
+import { maskCPF, onlyDigits } from '../lib/masks';
+import { isValidCPF } from '../lib/cpf';
+import { imageUrl } from '../lib/config';
+import { installmentOptions } from '../lib/cardInstallments';
+import { ROUTES, lojaHref, pedidoHref } from '../lib/routes';
+import styles from './Sacola.module.css';
+
+export default function SacolaPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const cart = useCart() || ({} as any);
+  const c = useCheckout({ redirectPlan1: false });
+  const { settlementMode, directCardEnabled } = useSaasConfig();
+  const direct = settlementMode === 'direto';
+  const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  // A barra de pagar é fixa na viewport no mobile; o PageTransition quebra position:fixed,
+  // então no mobile ela vai por portal ao body (só depois da hidratação). No desktop fica inline.
+  const [barMode, setBarMode] = useState<'ssr' | 'mobile' | 'desktop'>('ssr');
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') { setBarMode('mobile'); return; }
+    const mq = window.matchMedia('(min-width: 900px)');
+    const update = () => setBarMode(mq.matches ? 'desktop' : 'mobile');
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
+  // Rascunho antigo pode ter método que não existe no modo direto: volta para o Pix (igual ao /checkout).
+  useEffect(() => {
+    if (direct && !directMethods.includes(c.paymentMethod as any)) c.setPaymentMethod('pix');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direct, directCardEnabled, c.paymentMethod]);
+
+  // O endereço escolhido no app (Home/Buscar) vale aqui também.
+  useEffect(() => {
+    const id = readDeliveryAddressId();
+    if (!id || c.address.loading) return;
+    const idx = (c.address.addresses || []).findIndex((a: any) => addressId(a) === id);
+    if (idx >= 0 && addressId(c.address.selected || {}) !== id) c.address.selectAddress(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.address.loading, (c.address.addresses || []).length]);
+
+  const items = (c.items || []) as any[];
+  const count = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+  const storeName = c.store?.name || 'Loja';
+  const walletUse = c.useWallet && c.paymentMethod === 'pix' ? Math.min(c.walletBalance || 0, c.total) : 0;
+  const toPay = Math.max(0, Math.round((c.total - walletUse) * 100) / 100);
+  const cardInvalid = c.paymentMethod === 'credit_card' && !c.cardPayload?.valid;
+  const cpfBad = c.cpfRequired && !isValidCPF(c.cpf);
+  // P11: sem endereço não se paga, nem no Plano 1 (o hook libera o Plano 1 sem cotação;
+  // nos demais planos a cotação já exige o endereço).
+  const canPlace = c.canPlace && (!c.isPlan1 || !!c.address.selected);
+
+  const hint = !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
+    : c.storeOpen === false ? 'A loja está fechada agora'
+    : c.outOfArea ? 'Esta loja não entrega nesse endereço'
+    : !canPlace ? (c.quoteError ?? 'Calculando entrega…')
+    : c.isWalletInsufficient ? 'Saldo insuficiente'
+    : cardInvalid ? 'Preencha os dados do cartão'
+    : cpfBad ? (onlyDigits(c.cpf).length === 11 ? 'CPF inválido' : 'Informe seu CPF')
+    : undefined;
+
+  const payLabel = c.paymentMethod === 'credit_card' ? `Pagar ${formatMoney(c.total)} no cartão`
+    : c.paymentMethod === 'wallet' ? `Pagar ${formatMoney(c.total)} com saldo`
+    : toPay === 0 && walletUse > 0 ? 'Pagar com o saldo da carteira'
+    : `Pagar ${formatMoney(toPay)} com Pix`;
+
+  const lines: SummaryLine[] = [
+    { label: `Subtotal (${count} ${count === 1 ? 'item' : 'itens'})`, value: c.subtotal },
+    c.isPlan1
+      ? { label: 'Entrega pela loja', value: 0, freeLabel: 'Grátis' }
+      : { label: c.distanceKm > 0 ? `Entrega · ${String(c.distanceKm).replace('.', ',')} km` : 'Entrega', value: c.deliveryFee, freeLabel: 'Grátis' },
+    ...(c.discount > 0 ? [{ label: `Cupom ${c.coupon.code.toUpperCase()}`, value: -c.discount, tone: 'credit' as const }] : []),
+    ...(walletUse > 0 ? [{ label: 'Saldo da carteira', value: -walletUse, tone: 'credit' as const }] : []),
+  ];
+
+  const changeQty = (item: any) => (q: number) => {
+    if (q > 0) { c.updateQuantity(item.productId, q); return; }
+    c.removeItem(item.productId);
+    showToast('Item removido', 'info', { action: { label: 'Desfazer', onClick: () => cart.add?.({ ...item, quantity: item.quantity }) } });
+  };
+
+  const pay = async () => {
+    const r = await c.placeOrder();
+    if (!r.ok && r.error) showToast(r.error, 'error');
+  };
+
+  const payBar = (inline: boolean) => (
+    <CheckoutBar total={toPay} showTotal={false} label={payLabel} note="Ao pagar, você concorda com os termos de uso." inline={inline}
+      disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay} />
+  );
+
+  return (
+    <ProtectedRoute required_role="cliente">
+      {c.blocked ? (
+        <EmptyState icon={<XCircle />} title="Compras bloqueadas" description="Sua conta não está no modo Cliente. Troque o modo no menu da conta para comprar." />
+      ) : c.address.loading ? (
+        <div className={styles.page}><Skeleton height={120} /><Skeleton height={160} /><Skeleton height={140} /></div>
+      ) : items.length === 0 ? (
+        <div className={styles.empty}>
+          <EmptyState icon={<ShoppingBag />} title="Sua sacola está vazia" description="Adicione produtos de uma loja para pedir."
+            action={<Button onClick={() => router.push(ROUTES.inicio)}>Explorar lojas</Button>} />
+        </div>
+      ) : (
+        <main className={styles.page}>
+          <h1 className={styles.pageTitle}>Sacola</h1>
+          <div className={styles.cols}>
+          <div className={styles.mainCol}>
+
+          <section className={styles.block} aria-labelledby="sacola-loja">
+            <div className={styles.blockHeader}>
+              <h2 id="sacola-loja" className={styles.blockTitle}>{storeName}</h2>
+              {c.store?._id && <Link href={lojaHref(c.store._id)} className={styles.link}>Adicionar mais</Link>}
+            </div>
+            <div aria-live="polite">
+              {items.map((i) => (
+                <CartItem key={i.productId} item={{ name: i.name || 'Produto', price: Number(i.price) || 0, quantity: i.quantity, imageUrl: imageUrl(i.image) || null }} onQuantityChange={changeQty(i)} />
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.block} aria-labelledby="sacola-entrega">
+            <div className={styles.blockHeader}>
+              <h2 id="sacola-entrega" className={styles.blockTitle}>Entrega</h2>
+              {c.address.selected && <button type="button" className={styles.link} onClick={() => setPickerOpen(true)}>Trocar</button>}
+            </div>
+            {c.isPlan1 && (
+              <Alert tone="info" title="A loja mesma entrega">Lojas vitrine não usam motoboy da DROP. Depois de pagar, você combina dia e hora com a loja pelo chat. Sem taxa de entrega.</Alert>
+            )}
+            {c.address.selected ? (
+              <p className={styles.address}><MapPin size={18} aria-hidden="true" /> {[shortAddress(c.address.selected), c.address.selected.complement].filter(Boolean).join(' · ')}</p>
+            ) : (
+              <Button variant="secondary" onClick={() => setPickerOpen(true)}>Adicionar endereço</Button>
+            )}
+            {!c.isPlan1 && c.address.selected && !c.outOfArea && c.storeOpen !== false && (
+              c.quoteLoading ? <DeliveryBadge state={{ kind: 'loading' }} />
+                : c.etaMinutes ? <DeliveryBadge state={{ kind: 'fast', minutes: c.etaMinutes[1] }} /> : null
+            )}
+            {c.outOfArea && (
+              <Alert tone="error" title={`${storeName} não entrega neste endereço`} action={{ label: 'Trocar endereço', onClick: () => setPickerOpen(true) }}>
+                Escolha outro endereço ou outra loja perto de você.
+              </Alert>
+            )}
+            {c.quoteError && (
+              <Alert tone="warning" title={c.quoteError} action={{ label: 'Tentar de novo', onClick: c.retryQuote }}>
+                Seu pedido não foi enviado.
+              </Alert>
+            )}
+            {c.storeOpen === false && (
+              <Alert tone="warning" title="Loja fechada agora">{c.opensAt ? `Abre às ${c.opensAt}. ` : ''}Sua sacola fica guardada até lá.</Alert>
+            )}
+          </section>
+
+          <section className={styles.block} aria-labelledby="sacola-pagamento">
+            <h2 id="sacola-pagamento" className={styles.blockTitle}>Pagamento</h2>
+            <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod}
+              methods={direct ? directMethods : (c.walletBalance >= c.total && c.total > 0 ? ['pix', 'credit_card', 'wallet'] : ['pix', 'credit_card'])} />
+            {direct && !directCardEnabled && <p className={styles.muted}>Cartão: esta loja ainda não aceita cartão.</p>}
+            {c.paymentMethod === 'credit_card' && (
+              <div className={styles.card}>
+                <CardForm onChange={c.setCardPayload} holderDefaults={c.cardHolderDefaults} />
+                {c.config && (
+                  <Select value={String(c.installmentCount)} onChange={(v) => c.setInstallmentCount(Number(v))}
+                    options={installmentOptions(c.total, {
+                      cardFeePercent: c.config.cardFeePercent ?? 2.99, cardFeeFixed: c.config.cardFeeFixed ?? 0.49,
+                      cardAnticipationMonthlyRate: c.config.cardAnticipationMonthlyRate ?? 1.99,
+                      cardInstallmentMaxCount: c.config.cardInstallmentMaxCount ?? 12, cardInstallmentMinValue: c.config.cardInstallmentMinValue ?? 5,
+                    }).map((o) => ({ value: String(o.count), label: o.count === 1 ? `À vista · ${formatMoney(o.total)}` : `${o.count}x de ${formatMoney(o.installmentValue)} · total ${formatMoney(o.total)}` }))} />
+                )}
+              </div>
+            )}
+            {!direct && (
+              <WalletToggle balance={c.walletBalance} enabled={c.paymentMethod === 'pix'} checked={c.useWallet} onChange={c.setUseWallet} pendingDebt={c.pendingDebt ?? undefined} />
+            )}
+            {c.cpfRequired && (
+              <Input id="sacola-cpf" label="CPF para o Pix" hint="O Pix exige o CPF de quem paga. Pedimos só uma vez."
+                value={c.cpf} onChange={(v) => c.setCpf(maskCPF(v))} placeholder="000.000.000-00" inputMode="numeric" autoComplete="off" />
+            )}
+            <CouponField code={c.coupon.code} onCodeChange={c.coupon.setCode} onApply={c.coupon.apply} onRemove={c.coupon.remove}
+              message={c.coupon.message} validating={c.coupon.validating} applied={c.coupon.discount > 0} />
+          </section>
+
+          </div>
+
+          <aside className={styles.asideCol}>
+            <section className={styles.block} aria-label="Resumo">
+              <OrderSummary lines={lines} total={toPay} />
+            </section>
+            {barMode === 'desktop' && payBar(true)}
+          </aside>
+          </div>
+          {barMode === 'mobile' && createPortal(payBar(false), document.body)}
+        </main>
+      )}
+
+      <AddressPickerSheet open={pickerOpen} onClose={() => setPickerOpen(false)}
+        addresses={c.address.addresses || []} selectedId={c.address.selected ? addressId(c.address.selected) : null}
+        storeId={c.isPlan1 ? null : c.store?._id} storeName={storeName}
+        onPick={(a) => {
+          const idx = (c.address.addresses || []).findIndex((x: any) => addressId(x) === addressId(a));
+          if (idx >= 0) c.address.selectAddress(idx);
+          saveDeliveryAddressId(addressId(a));
+          setPickerOpen(false);
+        }}
+        onAddNew={() => { setPickerOpen(false); setFormOpen(true); }} />
+      <AddressSheet open={formOpen} onClose={() => setFormOpen(false)} fields={c.address.fields} onField={c.address.setField}
+        onCepBlur={() => c.address.lookupCep(c.address.fields.cep)}
+        onSave={async () => {
+          try {
+            const saved = await c.address.saveAddress(c.address.fields);
+            if (saved) saveDeliveryAddressId(addressId(saved as any));
+            setFormOpen(false);
+          } catch { showToast('Não conseguimos salvar o endereço. Confira o CEP e o número e tente de novo.', 'error'); }
+        }} />
+
+      {/* Fora dos ramos de estado: o pedido limpa a sacola ANTES do pixData chegar (teste movido). */}
+      {c.pixData && (
+        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName}
+          onPaid={(id) => router.push(pedidoHref(id))} onClose={c.closePix} />
+      )}
+    </ProtectedRoute>
+  );
+}

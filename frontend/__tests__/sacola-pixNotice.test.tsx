@@ -14,7 +14,7 @@ jest.mock('../lib/api', () => ({
   default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(() => new Promise(() => {})), post: jest.fn() },
 }));
 
-import CheckoutPage from '../pages/checkout';
+import CheckoutPage from '../pages/sacola';
 import { useCheckout } from '../hooks/useCheckout';
 
 const mockedUseCheckout = useCheckout as jest.MockedFunction<typeof useCheckout>;

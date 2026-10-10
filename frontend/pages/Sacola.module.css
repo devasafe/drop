@@ -1,0 +1,111 @@
+/* Sacola (/sacola) — carrinho + checkout numa tela. Só tokens semânticos. */
+
+.page {
+  max-width: 720px;
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) 180px;
+  background: var(--color-bg-primary);
+}
+
+.pageTitle {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+
+.cols {
+  display: block;
+}
+
+.mainCol,
+.asideCol {
+  min-width: 0;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.blockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.blockTitle {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: var(--text-label);
+  color: var(--color-text-link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.address {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-primary);
+}
+
+.address svg {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.muted {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.empty {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4);
+}
+
+/* Desktop: itens + entrega + pagamento | resumo sticky (com o botão de pagar no fim). */
+@media (min-width: 900px) {
+  .page {
+    max-width: 1040px;
+    padding-bottom: var(--space-10);
+  }
+
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 0 var(--space-6);
+    align-items: start;
+  }
+
+  .asideCol {
+    position: sticky;
+    top: var(--space-4);
+  }
+}

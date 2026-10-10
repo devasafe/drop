@@ -1,30 +1,32 @@
-/* CheckoutBar — barra fixa do rodapé do checkout. Mesmo padrão de
- * `StickyCart` (fundo --surface + --shadow-float flutuando sobre o
- * conteúdo), mas em superfície neutra: o roxo cheio fica reservado ao
- * `Button` primary, não à barra inteira. z-index acima do conteúdo da
- * página e do dock global (TabBar não renderiza em /checkout) e abaixo
- * dos `Sheet`/`Toast` (1000+).
- */
+/* CheckoutBar — barra de confirmação. Fixa no rodapé (mobile) ou inline (desktop da Sacola).
+ * z-index acima do conteúdo e abaixo dos Sheet/Toast. */
 
 .bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 40;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  box-shadow: var(--shadow-float);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--color-surface-elevated);
+  box-shadow: var(--elevation-2);
+}
+
+.inline {
+  position: static;
+  z-index: auto;
+  padding: var(--space-3) 0 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .hint {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
+  font: var(--text-meta);
+  color: var(--color-warning-text);
 }
 
 .row {
@@ -34,21 +36,24 @@
   gap: var(--space-3);
 }
 
-.total {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--fs-h3);
-  color: var(--text-strong);
+.cta {
+  flex: 1;
+  display: flex;
 }
 
-/* Desktop: o fundo da barra segue de ponta a ponta (rodapé), mas o conteúdo
-   (total + Confirmar) acompanha a mesma coluna de 1040px do checkout — não
-   fica esticado nas pontas do monitor. */
-@media (min-width: 900px) {
-  .hint,
-  .row {
-    width: 100%;
-    max-width: 1040px;
-    margin-inline: auto;
-  }
+.cta > button {
+  flex: 1;
+}
+
+.note {
+  margin: 0;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.total {
+  font: var(--text-price);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
 }

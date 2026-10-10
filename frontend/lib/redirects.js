@@ -24,4 +24,8 @@ module.exports = [
 
   // Task 12 — produto
   { source: '/product/:id', destination: '/produto/:id', permanent: true },
+
+  // Task 13 — Sacola (carrinho + checkout numa tela; Plano 1 usa a mesma)
+  { source: '/checkout', destination: '/sacola', permanent: true },
+  { source: '/checkout-vitrine', destination: '/sacola', permanent: true },
 ];

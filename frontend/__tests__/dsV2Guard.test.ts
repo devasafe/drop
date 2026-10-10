@@ -6,13 +6,7 @@ import { cssViolations } from './helpers/dsTokens';
 // hex, token antigo (incl. --fs-*) ou gradient/glow. ALLOW lista o que a fase C redesenha.
 const ROOT = path.join(__dirname, '..');
 const ALLOW = new Set<string>([
-  'components/drop/checkout/AddressSelector.module.css', // fase C: checkout
-  'components/drop/checkout/CheckoutBar.module.css', // fase C: checkout
-  'components/drop/checkout/CheckoutItems.module.css', // fase C: checkout
-  'components/drop/checkout/CouponField.module.css', // fase C: checkout
-  'components/drop/checkout/OrderSummary.module.css', // fase C: checkout
   'components/drop/checkout/PixPaymentSheet.module.css', // fase C: checkout
-  'components/drop/checkout/WalletToggle.module.css', // fase C: checkout
   'components/drop/order/CancellationStatus.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/CancelOrderSheet.module.css', // fase C: página do pedido (store-order)
   'components/drop/order/DeliveryPin.module.css', // fase C: página do pedido (store-order)
@@ -26,7 +20,7 @@ const ALLOW = new Set<string>([
 ]);
 
 // CSS de página do cliente já redesenhada (fase C). Cada task de tela acrescenta o seu.
-const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css', 'pages/produto/Produto.module.css'];
+const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css', 'pages/produto/Produto.module.css', 'pages/Sacola.module.css'];
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

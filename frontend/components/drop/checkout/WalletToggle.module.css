@@ -1,7 +1,6 @@
-/* WalletToggle — alterna uso do saldo da carteira no checkout. Switch custom
- * (não existe primitivo `Switch` no DS ainda): trilho neutro/roxo sólido no
- * `on`, mesmo padrão de hierarquia de cor do `Chip` (roxo só quando ativo).
- * Aviso de dívida pendente usa --danger, como `Toast` tone="error".
+/* WalletToggle — alterna uso do saldo da carteira. Switch custom (não existe
+ * primitivo `Switch` no DS): trilho neutro / cor de ação sólida no `on`.
+ * Aviso de dívida pendente usa o tom de erro.
  */
 
 .wrapper {
@@ -21,15 +20,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--text);
+  font: var(--text-body);
+  color: var(--color-text-primary);
 }
 
 .balance {
   display: block;
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
 }
 
 .switch {
@@ -39,14 +37,14 @@
   height: 24px;
   padding: 3px;
   border: none;
-  border-radius: var(--r-pill);
-  background: var(--surface-chip);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease);
+  transition: background-color var(--motion-fast);
 }
 
 .switch.on {
-  background: var(--brand);
+  background: var(--color-action-primary);
 }
 
 .switch:disabled {
@@ -58,9 +56,9 @@
   display: block;
   width: 18px;
   height: 18px;
-  border-radius: var(--r-pill);
-  background: var(--text-strong);
-  transition: transform var(--dur-fast) var(--ease);
+  border-radius: var(--radius-pill);
+  background: var(--color-on-action);
+  transition: transform var(--motion-fast);
 }
 
 .switch.on .thumb {
@@ -72,11 +70,10 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--danger);
-  border-radius: var(--r-md);
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--danger);
+  border: 1px solid var(--color-error-text);
+  border-radius: var(--radius-md);
+  font: var(--text-caption);
+  color: var(--color-error-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

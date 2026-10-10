@@ -61,3 +61,10 @@ describe('Task 12 — produto', () => {
     expect(resolveRedirect(rules, '/product/p1')?.location).toBe('/produto/p1');
   });
 });
+
+describe('Task 13 — sacola', () => {
+  it('Task 13 — sacola', () => {
+    expect(resolveRedirect(rules, '/checkout')?.location).toBe('/sacola');
+    expect(resolveRedirect(rules, '/checkout-vitrine')?.location).toBe('/sacola');
+  });
+});
