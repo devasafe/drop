@@ -97,6 +97,9 @@ async function restoreStock(items: Array<{ productId: unknown; quantity: number 
 }
 
 export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
+  // Itens com estoque baixado e ainda sem pedido que os "segure": se algo lançar nesse intervalo,
+  // o catch externo devolve o estoque (os `return` explícitos devolvem por conta própria).
+  let heldStock: Array<{ productId: any; quantity: number }> | null = null;
 
   try {
     const { storeId, products, deliveryDistanceKm, paymentMethod, idempotentKey, address, latitude, longitude, cupomCode, useWalletBalance } = req.body;
@@ -229,6 +232,12 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
+    // Método de pagamento aceito pelo Asaas: validado ANTES de baixar o estoque (senão repetir
+    // a chamada com um método inválido zerava o estoque da loja). Modo direto tem a sua checagem.
+    if (!directMode && env.PAYMENT_GATEWAY === 'asaas' && paymentMethod !== 'pix' && paymentMethod !== 'credit_card') {
+      return res.status(400).json({ error: 'No momento apenas PIX ou cartão estão disponíveis.' });
+    }
+
     // Custódia + Pix (Task 8): CPF de cobrança ANTES de baixar estoque, mesma regra do modo
     // direto (perfil → KYC → body). Diferenças: documento presente porém inválido e sem CPF
     // no body segue o caminho atual (Asaas recusa → pedido compensado, 502); e quem paga com
@@ -314,7 +323,10 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       items.push({ productId: prod.id, quantity: p.quantity, price: productPrice });
     }
 
+    heldStock = items;
+
     if (subtotal <= 0) {
+      await restoreStock(items);
       return res.status(400).json({ error: 'Subtotal inválido' });
     }
 
@@ -337,6 +349,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Modo direto: daqui em diante o caminho é outro (sem carteira/custódia/payout).
     if (directMode) {
+      heldStock = null; // finishDirectOrder compensa por conta própria
       // `return await`: rejeição inesperada cai no catch abaixo (500) em vez de pendurar a requisição.
       return await finishDirectOrder(res, {
         customerId, store: storeForCheck, items, subtotal, couponDiscount, appliedCouponId, cupomCode,
@@ -360,10 +373,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // dá lugar à cobrança real no Asaas (custódia na conta-mãe).
     const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
 
-    // Asaas processa PIX e cartão de crédito aqui (demais meios seguem indisponíveis).
-    if (useAsaas && paymentMethod !== 'pix' && paymentMethod !== 'credit_card') {
-      return res.status(400).json({ error: 'No momento apenas PIX ou cartão estão disponíveis.' });
-    }
+    // (Asaas aceita só PIX e cartão: checado lá em cima, antes da baixa de estoque.)
 
     // Cobrar dívida pendente (apenas para pedidos não-COD)
     let pendingDebt: any = null;
@@ -379,6 +389,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // Fluxo pré-pago legado (carteira virtual). Débito atômico via walletService.
       const balance = Number(clientWallet.balance);
       if (balance < totalValue + debtAmount) {
+        await restoreStock(items);
         return res.status(400).json({
           error: 'Saldo insuficiente na carteira',
           available: balance,
@@ -431,6 +442,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     let walletApplied = 0;
     const clientBalance = Number(clientWallet.balance);
     if (payFullyWithWallet && clientBalance < totalValue) {
+      await restoreStock(items);
       return res.status(400).json({ error: 'Saldo insuficiente na carteira para pagar o pedido.', code: 'WALLET_INSUFFICIENT' });
     }
     if (useAsaas && (useWalletBalance || payFullyWithWallet) && clientBalance > 0) {
@@ -444,6 +456,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Buscar dados da loja para snapshot no pedido
     const store: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!store) {
+      await restoreStock(items);
       return res.status(404).json({ error: 'Loja não encontrada' });
     }
 
@@ -490,6 +503,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       },
       include: orderInclude,
     });
+    heldStock = null; // o pedido existe: daqui em diante a compensação é do compensateFailedOrder
 
     // Estoque baixou (venda) → avisa os webhooks de integração da loja.
     void emitStockChanged(storeIdStr, items.map((it) => String(it.productId)));
@@ -513,6 +527,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     } catch (commitErr) {
       // Falha após criar o Order no Postgres: desfaz como compensação.
       await prisma.order.delete({ where: { id: createdOrder.id } }).catch(() => { /* nada a fazer */ });
+      heldStock = items; // sem pedido de novo: o catch externo devolve o estoque
       throw commitErr;
     }
 
@@ -729,6 +744,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
   } catch (err: any) {
     logger.error('Erro ao criar pedido', err);
+    if (heldStock) {
+      await restoreStock(heldStock).catch((e) => logger.error('Falha ao devolver estoque após erro no pedido', e as Error));
+    }
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
