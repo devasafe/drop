@@ -161,6 +161,16 @@ describe('GET /api/stores/nearby', () => {
     expect(byId.get(p1.id).name).toBe('P1');
   });
 
+  it('coordenada malformada ("-22,9") não derruba a listagem: só essa loja é ignorada', async () => {
+    const a = await makeStore({ latitude: north(1) });
+    const b = await makeStore({ latitude: north(2) });
+    const virgula = await makeStore({ latitude: '-22,9' });
+    const res = await nearby({ lat: LAT, lng: LNG, limit: 30 });
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual(expect.arrayContaining([a.id, b.id]));
+    expect(ids(res)).not.toContain(virgula.id);
+  });
+
   it('loja com raio próprio menor não aparece além dele', async () => {
     const pequeno = await makeStore({ latitude: north(6), deliveryRadiusKm: 3 });
     const normal = await makeStore({ latitude: north(6) });

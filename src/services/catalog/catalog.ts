@@ -13,7 +13,10 @@ import {
 import { discountPercent } from '../search/search';
 import { publicStoreVisibilityWhere } from './visibility';
 
-/** Candidatos lidos antes de ordenar por % de desconto (a ordenação é em JS). */
+/**
+ * Corte das ofertas: são lidas as 500 ofertas MAIS RECENTES (createdAt desc) e a ordem por % de
+ * desconto é feita em JS sobre elas. Acima disso, ofertas antigas com desconto maior ficam de fora.
+ */
 const OFFER_CANDIDATES = 500;
 const KM_PER_DEG_LAT = 111.19;
 
@@ -27,13 +30,13 @@ export async function listOffers(params: { point: LatLngPoint | null; limit: num
   let storeFilter: Prisma.ProductWhereInput = { store: visibility };
 
   if (params.point) {
-    const [stores, cfg] = await Promise.all([
-      prisma.store.findMany({
-        where: visibility,
-        select: { id: true, latitude: true, longitude: true, deliveryRadiusKm: true },
-      }),
-      getDeliveryConfig(),
-    ]);
+    const cfg = await getDeliveryConfig();
+    const boxIds = await storeIdsInBox(params.point, cfg.defaultRadiusKm);
+    if (boxIds.length === 0) return [];
+    const stores = await prisma.store.findMany({
+      where: { AND: [visibility, { id: { in: boxIds } }] },
+      select: { id: true, latitude: true, longitude: true, deliveryRadiusKm: true },
+    });
     const covered = stores
       .filter((s) => {
         const p = storePoint(s);
@@ -67,7 +70,8 @@ async function storeIdsInBox(point: LatLngPoint, radiusKm: number): Promise<stri
   const dLat = radiusKm / KM_PER_DEG_LAT;
   const cos = Math.max(0.01, Math.cos((point.lat * Math.PI) / 180));
   const dLng = radiusKm / (KM_PER_DEG_LAT * cos);
-  const NUM = '^-?[0-9]+(\.[0-9]+)?$';
+  // [.] e não \. : a barra se perde no literal e o ponto casaria qualquer caractere (ex.: vírgula).
+  const NUM = '^-?[0-9]+([.][0-9]+)?$';
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT s."id" FROM "Store" s
     WHERE s."latitude" ~ ${NUM} AND s."longitude" ~ ${NUM}
