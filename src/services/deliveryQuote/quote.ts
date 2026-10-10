@@ -1,4 +1,6 @@
 import { getRoute } from '../routeService';
+import type { RouteResultV2 } from '../routeService';
+import { prisma } from '../../lib/prisma';
 import { calculateDeliveryFeeWithConfig } from '../../utils/walletCalculations';
 import { isDirectMode } from '../../utils/settlement';
 import { findSubByStoreId } from '../../repositories/storeSubscription.repository';
@@ -56,7 +58,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 // Para cima: o prazo nunca sai otimista.
 const roundTo5 = (n: number) => Math.ceil(n / 5) * 5;
 
-function validPoint(p: any): p is LatLngPoint {
+export function validPoint(p: any): p is LatLngPoint {
   if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
   const { lat, lng } = p;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
@@ -65,7 +67,7 @@ function validPoint(p: any): p is LatLngPoint {
 }
 
 /** Coordenada da loja (guardada como string no banco); string vazia/NaN/0,0 = sem localização. */
-function storePoint(store: QuoteStore): LatLngPoint | null {
+export function storePoint(store: QuoteStore): LatLngPoint | null {
   const rawLat = store.latitude;
   const rawLng = store.longitude;
   if (rawLat === null || rawLat === undefined || rawLat === '' || rawLng === null || rawLng === undefined || rawLng === '') {
@@ -107,8 +109,28 @@ function openState(store: QuoteStore, now: Date): { open: boolean; opensAt?: str
 export async function resolvePlan1Free(storeId: string): Promise<boolean> {
   if (await isDirectMode()) return false;
   const sub = await findSubByStoreId(String(storeId));
-  const plan = sub ? ({ plan1: 1, plan2: 2, plan3: 3 } as Record<string, number>)[sub.currentPlan] ?? 1 : 1;
-  return plan === 1;
+  return isPlan1(sub?.currentPlan);
+}
+
+/** Sem assinatura (ou plano desconhecido) conta como Plano 1 — o mesmo default do createOrder. */
+function isPlan1(currentPlan: string | null | undefined): boolean {
+  if (!currentPlan) return true;
+  return (({ plan1: 1, plan2: 2, plan3: 3 } as Record<string, number>)[currentPlan] ?? 1) === 1;
+}
+
+/**
+ * `resolvePlan1Free` para um lote de lojas numa consulta só (cards da vitrine).
+ * Modo direto: false para todas, sem consultar assinatura.
+ */
+export async function resolvePlan1FreeMany(storeIds: string[]): Promise<Map<string, boolean>> {
+  const ids = storeIds.map(String);
+  if (await isDirectMode()) return new Map(ids.map((id) => [id, false]));
+  const subs = await prisma.storeSubscription.findMany({
+    where: { storeId: { in: ids } },
+    select: { storeId: true, currentPlan: true },
+  });
+  const planByStore = new Map(subs.map((s) => [s.storeId, s.currentPlan as string]));
+  return new Map(ids.map((id) => [id, isPlan1(planByStore.get(id))]));
 }
 
 function baseQuote(store: QuoteStore, now: Date): DeliveryQuote {
@@ -163,31 +185,64 @@ export function estimateQuote(
   };
 }
 
+export interface RouteQuoteResult {
+  quote: DeliveryQuote;
+  /** A rota consultada (null quando não roteou: sem endereço, fora pela reta, Plano 1, falha). */
+  route: RouteResultV2 | null;
+}
+
+/**
+ * Cotação por rota real (sacola/pedido), devolvendo também a rota usada (polyline, duração),
+ * para quem precisa dela sem rotear de novo. Cai na estimativa com ROUTE_FAILED se não houver rota.
+ *
+ * Área: a reta filtra antes de rotear (barato); com a rota em mãos, a distância DA ROTA também
+ * precisa caber no raio efetivo — a mesma regra que o createOrder impõe, para a sacola nunca
+ * dizer "entrega" num endereço que o pedido vai recusar.
+ */
+export async function routeQuoteWithRoute(
+  store: QuoteStore,
+  point: LatLngPoint | null,
+  now: Date = new Date(),
+): Promise<RouteQuoteResult> {
+  const [deliveryCfg, plan1Free] = await Promise.all([getDeliveryConfig(), resolvePlan1Free(store.id)]);
+  const cfg: QuoteConfig = { ...deliveryCfg, plan1Free };
+  const est = estimateQuote(store, point, cfg, now);
+  // Sem endereço / fora da área / Plano 1 (não roteia, taxa 0): a estimativa já é a resposta.
+  if (est.inArea !== true || cfg.plan1Free) return { quote: est, route: null };
+
+  const origin = storePoint(store)!;
+  const route = await getRoute({ origin, destination: point! });
+  if (!route) return { quote: { ...est, reason: 'ROUTE_FAILED' }, route: null };
+
+  if (route.distanceKm > effectiveRadiusKm(store, cfg)) {
+    return {
+      quote: { ...est, inArea: false, reason: 'OUT_OF_AREA', distanceKm: null, etaMinutes: null, fee: null, freeDelivery: false },
+      route,
+    };
+  }
+
+  const distanceKm = round2(route.distanceKm);
+  // Taxa sobre a distância crua da rota: o mesmo número que o createOrder cobra.
+  const fee = round2(await calculateDeliveryFeeWithConfig(route.distanceKm));
+  return {
+    quote: {
+      ...est,
+      distanceKm,
+      etaMinutes: etaFrom(effectivePrepMinutes(store, cfg), route.durationSeconds / 60),
+      fee,
+      freeDelivery: fee === 0,
+      // Haversine do routeService é a própria estimativa (gateway de rota fora), não rota real.
+      source: route.source === 'haversine' ? 'estimate' : 'route',
+    },
+    route,
+  };
+}
+
 /** Cotação por rota real (sacola/pedido). Cai na estimativa com ROUTE_FAILED se não houver rota. */
 export async function routeQuote(
   store: QuoteStore,
   point: LatLngPoint | null,
   now: Date = new Date(),
 ): Promise<DeliveryQuote> {
-  const [deliveryCfg, plan1Free] = await Promise.all([getDeliveryConfig(), resolvePlan1Free(store.id)]);
-  const cfg: QuoteConfig = { ...deliveryCfg, plan1Free };
-  const est = estimateQuote(store, point, cfg, now);
-  // Sem endereço / fora da área / Plano 1 (não roteia, taxa 0): a estimativa já é a resposta.
-  if (est.inArea !== true || cfg.plan1Free) return est;
-
-  const origin = storePoint(store)!;
-  const route = await getRoute({ origin, destination: point! });
-  if (!route) return { ...est, reason: 'ROUTE_FAILED' };
-
-  const distanceKm = round2(route.distanceKm);
-  const fee = round2(await calculateDeliveryFeeWithConfig(distanceKm));
-  return {
-    ...est,
-    distanceKm,
-    etaMinutes: etaFrom(effectivePrepMinutes(store, cfg), route.durationSeconds / 60),
-    fee,
-    freeDelivery: fee === 0,
-    // Haversine do routeService é a própria estimativa (gateway de rota fora), não rota real.
-    source: route.source === 'haversine' ? 'estimate' : 'route',
-  };
+  return (await routeQuoteWithRoute(store, point, now)).quote;
 }

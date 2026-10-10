@@ -4,6 +4,8 @@ import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
+import { routeQuoteWithRoute, storePoint, validPoint } from '../services/deliveryQuote/quote';
+import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
 import { emitStockChanged } from '../services/storeIntegration';
 import userRepository from '../repositories/user.repository';
@@ -169,6 +171,40 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });
     }
 
+    // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
+    // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
+    // via RouteService — o mesmo cálculo que o checkout exibe (endpoint /quote).
+    // O RouteService já cai em haversine sozinho se o gateway de rota falhar.
+    // Área de entrega: a distância da rota (inclusive a haversine) tem de caber no raio
+    // efetivo da loja. Tudo isso ANTES de qualquer escrita (CPF do modo direto) e da baixa
+    // de estoque: fora da área não toca em nada.
+    let serverDistanceKm = 0;
+    let routeDurationSeconds = 0;
+    let routePolyline: string | undefined;
+    const storeLoc = storePoint(storeForCheck);
+    const customerLoc = { lat: Number(latitude), lng: Number(longitude) };
+    if (storeLoc && validPoint(customerLoc)) {
+      const route = await getRoute({ origin: storeLoc, destination: customerLoc });
+      if (route) {
+        const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
+        if (route.distanceKm > radiusKm) {
+          return sendAppError(res, new AppError('Esta loja não entrega nesse endereço.', 409, true, 'OUT_OF_AREA'));
+        }
+        serverDistanceKm = route.distanceKm;
+        routeDurationSeconds = route.durationSeconds;
+        routePolyline = route.polyline;
+        if (route.source === 'haversine') {
+          logger.warn('Taxa calculada por estimativa (haversine) — gateway de rota indisponível', { storeId: storeIdStr, distanceKm: serverDistanceKm });
+        }
+      }
+    } else if (storeLoc) {
+      // Fail closed: loja com localização e pedido sem coordenadas válidas cobraria km 0 e
+      // escaparia da área. Sem localização da loja não há o que medir (segue como antes).
+      return sendAppError(res, new AppError('Informe o endereço de entrega.', 400, true, 'NO_ADDRESS'));
+    } else if (deliveryDistanceKm) {
+      logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
+    }
+
     // Modo SaaS "direto" (Task 1.5): independe de PAYMENT_GATEWAY. Pré-checagens
     // (método, cupom global, conta Asaas da loja, CPF) ANTES de baixar estoque.
     const directMode = await isDirectMode();
@@ -265,33 +301,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       couponDiscount = couponResult.discount;
       couponType = couponResult.coupon?.type ?? null;
       appliedCouponId = couponResult.coupon?._id;
-    }
-
-    // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
-    // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
-    // via RouteService — o mesmo cálculo que o checkout deve exibir (endpoint /quote).
-    // Antes a taxa saía de haversine (linha reta) e divergia do que o cliente via.
-    // O RouteService já cai em haversine sozinho se o gateway de rota falhar.
-    // Sem coordenadas, a taxa fica 0 (caso degenerado / Plano 1 sem entrega).
-    let serverDistanceKm = 0;
-    let routeDurationSeconds = 0;
-    let routePolyline: string | undefined;
-    const sLat = Number(storeForCheck.latitude);
-    const sLng = Number(storeForCheck.longitude);
-    const cLat = Number(latitude);
-    const cLng = Number(longitude);
-    if ([sLat, sLng, cLat, cLng].every(n => Number.isFinite(n) && n !== 0)) {
-      const route = await getRoute({ origin: { lat: sLat, lng: sLng }, destination: { lat: cLat, lng: cLng } });
-      if (route) {
-        serverDistanceKm = route.distanceKm;
-        routeDurationSeconds = route.durationSeconds;
-        routePolyline = route.polyline;
-        if (route.source === 'haversine') {
-          logger.warn('Taxa calculada por estimativa (haversine) — gateway de rota indisponível', { storeId: storeIdStr, distanceKm: serverDistanceKm });
-        }
-      }
-    } else if (deliveryDistanceKm) {
-      logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
     }
 
     // Modo direto: daqui em diante o caminho é outro (sem carteira/custódia/payout).
@@ -1106,14 +1115,16 @@ export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Respon
 };
 
 /**
- * Orçamento da entrega (PREVIEW do checkout) — MESMA fonte da cobrança final.
+ * Orçamento da entrega (PREVIEW do checkout / sacola) — MESMA fonte da cobrança final.
  * POST /orders/quote  body: { storeId, latitude, longitude }
  *
- * Antes o checkout calculava a distância no browser (Google Directions) enquanto
- * o backend cobrava por haversine — os valores divergiam. Agora o front chama
- * este endpoint e apenas EXIBE o que voltar: distância de rota, ETA, taxa e
- * polyline saem do RouteService + das MESMAS funções de taxa usadas em createOrder.
- * O que o cliente vê aqui é exatamente o que será cobrado (mesmas coordenadas).
+ * Responde a `DeliveryQuote` da rota real (`routeQuoteWithRoute`: área, prazo, taxa, aberta)
+ * MAIS os campos antigos do checkout (`plan`, `deliveryFee`, `distanceMeters`,
+ * `durationSeconds`, `polyline`). Nos nomes que colidem (`distanceKm`, `source`) vale a
+ * DeliveryQuote; o `source` antigo do RouteService sai como `routeSource`.
+ * Fora da área / sem endereço: 200 com `inArea` false/null e `deliveryFee: null` (o checkout
+ * antigo lê distância 0 e não deixa fechar, como fazia com o 400/422 de antes).
+ * A taxa é a mesma função e a mesma distância de rota que o createOrder cobra.
  */
 export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1131,34 +1142,29 @@ export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) =>
       const storeSub = await findSubByStoreId(String(storeId));
       const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
       storePlan = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1;
-
-      // Plano 1 (Vitrine): sem entrega integrada — taxa sempre zero, sem rotear.
-      if (storePlan === 1) {
-        return res.json({ plan: 1, deliveryFee: 0, distanceKm: 0, durationSeconds: 0, polyline: null, source: null });
-      }
     }
 
-    const sLat = Number(store.latitude);
-    const sLng = Number(store.longitude);
-    const cLat = Number(latitude);
-    const cLng = Number(longitude);
-    if (![sLat, sLng, cLat, cLng].every(n => Number.isFinite(n) && n !== 0)) {
-      return res.status(400).json({ error: 'Coordenadas da loja ou do endereço ausentes/invalidas' });
+    const point = { lat: Number(latitude), lng: Number(longitude) };
+    const { quote, route } = await routeQuoteWithRoute(store, point);
+
+    let legacy: Record<string, unknown>;
+    if (storePlan === 1) {
+      // Plano 1 (Vitrine) na custódia: sem entrega integrada — taxa sempre zero, sem rotear.
+      legacy = { plan: 1, deliveryFee: 0, distanceMeters: 0, durationSeconds: 0, polyline: null, routeSource: null };
+    } else if (quote.inArea === true && route) {
+      legacy = {
+        plan: storePlan,
+        deliveryFee: direct ? await directDeliveryFee(route.distanceKm) : await calculateDeliveryFeeWithConfig(route.distanceKm),
+        distanceMeters: route.distanceMeters,
+        durationSeconds: route.durationSeconds,
+        polyline: route.polyline || null,
+        routeSource: route.source, // 'routes' | 'directions' | 'haversine' (transparência)
+      };
+    } else {
+      // Fora da área, sem endereço, loja sem localização ou rota indisponível: nada a cobrar.
+      legacy = { plan: storePlan, deliveryFee: null, distanceMeters: null, durationSeconds: null, polyline: null, routeSource: route?.source ?? null };
     }
-
-    const route = await getRoute({ origin: { lat: sLat, lng: sLng }, destination: { lat: cLat, lng: cLng } });
-    if (!route) return res.status(422).json({ error: 'Não foi possível calcular a rota' });
-
-    const deliveryFee = direct ? await directDeliveryFee(route.distanceKm) : await calculateDeliveryFeeWithConfig(route.distanceKm);
-    return res.json({
-      plan: storePlan,
-      deliveryFee,
-      distanceKm: route.distanceKm,
-      distanceMeters: route.distanceMeters,
-      durationSeconds: route.durationSeconds,
-      polyline: route.polyline || null,
-      source: route.source, // 'routes' | 'directions' | 'haversine' (transparência)
-    });
+    return res.json({ ...legacy, ...quote });
   } catch (err: any) {
     logger.error('Erro ao gerar orçamento de entrega', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
