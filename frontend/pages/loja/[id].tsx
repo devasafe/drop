@@ -37,6 +37,7 @@ import { ProductCard } from '../../components/drop/ProductCard';
 import { DeliveryBadge } from '../../components/drop/DeliveryBadge';
 import { DeliveryAddressControl } from '../../components/drop/DeliveryAddressControl';
 import { StoreReviews } from '../../components/drop/StoreReviews';
+import { StoreUnavailable } from '../../components/drop/StoreUnavailable';
 
 import styles from './Loja.module.css';
 
@@ -85,6 +86,7 @@ export default function StorePage() {
 
   const [store, setStore] = useState<StoreWithPlan | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [unavailable, setUnavailable] = useState<null | { _id: string; name: string; neighborhood?: string | null; city?: string | null }>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -97,24 +99,38 @@ export default function StorePage() {
 
   // Loja: por _id ou slug, via useStores() (sincronizado por socket). Categorias
   // reais da loja vêm de GET /categories?storeId=<store._id> (endpoint funcional).
+  // `found` fora do efeito: sem a loja na lista o efeito depende de `undefined` (estável), não do array novo a cada render.
+  const found = stores.find((s: any) => s._id === id || s.slug === id) as StoreWithPlan | undefined;
   useEffect(() => {
     if (!id || storesLoading) return;
-    const found = stores.find((s: any) => s._id === id || s.slug === id) as StoreWithPlan | undefined;
     if (!found) {
+      // Fora da lista (cache velho, link/QR de loja pausada): pergunta ao servidor antes de dizer "não encontrada".
+      let off = false;
       setStore(null);
-      setNotFound(true);
-      setDetailLoading(false);
-      return;
+      setDetailLoading(true);
+      api.get(`/stores/${id}`)
+        .then((r) => {
+          if (off) return;
+          if (r.data?._id) { setStore(r.data); setNotFound(false); } else setNotFound(true);
+        })
+        .catch((e) => {
+          if (off) return;
+          const d = e?.response?.data;
+          if (d?.code === 'STORE_UNAVAILABLE' && d.store) setUnavailable(d.store); else setNotFound(true);
+        })
+        .finally(() => { if (!off) setDetailLoading(false); });
+      return () => { off = true; };
     }
     setStore(found);
     setNotFound(false);
+    setUnavailable(null);
     setDetailLoading(false); // a vitrine não espera as categorias
     let cancelled = false;
     api.get(`/categories?storeId=${found._id}`)
       .then((res) => { if (!cancelled) setCategories(res.data || []); })
       .catch((err) => { console.error(err); if (!cancelled) setCategories([]); });
     return () => { cancelled = true; };
-  }, [id, stores, storesLoading]);
+  }, [id, found, storesLoading]);
 
   // Mais Vendidos: exclusivo do plano 3.
   useEffect(() => {
@@ -198,6 +214,9 @@ export default function StorePage() {
       </div>
     );
   }
+
+  // ---- Loja pausada (STORE_UNAVAILABLE): a cara da loja e uma saída, sem o motivo ----
+  if (unavailable) return <StoreUnavailable store={unavailable} />;
 
   // ---- Not found ----
   if (notFound || !store) {
