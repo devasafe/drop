@@ -50,3 +50,10 @@ test('pedido de custódia: sem o aviso do Asaas da loja', () => {
   render(<CheckoutPage />);
   expect(screen.queryByText(/processado pelo Asaas/)).not.toBeInTheDocument();
 });
+
+test('M4: o carrinho já foi limpo (sem loja no hook): o sheet mostra o nome guardado, não "Loja"', () => {
+  mockedUseCheckout.mockReturnValue({ ...hook({ paymentProvider: null, recipientName: 'Pizzaria Boa' }), store: null } as unknown as ReturnType<typeof useCheckout>);
+  render(<CheckoutPage />);
+  expect(screen.getByText(/^Pedido #.* · Pizzaria Boa$/)).toBeInTheDocument();
+  expect(screen.queryByText(/^Pedido #.* · Loja$/)).not.toBeInTheDocument();
+});
