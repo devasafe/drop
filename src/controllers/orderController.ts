@@ -1166,7 +1166,12 @@ export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Respon
     const newStatus = (paymentStatus === 'paid' && existing.status === 'criado') ? 'pago' : existing.status;
     const updated = await prisma.order.update({
       where: { id: orderId },
-      data: { paymentStatus, status: newStatus },
+      // paidAt marca a confirmação (o prazo de aceite da loja conta daqui) — só na transição.
+      data: {
+        paymentStatus,
+        status: newStatus,
+        ...(paymentStatus === 'paid' && existing.paymentStatus !== 'paid' ? { paidAt: new Date() } : {}),
+      },
       include: orderInclude,
     });
 

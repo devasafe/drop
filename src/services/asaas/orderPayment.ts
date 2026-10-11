@@ -51,7 +51,7 @@ async function finalizeOrderAsPaid(
 ): Promise<void> {
   const updated = await prisma.order.update({
     where: { id: order.id },
-    data: { paymentStatus: 'paid', asaasChargeStatus },
+    data: { paymentStatus: 'paid', asaasChargeStatus, paidAt: new Date() },
     include: orderInclude,
   });
 

@@ -16,10 +16,21 @@ import { cancelOrderWithFullRefund } from '../controllers/cancellationController
  * (Task 7: trava updateMany+count, guard PAYOUT_ALREADY_SETTLED, refund
  * Asaas/legado, cancelamento da entrega em estado terminal).
  *
- * Mira SÓ pedidos `status='pago'` — pedidos `criado` (ainda não pagos) são do
- * `expirePixOrders.job.ts`; misturar os dois filtros duplicaria a ação sobre o
- * mesmo pedido (ex.: um pedido `criado` expirado por PIX não deveria também cair
- * aqui achando que é "loja sem aceite").
+ * Quem entra: pagamento confirmado (`paymentStatus='paid'`), sem aceite
+ * (`acceptedAt=null`) e ainda pré-aceite (`status` 'criado' ou 'pago'). No fluxo
+ * real o pagamento só muda `paymentStatus` — o pedido pago continua `criado` até a
+ * loja aceitar (`acceptOrderByStore` grava `status='pago'` + `acceptedAt` juntos).
+ * Filtrar por `status='pago'` (versão antiga) nunca pegava esse pedido. 'pago' sem
+ * `acceptedAt` fica no filtro só por segurança (dado legado).
+ *
+ * Sem overlap com `expirePixOrders.job.ts`: aquele só toca `paymentStatus='pending'`
+ * (não pago); este só `paymentStatus='paid'`. Cancelados, rejeitados, entregues e os
+ * já aceitos (`aguardando_motoboy`/`enviado`, com `acceptedAt`) ficam fora. A trava
+ * `updateMany` de `cancelOrderWithFullRefund` impede reembolso duplo entre rodadas.
+ *
+ * Prazo: conta de `paidAt` (gravado na confirmação do pagamento), para a loja ter
+ * sempre `storeAcceptTimeoutMin` inteiros mesmo com PIX pago perto do fim da validade.
+ * Pedidos anteriores à coluna (`paidAt` nulo) usam `createdAt`.
  */
 
 const DEFAULT_STORE_ACCEPT_TIMEOUT_MIN = 10;
@@ -38,11 +49,18 @@ export async function runStoreAcceptTimeout(): Promise<StoreAcceptTimeoutSummary
 
   const stale = await prisma.order.findMany({
     where: {
-      status: 'pago',
+      paymentStatus: 'paid',
       acceptedAt: null,
-      createdAt: { lt: cutoff },
+      status: { in: ['criado', 'pago'] },
+      // Prazo conta do pagamento; pedido antigo sem paidAt (antes da coluna) usa createdAt.
+      OR: [
+        { paidAt: { lt: cutoff } },
+        { paidAt: null, createdAt: { lt: cutoff } },
+      ],
     },
     include: orderInclude,
+    // Mais antigos primeiro: com mais de 100 vencidos, nenhum fica para trás para sempre.
+    orderBy: { createdAt: 'asc' },
     take: 100,
   });
 

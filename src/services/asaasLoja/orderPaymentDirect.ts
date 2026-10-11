@@ -30,7 +30,7 @@ export async function confirmDirectOrderPaid(storeId: string, paymentId: string,
       status: { notIn: ['cancelado', 'rejeitado'] },
       OR: [{ paymentStatus: null }, { paymentStatus: { not: 'paid' } }],
     },
-    data: { paymentStatus: 'paid', asaasChargeStatus },
+    data: { paymentStatus: 'paid', asaasChargeStatus, paidAt: new Date() },
   });
 
   if (count !== 1) {
