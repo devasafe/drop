@@ -46,6 +46,10 @@ export interface CancellationStatusProps {
   direct?: DirectRefundView | null;
   storeName?: string;
   paymentMethod?: string;
+  /** `paymentStatus` do pedido: 'pending'/'failed' = nunca foi pago, não há estorno a mostrar. */
+  paymentStatus?: string;
+  /** Saldo da carteira usado no pedido (volta para a carteira no cancelamento). */
+  walletApplied?: number;
   onSupport?: () => void;
   onBuyElsewhere?: () => void;
 }
@@ -109,7 +113,7 @@ const CANCELLED_BY_LABELS: Record<CancellationInfo['cancelledBy'], { label: stri
  * próprio (era acoplado a `orderId`/`useCancellation` antes); quem busca o
  * cancelamento é a página.
  */
-export function CancellationStatus({ cancellation, direct, storeName, paymentMethod, onSupport, onBuyElsewhere }: CancellationStatusProps) {
+export function CancellationStatus({ cancellation, direct, storeName, paymentMethod, paymentStatus, walletApplied, onSupport, onBuyElsewhere }: CancellationStatusProps) {
   const reasonInfo = REASON_LABELS[cancellation.reasonCode] ?? REASON_LABELS.other;
   const byInfo = CANCELLED_BY_LABELS[cancellation.cancelledBy];
   const ReasonIcon = reasonInfo.icon;
@@ -126,6 +130,9 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
   const hasFee = cancellation.cancellationFee !== undefined && cancellation.cancellationFee > 0;
   const failed = cancellation.refundStatus === 'failed';
   const processed = cancellation.refundStatus === 'processed';
+  // Pedido cancelado antes de pagar: o cancelamento grava refundAmount = total, mas nada foi cobrado.
+  const unpaid = paymentStatus === 'pending' || paymentStatus === 'failed';
+  const walletBack = unpaid && (walletApplied ?? 0) > 0 ? (walletApplied as number) : 0;
 
   const custodySteps: Step[] = [
     { label: 'Cancelado', detail: hasFee ? 'Com taxa de cancelamento' : 'Sem taxa para você', time: `${ddmm(cancellation.createdAt)} ${hhmm(cancellation.createdAt)}`, state: 'done' },
@@ -151,7 +158,14 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
         <span className={styles.date}>{formattedDate}</span>
       </div>
 
-      {direct ? (
+      {unpaid ? (
+        <div>
+          <p className={styles.big}>{walletBack > 0 ? `Nada foi cobrado ${paymentMethod === 'credit_card' ? 'no cartão' : 'no Pix'}` : 'Nada foi cobrado'}</p>
+          <p className={styles.sub}>
+            {walletBack > 0 ? `${formatBRL(walletBack)} do saldo voltaram para a carteira.` : 'O pedido foi cancelado antes do pagamento.'}
+          </p>
+        </div>
+      ) : direct ? (
         <div className={styles.directHead}>
           <span className={styles.pill}>{DIRECT_LABEL[direct.stage]}</span>
           <p className={styles.big}>
@@ -186,7 +200,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
         </div>
       )}
 
-      {directSteps ? (
+      {unpaid ? null : directSteps ? (
         <Timeline steps={directSteps} />
       ) : (
         cancellation.refundAmount !== undefined && (

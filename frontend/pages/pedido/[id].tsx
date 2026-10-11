@@ -329,6 +329,8 @@ export default function PedidoPage() {
                   cancellation={cancellation}
                   storeName={order.storeName}
                   paymentMethod={order.paymentMethod}
+                  paymentStatus={order.paymentStatus}
+                  walletApplied={order.walletApplied}
                   direct={order.customerRefund ?? null}
                   onSupport={() => router.push(ROUTES.ajuda)}
                   onBuyElsewhere={order.products?.[0]?.productName ? () => router.push(buscarHref({ q: order.products[0].productName })) : undefined}

@@ -137,7 +137,26 @@ export const getCancelPreview = async (req: AuthenticatedRequest, res: Response)
     });
     const direct = isDirectOrder(order);
     const refund = direct ? directCustomerRefund(order, fee, 'customer') : fee.refundToCustomer;
-    return res.json({ success: true, data: { cancellable: true, fee: fee.totalFee, refund, motoboyEnRoute, direct, paymentMethod: order.paymentMethod } });
+    const paid = order.paymentStatus === 'paid';
+    // Para onde volta cada parte — espelha os ramos de cancelOrderByCustomer (sem fórmula nova):
+    //  direto: directRefundStatus só estorna pela loja se pago (sem carteira no modo direto);
+    //  COD: nada volta; custódia sem gateway: o refund inteiro é creditado na carteira;
+    //  custódia + Asaas: walletApplied volta à carteira e o provedor estorna
+    //  refund − walletApplied só com paymentStatus 'paid' e asaasPaymentId.
+    let walletPart = 0;
+    let providerPart = 0;
+    if (direct) {
+      providerPart = paid && refund > 0 ? refund : 0;
+    } else if (order.paymentMethod !== 'cash_on_delivery') {
+      if (env.PAYMENT_GATEWAY !== 'asaas') {
+        walletPart = refund;
+      } else {
+        walletPart = order.walletApplied && order.walletApplied > 0 ? round2(order.walletApplied) : 0;
+        const asaasRefundValue = round2(refund - (order.walletApplied || 0));
+        providerPart = paid && order.asaasPaymentId && asaasRefundValue > 0 ? asaasRefundValue : 0;
+      }
+    }
+    return res.json({ success: true, data: { cancellable: true, fee: fee.totalFee, refund, motoboyEnRoute, direct, paymentMethod: order.paymentMethod, paid, walletPart, providerPart } });
   } catch (err) {
     logger.error('[cancelPreview] erro', err as Error);
     return res.status(500).json({ error: 'Erro ao calcular a prévia do cancelamento' });

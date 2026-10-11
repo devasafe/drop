@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../lib/api';
 
-export interface CancelPreview { cancellable: boolean; fee?: number; refund?: number; motoboyEnRoute?: boolean; direct?: boolean; paymentMethod?: string; reason?: string }
+export interface CancelPreview { cancellable: boolean; fee?: number; refund?: number; motoboyEnRoute?: boolean; direct?: boolean; paymentMethod?: string; reason?: string;
+  /** false = o pedido não foi pago (nada a estornar). Ausente = pago (resposta antiga). */
+  paid?: boolean;
+  /** Parte que volta para a carteira (saldo usado no pedido). */
+  walletPart?: number;
+  /** Parte que volta para o Pix/cartão. */
+  providerPart?: number;
+}
 
 /** Prévia do cancelamento, recarregada a cada abertura do sheet (o pedido pode ter mudado). */
 export function useCancelPreview(orderId: string | undefined, open: boolean) {
