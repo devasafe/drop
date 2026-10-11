@@ -15,6 +15,15 @@ async function userOwnsStore(userId: string, storeId: string): Promise<boolean> 
   return !!store;
 }
 
+/** CPF e e-mail do motoboy só para ele mesmo e para o admin; cliente e loja recebem o resto da nota. */
+function forViewer<T extends { motoboyCpf?: unknown; motoboyEmail?: unknown }>(invoice: T, canSeeCourierPii: boolean) {
+  if (canSeeCourierPii) return invoice;
+  const rest = { ...invoice };
+  delete rest.motoboyCpf;
+  delete rest.motoboyEmail;
+  return rest;
+}
+
 export const getInvoice = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -32,7 +41,7 @@ export const getInvoice = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Sem permissao para ver esta nota' });
     }
 
-    return res.json(invoice);
+    return res.json(forViewer(invoice, isAdmin || isMotoboy));
   } catch (err: any) {
     console.error('Erro ao buscar nota:', err);
     return res.status(500).json({ error: 'Erro ao buscar nota' });
@@ -56,7 +65,7 @@ export const getInvoiceByOrder = async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ error: 'Sem permissao para ver esta nota' });
     }
 
-    return res.json(invoice);
+    return res.json(forViewer(invoice, isAdmin || isMotoboy));
   } catch (err: any) {
     console.error('Erro ao buscar nota por pedido:', err);
     return res.status(500).json({ error: 'Erro ao buscar nota' });
