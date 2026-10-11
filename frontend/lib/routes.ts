@@ -12,8 +12,7 @@ export const ROUTES = {
   login: '/login',
   cadastro: '/register',
   esqueciSenha: '/esqueci-senha',
-  // provisório: vira /conta/notificacoes na Task 29
-  notificacoes: '/notifications',
+  notificacoes: '/conta/notificacoes',
   // provisório: vira /conta/ajuda na Task 31
   ajuda: '/suporte',
   // provisório: vira /conta/privacidade na Task 32
@@ -62,8 +61,8 @@ export const pedidoReciboHref = (id: string): string => `${pedidoHref(id)}/recib
 export const pedidoConversaHref = (id: string, com?: 'loja' | 'entregador'): string => `${pedidoHref(id)}/conversa${com ? `?com=${com}` : ''}`;
 
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
-export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/loja/[id]', '/pedido/[id]', '/categoria/[nome]'];
+export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/conta/notificacoes', '/loja/[id]', '/pedido/[id]', '/categoria/[nome]'];
 /** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
-export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/categoria/[nome]'];
+export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/conta/notificacoes', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/categoria/[nome]'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
 export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola', '/pedido/[id]/conversa', '/pedido/[id]/recibo'];
