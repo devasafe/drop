@@ -50,3 +50,24 @@ test('sem pedidos: convite para explorar', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Explorar lojas' }));
   expect(push).toHaveBeenCalledWith(ROUTES.inicio);
 });
+
+test('teclado: Enter em "De novo" recompra e não abre o pedido (P14)', async () => {
+  render(<PedidosPage />);
+  fireEvent.click(screen.getByRole('tab', { name: /Histórico/ }));
+  const btn = screen.getByRole('button', { name: 'De novo' });
+  // No navegador, Enter num <button> só vira click se ninguém der preventDefault no keydown.
+  const notPrevented = fireEvent.keyDown(btn, { key: 'Enter' });
+  if (notPrevented) fireEvent.click(btn);
+  await screen.findByText('Pet&Cia');
+  expect(reorder).toHaveBeenCalledWith('h1');
+  expect(push).not.toHaveBeenCalledWith(pedidoHref('h1'));
+});
+
+test('teclado: Espaço em "Acompanhar" não dispara a linha duas vezes', () => {
+  render(<PedidosPage />);
+  const btn = screen.getByRole('button', { name: 'Acompanhar' });
+  const notPrevented = fireEvent.keyDown(btn, { key: ' ' });
+  if (notPrevented) fireEvent.click(btn);
+  expect(push).toHaveBeenCalledTimes(1);
+  expect(push).toHaveBeenCalledWith(pedidoHref('p1'));
+});

@@ -76,7 +76,17 @@ export function OrderRow({ order, onClick, showDate = false, action }: OrderRowP
         <div className={styles.foot}>
           <span className={styles.total}>{formatMoney(order.total)}</span>
           {date && <span className={styles.sub}>{date}</span>}
-          {action && <div className={styles.action}>{action}</div>}
+          {action && (
+            // P14: a ação não deixa click nem teclado (Enter/Espaço) subirem até a linha,
+            // senão a Row captura o keydown, cancela a ativação do botão e abre o pedido.
+            <div
+              className={styles.action}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {action}
+            </div>
+          )}
         </div>
       </div>
     </Row>
