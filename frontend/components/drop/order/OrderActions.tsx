@@ -33,7 +33,7 @@ export function OrderActions({
     <div className={styles.wrap}>
       {canCancel && (
         <Button
-          variant="ghost"
+          variant="tertiary"
           className={styles.cancel}
           leftIcon={<XCircle size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
           onClick={() => onCancel?.()}

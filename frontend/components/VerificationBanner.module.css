@@ -1,0 +1,23 @@
+/* Aviso de verificação nas telas do cliente (DS v2): faixa discreta, só tokens. */
+.customer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-text);
+  font: var(--text-label);
+}
+
+.link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

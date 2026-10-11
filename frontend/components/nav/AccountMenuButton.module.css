@@ -17,11 +17,11 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--brand);
+  background: var(--color-action-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-on-action);
   font-weight: 700;
   font-size: 14px;
 }

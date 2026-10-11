@@ -6,6 +6,10 @@ import logger from '../../config/logger';
 import { isValidCPF, isValidCNPJ } from '../../utils/documentValidation';
 import { decryptSensitiveData } from '../../utils/encryption';
 import type { ChargeResult } from '../paymentProvider/types';
+import { buyerDocument, CpfRequiredError } from '../../utils/buyerCpf';
+
+// Regra do CPF de cobrança vive em utils/buyerCpf (compartilhada com a custódia).
+export { buyerDocument, resolveBuyerCpf, CpfRequiredError } from '../../utils/buyerCpf';
 
 /**
  * Cobrança de ENTRADA no modo SaaS "direto": o Pix nasce na conta Asaas DA LOJA
@@ -21,13 +25,6 @@ export class StorePaymentsNotReadyError extends AppError {
   constructor() {
     super('Esta loja ainda não está pronta para receber pagamentos. Tente mais tarde.', 409, true, 'STORE_PAYMENTS_NOT_READY');
     Object.setPrototypeOf(this, StorePaymentsNotReadyError.prototype);
-  }
-}
-
-export class CpfRequiredError extends AppError {
-  constructor() {
-    super('Informe seu CPF para pagar com Pix.', 400, true, 'CPF_REQUIRED');
-    Object.setPrototypeOf(this, CpfRequiredError.prototype);
   }
 }
 
@@ -76,37 +73,6 @@ async function markKeyRevoked(storeId: string): Promise<StorePaymentsNotReadyErr
 export async function translate(storeId: string, err: unknown): Promise<unknown> {
   if (err instanceof AsaasApiError && err.status === 401) return markKeyRevoked(storeId);
   return err;
-}
-
-/** CPF/CNPJ de cobrança do usuário (User.cpf, senão o documento aprovado do KYC). */
-export function buyerDocument(user: { cpf?: string | null; verification?: unknown } | null): string | null {
-  if (!user) return null;
-  const candidates = [onlyDigits(user.cpf), onlyDigits((user.verification as any)?.document?.number)];
-  return candidates.find((d) => d && (isValidCPF(d) || isValidCNPJ(d))) || null;
-}
-
-/**
- * Garante o CPF do comprador ANTES de criar qualquer coisa do pedido.
- * - usuário já tem CPF/CNPJ válido → ok;
- * - senão, aceita `bodyCpf` (só CPF, 11 dígitos, com ou sem máscara) e grava em User.cpf
- *   se o campo estiver vazio;
- * - nenhum válido → CpfRequiredError (400 CPF_REQUIRED);
- * - CPF digitado já pertence a outra conta → 409 CPF_IN_USE.
- */
-export async function resolveBuyerCpf(userId: string, bodyCpf?: unknown): Promise<string> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { cpf: true, verification: true } });
-  const existing = buyerDocument(user);
-  if (existing) return existing;
-  const typed = onlyDigits(typeof bodyCpf === 'string' ? bodyCpf : '');
-  if (typed.length !== 11 || !isValidCPF(typed)) throw new CpfRequiredError();
-  // Um CPF por conta (mesma regra do perfil em userController): CPF de outra conta → 409,
-  // sem gravar nada e antes de qualquer pedido/cobrança existir.
-  const owner = await prisma.user.findFirst({ where: { id: { not: userId }, cpf: typed }, select: { id: true } });
-  if (owner) throw new AppError('Este CPF já está cadastrado em outra conta', 409, true, 'CPF_IN_USE');
-  if (!onlyDigits(user?.cpf)) {
-    await prisma.user.update({ where: { id: userId }, data: { cpf: typed } });
-  }
-  return typed;
 }
 
 /**

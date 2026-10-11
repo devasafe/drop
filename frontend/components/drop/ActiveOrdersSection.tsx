@@ -1,6 +1,5 @@
 import { OrderTracker } from './OrderTracker';
 import { activeOrderView } from '../../lib/activeOrder';
-import { imageUrl } from '../../lib/config';
 import styles from './ActiveOrdersSection.module.css';
 
 export interface ActiveOrdersSectionProps {
@@ -14,12 +13,13 @@ export function ActiveOrdersSection({ orders, onOpen }: ActiveOrdersSectionProps
     <div className={styles.list}>
       {orders.map((o) => {
         const v = activeOrderView(o);
+        const n = (o.products || []).reduce((s: number, p: any) => s + (Number(p.quantity) || 1), 0);
         return (
           <OrderTracker
             key={o._id}
             orderId={String(o._id).slice(-6).toUpperCase()}
             storeName={o.storeName || 'Loja'}
-            imageUrl={imageUrl(o.products?.[0]?.image) || undefined}
+            itemsLabel={n ? `${n} ${n === 1 ? 'item' : 'itens'}` : undefined}
             statusLabel={v.statusLabel}
             progress={v.progress}
             steps={v.steps}

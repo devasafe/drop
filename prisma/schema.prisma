@@ -438,6 +438,8 @@ model Store {
   isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
+  deliveryRadiusKm     Float?
+  prepMinutes          Int?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -669,6 +671,10 @@ model Delivery {
   dataConfirmacaoDevolucao  DateTime?
   pendingReturnAction       PendingReturnAction?
   rating                    Int?
+  /// Hora real de cada etapa (fase C2): aceite do motoboy, retirada na loja (PIN da loja) e entrega (PIN do cliente).
+  assignedAt                DateTime?
+  pickedAt                  DateTime?
+  deliveredAt               DateTime?
   comment                   String?
   storeAddress              String?
   storeLatitude             Float?
@@ -1046,6 +1052,10 @@ model PlatformConfig {
   cardInstallmentMaxCount      Int     @default(12)
   cardInstallmentMinValue      Decimal @default(5) @db.Decimal(12, 2)
   paymentProvider              PaymentProviderName @default(asaas)
+  defaultDeliveryRadiusKm      Float   @default(12)
+  defaultPrepMinutes           Int     @default(15)
+  courierAvgSpeedKmh           Float   @default(25)
+  routeDetourFactor            Float   @default(1.3)
   updatedBy                   String
   updatedAt                   DateTime      @updatedAt
 }
@@ -1151,6 +1161,8 @@ model PasswordResetToken {
   userId    String
   tokenHash String
   expiresAt DateTime
+  /// Tentativas erradas deste código. No 5º erro o código trava (pedir outro zera: o forgot cria um token novo).
+  attempts  Int      @default(0)
   createdAt DateTime @default(now())
 
   @@index([userId])

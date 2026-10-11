@@ -1,9 +1,9 @@
 /* ── Header ────────────────────────────────────────────── */
 .header {
-  background: rgba(10, 10, 10, 0.96);
+  background: color-mix(in srgb, var(--color-bg-primary) 96%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--color-border-default);
   position: sticky;
   top: 0;
   z-index: 200;
@@ -50,20 +50,20 @@
 .navLink {
   padding: 8px 14px;
   border-radius: 8px;
-  font-size: var(--fs-sm);
+  font: var(--text-caption);
   font-weight: 600;
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
   text-decoration: none;
   transition: color 0.2s ease, background 0.2s ease;
 }
 
 .navLink:hover {
-  color: var(--text-strong);
-  background: color-mix(in srgb, var(--text-strong) 8%, transparent);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
 }
 
 .navLinkActive {
-  color: var(--brand-2);
+  color: var(--color-text-brand);
 }
 
 /* ── Right ─────────────────────────────────────────────── */
@@ -83,7 +83,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
   text-decoration: none;
   transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
               background 0.2s cubic-bezier(0.4, 0, 0, 1),
@@ -91,8 +91,8 @@
 }
 
 .iconBtn:hover {
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   transform: scale(1.08);
 }
 
@@ -104,18 +104,18 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  background: var(--brand);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 10px;
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
+  min-width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 3px;
-  border: 2px solid #0a0a0a;
+  border: 2px solid var(--color-bg-primary);
 }
 
 /* ── Dropdown ──────────────────────────────────────────── */
@@ -126,7 +126,7 @@
 
 /* ── Auth (sem login) ──────────────────────────────────── */
 .loginLink {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--color-text-secondary);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -137,13 +137,13 @@
 }
 
 .loginLink:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
 }
 
 .registerBtn {
-  background: var(--brand);
-  color: #fff;
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
   text-decoration: none;
   border-radius: 8px;
   padding: 7px 16px;
@@ -156,7 +156,7 @@
 }
 
 .registerBtn:hover {
-  background: var(--brand-2);
+  background: var(--color-action-primary-hover);
 }
 
 .registerBtn:active {
@@ -169,7 +169,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--color-text-secondary);
   padding: 8px;
   border-radius: 8px;
   align-items: center;
@@ -179,8 +179,8 @@
 }
 
 .hamburger:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
 }
 
 /* ── Tablet / Mobile ───────────────────────────────────── */
@@ -201,7 +201,7 @@
     position: fixed;
     inset: 0;
     z-index: 300;
-    background: #0A0A0A;
+    background: var(--color-bg-primary);
     overflow-y: auto;
     padding-bottom: 32px;
   }
@@ -212,7 +212,7 @@
     justify-content: space-between;
     padding: 0 20px;
     height: 60px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--color-border-default);
     flex-shrink: 0;
   }
 
@@ -220,7 +220,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     padding: 8px;
     border-radius: 8px;
     display: flex;
@@ -229,7 +229,7 @@
     transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
                 transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
-  .mobileClose:hover { color: #fff; transform: scale(1.1); }
+  .mobileClose:hover { color: var(--color-text-primary); transform: scale(1.1); }
   .mobileClose:active { transform: scale(0.9); }
 
   .mobileNav {
@@ -239,38 +239,38 @@
   }
 
   .mobileNavLink {
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--color-text-primary);
     text-decoration: none;
     font-size: 18px;
     font-weight: 600;
     padding: 14px 12px;
     border-radius: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--color-border-default);
     transition: background 0.2s cubic-bezier(0.4, 0, 0, 1),
                 color 0.2s cubic-bezier(0.4, 0, 0, 1),
                 transform 0.2s cubic-bezier(0.4, 0, 0, 1);
     font-family: var(--font-display);
   }
   .mobileNavLink:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
+    background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+    color: var(--color-text-primary);
     transform: translateX(4px);
   }
 
   .mobileNavLinkAdmin {
-    color: #A78BFA;
+    color: var(--color-text-brand);
   }
 
   .mobileNavLinkPurple {
-    color: #8B5CF6;
+    color: var(--color-text-brand);
   }
 
   .mobileSectionLabel {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.28);
+    color: var(--color-text-muted);
     padding: 16px 24px 4px;
   }
 
@@ -284,8 +284,8 @@
 
   .mobileLogout {
     background: none;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.5);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-secondary);
     border-radius: 10px;
     padding: 12px;
     font-size: 15px;
@@ -293,14 +293,14 @@
     font-family: var(--font-body);
     transition: background 0.2s cubic-bezier(0.4, 0, 0, 1);
   }
-  .mobileLogout:hover { background: rgba(255, 255, 255, 0.05); }
+  .mobileLogout:hover { background: color-mix(in srgb, var(--color-text-primary) 6%, transparent); }
 
   .mobileLoginBtn {
     display: block;
     text-align: center;
     text-decoration: none;
-    color: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-default);
     border-radius: 10px;
     padding: 13px;
     font-size: 16px;
@@ -311,8 +311,8 @@
     display: block;
     text-align: center;
     text-decoration: none;
-    background: #6C2BD9;
-    color: #fff;
+    background: var(--color-action-primary);
+    color: var(--color-on-action);
     border-radius: 10px;
     padding: 13px;
     font-size: 16px;
@@ -327,9 +327,9 @@
   }
 
   .mobileRoleChip {
-    background: rgba(108, 43, 217, 0.15);
-    border: 1px solid rgba(139, 92, 246, 0.25);
-    color: #C4B5FD;
+    background: var(--color-action-primary-subtle);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-action-primary-subtle-text);
     border-radius: 20px;
     padding: 6px 14px;
     font-size: 13px;
@@ -338,5 +338,5 @@
     font-family: var(--font-body);
     transition: background 0.15s;
   }
-  .mobileRoleChip:hover { background: rgba(108, 43, 217, 0.3); }
+  .mobileRoleChip:hover { background: color-mix(in srgb, var(--color-action-primary) 30%, var(--color-action-primary-subtle)); }
 }

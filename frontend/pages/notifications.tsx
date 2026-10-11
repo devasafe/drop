@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Package, MessageSquare, Megaphone, Bell, BellOff, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { ROUTES } from '../lib/routes';
 import api from '../lib/api';
 import { useNotifications } from '../hooks/useSync';
 import { groupByDay } from '../lib/groupNotifications';
@@ -37,6 +39,7 @@ const formatTime = (dateStr: string) => {
 export default function Notifications() {
   const { user, loading } = useAuth() || {};
   const router = useRouter();
+  useClienteRedirect(ROUTES.notificacoes);
   const { notifications: rawNotifications, loading: notifLoading } = useNotifications();
   const notifications: Notification[] = (rawNotifications ?? []).filter(
     (n): n is Notification => typeof n?._id === 'string',
@@ -44,7 +47,8 @@ export default function Notifications() {
 
   useEffect(() => {
     if (!loading && !user) { router.push('/login'); return; }
-    if (user) api.patch('/notifications/read-all').catch(() => {});
+    // o cliente vai para a tela nova, que deixa "Marcar lidas" nas mãos dele
+    if (user && (user.activeRole || user.role) !== 'cliente') api.patch('/notifications/read-all').catch(() => {});
   }, [user, loading, router]);
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());

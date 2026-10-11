@@ -5,6 +5,7 @@ export interface ChipProps {
   icon?: ReactNode;
   label: string;
   active?: boolean;
+  disabled?: boolean;
   onClick?: MouseEventHandler<HTMLButtonElement>;
 }
 
@@ -14,12 +15,13 @@ export interface ChipProps {
  * lado do texto dentro da mesma pílula, nunca num quadrado separado.
  * `active` = fundo roxo sólido; inativo = fundo neutro translúcido.
  */
-export function Chip({ icon, label, active = false, onClick }: ChipProps) {
+export function Chip({ icon, label, active = false, disabled = false, onClick }: ChipProps) {
   return (
     <button
       type="button"
       className={[styles.chip, active && styles.on].filter(Boolean).join(' ')}
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
     >
       {icon && <span className={styles.icon}>{icon}</span>}

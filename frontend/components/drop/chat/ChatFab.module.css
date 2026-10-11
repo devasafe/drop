@@ -6,12 +6,12 @@
   width: 56px;
   height: 56px;
   border: none;
-  border-radius: var(--r-pill);
-  background: var(--brand-grad);
-  color: var(--on-brand);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
   cursor: pointer;
-  box-shadow: var(--shadow-brand);
-  transition: transform var(--dur-fast) var(--ease);
+  box-shadow: var(--elevation-2);
+  transition: transform var(--motion-fast) var(--ease);
 }
 
 .fab:hover {
@@ -36,10 +36,10 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: var(--r-pill);
-  background: var(--danger);
-  color: var(--on-brand);
-  font-size: var(--fs-xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: var(--color-on-action);
+  font-size: 12px;
   font-weight: 700;
-  box-shadow: var(--shadow-brand);
+  box-shadow: none;
 }

@@ -1,262 +1,245 @@
 import LegalPage, { LegalSection } from '../components/legal/LegalPage';
-import { LEGAL_VERSIONS, LEGAL_UPDATED } from '../lib/legalDocs';
-import styles from '../components/legal/LegalPage.module.css';
+import { LEGAL_VERSIONS, LEGAL_UPDATED, LEGAL_OPERATOR_NAME, PRIVACY_EMAIL } from '../lib/legalDocs';
 
+// Resumo "O essencial" validado pelo dono em 2026-10-11. A frase do motoboy não cita percentual:
+// a parte dele muda por modo (custódia × SaaS) e é configurável pelo admin.
+const TERMS_SUMMARY = [
+  'A loja vende e responde pelo produto.',
+  'O motoboy é autônomo e fica com a maior parte da taxa de entrega.',
+  'Cancelar antes da retirada é grátis.',
+  'O estorno volta para onde você pagou.',
+];
+
+// Versão 2.0 (2026-10-11): DROP operada por pessoa física; cobre os dois modos de pagamento
+// (direto/SaaS e custódia). Regras de cancelamento conferidas com utils/cancellationFee.ts.
 export default function TermosPage() {
   return (
-    <LegalPage title="Termos de Uso" version={LEGAL_VERSIONS.terms} updatedAt={LEGAL_UPDATED}>
-      <LegalSection title="1. Aceitação dos termos">
+    <LegalPage title="Termos de Uso" version={LEGAL_VERSIONS.terms} updatedAt={LEGAL_UPDATED} summary={TERMS_SUMMARY}>
+      <LegalSection id="aceitacao" title="1. Quem somos e aceitação">
         <p>
-          Estes Termos de Uso ("Termos") regem o acesso e a utilização da plataforma DROP
-          ("DROP", "Plataforma", "nós"), operada por{' '}
-          <span className={styles.placeholder}>[RAZÃO SOCIAL]</span>, inscrita no CNPJ sob o nº{' '}
-          <span className={styles.placeholder}>[CNPJ]</span>, com sede em{' '}
-          <span className={styles.placeholder}>[ENDEREÇO DA EMPRESA]</span>.
+          Estes Termos de Uso ("Termos") regem o uso da plataforma DROP ("DROP",
+          "Plataforma", "nós"), desenvolvida e operada por {LEGAL_OPERATOR_NAME}, pessoa
+          física. Contato: <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
         </p>
         <p>
-          Ao criar uma conta, acessar ou utilizar a DROP — seja como cliente, lojista ou
-          motoboy — você declara que leu, compreendeu e concorda integralmente com estes
-          Termos e com a nossa Política de Privacidade. Caso não concorde com qualquer
-          disposição aqui prevista, você não deve utilizar a Plataforma.
+          A DROP é um projeto em fase inicial. Ao criar uma conta ou usar a Plataforma, como
+          cliente, lojista ou motoboy, você declara que leu e concorda com estes Termos e com
+          a nossa Política de Privacidade. Se não concordar, não use a Plataforma.
         </p>
         <p>
-          Se você utiliza a DROP em nome de uma pessoa jurídica (por exemplo, como lojista),
-          declara ter poderes para vinculá-la a estes Termos.
+          Se você usa a DROP em nome de uma empresa (por exemplo, como lojista), declara ter
+          poderes para aceitar estes Termos em nome dela.
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Descrição do serviço">
+      <LegalSection id="servico" title="2. O que a DROP faz">
         <p>
-          A DROP é um marketplace que conecta clientes, lojistas e entregadores parceiros
-          ("motoboys") para a compra, venda e entrega de produtos oferecidos por lojas
-          cadastradas na Plataforma. A DROP atua exclusivamente como intermediadora
-          tecnológica dessas relações, disponibilizando ferramentas de catálogo, pedido,
-          pagamento, rastreamento e comunicação entre as partes.
+          A DROP é uma ferramenta de tecnologia que conecta clientes, lojas e entregadores
+          autônomos ("motoboys"). Ela oferece catálogo, pedido, pagamento online, entrega
+          com rastreio e conversa entre as partes.
         </p>
         <p>
-          Os itens comercializados por meio da Plataforma são bens de consumo{' '}
-          <strong>não essenciais</strong>. A DROP não é uma plataforma de itens de primeira
-          necessidade (alimentação básica, medicamentos de uso contínuo, entre outros) e não
-          garante disponibilidade, prazo ou continuidade de fornecimento de qualquer produto.
+          <strong>A DROP não vende os produtos.</strong> Quem vende é a loja, que responde
+          pelo produto, pelo preço anunciado, pela nota fiscal e pela troca ou devolução, nos
+          termos do Código de Defesa do Consumidor. O motoboy é autônomo e responde pela
+          execução da entrega.
         </p>
         <p>
-          A DROP não é parte na relação de compra e venda entre cliente e lojista, tampouco no
-          contrato de transporte entre lojista/cliente e motoboy, salvo nas obrigações que
-          assume expressamente nestes Termos (por exemplo, o processamento e a custódia de
-          pagamentos, conforme Seção 4).
+          Os produtos vendidos na DROP são bens de consumo não essenciais. A DROP não garante
+          disponibilidade, prazo ou continuidade de fornecimento de nenhum produto.
         </p>
       </LegalSection>
 
-      <LegalSection title="3. Tipos de conta e regras de cada perfil">
-        <p>
-          A Plataforma disponibiliza três tipos de conta, cada um sujeito a regras próprias de
-          cadastro, verificação e uso:
-        </p>
+      <LegalSection id="contas" title="3. Contas e verificação">
         <ul>
           <li>
-            <strong>Cliente:</strong> pessoa física que utiliza a DROP para navegar em lojas,
-            realizar pedidos e efetuar pagamentos. É responsável pela veracidade dos dados
-            informados e pelo uso adequado da conta e da senha.
+            <strong>Cliente:</strong> pessoa física que compra na Plataforma. Para comprar,
+            confirma o e-mail e envia um documento com CPF. É responsável pelos dados que
+            informa e pelo sigilo da senha.
           </li>
           <li>
-            <strong>Lojista:</strong> pessoa física ou jurídica que cadastra e comercializa
-            produtos na Plataforma. Está sujeito a processo de verificação (KYC), incluindo
-            CNPJ e comprovante de endereço quando aplicável, é responsável pela veracidade das
-            informações dos produtos, pelo cumprimento da legislação consumerista e fiscal
-            aplicável, e pela disponibilidade e qualidade do que anuncia.
+            <strong>Lojista:</strong> pessoa física ou jurídica que vende na Plataforma. Passa
+            pela verificação exigida no modo de pagamento em vigor (ver Seção 4) e responde
+            pelas informações dos produtos e pelas obrigações fiscais e de consumo da venda.
           </li>
           <li>
-            <strong>Motoboy:</strong> pessoa física que realiza entregas vinculadas aos pedidos
-            processados pela Plataforma. Está sujeito a processo de verificação (KYC),
-            incluindo CNH e placa do veículo, além de documento de identificação e selfie para
-            confirmação biométrica. É responsável pela regularidade de sua habilitação, de seu
-            veículo e pela correta execução da entrega.
+            <strong>Motoboy:</strong> pessoa física que faz as entregas. Envia documento,
+            selfie, CNH e placa, e responde pela regularidade da habilitação e do veículo.
           </li>
         </ul>
         <p>
-          A relação entre a DROP e lojistas ou motoboys não configura vínculo empregatício,
-          societário ou de representação. Lojistas e motoboys atuam como parceiros
-          independentes, responsáveis por suas próprias obrigações fiscais, trabalhistas e
-          previdenciárias.
+          Lojistas e motoboys são parceiros independentes. Não há vínculo de emprego,
+          sociedade ou representação com a DROP, e cada um cuida das próprias obrigações
+          fiscais e previdenciárias.
         </p>
         <p>
-          A DROP pode exigir verificação adicional de identidade a qualquer momento e recusar,
-          suspender ou encerrar cadastros que não atendam aos critérios de segurança e
-          conformidade da Plataforma.
+          A DROP pode pedir verificação adicional a qualquer momento e recusar, suspender ou
+          encerrar cadastros que não atendam aos critérios de segurança.
         </p>
       </LegalSection>
 
-      <LegalSection title="4. Pagamentos e custódia">
+      <LegalSection id="pagamentos" title="4. Pagamentos">
         <p>
-          Os pagamentos realizados na Plataforma são processados por meio da{' '}
-          <strong>Asaas</strong>, instituição de pagamento parceira, que atua como processadora
-          e custodiante dos valores até a sua liberação aos destinatários (lojista e motoboy).
-        </p>
-        <p>
-          Ao concluir um pedido, o cliente autoriza a cobrança do valor total (produtos, taxa
-          de entrega e eventuais encargos aplicáveis) pelos meios de pagamento disponibilizados
-          na Plataforma. Os valores ficam retidos em custódia até a confirmação das etapas do
-          pedido, quando então são repassados ao lojista e ao motoboy, descontadas as comissões
-          e taxas previstas nestes Termos.
-        </p>
-        <p>
-          Lojistas e motoboys devem manter conta habilitada junto à Asaas (subconta) e dados
-          bancários/PIX válidos para recebimento dos repasses. A DROP não se responsabiliza por
-          atrasos ou falhas decorrentes de informações bancárias incorretas ou de
-          indisponibilidade dos sistemas da Asaas.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="5. Comissões">
-        <p>
-          A DROP retém uma comissão sobre as transações realizadas na Plataforma, como
-          contrapartida pela intermediação, processamento de pagamentos e demais serviços
-          disponibilizados a lojistas e motoboys.
+          Os pagamentos online (Pix e cartão) são processados pela <strong>Asaas</strong>{' '}
+          (Asaas Gestão Financeira Instituição de Pagamento S.A.). A DROP não guarda os dados
+          do cartão. A Plataforma funciona em um de dois modos, sempre informado na sacola e
+          no painel da loja:
         </p>
         <ul>
           <li>
-            O percentual de comissão <strong>varia conforme o plano</strong> contratado pelo
-            lojista junto à DROP.
+            <strong>Pagamento direto à loja:</strong> o cliente paga direto na conta Asaas da
+            loja. A DROP não recebe nem guarda o valor do pedido. A loja autoriza a DROP a
+            gerar as cobranças, fazer os estornos e pagar ao motoboy a taxa da entrega a partir
+            da conta dela, nos termos da autorização que aceita ao conectar o Asaas.
           </li>
           <li>
-            A comissão pode incidir sobre o valor da <strong>venda</strong> (produtos) e/ou
-            sobre o valor da <strong>entrega</strong>, conforme as regras do plano vigente.
+            <strong>Pagamento com custódia:</strong> o cliente paga à DROP, que guarda o valor
+            na Asaas até a entrega e então repassa à loja e ao motoboy, descontando as
+            comissões da Seção 5. Neste modo o cliente também pode ter saldo na carteira da
+            DROP, vindo de estornos ou créditos, e usá-lo em compras.
           </li>
         </ul>
         <p>
-          Os percentuais de comissão vigentes para cada plano estão sempre disponíveis na
-          página de planos da Plataforma e no painel do lojista. Eventuais alterações de
-          percentual são comunicadas previamente e aplicam-se apenas a transações futuras,
-          nunca retroativamente a pedidos já concluídos.
+          O cliente autoriza a cobrança do valor total mostrado na sacola: produtos, taxa de
+          entrega e, no cartão parcelado, o custo do parcelamento, exibido antes de pagar. O
+          Pix expira se não for pago no prazo mostrado na tela.
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Cancelamento, taxas e reembolso">
-        <p>
-          Pedidos podem ser cancelados nas hipóteses e prazos descritos no fluxo de pedido da
-          Plataforma. O cancelamento pode gerar a cobrança de uma <strong>taxa</strong>, cujo
-          valor varia conforme <strong>quem solicita o cancelamento</strong> e o momento em que
-          ele ocorre:
-        </p>
+      <LegalSection id="remuneracao" title="5. Quanto a DROP cobra">
         <ul>
           <li>
-            <strong>Cancelamento pelo cliente:</strong> a taxa incide sobre o valor{' '}
-            <strong>total</strong> do pedido (produtos e entrega).
+            <strong>Cliente:</strong> não paga taxa de serviço à DROP. Paga os produtos e a
+            taxa de entrega, calculada pela distância da rota.
           </li>
           <li>
-            <strong>Cancelamento pela loja ou pelo motoboy:</strong> a taxa incide sobre o valor
-            da <strong>entrega</strong>.
+            <strong>Loja no pagamento direto:</strong> paga uma mensalidade, com período de
+            teste grátis. O valor, o teste e a tolerância de atraso aparecem no painel da loja.
+            Se a mensalidade ficar em atraso além da tolerância, a loja sai da vitrine e deixa
+            de receber pedidos novos até pagar. Os pedidos em andamento seguem normalmente.
+          </li>
+          <li>
+            <strong>Loja na custódia:</strong> paga uma comissão sobre as vendas, que varia
+            conforme o plano escolhido e aparece no painel da loja.
+          </li>
+          <li>
+            <strong>Motoboy:</strong> fica com a maior parte da taxa de entrega. A parte dele
+            aparece no app do motoboy.
           </li>
         </ul>
         <p>
-          Quando aplicável, o <strong>reembolso ao cliente é líquido</strong>, ou seja, é feito
-          descontando-se a taxa de cancelamento correspondente, por meio de estorno parcial
-          processado via Asaas.
-        </p>
-        <p>
-          Nos casos em que o cancelamento ocorre após o motoboy já ter iniciado a execução da
-          entrega, parte da taxa cobrada é destinada a ele, como compensação pelo trabalho já
-          iniciado.
-        </p>
-        <p>
-          Os prazos e janelas de tempo relevantes para cancelamento (por exemplo, tempo de
-          aceite da loja, tempo de espera na fila de motoboys, ausência do cliente no momento
-          da entrega) e os percentuais de taxa vigentes são exibidos no fluxo do pedido no
-          momento do cancelamento e/ou no painel do usuário. Alterações nesses valores aplicam-se
-          apenas a pedidos futuros.
+          Mudanças de valores são avisadas antes e valem só para pedidos e mensalidades
+          futuros.
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Condutas proibidas">
-        <p>Ao utilizar a DROP, você concorda em não:</p>
+      <LegalSection id="cancelamento" title="6. Cancelamento e estorno">
         <ul>
-          <li>Fornecer informações falsas, incompletas ou de terceiros sem autorização no cadastro ou na verificação de identidade;</li>
-          <li>Utilizar a Plataforma para fins ilícitos, fraudulentos ou que violem direitos de terceiros;</li>
-          <li>Anunciar, comercializar ou solicitar produtos proibidos por lei ou pelas políticas da Plataforma;</li>
-          <li>Tentar contornar os meios de pagamento e cobrança oferecidos pela Plataforma para evitar comissões ou taxas;</li>
-          <li>Assediar, ameaçar ou agredir, verbal ou fisicamente, outros usuários, lojistas ou motoboys;</li>
-          <li>Interferir no funcionamento técnico da Plataforma, incluindo tentativas de acesso não autorizado, engenharia reversa ou uso de robôs/scripts automatizados sem autorização;</li>
-          <li>Criar múltiplas contas para burlar suspensões, bloqueios ou limites da Plataforma.</li>
+          <li>
+            <strong>Cliente cancela antes de o motoboy retirar o pedido:</strong> é grátis, e o
+            valor volta inteiro.
+          </li>
+          <li>
+            <strong>Cliente cancela depois da retirada:</strong> a taxa de entrega fica com o
+            motoboy, que já fez a viagem, e o restante volta ao cliente.
+          </li>
+          <li>
+            <strong>A loja recusa ou cancela:</strong> o cliente recebe tudo de volta. Eventuais
+            taxas são cobradas da loja, não do cliente. Se o motoboy desistir da corrida, o
+            pedido volta para outro motoboy.
+          </li>
+          <li>
+            <strong>A loja não aceita o pedido no prazo:</strong> o pedido é cancelado sozinho
+            e o valor volta inteiro.
+          </li>
+          <li>
+            <strong>O cliente não está no endereço para receber:</strong> pode ser cobrada uma
+            taxa sobre o pedido, mostrada no app, que remunera a viagem do motoboy.
+          </li>
         </ul>
         <p>
-          A violação de qualquer conduta prevista nesta Seção pode resultar em advertência,
-          suspensão temporária ou encerramento definitivo da conta, sem prejuízo de outras
-          medidas legais cabíveis.
+          O estorno volta para onde o cliente pagou: o Pix ou o cartão, pela Asaas. Na
+          custódia, a parte paga com saldo volta para a carteira. A tela de cancelamento
+          mostra quanto vai voltar antes de confirmar.
+        </p>
+        <p>
+          Problemas com o produto (defeito, item errado ou faltando) são resolvidos com a loja
+          pela própria Plataforma, na tela do pedido, sem prejuízo dos direitos do consumidor.
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Propriedade intelectual">
-        <p>
-          A marca DROP, seu logotipo, layout, design, código-fonte, funcionalidades e demais
-          elementos da Plataforma são de titularidade de{' '}
-          <span className={styles.placeholder}>[RAZÃO SOCIAL]</span> ou de seus licenciadores,
-          sendo protegidos pela legislação de propriedade intelectual aplicável.
-        </p>
-        <p>
-          É vedada a reprodução, distribuição, modificação ou uso comercial de qualquer
-          elemento da Plataforma sem autorização prévia e expressa. Conteúdos enviados por
-          lojistas (fotos, descrições de produtos) permanecem de titularidade destes, que
-          concedem à DROP licença não exclusiva para exibi-los na Plataforma enquanto o
-          cadastro estiver ativo.
-        </p>
-      </LegalSection>
-
-      <LegalSection title="9. Limitação de responsabilidade">
-        <p>
-          A DROP envida esforços para manter a Plataforma disponível, segura e funcional, mas
-          não garante operação ininterrupta ou livre de erros. Na máxima extensão permitida
-          pela legislação aplicável, a DROP não se responsabiliza por:
-        </p>
+      <LegalSection id="condutas" title="7. O que não é permitido">
         <ul>
-          <li>Qualidade, conformidade, legalidade ou disponibilidade dos produtos anunciados por lojistas;</li>
-          <li>Atrasos, extravios ou danos ocorridos durante o transporte realizado por motoboys parceiros, ressalvadas as hipóteses em que a própria DROP tenha agido com culpa ou dolo direto;</li>
-          <li>Prejuízos decorrentes de uso indevido da Plataforma por outros usuários;</li>
-          <li>Indisponibilidade temporária decorrente de manutenção, caso fortuito, força maior ou falhas de terceiros (incluindo provedores de pagamento, mapas e infraestrutura).</li>
+          <li>Informar dados falsos ou de outra pessoa sem autorização;</li>
+          <li>Usar a Plataforma para fraude ou qualquer fim ilegal;</li>
+          <li>Anunciar ou pedir produtos proibidos por lei;</li>
+          <li>Combinar o pagamento por fora da Plataforma para fugir de mensalidade, comissão ou taxas;</li>
+          <li>Assediar, ameaçar ou agredir outros usuários, lojistas ou motoboys;</li>
+          <li>Tentar invadir, copiar ou sobrecarregar a Plataforma, ou usar robôs sem autorização;</li>
+          <li>Criar várias contas para burlar suspensões ou limites.</li>
         </ul>
         <p>
-          Nada nesta Seção exclui ou limita direitos que não possam ser excluídos ou limitados
-          por lei, incluindo os direitos assegurados ao consumidor pelo Código de Defesa do
-          Consumidor.
+          Quem descumprir pode receber advertência, suspensão ou encerramento da conta, sem
+          prejuízo de outras medidas legais.
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Suspensão e encerramento de conta">
+      <LegalSection id="propriedade" title="8. Propriedade intelectual">
         <p>
-          A DROP pode suspender ou encerrar, a qualquer momento e mediante comunicação ao
-          usuário sempre que possível, contas que descumpram estes Termos, apresentem indícios
-          de fraude, coloquem em risco a segurança da Plataforma ou de terceiros, ou por
-          determinação legal ou de autoridade competente.
+          A marca DROP, o logotipo, o design e o código da Plataforma pertencem a{' '}
+          {LEGAL_OPERATOR_NAME}. Não é permitido copiar ou usar comercialmente sem
+          autorização.
         </p>
         <p>
-          O usuário pode solicitar o encerramento de sua própria conta a qualquer momento,
-          observadas eventuais obrigações pendentes (pedidos em andamento, valores a receber ou
-          a pagar).
+          Fotos e descrições enviadas pelas lojas continuam sendo delas. A loja autoriza a
+          DROP a exibi-las na Plataforma enquanto o cadastro estiver ativo.
         </p>
       </LegalSection>
 
-      <LegalSection title="11. Alterações destes termos">
+      <LegalSection id="responsabilidade" title="9. Limites de responsabilidade">
         <p>
-          Estes Termos podem ser atualizados periodicamente para refletir mudanças na
-          Plataforma, na legislação aplicável ou nas práticas de mercado. A versão vigente e a
-          data da última atualização estão sempre indicadas no topo desta página.
+          A DROP se esforça para manter a Plataforma no ar e segura, mas não garante que ela
+          funcione sem interrupções ou erros. Na medida permitida pela lei, a DROP não
+          responde por:
         </p>
+        <ul>
+          <li>Qualidade, legalidade ou disponibilidade dos produtos anunciados pelas lojas;</li>
+          <li>Danos ou atrasos na entrega causados pelo motoboy, salvo culpa da própria DROP;</li>
+          <li>Mau uso da Plataforma por outros usuários;</li>
+          <li>Falhas temporárias por manutenção, força maior ou serviços de terceiros (pagamento, mapas, hospedagem).</li>
+        </ul>
         <p>
-          Alterações relevantes serão comunicadas aos usuários pelos canais habituais da
-          Plataforma (por exemplo, e-mail ou aviso no aplicativo). A continuidade do uso da
-          DROP após a entrada em vigor das alterações implica concordância com os novos Termos.
-          Caso as alterações não sejam aceitas, o usuário deve descontinuar o uso da Plataforma
-          e pode solicitar o encerramento de sua conta.
+          Nada nesta seção limita direitos que a lei não permite limitar, incluindo os do
+          Código de Defesa do Consumidor.
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Foro e legislação aplicável">
+      <LegalSection id="suspensao" title="10. Suspensão e encerramento">
         <p>
-          Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o
-          foro da comarca de{' '}
-          <span className={styles.placeholder}>[ENDEREÇO DA EMPRESA]</span>, com renúncia a
-          qualquer outro, por mais privilegiado que seja, para dirimir controvérsias
-          decorrentes destes Termos, ressalvada a competência dos Juizados Especiais e do foro
-          do domicílio do consumidor, quando aplicável por força de lei.
+          A DROP pode suspender ou encerrar contas que descumpram estes Termos, tenham sinais
+          de fraude ou ponham em risco a Plataforma ou outras pessoas, avisando sempre que
+          possível.
+        </p>
+        <p>
+          Você pode pedir o encerramento da sua conta a qualquer momento. Pedidos em
+          andamento e valores a receber ou a pagar são concluídos antes.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="alteracoes" title="11. Mudanças nestes Termos">
+        <p>
+          Estes Termos podem mudar. A versão e a data em vigor ficam no topo desta página, e
+          mudanças importantes são avisadas por e-mail ou no app. Se você continuar usando a
+          DROP depois que a mudança valer, concorda com a nova versão. Se não concordar, pode
+          parar de usar e pedir o encerramento da conta.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="foro" title="12. Lei e foro">
+        <p>
+          Estes Termos seguem as leis do Brasil. Para o consumidor, vale o foro do domicílio
+          dele. Nas demais relações, vale o foro do domicílio do responsável pela DROP,
+          ressalvada a competência dos Juizados Especiais.
         </p>
       </LegalSection>
     </LegalPage>

@@ -45,3 +45,175 @@
   /* Tom neutro informativo (ex.: Toast tone="info"), mesmo azul já usado em avisos/anúncios */
   --info:#38BDF8;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DS v2 — tokens em duas camadas (spec 2026-10-07-drop-ds-v2-design.md §5).
+   Primitiva (valor bruto) → semântica (o que o componente lê) → tema.
+   Componente NOVO lê só --color-*, --text-*, --radius-*, --elevation-*,
+   --motion-*; nunca a primitiva. Os tokens antigos acima (--bg, --brand…)
+   continuam valendo até a migração de cada componente.
+
+   Tema: :root e [data-theme="light"] = claro; [data-theme="dark"] = paleta
+   atual. Hoje o <html> sai com data-theme="dark" (_document), então nada muda
+   na tela; a troca por rota vem na etapa seguinte.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Primitivas */
+  --purple-50:#F3EEFD; --purple-100:#E6DBFB; --purple-200:#CDB8F6; --purple-300:#AE8DEF; --purple-400:#8B5CF6;
+  --purple-500:#7A3EE6; --purple-600:#6C2BD9; --purple-700:#5A21BA; --purple-800:#481A94; --purple-900:#34136B;
+  --gray-0:#FFFFFF; --gray-25:#FBFAFD; --gray-50:#F6F5F9; --gray-100:#EEEDF2; --gray-200:#E4E2EA; --gray-300:#C9C6D3;
+  --gray-400:#8F8A9E; --gray-500:#6E6A80; --gray-600:#55516A; --gray-700:#3E3A4D; --gray-800:#2A2735; --gray-900:#1A1722; --gray-950:#0E0C13;
+  --green-50:#E8F7EE; --green-500:#22A55A; --green-700:#15803D;
+  --amber-50:#FFF4E0; --amber-500:#F59E0B; --amber-700:#A15C07;
+  --red-50:#FDECEC; --red-500:#D92D20; --red-700:#C81E1E;
+  --blue-50:#E7F3FB; --blue-500:#1D8FD8; --blue-700:#0B6BA8;
+
+  /* Tipografia — use com `font: var(--text-body)` */
+  --text-display:700 28px/34px var(--font-display);
+  --text-title-lg:700 22px/28px var(--font-display);
+  --text-title:600 18px/24px var(--font-display);
+  --text-body-lg:500 17px/24px var(--font-body);
+  --text-body:400 15px/22px var(--font-body);
+  --text-label:600 14px/20px var(--font-body);
+  --text-meta:400 13px/18px var(--font-body);
+  --text-caption:500 12px/16px var(--font-body);
+  --text-price-lg:700 28px/34px var(--font-display);
+  --text-price:700 17px/22px var(--font-display);
+  --text-price-sm:700 15px/20px var(--font-display);
+
+  /* Raio por função */
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:20px; --radius-pill:999px;
+
+  /* Toque e foco */
+  --touch-min:44px;
+  --focus-ring-width:2px; --focus-ring-offset:2px;
+
+  /* Movimento */
+  --motion-fast:120ms; --motion-base:200ms; --motion-slow:320ms;
+  --ease-in:cubic-bezier(.2,.7,.2,1); --ease-out:cubic-bezier(.4,0,1,1);
+}
+
+/* Tema claro (padrão do app do cliente) */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  /* Fundo "gelo" (decidido em 2026-10-08): a página fica levemente acinzentada
+     e card, foto, campo, sacola e barras ficam brancos — separa sem borda.
+     sunken = mesmo gelo: placeholder dentro de card branco. Não escurecer:
+     em gray-100 o texto muted e o verde do prazo caem abaixo de 4,5:1. */
+  --color-bg-primary:var(--gray-50);
+  --color-bg-secondary:var(--gray-0);
+  --color-surface-default:var(--gray-0);
+  --color-surface-elevated:var(--gray-0);
+  --color-qr-bg:#FFFFFF; /* exceção B3: leitores de QR precisam de fundo branco */
+  --color-surface-sunken:var(--gray-50);
+  --color-text-primary:var(--gray-900);
+  --color-text-secondary:var(--gray-600);
+  --color-text-muted:var(--gray-500);
+  --color-text-disabled:var(--gray-300);
+  --color-text-link:var(--purple-600);
+  --color-text-brand:var(--purple-600);
+  --color-border-default:var(--gray-200);
+  --color-border-strong:var(--gray-300);
+  --color-border-input:var(--gray-400);
+  --color-action-primary:var(--purple-600);
+  --color-action-primary-hover:var(--purple-700);
+  --color-action-primary-pressed:var(--purple-800);
+  --color-action-primary-subtle:var(--purple-50);
+  --color-action-primary-subtle-text:var(--purple-700);
+  --color-action-disabled:var(--gray-200);
+  --color-on-action:var(--gray-0);
+  --color-success:var(--green-500); --color-success-text:var(--green-700); --color-success-subtle:var(--green-50);
+  --color-warning:var(--amber-500); --color-warning-text:var(--amber-700); --color-warning-subtle:var(--amber-50);
+  --color-error:var(--red-500);     --color-error-text:var(--red-700);     --color-error-subtle:var(--red-50);
+  --color-info:var(--blue-500);     --color-info-text:var(--blue-700);     --color-info-subtle:var(--blue-50);
+  --color-price:var(--color-text-primary);
+  --color-discount:var(--color-action-primary);
+  --color-delivery-fast:var(--color-success-text);
+  --color-rating:var(--amber-500);
+  --color-scrim:rgba(14,12,19,.48);
+  --color-focus-ring:var(--purple-600);
+  --elevation-1:0 1px 2px rgba(26,23,34,.06);
+  --elevation-2:0 4px 16px rgba(26,23,34,.08);
+  --elevation-3:0 12px 32px rgba(26,23,34,.14);
+}
+
+/* ponte-claro */
+/* Também no body: var() resolve no elemento onde é declarado. Declarado só no <html>, --brand
+   congelaria o roxo antes do sazonal (body.theme-natal redefine --color-action-primary no body). */
+[data-theme="light"], [data-theme="light"] body {
+  /* Tokens antigos seguem o tema claro até cada tela migrar (fase C).
+     --scrim-soft/--scrim-strong ficam como estão: preto translúcido serve nos dois temas. */
+  --bg: var(--color-bg-primary);
+  --bg-radial: var(--color-bg-primary);
+  --surface: var(--color-surface-default);
+  --surface-2: var(--color-surface-sunken);
+  --surface-field: var(--color-surface-default);
+  --surface-chip: var(--color-surface-sunken);
+  --panel: var(--color-surface-default);
+  --panel-2: var(--color-surface-sunken);
+  --panel-grad: var(--color-surface-default);
+  --line: var(--color-border-default);
+  --divider: var(--color-border-default);
+  --accent-line: var(--color-border-default);
+  --text: var(--color-text-primary);
+  --text-strong: var(--color-text-primary);
+  --text-muted: var(--color-text-secondary);
+  --text-subtle: var(--color-text-muted);
+  --text-on-panel-muted: var(--color-text-secondary);
+  --brand: var(--color-action-primary);
+  --brand-2: var(--color-text-brand);
+  --brand-grad: var(--color-action-primary);
+  --accent-soft: var(--color-action-primary-subtle);
+  --on-brand: var(--color-on-action);
+  --success: var(--color-success-text);
+  --danger: var(--color-error-text);
+  --info: var(--color-info-text);
+  --rating: var(--color-rating);
+  --brand-glow: none;
+  --accent-glow: none;
+  --shadow-brand: none;
+  --shadow-float: var(--elevation-2);
+  --shadow-neutral: var(--elevation-1);
+  --scrim: var(--color-scrim);
+}
+
+/* Tema escuro — a paleta atual (loja, motoboy e admin até a rodada deles) */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg-primary:#0A0A0A;
+  --color-bg-secondary:var(--gray-950);
+  --color-surface-default:#151021;
+  --color-surface-elevated:#1b1526;
+  --color-qr-bg:#FFFFFF; /* exceção B3: leitores de QR precisam de fundo branco */
+  --color-surface-sunken:#120f19;
+  --color-text-primary:#EDEBF2;
+  --color-text-secondary:#B9B4C7;
+  --color-text-muted:#8f8aa0;
+  --color-text-disabled:#4A4656;
+  --color-text-link:var(--purple-300);
+  --color-text-brand:var(--purple-300);
+  --color-border-default:#26212F;
+  --color-border-strong:#3A3445;
+  --color-border-input:#6E6A80;
+  --color-action-primary:var(--purple-600);
+  --color-action-primary-hover:var(--purple-500);
+  --color-action-primary-pressed:var(--purple-700);
+  --color-action-primary-subtle:#231A38;
+  --color-action-primary-subtle-text:var(--purple-200);
+  --color-action-disabled:#2A2735;
+  --color-on-action:#FFFFFF;
+  --color-success:#3ddc84; --color-success-text:#3ddc84; --color-success-subtle:#10261A;
+  --color-warning:#ffb020; --color-warning-text:#ffb020; --color-warning-subtle:#2A2010;
+  --color-error:#D92D20;   --color-error-text:#ff7a7e;   --color-error-subtle:#2C1214;
+  --color-info:#38BDF8;    --color-info-text:#38BDF8;    --color-info-subtle:#0C2230;
+  --color-price:var(--color-text-primary);
+  --color-discount:var(--color-action-primary);
+  --color-delivery-fast:var(--color-success-text);
+  --color-rating:#ffb020;
+  --color-scrim:rgba(0,0,0,.6);
+  --color-focus-ring:var(--purple-400);
+  --elevation-1:0 1px 2px rgba(0,0,0,.4);
+  --elevation-2:0 4px 16px rgba(0,0,0,.45);
+  --elevation-3:0 12px 32px rgba(0,0,0,.55);
+}

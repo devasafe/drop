@@ -2,7 +2,7 @@ import { IconName } from '../components/Icon';
 import { visibleAdminMenu } from './adminMenu';
 
 export type Role = 'cliente' | 'lojista' | 'motoboy' | 'ceo';
-export type Placement = 'sidebar' | 'bottomNav' | 'drawer';
+export type Placement = 'sidebar' | 'bottomNav' | 'drawer' | 'account';
 export type BadgeKey = 'storeOrders' | 'deliveries' | 'verifications' | 'notifications';
 
 export interface NavItem {
@@ -60,20 +60,22 @@ export const ROLE_AREAS: RoleArea[] = [
  *  CustomerAppChrome. "Entrar" leva pro login. */
 export const GUEST_BOTTOM_NAV: { key: 'inicio' | 'buscar' | 'entrar'; label: string; route: string }[] = [
   { key: 'inicio', label: 'Início', route: '/inicio' },
-  { key: 'buscar', label: 'Buscar', route: '/' },
+  { key: 'buscar', label: 'Buscar', route: '/buscar' },
   { key: 'entrar', label: 'Entrar', route: '/login' },
 ];
 
 // --- Config por role (cliente/lojista/motoboy). CEO deriva do ADMIN_MENU. ---
 const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   cliente: [
-    { label: 'Início',   icon: 'home',        route: '/inicio',         placement: ['bottomNav'] },
-    { label: 'Buscar',   icon: 'search',      route: '/',               placement: ['bottomNav'], activeMatch: ['/', '/stores', '/product', '/produtos'] },
-    { label: 'Pedidos',  icon: 'receipt',     route: '/user-dashboard', placement: ['bottomNav'] },
-    { label: 'Carteira', icon: 'wallet',      route: '/wallet',         placement: ['bottomNav'], custodyOnly: true },
-    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/wallet', placement: ['bottomNav'], custodyLeftoverOnly: true },
-    { label: 'Perfil',   icon: 'user',        route: '/minha-conta',    placement: ['bottomNav'], activeMatch: ['/minha-conta', '/user-profile', '/editar-conta'] },
+    { label: 'Início',  icon: 'home',    route: '/inicio',  placement: ['bottomNav'] },
+    { label: 'Buscar',  icon: 'search',  route: '/buscar',  placement: ['bottomNav'], activeMatch: ['/', '/buscar', '/stores', '/loja', '/product', '/produto', '/produtos'] },
+    { label: 'Pedidos', icon: 'receipt', route: '/pedidos', placement: ['bottomNav'], activeMatch: ['/pedidos', '/pedido'] },
+    { label: 'Conta',   icon: 'user',    route: '/conta',   placement: ['bottomNav'], activeMatch: ['/conta', '/minha-conta', '/user-profile', '/editar-conta'] },
+    // Carteira saiu das abas (spec §9): vira linha da tela Conta. A regra P16 decide qual aparece.
+    { label: 'Carteira', icon: 'wallet', route: '/conta/carteira', placement: ['account'], custodyOnly: true },
+    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/conta/carteira', placement: ['account'], custodyLeftoverOnly: true },
   ],
+
   lojista: [
     { label: 'Visão geral',        icon: 'chart-bar', route: '/seller/dashboard',            placement: ['sidebar', 'bottomNav'], group: 'Visão geral' },
     { label: 'Pedidos',            icon: 'receipt',   route: '/seller/dashboard?tab=orders', placement: ['sidebar', 'bottomNav'], group: 'Operação', badge: 'storeOrders', activeMatch: '/seller/dashboard' },

@@ -12,22 +12,22 @@
   background: none;
   padding: 0;
   font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--text);
+  font: var(--text-meta);
+  color: var(--color-text-primary);
   cursor: pointer;
 }
 
 .pin {
   flex-shrink: 0;
-  color: var(--brand-2);
+  color: var(--color-text-brand);
 }
 
 .address {
   font-weight: 600;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 
 .chevron {
   flex-shrink: 0;
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
 }

@@ -1,0 +1,63 @@
+/* Switch — DS v2. Trilho neutro desligado, cor de ação ligado. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--touch-min);
+  color: var(--color-text-primary);
+}
+.disabled { color: var(--color-text-disabled); }
+.text { display: flex; flex-direction: column; gap: 2px; }
+.label { font: var(--text-body); }
+.description { font: var(--text-meta); color: var(--color-text-secondary); }
+
+/* O botão tem 44px de toque; o trilho visível é desenhado no ::before */
+.track {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: var(--touch-min);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.track::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 28px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: var(--color-border-input);
+  transition: background-color var(--motion-fast) var(--ease-in);
+}
+.on::before { background: var(--color-action-primary); }
+.track:disabled { cursor: not-allowed; }
+.track:disabled::before { background: var(--color-action-disabled); }
+.track:focus-visible { outline: none; }
+.track:focus-visible::before {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.thumb {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: var(--color-on-action);
+  box-shadow: var(--elevation-1);
+  transition: left var(--motion-fast) var(--ease-in);
+}
+.on .thumb { left: 25px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .track::before, .thumb { transition: none; }
+}

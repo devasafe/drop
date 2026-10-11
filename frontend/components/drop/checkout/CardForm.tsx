@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Input } from '../../ui/Input';
 import { onlyDigits } from '../../../lib/masks';
+import styles from './CardForm.module.css';
 import type { CardData, CardHolderInfo } from '../../../types/checkout';
 
 // Luhn: valida o número do cartão (dígito verificador mod 10). Exige pelo
@@ -94,7 +95,7 @@ export function CardForm({ onChange, holderDefaults }: CardFormProps) {
   }, [number, holderName, exp, ccv, cpfCnpj, phone, holderDefaults]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className={styles.form}>
       <Input
         aria-label="Número do cartão"
         placeholder="Número do cartão"
@@ -108,7 +109,7 @@ export function CardForm({ onChange, holderDefaults }: CardFormProps) {
         value={holderName}
         onChange={setHolderName}
       />
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div className={styles.pair}>
         <Input
           aria-label="Validade"
           placeholder="MM/AA"
@@ -127,7 +128,7 @@ export function CardForm({ onChange, holderDefaults }: CardFormProps) {
           onChange={(v) => setCcv(onlyDigits(v).slice(0, 4))}
         />
       </div>
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div className={styles.pair}>
         <Input
           aria-label="CPF ou CNPJ do titular"
           placeholder="CPF/CNPJ do titular"

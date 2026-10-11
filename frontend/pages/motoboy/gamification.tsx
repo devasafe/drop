@@ -106,8 +106,8 @@ export default function MotoboyGamification() {
           <header className={styles.header}>
             <h1 className={styles.title}>Desempenho</h1>
             <div className={styles.headerActions}>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/ranking')}>Ranking</Button>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/beneficios')}>Benefícios</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push('/motoboy/ranking')}>Ranking</Button>
+              <Button variant="tertiary" size="sm" onClick={() => router.push('/motoboy/beneficios')}>Benefícios</Button>
             </div>
           </header>
 

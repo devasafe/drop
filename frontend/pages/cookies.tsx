@@ -1,10 +1,10 @@
 import LegalPage, { LegalSection } from '../components/legal/LegalPage';
-import { LEGAL_VERSIONS, LEGAL_UPDATED } from '../lib/legalDocs';
+import { LEGAL_VERSIONS, COOKIES_UPDATED } from '../lib/legalDocs';
 
 export default function CookiesPage() {
   return (
-    <LegalPage title="Política de Cookies" version={LEGAL_VERSIONS.cookies} updatedAt={LEGAL_UPDATED}>
-      <LegalSection title="1. O que são cookies">
+    <LegalPage title="Política de Cookies" version={LEGAL_VERSIONS.cookies} updatedAt={COOKIES_UPDATED}>
+      <LegalSection id="o-que-sao" title="1. O que são cookies">
         <p>
           Cookies são pequenos arquivos de texto armazenados pelo navegador do usuário quando
           este acessa um site ou aplicativo. Tecnologias semelhantes — como o armazenamento
@@ -18,7 +18,7 @@ export default function CookiesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Categorias que utilizamos hoje">
+      <LegalSection id="categorias" title="2. Categorias que utilizamos hoje">
         <p>
           Atualmente a DROP utiliza <strong>apenas cookies e armazenamento local
           essenciais/de sessão</strong>, necessários para o funcionamento básico da
@@ -46,7 +46,7 @@ export default function CookiesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="3. Finalidade de cada categoria">
+      <LegalSection id="finalidade" title="3. Finalidade de cada categoria">
         <p>Os cookies e tecnologias semelhantes que utilizamos servem às seguintes finalidades:</p>
         <ul>
           <li>
@@ -69,7 +69,7 @@ export default function CookiesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="4. Como gerenciar ou recusar">
+      <LegalSection id="gerenciar" title="4. Como gerenciar ou recusar">
         <p>
           Na primeira visita à DROP, um <strong>banner de cookies</strong> é exibido,
           informando de forma resumida o uso descrito nesta Política e oferecendo as opções
@@ -93,7 +93,7 @@ export default function CookiesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Consentimento">
+      <LegalSection id="consentimento" title="5. Consentimento">
         <p>
           Ao continuar navegando na DROP após a exibição do banner de cookies, ou ao
           selecionar explicitamente a opção "Aceitar" no banner, o usuário manifesta seu

@@ -13,8 +13,8 @@ import { mapConfig } from '../../../lib/mapConfig';
  * park, building, transportation, transportation_name, boundary, place, poi).
  */
 
-// Paleta Drop (dark)
-const C = {
+// Paleta Drop (dark). Hex permitido aqui: o MapLibre não lê CSS vars.
+export const DARK_PALETTE = {
   bg: '#0a0a0e',
   water: '#0c1226',
   // Verde discreto: em Cabo Frio/restinga há polígonos de mata/proteção que cobrem
@@ -42,14 +42,16 @@ const C = {
   halo: '#0a0a0e',
 };
 
+export type DropPalette = typeof DARK_PALETTE;
+
 const FONT = ['Noto Sans Regular'];
 const FONT_BOLD = ['Noto Sans Bold'];
 
-export function buildDropDarkStyle(key: string): StyleSpecification {
+export function buildDropStyle(key: string, C: DropPalette, name = 'Drop Dark'): StyleSpecification {
   const source = 'openmaptiles';
   return {
     version: 8,
-    name: 'Drop Dark',
+    name,
     glyphs: mapConfig.glyphsUrl(key),
     sources: {
       [source]: { type: 'vector', url: mapConfig.tilesUrl(key) },
@@ -197,4 +199,8 @@ export function buildDropDarkStyle(key: string): StyleSpecification {
         paint: { 'text-color': C.textWater, 'text-halo-color': C.halo, 'text-halo-width': 1 } },
     ],
   };
+}
+
+export function buildDropDarkStyle(key: string): StyleSpecification {
+  return buildDropStyle(key, DARK_PALETTE, 'Drop Dark');
 }

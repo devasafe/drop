@@ -13,27 +13,27 @@
 
 .current {
   font-weight: 700;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 
 .old {
   font-family: var(--font-body);
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
   text-decoration: line-through;
 }
 
 .sm .current {
-  font-size: var(--fs-sm);
+  font: var(--text-price-sm);
 }
 
 .sm .old {
-  font-size: var(--fs-xs);
+  font: var(--text-caption);
 }
 
 .md .current {
-  font-size: var(--fs-price);
+  font: var(--text-price-sm);
 }
 
 .md .old {
-  font-size: var(--fs-xs);
+  font: var(--text-caption);
 }

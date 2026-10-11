@@ -68,6 +68,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     delivery.pinFailedAttempts = 0;
     delivery.pinLockedUntil = null;
     delivery.status = 'picked';
+    delivery.pickedAt = new Date();
     await persistDelivery(delivery);
 
     // Get motoboy name
@@ -290,7 +291,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
       locked = await prisma.$transaction(async (tx) => {
         const lock = await tx.delivery.updateMany({
           where: { id: delivery.id, motoboyId: String(userId), status: 'picked' },
-          data: { status: 'delivered', pinFailedAttempts: 0, pinLockedUntil: null },
+          data: { status: 'delivered', deliveredAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
         });
         if (lock.count !== 1) return false;
         const orderLock = await tx.order.updateMany({
@@ -953,7 +954,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
         if (rows[0].status === 'cancelado' || rows[0].status === 'rejeitado') throw new Error(ORDER_CLOSED);
         const c = await tx.delivery.updateMany({
           where: { id, status: 'pending', motoboyId: null },
-          data: { motoboyId: userId, status: 'assigned', pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
+          data: { motoboyId: userId, status: 'assigned', assignedAt: new Date(), pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
         });
         return c.count;
       });

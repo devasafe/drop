@@ -1,4 +1,6 @@
 import { InputHTMLAttributes, ReactNode, useId } from 'react';
+import { AlertCircle } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from './Icon';
 import styles from './Input.module.css';
 
 export interface InputProps
@@ -12,6 +14,8 @@ export interface InputProps
   leftIcon?: ReactNode;
   type?: string;
   error?: string;
+  label?: string;
+  hint?: string;
   disabled?: boolean;
 }
 
@@ -27,15 +31,26 @@ export function Input({
   leftIcon,
   type = 'text',
   error,
+  label,
+  hint,
   disabled = false,
   className,
   id,
   ...rest
 }: InputProps) {
-  const errorId = useId();
+  const autoId = useId();
+  const inputId = id ?? autoId;
+  const errorId = `${inputId}-error`;
+  const hintId = `${inputId}-hint`;
+  const describedBy = [error ? errorId : null, hint && !error ? hintId : null].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className={className}>
+      {label && (
+        <label htmlFor={inputId} className={styles.label}>
+          {label}
+        </label>
+      )}
       <div
         className={[styles.field, error && styles.error, disabled && styles.disabled]
           .filter(Boolean)
@@ -43,7 +58,7 @@ export function Input({
       >
         {leftIcon && <span className={styles.icon}>{leftIcon}</span>}
         <input
-          id={id}
+          id={inputId}
           type={type}
           className={styles.input}
           value={value}
@@ -51,13 +66,19 @@ export function Input({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={describedBy}
           {...rest}
         />
       </div>
       {error && (
-        <p id={errorId} className={styles.errorText}>
-          {error}
+        <p id={errorId} role="alert" className={styles.errorText}>
+          <AlertCircle size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+          <span>{error}</span>
+        </p>
+      )}
+      {hint && !error && (
+        <p id={hintId} className={styles.hint}>
+          {hint}
         </p>
       )}
     </div>

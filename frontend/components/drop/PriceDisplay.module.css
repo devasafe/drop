@@ -1,0 +1,30 @@
+/* PriceDisplay — DS v2. Preço na cor de preço; roxo só no % OFF (desconto). */
+.root { display: flex; flex-direction: column; gap: 2px; }
+.row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+
+.current { color: var(--color-price); font-variant-numeric: tabular-nums; }
+.line .current    { font: var(--text-price-sm); }
+.card .current    { font: var(--text-price); }
+.product .current { font: var(--text-price-lg); }
+
+.old {
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.product .old { font: var(--text-meta); }
+
+.off {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-discount);
+  color: var(--color-on-action);
+  font: var(--text-caption);
+  font-weight: 700;
+}
+
+.installment {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}

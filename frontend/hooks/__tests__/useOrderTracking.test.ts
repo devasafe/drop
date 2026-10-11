@@ -247,3 +247,24 @@ test('openPix() marca o pedido como pago quando o PIX já foi confirmado', async
   expect(result.current.order.paymentStatus).toBe('paid');
   expect(result.current.pixData).toBeNull();
 });
+
+test.each([
+  ['order:accepted_by_store', { orderId: 'o1', deliveryId: 'd1' }],
+  ['order:cancelled', { orderId: 'o1' }],
+  ['order:rejected_by_store', { orderId: 'o1' }],
+  ['order:delivered', { orderId: 'o1' }],
+])('socket %s rebusca o pedido no servidor (hora real na timeline)', async (event, payload) => {
+  stubOrder({ _id: 'o1', status: 'criado', paymentStatus: 'paid', deliveryId: 'd1' });
+  mockedApi.get.mockImplementation((async (url: string) =>
+    url === '/orders/o1'
+      ? { data: { _id: 'o1', status: 'pago', paymentStatus: 'paid', deliveryId: 'd1', acceptedAt: '2026-10-10T14:03:00', cancelledAt: '2026-10-10T14:10:00' } }
+      : { data: { _id: 'd1', status: 'assigned' } }) as any);
+  const { result } = renderHook(() => useOrderTracking('o1'));
+
+  await act(async () => {
+    handlers[event](payload);
+  });
+
+  expect(mockedApi.get).toHaveBeenCalledWith('/orders/o1');
+  expect(result.current.order.acceptedAt).toBe('2026-10-10T14:03:00');
+});

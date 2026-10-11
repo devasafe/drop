@@ -1,12 +1,10 @@
-/* IconButton — botão redondo/soft só de ícone. Sempre exige aria-label
- * (imposto no TS, não só convenção) porque não tem texto visível.
- * Radios por função: brand/onImage usam --r-pill (círculo), soft usa
- * --r-sm — replica exatamente `.of .add` e `.rep .add` do mock canônico.
- * Roxo com hierarquia: o fundo roxo translúcido de `.soft` é derivado de
- * var(--brand) via color-mix — nunca um rgb duplicado do hex da marca.
+/* IconButton — botão redondo/soft só de ícone (DS v2, camada semântica).
+ * Sempre exige aria-label (imposto no TS). O visual pode ser menor que
+ * --touch-min, mas a área clicável nunca: o ::after estende o alvo de toque.
  */
 
 .iconButton {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -14,9 +12,25 @@
   border: none;
   cursor: pointer;
   transition:
-    background-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    background-color var(--motion-fast) var(--ease),
+    box-shadow var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
+}
+
+/* área de toque mínima, centralizada no botão */
+.iconButton::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--touch-min));
+  height: max(100%, var(--touch-min));
+  transform: translate(-50%, -50%);
+}
+
+.iconButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .iconButton:disabled {
@@ -29,48 +43,45 @@
   transform: scale(0.92);
 }
 
-/* .of .add do mock: círculo branco, ícone roxo, sombra de flutuação sobre foto */
+/* círculo de superfície com ícone da marca — flutua sobre foto nos dois temas */
 .brand {
-  border-radius: var(--r-pill);
-  background: var(--text-strong);
-  color: var(--brand);
-  box-shadow: var(--shadow-neutral);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-action-primary);
+  border: 1px solid var(--color-border-default);
+  box-shadow: var(--elevation-1);
 }
-.brand:hover:not(:disabled) {
-  box-shadow: var(--shadow-brand);
-}
+.brand:hover:not(:disabled) { box-shadow: var(--elevation-2); }
 
-/* .rep .add do mock: quadrado arredondado roxo translúcido */
+/* quadrado arredondado com a marca translúcida */
 .soft {
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--brand) 16%, transparent);
-  color: var(--brand-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-action-primary) 16%, transparent);
+  color: var(--color-text-brand);
 }
 .soft:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--brand) 26%, transparent);
+  background: color-mix(in srgb, var(--color-action-primary) 26%, transparent);
 }
 
-/* .srch .f do mock: quadrado roxo sólido, ícone branco — ação de filtro
- * ao lado de um campo de busca (raio de função "input", --r-md, não pill). */
+/* quadrado da marca sólido — filtro ao lado de um campo de busca */
 .brandSquare {
-  border-radius: var(--r-md);
-  background: var(--brand);
-  color: var(--on-brand);
+  border-radius: var(--radius-md);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
 }
 .brandSquare:hover:not(:disabled) {
-  box-shadow: var(--shadow-brand);
+  background: var(--color-action-primary-hover);
 }
 
-/* Controle solto sobre imagem/hero: scrim neutro, nunca roxo (evita
- * competir com o brand quando a foto já tem cor própria). */
+/* controle solto sobre imagem/hero: scrim neutro, nunca roxo */
 .onImage {
-  border-radius: var(--r-pill);
-  background: var(--scrim-soft);
-  color: var(--text-strong);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
+  color: var(--color-on-action);
   backdrop-filter: blur(6px);
 }
 .onImage:hover:not(:disabled) {
-  background: var(--scrim);
+  background: var(--color-scrim);
 }
 
 @media (prefers-reduced-motion: reduce) {

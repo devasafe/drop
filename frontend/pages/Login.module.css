@@ -1,56 +1,46 @@
-/* Login.module.css — form sobre AuthLayout (ver components/auth/AuthLayout) */
+/* Login.module.css — formulário sobre AuthLayout; .notice/.submitBtn/.switchLine/.link
+   ainda são usados por register e esqueci-senha até serem reescritos. */
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.notice {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
-  border-radius: var(--r-md);
-  padding: var(--space-3);
-  color: var(--danger);
-  font-size: var(--fs-sm);
-  font-family: var(--font-body);
+.forgot {
+  align-self: flex-end;
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  font: var(--text-label);
+  color: var(--color-text-link);
 }
 
-.noticeWarning {
-  background: color-mix(in srgb, var(--rating) 12%, transparent);
-  border-color: color-mix(in srgb, var(--rating) 30%, var(--line));
-  color: var(--rating);
-}
-
-.noticeSuccess {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
-  color: var(--success);
-}
-
+.submit,
 .submitBtn {
   width: 100%;
-  margin-top: var(--space-1);
 }
 
-.link {
-  display: block;
+.offline {
+  margin: 0;
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
   text-align: center;
-  margin-top: var(--space-2);
-  font-size: var(--fs-sm);
-  color: var(--brand-2);
-  text-decoration: none;
-  font-family: var(--font-body);
-}
-
-.link:hover {
-  text-decoration: underline;
 }
 
 .switchLine {
-  margin: var(--space-6) 0 0;
+  margin: var(--space-2) 0 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
   text-align: center;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  font-family: var(--font-body);
+}
+
+.link {
+  color: var(--color-text-link);
+  font-weight: 600;
+}
+
+.notice {
+  font: var(--text-meta);
+  color: var(--color-error-text);
 }

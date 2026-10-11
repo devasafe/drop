@@ -99,17 +99,17 @@ export default function OverviewTab({
 
       {/* 5. Atalhos */}
       <div className={styles.actions}>
-        <Button variant="ghost" size="sm" leftIcon={<Icon name="plus" size={14} />} onClick={() => onQuickAction('/seller/create-product')}>
+        <Button variant="tertiary" size="sm" leftIcon={<Icon name="plus" size={14} />} onClick={() => onQuickAction('/seller/create-product')}>
           Adicionar produto
         </Button>
-        <Button variant="ghost" size="sm" leftIcon={<Icon name="clipboard" size={14} />} onClick={() => onGoToTab('orders')}>
+        <Button variant="tertiary" size="sm" leftIcon={<Icon name="clipboard" size={14} />} onClick={() => onGoToTab('orders')}>
           Ver pedidos
         </Button>
-        <Button variant="ghost" size="sm" leftIcon={<Icon name="tag" size={14} />} onClick={() => onQuickAction('/seller/coupons')}>
+        <Button variant="tertiary" size="sm" leftIcon={<Icon name="tag" size={14} />} onClick={() => onQuickAction('/seller/coupons')}>
           Marketing
         </Button>
         {showFinanceiro && (
-          <Button variant="ghost" size="sm" leftIcon={<Icon name="wallet" size={14} />} onClick={() => onQuickAction('/seller/wallet')}>
+          <Button variant="tertiary" size="sm" leftIcon={<Icon name="wallet" size={14} />} onClick={() => onQuickAction('/seller/wallet')}>
             Financeiro
           </Button>
         )}

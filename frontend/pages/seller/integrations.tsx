@@ -178,7 +178,7 @@ export default function SellerIntegrations() {
             </div>
             <div className={styles.quickBtns}>
               <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque</Button>
-              <Button variant="ghost" onClick={() => fileRef.current?.click()} loading={importing}>📤 Atualizar (enviar CSV)</Button>
+              <Button variant="tertiary" onClick={() => fileRef.current?.click()} loading={importing}>📤 Atualizar (enviar CSV)</Button>
               <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportFile} />
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function SellerIntegrations() {
                 <div className={styles.secretLabel}>Copie agora — a chave completa não aparece de novo:</div>
                 <div className={styles.secretRow}>
                   <code className={styles.code}>{newKey}</code>
-                  <Button size="sm" variant="ghost" onClick={() => copy(newKey)}>Copiar</Button>
+                  <Button size="sm" variant="tertiary" onClick={() => copy(newKey)}>Copiar</Button>
                 </div>
                 <button type="button" className={styles.dismiss} onClick={() => setNewKey(null)}>Ok, guardei</button>
               </div>
@@ -278,7 +278,7 @@ export default function SellerIntegrations() {
                 <div className={styles.secretLabel}>Secret do webhook (valide a assinatura com ele) — só aparece agora:</div>
                 <div className={styles.secretRow}>
                   <code className={styles.code}>{newSecret.secret}</code>
-                  <Button size="sm" variant="ghost" onClick={() => copy(newSecret.secret)}>Copiar</Button>
+                  <Button size="sm" variant="tertiary" onClick={() => copy(newSecret.secret)}>Copiar</Button>
                 </div>
                 <button type="button" className={styles.dismiss} onClick={() => setNewSecret(null)}>Ok, guardei</button>
               </div>
@@ -293,7 +293,7 @@ export default function SellerIntegrations() {
                     <div className={styles.itemMeta}>última entrega {fmtDate(w.lastDeliveryAt)} · status {w.lastStatus ?? '—'} · falhas {w.failureCount}</div>
                   </div>
                   <div className={styles.itemActions}>
-                    <Button size="sm" variant="ghost" onClick={() => testWebhook(w.id)}>Testar</Button>
+                    <Button size="sm" variant="tertiary" onClick={() => testWebhook(w.id)}>Testar</Button>
                     <Button size="sm" variant="danger" onClick={() => deleteWebhook(w.id)}>Remover</Button>
                   </div>
                 </div>
@@ -306,7 +306,7 @@ export default function SellerIntegrations() {
             <p className={styles.hint}>Endpoint sempre-atual (JSON, ou <code>?format=csv</code>). Autentique com a chave no header.</p>
             <div className={styles.docsRow}>
               <code className={styles.endpoint}>GET {apiBase}/integrations/v1/products</code>
-              <Button size="sm" variant="ghost" onClick={() => copy(`${apiBase}/integrations/v1/products`)}>Copiar URL</Button>
+              <Button size="sm" variant="tertiary" onClick={() => copy(`${apiBase}/integrations/v1/products`)}>Copiar URL</Button>
             </div>
             <pre className={styles.pre}>{curl}</pre>
           </Section>

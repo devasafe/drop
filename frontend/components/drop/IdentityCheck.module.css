@@ -1,0 +1,163 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lead {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.icoOk,
+.icoBrand {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+}
+
+.icoOk {
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.icoBrand {
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary);
+}
+
+.tx {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.tx b {
+  font: var(--text-body);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.tx span {
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.badge {
+  font: var(--text-caption);
+  font-weight: 600;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.okLine {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.cap {
+  margin: 0;
+  font: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.uploads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.upload,
+.uploadDone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 88px;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+}
+
+.upload {
+  border: 1.5px dashed var(--color-border-strong);
+}
+
+.uploadDone {
+  border: 1.5px solid var(--color-success-text);
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.upload b,
+.uploadDone b {
+  font: var(--text-label);
+}
+
+.upload span,
+.uploadDone span {
+  font: var(--text-caption);
+}
+
+.upload:focus-within,
+.uploadDone:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.file {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.note {
+  margin: 0;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  text-align: center;
+}

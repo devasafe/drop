@@ -11,28 +11,28 @@
 .bubble {
   max-width: 78%;
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-md);
+  border-radius: var(--radius-md);
   word-break: break-word;
-  font-size: var(--fs-body);
+  font: var(--text-meta);
   line-height: 1.5;
 }
 
 .own {
   border-bottom-right-radius: 3px;
-  border-bottom-left-radius: var(--r-md);
-  background: var(--brand);
-  color: var(--on-brand);
+  border-bottom-left-radius: var(--radius-md);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
   border: none;
-  box-shadow: var(--shadow-brand);
+  box-shadow: none;
 }
 
 .other {
-  border-bottom-right-radius: var(--r-md);
+  border-bottom-right-radius: var(--radius-md);
   border-bottom-left-radius: 3px;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-neutral);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
+  box-shadow: var(--elevation-1);
 }
 
 .text {
@@ -41,7 +41,7 @@
 
 .time {
   display: block;
-  font-size: var(--fs-xs);
+  font-size: 12px;
   opacity: 0.55;
   margin: var(--space-1) 0 0 0;
   text-align: right;

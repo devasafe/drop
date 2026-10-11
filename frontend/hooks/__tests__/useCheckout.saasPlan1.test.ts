@@ -43,11 +43,3 @@ test('modo direto: loja plan 1 NÃO redireciona para /checkout-vitrine e não é
   expect(replace).not.toHaveBeenCalledWith('/checkout-vitrine');
   expect(result.current.isPlan1).toBe(false);
 });
-
-test('custódia: loja plan 1 continua indo para /checkout-vitrine', async () => {
-  mockSettlement('custodia');
-  renderHook(() => useCheckout());
-  await act(async () => {});
-  await act(async () => {});
-  expect(replace).toHaveBeenCalledWith('/checkout-vitrine');
-});

@@ -245,7 +245,7 @@ export default function MototboyWalletPage() {
               <span className={styles.balanceBadge}><ArrowUpRight size={17} aria-hidden="true" /></span>
             </div>
             <span className={styles.balanceValue}>{formatBRL(available)}</span>
-            <Button variant="accent" className={styles.sacarBtn} onClick={() => setSacarOpen(true)} disabled={available <= 0}>
+            <Button variant="primary" className={styles.sacarBtn} onClick={() => setSacarOpen(true)} disabled={available <= 0}>
               <ArrowUpRight size={17} aria-hidden="true" /> Sacar para meu PIX
             </Button>
           </div>
@@ -313,7 +313,7 @@ export default function MototboyWalletPage() {
             })()}
             {transfersCursor && extractFilter !== 'saques' && (
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
-                <Button variant="ghost" loading={loadingMoreTransfers} onClick={loadMoreTransfers}>Carregar mais</Button>
+                <Button variant="tertiary" loading={loadingMoreTransfers} onClick={loadMoreTransfers}>Carregar mais</Button>
               </div>
             )}
           </section>

@@ -1,123 +1,64 @@
-/* OrderTracker — elemento dominante da home (spec Regra E): painel roxo
- * escuro que quebra a grade, barra lateral via ::before, barra de progresso
- * em --brand-grad e steps com done em destaque. Replica `.track` do mock
- * canônico.
- */
+/* OrderTracker — pedido em andamento, bloco tingido da marca (protótipo Início). */
 
 .track {
-  position: relative;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   margin: var(--space-4) 0;
   padding: var(--space-4);
-  border-radius: var(--r-xl);
-  background: var(--panel-grad);
+  border-radius: var(--radius-lg);
+  background: var(--color-action-primary-subtle);
 }
 
-.track::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--brand-2);
-}
-
-.row {
+.head {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.thumb {
-  flex-shrink: 0;
-  width: 46px;
-  height: 46px;
-  border-radius: var(--r-md);
-  background-color: var(--surface-2);
-  background-position: center;
-  background-size: cover;
-}
-
-.meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--brand-2);
-}
-
-.title {
-  margin-top: 2px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--fs-h3);
-  color: var(--text-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.eta {
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.etaBig {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 17px;
-  color: var(--text-strong);
-}
-
-.etaLabel {
-  margin-top: 2px;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-on-panel-muted);
-}
-
-.bar {
-  height: 5px;
-  margin-top: var(--space-3);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--on-brand) 14%, transparent);
-  overflow: hidden;
-}
-
-.barFill {
-  display: block;
-  height: 100%;
-  border-radius: var(--r-sm);
-  background: var(--brand-grad);
-}
-
-.steps {
-  display: flex;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-top: var(--space-2);
-  font-family: var(--font-body);
-  font-size: 9.5px;
-  color: var(--text-on-panel-muted);
 }
 
-.stepDone {
-  color: var(--text-strong);
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-action-primary);
+  font: var(--text-caption);
   font-weight: 600;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.code {
+  font: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.store {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+
+.items {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
 }
 
 .clickable {
   cursor: pointer;
 }
 
-.clickable:hover {
-  filter: brightness(1.05);
+.clickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }

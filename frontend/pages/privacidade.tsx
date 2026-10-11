@@ -1,32 +1,24 @@
 import LegalPage, { LegalSection } from '../components/legal/LegalPage';
-import { LEGAL_VERSIONS, LEGAL_UPDATED, PRIVACY_EMAIL } from '../lib/legalDocs';
-import styles from '../components/legal/LegalPage.module.css';
+import { LEGAL_VERSIONS, LEGAL_UPDATED, LEGAL_OPERATOR_NAME, PRIVACY_EMAIL } from '../lib/legalDocs';
 
 export default function PrivacidadePage() {
   return (
     <LegalPage title="Política de Privacidade" version={LEGAL_VERSIONS.privacy} updatedAt={LEGAL_UPDATED}>
-      <LegalSection title="1. Controlador e Encarregado de Dados">
+      <LegalSection id="controlador" title="1. Quem cuida dos seus dados">
         <p>
-          Esta Política de Privacidade descreve como{' '}
-          <span className={styles.placeholder}>[RAZÃO SOCIAL]</span>, inscrita no CNPJ sob o
-          nº <span className={styles.placeholder}>[CNPJ]</span>, com sede em{' '}
-          <span className={styles.placeholder}>[ENDEREÇO DA EMPRESA]</span> ("DROP", "nós"),
-          na qualidade de <strong>controladora</strong> de dados pessoais, coleta, utiliza,
-          armazena e compartilha os dados pessoais de clientes, lojistas e motoboys que
-          utilizam a Plataforma, em conformidade com a Lei nº 13.709/2018 (Lei Geral de
-          Proteção de Dados Pessoais — "LGPD").
+          Esta Política explica como a DROP coleta, usa, guarda e compartilha os dados
+          pessoais de clientes, lojistas e motoboys, conforme a Lei nº 13.709/2018 (Lei Geral
+          de Proteção de Dados Pessoais, "LGPD").
         </p>
         <p>
-          O Encarregado pelo tratamento de dados pessoais (DPO) da DROP é{' '}
-          <span className={styles.placeholder}>[NOME DO ENCARREGADO]</span>, que pode ser
-          contatado por meio do e-mail{' '}
-          <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a> para esclarecer dúvidas,
-          receber solicitações ou reclamações relacionadas ao tratamento de dados pessoais
-          nesta Política.
+          O controlador dos dados é {LEGAL_OPERATOR_NAME}, pessoa física que desenvolve e opera
+          a DROP. Dúvidas, pedidos e reclamações sobre dados pessoais vão para{' '}
+          <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>, que é o canal do encarregado
+          de dados.
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Dados que tratamos, por perfil de usuário">
+      <LegalSection id="dados" title="2. Dados que tratamos, por perfil de usuário">
         <p>
           Coletamos diferentes categorias de dados pessoais conforme o perfil do usuário
           (cliente, lojista ou motoboy) e a forma como utiliza a Plataforma:
@@ -44,13 +36,14 @@ export default function PrivacidadePage() {
           <li>
             <strong>Dados sensíveis e de verificação (KYC):</strong> CPF, RG, foto e selfie
             facial para confirmação biométrica de identidade; adicionalmente, para{' '}
-            <strong>motoboys</strong>, CNH e placa do veículo; para <strong>lojistas</strong>,
-            CNPJ e comprovante de endereço.
+            <strong>motoboys</strong>, CNH e placa do veículo; para <strong>lojistas</strong> no
+            modo com custódia, CNPJ e comprovante de endereço (no pagamento direto, a
+            verificação da conta da loja é feita pela própria Asaas).
           </li>
           <li>
-            <strong>Dados financeiros:</strong> dados bancários e/ou chave PIX para
-            recebimento de repasses, histórico de transações, repasses e solicitações de
-            saque.
+            <strong>Dados financeiros:</strong> chave Pix para recebimento, histórico de
+            pagamentos, estornos, repasses e saques. Os dados do cartão passam pela DROP só
+            para chegar à Asaas e não são guardados.
           </li>
           <li>
             <strong>Dados de uso da Plataforma:</strong> histórico de pedidos, avaliações de
@@ -65,7 +58,7 @@ export default function PrivacidadePage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="3. Finalidades e bases legais do tratamento">
+      <LegalSection id="finalidades" title="3. Finalidades e bases legais do tratamento">
         <p>
           Tratamos dados pessoais para as finalidades abaixo, com fundamento nas seguintes
           bases legais previstas nos artigos 7º e 11 da LGPD:
@@ -73,7 +66,8 @@ export default function PrivacidadePage() {
         <ul>
           <li>
             <strong>Execução de contrato:</strong> criação e gestão de conta, processamento de
-            pedidos, pagamentos, custódia de valores e organização de entregas — dados
+            pedidos e pagamentos, custódia de valores (quando esse modo estiver ativo) e
+            organização de entregas — dados
             necessários para prestar o serviço contratado pelo usuário.
           </li>
           <li>
@@ -95,7 +89,7 @@ export default function PrivacidadePage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="4. Compartilhamento de dados com operadores">
+      <LegalSection id="compartilhamento" title="4. Compartilhamento de dados com operadores">
         <p>
           Para viabilizar o funcionamento da Plataforma, compartilhamos dados pessoais com
           operadores (subprocessadores) que tratam dados em nosso nome e sob nossas
@@ -103,8 +97,9 @@ export default function PrivacidadePage() {
         </p>
         <ul>
           <li>
-            <strong>Asaas</strong> (Brasil): processamento de pagamentos, custódia de valores,
-            verificação de identidade (KYC) de subcontas e transferências via PIX.
+            <strong>Asaas</strong> (Brasil): processamento de Pix e cartão, estornos,
+            transferências Pix e, no modo com custódia, guarda dos valores e verificação de
+            subcontas.
           </li>
           <li>
             <strong>Cloudinary</strong> (Estados Unidos): armazenamento de imagens e
@@ -116,8 +111,8 @@ export default function PrivacidadePage() {
             (confirmações, notificações, recuperação de senha, entre outros).
           </li>
           <li>
-            <strong>Google Maps Platform</strong> (Estados Unidos): geolocalização, cálculo e
-            exibição de rotas para entregas.
+            <strong>Google Maps Platform</strong> (Estados Unidos) e <strong>MapTiler</strong>{' '}
+            (Suíça): busca de endereços, cálculo de rotas e exibição de mapas.
           </li>
           <li>
             <strong>Provedor de hospedagem</strong> (Brasil): armazenamento do banco de dados
@@ -125,16 +120,21 @@ export default function PrivacidadePage() {
           </li>
         </ul>
         <p>
+          Dentro de cada pedido, a loja e o motoboy recebem os dados necessários para vender e
+          entregar, como o nome de quem recebe, o endereço de entrega e os itens do pedido.
+        </p>
+        <p>
           Também podemos compartilhar dados pessoais com autoridades públicas, quando
           exigido por lei, ordem judicial ou requisição de autoridade competente.
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Transferência internacional de dados">
+      <LegalSection id="internacional" title="5. Transferência internacional de dados">
         <p>
           O banco de dados principal da DROP é hospedado no <strong>Brasil</strong>. No
           entanto, alguns dos operadores mencionados na Seção 4 — Cloudinary (Estados
-          Unidos), Brevo (União Europeia) e Google Maps Platform (Estados Unidos) — realizam
+          Unidos), Brevo (União Europeia), Google Maps Platform (Estados Unidos) e MapTiler
+          (Suíça) — realizam
           o tratamento de dados fora do território nacional, o que caracteriza{' '}
           <strong>transferência internacional de dados pessoais</strong>.
         </p>
@@ -146,7 +146,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Retenção de dados">
+      <LegalSection id="retencao" title="6. Retenção de dados">
         <p>
           Mantemos os dados pessoais pelo tempo necessário ao cumprimento das finalidades
           para as quais foram coletados, observados os prazos exigidos por obrigações legais,
@@ -161,7 +161,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Segurança da informação">
+      <LegalSection id="seguranca" title="7. Segurança da informação">
         <p>
           Adotamos medidas técnicas e administrativas aptas a proteger os dados pessoais de
           acessos não autorizados e de situações acidentais ou ilícitas de destruição, perda,
@@ -177,7 +177,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Direitos do titular de dados">
+      <LegalSection id="direitos" title="8. Direitos do titular de dados">
         <p>
           Nos termos do artigo 18 da LGPD, o titular dos dados pessoais tem direito a obter,
           a qualquer momento e mediante requisição, entre outros: confirmação da existência
@@ -190,11 +190,11 @@ export default function PrivacidadePage() {
         <p>
           Para exercer esses direitos, acesse nosso{' '}
           <a href="/privacidade/solicitacoes">canal de solicitações do titular</a>, que
-          explica cada direito em detalhe e como formalizar o pedido junto ao Encarregado.
+          explica cada direito em detalhe e como fazer o pedido.
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Cookies e tecnologias semelhantes">
+      <LegalSection id="cookies" title="9. Cookies e tecnologias semelhantes">
         <p>
           A DROP utiliza cookies e tecnologias semelhantes (como armazenamento local do
           navegador) para manter sua sessão ativa e viabilizar o funcionamento da Plataforma.
@@ -204,7 +204,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Alterações desta política">
+      <LegalSection id="alteracoes" title="10. Alterações desta política">
         <p>
           Esta Política de Privacidade pode ser atualizada periodicamente para refletir
           mudanças na Plataforma, na legislação aplicável ou em nossas práticas de

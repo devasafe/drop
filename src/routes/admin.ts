@@ -835,6 +835,11 @@ const switchesSchema = z
     saasTrialDays: z.number().int().min(0).max(365),
     saasGraceDays: z.number().int().min(0).max(60),
     directTransfersEnabled: z.boolean(),
+    // Entrega (CEO-only): raio padrão (km), preparo padrão (min), velocidade média e fator de desvio da rota.
+    defaultDeliveryRadiusKm: z.number().min(1).max(50),
+    defaultPrepMinutes: z.number().int().min(0).max(180),
+    courierAvgSpeedKmh: z.number().min(5).max(80),
+    routeDetourFactor: z.number().min(1).max(3),
     confirmSettlement: z.string().max(60),
   })
   .partial()
@@ -852,6 +857,10 @@ function switchesView(cfg: any) {
   out.saasTrialDays = Number(cfg?.saasTrialDays ?? 14);
   out.saasGraceDays = Number(cfg?.saasGraceDays ?? 5);
   out.directTransfersEnabled = !!cfg?.directTransfersEnabled;
+  out.defaultDeliveryRadiusKm = Number(cfg?.defaultDeliveryRadiusKm ?? 12);
+  out.defaultPrepMinutes = Number(cfg?.defaultPrepMinutes ?? 15);
+  out.courierAvgSpeedKmh = Number(cfg?.courierAvgSpeedKmh ?? 25);
+  out.routeDetourFactor = Number(cfg?.routeDetourFactor ?? 1.3);
   return out;
 }
 
@@ -901,9 +910,9 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
     // Modo de liquidação e cartão direto decidem para onde vai o dinheiro dos pedidos:
     // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
-    const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled', 'saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled'];
+    const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled', 'saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled', 'defaultDeliveryRadiusKm', 'defaultPrepMinutes', 'courierAvgSpeedKmh', 'routeDetourFactor'];
     if (CEO_ONLY_SWITCHES.some((k) => k in patch) && !isCeo(req)) {
-      return res.status(403).json({ error: 'Apenas o CEO altera o modo de liquidação, o cartão direto e a mensalidade', code: 'CEO_ONLY' });
+      return res.status(403).json({ error: 'Só o CEO altera estas configurações.', code: 'CEO_ONLY' });
     }
     // Trocar o modo muda para onde vai o dinheiro dos pedidos novos: bloqueios primeiro,
     // depois a frase exata (o CEO viu os riscos no preview).

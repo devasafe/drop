@@ -323,7 +323,7 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
         {/* BOTÕES DE AÇÃO */}
         <div className={styles.actionBtns}>
           <Button
-            variant={showChat ? 'ghost' : 'primary'}
+            variant={showChat ? 'tertiary' : 'primary'}
             leftIcon={<Icon name={showChat ? 'x-circle' : 'chat'} size={14} />}
             onClick={handleToggleChat}
             loading={chatLoading}
@@ -331,7 +331,7 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
             {showChat ? 'Fechar Chat' : 'Abrir Chat'}
           </Button>
 
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="tertiary" onClick={onClose}>
             Fechar
           </Button>
         </div>
@@ -1022,7 +1022,7 @@ export default function StoreDashboard() {
                     {getActiveFilterCount() > 0 && (
                       <div className={styles.filtersFooter}>
                         <Button
-                          variant="ghost"
+                          variant="tertiary"
                           size="sm"
                           leftIcon={<Icon name="x" size={12} />}
                           onClick={() => {
@@ -1098,7 +1098,7 @@ export default function StoreDashboard() {
                       {/* BOTÃO */}
                       <div className={styles.historyRowFooter}>
                         <Button
-                          variant="ghost"
+                          variant="tertiary"
                           size="sm"
                           leftIcon={<Icon name="clipboard" size={12} />}
                           onClick={() => setDetalhesPedido(order)}
@@ -1112,7 +1112,7 @@ export default function StoreDashboard() {
                 {getFilteredHistoryOrders().length > historyLimit && (
                   <div className={styles.historyLoadMoreWrap}>
                     <Button
-                      variant="ghost"
+                      variant="tertiary"
                       size="sm"
                       leftIcon={<Icon name="clipboard" size={12} />}
                       onClick={() => setHistoryLimit(n => n + 10)}
@@ -1290,7 +1290,7 @@ export default function StoreDashboard() {
 
             <div className={styles.rejectActions}>
               <Button
-                variant="ghost"
+                variant="tertiary"
                 onClick={() => setRejectModalOrderId(null)}
                 disabled={rejectLoading}
               >

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
+import { CUSTOMER_ROUTES, ROUTES } from '../lib/routes';
+import styles from './VerificationBanner.module.css';
 
 const LABELS: Record<string, string> = {
   email: 'verificar email',
@@ -55,6 +57,17 @@ export default function VerificationBanner() {
   }, [user, activeRole, router.pathname]);
 
   if (missing.length === 0) return null;
+
+  // Telas do cliente (DS v2): faixa discreta com tokens. A Conta já tem o Alert próprio.
+  if (CUSTOMER_ROUTES.includes(router.pathname)) {
+    if (router.pathname === ROUTES.conta) return null;
+    return (
+      <div role="status" className={styles.customer}>
+        <span>Confirme seus dados para comprar</span>
+        <a href={link} className={styles.link}>Verificar agora</a>
+      </div>
+    );
+  }
 
   const labels = missing.map(m => LABELS[m] || m).join(', ');
   return (

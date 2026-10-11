@@ -1,0 +1,54 @@
+/* OrderTimeline — DS v2. Trilho vertical; feito = ação, atual = anel, futuro = neutro. */
+.timeline { list-style: none; margin: 0; padding: 0; }
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+}
+.step:last-child { padding-bottom: 0; }
+/* trilho entre os marcadores */
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 22px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--color-border-default);
+}
+.done:not(:last-child)::before { background: var(--color-action-primary); }
+
+.marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+  background: var(--color-surface-default);
+  color: var(--color-on-action);
+}
+.done .marker { background: var(--color-action-primary); border-color: var(--color-action-primary); }
+.current .marker {
+  border-color: var(--color-action-primary);
+  box-shadow: inset 0 0 0 3px var(--color-surface-default), inset 0 0 0 10px var(--color-action-primary);
+}
+.error .marker { background: var(--color-error); border-color: var(--color-error); }
+
+.body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.label { font: var(--text-body); color: var(--color-text-secondary); }
+.done .label { color: var(--color-text-primary); }
+.current .label { font: var(--text-label); font-size: 15px; color: var(--color-text-primary); }
+.upcoming .label { color: var(--color-text-muted); }
+.error .label { font: var(--text-label); font-size: 15px; color: var(--color-error-text); }
+.detail { font: var(--text-meta); color: var(--color-text-secondary); }
+
+.time {
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}

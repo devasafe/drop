@@ -45,7 +45,7 @@ export default function MotoboyMonthlyRanking() {
               <h1 className={styles.title}>Ranking do mês</h1>
               <p className={styles.subtitle}>{prizes ? `${MONTH_NAMES[prizes.month]} ${prizes.year}` : 'Mês atual'}</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
+            <Button variant="tertiary" size="sm" onClick={() => router.push('/motoboy/gamification')}>Desempenho</Button>
           </header>
 
           {featuresLoading ? (

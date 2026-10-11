@@ -13,6 +13,7 @@ import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
 import { recordConsent } from '../services/consent.service';
 import logger from '../config/logger';
+import { attemptsLeftOf } from '../middleware/authLimiter';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -93,16 +94,68 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/** Abre a sessão: JWT em cookie httpOnly + cookie `user`. Devolve o corpo de resposta do login. */
+async function issueSession(res: Response, user: any) {
+  // Usar activeRole se existir, senão usar role antigo por compatibilidade
+  const activeRole = user.activeRole || user.role || 'cliente';
+  // Garantir múltiplos roles: motoboy e lojista também podem ser cliente
+  let allRoles = user.roles || [user.role || 'cliente'];
+  if (!Array.isArray(allRoles)) allRoles = [allRoles];
+  // SEMPRE adicionar 'cliente' se não tiver (para todos os usuários)
+  if (!allRoles.includes('cliente')) {
+    allRoles.push('cliente');
+    user.roles = allRoles;
+    await userRepository.update(user.id, { roles: allRoles });
+    if (process.env.NODE_ENV === 'development') logger.debug('✅ Updated user roles in login. Now has:', allRoles);
+  }
+  const token = jwt.sign(
+    { id: user.id, role: activeRole, activeRole, roles: allRoles },
+    JWT_SECRET as jwt.Secret,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
+  );
+  // ✅ SEGURANÇA: Armazenar token em HttpOnly cookie
+  const { setTokenCookie, setUserCookie } = require('../utils/cookieManager');
+  setTokenCookie(res, token);
+  setUserCookie(res, {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: activeRole,
+    activeRole,
+    roles: allRoles,
+    storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
+  });
+  return {
+    token, // compatibilidade com clientes antigos
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: activeRole, // Manter compatibilidade
+      activeRole, // Novo
+      roles: allRoles, // Novo - múltiplos roles
+      storeId: user.storeId || null,
+      mainAddress: getDefaultAddress(user),
+    },
+  };
+}
+
+/** Corpo do 401 do login: igual para e-mail inexistente e senha errada (não revela a conta). */
+const invalidCredentials = (req: AuthenticatedRequest) => {
+  const left = attemptsLeftOf(req as any);
+  return left === undefined ? { error: 'Invalid credentials' } : { error: 'Invalid credentials', attemptsLeft: left };
+};
+
 export const login = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
 
     const user = await userRepository.findByEmailWithAddresses(email);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) return res.status(401).json(invalidCredentials(req));
 
     const matched = await bcrypt.compare(password, user.passwordHash);
-    if (!matched) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!matched) return res.status(401).json(invalidCredentials(req));
 
     // Conta bloqueada nao pode logar
     if ((user as any).status === 'blocked') {
@@ -116,59 +169,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Usar activeRole se existir, senão usar role antigo por compatibilidade
-    const activeRole = user.activeRole || user.role || 'cliente';
-    
-    // Garantir múltiplos roles: motoboy e lojista também podem ser cliente
-    let allRoles = user.roles || [user.role || 'cliente'];
-    if (!Array.isArray(allRoles)) {
-      allRoles = [allRoles];
-    }
-    
-    // SEMPRE adicionar 'cliente' se não tiver (para todos os usuários)
-    if (!allRoles.includes('cliente')) {
-      allRoles.push('cliente');
-      user.roles = allRoles;
-      await userRepository.update(user.id, { roles: allRoles });
-      if (process.env.NODE_ENV === 'development') logger.debug('✅ Updated user roles in login. Now has:', allRoles);
-    }
-
-    if (!JWT_SECRET) {
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, role: activeRole, activeRole, roles: allRoles },
-      JWT_SECRET as jwt.Secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '2d' } as jwt.SignOptions
-    );
-
-    // ✅ SEGURANÇA: Armazenar token em HttpOnly cookie
-    const { setTokenCookie, setUserCookie } = require('../utils/cookieManager');
-    setTokenCookie(res, token);
-    setUserCookie(res, {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: activeRole,
-      activeRole: activeRole,
-      roles: allRoles,
-      storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
-    });
-
-    return res.json({
-      token, // Retornar para compatibilidade com clientes antigos
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: activeRole, // Manter compatibilidade
-        activeRole: activeRole, // Novo
-        roles: allRoles, // Novo - múltiplos roles
-        storeId: user.storeId || null, // ✅ CRÍTICO: incluir storeId
-        mainAddress: getDefaultAddress(user)
-      }
-    });
+    return res.json(await issueSession(res, user));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -224,13 +225,18 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // POST /auth/reset-password — valida o código e define a nova senha
+export const RESET_MAX_ATTEMPTS = 5;
+const RESET_LOCKED = { error: 'Muitas tentativas. Peça outro código.', code: 'RESET_CODE_LOCKED', attemptsLeft: 0 };
+
 export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, code, newPassword } = req.body;
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, código e nova senha são obrigatórios' });
     if (String(newPassword).length < 8) return res.status(400).json({ error: 'A senha deve ter ao menos 8 caracteres' });
+    if (!JWT_SECRET) return res.status(500).json({ error: 'Server configuration error' });
 
-    const user = await userRepository.findByEmail(email);
+    // Com endereços: a sessão aberta no fim devolve o mainAddress, como o login.
+    const user = await userRepository.findByEmailWithAddresses(email);
     if (!user) return res.status(400).json({ error: 'Código inválido ou expirado' });
 
     // ⚠️ O Postgres não tem TTL como o índice do Mongo: a expiração é sempre
@@ -242,8 +248,18 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
     if (!record || record.expiresAt.getTime() < Date.now()) {
       return res.status(400).json({ error: 'Código inválido ou expirado' });
     }
+    // Reserva a tentativa ANTES de comparar o código: um único UPDATE atômico devolve o contador
+    // já incrementado, então requisições paralelas nunca avaliam mais que RESET_MAX_ATTEMPTS códigos.
+    const claimed = await prisma.$queryRaw<{ attempts: number }[]>`
+      UPDATE "PasswordResetToken" SET "attempts" = "attempts" + 1
+      WHERE "id" = ${record.id} AND "attempts" < ${RESET_MAX_ATTEMPTS}
+      RETURNING "attempts"`;
+    if (claimed.length === 0) return res.status(400).json(RESET_LOCKED);
+
     if (record.tokenHash !== sha256(String(code).trim())) {
-      return res.status(400).json({ error: 'Código incorreto' });
+      const left = Math.max(0, RESET_MAX_ATTEMPTS - Number(claimed[0].attempts));
+      if (left === 0) return res.status(400).json(RESET_LOCKED);
+      return res.status(400).json({ error: 'Código incorreto', attemptsLeft: left });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -252,9 +268,13 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
     });
     await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
-    return res.json({ message: 'Senha redefinida com sucesso. Você já pode entrar.' });
+    // Conta bloqueada: a senha muda, mas a sessão não abre (mesma regra do login).
+    if ((user as any).status === 'blocked') {
+      return res.json({ message: 'Senha redefinida. Sua conta está bloqueada: fale com o suporte.', blocked: true });
+    }
+    return res.json({ message: 'Senha redefinida com sucesso.', ...(await issueSession(res, user)) });
   } catch (err) {
-    console.error('[resetPassword] error', err);
+    logger.error('[resetPassword] erro', err as Error);
     return res.status(500).json({ error: 'Erro ao redefinir a senha' });
   }
 };

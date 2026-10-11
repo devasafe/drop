@@ -8,6 +8,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidImageBuffer } from '../middleware/upload';
 import logger from '../config/logger';
 import { isValidCPF } from '../utils/documentValidation';
+import { buyerCpfStatus } from '../utils/buyerCpf';
 
 // Retorna os dados do usuário autenticado
 export const getMe = async (req: AuthenticatedRequest, res: Response) => {
@@ -29,6 +30,8 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
     // `_id` é mantido junto de `id`: o frontend ainda lê `_id` do tempo do Mongo.
     const userData: any = { ...safe, _id: user.id };
     userData.mainAddress = getDefaultAddress(user as any);
+    // Checkout pede o CPF antes do Pix quando não é 'valid' (só o status, nada novo exposto).
+    userData.cpfStatus = buyerCpfStatus(user as any);
 
     return res.json(userData);
   } catch (err) {
@@ -84,6 +87,13 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
         if (dup) return res.status(409).json({ error: 'Este CPF já está cadastrado em outra conta' });
       }
       data.cpf = cpfDigits; docReset = true;
+      // Customer Asaas foi criado com o CPF antigo: o próximo pagamento recria com o novo.
+      // `asaas` é JSONB e pode ter dados de subconta — só a chave customerId sai.
+      const asaasData = (user as any).asaas;
+      if (asaasData && typeof asaasData === 'object' && 'customerId' in asaasData) {
+        const { customerId: _old, ...rest } = asaasData;
+        data.asaas = rest;
+      }
     }
     if (rgChanging) {
       const rgDigits = digits(rg);
@@ -108,6 +118,10 @@ export const updateMe = async (req: AuthenticatedRequest, res: Response) => {
     if (telefone !== undefined) data.telefone = telefone;
 
     data.verification = verification;
+    if (cpfChanging) {
+      // Customers nas contas das lojas (modo direto) também carregam o CPF antigo.
+      await prisma.storeAsaasCustomer.deleteMany({ where: { userId } });
+    }
     await userRepository.update(userId, data);
 
     // Documento alterado afeta a verificação de loja/motoboy do dono

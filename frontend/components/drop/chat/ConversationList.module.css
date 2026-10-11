@@ -4,7 +4,7 @@
   flex: 1;
   overflow: auto;
   padding: var(--space-3);
-  background: var(--bg);
+  background: var(--color-bg-primary);
 }
 
 .newButton {
@@ -15,8 +15,8 @@
 
 .status {
   margin: auto;
-  color: var(--text-subtle);
-  font-size: var(--fs-body);
+  color: var(--color-text-muted);
+  font: var(--text-meta);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -26,8 +26,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--line);
-  border-top-color: var(--brand);
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-action-primary);
   animation: spin 0.7s linear infinite;
 }
 
@@ -44,21 +44,21 @@
 }
 
 .sectionLabel {
-  font-size: var(--fs-xs);
+  font: var(--text-caption);
   font-weight: 600;
   margin-bottom: var(--space-1);
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .item {
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-default);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -70,28 +70,28 @@
 }
 
 .item:hover {
-  background: color-mix(in srgb, var(--text-strong) 6%, var(--surface-2));
+  background: color-mix(in srgb, var(--color-text-primary) 6%, var(--color-surface-sunken));
 }
 
 .itemUnread {
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  background: var(--color-action-primary-subtle);
+  border: 1px solid color-mix(in srgb, var(--color-action-primary) 30%, transparent);
 }
 
 .itemUnread:hover {
-  background: color-mix(in srgb, var(--brand) 15%, transparent);
+  background: color-mix(in srgb, var(--color-action-primary) 15%, var(--color-action-primary-subtle));
 }
 
 .name {
-  font-size: var(--fs-body);
+  font: var(--text-meta);
   font-weight: 600;
   margin-bottom: 3px;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 
 .preview {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
 }
 
 .itemUnread .preview {
@@ -99,11 +99,11 @@
 }
 
 .badge {
-  background: var(--danger);
-  color: var(--on-brand);
-  font-size: var(--fs-xs);
+  background: var(--color-error-text);
+  color: var(--color-on-action);
+  font-size: 12px;
   padding: 2px 8px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   display: inline-block;
   font-weight: 700;
   margin-top: var(--space-1);
@@ -114,14 +114,14 @@
   border: none;
   cursor: pointer;
   padding: 2px 6px;
-  font-size: var(--fs-body);
-  color: var(--text-subtle);
+  font: var(--text-meta);
+  color: var(--color-text-muted);
   margin-left: var(--space-2);
   line-height: 1;
   flex-shrink: 0;
-  transition: color var(--dur-base) var(--ease);
+  transition: color var(--motion-base) var(--ease);
 }
 
 .removeButton:hover {
-  color: var(--danger);
+  color: var(--color-error-text);
 }

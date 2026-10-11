@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { createStore, listStores, deleteStoreAndUser, getStore, listarAvaliacoesLoja, dashboard, updateStore, getFeaturedStores, uploadStoreBanner, updateOperatingHours, getStoreTopProducts, getTopStores } from '../controllers/storeController';
-import { authenticate, authorizeRoles } from '../middleware/auth';
+import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
+import { validate } from '../middleware/validate';
+import { getNearbyStores, NearbyQuerySchema } from '../controllers/catalogController';
+import { storeQuotesLimiter, catalogHomeLimiter } from '../middleware/publicRateLimit';
+import { quoteStores, StoreQuotesSchema } from '../controllers/deliveryQuoteController';
 import upload from '../middleware/upload';
 
 const router = Router();
@@ -11,6 +15,11 @@ router.get('/dashboard', authenticate, authorizeRoles('lojista'), dashboard);
 // [Plan1] Lojas em destaque — Plano 3 com banner preenchido (rota pública)
 router.get('/featured', getFeaturedStores);
 router.get('/top', getTopStores);
+// Antes de '/:idOrSlug': senão "nearby" é lido como slug
+router.get('/nearby', catalogHomeLimiter, validate(NearbyQuerySchema, 'query'), getNearbyStores);
+
+// Cotação em lote dos cards da vitrine (pública; estimativa, sem custo de rota)
+router.post('/quotes', optionalAuth, storeQuotesLimiter, validate(StoreQuotesSchema), quoteStores);
 
 // Upload de banner (featured) ou capa (cover) — exclusivo Plano 3
 router.post('/banner', authenticate, authorizeRoles('lojista'), upload.single('banner'), uploadStoreBanner);

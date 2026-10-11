@@ -1,0 +1,56 @@
+/* DeliveryBadge — DS v2. Ícone + texto, sem caixa: lê como informação, não como selo. */
+.line {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font: var(--text-meta);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.icon { display: inline-flex; }
+
+.fast   { color: var(--color-delivery-fast); }
+.normal { color: var(--color-text-secondary); }
+.muted  { color: var(--color-text-muted); }
+.error  { color: var(--color-error-text); }
+
+.link {
+  min-height: var(--touch-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-link);
+  text-align: left;
+  cursor: pointer;
+}
+.link span { text-decoration: underline; text-underline-offset: 3px; }
+
+.action {
+  min-height: var(--touch-min);
+  padding: 0 0 0 var(--space-1);
+  border: none;
+  background: none;
+  color: var(--color-text-link);
+  font: var(--text-label);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link:focus-visible,
+.action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+.shimmer {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+  animation: delivery-pulse 1.2s ease-in-out infinite;
+}
+@keyframes delivery-pulse { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none; } }

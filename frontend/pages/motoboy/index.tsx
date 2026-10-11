@@ -120,7 +120,7 @@ export default function MotoboyPage() {
                 <span className={styles.statusText}>{online ? 'Online' : 'Offline'}</span>
               </div>
             </div>
-            <Button onClick={toggle} disabled={toggling || statusLoading} variant={online ? 'ghost' : 'primary'}>
+            <Button onClick={toggle} disabled={toggling || statusLoading} variant={online ? 'tertiary' : 'primary'}>
               {online ? 'Ficar offline' : 'Ficar online'}
             </Button>
           </header>

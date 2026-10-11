@@ -1,0 +1,151 @@
+/* Sacola (/sacola) — carrinho + checkout numa tela. Só tokens semânticos. */
+
+.page {
+  max-width: 720px;
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) 180px;
+  background: var(--color-bg-primary);
+}
+
+.cols {
+  display: block;
+}
+
+.mainCol,
+.asideCol {
+  min-width: 0;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+
+.blockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.blockTitle {
+  margin: 0;
+  font: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: var(--text-label);
+  color: var(--color-text-link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.address {
+  margin: 0;
+  font: var(--text-body);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.etaLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.etaTail {
+  font: var(--text-meta);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-delivery-fast);
+}
+
+.etaTail::before {
+  content: '· ';
+}
+
+.methodNote {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.muted {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.empty {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4);
+}
+
+/* Desktop: itens + entrega + pagamento | resumo sticky (com o botão de pagar no fim). */
+@media (min-width: 900px) {
+  .page {
+    max-width: 1040px;
+    padding-bottom: var(--space-10);
+  }
+
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 0 var(--space-6);
+    align-items: start;
+  }
+
+  .asideCol {
+    position: sticky;
+    top: var(--space-4);
+  }
+}
+
+.methodRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.directNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.directNote p {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-primary);
+}

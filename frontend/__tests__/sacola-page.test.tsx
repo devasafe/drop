@@ -1,0 +1,109 @@
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+
+// ProtectedRoute exige auth — bypassa renderizando os filhos direto.
+jest.mock('../components/ProtectedRoute', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
+// Stub do PixPaymentSheet (o real faz polling via api) — só queremos saber se renderiza.
+jest.mock('../components/drop/checkout/PixPaymentSheet', () => ({
+  PixPaymentSheet: () => <div>PIX_SHEET_STUB</div>,
+}));
+jest.mock('../hooks/useCheckout', () => ({ useCheckout: jest.fn() }));
+
+import CheckoutPage from '../pages/sacola';
+import { useCheckout } from '../hooks/useCheckout';
+
+const mockedUseCheckout = useCheckout as jest.MockedFunction<typeof useCheckout>;
+
+function baseHook(overrides: Partial<ReturnType<typeof useCheckout>> = {}) {
+  return {
+    blocked: false,
+    address: {
+      loading: false, selected: null, addresses: [], selectAddress: jest.fn(),
+      fields: { cep: '', street: '', number: '', neighborhood: '', city: '', state: '', complement: '', latitude: '', longitude: '' },
+      setField: jest.fn(), lookupCep: jest.fn(), saveAddress: jest.fn(),
+    },
+    items: [],
+    coupon: { code: '', setCode: jest.fn(), apply: jest.fn(), remove: jest.fn(), message: null, validating: false, discount: 0 },
+    paymentMethod: 'pix', setPaymentMethod: jest.fn(),
+    walletBalance: 0, useWallet: false, setUseWallet: jest.fn(), pendingDebt: null,
+    subtotal: 0, deliveryFee: 0, discount: 0, total: 0,
+    isPlan1: false, canPlace: true, placing: false, isWalletInsufficient: false,
+    placeOrder: jest.fn(), pixData: null, closePix: jest.fn(),
+    pixNotice: { paymentProvider: null, recipientName: null },
+    ...overrides,
+  } as unknown as ReturnType<typeof useCheckout>;
+}
+
+describe('CheckoutPage — render do PixPaymentSheet', () => {
+  test('mostra o PixPaymentSheet quando há pixData mesmo com o carrinho vazio (estado pós-pedido)', () => {
+    // placeOrder limpa o carrinho ANTES de setar pixData, então items fica vazio
+    // no mesmo render em que pixData aparece. O sheet do PIX precisa sobreviver a isso.
+    mockedUseCheckout.mockReturnValue(baseHook({
+      items: [],
+      pixData: { orderId: 'o1', qrCodePayload: 'copia-e-cola' },
+    } as unknown as ReturnType<typeof useCheckout>));
+    render(<CheckoutPage />);
+    expect(screen.getByText('PIX_SHEET_STUB')).toBeInTheDocument();
+  });
+
+  test('não renderiza o PixPaymentSheet quando não há pixData', () => {
+    mockedUseCheckout.mockReturnValue(baseHook({ items: [], pixData: null }));
+    render(<CheckoutPage />);
+    expect(screen.queryByText('PIX_SHEET_STUB')).not.toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPage — CPF no modo direto (Task 1.5)', () => {
+  test('mostra o campo CPF quando o hook pede (cpfRequired) e repassa a digitação', async () => {
+    const setCpf = jest.fn();
+    mockedUseCheckout.mockReturnValue(baseHook({
+      items: [{ productId: 'p1', quantity: 1, price: 10 }],
+      cpfRequired: true, cpf: '', setCpf,
+    } as unknown as ReturnType<typeof useCheckout>));
+    render(<CheckoutPage />);
+    const input = screen.getByLabelText(/CPF/i);
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.change(input, { target: { value: '39053344705' } });
+    expect(setCpf).toHaveBeenCalledWith('390.533.447-05');
+  });
+
+  test('sem cpfRequired, o campo CPF não aparece', () => {
+    mockedUseCheckout.mockReturnValue(baseHook({
+      items: [{ productId: 'p1', quantity: 1, price: 10 }],
+      cpfRequired: false, cpf: '', setCpf: jest.fn(),
+    } as unknown as ReturnType<typeof useCheckout>));
+    render(<CheckoutPage />);
+    expect(screen.queryByLabelText(/CPF/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('CheckoutPage — CPF antes do Pix (Task 8, rodada 1)', () => {
+  const withCpf = (cpf: string) => baseHook({
+    items: [{ productId: 'p1', quantity: 1, price: 10 }],
+    cpfRequired: true, cpf, setCpf: jest.fn(),
+  } as unknown as ReturnType<typeof useCheckout>);
+
+  test('CPF vazio ou incompleto: botão travado e hint "Informe seu CPF"', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('390.533'));
+    render(<CheckoutPage />);
+    expect(screen.getByText('Informe seu CPF')).toBeInTheDocument();
+  });
+
+  test('11 dígitos com verificador errado: botão travado e hint "CPF inválido"', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('123.456.789-00'));
+    render(<CheckoutPage />);
+    expect(screen.getByText('CPF inválido')).toBeInTheDocument();
+  });
+
+  test('CPF válido: sem hint de CPF', () => {
+    mockedUseCheckout.mockReturnValue(withCpf('390.533.447-05'));
+    render(<CheckoutPage />);
+    expect(screen.queryByText('CPF inválido')).not.toBeInTheDocument();
+    expect(screen.queryByText('Informe seu CPF')).not.toBeInTheDocument();
+  });
+});

@@ -1,7 +1,10 @@
 import LegalPage, { LegalSection } from '../../components/legal/LegalPage';
 import { LEGAL_VERSIONS, LEGAL_UPDATED, PRIVACY_EMAIL } from '../../lib/legalDocs';
+import { useClienteRedirect } from '../../hooks/useClienteRedirect';
+import { ROUTES } from '../../lib/routes';
 
 export default function SolicitacoesPrivacidadePage() {
+  useClienteRedirect(ROUTES.privacidadeConta);
   return (
     <LegalPage
       title="Canal de Direitos do Titular"
@@ -112,8 +115,7 @@ export default function SolicitacoesPrivacidadePage() {
 
       <LegalSection title="5. Outros canais">
         <p>
-          Dúvidas gerais sobre o tratamento de dados pessoais pela DROP, incluindo sobre o
-          Encarregado (DPO) responsável, também podem ser enviadas para{' '}
+          Dúvidas gerais sobre o tratamento de dados pessoais pela DROP também podem ser enviadas para{' '}
           <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
         </p>
         <p>

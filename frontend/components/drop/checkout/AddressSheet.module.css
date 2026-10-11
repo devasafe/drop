@@ -1,7 +1,7 @@
 /* AddressSheet — form de endereço + MapPicker (Google Maps). Campos em
  * coluna única ou par (grid2), mesmo padrão de espaçamento --space-2/3 dos
  * outros forms do checkout (ver CouponField). Mapa sem card aninhado: só
- * borda --line + raio --r-md pra separar do fundo --surface do Sheet.
+ * borda --color-border-default + raio --radius-md pra separar do fundo do Sheet.
  */
 
 .form {
@@ -23,24 +23,22 @@
 }
 
 .label {
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
 }
 
 .map {
   width: 100%;
   height: 220px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .mapHint {
   margin: calc(var(--space-3) * -1) 0 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-subtle);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
 }
 
 .save {

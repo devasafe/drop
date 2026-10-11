@@ -92,7 +92,7 @@ input, select, textarea {
   background: var(--drop-bg-2);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(108, 43, 217, 0.5);
+  background: var(--color-border-strong);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -102,10 +102,10 @@ input, select, textarea {
 /* ── Navbar ───────────────────────────────────────────────── */
 
 .nav-header {
-  background: rgba(10,10,10,0.92);
+  background: color-mix(in srgb, var(--color-surface-default) 92%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--drop-border);
+  border-bottom: 1px solid var(--color-border-default);
 }
 
 .nav {
@@ -155,7 +155,7 @@ input, select, textarea {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid var(--color-border-default);
 }
 
 .store-name {
@@ -180,7 +180,7 @@ input, select, textarea {
 .nav-logout:hover {
   border-color: var(--drop-danger);
   color: var(--drop-danger);
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--color-error-subtle);
 }
 
 /* ── Utilities ────────────────────────────────────────────── */
@@ -919,6 +919,10 @@ input, select, textarea {
 /* ── Temas Sazonais ───────────────────────────────────────── */
 
 body.theme-natal {
+  /* DS v2: o tema sazonal troca a cor de ação (botão, ativo, desconto) */
+  --color-action-primary: #B91C1C;
+  --color-action-primary-hover: #991B1B;
+  --color-action-primary-pressed: #7F1D1D;
   --drop-purple:      #B91C1C;
   --drop-purple-2:    #EF4444;
   --drop-purple-glow: rgba(185, 28, 28, 0.35);
@@ -926,6 +930,10 @@ body.theme-natal {
 }
 
 body.theme-pascoa {
+  /* DS v2: o tema sazonal troca a cor de ação (botão, ativo, desconto) */
+  --color-action-primary: #7C3AED;
+  --color-action-primary-hover: #6D28D9;
+  --color-action-primary-pressed: #5B21B6;
   --drop-purple:      #7C3AED;
   --drop-purple-2:    #A78BFA;
   --drop-purple-glow: rgba(124, 58, 237, 0.35);
@@ -933,6 +941,10 @@ body.theme-pascoa {
 }
 
 body.theme-junina {
+  /* DS v2: o tema sazonal troca a cor de ação (botão, ativo, desconto) */
+  --color-action-primary: #B45309;
+  --color-action-primary-hover: #92400E;
+  --color-action-primary-pressed: #78350F;
   --drop-purple:      #B45309;
   --drop-purple-2:    #F59E0B;
   --drop-purple-glow: rgba(180, 83, 9, 0.35);
@@ -940,6 +952,10 @@ body.theme-junina {
 }
 
 body.theme-halloween {
+  /* DS v2: o tema sazonal troca a cor de ação (botão, ativo, desconto) */
+  --color-action-primary: #C2410C;
+  --color-action-primary-hover: #9A3412;
+  --color-action-primary-pressed: #7C2D12;
   --drop-purple:      #C2410C;
   --drop-purple-2:    #FB923C;
   --drop-purple-glow: rgba(194, 65, 12, 0.35);

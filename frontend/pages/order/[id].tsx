@@ -9,6 +9,8 @@ import { useSocket } from '../../contexts/SocketContext';
 import api from '../../lib/api';
 import { paymentMethodLabel } from '../../lib/paymentLabel';
 import dynamic from 'next/dynamic';
+import { useClienteRedirect } from '../../hooks/useClienteRedirect';
+import { pedidoHref } from '../../lib/routes';
 import styles from '../OrderDetail.module.css';
 
 // Drop Maps (MapLibre/WebGL) só no client.
@@ -34,6 +36,7 @@ interface PayoutInfo {
 export default function OrderDetailPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
+  useClienteRedirect(id ? pedidoHref(id) : null);
   const { order, loading: orderLoading } = useOrder(id);
   const { user } = useContext(AuthContext);
   const { on } = useSocket();

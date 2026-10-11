@@ -31,15 +31,20 @@ export interface PixCharge {
   expiresAt?: string;
 }
 
-/** Garante um customer Asaas pro comprador (cria e cacheia se não existir). */
-export async function ensureAsaasCustomer(userId: string): Promise<string | null> {
+/**
+ * Garante um customer Asaas pro comprador (cria e cacheia se não existir).
+ * `cpfOverride`: CPF já resolvido pela pré-checagem do Pix (perfil → KYC → body); só vale
+ * na criação do customer — o cache é invalidado quando o CPF do perfil muda (updateMe).
+ */
+export async function ensureAsaasCustomer(userId: string, cpfOverride?: string): Promise<string | null> {
   // carrega a apiKeyEncrypted p/ não apagá-la no markModified('asaas')+save abaixo
   // (o mesmo usuário pode ser comprador E recebedor com subconta)
   const user = await userRepository.findById(String(userId)) as any;
   if (!user) return null;
   if (user.asaas?.customerId) return user.asaas.customerId;
 
-  const cpf = onlyDigits(user.cpf);
+  const override = onlyDigits(cpfOverride);
+  const cpf = override && (isValidCPF(override) || isValidCNPJ(override)) ? override : onlyDigits(user.cpf);
   // O Asaas exige CPF/CNPJ válido p/ cobrança PIX. Validar localmente dá uma
   // mensagem clara e acionável em vez do erro genérico do gateway.
   if (!cpf || (!isValidCPF(cpf) && !isValidCNPJ(cpf))) {

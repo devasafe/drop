@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import { ROUTES } from '../lib/routes';
 
 export default function useRequireAuth(roles?: string[]) {
   const { user, activeRole, loading } = useAuth() || {};
@@ -17,7 +18,7 @@ export default function useRequireAuth(roles?: string[]) {
       return;
     }
     if (user && roles && roles.length > 0 && !roles.includes(activeRole || user.activeRole)) {
-      router.replace('/');
+      router.replace(ROUTES.inicio);
     }
   }, [user, activeRole, roles, router, loading]);
 }

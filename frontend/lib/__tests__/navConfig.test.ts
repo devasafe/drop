@@ -13,12 +13,11 @@ describe('navConfig', () => {
     expect(ROLE_HOME.ceo).toBe('/admin/dashboard');
   });
 
-  it('cliente tem os 5 itens de bottomNav na ordem certa', () => {
-    const items = getNavItems('cliente', allow, false);
+  it('cliente tem os 4 itens de bottomNav na ordem certa', () => {
+    const items = getNavItems('cliente', allow, false).filter((i) => i.placement.includes('bottomNav'));
     expect(items.map((i) => i.label)).toEqual(
-      ['Início', 'Buscar', 'Pedidos', 'Carteira', 'Perfil'],
+      ['Início', 'Buscar', 'Pedidos', 'Conta'],
     );
-    expect(items.every((i) => i.placement.includes('bottomNav'))).toBe(true);
   });
 
   it('lojista usa "Financeiro da loja" e nunca expõe "Solicitar saque"', () => {
@@ -91,9 +90,9 @@ describe('navConfig', () => {
     expect(active('/motoboy/gamification')).toEqual(['Desempenho']);
   });
 
-  it('Perfil fica ativo em /user-profile e /editar-conta (não só /minha-conta)', () => {
+  it('Conta fica ativo em /user-profile e /editar-conta (não só /minha-conta)', () => {
     const items = getNavItems('cliente', () => true, false);
-    const perfil = items.find((i) => i.label === 'Perfil')!;
+    const perfil = items.find((i) => i.label === 'Conta')!;
     expect(isItemActive(perfil, '/minha-conta')).toBe(true);
     expect(isItemActive(perfil, '/user-profile')).toBe(true);
     expect(isItemActive(perfil, '/editar-conta')).toBe(true);

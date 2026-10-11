@@ -1,35 +1,95 @@
-/* Inicio — feed de delivery (Fase 1). Layout puro: grid/gap/padding via
- * tokens --space-*. Cor, tipografia e raio vêm sempre dos componentes do
- * Design System (components/drop, components/ui) — zero hex aqui, ver
- * styles/tokens.css.
- */
-
 .page {
   min-height: 100vh;
-  background: var(--bg);
-  /* espaço suficiente p/ o conteúdo não ficar atrás do StickyCart (52px,
-     bottom:90px) + TabBar (64px) fixos no fim da tela */
+  background: var(--color-bg-primary);
+  /* espaço para o StickyCart + TabBar fixos no fim da tela */
   padding-bottom: 170px;
-  /* Desktop (padrão iFood): container largo centralizado; as listas viram grid
-     multi-coluna (ver .storeRows). Mobile não é afetado (viewport < max-width). */
   max-width: var(--app-max);
   margin-inline: auto;
 }
 
 .top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   padding: var(--space-4) var(--space-4) 0;
 }
 
-.addressSkeleton {
-  margin-top: var(--space-3);
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.searchRow {
-  margin-top: var(--space-3);
+.address {
+  flex: 1;
+  min-width: 0;
+}
+
+.bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.bell:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.bellCount {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: var(--color-on-action);
+  font: var(--text-caption);
+  font-style: normal;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.card {
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+
+.searchButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .section {
-  padding: var(--space-5) var(--space-4) 0;
+  padding: var(--space-8) var(--space-4) 0;
 }
 
 .sectionHeader {
@@ -41,58 +101,49 @@
 }
 
 .sectionTitle {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--fs-h2);
-  color: var(--text-strong);
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
 }
 
 .sectionLink {
-  border: none;
-  background: none;
-  padding: 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--brand-2);
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-link);
+  font: var(--text-label);
   cursor: pointer;
 }
 
-.storesSkeleton {
+.sectionLink:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
-.carouselWrap {
-  margin-bottom: 12px;
-}
-
-.storeRows {
-  /* Grid responsivo (padrão iFood): 1 coluna no mobile, várias no desktop.
-     auto-fill + minmax faz o nº de colunas se ajustar à largura sozinho. */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: var(--space-3);
-}
-
-.offersRow {
-  display: flex;
-  gap: var(--space-4);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.offersRow::-webkit-scrollbar {
-  height: 0;
-}
-
-.offerItem {
+.tile {
   cursor: pointer;
-  flex-shrink: 0;
 }
 
-.repeatList {
+.list {
   display: flex;
   flex-direction: column;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 var(--space-6);
+  }
 }

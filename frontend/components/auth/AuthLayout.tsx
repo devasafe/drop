@@ -1,39 +1,20 @@
 import { ReactNode } from 'react';
+import { Logo } from '../drop/Logo';
 import styles from './AuthLayout.module.css';
 
-interface AuthLayoutProps {
-  title: string;
-  subtitle?: string;
-  /** URL do asset da foto do painel. Ausente → placeholder (gradiente + scrim). */
-  imageSrc?: string;
-  tagline?: string;
-  children: ReactNode;
-}
+interface AuthLayoutProps { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }
 
-export default function AuthLayout({ title, subtitle, imageSrc, tagline, children }: AuthLayoutProps) {
+/** Casca clara de entrar (protótipo "Entrar"): marca, título, motivo, formulário e nota no pé. */
+export default function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   return (
-    <div className={styles.page}>
-      <div className={styles.frame}>
-        <aside
-          className={`${styles.panel} ${imageSrc ? styles.hasPhoto : ''}`}
-          style={imageSrc ? { backgroundImage: `url(${imageSrc})` } : undefined}
-        >
-          <span className={styles.glow} aria-hidden="true" />
-          <span className={styles.scrim} aria-hidden="true" />
-          <div className={styles.brand}><span className={styles.pin} aria-hidden="true" /> DROP</div>
-          <div className={styles.panelBottom}>
-            <h2 className={styles.tagline}>{tagline || 'Do desejo à sua porta.'}</h2>
-            <p className={styles.taglineSub}>Gadgets, presentes, beleza, games e mais — das lojas perto de você, entregas rápidas.</p>
-          </div>
-        </aside>
-        <main className={styles.formCol}>
-          <div className={styles.formInner}>
-            <h1 className={styles.title}>{title}</h1>
-            {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
-            {children}
-          </div>
-        </main>
+    <main className={styles.page}>
+      <div className={styles.inner}>
+        <Logo />
+        <h1 className={styles.title}>{title}</h1>
+        {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
+        {children}
       </div>
-    </div>
+      {footer && <p className={styles.footer}>{footer}</p>}
+    </main>
   );
 }

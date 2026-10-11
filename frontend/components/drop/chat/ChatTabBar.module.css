@@ -1,8 +1,8 @@
 .tabBar {
   display: flex;
   gap: var(--space-1);
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  background: var(--color-surface-default);
+  border-bottom: 1px solid var(--color-border-default);
   overflow-x: auto;
   padding: var(--space-2) var(--space-2);
   flex-shrink: 0;
@@ -13,29 +13,29 @@
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: var(--fs-xs);
+  font: var(--text-caption);
   white-space: nowrap;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
 }
 
 .tabActive {
-  background: var(--brand-grad);
-  border: 1px solid var(--brand);
-  color: var(--on-brand);
+  background: var(--color-action-primary);
+  border: 1px solid var(--color-action-primary);
+  color: var(--color-on-action);
   font-weight: 600;
 }
 
 .badge {
   margin-left: var(--space-1);
-  background: var(--danger);
-  color: var(--on-brand);
-  font-size: 9px;
+  background: var(--color-error-text);
+  color: var(--color-on-action);
+  font-size: 12px;
   padding: 1px 5px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   font-weight: 700;
 }
 
@@ -44,7 +44,7 @@
   border: none;
   cursor: pointer;
   padding: 0;
-  font-size: var(--fs-xs);
+  font-size: 12px;
   color: inherit;
   opacity: 0.6;
   line-height: 1;

@@ -7,6 +7,8 @@ import Icon from '../components/Icon';
 import ChatPanel from '../components/ChatPanel';
 import useChat from '../hooks/useChat';
 import styles from './Suporte.module.css';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { ROUTES } from '../lib/routes';
 
 interface Ticket {
   _id: string;
@@ -31,6 +33,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function SuportePage() {
   useRequireAuth();
+  useClienteRedirect(ROUTES.ajuda);
   const router = useRouter();
   const { user, token } = useContext(AuthContext);
 

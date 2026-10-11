@@ -5,7 +5,7 @@
   overflow: auto;
   padding: var(--space-3);
   gap: var(--space-2);
-  background: var(--bg);
+  background: var(--color-bg-primary);
 }
 
 .backButton {
@@ -21,8 +21,8 @@
 
 .status {
   margin: auto;
-  color: var(--text-subtle);
-  font-size: var(--fs-body);
+  color: var(--color-text-muted);
+  font: var(--text-meta);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -32,8 +32,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--line);
-  border-top-color: var(--brand);
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-action-primary);
   animation: spin 0.7s linear infinite;
 }
 
@@ -54,35 +54,35 @@
 }
 
 .sectionLabel {
-  font-size: var(--fs-xs);
+  font: var(--text-caption);
   font-weight: 600;
   margin-bottom: var(--space-1);
-  color: var(--text-subtle);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .item {
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-default);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 
 .item:hover {
-  background: color-mix(in srgb, var(--text-strong) 6%, var(--surface-2));
+  background: color-mix(in srgb, var(--color-text-primary) 6%, var(--color-surface-sunken));
 }
 
 .name {
-  font-size: var(--fs-body);
+  font: var(--text-meta);
   font-weight: 600;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 
 .meta {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
   margin-top: 2px;
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { User, ShieldCheck, Bell, MapPin, LogOut, ChevronRight, ChevronLeft, Star, Package, MessageSquare, Megaphone } from 'lucide-react';
 import api from '../lib/api';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { ROUTES } from '../lib/routes';
 import { imageUrl } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useSync';
@@ -49,6 +51,7 @@ const notifTime = (dateStr: string) => {
 export default function UserProfile() {
   const { user, logout, loading } = useAuth() || {};
   const router = useRouter();
+  useClienteRedirect(ROUTES.conta);
   const [store, setStore] = useState<any>(null);
   const [verifOk, setVerifOk] = useState<boolean | null>(null);
   const [active, setActive] = useState<SectionKey | null>(null);

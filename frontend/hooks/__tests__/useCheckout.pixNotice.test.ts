@@ -29,7 +29,7 @@ const mockedApi = api as jest.Mocked<typeof api>;
 
 function mockOrder(order: Record<string, unknown>) {
   mockedApi.post.mockImplementation(((url: string) => {
-    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5 } });
+    if (url === '/orders/quote') return Promise.resolve({ data: { distanceKm: 1.5, inArea: true, deliveryFee: 6.5 } });
     if (url === '/orders') return Promise.resolve({ data: { order, pix: { qrCodePayload: 'x' } } });
     return Promise.resolve({ data: {} });
   }) as any);

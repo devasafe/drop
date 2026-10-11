@@ -1,10 +1,14 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
+import { customerRefundStage } from '../utils/customerRefund';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
 import { getRoute } from '../services/routeService';
+import { routeQuoteWithRoute, storePoint, straightKm, validPoint, resolvePlan1Free } from '../services/deliveryQuote/quote';
+import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
+import { publicStoreVisibilityWhere } from '../services/catalog/visibility';
 import { emitStockChanged } from '../services/storeIntegration';
 import userRepository from '../repositories/user.repository';
 
@@ -43,6 +47,7 @@ import { computeCardTotal } from '../utils/cardInstallments';
 import { compensateFailedOrder } from '../services/orderCompensation';
 import { isDirectMode, isDirectOrder } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
+import { precheckBuyerCpf } from '../utils/buyerCpf';
 import { AppError } from '../utils/AppError';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
@@ -172,6 +177,49 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });
     }
 
+    // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
+    // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
+    // via RouteService — o mesmo cálculo que o checkout exibe (endpoint /quote).
+    // O RouteService já cai em haversine sozinho se o gateway de rota falhar.
+    // Área de entrega: a distância em LINHA RETA loja→cliente tem de caber no raio efetivo
+    // (a mesma regra de cards e sacola); a rota só define taxa e prazo. Tudo isso ANTES de
+    // qualquer escrita (CPF do modo direto) e da baixa de estoque: fora da área não toca em nada.
+    let serverDistanceKm = 0;
+    let routeDurationSeconds = 0;
+    let routePolyline: string | undefined;
+    const storeLoc = storePoint(storeForCheck);
+    const customerLoc = { lat: Number(latitude), lng: Number(longitude) };
+    // Plano 1 da custódia (vitrine, sem entrega integrada, taxa 0) fica FORA da área e do
+    // NO_ADDRESS — o /checkout-vitrine nem manda coordenadas. Mesma regra da cotação
+    // (resolvePlan1Free); no modo direto o plano não existe e a checagem vale sempre.
+    const plan1Free = await resolvePlan1Free(storeIdStr);
+    if (!storeLoc && !plan1Free) {
+      // Sem localização da loja não há área nem rota: o card e a sacola já dizem
+      // STORE_NO_LOCATION; aceitar aqui cobraria só a base (km 0).
+      return sendAppError(res, new AppError('Esta loja ainda não configurou a localização.', 409, true, 'STORE_NO_LOCATION'));
+    }
+    if (storeLoc && validPoint(customerLoc)) {
+      const radiusKm = effectiveRadiusKm(storeForCheck, await getDeliveryConfig());
+      if (!plan1Free && straightKm(storeLoc, customerLoc) > radiusKm) {
+        return sendAppError(res, new AppError('Esta loja não entrega nesse endereço.', 409, true, 'OUT_OF_AREA'));
+      }
+      const route = await getRoute({ origin: storeLoc, destination: customerLoc });
+      if (route) {
+        serverDistanceKm = route.distanceKm;
+        routeDurationSeconds = route.durationSeconds;
+        routePolyline = route.polyline;
+        if (route.source === 'haversine') {
+          logger.warn('Taxa calculada por estimativa (haversine) — gateway de rota indisponível', { storeId: storeIdStr, distanceKm: serverDistanceKm });
+        }
+      }
+    } else if (storeLoc && !plan1Free) {
+      // Fail closed: loja com localização e pedido sem coordenadas válidas cobraria km 0 e
+      // escaparia da área. (Loja sem localização já saiu acima, salvo o Plano 1 da custódia.)
+      return sendAppError(res, new AppError('Informe o endereço de entrega.', 400, true, 'NO_ADDRESS'));
+    } else if (deliveryDistanceKm) {
+      logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
+    }
+
     // Modo SaaS "direto" (Task 1.5): independe de PAYMENT_GATEWAY. Pré-checagens
     // (método, cupom global, conta Asaas da loja, CPF) ANTES de baixar estoque.
     const directMode = await isDirectMode();
@@ -189,6 +237,27 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // a chamada com um método inválido zerava o estoque da loja). Modo direto tem a sua checagem.
     if (!directMode && env.PAYMENT_GATEWAY === 'asaas' && paymentMethod !== 'pix' && paymentMethod !== 'credit_card') {
       return res.status(400).json({ error: 'No momento apenas PIX ou cartão estão disponíveis.' });
+    }
+
+    // Custódia + Pix (Task 8): CPF de cobrança ANTES de baixar estoque, mesma regra do modo
+    // direto (perfil → KYC → body). Diferenças: documento presente porém inválido e sem CPF
+    // no body segue o caminho atual (Asaas recusa → pedido compensado, 502); e quem paga com
+    // saldo positivo (`useWalletBalance`) não é barrado aqui — o total só é conhecido depois e
+    // o Pix 100% pago com saldo não cobra no Asaas.
+    let custodyCpf: string | null = null;
+    if (!directMode && env.PAYMENT_GATEWAY === 'asaas' && paymentMethod === 'pix') {
+      const bodyCpf = (req.body as any).cpf;
+      const hasBodyCpf = typeof bodyCpf === 'string' && bodyCpf.replace(/\D/g, '') !== '';
+      // Só pula com saldo positivo (pode cobrir o total); flag ligada com saldo zero exige CPF.
+      const walletForCpf = useWalletBalance && !hasBodyCpf ? await walletService.getOrCreate(customerId, 'user') : null;
+      if (!walletForCpf || !(Number(walletForCpf.balance) > 0)) {
+        try {
+          custodyCpf = await precheckBuyerCpf(String(customerId), bodyCpf);
+        } catch (e) {
+          if (e instanceof AppError && e.code) return sendAppError(res, e);
+          throw e;
+        }
+      }
     }
 
     // [Plan1] Verificar plano da loja antes de calcular taxa de entrega
@@ -277,33 +346,6 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       couponDiscount = couponResult.discount;
       couponType = couponResult.coupon?.type ?? null;
       appliedCouponId = couponResult.coupon?._id;
-    }
-
-    // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
-    // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
-    // via RouteService — o mesmo cálculo que o checkout deve exibir (endpoint /quote).
-    // Antes a taxa saía de haversine (linha reta) e divergia do que o cliente via.
-    // O RouteService já cai em haversine sozinho se o gateway de rota falhar.
-    // Sem coordenadas, a taxa fica 0 (caso degenerado / Plano 1 sem entrega).
-    let serverDistanceKm = 0;
-    let routeDurationSeconds = 0;
-    let routePolyline: string | undefined;
-    const sLat = Number(storeForCheck.latitude);
-    const sLng = Number(storeForCheck.longitude);
-    const cLat = Number(latitude);
-    const cLng = Number(longitude);
-    if ([sLat, sLng, cLat, cLng].every(n => Number.isFinite(n) && n !== 0)) {
-      const route = await getRoute({ origin: { lat: sLat, lng: sLng }, destination: { lat: cLat, lng: cLng } });
-      if (route) {
-        serverDistanceKm = route.distanceKm;
-        routeDurationSeconds = route.durationSeconds;
-        routePolyline = route.polyline;
-        if (route.source === 'haversine') {
-          logger.warn('Taxa calculada por estimativa (haversine) — gateway de rota indisponível', { storeId: storeIdStr, distanceKm: serverDistanceKm });
-        }
-      }
-    } else if (deliveryDistanceKm) {
-      logger.warn('Pedido sem coordenadas completas — distância do frontend não confiável, usando 0', { storeId: storeIdStr });
     }
 
     // Modo direto: daqui em diante o caminho é outro (sem carteira/custódia/payout).
@@ -668,7 +710,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           customerId: cid, value: chargeAmount, orderId: String(order.id), description: `Pedido em ${store.name || 'loja'}`,
         });
         try {
-          let asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+          const ensureBuyer = () => (custodyCpf ? ensureAsaasCustomer(String(customerId), custodyCpf) : ensureAsaasCustomer(String(customerId)));
+          let asaasCustomerId = await ensureBuyer();
           if (!asaasCustomerId) throw new Error('Cliente Asaas não pôde ser criado');
           try {
             pixCharge = await buildCharge(asaasCustomerId);
@@ -681,7 +724,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
             const asaasData = { ...((stale?.asaas as any) ?? {}) };
             delete asaasData.customerId;
             await prisma.user.update({ where: { id: String(customerId) }, data: { asaas: asaasData } });
-            asaasCustomerId = await ensureAsaasCustomer(String(customerId));
+            asaasCustomerId = await ensureBuyer();
             if (!asaasCustomerId) throw firstErr;
             pixCharge = await buildCharge(asaasCustomerId);
           }
@@ -898,9 +941,20 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       if (dr) directRefund = { status: dr.status, amount: Number(dr.amount), lastError: storeSafeLastError(dr.lastError), attempts: dr.attempts };
     }
 
+    // Fase C2: o cliente do pedido direto vê a etapa do estorno (sem lastError/attempts).
+    let customerRefund: { stage: string; amount: number; requestedAt: Date; acceptedAt: Date | null; doneAt: Date | null } | null = null;
+    if (isCustomer && order.paymentProvider === 'asaas_loja') {
+      const dr = await prisma.directRefund.findUnique({
+        where: { orderId: id },
+        select: { status: true, amount: true, createdAt: true, acceptedAt: true, doneAt: true },
+      });
+      if (dr) customerRefund = { stage: customerRefundStage(dr.status), amount: Number(dr.amount), requestedAt: dr.createdAt, acceptedAt: dr.acceptedAt, doneAt: dr.doneAt };
+    }
+
     return res.json({
       ...order,
       ...((isStoreOwner || isAdmin) ? { directRefund } : {}),
+      ...(isCustomer ? { customerRefund } : {}),
       products: productsWithNames,
       // PIN só para quem deve ver: o cliente recebe o de entrega; loja/admin nenhum.
       delivery: delivery ? { ...serializeDeliveryFor(toApiDelivery(delivery), userId, { customerId: order.customerId }), motoboyName } : null,
@@ -1129,14 +1183,16 @@ export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Respon
 };
 
 /**
- * Orçamento da entrega (PREVIEW do checkout) — MESMA fonte da cobrança final.
+ * Orçamento da entrega (PREVIEW do checkout / sacola) — MESMA fonte da cobrança final.
  * POST /orders/quote  body: { storeId, latitude, longitude }
  *
- * Antes o checkout calculava a distância no browser (Google Directions) enquanto
- * o backend cobrava por haversine — os valores divergiam. Agora o front chama
- * este endpoint e apenas EXIBE o que voltar: distância de rota, ETA, taxa e
- * polyline saem do RouteService + das MESMAS funções de taxa usadas em createOrder.
- * O que o cliente vê aqui é exatamente o que será cobrado (mesmas coordenadas).
+ * Responde a `DeliveryQuote` da rota real (`routeQuoteWithRoute`: área, prazo, taxa, aberta)
+ * MAIS os campos antigos do checkout (`plan`, `deliveryFee`, `distanceMeters`,
+ * `durationSeconds`, `polyline`). Nos nomes que colidem (`distanceKm`, `source`) vale a
+ * DeliveryQuote; o `source` antigo do RouteService sai como `routeSource`.
+ * Fora da área / sem endereço: 200 com `inArea` false/null e `deliveryFee: null` (o checkout
+ * antigo lê distância 0 e não deixa fechar, como fazia com o 400/422 de antes).
+ * A taxa é a mesma função e a mesma distância de rota que o createOrder cobra.
  */
 export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1154,36 +1210,87 @@ export const quoteDelivery = async (req: AuthenticatedRequest, res: Response) =>
       const storeSub = await findSubByStoreId(String(storeId));
       const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
       storePlan = storeSub ? (planNumberMap[(storeSub as any).currentPlan] ?? 1) : 1;
-
-      // Plano 1 (Vitrine): sem entrega integrada — taxa sempre zero, sem rotear.
-      if (storePlan === 1) {
-        return res.json({ plan: 1, deliveryFee: 0, distanceKm: 0, durationSeconds: 0, polyline: null, source: null });
-      }
     }
 
-    const sLat = Number(store.latitude);
-    const sLng = Number(store.longitude);
-    const cLat = Number(latitude);
-    const cLng = Number(longitude);
-    if (![sLat, sLng, cLat, cLng].every(n => Number.isFinite(n) && n !== 0)) {
-      return res.status(400).json({ error: 'Coordenadas da loja ou do endereço ausentes/invalidas' });
+    const point = { lat: Number(latitude), lng: Number(longitude) };
+    const { quote, route } = await routeQuoteWithRoute(store, point);
+
+    let legacy: Record<string, unknown>;
+    if (storePlan === 1) {
+      // Plano 1 (Vitrine) na custódia: sem entrega integrada — taxa sempre zero, sem rotear.
+      legacy = { plan: 1, deliveryFee: 0, distanceMeters: 0, durationSeconds: 0, polyline: null, routeSource: null };
+    } else if (quote.inArea === true && route) {
+      legacy = {
+        plan: storePlan,
+        deliveryFee: direct ? await directDeliveryFee(route.distanceKm) : await calculateDeliveryFeeWithConfig(route.distanceKm),
+        distanceMeters: route.distanceMeters,
+        durationSeconds: route.durationSeconds,
+        polyline: route.polyline || null,
+        routeSource: route.source, // 'routes' | 'directions' | 'haversine' (transparência)
+      };
+    } else {
+      // Fora da área, sem endereço, loja sem localização ou rota indisponível: nada a cobrar.
+      legacy = { plan: storePlan, deliveryFee: null, distanceMeters: null, durationSeconds: null, polyline: null, routeSource: route?.source ?? null };
     }
-
-    const route = await getRoute({ origin: { lat: sLat, lng: sLng }, destination: { lat: cLat, lng: cLng } });
-    if (!route) return res.status(422).json({ error: 'Não foi possível calcular a rota' });
-
-    const deliveryFee = direct ? await directDeliveryFee(route.distanceKm) : await calculateDeliveryFeeWithConfig(route.distanceKm);
-    return res.json({
-      plan: storePlan,
-      deliveryFee,
-      distanceKm: route.distanceKm,
-      distanceMeters: route.distanceMeters,
-      durationSeconds: route.durationSeconds,
-      polyline: route.polyline || null,
-      source: route.source, // 'routes' | 'directions' | 'haversine' (transparência)
-    });
+    return res.json({ ...legacy, ...quote });
   } catch (err: any) {
     logger.error('Erro ao gerar orçamento de entrega', err);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * GET /orders/:id/reorder — "Comprar de novo". Só o dono (cliente) do pedido.
+ * Preço e estoque vêm do banco AGORA; o snapshot do OrderItem só serve para `previousPrice`.
+ * Loja invisível na vitrine (KYC e/ou mensalidade) deixa todos os itens como STORE_UNAVAILABLE.
+ */
+export const getReorder = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } });
+    if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (order.customerId !== userId) return res.status(403).json({ error: 'Sem permissão para acessar este pedido' });
+
+    const visibility = await publicStoreVisibilityWhere();
+    const [store, visible, products] = await Promise.all([
+      prisma.store.findUnique({ where: { id: order.storeId }, select: { id: true, name: true } }),
+      prisma.store.count({ where: { AND: [{ id: order.storeId }, visibility] } }),
+      prisma.product.findMany({ where: { id: { in: order.items.map((i) => i.productId) } } }),
+    ]);
+    const storeAvailable = Boolean(store) && visible > 0;
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    const items = order.items.map((it) => {
+      const p = productMap.get(it.productId);
+      const previousPrice = Number(it.price);
+      const stock = p ? Math.max(0, p.quantity) : 0;
+      let reason: 'DELETED' | 'OUT_OF_STOCK' | 'STORE_UNAVAILABLE' | null = null;
+      if (!storeAvailable) reason = 'STORE_UNAVAILABLE';
+      else if (!p) reason = 'DELETED';
+      else if (stock <= 0) reason = 'OUT_OF_STOCK';
+      const price = p ? Number(p.price) : previousPrice;
+      return {
+        productId: it.productId,
+        name: p?.name ?? 'Produto removido',
+        image: p?.image ?? p?.images?.[0] ?? null,
+        price,
+        previousPrice,
+        quantity: reason ? 0 : Math.min(it.quantity, stock),
+        requestedQuantity: it.quantity,
+        available: reason === null,
+        priceChanged: Boolean(p) && price !== previousPrice,
+        reason,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: { storeId: order.storeId, storeName: store?.name ?? '', storeAvailable, items },
+    });
+  } catch (err: any) {
+    logger.error('Erro ao montar "comprar de novo"', err);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

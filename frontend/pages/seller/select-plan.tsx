@@ -254,7 +254,7 @@ function SelectPlanInner() {
                 </div>
 
                 <Button
-                  variant={isCurrent || isPending ? 'ghost' : 'primary'}
+                  variant={isCurrent || isPending ? 'tertiary' : 'primary'}
                   onClick={() => handleRequestPlanChange(plan.id)}
                   disabled={isCurrent || requesting === plan.id || isPending}
                   loading={requesting === plan.id}

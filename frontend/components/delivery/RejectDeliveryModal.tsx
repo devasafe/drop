@@ -160,7 +160,7 @@ export function RejectDeliveryModal({
           {error && <p className={styles.error}>{error}</p>}
 
           <div className={styles.actions}>
-            <Button variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button variant="tertiary" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button variant="primary" onClick={handleNext} disabled={loading}>Próximo</Button>
           </div>
         </>
@@ -201,7 +201,7 @@ export function RejectDeliveryModal({
           {error && <p className={styles.error}>{error}</p>}
 
           <div className={styles.actions}>
-            <Button variant="ghost" onClick={handleBack} disabled={loading}>Voltar</Button>
+            <Button variant="tertiary" onClick={handleBack} disabled={loading}>Voltar</Button>
             <Button variant="primary" onClick={handleNext} disabled={loading}>Próximo</Button>
           </div>
         </>
@@ -234,7 +234,7 @@ export function RejectDeliveryModal({
           {error && <p className={styles.error}>{error}</p>}
 
           <div className={styles.actions}>
-            <Button variant="ghost" onClick={handleBack} disabled={loading}>Voltar</Button>
+            <Button variant="tertiary" onClick={handleBack} disabled={loading}>Voltar</Button>
             <Button
               variant={selectedAction === 'cancel' ? 'danger' : 'primary'}
               onClick={handleConfirm}
@@ -269,7 +269,7 @@ export function RejectDeliveryModal({
           </div>
 
           <div className={styles.actions}>
-            <Button variant="ghost" onClick={onClose}>Fechar</Button>
+            <Button variant="tertiary" onClick={onClose}>Fechar</Button>
           </div>
         </div>
       )}

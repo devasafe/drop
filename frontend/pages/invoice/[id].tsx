@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import api from '../../lib/api';
+import { lojaHref } from '../../lib/routes';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import styles from './Invoice.module.css';
 
@@ -128,7 +129,7 @@ export default function InvoicePage() {
             <span className={styles.label}>Loja</span>
             <span
               className={styles.linkValue}
-              onClick={() => router.push(`/stores/${invoice.storeId}`)}
+              onClick={() => router.push(lojaHref(invoice.storeId))}
             >
               {invoice.storeName}
             </span>

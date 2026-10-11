@@ -12,6 +12,8 @@ export interface AddressSheetProps {
   onField: (key: keyof Address, value: string) => void;
   onCepBlur: () => void;
   onSave: () => void;
+  /** Salvando: bloqueia novo toque em Salvar. */
+  saving?: boolean;
 }
 
 // Campos que precisam estar preenchidos pra habilitar "Salvar endereço".
@@ -79,7 +81,7 @@ function getGoogleMaps(): GoogleMapsSdk | undefined {
  * e desassocia o marker do mapa (`setMap(null)`) — evita leak quando o sheet é
  * reaberto várias vezes na mesma sessão.
  */
-export function AddressSheet({ open, onClose, fields, onField, onCepBlur, onSave }: AddressSheetProps) {
+export function AddressSheet({ open, onClose, fields, onField, onCepBlur, onSave, saving }: AddressSheetProps) {
   const cepId = useId();
   const streetId = useId();
   const numberId = useId();
@@ -259,7 +261,7 @@ export function AddressSheet({ open, onClose, fields, onField, onCepBlur, onSave
         <div id="gmap-address" className={styles.map} />
         <p className={styles.mapHint}>Arraste o marcador para ajustar a localização.</p>
 
-        <Button onClick={onSave} disabled={missingRequired} className={styles.save}>
+        <Button onClick={onSave} disabled={missingRequired || !!saving} className={styles.save}>
           Salvar endereço
         </Button>
       </div>

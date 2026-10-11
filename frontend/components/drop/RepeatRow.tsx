@@ -1,24 +1,19 @@
-import { ImageOff, Plus } from 'lucide-react';
-import { PriceTag } from '../ui/PriceTag';
-import { IconButton } from '../ui/IconButton';
-import { ICON_BUTTON_STROKE_WIDTH, ICON_STROKE_WIDTH } from '../ui/Icon';
+import { ImageOff, Repeat } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import type { ProductCardData } from './ProductCard';
 import styles from './RepeatRow.module.css';
 
 export interface RepeatRowProps {
   product: ProductCardData;
+  /** Linha de apoio ("Comprado 3 vezes · Loja"). Sem ela, mostra a loja. */
+  meta?: string;
   onAdd: () => void;
 }
 
-/**
- * Linha compacta "pra você repetir" — replica `.rep` do mock canônico:
- * divisor, sem card com borda (de-cardificação spec §3.1-A), sempre sem
- * promo (mesma lógica operacional da variante `carrinho` de `ProductCard`
- * — reordenar não carrega badge/preço riscado, mesmo que o produto tenha
- * `discountPercent`/`oldPrice`). Foto + nome + loja + preço + IconButton
- * `soft` de adicionar.
- */
-export function RepeatRow({ product, onAdd }: RepeatRowProps) {
+/** "Pra você repetir" (protótipo Início): miniatura, nome, linha de apoio e "De novo". */
+export function RepeatRow({ product, meta, onAdd }: RepeatRowProps) {
+  const support = meta || product.store;
   return (
     <div className={styles.row}>
       <span
@@ -26,21 +21,21 @@ export function RepeatRow({ product, onAdd }: RepeatRowProps) {
         style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}
         aria-hidden="true"
       >
-        {!product.imageUrl && (
-          <ImageOff size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-        )}
+        {!product.imageUrl && <ImageOff size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
       </span>
       <div className={styles.meta}>
         <div className={styles.name}>{product.name}</div>
-        {product.store && <div className={styles.store}>{product.store}</div>}
+        {support && <div className={styles.store}>{support}</div>}
       </div>
-      <PriceTag price={product.price} size="sm" />
-      <IconButton
-        icon={<Plus size={15} strokeWidth={ICON_BUTTON_STROKE_WIDTH} />}
-        variant="soft"
-        aria-label="Adicionar"
+      <Button
+        size="sm"
+        variant="secondary"
+        leftIcon={<Repeat size={16} aria-hidden="true" />}
+        aria-label={`De novo: ${product.name}`}
         onClick={onAdd}
-      />
+      >
+        De novo
+      </Button>
     </div>
   );
 }

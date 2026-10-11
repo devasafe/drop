@@ -327,7 +327,7 @@ export default function MotoboyDeliveryDetail() {
             {currentLocation && storeLat !== null && storeLng !== null && customerLat !== null && customerLng !== null ? (
               <>
                 <Button
-                  variant="accent"
+                  variant="primary"
                   className={styles.navBtn}
                   onClick={() => setNavOpen(true)}
                   leftIcon={
@@ -402,7 +402,7 @@ export default function MotoboyDeliveryDetail() {
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}><Icon name="alert-triangle" size={16} /> Rejeitar entrega</h2>
               <p className={styles.hint}>Se não conseguir fazer esta entrega, pode rejeitá-la — ela será reatribuída ou cancelada.</p>
-              <Button variant="ghost" onClick={() => setShowRejectModal(true)}>Rejeitar entrega</Button>
+              <Button variant="tertiary" onClick={() => setShowRejectModal(true)}>Rejeitar entrega</Button>
             </section>
           )}
 

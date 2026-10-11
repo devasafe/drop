@@ -1,0 +1,14 @@
+.change {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-link);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.change:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

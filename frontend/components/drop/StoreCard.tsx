@@ -1,8 +1,12 @@
 import { KeyboardEvent } from 'react';
-import { Star, Clock, Store as StoreIcon } from 'lucide-react';
+import { Store as StoreIcon, Truck, Zap } from 'lucide-react';
 import { StatusPill, StoreStatus } from '../ui/StatusPill';
-import { PriceTag, formatBRL } from '../ui/PriceTag';
 import { ICON_STROKE_WIDTH } from '../ui/Icon';
+import { Badge } from '../ui/Badge';
+import { formatRating } from '../ui/Rating';
+import { initials } from '../ui/Avatar';
+import { formatMoney } from '../../lib/money';
+import { formatEtaRange } from '../../lib/deliveryView';
 import styles from './StoreCard.module.css';
 
 export interface StoreCardData {
@@ -10,12 +14,33 @@ export interface StoreCardData {
   imageUrl?: string;
   status: StoreStatus;
   category: string;
-  /** Nota, tempo estimado e taxa de entrega são opcionais — o backend hoje
-   * não calcula nenhum dos três por loja. Quando ausentes, o pedaço
-   * correspondente simplesmente não é renderizado (nunca um valor inventado). */
-  rating?: number;
+  /** Prazo, frete e área são opcionais: sem dado, o pedaço não é renderizado
+   * (nunca um valor inventado). Vêm da cotação de entrega. */
   etaMin?: [number, number];
   fee?: number;
+  freeDelivery?: boolean;
+  outOfArea?: boolean;
+  opensAt?: string;
+  distanceKm?: number;
+  /** Média (≥ 3 avaliações) e contagem — vem do backend. */
+  rating?: { average: number; count: number };
+  /** "fecha às HH:MM" quando aberta pelo horário cadastrado. */
+  closesAt?: string;
+  /** Plano 1: a loja combina a entrega com o cliente. */
+  vitrine?: boolean;
+}
+
+const km = (n?: number) => (typeof n === 'number' ? `${n.toFixed(1).replace('.', ',')} km` : null);
+
+/** Linha embaixo do nome (variante resultado): nota + horário, ou o aviso que manda. */
+function subLine(s: StoreCardData): string {
+  if (s.outOfArea) return 'Não entrega aqui';
+  if (s.status === 'fechada') return s.opensAt ? `Loja fechada · abre às ${s.opensAt}` : 'Loja fechada';
+  const parts: string[] = [];
+  if (s.rating) parts.push(`★ ${formatRating(s.rating.average)} (${s.rating.count})`);
+  if (s.vitrine) parts.push('Vitrine · você combina a entrega');
+  else if (s.closesAt) parts.push(`fecha às ${s.closesAt}`);
+  return parts.length ? parts.join(' · ') : s.category;
 }
 
 export interface StoreCardProps {
@@ -24,16 +49,23 @@ export interface StoreCardProps {
   onClick: () => void;
 }
 
-function formatRating(rating: number): string {
-  return rating.toFixed(1).replace('.', ',');
+type LineTone = 'fast' | 'off' | 'muted' | 'normal';
+
+function deliveryLineOf(store: StoreCardData): { text: string; tone: LineTone } | null {
+  if (store.outOfArea) return { text: 'Não entrega aqui', tone: 'off' };
+  if (store.status === 'fechada') {
+    return { text: store.opensAt ? `Loja fechada · abre às ${store.opensAt}` : 'Loja fechada', tone: 'muted' };
+  }
+  const eta = formatEtaRange(store.etaMin);
+  if (!eta) return null;
+  const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : '';
+  return { text: tail ? `${eta} · ${tail}` : eta, tone: store.freeDelivery ? 'fast' : 'normal' };
 }
 
 /**
- * Loja no feed/busca. `destaque` = imagem grande com overlay gradiente
- * (replica `.feat` do mock canônico) — a ÚNICA variante que é card de
- * imagem real. `resultado` = LINHA com divisor (`.lrow`), de-cardificação
- * (spec §3.1-A): lista de lojas é lista de linhas, não grade de cards com
- * borda — daí `styles.row`, nunca `styles.card`, nesse caminho.
+ * Loja no feed/busca. `destaque` = imagem em cima e texto embaixo (sem
+ * gradiente nem overlay). `resultado` = LINHA com divisor, sem caixa: nome,
+ * categoria, linha de entrega e StatusPill à direita.
  */
 export function StoreCard({ variant, store, onClick }: StoreCardProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -43,7 +75,10 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
     }
   };
 
-  const eta = store.etaMin ? `${store.etaMin[0]}-${store.etaMin[1]} min` : undefined;
+  const line = deliveryLineOf(store);
+  const lineEl = line && (
+    <div className={[styles.delivery, line.tone !== 'normal' ? styles[line.tone] : ''].join(' ').trim()}>{line.text}</div>
+  );
   const interactiveProps = {
     role: 'button' as const,
     tabIndex: 0,
@@ -59,86 +94,48 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
           style={store.imageUrl ? { backgroundImage: `url(${store.imageUrl})` } : undefined}
           aria-hidden="true"
         >
-          {!store.imageUrl && (
-            <StoreIcon size={28} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-          )}
-        </span>
-        <span className={styles.gradient} aria-hidden="true" />
-        <span className={styles.statusWrap}>
-          <StatusPill status={store.status} />
+          {!store.imageUrl && <StoreIcon size={28} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
         </span>
         <div className={styles.info}>
-          <div className={styles.name}>{store.name}</div>
-          {(store.rating !== undefined || eta || store.fee !== undefined) && (
-            <div className={styles.stats}>
-              {store.rating !== undefined && (
-                <span className={styles.stat}>
-                  <Star
-                    size={13}
-                    strokeWidth={ICON_STROKE_WIDTH}
-                    className={styles.starIcon}
-                    fill="currentColor"
-                    aria-hidden="true"
-                  />
-                  {formatRating(store.rating)}
-                </span>
-              )}
-              {eta && (
-                <span className={styles.stat}>
-                  <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-                  {eta}
-                </span>
-              )}
-              {store.fee !== undefined && (
-                <span className={styles.stat}>Frete {formatBRL(store.fee)}</span>
-              )}
-            </div>
-          )}
+          <div>
+            <div className={styles.name}>{store.name}</div>
+            {lineEl}
+          </div>
+          <StatusPill status={store.status} />
         </div>
       </div>
     );
   }
 
+  // Prazo só vem da cotação; a loja vitrine sem prazo mostra o selo "Vitrine" no lugar.
+  const closed = store.status === 'fechada' || !!store.outOfArea;
+  const eta = !closed ? formatEtaRange(store.etaMin) : null;
+  const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : km(store.distanceKm);
   return (
-    <div className={styles.row} {...interactiveProps}>
+    <div className={[styles.row, closed && styles.dim].filter(Boolean).join(' ')} {...interactiveProps}>
       <span
-        className={styles.photo}
+        className={styles.logo}
         style={store.imageUrl ? { backgroundImage: `url(${store.imageUrl})` } : undefined}
         aria-hidden="true"
       >
-        {!store.imageUrl && (
-          <StoreIcon size={22} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-        )}
+        {!store.imageUrl && initials(store.name)}
       </span>
       <div className={styles.meta}>
         <div className={styles.rowName}>{store.name}</div>
-        <div className={styles.category}>{store.category}</div>
-        {(store.rating !== undefined || eta) && (
-          <div className={styles.rowStats}>
-            {store.rating !== undefined && (
-              <span className={styles.stat}>
-                <Star
-                  size={13}
-                  strokeWidth={ICON_STROKE_WIDTH}
-                  className={styles.starIcon}
-                  fill="currentColor"
-                  aria-hidden="true"
-                />
-                {formatRating(store.rating)}
-              </span>
-            )}
-            {eta && (
-              <span className={styles.stat}>
-                <Clock size={13} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-                {eta}
-              </span>
-            )}
-          </div>
-        )}
+        <div className={[styles.sub, store.outOfArea && styles.off].filter(Boolean).join(' ')}>{subLine(store)}</div>
       </div>
-      <div className={styles.right}>
-        <StatusPill status={store.status} />
-        {store.fee !== undefined && <PriceTag price={store.fee} size="sm" />}
+      <div className={styles.end}>
+        {eta ? (
+          <span className={styles.eta}><Zap size={14} aria-hidden="true" />{eta}</span>
+        ) : store.vitrine && !closed ? (
+          <Badge tone="status">Vitrine</Badge>
+        ) : null}
+        {tail && !store.outOfArea && (
+          <span className={store.freeDelivery ? styles.free : styles.tail}>
+            {store.freeDelivery && <Truck size={14} aria-hidden="true" />}
+            {tail}
+          </span>
+        )}
       </div>
     </div>
   );

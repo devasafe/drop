@@ -1,100 +1,90 @@
-/* Register.module.css — campos específicos do cadastro sobre AuthLayout
-   (o form base/notice/submit/switchLine vêm de Login.module.css) */
+.page {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  max-width: 480px;
+  margin-inline: auto;
+  padding-bottom: var(--space-8);
+}
 
-.field {
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+}
+
+.lead {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.strength {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  margin-top: calc(-1 * var(--space-2));
 }
 
-.label {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-family: var(--font-body);
-}
-
-/* ---- Role selector ---- */
-.roleGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--space-2);
-}
-
-.roleBtn {
+.meter {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-3) var(--space-2);
-  border: 1px solid var(--line);
-  background: var(--surface-field);
-  border-radius: var(--r-md);
-  cursor: pointer;
-  text-align: center;
-  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-  font-family: var(--font-body);
+  gap: var(--space-1);
 }
 
-.roleBtn:hover {
-  border-color: var(--brand-2);
-  background: color-mix(in srgb, var(--brand) 8%, var(--surface-field));
+.meter i {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-default);
 }
 
-.roleBtnActive {
-  border-color: var(--brand-2);
-  background: color-mix(in srgb, var(--brand) 15%, var(--surface-field));
+.meter i.on {
+  background: var(--color-action-primary);
 }
 
-.roleBtnLabel {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--text);
+.good {
+  font: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-success-text);
 }
 
-.roleBtnLabelActive {
-  color: var(--brand-2);
+.weak {
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
 }
 
-.roleBtnDesc {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-
-/* ---- Two-column grid for paired fields ---- */
-.fieldGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.accept {
+  display: flex;
   gap: var(--space-3);
-}
-
-/* ---- Accept terms checkbox ---- */
-.acceptRow {
-  display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  font-family: var(--font-body);
+  min-height: var(--touch-min);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
 }
 
-.acceptRow a {
-  color: var(--brand-2);
-}
-
-.acceptCheckbox {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  accent-color: var(--brand);
+.accept input {
   flex-shrink: 0;
-  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-action-primary);
 }
 
-/* ── Mobile ─────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .fieldGrid {
-    grid-template-columns: 1fr;
-  }
+.accept a {
+  color: var(--color-text-link);
+}
+
+.submit {
+  width: 100%;
+}
+
+.switchLine {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.link {
+  color: var(--color-text-link);
+  font-weight: 600;
 }

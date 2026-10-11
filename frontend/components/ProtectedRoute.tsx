@@ -41,7 +41,9 @@ export default function ProtectedRoute({ required_role, required_permission, chi
   useEffect(() => {
     if (loading || waitingPermissions) return;
     if (!user) {
-      router.push('/login');
+      // Leva o caminho de volta (ex.: o visitante que montou a sacola volta para /sacola).
+      const back = router.asPath && router.asPath !== '/' ? `?next=${encodeURIComponent(router.asPath)}` : '';
+      router.push(`/login${back}`);
       return;
     }
     if (hasRequirement && !granted) {

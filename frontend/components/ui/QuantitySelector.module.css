@@ -1,0 +1,54 @@
+/* QuantitySelector — DS v2. Toque de 44px mesmo no tamanho compacto. */
+.root {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+}
+.md { height: var(--touch-min); }
+.sm { height: 36px; }
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-fast) var(--ease-in);
+}
+/* No compacto o botão visível é menor, mas a área de toque continua 44×44 */
+.sm .btn { width: 36px; }
+.sm .btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  transform: translate(-50%, -50%);
+}
+.btn:hover:not(:disabled) { background: var(--color-surface-sunken); }
+.btn:active:not(:disabled) { background: var(--color-action-primary-subtle); }
+.btn:disabled { color: var(--color-text-disabled); cursor: not-allowed; }
+.btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.value {
+  min-width: 28px;
+  text-align: center;
+  font: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }

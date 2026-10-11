@@ -70,7 +70,7 @@ export default function StoreQRCode({ storeRef, storeName }: Props) {
           <span className={styles.linkLabel}>Link da sua página</span>
           <code className={styles.link}>{url || '…'}</code>
           <div className={styles.actions}>
-            <Button onClick={copyLink} variant="ghost" size="sm" disabled={!url}>Copiar link</Button>
+            <Button onClick={copyLink} variant="tertiary" size="sm" disabled={!url}>Copiar link</Button>
             <Button onClick={download} size="sm" disabled={!dataUrl}>Baixar QR Code</Button>
           </div>
         </div>

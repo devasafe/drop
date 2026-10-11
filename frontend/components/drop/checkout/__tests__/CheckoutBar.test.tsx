@@ -33,3 +33,12 @@ test('sem hint não renderiza texto de dica', () => {
   render(<CheckoutBar total={100} onConfirm={jest.fn()} />);
   expect(screen.queryByText(/Confirme o endereço/)).not.toBeInTheDocument();
 });
+
+test('a11y: botão aponta para a dica; o nó de status existe mesmo sem dica', () => {
+  const { rerender } = render(<CheckoutBar total={100} onConfirm={jest.fn()} disabled hint="Falta o CPF" />);
+  const btn = screen.getByRole('button');
+  expect(document.getElementById(btn.getAttribute('aria-describedby') as string)).toHaveTextContent('Falta o CPF');
+  rerender(<CheckoutBar total={100} onConfirm={jest.fn()} />);
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  expect(screen.getByRole('button')).not.toHaveAttribute('aria-describedby');
+});

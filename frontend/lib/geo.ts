@@ -16,3 +16,11 @@ export function haversineKm(a: LatLng, b: LatLng): number {
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
+
+/**
+ * Coordenada arredondada a 3 casas (~110 m) para ir em URL (query string): a posição exata da
+ * casa do cliente não deve parar em log de proxy/erro. Basta para cards, busca e estimativa.
+ */
+export function coarseCoord(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}

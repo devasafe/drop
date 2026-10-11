@@ -2,16 +2,24 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import api from '../lib/api';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { contaHref } from '../lib/routes';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
+  const [dest, setDest] = useState<string | null>(null);
+  // Cliente só sai daqui quando o token (se houver) já foi processado; os painéis ficam.
+  useClienteRedirect(dest);
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verificando seu email...');
 
   useEffect(() => {
     if (!router.isReady) return;
     const token = router.query.token as string | undefined;
+    const base = contaHref('verificacao', router.query.next as string | undefined);
+    const withResult = (r: 'ok' | 'erro') => `${base}${base.includes('?') ? '&' : '?'}email=${r}`;
     if (!token) {
+      setDest(base);
       setState('error');
       setMessage('Link inválido: token ausente.');
       return;
@@ -21,10 +29,12 @@ export default function VerifyEmailPage() {
       .then(() => {
         setState('success');
         setMessage('Email verificado com sucesso!');
+        setDest(withResult('ok'));
       })
       .catch((err) => {
         setState('error');
         setMessage(err?.response?.data?.error || 'Não foi possível verificar o email.');
+        setDest(withResult('erro'));
       });
   }, [router.isReady, router.query.token]);
 

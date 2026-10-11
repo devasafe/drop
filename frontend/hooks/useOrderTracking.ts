@@ -20,7 +20,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 // Ordem cronológica; cada step "done" conforme order.status / delivery.status.
-// Portado de `pages/store-order/[id].tsx` (getStatusIcon/getStatusText).
+// Portado de `pages/pedido/[id].tsx` (getStatusIcon/getStatusText).
 function deriveSteps(order: any, delivery: any): OrderTrackerStep[] {
   const os = order?.status;
   const ds = delivery?.status;
@@ -85,7 +85,7 @@ function deriveStatusLabel(order: any, delivery: any): string {
  * `useDelivery`, os listeners de socket que mantêm os dois em sincronia em
  * tempo real, a derivação de steps/progresso/tom de status e as ações
  * (confirmar recebimento, avaliar motoboy/loja, retomar PIX pendente).
- * Portado de `pages/store-order/[id].tsx`.
+ * Portado de `pages/pedido/[id].tsx`.
  */
 export function useOrderTracking(orderId?: string) {
   const { order, loading: orderLoading, setOrder } = useOrder(orderId);
@@ -102,6 +102,20 @@ export function useOrderTracking(orderId?: string) {
       console.error(`Falha ao rebuscar entrega ${deliveryId}:`, err);
     }
   }, [setDelivery]);
+
+  // O evento de socket só avisa (notificação): o servidor é a fonte de verdade.
+  // O status do evento entra de imediato (otimista) e o pedido é rebuscado para
+  // trazer acceptedAt/cancelledAt/paymentStatus reais. Resposta de outro pedido é ignorada.
+  const refetchOrder = useCallback(async () => {
+    if (!orderId) return;
+    try {
+      const res = await api.get(`/orders/${orderId}`);
+      const data = res.data;
+      if (data && data._id === orderId) setOrder((prev: any) => ({ ...(prev || {}), ...data }));
+    } catch (err) {
+      console.error(`Falha ao rebuscar pedido ${orderId}:`, err);
+    }
+  }, [orderId, setOrder]);
 
   // Socket listeners: mantém order/delivery sincronizados em tempo real.
   // Cada `on(...)` devolve um unsubscribe, chamado no cleanup.
@@ -124,6 +138,7 @@ export function useOrderTracking(orderId?: string) {
       setOrder((prev: any) => (prev ? { ...prev, status: 'pago', deliveryId: data.deliveryId || prev.deliveryId } : prev));
       const dId = data.deliveryId || currentDeliveryId;
       if (dId) refetchDelivery(dId);
+      refetchOrder();
     };
 
     const handleMotoboyAssigned = (data: any) => {
@@ -142,6 +157,7 @@ export function useOrderTracking(orderId?: string) {
       if (data.deliveryId !== currentDeliveryId) return;
       setDelivery((prev: any) => (prev ? { ...prev, status: 'delivered' } : prev));
       if (currentDeliveryId) refetchDelivery(currentDeliveryId);
+      refetchOrder();
     };
 
     const handleDeliveryStatusChanged = (data: any) => {
@@ -153,6 +169,7 @@ export function useOrderTracking(orderId?: string) {
     const handleOrderRejected = (data: any) => {
       if (data.orderId !== orderId) return;
       setOrder((prev: any) => (prev ? { ...prev, status: 'rejeitado' } : prev));
+      refetchOrder();
     };
 
     const handleReturnConfirmed = (data: any) => {
@@ -164,12 +181,14 @@ export function useOrderTracking(orderId?: string) {
     const handleOrderCancelled = (data: any) => {
       if (data.orderId !== orderId) return;
       setOrder((prev: any) => (prev ? { ...prev, status: 'cancelado' } : prev));
+      refetchOrder();
     };
 
     // [Plan1] Lojista confirmou entrega manualmente.
     const handleOrderDelivered = (data: any) => {
       if (data.orderId !== orderId) return;
       setOrder((prev: any) => (prev ? { ...prev, status: 'entregue' } : prev));
+      refetchOrder();
     };
 
     // Posição do motoboy em tempo real. Relay do backend (`notifier.ts`) usa
@@ -197,7 +216,7 @@ export function useOrderTracking(orderId?: string) {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [orderId, order?.deliveryId, on, setOrder, setDelivery, refetchDelivery]);
+  }, [orderId, order?.deliveryId, on, setOrder, setDelivery, refetchDelivery, refetchOrder]);
 
   // Fallback: auto-polling da entrega a cada 5s, caso o socket falhe.
   useEffect(() => {
@@ -210,7 +229,7 @@ export function useOrderTracking(orderId?: string) {
 
   // PIX pendente: SOB DEMANDA, só ao chamar `openPix()` (ex.: clique em
   // "Pagar com PIX"). Não busca automaticamente no mount — o original
-  // (`openPix` em store-order/[id].tsx:34-49) só populava `pixData` quando o
+  // (`openPix` em pedido/[id].tsx:34-49) só populava `pixData` quando o
   // cliente pedia explicitamente, e como a página renderiza
   // `{pixData && <PixPaymentSheet/>}`, popular sozinho faria o sheet abrir
   // por conta própria. O polling de confirmação fica no PixPaymentSheet.

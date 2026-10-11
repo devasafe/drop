@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useCart } from '../contexts/CartContext';
@@ -6,13 +6,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStores } from './useSync';
 import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
-import { useDeliveryFee } from './useDeliveryFee';
+import { useDeliveryQuote } from './useDeliveryQuote';
+import { useStoreQuotes } from './useStoreQuotes';
 import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
+import { isValidCPF } from '../lib/cpf';
 import { useSaasConfig } from './useSaasConfig';
+import { pedidoHref } from '../lib/routes';
+import { markJustPaid } from '../lib/justPaid';
 
 const DRAFT_KEY = 'checkout_draft';
+const QUOTE_FAILED_MSG = 'Não conseguimos calcular a entrega agora.';
 
 interface CheckoutDraft {
   fields: Address;
@@ -27,7 +32,7 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => 
 // { order, card:{status,approved} } (cartão, aprovado/pendente — recusado
 // vem como HTTP 402 e cai no catch); fluxo legado (pedido já pago pela
 // carteira) retorna o pedido puro no corpo.
-type OrderLike = { _id: string; paymentProvider?: string };
+type OrderLike = { _id: string; paymentProvider?: string; totalValue?: number | string; walletApplied?: number | string; createdAt?: string };
 type PlaceOrderResponse =
   | { order: OrderLike; pix?: Omit<PixInfo, 'orderId'>; card?: { status: string; approved: boolean } }
   | OrderLike;
@@ -65,19 +70,53 @@ interface PendingDebtResponse {
 interface UserProfileResponse {
   cpf?: string;
   telefone?: string;
+  // Task 8: situação do CPF de cobrança (perfil → KYC). Ausente em respostas antigas.
+  cpfStatus?: 'valid' | 'missing' | 'invalid';
 }
 
 export function useCheckout() {
   const router = useRouter();
   const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
-  const { stores } = useStores();
+  const { stores, loading: storesLoading } = useStores();
   const address = useCheckoutAddress();
 
   const storeId = cart.length > 0 ? cart[0].storeId || '' : '';
-  const store = stores.find((s: { _id: string; plan?: number; latitude?: string; longitude?: string }) => s._id === storeId);
+  type StoreLite = { _id: string; name?: string; plan?: number; latitude?: string; longitude?: string; isOpen?: boolean };
+  const listedStore = stores.find((s: StoreLite) => s._id === storeId) as StoreLite | undefined;
+
+  // I4: a loja do carrinho não veio no GET /stores (a lista esconde a loja pausada pela
+  // mensalidade, a removida, ou falhou). Consulta GET /stores/:id para dizer o que houve em vez
+  // de deixar a Sacola presa em "Calculando entrega…".
+  const [detailStore, setDetailStore] = useState<StoreLite | null>(null);
+  const [storeGone, setStoreGone] = useState<{ reason: 'unavailable'; name?: string } | { reason: 'gone' } | null>(null);
+  const [storeLookupFailed, setStoreLookupFailed] = useState(false);
+  const [storeLookupAttempt, setStoreLookupAttempt] = useState(0);
+  const needsLookup = !!storeId && storesLoading === false && !listedStore;
+  useEffect(() => {
+    setDetailStore(null); setStoreGone(null); setStoreLookupFailed(false);
+    if (!needsLookup) return;
+    let off = false;
+    api.get(`/stores/${encodeURIComponent(storeId)}`)
+      .then((r) => {
+        if (off) return;
+        const d = r?.data as StoreLite | undefined;
+        if (d && String(d._id) === storeId) setDetailStore(d);
+      })
+      .catch((e) => {
+        if (off) return;
+        const status = e?.response?.status;
+        const d = e?.response?.data;
+        if (status === 404 && d?.code === 'STORE_UNAVAILABLE') setStoreGone({ reason: 'unavailable', name: d?.store?.name || undefined });
+        else if (status === 404) setStoreGone({ reason: 'gone' });
+        else setStoreLookupFailed(true);
+      });
+    return () => { off = true; };
+  }, [needsLookup, storeId, storeLookupAttempt]);
+  const retryStoreLookup = () => setStoreLookupAttempt((n) => n + 1);
+  const store = listedStore ?? detailStore ?? undefined;
   // Modo direto: plano único, entrega sempre por motoboy — Store.plan sai do fluxo.
-  const { settlementMode, loading: saasLoading } = useSaasConfig();
+  const { settlementMode } = useSaasConfig();
   const isPlan1 = settlementMode !== 'direto' && store?.plan === 1;
 
   const subtotal = useMemo(
@@ -88,8 +127,44 @@ export function useCheckout() {
   const coupon = useCoupon({ storeId, subtotal });
 
   const [config, setConfig] = useState<PlatformFeeConfig | null>(null);
-  const [distanceKm, setDistanceKm] = useState(0);
-  const { deliveryFee } = useDeliveryFee({ distanceKm, config, isPlan1 });
+  // Taxa, área e prazo vêm do servidor (POST /orders/quote): a mesma fonte da cobrança.
+  const selForQuote = address.selected;
+  const quotePoint = useMemo(() => {
+    const lat = Number(selForQuote?.latitude);
+    const lng = Number(selForQuote?.longitude);
+    return selForQuote?.latitude && selForQuote?.longitude && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }, [selForQuote?.latitude, selForQuote?.longitude]);
+  const quoteEnabled = !isPlan1 && !!store?.latitude;
+  const server = useDeliveryQuote(storeId, quotePoint, quoteEnabled);
+  // Plano 1 (ruling F-I2): a MESMA cotação que card, Loja e Produto mostram (useStoreQuotes, mesmo
+  // cache e mesmo /stores/quotes): raio e horário, taxa 0. Fora da área, fechada, carregando ou
+  // com a cotação falhando, a Sacola bloqueia. Se o servidor responde sem cotação para a loja, nada
+  // muda (o card também não mostrou nada e o createOrder isenta o Plano 1 da área).
+  const plan1 = useStoreQuotes(isPlan1 && storeId ? [storeId] : [], isPlan1 ? quotePoint : null);
+  const quote = isPlan1 ? plan1.quotes[storeId] ?? null : server.quote;
+  const quoteLoading = isPlan1 ? plan1.loading : server.loading;
+  const retryQuote = isPlan1 ? plan1.retry : server.retry;
+  // Rota indisponível ou erro de rede: não é culpa do endereço — mensagem própria + retry.
+  const quoteError = isPlan1
+    ? (quotePoint && !plan1.loading && plan1.failed ? QUOTE_FAILED_MSG : null)
+    : quoteEnabled && quotePoint && !server.loading && (server.failed || quote?.reason === 'ROUTE_FAILED')
+      ? QUOTE_FAILED_MSG
+      : null;
+  const deliveryFee = isPlan1 ? 0 : (server.quote?.deliveryFee ?? 0);
+  const distanceKm = quote?.distanceKm ?? 0;
+  const etaMinutes = quote?.etaMinutes ?? null;
+  const outOfArea = quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION';
+  // Motivos sem cotação que não são "fora da área": loja sem localização / endereço sem coordenadas.
+  // Continuam bloqueando o pagamento (canPlace exige inArea === true), mas a tela explica o porquê.
+  const storeNoLocation = !isPlan1 && (quote?.reason === 'STORE_NO_LOCATION' || (!!store && !store.latitude));
+  const deliveryIssue: 'NO_ADDRESS' | 'STORE_NO_LOCATION' | null = storeNoLocation
+    ? 'STORE_NO_LOCATION'
+    : ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
+  // Aberta/fechada: a cotação traz `open` (horário de funcionamento). Sem cotação vale Store.isOpen.
+  // No Plano 1 os dois valem: fechada por qualquer um deles → o servidor recusa.
+  const storeIsOpen = (store as { isOpen?: boolean } | undefined)?.isOpen !== false;
+  const storeOpen = !quote ? storeIsOpen : isPlan1 ? storeIsOpen && quote.open !== false : quote.open !== false;
+  const opensAt = quote?.open === false ? quote.opensAt ?? null : null;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [walletBalance, setWalletBalance] = useState(0);
@@ -103,13 +178,20 @@ export function useCheckout() {
   const [installmentCount, setInstallmentCount] = useState(1);
   const [userProfile, setUserProfile] = useState<UserProfileResponse>({});
   const [blocked, setBlocked] = useState(false);
-  // Modo direto (Task 1.5): o Asaas da loja exige CPF. Só pedimos quando o backend
-  // responde CPF_REQUIRED (perfil sem CPF); o reenvio leva `cpf` e o backend grava no perfil.
-  const [cpfRequired, setCpfRequired] = useState(false);
+  // O Pix exige CPF (custódia e modo direto). Pedimos ANTES do primeiro envio quando
+  // /user/me diz 'missing'/'invalid' (Task 8); o CPF_REQUIRED do servidor continua como
+  // rede de segurança. O envio leva `cpf` e o backend grava no perfil.
+  const [cpfRequiredByServer, setCpfRequired] = useState(false);
   const [cpf, setCpf] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   const total = subtotal + deliveryFee - coupon.discount;
+  // Saldo cobrindo o total: o Pix não vai ao Asaas e o servidor não exige CPF.
+  const walletCoversTotal = useWallet && walletBalance >= total;
+  const cpfMissingForPix = paymentMethod === 'pix' && !walletCoversTotal
+    && (userProfile.cpfStatus === 'missing' || userProfile.cpfStatus === 'invalid');
+  const cpfRequired = cpfRequiredByServer || cpfMissingForPix;
+  const cpfValid = isValidCPF(cpf);
   // PIX e cartão de crédito são cobranças externas (Asaas) — não dependem de
   // saldo de carteira. Só métodos que efetivamente debitam a carteira exigem saldo.
   const isWalletInsufficient = paymentMethod !== 'pix' && paymentMethod !== 'credit_card' && walletBalance < total;
@@ -119,12 +201,6 @@ export function useCheckout() {
     const role = user?.activeRole || user?.role;
     setBlocked(!!(user && role && role !== 'cliente'));
   }, [user]);
-
-  // Guard: loja Plano 1 usa checkout-vitrine dedicado (sem motoboy). Espera o modo de
-  // liquidação carregar: no modo direto não há plano 1 e o redirect não pode acontecer.
-  useEffect(() => {
-    if (isPlan1 && !saasLoading) router.replace('/checkout-vitrine');
-  }, [isPlan1, saasLoading, router]);
 
   // Restaura rascunho (endereço em edição + método de pagamento) salvo em
   // localStorage — uma única vez ao montar. `hydrated` só vira true depois
@@ -169,7 +245,7 @@ export function useCheckout() {
       .then(r => {
         if (cancelled) return;
         setConfig({
-          base: r.data.motoboyCutPerDelivery ?? 7,
+          base: r.data.motoboyCutPerDelivery ?? 5,
           perKm: r.data.motoboyCutPerKm ?? 1,
           // Fallbacks batem com os defaults do schema Prisma (platformConfig,
           // ver schema.prisma:925-929) — só entram em jogo se o GET falhar
@@ -196,7 +272,7 @@ export function useCheckout() {
     let cancelled = false;
     if (!user?.id) return;
     api.get<UserProfileResponse>('/user/me')
-      .then(r => { if (!cancelled) setUserProfile({ cpf: r.data.cpf, telefone: r.data.telefone }); })
+      .then(r => { if (!cancelled) setUserProfile({ cpf: r.data.cpf, telefone: r.data.telefone, cpfStatus: r.data.cpfStatus }); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -212,29 +288,11 @@ export function useCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address.loading, address.selected, address.addresses]);
 
-  // Distância real de rota (loja -> endereço selecionado) vinda do BACKEND (/orders/quote),
-  // que é a MESMA fonte da cobrança final (RouteService). Antes isto era calculado no
-  // browser via Google Directions enquanto o backend cobrava por haversine — os valores
-  // divergiam. Agora o preview e a cobrança usam exatamente a mesma distância de rota.
-  useEffect(() => {
-    const sel = address.selected;
-    if (isPlan1 || !sel?.latitude || !store?.latitude) return;
-    let cancelled = false;
-    api.post('/orders/quote', {
-      storeId,
-      latitude: Number(sel.latitude),
-      longitude: Number(sel.longitude),
-    })
-      .then((res) => {
-        if (cancelled) return;
-        const km = Number((res.data as { distanceKm?: number })?.distanceKm);
-        setDistanceKm(Number.isFinite(km) ? km : 0);
-      })
-      .catch(() => { if (!cancelled) setDistanceKm(0); });
-    return () => { cancelled = true; };
-  }, [address.selected, store, isPlan1, storeId]);
-
-  const canPlace = isPlan1 ? true : distanceKm >= 0.1;
+  // Fail-closed: só libera com área confirmada pelo servidor (ROUTE_FAILED também bloqueia).
+  // Plano 1: bloqueio "duro" (fora da área, endereço sem mapa, cotação falhou) vale também no
+  // placeOrder; enquanto a cotação carrega, só a tela trava (o servidor recusa loja fechada).
+  const plan1Blocked = outOfArea || deliveryIssue === 'NO_ADDRESS' || !!quoteError;
+  const canPlace = !!store && !storeGone && (isPlan1 ? !plan1Blocked && !(quotePoint && plan1.loading) : quote?.inArea === true);
 
   // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
   // usuário logado, cpf/telefone de `/user/me` (ver effect acima —
@@ -251,12 +309,31 @@ export function useCheckout() {
     phone: onlyDigits(userProfile.telefone || ''),
   }), [user?.name, user?.email, userProfile, address.selected]);
 
-  const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
-    if (!canPlace) return { ok: false, error: 'Confirme o endereço no mapa' };
+  // idempotentKey estável por tentativa: o retry depois de erro/timeout reusa a chave (o servidor
+  // devolve o pedido já criado com ela, e apaga o pedido quando a cobrança falha). Chave nova só
+  // quando a sacola, o método, o valor ou o endereço mudam, ou depois de um pedido criado.
+  const idemKey = useRef<{ sig: string; key: string } | null>(null);
+  const attemptSig = JSON.stringify([
+    storeId,
+    cart.map((c: { productId: string; quantity: number; price?: number }) => [c.productId, c.quantity, c.price]),
+    paymentMethod, installmentCount, useWallet, Math.round(total * 100), coupon.code.trim().toUpperCase(),
+    address.selected?.latitude ?? null, address.selected?.longitude ?? null,
+  ]);
+  const attemptKey = () => {
+    if (!idemKey.current || idemKey.current.sig !== attemptSig) idemKey.current = { sig: attemptSig, key: uuid() };
+    return idemKey.current.key;
+  };
+
+  const placeOrder = async (): Promise<{ ok: boolean; error?: string; code?: string }> => {
+    if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
+    if (isPlan1 ? plan1Blocked : !canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
     const cpfDigits = onlyDigits(cpf);
+    // Mesma regra do botão (checkout.tsx): exige CPF válido (dígito verificador), venha a
+    // exigência do /user/me ou do CPF_REQUIRED do servidor.
     if (cpfRequired && cpfDigits.length !== 11) return { ok: false, error: 'Informe um CPF válido (11 dígitos)' };
+    if (cpfRequired && !cpfValid) return { ok: false, error: 'CPF inválido. Confira os números.' };
     setPlacing(true);
     try {
       const sel = address.selected;
@@ -269,7 +346,7 @@ export function useCheckout() {
         address: addrStr,
         latitude: Number(sel.latitude),
         longitude: Number(sel.longitude),
-        idempotentKey: uuid(),
+        idempotentKey: attemptKey(),
       };
       if (paymentMethod === 'credit_card') {
         if (!cardPayload?.valid) return { ok: false, error: 'Dados do cartão incompletos' };
@@ -279,9 +356,10 @@ export function useCheckout() {
       }
       if (coupon.code.trim()) payload.cupomCode = coupon.code.trim().toUpperCase();
       if (useWallet && walletBalance > 0 && paymentMethod === 'pix') payload.useWalletBalance = true;
-      if (cpfRequired && cpfDigits.length === 11) payload.cpf = cpfDigits;
+      if (cpfRequired && cpfValid) payload.cpf = cpfDigits;
 
       const res = await api.post<PlaceOrderResponse>('/orders', payload);
+      idemKey.current = null; // pedido criado: a próxima compra é outra tentativa
       const data = res.data;
       const order: OrderLike = 'order' in data ? data.order : data;
       const pix = 'pix' in data ? data.pix : undefined;
@@ -292,33 +370,44 @@ export function useCheckout() {
 
       if (pix) {
         setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
-        setPixData({ ...pix, orderId: order._id });
+        // Valor da cobrança = o que o servidor gravou (total - saldo usado); a tela não recalcula.
+        const charged = Number(order.totalValue) - Number(order.walletApplied ?? 0);
+        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined, serverNow: order.createdAt });
       } else {
-        router.push(`/store-order/${order._id}`);
+        if ('card' in data && data.card?.approved) markJustPaid(order._id);
+        router.push(pedidoHref(order._id));
       }
       return { ok: true };
     } catch (err) {
-      const d = (err as { response?: { data?: { error?: string; detail?: string; code?: string } } })?.response?.data;
+      const raw = (err as { response?: { data?: { error?: string | { message?: string; code?: string }; detail?: string; code?: string } } })?.response?.data;
+      const errMsg = typeof raw?.error === 'object' ? raw.error?.message : raw?.error;
+      const d = raw ? { error: errMsg, detail: raw.detail, code: raw.code ?? (typeof raw.error === 'object' ? raw.error?.code : undefined) } : undefined;
       if (d?.code === 'CPF_REQUIRED') {
         setCpfRequired(true);
         return { ok: false, error: cpfRequired ? 'CPF inválido. Confira os números.' : 'Informe seu CPF para pagar com Pix.' };
       }
-      return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.') };
+      return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.'),
+        // Só os códigos que a Sacola traduz em tela (loja pausada no modo direto); os demais seguem só com a mensagem.
+        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
     } finally {
       setPlacing(false);
     }
   };
 
   const closePix = () => {
-    if (pixData) router.push(`/store-order/${pixData.orderId}`);
+    if (pixData) router.push(pedidoHref(pixData.orderId));
   };
 
   return {
     items: cart, updateQuantity, removeItem, subtotal, deliveryFee, discount: coupon.discount, total,
     paymentMethod, setPaymentMethod, walletBalance, useWallet, setUseWallet, pendingDebt,
-    isWalletInsufficient, distanceKm, canPlace, placing, placeOrder, pixData, pixNotice, closePix,
+    isWalletInsufficient, distanceKm, etaMinutes, outOfArea, canPlace, quoteError, retryQuote, placing, placeOrder, pixData, pixNotice, closePix,
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
-    cpfRequired, cpf, setCpf,
+    cpfRequired, cpf, setCpf, cpfValid,
+    deliveryIssue,
+    store: store ? { _id: store._id, name: (store as { name?: string }).name, plan: store.plan } : null,
+    storeOpen, opensAt, quoteLoading,
+    storeGone, storeLookupFailed, retryStoreLookup,
   };
 }

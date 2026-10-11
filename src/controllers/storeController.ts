@@ -4,8 +4,10 @@ import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
 import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
+import { withStoreRatings } from '../services/catalog/storeRatings';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { z } from 'zod';
 import userRepository from '../repositories/user.repository';
 
 
@@ -16,6 +18,7 @@ import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
 
 // Painel do lojista: métricas e pedidos
@@ -154,68 +157,9 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// Helper: verifica se loja está aberta agora com base no horário de funcionamento
-const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
-type DayKey = typeof DAYS[number];
+// Horário de funcionamento: lógica pura em utils/storeHours (reexportada p/ quem importa daqui).
+export { isOpenAt, isStoreCurrentlyOpen } from '../utils/storeHours';
 
-/** "Agora" no fuso do Brasil (America/Sao_Paulo). O container roda em UTC, então
- * `getHours()/getDay()` do servidor fechariam a loja no horário errado (à noite,
- * UTC já está no dia seguinte de madrugada → fecha loja aberta). */
-function brazilNow(): { dayIndex: number; minutes: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date());
-  const val = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-  const WD: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return {
-    dayIndex: WD[val('weekday')] ?? new Date().getDay(),
-    minutes: Number(val('hour')) * 60 + Number(val('minute')),
-  };
-}
-
-/** Decisão pura de aberto/fechado dado o dia (0=domingo) e o minuto do dia.
- * Exportada p/ teste; `isStoreCurrentlyOpen` a chama com o horário do Brasil. */
-export function isOpenAt(
-  store: { isOpen?: boolean | null; operatingHours?: any },
-  dayIndex: number,
-  nowMinutes: number,
-): boolean {
-  if (!store.isOpen) return false; // toggle manual sobrepõe tudo
-  const hours = store.operatingHours;
-  if (!hours) return true; // sem horários configurados = sempre aberta
-
-  const dayConfig = (hours as any)[DAYS[dayIndex]] as { open?: string; close?: string; closed?: boolean } | undefined;
-  if (!dayConfig) return true;        // dia sem config = aberta
-  if (dayConfig.closed) return false; // dia marcado como fechado
-  if (!dayConfig.open || !dayConfig.close) return true;
-
-  const timeRegex = /^\d{2}:\d{2}$/;
-  if (!timeRegex.test(dayConfig.open) || !timeRegex.test(dayConfig.close)) {
-    logger.warn('Formato de horário inválido na loja', { open: dayConfig.open, close: dayConfig.close });
-    return true;
-  }
-
-  const [openH, openM] = dayConfig.open.split(':').map(Number);
-  const [closeH, closeM] = dayConfig.close.split(':').map(Number);
-  const openMinutes = openH * 60 + openM;
-  const closeMinutes = closeH * 60 + closeM;
-
-  // Horário que vira a meia-noite (ex.: 18:00–02:00).
-  if (closeMinutes <= openMinutes) {
-    return nowMinutes >= openMinutes || nowMinutes < closeMinutes;
-  }
-  return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
-}
-
-/** `store` aceita tanto o registro do Prisma quanto o objeto plano usado nas rotas. */
-export function isStoreCurrentlyOpen(store: { isOpen?: boolean | null; operatingHours?: any }): boolean {
-  const { dayIndex, minutes } = brazilNow();
-  return isOpenAt(store, dayIndex, minutes);
-}
 
 // Atualizar horário de funcionamento da loja
 export const updateOperatingHours = async (req: AuthenticatedRequest, res: Response) => {
@@ -367,6 +311,11 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+const storeDeliverySettingsSchema = z.object({
+  deliveryRadiusKm: z.number({ invalid_type_error: 'Raio de entrega inválido' }).min(1, 'O raio de entrega mínimo é 1 km').max(50, 'O raio de entrega máximo é 50 km').nullable().optional(),
+  prepMinutes: z.number({ invalid_type_error: 'Tempo de preparo inválido' }).int('O tempo de preparo deve ser em minutos inteiros').min(0, 'O tempo de preparo mínimo é 0 min').max(180, 'O tempo de preparo máximo é 180 min').nullable().optional(),
+});
+
 // Atualizar endereço e dados da loja
 export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -382,6 +331,28 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     // Verificar se o usuário é o dono da loja
     if (String(store.ownerId) !== ownerId) {
       return res.status(403).json({ error: 'Forbidden - not store owner' });
+    }
+
+    // Raio de entrega e tempo de preparo (null = volta ao padrão da plataforma).
+    // O raio só pode diminuir o padrão; o servidor valida, o front só sugere.
+    const deliverySettings: { deliveryRadiusKm?: number | null; prepMinutes?: number | null } = {};
+    if (req.body.deliveryRadiusKm !== undefined || req.body.prepMinutes !== undefined) {
+      const parsedSettings = storeDeliverySettingsSchema.safeParse({
+        deliveryRadiusKm: req.body.deliveryRadiusKm,
+        prepMinutes: req.body.prepMinutes,
+      });
+      if (!parsedSettings.success) {
+        return res.status(400).json({ error: parsedSettings.error.issues[0]?.message || 'Configuração de entrega inválida' });
+      }
+      const radius = parsedSettings.data.deliveryRadiusKm;
+      if (radius != null) {
+        const { defaultRadiusKm } = await getDeliveryConfig();
+        if (radius > defaultRadiusKm) {
+          return res.status(400).json({ error: `O raio de entrega não pode passar de ${defaultRadiusKm} km (limite da plataforma)` });
+        }
+      }
+      if (radius !== undefined) deliverySettings.deliveryRadiusKm = radius;
+      if (parsedSettings.data.prepMinutes !== undefined) deliverySettings.prepMinutes = parsedSettings.data.prepMinutes;
     }
 
     // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente.
@@ -423,6 +394,7 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (zip) data.zip = zip;
     if (latitude) data.latitude = String(latitude);
     if (longitude) data.longitude = String(longitude);
+    Object.assign(data, deliverySettings);
 
     // Construir endereço completo para o campo address (com os valores já atualizados)
     const merged = { ...store, ...data };
@@ -457,7 +429,7 @@ export const listStores = async (_req: Request, res: Response) => {
     if (billingWhere) filter.AND = [billingWhere];
     const found = await prisma.store.findMany({ where: filter });
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
-    return res.json(found.map(toPublicStore));
+    return res.json(await withStoreRatings(found.map(toPublicStore)));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -673,12 +645,18 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
       return res.status(404).json({ error: 'Store not found' });
     }
-    // Modo direto: loja pausada/cancelada pela mensalidade responde como inexistente.
+    // Modo direto: loja pausada/cancelada pela mensalidade nao aparece, mas o link/QR dela
+    // ganha uma resposta propria (a tela "Loja indisponivel"), sem dizer o motivo.
     const billingWhere = await publicStoreBillingWhere();
     if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({
+        error: 'Store not found',
+        code: 'STORE_UNAVAILABLE',
+        store: { _id: store.id, id: store.id, name: store.name, neighborhood: store.neighborhood ?? null, city: store.city ?? null },
+      });
     }
-    return res.json(toPublicStore(store));
+    const [rated] = await withStoreRatings([toPublicStore(store)]);
+    return res.json(rated);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to get store' });

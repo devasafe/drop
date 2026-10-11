@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import UserDashboard from '../pages/user-dashboard';
+import UserDashboard from '../pages/pedidos';
 
 const orders = [
   { _id: 'p1', storeName: 'Loja Ativa', status: 'enviado', totalValue: 30, products: [{ name: 'Pizza', quantity: 2 }] },
@@ -17,8 +17,10 @@ jest.mock('../hooks/useSync', () => ({
   useOrders: () => ({ orders, loading: false, refetch: jest.fn() }),
 }));
 jest.mock('../hooks/useAutoRefetch', () => ({ useAutoRefetch: () => {} }));
+jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [] }) }));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
-describe('Pedidos (/user-dashboard)', () => {
+describe('Pedidos (/pedidos)', () => {
   it('mostra cabeçalho Pedidos e o pedido em andamento como card', async () => {
     render(<UserDashboard />);
     expect(await screen.findByText('Pedidos')).toBeInTheDocument();
@@ -32,6 +34,6 @@ describe('Pedidos (/user-dashboard)', () => {
     await screen.findByText('Pedidos');
     const chip = screen.getAllByText(/Histórico/).find((el) => el.tagName !== 'OPTION');
     fireEvent.click(chip!);
-    expect(screen.getByText('Loja Antiga')).toBeInTheDocument();
+    expect(screen.getByText(/Loja Antiga/)).toBeInTheDocument();
   });
 });
