@@ -84,7 +84,10 @@ export default function SacolaPage() {
   const items = (c.items || []) as any[];
   const count = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
   const storeName = c.store?.name || 'Loja';
-  const walletUse = c.useWallet && c.paymentMethod === 'pix' ? Math.min(c.walletBalance || 0, c.total) : 0;
+  // Valor do Pix: total menos o saldo da carteira (se ligado). O atalho "Pagar com Pix" do cartão mostra este valor.
+  const pixWalletUse = c.useWallet ? Math.min(c.walletBalance || 0, c.total) : 0;
+  const pixToPay = Math.max(0, Math.round((c.total - pixWalletUse) * 100) / 100);
+  const walletUse = c.paymentMethod === 'pix' ? pixWalletUse : 0;
   const isCard = c.paymentMethod === 'credit_card';
   // Parcelas: espelho de computeCardTotal/installmentOptions (o servidor recalcula a cobrança).
   const cardOpts = isCard && c.config ? installmentOptions(c.total, {
@@ -100,7 +103,7 @@ export default function SacolaPage() {
     if (isCard && chosenCount != null && chosenCount !== c.installmentCount) c.setInstallmentCount(chosenCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCard, chosenCount, c.installmentCount]);
-  const toPay = isCard && chosen ? chosen.total : Math.max(0, Math.round((c.total - walletUse) * 100) / 100);
+  const toPay = isCard && chosen ? chosen.total : pixToPay;
   const cardInvalid = c.paymentMethod === 'credit_card' && !c.cardPayload?.valid;
   const cpfBad = c.cpfRequired && !isValidCPF(c.cpf);
   // P11: sem endereço não se paga, nem no Plano 1 (o hook libera o Plano 1 sem cotação;
@@ -152,7 +155,7 @@ export default function SacolaPage() {
   const payBar = (inline: boolean) => (
     <CheckoutBar total={toPay} showTotal={false} label={payLabel} note={note} inline={inline}
       disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay}
-      secondary={isCard ? { label: `Pagar com Pix por ${formatMoney(c.total)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
+      secondary={isCard ? { label: `Pagar com Pix por ${formatMoney(pixToPay)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
   );
 
   return (

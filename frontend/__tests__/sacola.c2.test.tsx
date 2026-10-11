@@ -62,3 +62,14 @@ test('CPF válido digitado aparece mascarado na nota da barra', () => {
   render(<SacolaPage />);
   expect(screen.getByText('CPF 529.***.***-25 · ao pagar, você aceita os termos')).toBeInTheDocument();
 });
+
+test('atalho do Pix no cartão desconta o saldo da carteira quando ligado', () => {
+  const cfg = { cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 };
+  mocked.mockReturnValue(hook({ paymentMethod: 'credit_card', cardPayload: { valid: true, card: {} }, config: cfg, walletBalance: 50, useWallet: true }));
+  const { unmount } = render(<SacolaPage />);
+  expect(screen.getByRole('button', { name: 'Pagar com Pix por R$ 227,20' })).toBeInTheDocument();
+  unmount();
+  mocked.mockReturnValue(hook({ paymentMethod: 'credit_card', cardPayload: { valid: true, card: {} }, config: cfg, walletBalance: 50, useWallet: false }));
+  render(<SacolaPage />);
+  expect(screen.getByRole('button', { name: 'Pagar com Pix por R$ 277,20' })).toBeInTheDocument();
+});
