@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Clock, Copy } from 'lucide-react';
 import api from '../../../lib/api';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { formatMoney } from '../../../lib/money';
 import { ICON_STROKE_WIDTH } from '../../ui/Icon';
+import { initials } from '../../ui/Avatar';
+import { shortOrderCode } from '../../../lib/customerOrder';
 import type { PixInfo } from '../../../types/checkout';
 import styles from './PixPaymentSheet.module.css';
 
@@ -36,7 +38,7 @@ const MAX_QR_ATTEMPTS = 5;
  * webhook chegar). Redesign de `PixPaymentModal` no DS (Sheet + CSS Modules
  * + tokens), sem alterar a lógica de polling.
  */
-export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, onPaid, onClose }: PixPaymentSheetProps) {
+export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, storeName, onPaid, onClose }: PixPaymentSheetProps) {
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
   // O QR pode vir vazio da criação do pedido (Asaas às vezes demora a gerar).
@@ -143,34 +145,46 @@ export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, o
         </div>
       ) : (
         <div className={styles.body}>
-          {amount != null && <p className={styles.amount}>{formatMoney(amount)}</p>}
-          {mmss && <p className={[styles.expires, remaining! < 5 * 60 * 1000 && styles.urgent].filter(Boolean).join(' ')}>{`Expira em ${mmss}`}</p>}
+          <div className={styles.card}>
+            {storeName && <p className={styles.meta}>{`Pedido #${shortOrderCode(pix.orderId)} · ${storeName}`}</p>}
+            {amount != null && <p className={styles.amount}>{formatMoney(amount)}</p>}
+            {!qrImage && !qrPayload && <div className={styles.waiting}>Gerando o QR Code…</div>}
+            {qrImage && (
+              <div className={styles.qrBox}>
+                <img className={styles.qr} src={`data:image/png;base64,${qrImage}`} alt="QR Code PIX" />
+              </div>
+            )}
+            {mmss && <p className={[styles.expires, remaining! < 5 * 60 * 1000 && styles.urgent].filter(Boolean).join(' ')}>{`Expira em ${mmss}`}</p>}
+          </div>
           {qrPayload && (
             <Button onClick={copy} leftIcon={copied ? <Check size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /> : <Copy size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}>
               {copied ? 'Código copiado' : 'Copiar código Pix'}
             </Button>
           )}
-          {!qrImage && !qrPayload && (
-            <div className={styles.waiting}>Gerando o QR Code…</div>
-          )}
-          {qrImage && (
-            <div className={styles.qrBox}>
-              <img className={styles.qr} src={`data:image/png;base64,${qrImage}`} alt="QR Code PIX" />
-            </div>
-          )}
           {qrPayload && <div className={styles.code}>{qrPayload}</div>}
+          {paymentProvider === 'asaas_loja' && (
+            <section className={styles.recipient} aria-label="Quem recebe">
+              <span className={styles.recipientLogo} aria-hidden="true">{initials(recipientName || 'Loja')}</span>
+              <div>
+                <p className={styles.recipientCap}>No app do banco vai aparecer</p>
+                <p className={styles.recipientName}>{recipientName || 'a loja'}</p>
+                <p className={styles.recipientText}>É a própria loja recebendo, pelo Asaas dela. Pode pagar tranquilo: o pedido aparece aqui assim que o Pix cair.</p>
+                <p className={styles.hint}>{`Pix processado pelo Asaas. Recebedor: ${recipientName || 'a loja'}`}</p>
+              </div>
+            </section>
+          )}
+          <div className={styles.waitingBlock} aria-live="polite">
+            <Clock size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+            <div>
+              <p className={styles.waitingTitle}>Aguardando pagamento</p>
+              <p className={styles.waitingText}>Confirmamos sozinhos, pode trocar de app e voltar.</p>
+            </div>
+          </div>
           <ol className={styles.steps}>
             <li>Abra o app do seu banco e escolha Pix</li>
             <li>Cole o código ou escaneie o QR</li>
             <li>Pronto: a loja recebe o pedido na hora</li>
           </ol>
-          {paymentProvider === 'asaas_loja' && (
-            <>
-              <p className={styles.hint}>No app do banco vai aparecer o nome da loja — é ela recebendo, pelo Asaas dela.</p>
-              <p className={styles.hint}>{`Pix processado pelo Asaas. Recebedor: ${recipientName || 'a loja'}`}</p>
-            </>
-          )}
-          <div className={styles.waiting} aria-live="polite">Aguardando pagamento · Confirmamos sozinhos, pode trocar de app e voltar.</div>
         </div>
       )}
     </Sheet>

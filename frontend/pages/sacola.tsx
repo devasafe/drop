@@ -289,7 +289,7 @@ export default function SacolaPage() {
 
       {/* Fora dos ramos de estado: o pedido limpa a sacola ANTES do pixData chegar (teste movido). */}
       {c.pixData && (
-        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={c.pixData.amount ?? pixAmount}
+        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={c.pixData.amount ?? pixAmount} storeName={storeName}
           onPaid={(id) => router.push(pedidoHref(id))} onClose={c.closePix} />
       )}
     </ProtectedRoute>

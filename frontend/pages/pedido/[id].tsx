@@ -385,6 +385,7 @@ export default function PedidoPage() {
             pix={t.pixData}
             paymentProvider={order.paymentProvider}
             recipientName={order.storeName}
+            storeName={order.storeName}
             onPaid={() => {
               t.closePix();
               t.refetch();
