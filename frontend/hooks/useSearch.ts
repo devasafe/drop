@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import type { SearchQuery } from '../types/search';
+import { coarseCoord } from '../lib/geo';
 
 export const SEARCH_PAGE_SIZE = 20;
 
@@ -12,8 +13,8 @@ export function buildSearchUrl(query: SearchQuery, cursor?: string | null): stri
   qs.set('sort', !query.point && f.sort === 'distance' ? 'relevance' : f.sort);
   qs.set('limit', String(SEARCH_PAGE_SIZE));
   if (query.point) {
-    qs.set('lat', String(query.point.lat));
-    qs.set('lng', String(query.point.lng));
+    qs.set('lat', String(coarseCoord(query.point.lat)));
+    qs.set('lng', String(coarseCoord(query.point.lng)));
     if (f.openNow) qs.set('openNow', '1');
   }
   if (f.minPrice != null) qs.set('minPrice', String(f.minPrice));
