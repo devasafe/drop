@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { createOrder, getOrder, getOrderPix, acceptOrder, avaliarLoja, listOrders, updatePaymentStatus, deliverPlan1Order, quoteDelivery, getReorder } from '../controllers/orderController';
 import {
   cancelOrderByCustomer,
+  getCancelPreview,
   acceptOrderByStore,
   rejectOrderByStore,
   getCancellationHistory,
@@ -60,6 +61,8 @@ router.post('/:id/reject', authenticate, requireActiveUser, authorizeRoles('loji
 
 // ========== CUSTOMER OPERATIONS ==========
 // customer cancels order -> refunds payment
+// prévia do cancelamento (só leitura) — a confirmação continua em POST /:id/cancel
+router.get('/:id/cancel-preview', authenticate, authorizeRoles('cliente'), getCancelPreview);
 router.post('/:id/cancel', authenticate, requireActiveUser, authorizeRoles('cliente'), cancelOrderByCustomer);
 
 // customer decides after motoboy cancels post-pickup -> reembolso (100%) | reentrega (volta ao pool)
