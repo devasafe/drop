@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Receipt, ChevronRight, Wallet, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
@@ -16,6 +17,7 @@ import WalletTopupSheet from '../../components/wallet/WalletTopupSheet';
 import { Sparkles } from 'lucide-react';
 import styles from './Carteira.module.css';
 import ModeGate from '../../components/ModeGate';
+import { ROUTES } from '../../lib/routes';
 
 interface WalletData {
   _id: string;
@@ -51,6 +53,7 @@ function movementView(tx: { category?: string; type: string }): { typeLabel: str
 }
 
 function WalletPageInner() {
+  const router = useRouter();
   const { user } = useAuth();
   const uid = user?._id || (user as any)?.id || ''; // AuthUser tem `id`; `_id` é opcional
   const { showToast } = useToast();
@@ -132,13 +135,13 @@ function WalletPageInner() {
     <ProtectedRoute required_role="cliente">
       <div className={styles.page}>
         <header className={styles.header}>
+          <button type="button" className={styles.back} onClick={() => router.push(ROUTES.conta)}>Voltar para Conta</button>
           <h1 className={styles.title}>Carteira</h1>
           <p className={styles.subtitle}>Gerencie seu saldo, créditos e acompanhe suas movimentações.</p>
         </header>
 
         {/* Card de saldo */}
         <div className={styles.balanceCard}>
-          <span className={styles.balanceGlow} aria-hidden="true" />
           <div className={styles.balanceTop}>
             <span className={styles.balanceLabel}>Saldo disponível</span>
             <span className={styles.walletBadge}><Wallet size={18} aria-hidden="true" /></span>

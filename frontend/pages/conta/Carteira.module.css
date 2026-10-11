@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--color-bg-primary);
   padding: var(--space-4) var(--space-4) 170px;
   display: flex;
   flex-direction: column;
@@ -32,16 +32,27 @@
 
 /* ── Cabeçalho ─────────────────────────────────────────── */
 .header { padding: var(--space-1) 0 0; }
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: var(--text-label);
+  color: var(--color-text-link);
+  cursor: pointer;
+}
 .title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-hero);
+  font-size: 28px;
   font-weight: 700;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
   letter-spacing: -0.02em;
 }
 
-/* ── Card de saldo (gradiente da marca, com profundidade) ── */
+/* ── Card de saldo (superfície sólida) ── */
 .balanceCard {
   position: relative;
   overflow: hidden;
@@ -49,19 +60,9 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--space-6);
-  border-radius: var(--r-2xl);
-  background: var(--panel);
-  border: 1px solid var(--line);
-}
-/* brilho roxo muito discreto no canto (assinatura, não superfície) */
-.balanceGlow {
-  position: absolute;
-  top: -55%;
-  right: -25%;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.16), transparent 68%);
-  pointer-events: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
 }
 .balanceTop {
   position: relative;
@@ -70,17 +71,17 @@
   align-items: center;
   justify-content: space-between;
 }
-.balanceLabel { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.balanceLabel { font-size: 13px; font-weight: 600; color: var(--color-text-secondary); }
 .walletBadge {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: var(--r-md);
-  background: var(--panel-2);
-  border: 1px solid var(--accent-line);
-  color: var(--brand-2);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-brand);
 }
 .balanceValue {
   position: relative;
@@ -90,7 +91,7 @@
   font-weight: 800;
   line-height: 1.1;
   margin-top: 4px;
-  color: var(--text-strong);
+  color: var(--color-text-primary);
 }
 /* Entradas/Saídas: um bloco interno escuro dividido em dois (sem lilás) */
 .stats {
@@ -98,9 +99,9 @@
   z-index: 1;
   display: flex;
   margin-top: var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--panel-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
   overflow: hidden;
 }
 .stat {
@@ -110,13 +111,13 @@
   gap: 10px;
   padding: var(--space-3) var(--space-4);
 }
-.stat + .stat { border-left: 1px solid var(--line); }
+.stat + .stat { border-left: 1px solid var(--color-border-default); }
 .statIcon { display: flex; flex-shrink: 0; }
-.stat:first-child .statIcon { color: var(--success); }   /* Entradas → verde */
-.stat:last-child .statIcon { color: var(--brand-2); }    /* Saídas → roxo */
+.stat:first-child .statIcon { color: var(--color-success-text); }   /* Entradas → verde */
+.stat:last-child .statIcon { color: var(--color-text-brand); }    /* Saídas → roxo */
 .statText { display: flex; flex-direction: column; min-width: 0; }
-.statLabel { font-size: 11px; color: var(--text-muted); }
-.statValue { font-size: 14px; font-weight: 700; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.statLabel { font-size: 11px; color: var(--color-text-secondary); }
+.statValue { font-size: 14px; font-weight: 700; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
 
 /* ── Ações (botões claros e distintos) ─────────────────── */
 .actions { display: flex; gap: var(--space-2); }
@@ -127,30 +128,30 @@
   justify-content: center;
   gap: 8px;
   height: 46px;
-  border-radius: var(--r-lg);
+  border-radius: var(--radius-lg);
   border: 1px solid transparent;
   font-family: var(--font-body);
-  font-size: var(--fs-body);
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 .actionBtn:active { transform: scale(0.98); }
-/* Carregar: CTA mais forte, roxo controlado (sólido, sem gradiente/glow pesado) */
-.actionPrimary { background: var(--brand); color: var(--on-brand); }
-.actionPrimary:hover { background: color-mix(in srgb, var(--brand) 88%, #fff); }
+/* Carregar: CTA mais forte, roxo controlado (sólido) */
+.actionPrimary { background: var(--color-action-primary); color: var(--color-on-action); }
+.actionPrimary:hover { background: var(--color-action-primary-hover); }
 /* Sacar: dark/secondary com detalhe discreto, sem competir com Carregar */
 .actionSecondary {
-  background: var(--panel-2);
-  color: var(--text-strong);
-  border-color: var(--line);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
 }
-.actionSecondary:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+.actionSecondary:hover { border-color: var(--color-border-default); background: var(--color-action-primary-subtle); }
 
 /* ── Extrato ───────────────────────────────────────────── */
 .extrato { display: flex; flex-direction: column; gap: var(--space-2); }
-.extratoTitle { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--text-strong); margin: 0; }
-.muted { color: var(--text-muted); }
+.extratoTitle { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--color-text-primary); margin: 0; }
+.muted { color: var(--color-text-secondary); }
 
 .txList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .txRow {
@@ -160,24 +161,24 @@
   width: 100%;
   padding: var(--space-3) 0;
   border: none;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--color-border-default);
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
 }
 .txList li:last-child .txRow { border-bottom: none; }
-.txRow:hover { background: var(--surface-2); }
-.txChevron { color: var(--text-subtle); flex-shrink: 0; }
-.txDot { width: 8px; height: 8px; border-radius: var(--r-pill); flex-shrink: 0; }
+.txRow:hover { background: var(--color-surface-sunken); }
+.txChevron { color: var(--color-text-muted); flex-shrink: 0; }
+.txDot { width: 8px; height: 8px; border-radius: var(--radius-pill); flex-shrink: 0; }
 .txInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.txReason { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.txDate { font-size: 12px; color: var(--text-subtle); }
+.txReason { font-size: 14px; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txDate { font-size: 12px; color: var(--color-text-muted); }
 .txAmount { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.txDot.txCredit { background: var(--success); }
-.txDot.txDebit { background: var(--danger); }
-.txAmount.txCredit { color: var(--success); }
-.txAmount.txDebit { color: var(--danger); }
+.txDot.txCredit { background: var(--color-success-text); }
+.txDot.txDebit { background: var(--color-error-text); }
+.txAmount.txCredit { color: var(--color-success-text); }
+.txAmount.txDebit { color: var(--color-error-text); }
 
 /* ── Detalhes da transação (sheet) ─────────────────────── */
 .txDetails { padding: var(--space-2) 0 var(--space-3); }
@@ -188,47 +189,47 @@
   text-align: center;
   margin-bottom: var(--space-4);
 }
-.txDetailAmount.txCredit { color: var(--success); }
-.txDetailAmount.txDebit { color: var(--danger); }
+.txDetailAmount.txCredit { color: var(--color-success-text); }
+.txDetailAmount.txDebit { color: var(--color-error-text); }
 .txDetailList { margin: 0; display: flex; flex-direction: column; gap: 0; }
 .txDetailRow {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--color-border-default);
 }
 .txDetailRow:last-child { border-bottom: none; }
-.txDetailRow dt { color: var(--text-muted); font-size: 13px; flex-shrink: 0; }
-.txDetailRow dd { margin: 0; color: var(--text); font-size: 13px; text-align: right; word-break: break-word; }
+.txDetailRow dt { color: var(--color-text-secondary); font-size: 13px; flex-shrink: 0; }
+.txDetailRow dd { margin: 0; color: var(--color-text-primary); font-size: 13px; text-align: right; word-break: break-word; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
 /* ── Formulários (sheets) ──────────────────────────────── */
 .form { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-1) 0 var(--space-2); }
 .field { display: flex; flex-direction: column; gap: 6px; }
-.fieldLabel { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.fieldLabel { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); }
 .methodRow { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 /* Cliente: subtítulo, saldo, ações inline, resumo, benefício, filtros */
-.subtitle { margin: var(--space-2) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
-.balanceHint { position: relative; z-index: 1; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 4px; }
+.subtitle { margin: var(--space-2) 0 0; font-size: 13px; color: var(--color-text-secondary); }
+.balanceHint { position: relative; z-index: 1; font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
 .actionsInline { position: relative; z-index: 1; display: flex; gap: var(--space-2); margin-top: var(--space-4); }
 .actionsInline > * { flex: 1; }
 
 .resumo { display: flex; flex-direction: column; gap: var(--space-3); }
-.resumoTitle { margin: 0; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--text-strong); }
+.resumoTitle { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-text-primary); }
 
 .benefit { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line); border-left: 3px solid var(--brand-2); border-radius: var(--r-md); background: var(--panel); }
+  border: 1px solid var(--color-border-default); border-left: 3px solid var(--color-text-brand); border-radius: var(--radius-md); background: var(--color-surface-default); }
 .benefitIcon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0;
-  border-radius: var(--r-md); background: var(--panel-2); border: 1px solid var(--accent-line); color: var(--brand-2); }
+  border-radius: var(--radius-md); background: var(--color-surface-sunken); border: 1px solid var(--color-border-default); color: var(--color-text-brand); }
 .benefitText { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.benefitText strong { font-size: var(--fs-body); color: var(--text-strong); }
-.benefitText span { font-size: var(--fs-sm); color: var(--text-muted); }
+.benefitText strong { font-size: 15px; color: var(--color-text-primary); }
+.benefitText span { font-size: 13px; color: var(--color-text-secondary); }
 
 .extratoHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
 .filters { display: flex; gap: 6px; flex-wrap: wrap; }
-.filterChip { padding: 5px 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: transparent;
-  color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
-.filterChip:hover { color: var(--text); }
-.filterChipActive { color: var(--brand-2); border-color: var(--accent-line); background: var(--accent-soft); }
+.filterChip { padding: 5px 12px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-default); background: transparent;
+  color: var(--color-text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.filterChip:hover { color: var(--color-text-primary); }
+.filterChipActive { color: var(--color-text-brand); border-color: var(--color-border-default); background: var(--color-action-primary-subtle); }
