@@ -171,7 +171,8 @@ export default function SacolaPage() {
   const payBar = (inline: boolean) => (
     <CheckoutBar total={toPay} showTotal={false} label={payLabel} note={vitrineNote ?? note} inline={inline}
       disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay}
-      secondary={isCard ? { label: `Pagar com Pix por ${formatMoney(pixToPay)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
+      // M5: com o saldo cobrindo tudo não há Pix a pagar — o atalho some (nunca "R$ 0,00").
+      secondary={isCard && pixToPay > 0 ? { label: `Pagar com Pix por ${formatMoney(pixToPay)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
   );
 
   return (

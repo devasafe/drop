@@ -73,3 +73,9 @@ test('atalho do Pix no cartão desconta o saldo da carteira quando ligado', () =
   render(<SacolaPage />);
   expect(screen.getByRole('button', { name: 'Pagar com Pix por R$ 277,20' })).toBeInTheDocument();
 });
+
+test('M5: cartão com saldo que cobre o total: nunca "Pagar com Pix por R$ 0,00"', () => {
+  mocked.mockReturnValue(hook({ paymentMethod: 'credit_card', useWallet: true, walletBalance: 500, cardPayload: { valid: true, card: {} }, config: { cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 } }));
+  render(<SacolaPage />);
+  expect(screen.queryByRole('button', { name: /Pagar com Pix por/ })).toBeNull();
+});
