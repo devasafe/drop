@@ -30,7 +30,7 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => 
 // { order, card:{status,approved} } (cartão, aprovado/pendente — recusado
 // vem como HTTP 402 e cai no catch); fluxo legado (pedido já pago pela
 // carteira) retorna o pedido puro no corpo.
-type OrderLike = { _id: string; paymentProvider?: string; totalValue?: number | string; walletApplied?: number | string };
+type OrderLike = { _id: string; paymentProvider?: string; totalValue?: number | string; walletApplied?: number | string; createdAt?: string };
 type PlaceOrderResponse =
   | { order: OrderLike; pix?: Omit<PixInfo, 'orderId'>; card?: { status: string; approved: boolean } }
   | OrderLike;
@@ -340,7 +340,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
         setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
         // Valor da cobrança = o que o servidor gravou (total - saldo usado); a tela não recalcula.
         const charged = Number(order.totalValue) - Number(order.walletApplied ?? 0);
-        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined });
+        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined, serverNow: order.createdAt });
       } else {
         router.push(pedidoHref(order._id));
       }

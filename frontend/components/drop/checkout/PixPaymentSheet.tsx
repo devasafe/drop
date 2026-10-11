@@ -53,17 +53,27 @@ export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, o
   const gotQr = useRef<boolean>(!!(pix.qrCodeImage || pix.qrCodePayload));
   const attempts = useRef<number>(0);
 
-  // Contagem regressiva da expiração (o Pix expira; nada é cobrado depois disso).
-  const [now, setNow] = useState(() => Date.now());
+  // Contagem regressiva da expiração pelo relógio do SERVIDOR: `serverNow` (criação do pedido)
+  // dá a diferença para o relógio do aparelho, que pode estar adiantado ou atrasado.
+  const skew = useRef<number>((() => {
+    const s = pix.serverNow ? Date.parse(pix.serverNow) : NaN;
+    return Number.isFinite(s) ? Date.now() - s : 0;
+  })());
+  const serverClock = () => Date.now() - skew.current;
+  const [now, setNow] = useState(serverClock);
   const expiresAt = pix.expiresAt ? Date.parse(pix.expiresAt) : NaN;
   const remaining = Number.isFinite(expiresAt) ? Math.max(0, expiresAt - now) : null;
   const expired = remaining === 0;
   useEffect(() => {
     if (!Number.isFinite(expiresAt) || paid) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(serverClock()), 1000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expiresAt, paid]);
-  useEffect(() => { if (expired && timer.current) clearInterval(timer.current); }, [expired]);
+  // Fim do prazo: consulta o status na hora (o pagamento pode ter entrado no último minuto) e NÃO
+  // para o polling — quem decide se foi pago é o servidor; um pagamento tardio ainda é confirmado.
+  const checkRef = useRef<(() => void) | null>(null);
+  useEffect(() => { if (expired) checkRef.current?.(); }, [expired]);
   const mmss = remaining == null ? null : `${String(Math.floor(remaining / 60000)).padStart(2, '0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`;
 
   useEffect(() => {
@@ -91,6 +101,7 @@ export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, o
         }
       }
     };
+    checkRef.current = check;
     timer.current = setInterval(check, POLL_INTERVAL_MS);
     check();
     return () => { if (timer.current) clearInterval(timer.current); };
@@ -119,6 +130,7 @@ export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, o
       ) : expired ? (
         <div className={styles.body}>
           <p className={styles.hint}>O Pix expirou, nada foi cobrado.</p>
+          <p className={styles.hint} aria-live="polite">Pagou antes de expirar? Seguimos conferindo e confirmamos em instantes.</p>
           <Button onClick={onClose}>Ver pedido</Button>
         </div>
       ) : qrFailed ? (

@@ -51,6 +51,9 @@ export interface PixInfo {
   expiresAt?: string;
   /** Valor cobrado no Pix, calculado a partir do pedido gravado pelo servidor (total - saldo usado). */
   amount?: number;
+  /** Horário do servidor quando o pedido foi criado (`order.createdAt`): a contagem até
+   *  `expiresAt` usa o relógio do servidor, não o do aparelho. */
+  serverNow?: string;
   orderId: string;
 }
 
