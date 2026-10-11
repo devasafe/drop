@@ -41,6 +41,8 @@ import styles from './Sacola.module.css';
 
 const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
 const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
+const STORE_GONE_MSG = 'Esta loja não está mais disponível';
+const STORE_LOOKUP_FAILED_MSG = 'Não deu para carregar a loja';
 
 export default function SacolaPage() {
   const router = useRouter();
@@ -89,7 +91,10 @@ export default function SacolaPage() {
 
   const items = (c.items || []) as any[];
   const count = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
-  const storeName = c.store?.name || 'Loja';
+  // I4: loja que saiu do GET /stores antes de abrir a Sacola (pausada → resumo com o nome; sumiu).
+  const storeGone = c.storeGone ?? null;
+  const storePaused = unavailable || storeGone?.reason === 'unavailable';
+  const storeName = c.store?.name || (storeGone?.reason === 'unavailable' ? storeGone.name : undefined) || 'Loja';
   // Valor do Pix: total menos o saldo da carteira (se ligado). O atalho "Pagar com Pix" do cartão mostra este valor.
   const pixWalletUse = c.useWallet ? Math.min(c.walletBalance || 0, c.total) : 0;
   const pixToPay = Math.max(0, Math.round((c.total - pixWalletUse) * 100) / 100);
@@ -116,7 +121,9 @@ export default function SacolaPage() {
   // nos demais planos a cotação já exige o endereço).
   const canPlace = c.canPlace && (!c.isPlan1 || !!c.address.selected);
 
-  const hint = unavailable ? 'A loja não está recebendo pedidos agora'
+  const hint = storePaused ? 'A loja não está recebendo pedidos agora'
+    : storeGone?.reason === 'gone' ? STORE_GONE_MSG
+    : c.storeLookupFailed ? STORE_LOOKUP_FAILED_MSG
     : !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
     : c.storeOpen === false ? 'A loja está fechada agora'
     : c.outOfArea ? 'Esta loja não entrega nesse endereço'
@@ -190,8 +197,18 @@ export default function SacolaPage() {
               {c.isPlan1 && <Badge tone="status">Vitrine</Badge>}
               {c.store?._id && <Link href={lojaHref(c.store._id)} className={styles.link}>Adicionar mais</Link>}
             </div>
-            {unavailable && (
+            {storePaused && (
               <Alert tone="warning" title={`A ${storeName} não está recebendo pedidos agora`}>Sua sacola fica guardada. Tente de novo mais tarde.</Alert>
+            )}
+            {!storePaused && storeGone?.reason === 'gone' && (
+              <Alert tone="warning" title={STORE_GONE_MSG} action={{ label: 'Ver outras lojas', onClick: () => router.push(ROUTES.inicio) }}>
+                Os itens desta sacola não podem mais ser pedidos.
+              </Alert>
+            )}
+            {!storePaused && !storeGone && c.storeLookupFailed && (
+              <Alert tone="error" title={STORE_LOOKUP_FAILED_MSG} action={{ label: 'Tentar de novo', onClick: c.retryStoreLookup }}>
+                Sem os dados da loja não dá para calcular a entrega.
+              </Alert>
             )}
             <div aria-live="polite">
               {items.map((i) => (

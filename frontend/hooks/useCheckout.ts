@@ -78,11 +78,43 @@ export function useCheckout() {
   const router = useRouter();
   const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
-  const { stores } = useStores();
+  const { stores, loading: storesLoading } = useStores();
   const address = useCheckoutAddress();
 
   const storeId = cart.length > 0 ? cart[0].storeId || '' : '';
-  const store = stores.find((s: { _id: string; plan?: number; latitude?: string; longitude?: string }) => s._id === storeId);
+  type StoreLite = { _id: string; name?: string; plan?: number; latitude?: string; longitude?: string; isOpen?: boolean };
+  const listedStore = stores.find((s: StoreLite) => s._id === storeId) as StoreLite | undefined;
+
+  // I4: a loja do carrinho não veio no GET /stores (a lista esconde a loja pausada pela
+  // mensalidade, a removida, ou falhou). Consulta GET /stores/:id para dizer o que houve em vez
+  // de deixar a Sacola presa em "Calculando entrega…".
+  const [detailStore, setDetailStore] = useState<StoreLite | null>(null);
+  const [storeGone, setStoreGone] = useState<{ reason: 'unavailable'; name?: string } | { reason: 'gone' } | null>(null);
+  const [storeLookupFailed, setStoreLookupFailed] = useState(false);
+  const [storeLookupAttempt, setStoreLookupAttempt] = useState(0);
+  const needsLookup = !!storeId && storesLoading === false && !listedStore;
+  useEffect(() => {
+    setDetailStore(null); setStoreGone(null); setStoreLookupFailed(false);
+    if (!needsLookup) return;
+    let off = false;
+    api.get(`/stores/${encodeURIComponent(storeId)}`)
+      .then((r) => {
+        if (off) return;
+        const d = r?.data as StoreLite | undefined;
+        if (d && String(d._id) === storeId) setDetailStore(d);
+      })
+      .catch((e) => {
+        if (off) return;
+        const status = e?.response?.status;
+        const d = e?.response?.data;
+        if (status === 404 && d?.code === 'STORE_UNAVAILABLE') setStoreGone({ reason: 'unavailable', name: d?.store?.name || undefined });
+        else if (status === 404) setStoreGone({ reason: 'gone' });
+        else setStoreLookupFailed(true);
+      });
+    return () => { off = true; };
+  }, [needsLookup, storeId, storeLookupAttempt]);
+  const retryStoreLookup = () => setStoreLookupAttempt((n) => n + 1);
+  const store = listedStore ?? detailStore ?? undefined;
   // Modo direto: plano único, entrega sempre por motoboy — Store.plan sai do fluxo.
   const { settlementMode } = useSaasConfig();
   const isPlan1 = settlementMode !== 'direto' && store?.plan === 1;
@@ -260,7 +292,7 @@ export function useCheckout() {
   // Plano 1: bloqueio "duro" (fora da área, endereço sem mapa, cotação falhou) vale também no
   // placeOrder; enquanto a cotação carrega, só a tela trava (o servidor recusa loja fechada).
   const plan1Blocked = outOfArea || deliveryIssue === 'NO_ADDRESS' || !!quoteError;
-  const canPlace = isPlan1 ? !plan1Blocked && !(quotePoint && plan1.loading) : quote?.inArea === true;
+  const canPlace = !!store && !storeGone && (isPlan1 ? !plan1Blocked && !(quotePoint && plan1.loading) : quote?.inArea === true);
 
   // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
   // usuário logado, cpf/telefone de `/user/me` (ver effect acima —
@@ -376,5 +408,6 @@ export function useCheckout() {
     deliveryIssue,
     store: store ? { _id: store._id, name: (store as { name?: string }).name, plan: store.plan } : null,
     storeOpen, opensAt, quoteLoading,
+    storeGone, storeLookupFailed, retryStoreLookup,
   };
 }
