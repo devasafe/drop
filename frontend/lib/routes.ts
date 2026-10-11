@@ -38,7 +38,14 @@ export function buscarHref(p: { q?: string; tab?: BuscarTab; categoria?: string;
 }
 
 export type ContaSecao = 'dados' | 'verificacao' | 'enderecos';
-export const contaHref = (secao?: ContaSecao): string => (secao ? `${ROUTES.conta}?secao=${secao}` : ROUTES.conta);
+export const contaHref = (secao?: ContaSecao, next?: string | null): string => {
+  const qs = new URLSearchParams();
+  if (secao) qs.set('secao', secao);
+  const n = safeNext(next);
+  if (n) qs.set('next', n);
+  const s = qs.toString();
+  return s ? `${ROUTES.conta}?${s}` : ROUTES.conta;
+};
 
 const enc = encodeURIComponent;
 export const lojaHref = (id: string): string => `/loja/${enc(id)}`;
