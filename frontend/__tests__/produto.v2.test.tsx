@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProductPage from '../pages/produto/[id]';
 import api from '../lib/api';
 import { lojaHref } from '../lib/routes';
@@ -71,4 +71,12 @@ test('esgotado: botão "Esgotado" desabilitado', async () => {
 test('"Vendido por" é um link para a loja', async () => {
   render(<ProductPage />);
   expect(await screen.findByRole('link', { name: /Vendido por Eletro Center/ })).toHaveAttribute('href', lojaHref('s1'));
+});
+
+test('cotação que falha (ex.: 429) não fica em "Calculando entrega…"', async () => {
+  post.mockRejectedValue(Object.assign(new Error('429'), { response: { status: 429 } }));
+  render(<ProductPage />);
+  expect(await screen.findByRole('heading', { name: 'Fone JBL Tune 520BT' })).toBeInTheDocument();
+  await waitFor(() => expect(post).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByText('Calculando entrega…')).not.toBeInTheDocument());
 });

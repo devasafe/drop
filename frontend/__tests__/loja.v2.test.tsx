@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StorePage from '../pages/loja/[id]';
 import api from '../lib/api';
 import { __resetStoreQuotesCache } from '../hooks/useStoreQuotes';
@@ -74,4 +74,13 @@ test('adicionar avisa com "Ver sacola"', () => {
   render(<StorePage />);
   fireEvent.click(screen.getByRole('button', { name: 'Adicionar Fone' }));
   expect(showToast).toHaveBeenCalledWith('Adicionado à sacola', 'success', expect.anything());
+});
+
+test('cotação que falha (ex.: 429) não fica em "Calculando entrega…"', async () => {
+  post.mockRejectedValue(Object.assign(new Error('429'), { response: { status: 429 } }));
+  render(<StorePage />);
+  expect(await screen.findByText('Calculando entrega…')).toBeInTheDocument();
+  await waitFor(() => expect(post).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByText('Calculando entrega…')).not.toBeInTheDocument());
+  expect(screen.getByRole('heading', { name: 'Eletro Center' })).toBeInTheDocument();
 });

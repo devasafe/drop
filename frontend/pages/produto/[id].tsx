@@ -157,10 +157,11 @@ export default function ProductPage() {
     const opts = installmentOptions(Number(product.price), cfg);
     return opts.length ? opts[opts.length - 1] : null;
   }, [product, cfg, cardOn]);
-  const { quotes } = useStoreQuotes(product ? [product.storeId] : [], address.point);
+  const { quotes, loading: quotesLoading } = useStoreQuotes(product ? [product.storeId] : [], address.point);
   const quote = product ? quotes[product.storeId] : undefined;
   const lines = deliveryStates({
-    quote: quote ?? null, loading: !!address.point && !!product && !quote, hasPoint: !!address.point, address: address.label,
+    // Estado real do hook: cotação que falhou (429, rede) não fica em "Calculando…" ("Sem cotação: nada").
+    quote: quote ?? null, loading: quotesLoading && !quote, hasPoint: !!address.point, address: address.label,
     onSetAddress: picker.request, onChangeAddress: picker.request,
   });
 

@@ -169,10 +169,11 @@ export default function StorePage() {
     });
   }, [products, search, selectedCategory, sort]);
 
-  const { quotes } = useStoreQuotes(store ? [store._id] : [], address.point);
+  const { quotes, loading: quotesLoading } = useStoreQuotes(store ? [store._id] : [], address.point);
   const quote = store ? quotes[store._id] : undefined;
   const lines = deliveryStates({
-    quote, loading: !!address.point && !quote, hasPoint: !!address.point, address: address.label,
+    // Estado real do hook: cotação que falhou (429, rede) não fica em "Calculando…" ("Sem cotação: nada").
+    quote, loading: quotesLoading && !quote, hasPoint: !!address.point, address: address.label,
     onSetAddress: picker.request, onChangeAddress: picker.request,
   });
   const closed = quote ? quote.open === false : (store ? !getStoreOpenStatus(store).open : false);
