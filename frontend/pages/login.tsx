@@ -1,84 +1,70 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import { useOnline } from '../hooks/useOnline';
 import AuthLayout from '../components/auth/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Alert } from '../components/ui/Alert';
+import { PasswordField } from '../components/drop/PasswordField';
+import { loginErrorMessage, type AuthErrorView } from '../lib/authErrors';
+import { ROUTES, authHref, safeNext } from '../lib/routes';
 import styles from './Login.module.css';
 
-/** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */
-function safeNext(v: unknown): string | null {
-  const s = Array.isArray(v) ? v[0] : v;
-  return typeof s === 'string' && s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : null;
-}
-
 export default function LoginPage() {
+  const router = useRouter();
+  const auth = useAuth();
+  const cart = ((useCart() as any)?.cart ?? []) as Array<{ quantity?: number }>;
+  const online = useOnline();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<AuthErrorView | null>(null);
   const [notice, setNotice] = useState('');
-  const router = useRouter();
-  const auth = useAuth();
+  const next = safeNext(router.query?.next);
+  const items = cart.reduce((n, i) => n + (Number(i.quantity) || 0), 0);
 
-  // Se chegou aqui por force_logout, mostra o motivo
+  // Chegou por force_logout: mostra o motivo.
   useEffect(() => {
     try {
-      const msg = typeof window !== 'undefined' ? sessionStorage.getItem('force_logout_message') : null;
-      if (msg) {
-        setNotice(msg);
-        sessionStorage.removeItem('force_logout_message');
-      }
-    } catch {
-      /* ignore */
-    }
+      const msg = sessionStorage.getItem('force_logout_message');
+      if (msg) { setNotice(msg); sessionStorage.removeItem('force_logout_message'); }
+    } catch { /* ignore */ }
   }, []);
 
-  const submit = async (e: any) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(null);
     setLoading(true);
     try {
       await auth.login(email, password);
-      router.push(safeNext(router.query?.next) ?? '/');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Falha no login. Verifique seus dados.');
+      // A raiz redireciona para /inicio; manter '/' preserva o contrato do loginNext.test.
+      router.push(next ?? '/');
+    } catch (err) {
+      setError(loginErrorMessage(err));
       setLoading(false);
     }
   };
 
   return (
-    <AuthLayout title="Bem-vindo de volta" subtitle="Acesse sua conta para continuar">
-      <form onSubmit={submit} className={styles.form}>
-        {notice && !error && <div className={`${styles.notice} ${styles.noticeWarning}`}>{notice}</div>}
-        {error && <div className={styles.notice}>{error}</div>}
-
-        <Input
-          value={email}
-          onChange={setEmail}
-          type="email"
-          placeholder="seu@email.com"
-          required
-          aria-label="Email"
-        />
-        <Input
-          value={password}
-          onChange={setPassword}
-          type="password"
-          placeholder="••••••••"
-          required
-          aria-label="Senha"
-        />
-
-        <Button type="submit" loading={loading} className={styles.submitBtn}>
-          Entrar
-        </Button>
-
-        <a href="/esqueci-senha" className={styles.link}>Esqueceu a senha?</a>
+    <AuthLayout
+      title="Entre para continuar"
+      subtitle={items > 0 ? `Sua sacola com ${items} ${items === 1 ? 'item' : 'itens'} fica guardada.` : 'Acesse sua conta para continuar.'}
+      footer="Ao entrar você continua de onde parou: a sacola, o pedido em andamento ou a página do produto."
+    >
+      <form onSubmit={submit} className={styles.form} noValidate>
+        {notice && !error && <Alert tone="warning" title={notice} />}
+        <Input id="login-email" label="E-mail" aria-label="Email" type="email" autoComplete="email" value={email} onChange={setEmail} required />
+        <PasswordField id="login-senha" label="Senha" ariaLabel="Senha" value={password} onChange={setPassword} autoComplete="current-password" />
+        <Link href={authHref(ROUTES.esqueciSenha, next)} className={styles.forgot}>Esqueci a senha</Link>
+        <Button type="submit" loading={loading} disabled={!online} className={styles.submit}>Entrar</Button>
+        {!online && <p className={styles.offline}>Sem internet</p>}
+        {error && <Alert tone="error" title={error.title}>{error.body}</Alert>}
       </form>
-
       <p className={styles.switchLine}>
-        Não tem conta? <a href="/register" className={styles.link}>Criar conta</a>
+        Primeira vez na DROP? <Link href={authHref(ROUTES.cadastro, next)} className={styles.link}>Criar conta</Link>
       </p>
     </AuthLayout>
   );

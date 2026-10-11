@@ -10,7 +10,20 @@ export const ROUTES = {
   carteira: '/conta/carteira',
   sacola: '/sacola',
   login: '/login',
+  cadastro: '/register',
+  esqueciSenha: '/esqueci-senha',
 } as const;
+
+/** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */
+export function safeNext(v: unknown): string | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  return typeof s === 'string' && s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : null;
+}
+/** Telas de entrar/cadastro/senha levando o caminho de volta. */
+export function authHref(path: string, next?: string | null): string {
+  const n = safeNext(next);
+  return n ? `${path}?next=${encodeURIComponent(n)}` : path;
+}
 
 export type BuscarTab = 'produtos' | 'lojas';
 
