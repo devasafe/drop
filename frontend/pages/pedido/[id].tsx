@@ -27,7 +27,7 @@ import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { buildRouteThumbnailUrl } from '../../lib/staticMap';
-import { ROUTES } from '../../lib/routes';
+import { ROUTES, buscarHref } from '../../lib/routes';
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import styles from './Pedido.module.css';
@@ -322,7 +322,14 @@ export default function PedidoPage() {
 
             {order.status === 'cancelado' && cancellation && (
               <section className={styles.block}>
-                <CancellationStatus cancellation={cancellation} />
+                <CancellationStatus
+                  cancellation={cancellation}
+                  storeName={order.storeName}
+                  paymentMethod={order.paymentMethod}
+                  direct={order.customerRefund ?? null}
+                  onSupport={() => router.push(ROUTES.ajuda)}
+                  onBuyElsewhere={order.products?.[0]?.productName ? () => router.push(buscarHref({ q: order.products[0].productName })) : undefined}
+                />
               </section>
             )}
 
