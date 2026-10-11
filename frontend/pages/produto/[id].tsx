@@ -2,7 +2,7 @@ import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, Zap } from 'lucide-react';
 
 import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
@@ -22,7 +22,7 @@ import { lojaHref, produtoHref, ROUTES } from '../../lib/routes';
 import { Button } from '../../components/ui/Button';
 import { IconButton } from '../../components/ui/IconButton';
 import { Tag } from '../../components/ui/Tag';
-import { Rating } from '../../components/ui/Rating';
+import { Rating, formatRating } from '../../components/ui/Rating';
 import { QuantitySelector } from '../../components/ui/QuantitySelector';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -251,6 +251,11 @@ export default function ProductPage() {
             >
               {!heroImageUrl && <Package size={40} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
             </span>
+            {allImages.length > 1 && (
+              <span className={styles.dots} aria-hidden="true">
+                {allImages.map((_: string, i: number) => <i key={i} className={i === safeIdx ? styles.dotOn : undefined} />)}
+              </span>
+            )}
             <span className={styles.backBtn}>
               <IconButton
                 icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
@@ -292,8 +297,8 @@ export default function ProductPage() {
         </nav>
 
         <div className={styles.detail}>
-          <section className={styles.info}>
-            <Link href={lojaHref(product.storeId)} className={styles.storeLink}>Vendido por {store?.name || 'Loja'}</Link>
+          <section className={`${styles.info} ${styles.card}`}>
+            <Link href={lojaHref(product.storeId)} className={styles.storeLink}>{`Vendido por ${store?.name || 'Loja'}${typeof store?.ratingAverage === 'number' ? ` · ★ ${formatRating(store.ratingAverage)}` : ''}`}</Link>
             <h1 className={styles.title}>{product.name}</h1>
             {reviews.count >= 3 && <Rating value={reviews.average} count={reviews.count} />}
             <PriceDisplay
@@ -302,11 +307,22 @@ export default function ProductPage() {
               oldPrice={product.oldPrice != null ? Number(product.oldPrice) : null}
               installment={installment}
             />
-            <div className={styles.delivery} aria-live="polite">
-              {lines.map((l, i) => <DeliveryBadge key={i} state={l} />)}
-            </div>
-            <DeliveryAddressControl address={address} picker={picker} storeId={product.storeId} storeName={store?.name} />
+          </section>
 
+          <section className={styles.card} aria-labelledby="produto-entrega">
+            <h2 id="produto-entrega" className={styles.srOnly}>Entrega</h2>
+            <div className={styles.deliveryRow}>
+              <span className={styles.deliveryIcon} aria-hidden="true"><Zap size={20} /></span>
+              <div className={styles.deliveryText} aria-live="polite">
+                {lines.map((l, i) => <DeliveryBadge key={i} state={l} />)}
+                {address.selected && <p className={styles.deliveryWhere}>{`em ${address.label}`}</p>}
+              </div>
+              <DeliveryAddressControl trigger="link" address={address} picker={picker} storeId={product.storeId} storeName={store?.name} />
+            </div>
+          </section>
+
+          {(product.description || product.tags?.length > 0) && (
+          <section className={`${styles.info} ${styles.card}`}>
             {product.description && (
               <section className={styles.about}>
                 <h2 className={styles.sectionTitle}>Sobre</h2>
@@ -326,6 +342,7 @@ export default function ProductPage() {
               </div>
             )}
           </section>
+          )}
           {barMode === 'desktop' && actionBar}
         </div>
       </div>

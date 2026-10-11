@@ -134,16 +134,90 @@
 
 /* ---- informações ---- */
 .top,
-.media,
-.detail {
+.media {
   display: block;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 .info {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.card {
   padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+
+.deliveryRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.deliveryIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-success-subtle);
+  color: var(--color-delivery-fast);
+}
+
+.deliveryText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.deliveryWhere {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.dots {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  display: flex;
+  gap: 5px;
+  transform: translateX(-50%);
+}
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.dots i.dotOn {
+  background: var(--color-text-primary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .storeLink {
@@ -169,12 +243,6 @@
   margin: 0;
   font: var(--text-title-lg);
   color: var(--color-text-primary);
-}
-
-.delivery {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
 .about {
@@ -359,7 +427,7 @@
     grid-row: 2;
   }
 
-  .info {
+  .detail {
     padding: 0;
   }
 
