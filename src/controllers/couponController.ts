@@ -11,6 +11,7 @@ import {
 
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
+import { isDirectMode } from '../utils/settlement';
 
 // Criar cupom
 // Lojista: type='store', storeId obrigatório
@@ -168,6 +169,13 @@ export const validateCoupon = async (req: AuthenticatedRequest, res: Response) =
 
     const result = await computeCouponDiscount(String(code), storeId, Number(orderValue));
     if (!result.valid) return res.status(400).json({ error: result.reason });
+
+    // Modo direto: o Pix vai para a conta da loja e o DROP nao banca desconto global.
+    // O POST /orders ja recusa (directCheckout, COUPON_NOT_ALLOWED); recusar aqui evita a Sacola
+    // mostrar um desconto que o pagamento nao vai aceitar.
+    if (result.coupon?.type === 'global' && (await isDirectMode())) {
+      return res.status(400).json({ error: 'Cupons do DROP não valem nesta compra; cupons da loja sim.', code: 'COUPON_NOT_ALLOWED' });
+    }
 
     return res.json({
       valid: true,

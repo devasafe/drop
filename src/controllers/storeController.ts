@@ -645,10 +645,15 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
       return res.status(404).json({ error: 'Store not found' });
     }
-    // Modo direto: loja pausada/cancelada pela mensalidade responde como inexistente.
+    // Modo direto: loja pausada/cancelada pela mensalidade nao aparece, mas o link/QR dela
+    // ganha uma resposta propria (a tela "Loja indisponivel"), sem dizer o motivo.
     const billingWhere = await publicStoreBillingWhere();
     if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({
+        error: 'Store not found',
+        code: 'STORE_UNAVAILABLE',
+        store: { _id: store.id, id: store.id, name: store.name, neighborhood: store.neighborhood ?? null, city: store.city ?? null },
+      });
     }
     const [rated] = await withStoreRatings([toPublicStore(store)]);
     return res.json(rated);
