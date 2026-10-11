@@ -5,7 +5,7 @@ test('lista motivos e dispara onConfirm com o motivo', () => {
   const onConfirm = jest.fn();
   render(<CancelOrderSheet open onClose={() => {}} onConfirm={onConfirm} fee={5} />);
   fireEvent.click(screen.getByText(/endereço errado/i));
-  fireEvent.click(screen.getByRole('button', { name: /confirmar cancelamento/i }));
+  fireEvent.click(screen.getByRole('button', { name: /cancelar o pedido/i }));
   expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'address_invalid' }));
 });
 
@@ -28,7 +28,7 @@ test('motivo em branco desabilita a confirmação', () => {
   render(<CancelOrderSheet open onClose={() => {}} onConfirm={() => {}} />);
   fireEvent.click(screen.getByText(/outro motivo/i));
   fireEvent.change(screen.getByLabelText(/motivo do cancelamento/i), { target: { value: '   ' } });
-  expect(screen.getByRole('button', { name: /confirmar cancelamento/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /cancelar o pedido/i })).toBeDisabled();
 });
 
 test('fechado não renderiza conteúdo', () => {

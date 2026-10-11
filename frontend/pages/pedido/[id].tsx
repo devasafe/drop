@@ -415,6 +415,8 @@ export default function PedidoPage() {
             <CancelOrderSheet
               open={cancelOpen}
               onClose={() => setCancelOpen(false)}
+              orderId={order._id}
+              courierName={delivery?.motoboyObj?.name?.split(' ')[0]}
               onConfirm={handleCancelConfirm}
               submitting={cancelling}
             />
