@@ -7,7 +7,7 @@ it('pagamento aprovado, o que acontece agora e as duas saídas', () => {
   const onTrack = jest.fn(); const onContinue = jest.fn();
   render(<OrderConfirmed order={base} onTrack={onTrack} onContinue={onContinue} />);
   expect(screen.getByRole('heading', { name: 'Pagamento aprovado' })).toBeInTheDocument();
-  expect(screen.getByText('Avisamos a Eletro Center. Ela tem até 5 minutos para aceitar.')).toBeInTheDocument();
+  expect(screen.getByText('Avisamos a Eletro Center. Agora ela confirma o pedido.')).toBeInTheDocument();
   expect(screen.getByText('Pix recebido')).toBeInTheDocument();
   expect(screen.getByText('R$ 244,00')).toBeInTheDocument();
   expect(screen.getByText('Motoboy retira e leva')).toBeInTheDocument();
@@ -27,4 +27,10 @@ it('cartão: "Cartão aprovado"', () => {
   render(<OrderConfirmed order={{ ...base, paymentMethod: 'credit_card', cardChargedTotal: 251.07 }} onTrack={() => {}} onContinue={() => {}} />);
   expect(screen.getByText('Cartão aprovado')).toBeInTheDocument();
   expect(screen.getByText('R$ 251,07')).toBeInTheDocument();
+});
+
+it('I3: não promete prazo nem reembolso automático que o sistema não cumpre', () => {
+  const { container } = render(<OrderConfirmed order={base} onTrack={() => {}} onContinue={() => {}} />);
+  expect(container.textContent).not.toMatch(/\d+\s*min/);
+  expect(screen.getByText('Se a loja não aceitar, você será avisado e o valor volta.')).toBeInTheDocument();
 });

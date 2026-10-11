@@ -15,13 +15,13 @@ export function OrderConfirmed({ order, onTrack, onContinue }: { order: any; onT
       <div className={styles.hero}>
         <span className={styles.ok} aria-hidden="true"><Check size={28} /></span>
         <h1 id="confirmado-titulo" className={styles.title}>Pagamento aprovado</h1>
-        <p className={styles.lead}>{`Avisamos a ${store}. Ela tem até 5 minutos para aceitar.`}</p>
+        <p className={styles.lead}>{`Avisamos a ${store}. Agora ela confirma o pedido.`}</p>
       </div>
       <div className={styles.block}>
         <div className={styles.blockHead}><span className={styles.cap}>Próximos passos</span><span className={styles.code}>{`#${shortOrderCode(order._id)}`}</span></div>
         <ol className={styles.steps}>
           <li className={styles.done}><span>{card ? 'Cartão aprovado' : 'Pix recebido'}</span><small>{formatMoney(paid)}</small></li>
-          <li className={styles.current}><span>Loja aceita o pedido</span><small>Se não aceitar em 5 min, o valor volta para você</small></li>
+          <li className={styles.current}><span>Loja aceita o pedido</span><small>Se a loja não aceitar, você será avisado e o valor volta.</small></li>
           <li><span>{plan1 ? 'Combine a entrega com a loja' : 'Motoboy retira e leva'}</span></li>
         </ol>
       </div>
