@@ -1,9 +1,9 @@
 import LegalPage, { LegalSection } from '../components/legal/LegalPage';
-import { LEGAL_VERSIONS, LEGAL_UPDATED } from '../lib/legalDocs';
+import { LEGAL_VERSIONS, COOKIES_UPDATED } from '../lib/legalDocs';
 
 export default function CookiesPage() {
   return (
-    <LegalPage title="Política de Cookies" version={LEGAL_VERSIONS.cookies} updatedAt={LEGAL_UPDATED}>
+    <LegalPage title="Política de Cookies" version={LEGAL_VERSIONS.cookies} updatedAt={COOKIES_UPDATED}>
       <LegalSection id="o-que-sao" title="1. O que são cookies">
         <p>
           Cookies são pequenos arquivos de texto armazenados pelo navegador do usuário quando

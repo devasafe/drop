@@ -115,8 +115,7 @@ export default function SolicitacoesPrivacidadePage() {
 
       <LegalSection title="5. Outros canais">
         <p>
-          Dúvidas gerais sobre o tratamento de dados pessoais pela DROP, incluindo sobre o
-          Encarregado (DPO) responsável, também podem ser enviadas para{' '}
+          Dúvidas gerais sobre o tratamento de dados pessoais pela DROP também podem ser enviadas para{' '}
           <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
         </p>
         <p>
