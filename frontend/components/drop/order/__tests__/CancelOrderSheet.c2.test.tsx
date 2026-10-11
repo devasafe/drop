@@ -44,3 +44,25 @@ it('não dá mais para cancelar: diz e não mostra o botão de cancelar', async 
   expect(await screen.findByText('Este pedido não pode mais ser cancelado')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Cancelar e receber|Cancelar o pedido/ })).toBeNull();
 });
+
+it('carregando: o botão de cancelar fica desabilitado até a prévia chegar', async () => {
+  let resolve: (v: any) => void = () => {};
+  get.mockReturnValue(new Promise((r) => { resolve = r; }));
+  render(<CancelOrderSheet open orderId="o1" onClose={() => {}} onConfirm={() => {}} />);
+  expect(screen.getByRole('button', { name: 'Cancelar o pedido' })).toBeDisabled();
+  resolve({ data: { success: true, data: { cancellable: true, fee: 0, refund: 244, paymentMethod: 'pix' } } });
+  expect(await screen.findByRole('button', { name: 'Cancelar e receber R$ 244,00' })).toBeEnabled();
+});
+
+it('falha da prévia: avisa, não deixa cancelar sem ver o valor e "Tentar de novo" busca outra vez', async () => {
+  get.mockRejectedValueOnce(new Error('rede'));
+  get.mockResolvedValueOnce({ data: { success: true, data: { cancellable: true, fee: 0, refund: 244, paymentMethod: 'pix' } } });
+  const onConfirm = jest.fn();
+  render(<CancelOrderSheet open orderId="o1" onClose={() => {}} onConfirm={onConfirm} />);
+  expect(await screen.findByText('Não deu para calcular quanto volta')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Cancelar o pedido' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  expect(await screen.findByRole('button', { name: 'Cancelar e receber R$ 244,00' })).toBeEnabled();
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText('Não deu para calcular quanto volta')).toBeNull();
+});

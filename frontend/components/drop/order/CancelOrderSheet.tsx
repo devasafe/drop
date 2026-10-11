@@ -42,7 +42,7 @@ const destino = (m?: string) => (m === 'credit_card' ? 'para o cartão' : m === 
 export function CancelOrderSheet({ open, onClose, onConfirm, fee, submitting, orderId, courierName }: CancelOrderSheetProps) {
   const [key, setKey] = useState(CANCEL_REASONS[0].key);
   const [other, setOther] = useState('');
-  const { preview, loading } = useCancelPreview(orderId, open);
+  const { preview, loading, failed, retry } = useCancelPreview(orderId, open);
 
   useEffect(() => {
     if (open) { setKey(CANCEL_REASONS[0].key); setOther(''); }
@@ -52,13 +52,19 @@ export function CancelOrderSheet({ open, onClose, onConfirm, fee, submitting, or
   const text = key === 'outro' ? other.trim() : reason.label;
   const blocked = preview?.cancellable === false;
   const refund = preview?.refund;
+  // Com pedido, só confirma depois de ver o valor (falha fecha a porta; o servidor ainda decide o final).
+  const canConfirm = !!text && (!orderId || preview?.cancellable === true);
   const label = refund != null ? `Cancelar e receber ${formatBRL(refund)}` : 'Cancelar o pedido';
 
   return (
     <Sheet open={open} onClose={onClose} title="Cancelar o pedido?" presentation="center">
       <div className={styles.wrap}>
         {loading && <Skeleton height={64} />}
-        {blocked ? (
+        {failed && !loading ? (
+          <Alert tone="error" title="Não deu para calcular quanto volta" action={{ label: 'Tentar de novo', onClick: retry }}>
+            Sem ver o valor, o cancelamento fica travado. Tente de novo.
+          </Alert>
+        ) : blocked ? (
           <Alert tone="info" title="Este pedido não pode mais ser cancelado">
             Se algo deu errado, fale com o suporte pelo pedido.
           </Alert>
@@ -101,7 +107,7 @@ export function CancelOrderSheet({ open, onClose, onConfirm, fee, submitting, or
                 />
               </>
             )}
-            <Button variant="danger" disabled={!text} loading={submitting} onClick={() => text && onConfirm({ reason: text, reasonCode: reason.code })}>
+            <Button variant="danger" disabled={!canConfirm} loading={submitting} onClick={() => text && onConfirm({ reason: text, reasonCode: reason.code })}>
               {label}
             </Button>
           </>
