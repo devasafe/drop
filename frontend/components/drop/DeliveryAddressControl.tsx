@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import Router from 'next/router';
+import { buscarHref } from '../../lib/routes';
 import api from '../../lib/api';
 import { AddressBar } from './AddressBar';
 import { AddressPickerSheet } from './AddressPickerSheet';
@@ -45,6 +47,7 @@ export function DeliveryAddressControl({ address, picker, storeId, storeName, tr
         storeName={storeName}
         onPick={(a) => { address.select(addressId(a)); picker.setOpen(false); }}
         onAddNew={() => { picker.setOpen(false); form.reset(); setFormOpen(true); }}
+        onSeeStores={() => { picker.setOpen(false); Router.push(buscarHref({ tab: 'lojas' })); }}
       />
       <AddressSheet
         open={formOpen}

@@ -33,7 +33,7 @@ import { isValidCPF } from '../lib/cpf';
 import { maskCpfMiddle } from '../lib/maskCpf';
 import { imageUrl } from '../lib/config';
 import { installmentOptions } from '../lib/cardInstallments';
-import { ROUTES, lojaHref, pedidoHref } from '../lib/routes';
+import { ROUTES, buscarHref, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
 
 const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
@@ -279,7 +279,8 @@ export default function SacolaPage() {
           saveDeliveryAddressId(addressId(a));
           setPickerOpen(false);
         }}
-        onAddNew={() => { setPickerOpen(false); setFormOpen(true); }} />
+        onAddNew={() => { setPickerOpen(false); setFormOpen(true); }}
+        onSeeStores={(a) => { saveDeliveryAddressId(addressId(a)); setPickerOpen(false); router.push(buscarHref({ tab: 'lojas' })); }} />
       <AddressSheet open={formOpen} onClose={() => setFormOpen(false)} fields={c.address.fields} onField={c.address.setField}
         onCepBlur={() => c.address.lookupCep(c.address.fields.cep)}
         onSave={async () => {

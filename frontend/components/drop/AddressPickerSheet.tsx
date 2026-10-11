@@ -1,4 +1,4 @@
-import { Check, MapPin, Plus } from 'lucide-react';
+import { Briefcase, Check, Home, MapPin, Plus, Search } from 'lucide-react';
 import { Sheet } from '../ui/Sheet';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
@@ -11,7 +11,16 @@ import styles from './AddressPickerSheet.module.css';
 export interface AddressPickerSheetProps {
   open: boolean; onClose: () => void; addresses: SavedAddress[]; selectedId: string | null;
   onPick: (a: SavedAddress) => void; onAddNew: () => void; storeId?: string | null; storeName?: string;
+  /** "Ver lojas que entregam lá" no aviso de endereço fora da área. Sem ele, o aviso fica sem ação. */
+  onSeeStores?: (a: SavedAddress) => void;
 }
+
+const iconFor = (label?: string) => {
+  const l = (label || '').trim().toLowerCase();
+  if (l === 'casa') return Home;
+  if (l === 'trabalho') return Briefcase;
+  return MapPin;
+};
 
 function quoteText(q?: DeliveryQuote): { text: string; tone: 'ok' | 'error' | 'muted' } | null {
   if (!q) return null;
@@ -24,9 +33,10 @@ function quoteText(q?: DeliveryQuote): { text: string; tone: 'ok' | 'error' | 'm
 }
 
 /** "Onde entregar?" (spec §7.1 AddressSelector): endereços salvos, com prazo/frete da loja em cada um. */
-export function AddressPickerSheet({ open, onClose, addresses, selectedId, onPick, onAddNew, storeId, storeName }: AddressPickerSheetProps) {
+export function AddressPickerSheet({ open, onClose, addresses, selectedId, onPick, onAddNew, storeId, storeName, onSeeStores }: AddressPickerSheetProps) {
   const { quotes, loading } = useAddressQuotes(storeId, addresses, open);
   const selectedQuote = selectedId ? quotes[selectedId] : undefined;
+  const selected = addresses.find((a) => addressId(a) === selectedId);
   return (
     <Sheet open={open} onClose={onClose} title="Onde entregar?" presentation="bottom">
       {addresses.length === 0 ? (
@@ -36,31 +46,38 @@ export function AddressPickerSheet({ open, onClose, addresses, selectedId, onPic
         </div>
       ) : (
         <>
+          <button type="button" className={styles.searchLike} onClick={onAddNew}>
+            <Search size={18} aria-hidden="true" />Rua, número ou CEP
+          </button>
           {storeName && selectedQuote?.inArea === false && selectedQuote.reason !== 'STORE_NO_LOCATION' && (
-            <Alert tone="error" title={`${storeName} não entrega neste endereço`}>Escolha outro endereço da lista.</Alert>
+            <Alert tone="error" title={`${storeName} não entrega neste endereço`}
+              action={onSeeStores && selected ? { label: 'Ver lojas que entregam lá', onClick: () => onSeeStores(selected) } : undefined}>
+              Escolha outro endereço ou veja lojas perto de lá.
+            </Alert>
           )}
           <ul className={styles.list}>
             {addresses.map((a) => {
               const id = addressId(a);
               const q = quoteText(quotes[id]);
               const active = id === selectedId;
+              const Icon = iconFor(a.label);
               return (
                 <li key={id}>
                   <button type="button" className={[styles.row, active && styles.active].filter(Boolean).join(' ')} aria-pressed={active} onClick={() => onPick(a)}>
-                    <MapPin size={20} strokeWidth={1.75} aria-hidden="true" className={styles.pin} />
+                    <span className={styles.ico}><Icon size={20} strokeWidth={1.75} aria-hidden="true" /></span>
                     <span className={styles.body}>
                       <span className={styles.label}>{a.label || 'Endereço'}</span>
                       <span className={styles.address}>{[shortAddress(a), a.neighborhood].filter(Boolean).join(' · ')}</span>
                     </span>
                     {storeId && (loading && !q ? <span className={styles.muted}>Calculando…</span>
-                      : q && <span className={styles[q.tone]}>{q.text}</span>)}
+                      : q && (q.tone === 'error' ? <span className={styles.badgeOff}>{q.text}</span> : <span className={styles[q.tone]}>{q.text}</span>))}
                     {active && <Check size={18} strokeWidth={2} aria-hidden="true" className={styles.check} />}
                   </button>
                 </li>
               );
             })}
           </ul>
-          <Button variant="secondary" leftIcon={<Plus size={18} />} onClick={onAddNew}>Novo endereço</Button>
+          <Button variant="tertiary" leftIcon={<Plus size={18} />} onClick={onAddNew}>Novo endereço</Button>
         </>
       )}
     </Sheet>
