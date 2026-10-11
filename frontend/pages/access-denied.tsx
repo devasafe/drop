@@ -17,6 +17,9 @@ export default function AccessDenied() {
       icon={<Lock size={28} />}
       title="Esta área não é do seu perfil"
       description={`Você entrou como ${PERFIL[role] ?? role}. Esta parte é de outro perfil.`}
+      secondary={user?.roles && user.roles.length > 1
+        ? { label: 'Trocar de perfil', onClick: () => router.push(ROUTES.inicio) }
+        : undefined}
       primary={cliente
         ? { label: 'Ir para o Início', onClick: () => router.push(ROUTES.inicio) }
         : { label: 'Voltar para o painel', onClick: () => router.push(getFinalDestination(role)) }}

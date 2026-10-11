@@ -32,3 +32,16 @@ test('404 leva à busca; 500 tenta de novo', () => {
   render(<ServerError />);
   expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
 });
+
+test('sem acesso: conta com vários papéis ganha "Trocar de perfil" (leva ao Início, como a tela antiga)', () => {
+  mockUser = { activeRole: 'lojista', roles: ['lojista', 'cliente'] };
+  render(<AccessDenied />);
+  fireEvent.click(screen.getByRole('button', { name: 'Trocar de perfil' }));
+  expect(push).toHaveBeenCalledWith('/inicio');
+});
+
+test('sem acesso: conta com um papel só não mostra "Trocar de perfil"', () => {
+  mockUser = { activeRole: 'cliente', roles: ['cliente'] };
+  render(<AccessDenied />);
+  expect(screen.queryByRole('button', { name: 'Trocar de perfil' })).toBeNull();
+});
