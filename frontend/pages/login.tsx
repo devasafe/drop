@@ -6,6 +6,12 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import styles from './Login.module.css';
 
+/** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */
+function safeNext(v: unknown): string | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  return typeof s === 'string' && s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : null;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +40,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await auth.login(email, password);
-      router.push('/');
+      router.push(safeNext(router.query?.next) ?? '/');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Falha no login. Verifique seus dados.');
       setLoading(false);
