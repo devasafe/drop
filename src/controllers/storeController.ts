@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../types';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, stripDeliveryPins } from '../repositories/delivery.repository';
 import { toPublicStore, toOwnerStore } from '../repositories/store.repository';
+import { withStoreRatings } from '../services/catalog/storeRatings';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
@@ -428,7 +429,7 @@ export const listStores = async (_req: Request, res: Response) => {
     if (billingWhere) filter.AND = [billingWhere];
     const found = await prisma.store.findMany({ where: filter });
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
-    return res.json(found.map(toPublicStore));
+    return res.json(await withStoreRatings(found.map(toPublicStore)));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -649,7 +650,8 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
-    return res.json(toPublicStore(store));
+    const [rated] = await withStoreRatings([toPublicStore(store)]);
+    return res.json(rated);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to get store' });

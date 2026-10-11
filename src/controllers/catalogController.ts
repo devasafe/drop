@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { listNearbyStores, listOffers } from '../services/catalog/catalog';
+import { withStoreRatings } from '../services/catalog/storeRatings';
 
 const lat = z.coerce.number().finite().min(-90).max(90);
 const lng = z.coerce.number().finite().min(-180).max(180);
@@ -34,7 +35,7 @@ export const getOffers = async (req: Request, res: Response, next: NextFunction)
 export const getNearbyStores = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { lat, lng, limit } = req.query as unknown as z.infer<typeof NearbyQuerySchema>;
-    return res.json({ success: true, data: await listNearbyStores({ point: { lat, lng }, limit }) });
+    return res.json({ success: true, data: await withStoreRatings(await listNearbyStores({ point: { lat, lng }, limit })) });
   } catch (err) {
     return next(err);
   }

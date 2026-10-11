@@ -6,6 +6,7 @@ import { brazilNow, isOpenAt } from '../../utils/storeHours';
 import { storePoint, straightKm, type LatLngPoint } from '../deliveryQuote/quote';
 import { toApiProduct } from '../../controllers/productController';
 import { toPublicStore } from '../../repositories/store.repository';
+import { withStoreRatings } from '../catalog/storeRatings';
 import { hasSearchExtensions } from './extensions';
 
 /**
@@ -268,11 +269,12 @@ async function hydrateProducts(ids: string[]): Promise<any[]> {
 async function hydrateStores(ids: string[], distById: Map<string, number | null> | null): Promise<any[]> {
   if (ids.length === 0) return [];
   const rows = await prisma.store.findMany({ where: { id: { in: ids } } });
-  return inOrder(ids, rows).map((s) => {
+  const list = inOrder(ids, rows).map((s) => {
     const pub = toPublicStore(s);
     const km = distById?.get(s.id);
     return km != null ? { ...pub, distanceKm: km } : pub;
   });
+  return withStoreRatings(list);
 }
 
 // ── sugestões ───────────────────────────────────────────────────────────────────────────
