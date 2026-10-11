@@ -109,7 +109,7 @@ export default function Inicio() {
             <div className={styles.grid}>
               {offers.products.map((p: any) => (
                 <div key={p._id} className={styles.tile} onClick={() => router.push(produtoHref(p._id))}>
-                  <ProductCard variant="home" product={productCardData(p, quotes[p.storeId])}
+                  <ProductCard variant="grade" product={productCardData(p, quotes[p.storeId])}
                     onAdd={() => addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId, storeName: p.storeName, image: p.image })} />
                 </div>
               ))}
