@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { Bell, ChevronRight, HelpCircle, LogOut, MapPin, ShieldCheck, User, Wallet, Lock, Check } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import MeusDadosForm from '../../components/MeusDadosForm';
-import VerificationHub from '../../components/VerificationHub';
+import { IdentityCheck } from '../../components/drop/IdentityCheck';
 import AddressManager from '../../components/AddressManager';
 import { Avatar } from '../../components/ui/Avatar';
 import { Alert } from '../../components/ui/Alert';
@@ -14,7 +14,7 @@ import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { getNavItems } from '../../lib/navConfig';
-import type { ContaSecao } from '../../lib/routes';
+import { safeNext, type ContaSecao } from '../../lib/routes';
 import styles from './Conta.module.css';
 
 const SECOES: ContaSecao[] = ['dados', 'verificacao', 'enderecos'];
@@ -108,7 +108,9 @@ export default function ContaPage() {
             <button type="button" className={styles.back} onClick={() => setSecao(null)}>Voltar para Conta</button>
             <h1 className={styles.detailTitle}>{TITULO[secao]}</h1>
             {secao === 'dados' && <MeusDadosForm />}
-            {secao === 'verificacao' && <VerificationHub />}
+            {secao === 'verificacao' && (
+              <IdentityCheck onDone={() => { const n = safeNext(router.query.next); if (n) router.push(n); else setSecao(null); }} />
+            )}
             {secao === 'enderecos' && <AddressManager />}
           </section>
         )}

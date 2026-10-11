@@ -3,6 +3,8 @@ import axios from 'axios';
 import { useRouter } from 'next/router';
 import useRequireAuth from '../hooks/useRequireAuth';
 import { API_URL } from '../lib/config';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { contaHref } from '../lib/routes';
 
 export default function UploadPage() {
   useRequireAuth(['lojista']);
@@ -10,6 +12,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const router = useRouter();
+  useClienteRedirect(contaHref('verificacao', router.query.next as string | undefined));
 
   const onFile = (f: File | null) => {
     setFile(f);

@@ -14,7 +14,7 @@ jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => mockSaas }));
 jest.mock('../hooks/useCustodyLeftover', () => ({ useCustodyLeftover: () => mockLeftover }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/MeusDadosForm', () => ({ __esModule: true, default: () => <div>MEUS_DADOS_FORM</div> }));
-jest.mock('../components/VerificationHub', () => ({ __esModule: true, default: () => <div>VERIFICATION_HUB</div> }));
+jest.mock('../components/drop/IdentityCheck', () => ({ IdentityCheck: () => <div>IDENTITY_CHECK</div> }));
 jest.mock('../components/AddressManager', () => ({ __esModule: true, default: () => <div>ADDRESS_MANAGER</div> }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
 const get = api.get as jest.Mock;
@@ -67,7 +67,7 @@ test('verificação pendente vira aviso com ação; Sair chama logout', async ()
   get.mockImplementation((url: string) => Promise.resolve({ data: url === '/verification/me' ? { verification: { email: { status: 'pending' } } } : {} }));
   render(<ContaPage />);
   fireEvent.click(await screen.findByRole('button', { name: 'Verificar agora' }));
-  expect(screen.getByText('VERIFICATION_HUB')).toBeInTheDocument();
+  expect(screen.getByText('IDENTITY_CHECK')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Voltar para Conta' }));
   fireEvent.click(screen.getByText('Sair'));
   await waitFor(() => expect(logout).toHaveBeenCalled());

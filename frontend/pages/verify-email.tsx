@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import api from '../lib/api';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { contaHref } from '../lib/routes';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
+  useClienteRedirect(contaHref('verificacao', router.query.next as string | undefined));
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verificando seu email...');
 

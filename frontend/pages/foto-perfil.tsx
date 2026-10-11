@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import { Camera } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { contaHref } from '../lib/routes';
 import OnboardingProgress from '../components/OnboardingProgress';
 import { Button } from '../components/ui/Button';
 import { getNextStep, getFinalDestination } from '../lib/onboardingFlow';
@@ -23,6 +25,7 @@ const MAX_SIZE = 5 * 1024 * 1024;
  */
 export default function FotoPerfilPage() {
   const router = useRouter();
+  useClienteRedirect(contaHref('dados'));
   const auth = useAuth();
   const { user, loading: authLoading } = auth;
   const role = user?.activeRole || user?.role;

@@ -2,6 +2,8 @@ import { useEffect, useState, ChangeEvent } from 'react';
 import { useRouter } from 'next/router';
 import { CheckCircle2, Clock, Upload } from 'lucide-react';
 import api from '../lib/api';
+import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { contaHref } from '../lib/routes';
 import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
@@ -37,6 +39,7 @@ export default function VerificacaoPage() {
   const [msg, setMsg] = useState('');
 
   const router = useRouter();
+  useClienteRedirect(contaHref('verificacao', router.query.next as string | undefined));
   const onboarding = router.query.onboarding === '1';
 
   const load = async () => {
