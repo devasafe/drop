@@ -7,6 +7,7 @@ import { useStores } from './useSync';
 import { useCheckoutAddress } from './useCheckoutAddress';
 import { useCoupon } from './useCoupon';
 import { useDeliveryQuote } from './useDeliveryQuote';
+import { useStoreQuotes } from './useStoreQuotes';
 import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, PlaceOrderPayload } from '../types/checkout';
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
@@ -100,16 +101,23 @@ export function useCheckout() {
     const lng = Number(selForQuote?.longitude);
     return selForQuote?.latitude && selForQuote?.longitude && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   }, [selForQuote?.latitude, selForQuote?.longitude]);
-  // Plano 1 também é cotado (ruling F-I2): para ele a cotação é a mesma estimativa dos cards,
-  // Loja e Produto (raio e horário, taxa 0). Loja sem localização no Plano 1 não tem área
-  // para checar (o servidor a aceita), então segue sem cotação, como antes.
-  const quoteEnabled = !!store?.latitude;
-  const { quote, loading: quoteLoading, failed: quoteFailed, retry: retryQuote } = useDeliveryQuote(storeId, quotePoint, quoteEnabled);
+  const quoteEnabled = !isPlan1 && !!store?.latitude;
+  const server = useDeliveryQuote(storeId, quotePoint, quoteEnabled);
+  // Plano 1 (ruling F-I2): a MESMA cotação que card, Loja e Produto mostram (useStoreQuotes, mesmo
+  // cache e mesmo /stores/quotes): raio e horário, taxa 0. Fora da área, fechada, carregando ou
+  // com a cotação falhando, a Sacola bloqueia. Se o servidor responde sem cotação para a loja, nada
+  // muda (o card também não mostrou nada e o createOrder isenta o Plano 1 da área).
+  const plan1 = useStoreQuotes(isPlan1 && storeId ? [storeId] : [], isPlan1 ? quotePoint : null);
+  const quote = isPlan1 ? plan1.quotes[storeId] ?? null : server.quote;
+  const quoteLoading = isPlan1 ? plan1.loading : server.loading;
+  const retryQuote = isPlan1 ? plan1.retry : server.retry;
   // Rota indisponível ou erro de rede: não é culpa do endereço — mensagem própria + retry.
-  const quoteError = quoteEnabled && quotePoint && !quoteLoading && (quoteFailed || quote?.reason === 'ROUTE_FAILED')
-    ? QUOTE_FAILED_MSG
-    : null;
-  const deliveryFee = isPlan1 ? 0 : (quote?.deliveryFee ?? 0);
+  const quoteError = isPlan1
+    ? (quotePoint && !plan1.loading && plan1.failed ? QUOTE_FAILED_MSG : null)
+    : quoteEnabled && quotePoint && !server.loading && (server.failed || quote?.reason === 'ROUTE_FAILED')
+      ? QUOTE_FAILED_MSG
+      : null;
+  const deliveryFee = isPlan1 ? 0 : (server.quote?.deliveryFee ?? 0);
   const distanceKm = quote?.distanceKm ?? 0;
   const etaMinutes = quote?.etaMinutes ?? null;
   const outOfArea = quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION';
@@ -118,7 +126,7 @@ export function useCheckout() {
   const storeNoLocation = !isPlan1 && (quote?.reason === 'STORE_NO_LOCATION' || (!!store && !store.latitude));
   const deliveryIssue: 'NO_ADDRESS' | 'STORE_NO_LOCATION' | null = storeNoLocation
     ? 'STORE_NO_LOCATION'
-    : (!isPlan1 || quoteEnabled) && ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
+    : ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
   // Aberta/fechada: a cotação traz `open` (horário de funcionamento). Sem cotação vale Store.isOpen.
   // No Plano 1 os dois valem: fechada por qualquer um deles → o servidor recusa.
   const storeIsOpen = (store as { isOpen?: boolean } | undefined)?.isOpen !== false;
@@ -248,7 +256,10 @@ export function useCheckout() {
   }, [address.loading, address.selected, address.addresses]);
 
   // Fail-closed: só libera com área confirmada pelo servidor (ROUTE_FAILED também bloqueia).
-  const canPlace = isPlan1 && !quoteEnabled ? true : quote?.inArea === true;
+  // Plano 1: bloqueio "duro" (fora da área, endereço sem mapa, cotação falhou) vale também no
+  // placeOrder; enquanto a cotação carrega, só a tela trava (o servidor recusa loja fechada).
+  const plan1Blocked = outOfArea || deliveryIssue === 'NO_ADDRESS' || !!quoteError;
+  const canPlace = isPlan1 ? !plan1Blocked && !(quotePoint && plan1.loading) : quote?.inArea === true;
 
   // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
   // usuário logado, cpf/telefone de `/user/me` (ver effect acima —
@@ -282,7 +293,7 @@ export function useCheckout() {
 
   const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
     if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
-    if (!canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
+    if (isPlan1 ? plan1Blocked : !canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
     if (placing) return { ok: false };
     const cpfDigits = onlyDigits(cpf);

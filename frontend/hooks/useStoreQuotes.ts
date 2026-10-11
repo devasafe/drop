@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import type { DeliveryQuote, GeoPoint } from '../types/delivery';
 
@@ -44,9 +44,13 @@ function collect(storeIds: string[], point: GeoPoint): Record<string, DeliveryQu
 export function useStoreQuotes(
   storeIds: string[],
   point: GeoPoint | null,
-): { quotes: Record<string, DeliveryQuote>; loading: boolean } {
+): { quotes: Record<string, DeliveryQuote>; loading: boolean; failed: boolean; retry: () => void } {
   const [quotes, setQuotes] = useState<Record<string, DeliveryQuote>>({});
   const [loading, setLoading] = useState(false);
+  // A última busca falhou (429, rede): quem bloqueia por cotação (Sacola, Plano 1) oferece "Tentar de novo".
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const idsKey = Array.from(new Set(storeIds)).join(',');
   const lat = point?.lat;
   const lng = point?.lng;
@@ -54,6 +58,7 @@ export function useStoreQuotes(
 
   useEffect(() => {
     const run = ++seq.current;
+    setFailed(false);
     if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng) || !idsKey) {
       setQuotes({});
       setLoading(false);
@@ -70,6 +75,7 @@ export function useStoreQuotes(
     }
     setLoading(true);
     const timer = setTimeout(async () => {
+      let err = false;
       try {
         for (let i = 0; i < missing.length; i += MAX_BATCH) {
           const chunk = missing.slice(i, i + MAX_BATCH);
@@ -84,14 +90,16 @@ export function useStoreQuotes(
         }
       } catch {
         // sem cotação: os cards caem na estimativa/ausência de taxa
+        err = true;
       }
       if (run === seq.current) {
         setQuotes(collect(ids, p));
+        setFailed(err);
         setLoading(false);
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [idsKey, lat, lng]);
+  }, [idsKey, lat, lng, attempt]);
 
-  return { quotes, loading };
+  return { quotes, loading, failed, retry };
 }

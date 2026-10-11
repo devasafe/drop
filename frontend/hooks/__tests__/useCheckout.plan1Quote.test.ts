@@ -1,9 +1,10 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import type { AxiosResponse } from 'axios';
 import api from '../../lib/api';
+import { __resetStoreQuotesCache } from '../useStoreQuotes';
 
 // Ruling F-I2: a Sacola aplica ao Plano 1 a MESMA cotação (raio e horário) que card, Loja e
-// Produto mostram (estimateQuote no servidor) e bloqueia o pagamento fora dela.
+// Produto mostram (useStoreQuotes → POST /stores/quotes) e bloqueia o pagamento fora dela.
 let mockIsOpen = true;
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn() }) }));
 jest.mock('../../lib/api');
@@ -22,8 +23,8 @@ const plan1Quote = { storeId: 's1', inArea: true, deliveryFee: 0, distanceKm: 1.
 function setup(quoteOver: Record<string, unknown> | 'fail' = {}) {
   mockedApi.get.mockResolvedValue({ data: { balance: 0 } } as unknown as AxiosResponse);
   mockedApi.post.mockImplementation(((url: string) => {
-    if (url === '/orders/quote') {
-      return quoteOver === 'fail' ? Promise.reject(new Error('429')) : Promise.resolve({ data: { ...plan1Quote, ...quoteOver } });
+    if (url === '/stores/quotes') {
+      return quoteOver === 'fail' ? Promise.reject(new Error('429')) : Promise.resolve({ data: { data: [{ ...plan1Quote, ...quoteOver }] } });
     }
     return Promise.resolve({ data: { order: { _id: 'o1' } } });
   }) as any);
@@ -32,16 +33,20 @@ const orderCalls = () => mockedApi.post.mock.calls.filter(([u]) => u === '/order
 async function mount() {
   const r = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
+  // useStoreQuotes tem debounce de 300 ms: espera a cotação assentar.
+  await waitFor(() => expect(r.result.current.quoteLoading).toBe(false));
   return r;
 }
 
-beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); mockIsOpen = true; });
+beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); __resetStoreQuotesCache(); mockIsOpen = true; });
 
 test('Plano 1 fora do raio: fora da área, sem poder pagar e sem POST /orders', async () => {
   setup({ inArea: false, reason: 'OUT_OF_AREA', distanceKm: null, etaMinutes: null, fee: null, freeDelivery: false });
   const { result } = await mount();
+  await waitFor(() => expect(result.current.outOfArea).toBe(true));
   expect(result.current.isPlan1).toBe(true);
-  expect(mockedApi.post).toHaveBeenCalledWith('/orders/quote', expect.objectContaining({ storeId: 's1' }));
+  expect(mockedApi.post).toHaveBeenCalledWith('/stores/quotes', expect.objectContaining({ storeIds: ['s1'] }));
+  expect(mockedApi.post.mock.calls.some(([u]) => u === '/orders/quote')).toBe(false);
   expect(result.current.outOfArea).toBe(true);
   expect(result.current.canPlace).toBe(false);
   let r: { ok: boolean; error?: string } = { ok: true };
@@ -53,6 +58,7 @@ test('Plano 1 fora do raio: fora da área, sem poder pagar e sem POST /orders', 
 test('Plano 1 fechado pela cotação (Store.isOpen true, fora do horário): fechada com horário de abertura', async () => {
   setup({ open: false, opensAt: '09:00' });
   const { result } = await mount();
+  await waitFor(() => expect(result.current.storeOpen).toBe(false));
   expect(result.current.storeOpen).toBe(false);
   expect(result.current.opensAt).toBe('09:00');
 });
@@ -60,7 +66,7 @@ test('Plano 1 fechado pela cotação (Store.isOpen true, fora do horário): fech
 test('Plano 1 dentro do raio e aberto: pode pagar, entrega continua grátis e sem km', async () => {
   setup();
   const { result } = await mount();
-  expect(result.current.canPlace).toBe(true);
+  await waitFor(() => expect(result.current.canPlace).toBe(true));
   expect(result.current.deliveryFee).toBe(0);
   await act(async () => { await result.current.placeOrder(); });
   expect(orderCalls()[0][1]).toMatchObject({ deliveryDistanceKm: 0 });
@@ -69,6 +75,20 @@ test('Plano 1 dentro do raio e aberto: pode pagar, entrega continua grátis e se
 test('Plano 1 com a cotação falhando: bloqueia com a mensagem de tentar de novo (fail closed)', async () => {
   setup('fail');
   const { result } = await mount();
+  await waitFor(() => expect(result.current.quoteError).not.toBeNull());
   expect(result.current.canPlace).toBe(false);
   expect(result.current.quoteError).toBe('Não conseguimos calcular a entrega agora.');
+  let r: { ok: boolean; error?: string } = { ok: true };
+  await act(async () => { r = await result.current.placeOrder(); });
+  expect(r.ok).toBe(false);
+  expect(orderCalls()).toHaveLength(0);
+});
+
+test('Plano 1 com a cotação ainda carregando: a tela não libera o pagamento', async () => {
+  setup();
+  const { result } = renderHook(() => useCheckout());
+  await act(async () => {}); await act(async () => {});
+  expect(result.current.quoteLoading).toBe(true);
+  expect(result.current.canPlace).toBe(false);
+  await waitFor(() => expect(result.current.canPlace).toBe(true));
 });
