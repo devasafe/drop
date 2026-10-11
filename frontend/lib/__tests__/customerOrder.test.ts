@@ -51,6 +51,20 @@ describe('orderTimelineSteps', () => {
     const steps = orderTimelineSteps({ ...base, status: 'rejeitado', acceptedAt: null });
     expect(steps[steps.length - 1]).toMatchObject({ label: 'Recusado pela loja', state: 'error' });
   });
+  it('cancelado e estornado mantém "Pagamento confirmado" concluído', () => {
+    const steps = orderTimelineSteps({ _id: 'x', status: 'cancelado', paymentStatus: 'refunded', deliveryFee: 7.4 });
+    expect(st(steps)).toEqual([['Pedido feito', 'done'], ['Pagamento confirmado', 'done'], ['Cancelado', 'error']]);
+  });
+  it('aguardando pagamento: o passo atual não diz "confirmado"', () => {
+    const steps = orderTimelineSteps({ _id: 'x', status: 'criado', paymentStatus: 'pending', deliveryFee: 7.4, deliveryId: 'd1' });
+    expect(st(steps)[1]).toEqual(['Aguardando pagamento', 'current']);
+    expect(steps.some((s) => s.label === 'Pagamento confirmado')).toBe(false);
+  });
+  it('data inválida não vira "Invalid Date": a hora é omitida', () => {
+    const steps = orderTimelineSteps({ ...base, createdAt: 'lixo', acceptedAt: 'nada' });
+    expect(steps[0].time).toBeUndefined();
+    expect(steps[2].time).toBeUndefined();
+  });
   it('entregue: tudo feito', () => {
     expect(orderTimelineSteps({ ...base, status: 'entregue' }, { status: 'delivered' }).every((s) => s.state === 'done')).toBe(true);
   });

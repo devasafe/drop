@@ -201,20 +201,6 @@ export default function PedidoPage() {
   const showMotoboyRating = delivery?.status === 'delivered';
   const showStoreRating = delivery?.status === 'delivered' || order?.status === 'entregue';
 
-  // Coords de loja/cliente vêm pré-calculadas por `GET /deliveries/:id`
-  // (`deliveryController.getDelivery`): `pickupLat/Lng` (loja, com fallback
-  // pro `storeObj`) e `deliveryLat/Lng` (cliente, com fallback pro endereço
-  // padrão) — mesma fonte usada pela tela do motoboy. Só existem quando a
-  // entrega já carregou, daí o `delivery?.`.
-  const storeCoords =
-    delivery?.pickupLat != null && delivery?.pickupLng != null
-      ? { lat: Number(delivery.pickupLat), lng: Number(delivery.pickupLng) }
-      : undefined;
-  const customerCoords =
-    delivery?.deliveryLat != null && delivery?.deliveryLng != null
-      ? { lat: Number(delivery.deliveryLat), lng: Number(delivery.deliveryLng) }
-      : undefined;
-
   const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
   const steps = order ? orderTimelineSteps(order, delivery) : [];
   const view = orderStatusView(status);
@@ -248,9 +234,9 @@ export default function PedidoPage() {
               <p className={styles.meta}>{order.storeName || 'Loja'}</p>
             </header>
 
-            <section className={styles.status} aria-live="polite">
-              <OrderStatusBadge status={status} />
-              <p className={styles.statusBig}>{view.label}</p>
+            <section className={styles.status}>
+              <span aria-hidden="true"><OrderStatusBadge status={status} /></span>
+              <p className={styles.statusBig} aria-live="polite">{view.label}</p>
               {tripMin && <p className={styles.statusSub}>{`Trajeto de cerca de ${tripMin} min`}</p>}
               {status === 'problem' && (
                 <Alert tone="error" title="Tivemos um problema na entrega" action={{ label: 'Falar com suporte', onClick: () => router.push('/suporte') }}>
@@ -271,7 +257,7 @@ export default function PedidoPage() {
               </section>
             )}
 
-            {t.showPin && delivery?.pin && (
+            {t.showPin && delivery?.pin && !['cancelado', 'rejeitado', 'entregue'].includes(order.status) && status !== 'delivered' && (
               <section className={styles.block} aria-label="Código de entrega">
                 <p className={styles.blockLabel}>Código de entrega</p>
                 <DeliveryPin pin={delivery.pin} />

@@ -36,6 +36,12 @@ test('acompanhando: status, trajeto, entregador, código e timeline com hora rea
   expect(screen.getByRole('button', { name: 'Acompanhar no mapa' })).not.toHaveAttribute('style');
 });
 
+test.each(['cancelado', 'rejeitado', 'entregue'])('PIN não aparece em pedido %s', (status) => {
+  mockT = tracking({ order: { ...order, status } });
+  render(<PedidoPage />);
+  expect(screen.queryByText('48213')).not.toBeInTheDocument();
+});
+
 test('Pix pendente: aviso com "Pagar com Pix"', () => {
   mockT = tracking({ order: { ...order, status: 'criado', paymentStatus: 'pending', asaasPaymentId: 'pay_1' }, delivery: null, showPin: false });
   render(<PedidoPage />);

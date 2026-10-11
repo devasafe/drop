@@ -1,7 +1,11 @@
 import type { CustomerOrderStatus } from '../components/drop/OrderStatusBadge';
 import type { TimelineStep } from '../components/drop/OrderTimeline';
 
-const hhmm = (d?: string | null) => (d ? new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : undefined);
+const hhmm = (d?: string | null) => {
+  if (!d) return undefined;
+  const date = new Date(d);
+  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+};
 export const shortOrderCode = (id: string) => String(id || '').slice(-6).toUpperCase();
 
 /** Plano 1: sem entrega, sem taxa e fora do modo direto (liquidação na loja). */
@@ -62,9 +66,12 @@ export function orderTimelineSteps(order: any, delivery?: any): TimelineStep[] {
         { label: 'Entregue' },
       ];
 
+  // Antes do pagamento, o passo em andamento não pode dizer "confirmado".
+  if (status === 'awaiting_payment') labels[1] = { label: 'Aguardando pagamento' };
+
   if (status === 'delivered') return labels.map((s) => ({ ...s, state: 'done' as const }));
   if (status === 'cancelled' || status === 'problem') {
-    const reached = order?.acceptedAt || ['pago', 'aguardando_motoboy', 'enviado'].includes(order?.status) || delivery ? 3 : order?.paymentStatus === 'paid' ? 2 : 1;
+    const reached = order?.acceptedAt || ['pago', 'aguardando_motoboy', 'enviado'].includes(order?.status) || delivery ? 3 : ['paid', 'refunded'].includes(order?.paymentStatus) ? 2 : 1;
     return [
       ...labels.slice(0, reached).map((s) => ({ ...s, state: 'done' as const })),
       {
