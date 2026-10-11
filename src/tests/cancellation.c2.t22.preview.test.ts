@@ -9,13 +9,13 @@ const DOMAIN = '@c2prev.test';
 afterEach(async () => { await cleanupUsersByEmailDomain(DOMAIN); });
 afterAll(async () => { await prisma.$disconnect(); });
 
-async function cenario(status: string, opts: { motoboy?: boolean; devolucao?: boolean } = {}) {
+async function cenario(status: string, opts: { motoboy?: boolean; devolucao?: boolean; provider?: string; method?: string } = {}) {
   const dono = await createTestUser('lojista', DOMAIN);
   const cliente = await createTestUser('cliente', DOMAIN);
   const motoboy = await createTestUser('motoboy', DOMAIN);
   const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Loja T22', isOpen: true } as any });
   const order = await prisma.order.create({
-    data: { customerId: cliente.userId, storeId: store.id, totalValue: 244, subtotal: 236.6, deliveryFee: 7.4, status, paymentMethod: 'pix', paymentStatus: 'paid' } as any,
+    data: { customerId: cliente.userId, storeId: store.id, totalValue: 244, subtotal: 236.6, deliveryFee: 7.4, status, paymentMethod: opts.method || 'pix', paymentStatus: 'paid', ...(opts.provider ? { paymentProvider: opts.provider } : {}) } as any,
   });
   const delivery = await prisma.delivery.create({
     data: { orderId: order.id, status: opts.motoboy ? 'picked' : 'pending', fee: 7.4, distance: 2.4, ...(opts.motoboy ? { motoboyId: motoboy.userId } : {}), ...(opts.devolucao ? { statusDevolucao: 'aguardando_confirmacao' } : {}) } as any,
@@ -60,4 +60,24 @@ it('a prévia acompanha o status: o mesmo pedido muda de grátis para com taxa, 
   expect((await preview(order.id, cliente)).body.data).toMatchObject({ fee: 7.4, refund: 236.6, motoboyEnRoute: true });
   expect(await prisma.cancellation.count({ where: { orderId: order.id } })).toBe(0);
   expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('enviado');
+});
+
+it('usuario bloqueado leva 403, como no POST /cancel', async () => {
+  const { cliente, order } = await cenario('pago');
+  await prisma.user.update({ where: { id: cliente.userId }, data: { status: 'blocked' } as any });
+  const r = await preview(order.id, cliente);
+  expect(r.status).toBe(403);
+  expect(r.body.error).toBe('ACCOUNT_BLOCKED');
+});
+
+it('pedido direto (asaas_loja): direct=true e devolve o mesmo valor da conta', async () => {
+  const a = await cenario('pago', { provider: 'asaas_loja' });
+  expect((await preview(a.order.id, a.cliente)).body.data).toMatchObject({ cancellable: true, direct: true, fee: 0, refund: 244 });
+  const b = await cenario('enviado', { motoboy: true, provider: 'asaas_loja' });
+  expect((await preview(b.order.id, b.cliente)).body.data).toMatchObject({ direct: true, fee: 7.4, refund: 236.6, motoboyEnRoute: true });
+});
+
+it('pedido pago com cartao: devolve paymentMethod credit_card', async () => {
+  const { cliente, order } = await cenario('pago', { method: 'credit_card' });
+  expect((await preview(order.id, cliente)).body.data).toMatchObject({ cancellable: true, refund: 244, paymentMethod: 'credit_card' });
 });
