@@ -1,137 +1,93 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
-import AuthLayout from '../components/auth/AuthLayout';
+import { useAuth } from '../contexts/AuthContext';
+import { maskEmail } from '../lib/maskEmail';
+import { ROUTES, safeNext } from '../lib/routes';
+import { ScreenHeader } from '../components/drop/ScreenHeader';
+import { PasswordField } from '../components/drop/PasswordField';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import styles from './Login.module.css';
+import { Alert } from '../components/ui/Alert';
+import styles from './EsqueciSenha.module.css';
 
-const STEP_COPY: Record<1 | 2 | 3, { title: string; subtitle: string }> = {
-  1: { title: 'Recuperar senha', subtitle: 'Informe o e-mail da sua conta e enviaremos um código de verificação.' },
-  2: { title: 'Redefinir senha', subtitle: 'Digite o código recebido por e-mail e escolha uma nova senha.' },
-  3: { title: 'Senha redefinida', subtitle: 'Sua senha foi alterada com sucesso.' },
-};
+const RESEND_SECONDS = 60;
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function EsqueciSenhaPage() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const { acceptSession } = useAuth() || ({} as any);
+  const next = safeNext(router.query.next);
+  const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [pw, setPw] = useState('');
-  const [pw2, setPw2] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [wait, setWait] = useState(0);
+  const [codeError, setCodeError] = useState<string | undefined>();
+  const [alert, setAlert] = useState<{ tone: 'error' | 'warning'; title: string; resend?: boolean } | null>(null);
 
-  const sendCode = async (e: any) => {
-    e.preventDefault();
-    setError(''); setNotice(''); setLoading(true);
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
+  const sendCode = async () => {
+    setBusy(true); setAlert(null); setCodeError(undefined);
     try {
-      const { data } = await api.post('/auth/forgot-password', { email });
-      setNotice(data?.message || 'Se o email estiver cadastrado, enviamos um código.');
-      setStep(2);
+      await api.post('/auth/forgot-password', { email });
+      setStep(2); setCode(''); setWait(RESEND_SECONDS);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Falha ao enviar o código.');
-    } finally {
-      setLoading(false);
-    }
+      setAlert({ tone: 'error', title: err?.response?.data?.error || 'Não conseguimos enviar o código. Tente de novo.' });
+    } finally { setBusy(false); }
   };
 
-  const resetPw = async (e: any) => {
-    e.preventDefault();
-    setError('');
-    if (pw.length < 6) { setError('A senha deve ter ao menos 6 caracteres.'); return; }
-    if (pw !== pw2) { setError('As senhas não coincidem.'); return; }
-    setLoading(true);
+  const save = async () => {
+    setBusy(true); setAlert(null); setCodeError(undefined);
     try {
-      await api.post('/auth/reset-password', { email, code: code.trim(), newPassword: pw });
-      setStep(3);
+      const { data } = await api.post('/auth/reset-password', { email, code: code.trim(), newPassword: pw });
+      if (data?.blocked) { setAlert({ tone: 'warning', title: data.message }); return; }
+      if (data?.user) acceptSession?.(data.user);
+      router.push(next ?? ROUTES.inicio);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Não foi possível redefinir a senha.');
-    } finally {
-      setLoading(false);
-    }
+      const d = err?.response?.data || {};
+      if (d.code === 'RESET_CODE_LOCKED' || d.error === 'Código inválido ou expirado') {
+        setAlert({ tone: 'error', title: d.error, resend: true });
+      } else if (typeof d.attemptsLeft === 'number') {
+        setCodeError(`Código incorreto. ${d.attemptsLeft === 1 ? 'Falta 1 tentativa' : `Faltam ${d.attemptsLeft} tentativas`}.`);
+      } else {
+        setAlert({ tone: 'error', title: d.error || 'Não conseguimos salvar. Tente de novo.' });
+      }
+    } finally { setBusy(false); }
   };
-
-  const { title, subtitle } = STEP_COPY[step];
 
   return (
-    <AuthLayout title={title} subtitle={subtitle}>
-      {step === 1 && (
-        <form onSubmit={sendCode} className={styles.form}>
-          {error && <div className={styles.notice}>{error}</div>}
-          <Input
-            value={email}
-            onChange={setEmail}
-            type="email"
-            placeholder="seu@email.com"
-            required
-            aria-label="Email da conta"
-          />
-          <Button type="submit" loading={loading} className={styles.submitBtn}>
-            Enviar código
-          </Button>
-        </form>
-      )}
-
-      {step === 2 && (
-        <form onSubmit={resetPw} className={styles.form}>
-          {error && <div className={styles.notice}>{error}</div>}
-          {notice && !error && (
-            <div className={`${styles.notice} ${styles.noticeSuccess}`}>{notice}</div>
-          )}
-          <Input
-            value={code}
-            onChange={setCode}
-            placeholder="000000"
-            inputMode="numeric"
-            maxLength={6}
-            required
-            aria-label="Código (6 dígitos)"
-          />
-          <Input
-            value={pw}
-            onChange={setPw}
-            type="password"
-            placeholder="Nova senha"
-            required
-            aria-label="Nova senha"
-          />
-          <Input
-            value={pw2}
-            onChange={setPw2}
-            type="password"
-            placeholder="Confirmar nova senha"
-            required
-            aria-label="Confirmar nova senha"
-          />
-          <Button type="submit" loading={loading} className={styles.submitBtn}>
-            Redefinir senha
-          </Button>
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); setStep(1); setError(''); setNotice(''); }}
-            className={styles.link}
-          >
-            Não recebeu? Reenviar
-          </a>
-        </form>
-      )}
-
-      {step === 3 && (
-        <div className={styles.form}>
-          <div className={`${styles.notice} ${styles.noticeSuccess}`}>
-            Senha redefinida com sucesso! Você já pode entrar com a nova senha.
-          </div>
-          <Button onClick={() => router.push('/login')} className={styles.submitBtn}>
-            Ir para o login
-          </Button>
-        </div>
-      )}
-
-      <p className={styles.switchLine}>
-        <a href="/login" className={styles.link}>Voltar ao login</a>
-      </p>
-    </AuthLayout>
+    <main className={styles.page}>
+      <ScreenHeader title="Nova senha" onBack={() => (step === 2 ? setStep(1) : router.back())} />
+      <div className={styles.body}>
+        <div className={styles.steps} role="img" aria-label={`Passo ${step} de 2`}><i className={styles.on} /><i className={step === 2 ? styles.on : undefined} /></div>
+        {step === 1 ? (
+          <>
+            <p className={styles.lead}>Mandamos um código de 6 dígitos para o seu e-mail.</p>
+            <Input id="senha-email" label="E-mail" type="email" autoComplete="email" value={email} onChange={setEmail} />
+            {alert && <Alert tone={alert.tone} title={alert.title} />}
+            <Button onClick={sendCode} loading={busy} disabled={!email.includes('@')}>Enviar código</Button>
+          </>
+        ) : (
+          <>
+            <Alert tone="success" title={`Código enviado para ${maskEmail(email)}`}>Confira também o spam. Vale por 15 minutos.</Alert>
+            <Input id="senha-codigo" label="Código de 6 dígitos" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+              value={code} onChange={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} error={codeError} className={styles.code} />
+            {wait > 0
+              ? <p className={styles.resendWait}>{`Reenviar em ${mmss(wait)}`}</p>
+              : <button type="button" className={styles.resend} onClick={sendCode}>Reenviar código</button>}
+            <PasswordField id="senha-nova" label="Nova senha" value={pw} onChange={setPw} autoComplete="new-password" hint="Mínimo 8 caracteres, com número." />
+            {alert && <Alert tone={alert.tone} title={alert.title} action={alert.resend ? { label: 'Enviar outro código', onClick: sendCode } : undefined} />}
+            <Button onClick={save} loading={busy} disabled={code.length !== 6 || pw.length < 8}>Salvar e entrar</Button>
+          </>
+        )}
+      </div>
+    </main>
   );
 }

@@ -26,6 +26,7 @@ interface AuthContextType {
   logout: () => void;
   switchRole: (newRole: string) => Promise<any>;
   setUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
+  acceptSession: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -77,6 +78,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return res;
   };
 
+  // Sessão aberta por outra rota que não o login (ex.: redefinir a senha): o cookie httpOnly já veio do servidor.
+  const acceptSession = (u: AuthUser) => {
+    try { localStorage.setItem('user', JSON.stringify(u)); } catch { /* ignore */ }
+    setUser(u);
+  };
+
   const logout = () => {
     // Limpa o cookie no servidor (best-effort) e os dados locais
     api.post('/auth/logout').catch(() => { /* ignore */ });
@@ -97,7 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, permissions, permissionsLoading, can, setUser }}>
+    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, permissions, permissionsLoading, can, setUser, acceptSession }}>
       {children}
     </AuthContext.Provider>
   );
