@@ -141,8 +141,8 @@ OrderTracker · OrderStatusBadge · Logo.
 
 `__tests__/dsV2Guard.test.ts` varre todo `.module.css` de `components/ui` e `components/drop` e falha com hex, token antigo
 (incl. `--fs-*`) ou `gradient`/`glow` (regras em `__tests__/helpers/dsTokens.ts`).
-`ALLOW` fica **vazio para `ui/`**; em `drop/` só lista o que a fase C redesenha, cada linha com `// fase C: <tela>`.
-Ao migrar um arquivo da lista, **remova-o do `ALLOW`** (o teste cobra).
+`ALLOW` está **vazio** (fim da fase C) e o teste cobra isso. Páginas do cliente redesenhadas entram em `CLIENT_PAGE_CSS`.
+`__tests__/clientRoutesGuard.test.ts` impede que telas e componentes do cliente naveguem para rota antiga.
 
 ## 7. Checklist de PR
 
@@ -153,5 +153,30 @@ Ao migrar um arquivo da lista, **remova-o do `ALLOW`** (o teste cobra).
 - [ ] Estados cobertos: loading, vazio, erro com retentativa, offline, sem resultado.
 - [ ] `prefers-reduced-motion` respeitado; nenhum hover animado em card.
 - [ ] Componente novo? Justifique por que nenhum existente resolve (princípio 7/10).
-- [ ] Tela migrada entrou em `LIGHT_ROUTES`; arquivos migrados saíram do `ALLOW`.
+- [ ] Tela migrada entrou em `LIGHT_ROUTES`; CSS da tela entrou em `CLIENT_PAGE_CSS`.
 - [ ] `npx tsc --noEmit` e `npx jest` (no frontend) limpos; sem teste reescrito para "casar" com o código.
+
+## 8. Telas do cliente (fase C)
+
+### Rotas do cliente
+- `lib/routes.ts` é a fonte das rotas (`ROUTES`, `pedidoHref`, `lojaHref`, `produtoHref`, `buscarHref`, `contaHref`). Nunca escreva o literal da rota no código do cliente.
+- `lib/redirects.js` mantém as rotas antigas (`/stores`, `/store-order`, `/user-dashboard`, `/wallet`...) redirecionando com a query.
+- Rotas compartilhadas com os painéis (`/user-profile`, `/editar-conta`) redirecionam só o cliente, via `useClienteRedirect`.
+- `LIGHT_ROUTES` (`lib/routeTheme.ts`) lista as telas claras: toda tela migrada entra ali; o resto (painéis) segue escuro.
+
+### Entrega na tela
+- `deliveryStates` (`lib/deliveryView.ts`) traduz a cotação do servidor em `DeliveryBadge`.
+- Os cards mostram estimativa; a Sacola mostra a rota real. Nunca prazo inventado: sem cotação ou com endereço `0,0`, não há prazo.
+
+### Sacola
+- Um único primário, com valor e método de pagamento.
+- Os motivos de trava seguem uma ordem fixa e mostram só o primeiro.
+- O Plano 1 vive na mesma tela ("A loja mesma entrega", sem taxa).
+
+### Pedido
+- `customerOrderStatus` e `orderTimelineSteps` (`lib/customerOrder.ts`) definem status e timeline.
+- Hora real só onde ela existe; nunca hora estimada apresentada como fato.
+
+### Sheets
+- `bottom` para escolha; `center` para confirmação destrutiva.
+- Trap de foco; Esc fecha só o sheet de cima.

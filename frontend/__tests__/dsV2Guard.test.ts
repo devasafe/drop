@@ -5,10 +5,8 @@ import { cssViolations } from './helpers/dsTokens';
 // Guarda do DS v2: nenhum .module.css de components/ui ou components/drop pode ter
 // hex, token antigo (incl. --fs-*) ou gradient/glow. ALLOW lista o que a fase C redesenha.
 const ROOT = path.join(__dirname, '..');
-const ALLOW = new Set<string>([
-  'components/drop/asaas/AsaasConnectCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
-  'components/drop/settlement/SettlementSwitchCard.module.css', // fase C: pagamentos do lojista (Asaas e modo de liquidação)
-]);
+// fase C concluída: nada fica fora da guarda
+const ALLOW = new Set<string>([]);
 
 // CSS de página do cliente já redesenhada (fase C). Cada task de tela acrescenta o seu.
 const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css', 'pages/produto/Produto.module.css', 'pages/Sacola.module.css', 'pages/pedido/Pedido.module.css', 'pages/Pedidos.module.css', 'pages/conta/Conta.module.css', 'pages/conta/Carteira.module.css'];
@@ -26,6 +24,10 @@ const files = ['components/ui', 'components/drop']
   .map((f) => path.relative(ROOT, f).split(path.sep).join('/'));
 
 describe('DS v2 guard', () => {
+  it('fim da fase C: ALLOW está vazio', () => {
+    expect([...ALLOW]).toEqual([]);
+  });
+
   it('ALLOW nunca contém arquivos de components/ui', () => {
     expect([...ALLOW].filter((f) => f.startsWith('components/ui/'))).toEqual([]);
   });

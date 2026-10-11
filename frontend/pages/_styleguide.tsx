@@ -47,6 +47,10 @@ import { PriceDisplay } from '../components/drop/PriceDisplay';
 import { OrderSummary } from '../components/drop/OrderSummary';
 import { OrderTimeline } from '../components/drop/OrderTimeline';
 import { CartItem } from '../components/drop/CartItem';
+import { SearchSuggestions } from '../components/drop/SearchSuggestions';
+import { InstallmentList } from '../components/drop/checkout/InstallmentList';
+import { AddressPickerSheet } from '../components/drop/AddressPickerSheet';
+import { ReorderConfirmSheet } from '../components/drop/ReorderConfirmSheet';
 
 /* ---------- helpers de layout (página só de dev) ---------- */
 const noop = () => {};
@@ -196,6 +200,57 @@ function V2Gallery({ theme }: { theme: 'light' | 'dark' }) {
         />
       </div>
     </div>
+  );
+}
+
+const faseCAddresses = [
+  { _id: 'a1', label: 'Casa', street: 'Av. Paulista', number: '1578', neighborhood: 'Bela Vista', city: 'São Paulo', state: 'SP', isDefault: true },
+  { _id: 'a2', label: 'Trabalho', street: 'Rua Augusta', number: '200', neighborhood: 'Consolação', city: 'São Paulo', state: 'SP' },
+];
+const faseCSuggestions = {
+  products: [{ id: 'p1', name: 'Fone Bluetooth', image: null, price: 129.9, oldPrice: 189.9, storeId: 's1' }],
+  stores: [{ id: 's1', name: 'TechStore', slug: 'techstore' }],
+  categories: ['Eletrônicos'],
+};
+const faseCInstallments = [
+  { count: 1, installmentValue: 104.5, total: 104.5 },
+  { count: 2, installmentValue: 54.2, total: 108.4 },
+  { count: 3, installmentValue: 36.5, total: 109.5 },
+];
+
+function FaseC() {
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [installments, setInstallments] = useState(1);
+  return (
+    <Section title="Fase C — telas do cliente">
+      <Sub title="DeliveryBadge closed"><DeliveryBadge state={{ kind: 'closed', opensAt: '09:00' }} /></Sub>
+      <Sub title="StoreCard: etaMin/fee, freeDelivery, outOfArea, opensAt">
+        <div style={{ display: 'grid', gap: 'var(--space-3)', maxWidth: 420 }}>
+          <StoreCard variant="resultado" store={store} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, freeDelivery: true }} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, outOfArea: true }} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, status: 'fechada' as const, opensAt: '09:00' }} onClick={noop} />
+        </div>
+      </Sub>
+      <Sub title="ProductCard: stock 2, freeDelivery, etaMinutes">
+        <div style={{ maxWidth: 180 }}><ProductCard variant="home" product={{ ...product, stock: 2, freeDelivery: true, etaMinutes: 35 }} onAdd={noop} /></div>
+      </Sub>
+      <Sub title="SearchSuggestions">
+        <SearchSuggestions term="fone" data={faseCSuggestions} loading={false} quotes={{}} onProduct={noop} onStore={noop} onCategory={noop} onSearch={noop} />
+      </Sub>
+      <Sub title="InstallmentList">
+        <div style={{ maxWidth: 420 }}><InstallmentList options={faseCInstallments} base={104.5} value={installments} onChange={setInstallments} /></div>
+      </Sub>
+      <Sub title="Sheets">
+        <Row>
+          <Button variant="secondary" onClick={() => setAddrOpen(true)}>Abrir AddressPickerSheet</Button>
+          <Button variant="secondary" onClick={() => setReorderOpen(true)}>Abrir ReorderConfirmSheet</Button>
+        </Row>
+      </Sub>
+      <AddressPickerSheet open={addrOpen} onClose={() => setAddrOpen(false)} addresses={faseCAddresses} selectedId="a1" onPick={() => setAddrOpen(false)} onAddNew={noop} />
+      <ReorderConfirmSheet open={reorderOpen} onClose={() => setReorderOpen(false)} onConfirm={() => setReorderOpen(false)} busy={false} currentCount={2} currentStoreName="TechStore" targetStoreName="Pet&Cia" sameStore={false} />
+    </Section>
   );
 }
 
@@ -381,6 +436,8 @@ export default function Styleguide() {
           <RepeatRow product={{ ...product, name: 'Cabo USB-C 2m', price: 23.9, oldPrice: undefined, discountPercent: undefined }} onAdd={noop} />
         </Sub>
       </Section>
+
+      <FaseC />
 
       {/* ============ ESTADOS ============ */}
       <Section title="Estados">
