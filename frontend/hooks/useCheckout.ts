@@ -292,7 +292,7 @@ export function useCheckout() {
     return idemKey.current.key;
   };
 
-  const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
+  const placeOrder = async (): Promise<{ ok: boolean; error?: string; code?: string }> => {
     if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
     if (isPlan1 ? plan1Blocked : !canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
     if (!address.selected) return { ok: false, error: 'Selecione um endereço de entrega' };
@@ -354,7 +354,9 @@ export function useCheckout() {
         setCpfRequired(true);
         return { ok: false, error: cpfRequired ? 'CPF inválido. Confira os números.' : 'Informe seu CPF para pagar com Pix.' };
       }
-      return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.') };
+      return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.'),
+        // Só os códigos que a Sacola traduz em tela (loja pausada no modo direto); os demais seguem só com a mensagem.
+        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
     } finally {
       setPlacing(false);
     }

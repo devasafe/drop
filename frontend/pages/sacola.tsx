@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ShoppingBag, XCircle } from 'lucide-react';
+import { ShieldCheck, ShoppingBag, XCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useCheckout } from '../hooks/useCheckout';
 import { useSaasConfig } from '../hooks/useSaasConfig';
@@ -12,6 +12,8 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
+import { Badge } from '../components/ui/Badge';
+import { RadioRow } from '../components/ui/RadioRow';
 import { Input } from '../components/ui/Input';
 import { ScreenHeader } from '../components/drop/ScreenHeader';
 import { CartItem } from '../components/drop/CartItem';
@@ -38,6 +40,7 @@ import { ROUTES, buscarHref, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
 
 const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
+const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
 
 export default function SacolaPage() {
   const router = useRouter();
@@ -54,6 +57,8 @@ export default function SacolaPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [pixAmount, setPixAmount] = useState<number | undefined>(undefined);
+  // Modo direto: a loja pausou (ou perdeu a conta de recebimento) com a sacola aberta.
+  const [unavailable, setUnavailable] = useState(false);
   // A barra de pagar é fixa na viewport no mobile; o PageTransition quebra position:fixed,
   // então no mobile ela vai por portal ao body (só depois da hidratação). No desktop fica inline.
   const [barMode, setBarMode] = useState<'ssr' | 'mobile' | 'desktop'>('ssr');
@@ -111,7 +116,8 @@ export default function SacolaPage() {
   // nos demais planos a cotação já exige o endereço).
   const canPlace = c.canPlace && (!c.isPlan1 || !!c.address.selected);
 
-  const hint = !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
+  const hint = unavailable ? 'A loja não está recebendo pedidos agora'
+    : !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
     : c.storeOpen === false ? 'A loja está fechada agora'
     : c.outOfArea ? 'Esta loja não entrega nesse endereço'
     : c.deliveryIssue === 'STORE_NO_LOCATION' ? STORE_NO_LOCATION_MSG
@@ -145,16 +151,18 @@ export default function SacolaPage() {
   const pay = async () => {
     setPixAmount(toPay); // o carrinho é limpo ao criar o pedido: guarda o valor a pagar antes
     const r = await c.placeOrder();
+    if (!r.ok && r.code && STORE_UNAVAILABLE_CODES.includes(r.code)) { setUnavailable(true); return; }
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
 
   const cpfShown = c.cpfRequired && isValidCPF(c.cpf) ? maskCpfMiddle(c.cpf) : '';
+  const vitrineNote = c.isPlan1 && !direct ? 'O dinheiro só vai para a loja quando você confirmar que recebeu.' : null;
   const note = cpfShown ? `CPF ${cpfShown} · ao pagar, você aceita os termos` : 'Ao pagar, você concorda com os termos de uso.';
   const fmtKm = (n: number) => `${String(n).replace('.', ',')} km`;
   const deliveryTail = !c.isPlan1 && c.distanceKm > 0 ? `${fmtKm(c.distanceKm)} · ${c.deliveryFee > 0 ? formatMoney(c.deliveryFee) : 'Grátis'}` : null;
 
   const payBar = (inline: boolean) => (
-    <CheckoutBar total={toPay} showTotal={false} label={payLabel} note={note} inline={inline}
+    <CheckoutBar total={toPay} showTotal={false} label={payLabel} note={vitrineNote ?? note} inline={inline}
       disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay}
       secondary={isCard ? { label: `Pagar com Pix por ${formatMoney(pixToPay)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
   );
@@ -172,15 +180,19 @@ export default function SacolaPage() {
         </div>
       ) : (
         <main className={styles.page}>
-          <ScreenHeader title="Sacola" onBack={() => router.back()} />
+          <ScreenHeader title="Sacola" meta={direct ? storeName : undefined} onBack={() => router.back()} />
           <div className={styles.cols}>
           <div className={styles.mainCol}>
 
           <section className={styles.block} aria-labelledby="sacola-loja">
             <div className={styles.blockHeader}>
               <h2 id="sacola-loja" className={styles.blockTitle}>{storeName}</h2>
+              {c.isPlan1 && <Badge tone="status">Vitrine</Badge>}
               {c.store?._id && <Link href={lojaHref(c.store._id)} className={styles.link}>Adicionar mais</Link>}
             </div>
+            {unavailable && (
+              <Alert tone="warning" title={`A ${storeName} não está recebendo pedidos agora`}>Sua sacola fica guardada. Tente de novo mais tarde.</Alert>
+            )}
             <div aria-live="polite">
               {items.map((i) => (
                 <CartItem key={i.productId} item={{ name: i.name || 'Produto', price: Number(i.price) || 0, quantity: i.quantity, imageUrl: imageUrl(i.image) || null }} onQuantityChange={changeQty(i)} />
@@ -190,7 +202,7 @@ export default function SacolaPage() {
 
           <section className={styles.block} aria-labelledby="sacola-entrega">
             <div className={styles.blockHeader}>
-              <h2 id="sacola-entrega" className={styles.blockTitle}>Entrega</h2>
+              <h2 id="sacola-entrega" className={styles.blockTitle}>{c.isPlan1 ? 'Entregar em' : 'Entrega'}</h2>
               {c.address.selected && <button type="button" className={styles.link} onClick={() => setPickerOpen(true)}>Trocar</button>}
             </div>
             {c.isPlan1 && (
@@ -200,6 +212,9 @@ export default function SacolaPage() {
               <p className={styles.address}>{[shortAddress(c.address.selected), c.address.selected.complement].filter(Boolean).join(' · ')}</p>
             ) : (
               <Button variant="secondary" onClick={() => setPickerOpen(true)}>Adicionar endereço</Button>
+            )}
+            {c.isPlan1 && c.address.selected && c.distanceKm > 0 && (
+              <p className={styles.muted}>{`A loja fica a ${fmtKm(c.distanceKm)}`}</p>
             )}
             {!c.isPlan1 && c.address.selected && !c.outOfArea && c.storeOpen !== false && (
               c.quoteLoading ? <DeliveryBadge state={{ kind: 'loading' }} />
@@ -235,10 +250,18 @@ export default function SacolaPage() {
 
           <section className={styles.block} aria-labelledby="sacola-pagamento">
             <h2 id="sacola-pagamento" className={styles.blockTitle}>Pagamento</h2>
-            <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod}
-              methods={methods} />
-            <p className={styles.methodNote}>{isCard ? 'Em até 12x' : 'Aprovação na hora'}</p>
-            {direct && !directCardEnabled && <p className={styles.muted}>Cartão: esta loja ainda não aceita cartão.</p>}
+            {direct && !directCardEnabled ? (
+              <div role="radiogroup" aria-label="Forma de pagamento" className={styles.methodRows}>
+                <RadioRow name="pagamento" value="pix" checked onChange={() => c.setPaymentMethod('pix')} label="Pix" description="Aprovação na hora" />
+                <RadioRow name="pagamento" value="credit_card" checked={false} onChange={() => {}} label="Cartão" description="Esta loja ainda não aceita cartão" disabled />
+              </div>
+            ) : (
+              <>
+                <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod}
+                  methods={methods} />
+                <p className={styles.methodNote}>{isCard ? 'Em até 12x' : 'Aprovação na hora'}</p>
+              </>
+            )}
             {c.paymentMethod === 'credit_card' && (
               <div className={styles.card}>
                 <CardForm onChange={c.setCardPayload} holderDefaults={c.cardHolderDefaults} />
@@ -257,6 +280,13 @@ export default function SacolaPage() {
             <CouponField code={c.coupon.code} onCodeChange={c.coupon.setCode} onApply={c.coupon.apply} onRemove={c.coupon.remove}
               message={c.coupon.message} validating={c.coupon.validating} applied={c.coupon.discount > 0} />
           </section>
+
+          {direct && (
+            <div className={styles.directNote}>
+              <ShieldCheck size={20} aria-hidden="true" />
+              <p>O Pix vai <b>{`direto para a ${storeName}`}</b>. O DROP cuida da entrega, do rastreio e do suporte.</p>
+            </div>
+          )}
 
           </div>
 
