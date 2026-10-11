@@ -52,6 +52,24 @@
   text-align: center;
 }
 
+.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: var(--text-label);
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+
+.secondary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .total {
   font: var(--text-price);
   font-variant-numeric: tabular-nums;

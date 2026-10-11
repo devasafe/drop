@@ -18,6 +18,8 @@ export interface CheckoutBarProps {
   note?: string;
   /** Sem position:fixed — a barra acompanha o fluxo da página (desktop da Sacola). */
   inline?: boolean;
+  /** Link de texto abaixo do botão (ex.: "Pagar com Pix por R$ X"). */
+  secondary?: { label: string; onClick: () => void };
 }
 
 /**
@@ -25,7 +27,7 @@ export interface CheckoutBarProps {
  * padrão; quem a usa no mobile a monta por portal ao body (o PageTransition
  * quebra position:fixed).
  */
-export function CheckoutBar({ total, onConfirm, disabled, loading, hint, label = 'Confirmar', showTotal = true, note, inline }: CheckoutBarProps) {
+export function CheckoutBar({ total, onConfirm, disabled, loading, hint, label = 'Confirmar', showTotal = true, note, inline, secondary }: CheckoutBarProps) {
   const hintId = useId();
   return (
     <div className={[styles.bar, inline && styles.inline].filter(Boolean).join(' ')}>
@@ -39,6 +41,7 @@ export function CheckoutBar({ total, onConfirm, disabled, loading, hint, label =
           </Button>
         </div>
       </div>
+      {secondary && <button type="button" className={styles.secondary} onClick={secondary.onClick}>{secondary.label}</button>}
       {note && <p className={styles.note}>{note}</p>}
     </div>
   );

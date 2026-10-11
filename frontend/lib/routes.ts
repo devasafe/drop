@@ -57,6 +57,6 @@ export const pedidoHref = (id: string): string => `/pedido/${enc(id)}`;
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
 export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/loja/[id]', '/pedido/[id]'];
 /** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
-export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]'];
+export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
 export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola'];

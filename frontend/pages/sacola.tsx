@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ShoppingBag, XCircle, MapPin } from 'lucide-react';
+import { ShoppingBag, XCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useCheckout } from '../hooks/useCheckout';
 import { useSaasConfig } from '../hooks/useSaasConfig';
@@ -13,6 +13,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import { Input } from '../components/ui/Input';
+import { ScreenHeader } from '../components/drop/ScreenHeader';
 import { CartItem } from '../components/drop/CartItem';
 import { OrderSummary, type SummaryLine } from '../components/drop/OrderSummary';
 import { DeliveryBadge } from '../components/drop/DeliveryBadge';
@@ -29,6 +30,7 @@ import { readDeliveryAddressId, saveDeliveryAddressId, addressId, shortAddress }
 import { formatMoney } from '../lib/money';
 import { maskCPF, onlyDigits } from '../lib/masks';
 import { isValidCPF } from '../lib/cpf';
+import { maskCpfMiddle } from '../lib/maskCpf';
 import { imageUrl } from '../lib/config';
 import { installmentOptions } from '../lib/cardInstallments';
 import { ROUTES, lojaHref, pedidoHref } from '../lib/routes';
@@ -142,9 +144,15 @@ export default function SacolaPage() {
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
 
+  const cpfShown = c.cpfRequired && isValidCPF(c.cpf) ? maskCpfMiddle(c.cpf) : '';
+  const note = cpfShown ? `CPF ${cpfShown} · ao pagar, você aceita os termos` : 'Ao pagar, você concorda com os termos de uso.';
+  const fmtKm = (n: number) => `${String(n).replace('.', ',')} km`;
+  const deliveryTail = !c.isPlan1 && c.distanceKm > 0 ? `${fmtKm(c.distanceKm)} · ${c.deliveryFee > 0 ? formatMoney(c.deliveryFee) : 'Grátis'}` : null;
+
   const payBar = (inline: boolean) => (
-    <CheckoutBar total={toPay} showTotal={false} label={payLabel} note="Ao pagar, você concorda com os termos de uso." inline={inline}
-      disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay} />
+    <CheckoutBar total={toPay} showTotal={false} label={payLabel} note={note} inline={inline}
+      disabled={!!hint || c.placing} loading={c.placing} hint={hint} onConfirm={pay}
+      secondary={isCard ? { label: `Pagar com Pix por ${formatMoney(c.total)}`, onClick: () => c.setPaymentMethod('pix') } : undefined} />
   );
 
   return (
@@ -160,7 +168,7 @@ export default function SacolaPage() {
         </div>
       ) : (
         <main className={styles.page}>
-          <h1 className={styles.pageTitle}>Sacola</h1>
+          <ScreenHeader title="Sacola" onBack={() => router.back()} />
           <div className={styles.cols}>
           <div className={styles.mainCol}>
 
@@ -185,13 +193,18 @@ export default function SacolaPage() {
               <Alert tone="info" title="A loja mesma entrega">Lojas vitrine não usam motoboy da DROP. Depois de pagar, você combina dia e hora com a loja pelo chat. Sem taxa de entrega.</Alert>
             )}
             {c.address.selected ? (
-              <p className={styles.address}><MapPin size={18} aria-hidden="true" /> {[shortAddress(c.address.selected), c.address.selected.complement].filter(Boolean).join(' · ')}</p>
+              <p className={styles.address}>{[shortAddress(c.address.selected), c.address.selected.complement].filter(Boolean).join(' · ')}</p>
             ) : (
               <Button variant="secondary" onClick={() => setPickerOpen(true)}>Adicionar endereço</Button>
             )}
             {!c.isPlan1 && c.address.selected && !c.outOfArea && c.storeOpen !== false && (
               c.quoteLoading ? <DeliveryBadge state={{ kind: 'loading' }} />
-                : c.etaMinutes ? <DeliveryBadge state={{ kind: 'fast', minutes: c.etaMinutes[1] }} /> : null
+                : c.etaMinutes ? (
+                  <div className={styles.etaLine}>
+                    <DeliveryBadge state={{ kind: 'fast', minutes: c.etaMinutes[1] }} />
+                    {deliveryTail && <span className={styles.etaTail}>{deliveryTail}</span>}
+                  </div>
+                ) : null
             )}
             {c.outOfArea && (
               <Alert tone="error" title={`${storeName} não entrega neste endereço`} action={{ label: 'Trocar endereço', onClick: () => setPickerOpen(true) }}>
@@ -220,6 +233,7 @@ export default function SacolaPage() {
             <h2 id="sacola-pagamento" className={styles.blockTitle}>Pagamento</h2>
             <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod}
               methods={methods} />
+            <p className={styles.methodNote}>{isCard ? 'Em até 12x' : 'Aprovação na hora'}</p>
             {direct && !directCardEnabled && <p className={styles.muted}>Cartão: esta loja ainda não aceita cartão.</p>}
             {c.paymentMethod === 'credit_card' && (
               <div className={styles.card}>
