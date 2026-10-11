@@ -2,11 +2,11 @@ import LegalPage, { LegalSection } from '../components/legal/LegalPage';
 import { LEGAL_VERSIONS, LEGAL_UPDATED } from '../lib/legalDocs';
 import styles from '../components/legal/LegalPage.module.css';
 
-// TEXTO JURIDICO PROVISORIO: o resumo "O essencial" abaixo foi escrito a partir do protótipo (decisão 22).
-// O dono valida estas 4 frases antes do merge.
+// Resumo "O essencial" validado pelo dono em 2026-10-11. A frase do motoboy não cita percentual:
+// a parte dele muda por modo (custódia × SaaS) e é configurável pelo admin.
 const TERMS_SUMMARY = [
   'A loja vende e responde pelo produto.',
-  'O motoboy é autônomo e recebe 80% da entrega.',
+  'O motoboy é autônomo e fica com a maior parte da taxa de entrega.',
   'Cancelar antes da retirada é grátis.',
   'O estorno volta para onde você pagou.',
 ];
