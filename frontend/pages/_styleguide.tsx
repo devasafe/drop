@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  ShoppingBag, Cpu, PenTool, Flame, PawPrint, Home, Search, PackageX, Inbox,
+  ShoppingBag, Cpu, PenTool, Flame, PawPrint, Home, Search, PackageX, Inbox, ShieldAlert,
 } from 'lucide-react';
 
 import { Button } from '../components/ui/Button';
@@ -51,6 +51,13 @@ import { SearchSuggestions } from '../components/drop/SearchSuggestions';
 import { InstallmentList } from '../components/drop/checkout/InstallmentList';
 import { AddressPickerSheet } from '../components/drop/AddressPickerSheet';
 import { ReorderConfirmSheet } from '../components/drop/ReorderConfirmSheet';
+import { ScreenHeader } from '../components/drop/ScreenHeader';
+import { PasswordField } from '../components/drop/PasswordField';
+import { OrderHistoryRow } from '../components/drop/OrderHistoryRow';
+import { ErrorScreen } from '../components/drop/ErrorScreen';
+import { OrderConfirmed } from '../components/drop/order/OrderConfirmed';
+import { DeliveredReview } from '../components/drop/order/DeliveredReview';
+import { CancellationStatus } from '../components/drop/order/CancellationStatus';
 
 /* ---------- helpers de layout (página só de dev) ---------- */
 const noop = () => {};
@@ -254,6 +261,72 @@ function FaseC() {
   );
 }
 
+const faseC2Pix = { _id: 'abcdef123456', storeName: 'TechStore', paymentMethod: 'pix', totalValue: 129.9, walletApplied: 0, deliveryId: 'd1', deliveryFee: 5.9 };
+const faseC2Plan1 = { _id: 'fedcba654321', storeName: 'Ótica Central', paymentMethod: 'pix', totalValue: 89, walletApplied: 0, deliveryFee: 0 };
+const faseC2Entregue = { _id: 'o1', status: 'entregue', storeName: 'TechStore', totalValue: 129.9, createdAt: '2026-10-01T12:00:00Z', products: [{ name: 'Fone', quantity: 1 }] };
+const faseC2Cancelado = { _id: 'o2', status: 'cancelado', storeName: 'Pet&Cia', totalValue: 42.5, createdAt: '2026-09-20T12:00:00Z', cancelledAt: '2026-09-20T12:10:00Z', paymentStatus: 'refunded' };
+const faseC2Cancel = { cancelledBy: 'customer' as const, reasonCode: 'customer_request', reason: 'Mudei de ideia', refundAmount: 129.9, refundStatus: 'pending' as const, createdAt: '2026-10-01T12:30:00Z' };
+const faseC2Direct = { stage: 'devolvendo' as const, amount: 89, requestedAt: '2026-10-01T12:30:00Z' };
+
+function FaseC2() {
+  const [senha, setSenha] = useState('');
+  return (
+    <Section title="Fase C2 — telas do cliente">
+      <Sub title="ScreenHeader (com voltar e ação)">
+        <div style={{ maxWidth: 420, border: '1px solid var(--line)', borderRadius: 'var(--r-lg)' }}>
+          <ScreenHeader title="Notificações" onBack={noop} end={<Button variant="secondary" onClick={noop}>Marcar lidas</Button>} />
+        </div>
+      </Sub>
+      <Sub title="PasswordField (olho centrado no campo)">
+        <div style={{ maxWidth: 360 }}><PasswordField label="Senha" value={senha} onChange={setSenha} autoComplete="current-password" hint="Mínimo de 8 caracteres" /></div>
+      </Sub>
+      <Sub title="StoreCard resultado: nota + horário, vitrine, fechada">
+        <div style={{ display: 'grid', gap: 'var(--space-3)', maxWidth: 420 }}>
+          <StoreCard variant="resultado" store={{ ...store, rating: { average: 4.8, count: 120 }, closesAt: '22:00' }} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, name: 'Ótica Central', fee: undefined, vitrine: true }} onClick={noop} />
+          <StoreCard variant="resultado" store={{ ...store, status: 'fechada' as const, opensAt: '09:00' }} onClick={noop} />
+        </div>
+      </Sub>
+      <Sub title="RepeatRow (De novo)">
+        <div style={{ maxWidth: 420 }}><RepeatRow product={product} meta="Comprado 3 vezes · TechStore" onAdd={noop} /></div>
+      </Sub>
+      <Sub title="OrderTracker (mock)">
+        <OrderTracker orderId="2481" storeName="TechStore" etaMin={12} etaLabel="chega às 9:53" progress={0.66}
+          steps={[{ label: 'Confirmado', done: true }, { label: 'Saiu p/ entrega', done: true }, { label: 'Chegando', done: false }]} />
+      </Sub>
+      <Sub title="OrderHistoryRow (entregue e cancelado)">
+        <div style={{ maxWidth: 420, display: 'grid', gap: 'var(--space-2)' }}>
+          <OrderHistoryRow order={faseC2Entregue} onOpen={noop} action={<Button variant="secondary" onClick={noop}>De novo</Button>} />
+          <OrderHistoryRow order={faseC2Cancelado} onOpen={noop} />
+        </div>
+      </Sub>
+      <Sub title="OrderConfirmed (Pix com entregador e Plano 1)">
+        <div style={{ display: 'grid', gap: 'var(--space-6)', maxWidth: 420 }}>
+          <OrderConfirmed order={faseC2Pix} onTrack={noop} onContinue={noop} />
+          <OrderConfirmed order={faseC2Plan1} onTrack={noop} onContinue={noop} />
+        </div>
+      </Sub>
+      <Sub title="DeliveredReview (com e sem entregador)">
+        <div style={{ display: 'grid', gap: 'var(--space-6)', maxWidth: 420 }}>
+          <DeliveredReview storeName="TechStore" courier={{ name: 'Carlos Souza', plate: 'ABC1D23' }} createdAt="2026-10-01T12:00:00Z" deliveredAt="2026-10-01T12:41:00Z" storeDone={false} courierDone={false} onSubmit={async () => {}} onHelp={noop} />
+          <DeliveredReview storeName="Ótica Central" courier={null} createdAt="2026-10-01T12:00:00Z" deliveredAt="2026-10-01T12:41:00Z" storeDone={false} courierDone={false} onSubmit={async () => {}} onHelp={noop} />
+        </div>
+      </Sub>
+      <Sub title="CancellationStatus (custódia pending e direto devolvendo)">
+        <div style={{ display: 'grid', gap: 'var(--space-6)', maxWidth: 420 }}>
+          <CancellationStatus cancellation={faseC2Cancel} storeName="TechStore" paymentMethod="pix" onSupport={noop} onBuyElsewhere={noop} />
+          <CancellationStatus cancellation={{ ...faseC2Cancel, refundAmount: 89 }} direct={faseC2Direct} storeName="Ótica Central" paymentMethod="pix" onSupport={noop} onBuyElsewhere={noop} />
+        </div>
+      </Sub>
+      <Sub title="ErrorScreen (sempre com um primário)">
+        <div style={{ maxWidth: 420, border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+          <ErrorScreen icon={<ShieldAlert size={28} />} title="Você não tem acesso" description="Esta área é de outro tipo de conta." primary={{ label: 'Ir para o início', onClick: noop }} secondary={{ label: 'Falar com a gente', onClick: noop }} />
+        </div>
+      </Sub>
+    </Section>
+  );
+}
+
 export default function Styleguide() {
   const [inputVal, setInputVal] = useState('');
   const [searchVal, setSearchVal] = useState('');
@@ -438,6 +511,7 @@ export default function Styleguide() {
       </Section>
 
       <FaseC />
+      <FaseC2 />
 
       {/* ============ ESTADOS ============ */}
       <Section title="Estados">

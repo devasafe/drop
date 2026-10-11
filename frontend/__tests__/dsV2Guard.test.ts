@@ -53,4 +53,15 @@ describe('DS v2 guard', () => {
       .map((x) => `${x.f}\n  ${x.v.join('\n  ')}`);
     expect(report.join('\n')).toBe('');
   });
+
+  it('todo CSS de página do cliente (pages/conta, pages/pedido, pages/categoria e as telas de entrar) está na guarda', () => {
+    const pagesCss = ['pages/conta', 'pages/pedido', 'pages/categoria']
+      .flatMap((d) => walk(path.join(ROOT, d)))
+      .map((f) => path.relative(ROOT, f).split(path.sep).join('/'));
+    expect(pagesCss.length).toBeGreaterThanOrEqual(1);
+    expect(pagesCss).toContain('pages/conta/Conta.module.css');
+    const auth = ['pages/Login.module.css', 'pages/Register.module.css', 'pages/EsqueciSenha.module.css'];
+    const fora = [...pagesCss, ...auth].filter((f) => !CLIENT_PAGE_CSS.includes(f));
+    expect(fora).toEqual([]);
+  });
 });

@@ -6,6 +6,7 @@ const ROOT = path.join(__dirname, '..');
 const CLIENT_FILES = [
   'pages/inicio.tsx', 'pages/buscar.tsx', 'pages/loja/[id].tsx', 'pages/produto/[id].tsx', 'pages/sacola.tsx',
   'pages/pedido/[id].tsx', 'pages/pedidos.tsx', 'pages/conta/index.tsx', 'pages/conta/carteira.tsx', 'pages/categoria/[nome].tsx', 'pages/pedido/[id]/conversa.tsx', 'pages/pedido/[id]/recibo.tsx', 'pages/conta/notificacoes.tsx', 'pages/conta/ajuda.tsx', 'pages/conta/privacidade.tsx',
+  'pages/login.tsx', 'pages/register.tsx', 'pages/esqueci-senha.tsx', 'pages/404.tsx', 'pages/500.tsx', 'pages/access-denied.tsx',
   'components/Nav.tsx', 'components/Footer.tsx', 'components/nav/AccountMenu.tsx',
 ];
 function walk(dir: string): string[] {
@@ -20,7 +21,8 @@ const files = [...CLIENT_FILES, ...walk('components/drop'), ...walk('hooks'), ..
 // Navegação (push/replace/href) para uma rota antiga do cliente.
 const OLD_NAV = /(router\.(?:push|replace)\(|href=\{?|href:\s*)\s*[`'"]\/(?:stores(?:[`'"?/])|product\/|store-order\/|checkout(?:-vitrine)?[`'"?]|user-dashboard|wallet[`'"?]|my-wallet|minha-conta|user-profile|produtos[`'"?]|[`'"?])/;
 // Sem exceções: o redirect legado do useCheckout para /checkout-vitrine (redirectPlan1) saiu.
-const EXCEPTIONS = new Set<string>();
+// a raiz redireciona para /inicio; o teste de comportamento do login fixa '/'
+const EXCEPTIONS = new Set<string>(["pages/login.tsx:router.push(next ?? '/')"]);
 
 it('nenhuma tela ou componente do cliente navega para rota antiga', () => {
   const hits: string[] = [];

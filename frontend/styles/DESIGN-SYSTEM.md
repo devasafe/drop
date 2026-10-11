@@ -180,3 +180,28 @@ OrderTracker · OrderStatusBadge · Logo.
 ### Sheets
 - `bottom` para escolha; `center` para confirmação destrutiva.
 - Trap de foco; Esc fecha só o sheet de cima.
+
+## 9. Telas do cliente (fase C2)
+
+### Topo de tela
+- `ScreenHeader` (`components/drop/ScreenHeader.tsx`): voltar 44×44, título que corta com reticências, `end` (ação à direita) e `meta`.
+- As telas listadas em `CUSTOMER_HEADERLESS_ROUTES` (`lib/routes.ts`) têm header próprio no mobile; a Nav global só aparece no desktop.
+
+### Telas públicas claras
+- Entrar, cadastro, esqueci a senha, termos, privacidade, cookies, 404, 500 e sem acesso são claras (`LIGHT_ROUTES`), mesmo sem papel.
+- Entrar/cadastro/senha usam `AuthLayout` e `PasswordField` (o olho fica centrado no campo; o "confirmar senha" saiu).
+- O `next` passa por `safeNext`/`authHref`: só caminho interno.
+
+### Rotas compartilhadas
+- `/notifications`, `/suporte`, `/verificacao`, `/verify-email`, `/upload` e `/foto-perfil` são páginas de todos os papéis. `useClienteRedirect(destino)` leva só o papel `cliente` à tela nova; lojista, motoboy e admin ficam na antiga (escura).
+- Helpers que mudaram de destino: `ROUTES.notificacoes` (`/conta/notificacoes`), `ROUTES.ajuda` (`/conta/ajuda`), `ROUTES.privacidadeConta` (`/conta/privacidade`).
+- Guardas: toda rota do cliente é clara (`clientRoutesTheme.test`), nenhuma tela navega para rota antiga (`clientRoutesGuard.test`) e todo CSS de página do cliente passa pela guarda de tokens (`dsV2Guard.test`).
+
+### Depois da compra
+- "Pedido confirmado" (`OrderConfirmed`) aparece uma vez, logo depois de um pagamento confirmado na sessão (`lib/justPaid`) e com `paymentStatus === 'paid'`.
+- Cancelar mostra a prévia do servidor, buscada a cada abertura do sheet; o valor final é o gravado no cancelamento (`CancellationStatus`).
+- Entregue: loja e entregador se avaliam num envio só (`DeliveredReview`).
+- Estorno tem linha do tempo: custódia (`refundStatus`) e direto (`customerRefund`: devolvendo, conferindo, resolvendo, devolvido).
+
+### Erros sem beco
+- `ErrorScreen` sempre tem um botão primário e diz o que houve e o próximo passo; o secundário é opcional.
