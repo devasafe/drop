@@ -234,3 +234,19 @@ test('cartão: parcelas visíveis, acréscimo no resumo e botão com a parcela',
   expect(screen.getByText('Acréscimo do cartão 3x')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /^Pagar 3x de R\$ [\d.,]+$/ })).toBeInTheDocument();
 });
+
+test('F-I2 — Plano 1 fora do raio: mesma mensagem dos outros planos e pagamento bloqueado', () => {
+  mocked.mockReturnValue(hook({ isPlan1: true, deliveryFee: 0, total: 269.8, etaMinutes: null, outOfArea: true, canPlace: false }));
+  render(<SacolaPage />);
+  expect(screen.getByText('Eletro Center não entrega neste endereço')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled();
+  expect(screen.getAllByText('Esta loja não entrega nesse endereço').length).toBeGreaterThan(0);
+});
+
+test('F-I2 — Plano 1 fechado pela cotação: "Loja fechada agora" com horário e pagamento bloqueado', () => {
+  mocked.mockReturnValue(hook({ isPlan1: true, deliveryFee: 0, total: 269.8, etaMinutes: null, storeOpen: false, opensAt: '09:00' }));
+  render(<SacolaPage />);
+  expect(screen.getByText('Loja fechada agora')).toBeInTheDocument();
+  expect(screen.getByText(/Abre às 09:00/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled();
+});

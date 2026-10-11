@@ -106,7 +106,10 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
     const lng = Number(selForQuote?.longitude);
     return selForQuote?.latitude && selForQuote?.longitude && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   }, [selForQuote?.latitude, selForQuote?.longitude]);
-  const quoteEnabled = !isPlan1 && !!store?.latitude;
+  // Plano 1 também é cotado (ruling F-I2): para ele a cotação é a mesma estimativa dos cards,
+  // Loja e Produto (raio e horário, taxa 0). Loja sem localização no Plano 1 não tem área
+  // para checar (o servidor a aceita), então segue sem cotação, como antes.
+  const quoteEnabled = !!store?.latitude;
   const { quote, loading: quoteLoading, failed: quoteFailed, retry: retryQuote } = useDeliveryQuote(storeId, quotePoint, quoteEnabled);
   // Rota indisponível ou erro de rede: não é culpa do endereço — mensagem própria + retry.
   const quoteError = quoteEnabled && quotePoint && !quoteLoading && (quoteFailed || quote?.reason === 'ROUTE_FAILED')
@@ -115,16 +118,18 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
   const deliveryFee = isPlan1 ? 0 : (quote?.deliveryFee ?? 0);
   const distanceKm = quote?.distanceKm ?? 0;
   const etaMinutes = quote?.etaMinutes ?? null;
-  const outOfArea = !isPlan1 && quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION';
+  const outOfArea = quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION';
   // Motivos sem cotação que não são "fora da área": loja sem localização / endereço sem coordenadas.
   // Continuam bloqueando o pagamento (canPlace exige inArea === true), mas a tela explica o porquê.
   const storeNoLocation = !isPlan1 && (quote?.reason === 'STORE_NO_LOCATION' || (!!store && !store.latitude));
   const deliveryIssue: 'NO_ADDRESS' | 'STORE_NO_LOCATION' | null = storeNoLocation
     ? 'STORE_NO_LOCATION'
-    : !isPlan1 && ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
-  // Aberta/fechada: a cotação traz `open`; no Plano 1 (sem cotação) vale Store.isOpen. Fechada → o servidor recusa.
-  const storeOpen = isPlan1 || !quote ? (store as { isOpen?: boolean } | undefined)?.isOpen !== false : quote.open !== false;
-  const opensAt = !isPlan1 && quote?.open === false ? quote.opensAt ?? null : null;
+    : (!isPlan1 || quoteEnabled) && ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
+  // Aberta/fechada: a cotação traz `open` (horário de funcionamento). Sem cotação vale Store.isOpen.
+  // No Plano 1 os dois valem: fechada por qualquer um deles → o servidor recusa.
+  const storeIsOpen = (store as { isOpen?: boolean } | undefined)?.isOpen !== false;
+  const storeOpen = !quote ? storeIsOpen : isPlan1 ? storeIsOpen && quote.open !== false : quote.open !== false;
+  const opensAt = quote?.open === false ? quote.opensAt ?? null : null;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [walletBalance, setWalletBalance] = useState(0);
@@ -255,7 +260,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
   }, [address.loading, address.selected, address.addresses]);
 
   // Fail-closed: só libera com área confirmada pelo servidor (ROUTE_FAILED também bloqueia).
-  const canPlace = isPlan1 ? true : quote?.inArea === true;
+  const canPlace = isPlan1 && !quoteEnabled ? true : quote?.inArea === true;
 
   // Dados do titular pro CardForm (Fase 1, à vista): name/email vêm do
   // usuário logado, cpf/telefone de `/user/me` (ver effect acima —

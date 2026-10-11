@@ -244,7 +244,7 @@ export default function SacolaPage() {
 
       <AddressPickerSheet open={pickerOpen} onClose={() => setPickerOpen(false)}
         addresses={c.address.addresses || []} selectedId={c.address.selected ? addressId(c.address.selected) : null}
-        storeId={c.isPlan1 ? null : c.store?._id} storeName={storeName}
+        storeId={c.store?._id} storeName={storeName}
         onPick={(a) => {
           const idx = (c.address.addresses || []).findIndex((x: any) => addressId(x) === addressId(a));
           if (idx >= 0) c.address.selectAddress(idx);
