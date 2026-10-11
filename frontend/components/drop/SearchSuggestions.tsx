@@ -1,7 +1,7 @@
-import { ImageOff, Search, Store } from 'lucide-react';
+import { ChevronRight, ImageOff, LayoutGrid, Search, Store } from 'lucide-react';
 import { formatMoney } from '../../lib/money';
 import { imageUrl } from '../../lib/config';
-import { Chip } from '../ui/Chip';
+import { highlight } from '../../lib/highlight';
 import { Skeleton } from '../ui/Skeleton';
 import type { Suggestions } from '../../types/search';
 import type { DeliveryQuote } from '../../types/delivery';
@@ -32,9 +32,13 @@ export function SearchSuggestions({ term, data, loading, quotes, onProduct, onSt
     <div id={id} className={styles.box}>
       {empty && <p className={styles.empty}>Nada com "{term}". Tente um termo mais curto.</p>}
       {data?.products.map((p) => (
-        <button key={p.id} type="button" className={styles.row} onClick={() => onProduct(p.id)}>
+        <button key={p.id} type="button" className={styles.row} onClick={() => onProduct(p.id)}
+          aria-label={[p.name, p.storeName, formatMoney(p.price), deliveryText(quotes[p.storeId])].filter(Boolean).join(' · ')}>
           <span className={styles.thumb}>{p.image ? <img src={imageUrl(p.image, { w: 96 })} alt="" /> : <ImageOff size={18} aria-hidden="true" />}</span>
-          <span className={styles.name}>{p.name}</span>
+          <span className={styles.tx}>
+            <span className={styles.name}>{highlight(p.name, term)}</span>
+            {p.storeName && <span className={styles.meta}>{p.storeName}</span>}
+          </span>
           <span className={styles.side}>
             <span className={styles.price}>{formatMoney(p.price)}</span>
             {deliveryText(quotes[p.storeId]) && <span className={styles.eta}>{deliveryText(quotes[p.storeId])}</span>}
@@ -49,7 +53,16 @@ export function SearchSuggestions({ term, data, loading, quotes, onProduct, onSt
         </button>
       ))}
       {!!data?.categories.length && (
-        <div className={styles.chips}>{data.categories.map((c) => <Chip key={c} label={c} onClick={() => onCategory(c)} />)}</div>
+        <div role="group" aria-labelledby="sug-cat" className={styles.group}>
+          <p id="sug-cat" className={styles.cap}>Categorias</p>
+          {data.categories.map((c) => (
+            <button key={c} type="button" className={styles.row} onClick={() => onCategory(c)}>
+              <span className={styles.ico} aria-hidden="true"><LayoutGrid size={18} /></span>
+              <span className={styles.name}>{c}</span>
+              <ChevronRight size={18} className={styles.chev} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
       )}
       <button type="button" className={styles.searchRow} onClick={() => onSearch(term)}>
         <Search size={18} aria-hidden="true" /> {`Buscar "${term}"`}

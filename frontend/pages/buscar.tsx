@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { SearchX, SlidersHorizontal, Store as StoreIcon } from 'lucide-react';
+import { ChevronDown, Clock, SearchX, SlidersHorizontal, Store as StoreIcon } from 'lucide-react';
 import { SearchField } from '../components/ui/SearchField';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -24,6 +24,7 @@ import { useNearbyStores, useOffers } from '../hooks/useCatalogHome';
 import { productCardData } from '../lib/catalogCards';
 import { mapStore } from '../lib/mapStore';
 import { deliveryStates } from '../lib/deliveryView';
+import { effectiveFilters, soldOutLast, SORT_LABEL } from '../lib/searchFilters';
 import { addRecentSearch, clearRecentSearches, getRecentSearches } from '../lib/recentSearches';
 import { buscarHref, lojaHref, produtoHref, type BuscarTab } from '../lib/routes';
 import type { SearchQuery, SearchType } from '../types/search';
@@ -61,7 +62,7 @@ export default function BuscarPage() {
   const setFilters = tab === 'lojas' ? setStoreFilters : setProdFilters;
   const type: SearchType = tab === 'lojas' ? 'stores' : 'products';
   // Sem endereço não há "abertas agora" nem "mais perto": o filtro não vale (e a contagem não o conta).
-  const effective: SearchFiltersValue = { ...filters, openNow: !!address.point && filters.openNow };
+  const effective = effectiveFilters(filters, !!address.point);
   const filterCount = activeFilterCount(effective, type);
 
   useEffect(() => { setInput(q); }, [q]);
@@ -105,11 +106,11 @@ export default function BuscarPage() {
     if (categoria) router.replace(buscarHref({ q: q || undefined, tab }));
   };
   const add = (p: any) => addToCart({ productId: p._id, quantity: 1, name: p.name, price: Number(p.price), storeId: p.storeId, storeName: p.storeName, image: p.image });
-  const productList = (items: any[]) => items.map((p: any) => (
+  const productList = (items: any[]) => soldOutLast(items).map((p: any) => (
     <div key={p._id} className={styles.item}>
       <a href={produtoHref(p._id)} className={styles.itemLink} aria-label={p.name}
         onClick={(e) => { e.preventDefault(); router.push(produtoHref(p._id)); }} />
-      <ProductCard variant="busca" product={productCardData(p, quotes[p.storeId])} onAdd={() => add(p)} />
+      <ProductCard variant="grade" product={productCardData(p, quotes[p.storeId])} onAdd={() => add(p)} />
     </div>
   ));
 
@@ -120,7 +121,7 @@ export default function BuscarPage() {
         <button type="button" className={styles.sectionLink} onClick={() => { clearRecentSearches(); setRecent([]); }}>Limpar</button>
       </div>
       <div className={styles.recent}>
-        {recent.map((r) => <button key={r} type="button" className={styles.recentItem} onClick={() => submit(r)}>{r}</button>)}
+        {recent.map((r) => <button key={r} type="button" className={styles.recentChip} onClick={() => submit(r)}><Clock size={14} aria-hidden="true" />{r}</button>)}
       </div>
     </section>
   );
@@ -128,20 +129,22 @@ export default function BuscarPage() {
   const storeSkeleton = <div className={styles.list} role="status" aria-label="Carregando lojas"><Skeleton height={64} /><Skeleton height={64} /><Skeleton height={64} /></div>;
   const initialBody = tab === 'lojas' ? (
     <section className={styles.section}>
-      <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>{address.point ? 'Lojas perto de você' : 'Lojas'}</h2></div>
+      {address.point
+        ? nearby.stores.length > 0 && <p className={styles.resultsMeta}>{`${nearby.stores.length} ${nearby.stores.length === 1 ? 'loja entrega' : 'lojas entregam'} em ${address.label} · mais perto primeiro`}</p>
+        : <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Lojas</h2></div>}
       {!address.point && noAddress.map((st, i) => <DeliveryBadge key={i} state={st} />)}
       {!address.point ? <AllStores onOpen={openStore} />
         : nearby.loading ? storeSkeleton
         : nearby.failed ? <EmptyState variant="error" icon={<StoreIcon />} title="Não carregamos as lojas" description="Confira sua conexão." onRetry={nearby.retry} />
         : nearby.stores.length === 0 ? <EmptyState icon={<StoreIcon />} title="Nenhuma loja entrega aqui ainda" description="Tente outro endereço." />
-        : <div className={styles.list}>{nearby.stores.map((st: any) => <StoreCard key={st._id} variant="resultado" store={mapStore(st, st.quote)} onClick={() => openStore(st._id)} />)}</div>}
+        : <div className={styles.list}>{[...nearby.stores.filter((st: any) => st.quote?.open !== false), ...nearby.stores.filter((st: any) => st.quote?.open === false)].map((st: any) => <StoreCard key={st._id} variant="resultado" store={mapStore(st, st.quote)} onClick={() => openStore(st._id)} />)}</div>}
     </section>
   ) : (offers.loading || offers.failed || offers.products.length > 0) && (
     <section className={styles.section}>
       <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Ofertas</h2></div>
       {offers.failed ? <EmptyState variant="error" icon={<SearchX />} title="Não carregamos as ofertas" description="Confira sua conexão." onRetry={offers.retry} />
         : offers.loading ? <div className={styles.list} role="status" aria-label="Carregando ofertas"><Skeleton height={88} /><Skeleton height={88} /><Skeleton height={88} /></div>
-        : <div className={styles.list}>{productList(offers.products)}</div>}
+        : <div className={styles.grid}>{productList(offers.products)}</div>}
     </section>
   );
 
@@ -155,11 +158,21 @@ export default function BuscarPage() {
       ? <EmptyState icon={<SearchX />} title="Nenhum resultado com esses filtros." action={<Button variant="secondary" onClick={limpar}>Limpar filtros</Button>} />
       : <EmptyState icon={<SearchX />} title={`Nada encontrado para "${q}"`} description="Confira a ortografia ou tente um termo mais curto." />
   ) : (
-    <section className={styles.list} aria-label={`Resultados para ${q}`}>
+    <section className={type === 'stores' ? styles.list : styles.results} aria-label={`Resultados para ${q}`}>
       <p className={styles.srOnly} aria-live="polite">{`${results.items.length}${results.hasMore ? '+' : ''} resultados para ${q}`}</p>
       {type === 'stores'
         ? results.items.map((st: any) => <StoreCard key={st._id} variant="resultado" store={mapStore(st, quotes[st._id])} onClick={() => openStore(st._id)} />)
-        : productList(results.items)}
+        : (
+          <>
+            <div className={styles.resultsMeta}>
+              <span>{address.point ? `Produtos que entregam em ${address.label}` : 'Produtos'}</span>
+              <button type="button" className={styles.sortButton} onClick={() => setFiltersOpen(true)}>
+                {SORT_LABEL[effective.sort]} <ChevronDown size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <div className={styles.grid}>{productList(results.items)}</div>
+          </>
+        )}
       {results.failedMore && (
         <p className={styles.moreError} role="alert">
           Não carregamos mais resultados.{' '}

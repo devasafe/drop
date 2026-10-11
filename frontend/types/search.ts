@@ -1,6 +1,6 @@
 import type { GeoPoint } from './delivery';
 
-export interface SuggestProduct { id: string; name: string; image: string | null; price: number; oldPrice: number | null; storeId: string }
+export interface SuggestProduct { id: string; name: string; image: string | null; price: number; oldPrice: number | null; storeId: string; storeName?: string }
 export interface SuggestStore { id: string; name: string; slug: string }
 export interface Suggestions { products: SuggestProduct[]; stores: SuggestStore[]; categories: string[] }
 export type SearchType = 'products' | 'stores';
