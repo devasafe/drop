@@ -1156,6 +1156,8 @@ model PasswordResetToken {
   userId    String
   tokenHash String
   expiresAt DateTime
+  /// Tentativas erradas deste código. No 5º erro o código trava (pedir outro zera: o forgot cria um token novo).
+  attempts  Int      @default(0)
   createdAt DateTime @default(now())
 
   @@index([userId])
