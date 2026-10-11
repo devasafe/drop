@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Button } from '../../ui/Button';
 import { formatMoney } from '../../../lib/money';
 import styles from './CheckoutBar.module.css';
@@ -25,13 +26,15 @@ export interface CheckoutBarProps {
  * quebra position:fixed).
  */
 export function CheckoutBar({ total, onConfirm, disabled, loading, hint, label = 'Confirmar', showTotal = true, note, inline }: CheckoutBarProps) {
+  const hintId = useId();
   return (
     <div className={[styles.bar, inline && styles.inline].filter(Boolean).join(' ')}>
-      {hint && <p className={styles.hint} role="status">{hint}</p>}
+      {/* Nó sempre montado: live region que nasce vazia e é preenchida depois é anunciada. */}
+      <p id={hintId} className={styles.hint} role="status">{hint}</p>
       <div className={styles.row}>
         {showTotal && <span className={styles.total}>{formatMoney(total)}</span>}
         <div className={styles.cta}>
-          <Button onClick={onConfirm} disabled={disabled} loading={loading}>
+          <Button onClick={onConfirm} disabled={disabled} loading={loading} aria-describedby={hint ? hintId : undefined}>
             {loading ? 'Processando…' : label}
           </Button>
         </div>

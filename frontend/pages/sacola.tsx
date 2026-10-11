@@ -34,6 +34,8 @@ import { installmentOptions } from '../lib/cardInstallments';
 import { ROUTES, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
 
+const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
+
 export default function SacolaPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -94,6 +96,8 @@ export default function SacolaPage() {
   const hint = !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
     : c.storeOpen === false ? 'A loja está fechada agora'
     : c.outOfArea ? 'Esta loja não entrega nesse endereço'
+    : c.deliveryIssue === 'STORE_NO_LOCATION' ? STORE_NO_LOCATION_MSG
+    : c.deliveryIssue === 'NO_ADDRESS' ? 'Confirme o endereço no mapa'
     : !canPlace ? (c.quoteError ?? 'Calculando entrega…')
     : c.isWalletInsufficient ? 'Saldo insuficiente'
     : cardInvalid ? 'Preencha os dados do cartão'
@@ -183,6 +187,14 @@ export default function SacolaPage() {
                 Escolha outro endereço ou outra loja perto de você.
               </Alert>
             )}
+            {c.deliveryIssue === 'STORE_NO_LOCATION' && (
+              <Alert tone="warning" title={STORE_NO_LOCATION_MSG}>Ainda não dá para calcular a entrega dela. Tente outra loja por enquanto.</Alert>
+            )}
+            {c.deliveryIssue === 'NO_ADDRESS' && (
+              <Alert tone="warning" title="Confirme o endereço no mapa" action={{ label: 'Trocar endereço', onClick: () => setPickerOpen(true) }}>
+                Este endereço está sem localização no mapa. Escolha outro ou cadastre de novo.
+              </Alert>
+            )}
             {c.quoteError && (
               <Alert tone="warning" title={c.quoteError} action={{ label: 'Tentar de novo', onClick: c.retryQuote }}>
                 Seu pedido não foi enviado.
@@ -252,7 +264,7 @@ export default function SacolaPage() {
 
       {/* Fora dos ramos de estado: o pedido limpa a sacola ANTES do pixData chegar (teste movido). */}
       {c.pixData && (
-        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={pixAmount}
+        <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={c.pixData.amount ?? pixAmount}
           onPaid={(id) => router.push(pedidoHref(id))} onClose={c.closePix} />
       )}
     </ProtectedRoute>

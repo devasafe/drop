@@ -49,6 +49,8 @@ export interface PixInfo {
   qrCodeImage?: string;   // base64 sem prefixo data:
   qrCodePayload?: string; // copia-e-cola
   expiresAt?: string;
+  /** Valor cobrado no Pix, calculado a partir do pedido gravado pelo servidor (total - saldo usado). */
+  amount?: number;
   orderId: string;
 }
 

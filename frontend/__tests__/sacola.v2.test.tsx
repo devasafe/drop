@@ -10,11 +10,14 @@ jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast }) }))
 jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [], add }) }));
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: 'custodia', directCardEnabled: false, loading: false }) }));
 jest.mock('../hooks/useCheckout', () => ({ useCheckout: jest.fn() }));
+jest.mock('../components/drop/checkout/PixPaymentSheet', () => ({
+  PixPaymentSheet: (p: { amount?: number; onPaid: (id: string) => void }) => <button onClick={() => p.onPaid('o9')}>{`PIX_STUB ${p.amount}`}</button>,
+}));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(() => new Promise(() => {})), post: jest.fn(() => Promise.resolve({ data: { data: [] } })) } }));
 
 import SacolaPage from '../pages/sacola';
 import { useCheckout } from '../hooks/useCheckout';
-import { ROUTES, lojaHref } from '../lib/routes';
+import { ROUTES, lojaHref, pedidoHref } from '../lib/routes';
 
 const mocked = useCheckout as jest.MockedFunction<typeof useCheckout>;
 const casa = { _id: 'a1', street: 'Av. Paulista', number: '1578', neighborhood: 'Bela Vista', city: 'São Paulo', state: 'SP', cep: '01310-200', latitude: '-23.56', longitude: '-46.65' };
@@ -150,6 +153,46 @@ test('trocar endereço: escolher outro no seletor chama selectAddress e fecha (p
   fireEvent.click(screen.getByRole('button', { name: 'Trocar' }));
   fireEvent.click(screen.getByRole('button', { name: /Rua Augusta/ }));
   expect(selectAddress).toHaveBeenCalledWith(1);
+  expect(screen.queryByRole('dialog', { name: 'Onde entregar?' })).not.toBeInTheDocument();
+  expect(localStorage.getItem('drop:deliveryAddressId')).toBe('a2');
+});
+
+test('com endereço: mostra a rua e o número no bloco Entrega (porte do AddressSelector)', () => {
+  mocked.mockReturnValue(hook());
+  render(<SacolaPage />);
+  expect(screen.getByText(/Av\. Paulista, 1578/)).toBeInTheDocument();
+});
+
+test('NO_ADDRESS: pede para confirmar o endereço e abre o seletor', () => {
+  mocked.mockReturnValue(hook({ canPlace: false, etaMinutes: null, deliveryIssue: 'NO_ADDRESS' }));
+  render(<SacolaPage />);
+  expect(screen.getAllByText('Confirme o endereço no mapa').length).toBeGreaterThan(0);
+  expect(screen.queryByText('Calculando entrega…')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Trocar endereço' }));
+  expect(screen.getByRole('dialog', { name: 'Onde entregar?' })).toBeInTheDocument();
+});
+
+test('STORE_NO_LOCATION: diz que a loja não configurou a localização e não deixa pagar', () => {
+  mocked.mockReturnValue(hook({ canPlace: false, etaMinutes: null, deliveryIssue: 'STORE_NO_LOCATION' }));
+  render(<SacolaPage />);
+  expect(screen.getAllByText('Esta loja ainda não configurou a localização.').length).toBeGreaterThan(0);
+  expect(screen.queryByText('Calculando entrega…')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled();
+});
+
+test('a11y: a dica do botão travado está ligada a ele por aria-describedby', () => {
+  mocked.mockReturnValue(hook({ storeOpen: false, opensAt: '09:00' }));
+  render(<SacolaPage />);
+  const btn = screen.getByRole('button', { name: /^Pagar/ });
+  const hintEl = document.getElementById(btn.getAttribute('aria-describedby') as string);
+  expect(hintEl).toHaveTextContent('A loja está fechada agora');
+});
+
+test('Pix: o sheet mostra o valor da cobrança do servidor e, pago, vai ao pedido', () => {
+  mocked.mockReturnValue(hook({ items: [], pixData: { orderId: 'o9', qrCodePayload: 'x', amount: 259 } }));
+  render(<SacolaPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'PIX_STUB 259' }));
+  expect(push).toHaveBeenCalledWith(pedidoHref('o9'));
 });
 
 test('"Adicionar endereço" na sacola sem endereço leva ao cadastro (porte do AddressSelector)', () => {

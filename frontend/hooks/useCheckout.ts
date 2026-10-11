@@ -30,7 +30,7 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => 
 // { order, card:{status,approved} } (cartão, aprovado/pendente — recusado
 // vem como HTTP 402 e cai no catch); fluxo legado (pedido já pago pela
 // carteira) retorna o pedido puro no corpo.
-type OrderLike = { _id: string; paymentProvider?: string };
+type OrderLike = { _id: string; paymentProvider?: string; totalValue?: number | string; walletApplied?: number | string };
 type PlaceOrderResponse =
   | { order: OrderLike; pix?: Omit<PixInfo, 'orderId'>; card?: { status: string; approved: boolean } }
   | OrderLike;
@@ -115,7 +115,13 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
   const deliveryFee = isPlan1 ? 0 : (quote?.deliveryFee ?? 0);
   const distanceKm = quote?.distanceKm ?? 0;
   const etaMinutes = quote?.etaMinutes ?? null;
-  const outOfArea = !isPlan1 && quote?.inArea === false;
+  const outOfArea = !isPlan1 && quote?.inArea === false && quote.reason !== 'STORE_NO_LOCATION';
+  // Motivos sem cotação que não são "fora da área": loja sem localização / endereço sem coordenadas.
+  // Continuam bloqueando o pagamento (canPlace exige inArea === true), mas a tela explica o porquê.
+  const storeNoLocation = !isPlan1 && (quote?.reason === 'STORE_NO_LOCATION' || (!!store && !store.latitude));
+  const deliveryIssue: 'NO_ADDRESS' | 'STORE_NO_LOCATION' | null = storeNoLocation
+    ? 'STORE_NO_LOCATION'
+    : !isPlan1 && ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
   // Aberta/fechada: a cotação traz `open`; no Plano 1 (sem cotação) vale Store.isOpen. Fechada → o servidor recusa.
   const storeOpen = isPlan1 || !quote ? (store as { isOpen?: boolean } | undefined)?.isOpen !== false : quote.open !== false;
   const opensAt = !isPlan1 && quote?.open === false ? quote.opensAt ?? null : null;
@@ -311,7 +317,9 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
 
       if (pix) {
         setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
-        setPixData({ ...pix, orderId: order._id });
+        // Valor da cobrança = o que o servidor gravou (total - saldo usado); a tela não recalcula.
+        const charged = Number(order.totalValue) - Number(order.walletApplied ?? 0);
+        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined });
       } else {
         router.push(pedidoHref(order._id));
       }
@@ -341,6 +349,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
     address, coupon, isPlan1, blocked, cardPayload, setCardPayload, cardHolderDefaults,
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf, cpfValid,
+    deliveryIssue,
     store: store ? { _id: store._id, name: (store as { name?: string }).name, plan: store.plan } : null,
     storeOpen, opensAt, quoteLoading,
   };

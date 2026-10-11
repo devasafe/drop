@@ -57,3 +57,11 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
 }
+
+/* Vazia: sai do fluxo (sem gap), mas continua montada para o leitor de tela. */
+.hint:empty {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
