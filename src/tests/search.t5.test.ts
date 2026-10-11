@@ -245,7 +245,7 @@ describe('GET /api/search/suggest', () => {
     expect(res.status).toBe(200);
     const { products, stores: lojas, categories } = res.body.data;
     expect(products).toHaveLength(5);
-    expect(Object.keys(products[0]).sort()).toEqual(['id', 'image', 'name', 'oldPrice', 'price', 'storeId']);
+    expect(Object.keys(products[0]).sort()).toEqual(['id', 'image', 'name', 'oldPrice', 'price', 'storeId', 'storeName']);
     expect(typeof products[0].price).toBe('number');
     expect(lojas).toHaveLength(3);
     expect(Object.keys(lojas[0]).sort()).toEqual(['id', 'name', 'slug']);

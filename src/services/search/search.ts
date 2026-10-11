@@ -34,11 +34,13 @@ export type SearchType = 'products' | 'stores';
 export type SearchSort = 'relevance' | 'price_asc' | 'price_desc' | 'distance';
 
 export interface SearchParams {
-  q: string;
+  /** Obrigatório para lojas; opcional para produtos com categoryName (a rota valida). */
+  q?: string;
   type: SearchType;
   lat?: number;
   lng?: number;
   categoryName?: string;
+  subCategory?: string;
   minPrice?: number;
   maxPrice?: number;
   openNow?: boolean;
@@ -196,16 +198,19 @@ export async function search(params: SearchParams): Promise<SearchResult> {
 }
 
 async function searchProductIds(params: SearchParams, scope: StoreScope, trgm: boolean, offset: number): Promise<string[]> {
-  const { match, relevance } = termSql('p."name"', params.q, trgm);
-  const conds: Prisma.Sql[] = [match];
+  const term = params.q ? termSql('p."name"', params.q, trgm) : null;
+  const relevance = term ? term.relevance : Prisma.sql`0::int`; // `0` solto no ORDER BY vira posição de coluna
+  const conds: Prisma.Sql[] = term ? [term.match] : [];
   if (params.minPrice != null) conds.push(Prisma.sql`p."price" >= ${params.minPrice}`);
   if (params.maxPrice != null) conds.push(Prisma.sql`p."price" <= ${params.maxPrice}`);
+  if (params.subCategory) conds.push(Prisma.sql`p."subCategory" = ${params.subCategory}`);
   let categoryJoin = Prisma.empty;
   if (params.categoryName) {
     categoryJoin = Prisma.sql`JOIN "Category" c ON c."id" = p."categoryId"`;
     conds.push(Prisma.sql`${normCol('c."name"', trgm)} = ${normTerm(params.categoryName, trgm)}`);
   }
 
+  const where = conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`TRUE`;
   const tie = Prisma.sql`p."createdAt" DESC, p."id" DESC`;
   // Whitelist fechada: `sort` só escolhe entre estes fragmentos.
   const ORDER: Record<SearchSort, Prisma.Sql> = {
@@ -220,14 +225,14 @@ async function searchProductIds(params: SearchParams, scope: StoreScope, trgm: b
     SELECT p."id" FROM "Product" p
     ${scopeJoin(scope, 'p."storeId"')}
     ${categoryJoin}
-    WHERE ${Prisma.join(conds, ' AND ')}
+    WHERE ${where}
     ORDER BY ${orderBy}
     LIMIT ${params.limit + 1} OFFSET ${offset}`;
   return rows.map((r) => r.id);
 }
 
 async function searchStoreIds(params: SearchParams, scope: StoreScope, trgm: boolean, offset: number): Promise<string[]> {
-  const { match, relevance } = termSql('s."name"', params.q, trgm);
+  const { match, relevance } = termSql('s."name"', params.q as string, trgm);
   const tie = Prisma.sql`s."createdAt" DESC, s."id" DESC`;
   // Loja não tem preço: price_* cai na relevância.
   const orderBy = params.sort === 'distance'
@@ -277,10 +282,41 @@ async function hydrateStores(ids: string[], distById: Map<string, number | null>
   return withStoreRatings(list);
 }
 
+export interface CategorySummary { name: string; productCount: number; storeCount: number; subCategories: { name: string; count: number }[] }
+
+/** Resumo da categoria na vitrine (lojas visíveis): produtos, lojas e subcategorias com contagem. */
+export async function categorySummary(name: string): Promise<CategorySummary> {
+  const trgm = await hasSearchExtensions();
+  const scope = await storeScope(null, false);
+  if (scope.ids.length === 0) return { name, productCount: 0, storeCount: 0, subCategories: [] };
+  const cat = Prisma.sql`${normCol('c."name"', trgm)} = ${normTerm(name, trgm)}`;
+  const [tot] = await prisma.$queryRaw<{ name: string | null; products: number; stores: number }[]>`
+    SELECT min(c."name") AS "name", COUNT(*)::int AS "products", COUNT(DISTINCT p."storeId")::int AS "stores"
+    FROM "Product" p
+    ${scopeJoin(scope, 'p."storeId"')}
+    JOIN "Category" c ON c."id" = p."categoryId"
+    WHERE ${cat}`;
+  const subs = await prisma.$queryRaw<{ name: string; count: number }[]>`
+    SELECT p."subCategory" AS "name", COUNT(*)::int AS "count"
+    FROM "Product" p
+    ${scopeJoin(scope, 'p."storeId"')}
+    JOIN "Category" c ON c."id" = p."categoryId"
+    WHERE ${cat} AND p."subCategory" IS NOT NULL AND btrim(p."subCategory") <> ''
+    GROUP BY p."subCategory"
+    ORDER BY "count" DESC, p."subCategory" ASC
+    LIMIT 12`;
+  return {
+    name: tot?.name ?? name,
+    productCount: Number(tot?.products ?? 0),
+    storeCount: Number(tot?.stores ?? 0),
+    subCategories: subs.map((s) => ({ name: s.name, count: Number(s.count) })),
+  };
+}
+
 // ── sugestões ───────────────────────────────────────────────────────────────────────────
 
 export interface Suggestions {
-  products: { id: string; name: string; image: string | null; price: number; oldPrice: number | null; storeId: string }[];
+  products: { id: string; name: string; image: string | null; price: number; oldPrice: number | null; storeId: string; storeName: string }[];
   stores: { id: string; name: string; slug: string }[];
   categories: string[];
 }
@@ -305,9 +341,10 @@ export async function suggest(q: string): Promise<Suggestions> {
   const cat = termSql('c."name"', q, trgm);
 
   const [products, stores, categories] = await Promise.all([
-    prisma.$queryRaw<{ id: string; name: string; image: string | null; price: any; oldPrice: any; storeId: string }[]>`
-      SELECT p."id", p."name", p."image", p."price", p."oldPrice", p."storeId" FROM "Product" p
+    prisma.$queryRaw<{ id: string; name: string; image: string | null; price: any; oldPrice: any; storeId: string; storeName: string }[]>`
+      SELECT p."id", p."name", p."image", p."price", p."oldPrice", p."storeId", s."name" AS "storeName" FROM "Product" p
       ${scopeJoin(scope, 'p."storeId"')}
+      JOIN "Store" s ON s."id" = p."storeId"
       WHERE ${prod.match}
       ORDER BY ${prod.relevance} DESC, p."createdAt" DESC, p."id" DESC
       LIMIT 5`,
@@ -335,6 +372,7 @@ export async function suggest(q: string): Promise<Suggestions> {
       price: Number(p.price),
       oldPrice: p.oldPrice != null ? Number(p.oldPrice) : null,
       storeId: p.storeId,
+      storeName: p.storeName,
     })),
     stores: stores.map((s) => ({ id: s.id, name: s.name, slug: slugify(s.name) })),
     categories: categories.map((c) => c.name),
