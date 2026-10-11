@@ -233,3 +233,14 @@
   color: var(--color-text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
 .filterChip:hover { color: var(--color-text-primary); }
 .filterChipActive { color: var(--color-text-brand); border-color: var(--color-border-default); background: var(--color-action-primary-subtle); }
+
+/* saldo em destaque: o maior número do bloco, nunca roxo */
+.balanceValue {
+  font: var(--text-price-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-price);
+}
+.balanceHint {
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}

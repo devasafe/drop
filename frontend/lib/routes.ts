@@ -16,6 +16,8 @@ export const ROUTES = {
   notificacoes: '/notifications',
   // provisório: vira /conta/ajuda na Task 31
   ajuda: '/suporte',
+  // provisório: vira /conta/privacidade na Task 32
+  privacidadeConta: '/privacidade/solicitacoes',
 } as const;
 
 /** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */

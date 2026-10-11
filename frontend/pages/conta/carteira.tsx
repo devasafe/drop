@@ -17,6 +17,8 @@ import WalletTopupSheet from '../../components/wallet/WalletTopupSheet';
 import { Sparkles } from 'lucide-react';
 import styles from './Carteira.module.css';
 import ModeGate from '../../components/ModeGate';
+import { ScreenHeader } from '../../components/drop/ScreenHeader';
+import { Alert } from '../../components/ui/Alert';
 import { ROUTES } from '../../lib/routes';
 
 interface WalletData {
@@ -58,6 +60,7 @@ function WalletPageInner() {
   const uid = user?._id || (user as any)?.id || ''; // AuthUser tem `id`; `_id` é opcional
   const { showToast } = useToast();
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [debt, setDebt] = useState<{ amount: number; createdAt?: string } | null>(null);
   const [summary, setSummary] = useState<ClientWalletSummary | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [extractFilter, setExtractFilter] = useState<'todos' | 'compras' | 'recargas' | 'reembolsos'>('todos');
@@ -83,6 +86,11 @@ function WalletPageInner() {
         const sumRes = await api.get(`/wallets/${uid}/client-summary`);
         setSummary(sumRes.data);
       } catch { /* resumo opcional */ }
+      try {
+        const debtRes = await api.get('/debts/my-pending');
+        const d = debtRes.data?.debt;
+        setDebt(d && Number(d.amount) > 0 ? { amount: Number(d.amount), createdAt: d.createdAt } : null);
+      } catch { /* taxa pendente opcional */ }
     } catch (err) {
       console.error('Erro ao buscar carteira:', err);
     } finally {
@@ -134,20 +142,24 @@ function WalletPageInner() {
   return (
     <ProtectedRoute required_role="cliente">
       <div className={styles.page}>
-        <header className={styles.header}>
-          <button type="button" className={styles.back} onClick={() => router.push(ROUTES.conta)}>Voltar para Conta</button>
-          <h1 className={styles.title}>Carteira</h1>
-          <p className={styles.subtitle}>Gerencie seu saldo, créditos e acompanhe suas movimentações.</p>
-        </header>
+        <div className={styles.header}>
+          <ScreenHeader title="Carteira" onBack={() => router.push(ROUTES.conta)} />
+        </div>
+
+        {debt && (
+          <Alert tone="warning" title={`Taxa pendente: ${formatBRL(debt.amount)}`} action={{ label: 'Por que pago isso?', onClick: () => router.push(ROUTES.ajuda) }}>
+            {`Cancelamento com o motoboy já na rua${debt.createdAt ? `, em ${new Date(debt.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : ''}. É descontada na próxima compra.`}
+          </Alert>
+        )}
 
         {/* Card de saldo */}
         <div className={styles.balanceCard}>
           <div className={styles.balanceTop}>
-            <span className={styles.balanceLabel}>Saldo disponível</span>
+            <span className={styles.balanceLabel}>Saldo para usar</span>
             <span className={styles.walletBadge}><Wallet size={18} aria-hidden="true" /></span>
           </div>
           <span className={styles.balanceValue}>{loading ? '—' : formatBRL(wallet?.balance ?? 0)}</span>
-          <span className={styles.balanceHint}>Use seu saldo para pagamentos na Drop.</span>
+          <span className={styles.balanceHint}>Entra sozinho na próxima sacola. Não expira.</span>
           <div className={styles.actionsInline}>
             <button type="button" className={`${styles.actionBtn} ${styles.actionPrimary}`} onClick={() => setCreditOpen(true)}>
               <Plus size={17} aria-hidden="true" /> Carregar saldo

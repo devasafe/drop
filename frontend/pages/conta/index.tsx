@@ -14,7 +14,9 @@ import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { getNavItems } from '../../lib/navConfig';
-import { safeNext, type ContaSecao } from '../../lib/routes';
+import { ScreenHeader } from '../../components/drop/ScreenHeader';
+import { useAddresses } from '../../hooks/useSync';
+import { ROUTES, safeNext, type ContaSecao } from '../../lib/routes';
 import styles from './Conta.module.css';
 
 const SECOES: ContaSecao[] = ['dados', 'verificacao', 'enderecos'];
@@ -28,7 +30,9 @@ export default function ContaPage() {
   const custodia = settlementMode !== 'direto';
   const [secao, setSecao] = useState<ContaSecao | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
-  const [debt, setDebt] = useState<number | null>(null);
+  const [debt, setDebt] = useState<{ amount: number; createdAt?: string } | null>(null);
+  const { addresses } = useAddresses();
+  const addressLabels = (addresses || []).map((a: any) => a.label).filter(Boolean).slice(0, 3).join(' · ');
   const [verified, setVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -40,7 +44,7 @@ export default function ContaPage() {
     if (!user) return;
     let cancelled = false;
     if (custodia) api.get('/wallets/my-wallet').then((r) => { if (!cancelled) setBalance(Number(r.data?.balance) || 0); }).catch(() => {});
-    api.get('/debts/my-pending').then((r) => { if (!cancelled) setDebt(r.data?.debt ? Number(r.data.debt.amount) : null); }).catch(() => {});
+    api.get('/debts/my-pending').then((r) => { if (!cancelled) setDebt(r.data?.debt ? { amount: Number(r.data.debt.amount), createdAt: r.data.debt.createdAt } : null); }).catch(() => {});
     api.get('/verification/me').then((r) => {
       if (cancelled) return;
       const v = r.data?.verification;
@@ -53,10 +57,10 @@ export default function ContaPage() {
   const walletRows = useMemo(() => getNavItems('cliente', () => true, false, { settlementMode, custodyLeftover })
     .filter((i) => i.placement.includes('account')), [settlementMode, custodyLeftover]);
 
-  const row = (label: string, icon: JSX.Element, onClick: () => void, meta?: string) => (
+  const row = (label: string, icon: JSX.Element, onClick: () => void, meta?: string, sub?: string) => (
     <button type="button" className={styles.row} onClick={onClick}>
       <span className={styles.rowIcon} aria-hidden="true">{icon}</span>
-      <span className={styles.rowLabel}>{label}</span>
+      <span className={styles.rowLabel}>{label}{sub && <span className={styles.rowSub}>{sub}</span>}</span>
       {meta && <span className={styles.rowMeta}>{meta}</span>}
       <ChevronRight size={18} aria-hidden="true" className={styles.chevron} />
     </button>
@@ -66,17 +70,28 @@ export default function ContaPage() {
     <ProtectedRoute required_role="cliente">
       <main className={styles.page}>
         <div className={[styles.index, secao && styles.hiddenMobile].filter(Boolean).join(' ')}>
-          <header className={styles.person}>
+          <ScreenHeader title="Conta" />
+          <div className={[styles.person, styles.personCard].join(' ')}>
             <Avatar name={user?.name || 'Você'} src={user?.photo} size="lg" />
             <div>
               <p className={styles.name}>{user?.name}</p>
               <p className={styles.email}>{user?.email}</p>
               {verified === true && <span className={styles.verified}><Check size={14} aria-hidden="true" /> Conta verificada</span>}
             </div>
-          </header>
+          </div>
 
-          {debt != null && debt > 0 && (
-            <Alert tone="warning" title={`Taxa pendente de ${formatMoney(debt)}`}>De um cancelamento tardio. Entra na próxima compra.</Alert>
+          {custodia && balance != null && (
+            <div className={styles.kpi}>
+              <span className={styles.kpiLabel}>Saldo na carteira</span>
+              <b className={styles.kpiValue}>{formatMoney(balance)}</b>
+              <span className={styles.kpiHint}>usa sozinho na sacola</span>
+            </div>
+          )}
+
+          {debt != null && debt.amount > 0 && (
+            <Alert tone="warning" title={`Taxa pendente de ${formatMoney(debt.amount)}`}>
+              {`De um cancelamento tardio${debt.createdAt ? ` em ${new Date(debt.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : ''}. Entra na próxima compra.`}
+            </Alert>
           )}
           {verified === false && (
             <Alert tone="info" title="Confirme seus dados para comprar" action={{ label: 'Verificar agora', onClick: () => setSecao('verificacao') }}>
@@ -86,7 +101,7 @@ export default function ContaPage() {
 
           <section className={styles.group} aria-label="Compras">
             <h2 className={styles.groupTitle}>Compras</h2>
-            {row('Endereços', <MapPin size={20} />, () => setSecao('enderecos'))}
+            {row('Endereços', <MapPin size={20} />, () => setSecao('enderecos'), undefined, addressLabels || undefined)}
             {walletRows.map((i) => row(i.label, <Wallet size={20} />, () => router.push(i.route), i.label === 'Carteira' && balance != null ? formatMoney(balance) : undefined))}
           </section>
           <section className={styles.group} aria-label="Conta">
@@ -96,9 +111,9 @@ export default function ContaPage() {
           </section>
           <section className={styles.group} aria-label="App">
             <h2 className={styles.groupTitle}>App</h2>
-            {row('Notificações', <Bell size={20} />, () => router.push('/notifications'))}
-            {row('Ajuda e suporte', <HelpCircle size={20} />, () => router.push('/suporte'))}
-            {row('Privacidade e dados', <Lock size={20} />, () => router.push('/privacidade'))}
+            {row('Notificações', <Bell size={20} />, () => router.push(ROUTES.notificacoes))}
+            {row('Ajuda e suporte', <HelpCircle size={20} />, () => router.push(ROUTES.ajuda))}
+            {row('Privacidade e dados', <Lock size={20} />, () => router.push(ROUTES.privacidadeConta))}
           </section>
           <button type="button" className={styles.logout} onClick={() => logout?.()}><LogOut size={20} aria-hidden="true" /> Sair</button>
         </div>
