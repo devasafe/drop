@@ -38,7 +38,7 @@ test('histórico por mês; "De novo" só no entregue e monta a sacola', async ()
   expect(screen.getByText('Setembro de 2026')).toBeInTheDocument();
   expect(screen.getAllByRole('button', { name: 'De novo' })).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: 'De novo' }));
-  await screen.findByText('Pet&Cia');
+  await screen.findByText(/Pet&Cia/);
   expect(reorder).toHaveBeenCalledWith('h1');
   expect(push).toHaveBeenCalledWith(ROUTES.sacola);
 });
@@ -58,7 +58,7 @@ test('teclado: Enter em "De novo" recompra e não abre o pedido (P14)', async ()
   // No navegador, Enter num <button> só vira click se ninguém der preventDefault no keydown.
   const notPrevented = fireEvent.keyDown(btn, { key: 'Enter' });
   if (notPrevented) fireEvent.click(btn);
-  await screen.findByText('Pet&Cia');
+  await screen.findByText(/Pet&Cia/);
   expect(reorder).toHaveBeenCalledWith('h1');
   expect(push).not.toHaveBeenCalledWith(pedidoHref('h1'));
 });

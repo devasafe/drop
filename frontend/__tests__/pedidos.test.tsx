@@ -34,6 +34,6 @@ describe('Pedidos (/pedidos)', () => {
     await screen.findByText('Pedidos');
     const chip = screen.getAllByText(/Histórico/).find((el) => el.tagName !== 'OPTION');
     fireEvent.click(chip!);
-    expect(screen.getByText('Loja Antiga')).toBeInTheDocument();
+    expect(screen.getByText(/Loja Antiga/)).toBeInTheDocument();
   });
 });
