@@ -41,3 +41,10 @@ it('reembolso que falhou: aviso com o suporte já avisado', () => {
   render(<CancellationStatus cancellation={{ ...base, refundStatus: 'failed' }} />);
   expect(screen.getByRole('alert')).toHaveTextContent('O suporte já foi avisado e resolve com prioridade.');
 });
+
+it.each(['conferindo', 'resolvendo'] as const)('modo direto "%s": não promete prazo', (stage) => {
+  render(<CancellationStatus cancellation={base} storeName="Eletro Center"
+    direct={{ stage, amount: 189.9, requestedAt: '2026-10-08T10:02:00', acceptedAt: null, doneAt: null }} />);
+  expect(screen.getByText('Pelo mesmo Pix, direto da conta da Eletro Center.')).toBeInTheDocument();
+  expect(screen.queryByText(/Costuma cair em minutos/)).toBeNull();
+});

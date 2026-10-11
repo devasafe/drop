@@ -159,7 +159,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
               ? `${formatBRL(direct.amount)} devolvidos em ${ddmm(direct.doneAt)} às ${hhmm(direct.doneAt)}`
               : `${formatBRL(direct.amount)} voltam para você`}
           </p>
-          <p className={styles.sub}>{`Pelo mesmo Pix, direto da conta da ${storeName || 'loja'}. Costuma cair em minutos.`}</p>
+          <p className={styles.sub}>{`Pelo mesmo Pix, direto da conta da ${storeName || 'loja'}.${direct.stage === 'devolvendo' ? ' Costuma cair em minutos.' : ''}`}</p>
         </div>
       ) : (
         cancellation.refundAmount !== undefined && (
