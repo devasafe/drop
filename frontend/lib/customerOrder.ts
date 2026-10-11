@@ -41,7 +41,7 @@ function phaseIndex(status: CustomerOrderStatus): number {
   }
 }
 
-/** Passos da timeline. Hora só onde o backend tem (não há pickedAt/deliveredAt). */
+/** Passos da timeline. Hora só onde o backend grava: createdAt/acceptedAt no pedido e assignedAt/pickedAt/deliveredAt na entrega (pedido antigo não tem, e nada é inventado). */
 export function orderTimelineSteps(order: any, delivery?: any): TimelineStep[] {
   const plan1 = isPlan1Order(order) && !delivery;
   const status = customerOrderStatus(order, delivery);
@@ -60,10 +60,10 @@ export function orderTimelineSteps(order: any, delivery?: any): TimelineStep[] {
         { label: 'Pagamento confirmado' },
         { label: 'Loja aceitou', time: hhmm(order?.acceptedAt) },
         courierFound
-          ? { label: 'Entregador a caminho da loja', detail: mb ? [mb.name, mb.plate].filter(Boolean).join(' · ') : undefined }
+          ? { label: 'Entregador a caminho da loja', time: hhmm(delivery?.assignedAt), detail: mb ? [mb.name, mb.plate].filter(Boolean).join(' · ') : undefined }
           : { label: 'Procurando entregador' },
-        { label: 'Saiu para entrega' },
-        { label: 'Entregue' },
+        { label: 'Saiu para entrega', time: hhmm(delivery?.pickedAt) },
+        { label: 'Entregue', time: hhmm(delivery?.deliveredAt) },
       ];
 
   // Antes do pagamento, o passo em andamento não pode dizer "confirmado".

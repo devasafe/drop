@@ -14,6 +14,8 @@ export const ROUTES = {
   esqueciSenha: '/esqueci-senha',
   // provisório: vira /conta/notificacoes na Task 29
   notificacoes: '/notifications',
+  // provisório: vira /conta/ajuda na Task 31
+  ajuda: '/suporte',
 } as const;
 
 /** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */
@@ -57,6 +59,6 @@ export const pedidoHref = (id: string): string => `/pedido/${enc(id)}`;
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
 export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/loja/[id]', '/pedido/[id]'];
 /** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
-export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola'];
+export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
 export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola'];

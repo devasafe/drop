@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { Map as MapIcon, PackageSearch } from 'lucide-react';
+import { Map as MapIcon, PackageSearch, HelpCircle, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -24,6 +24,8 @@ import { CancellationStatus, type CancellationInfo } from '../../components/drop
 import { ReorderConfirmSheet } from '../../components/drop/ReorderConfirmSheet';
 import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
+import { ScreenHeader } from '../../components/drop/ScreenHeader';
+import { buildRouteThumbnailUrl } from '../../lib/staticMap';
 import { ROUTES } from '../../lib/routes';
 import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
@@ -50,6 +52,7 @@ export default function PedidoPage() {
   const t = useOrderTracking(id);
   const { cancelOrder, getCancellationHistory } = useCancellation();
   const [mapOpen, setMapOpen] = useState(false);
+  const [itemsOpen, setItemsOpen] = useState(false);
   const reorderFlow = useReorderFlow();
 
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -209,6 +212,18 @@ export default function PedidoPage() {
   const view = orderStatusView(status);
   const tripMin = order && status === 'out_for_delivery' && Number(order.deliveryDuration) > 0 ? Math.round(Number(order.deliveryDuration) / 60) : null;
   const mb = delivery?.motoboyObj;
+  const toPoint = (lat: any, lng: any) => (lat && lng && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null);
+  const mapThumb = order
+    ? buildRouteThumbnailUrl({
+        store: toPoint(order.storeLatitude ?? delivery?.storeLatitude, order.storeLongitude ?? delivery?.storeLongitude),
+        customer: toPoint(order.customerLatitude ?? delivery?.customerLatitude, order.customerLongitude ?? delivery?.customerLongitude),
+        polyline: order.routePolyline ?? null,
+        width: 640,
+        height: 280,
+        key: process.env.NEXT_PUBLIC_MAPTILER_KEY,
+      })
+    : null;
+  const itemsCount = (order?.products || []).reduce((sum: number, p: any) => sum + (Number(p.quantity) || 1), 0);
 
   return (
     <ProtectedRoute required_role="cliente">
@@ -232,17 +247,23 @@ export default function PedidoPage() {
           </div>
         ) : (
           <main className={styles.page}>
-            <header className={styles.header}>
-              <h1 className={styles.title}>Pedido #{shortOrderCode(order._id)}</h1>
-              <p className={styles.meta}>{order.storeName || 'Loja'}</p>
-            </header>
+            <ScreenHeader
+              title={`Pedido #${shortOrderCode(order._id)}`}
+              onBack={() => router.push(ROUTES.pedidos)}
+              end={
+                <button type="button" className={styles.iconBtn} aria-label="Ajuda com este pedido" onClick={() => router.push(ROUTES.ajuda)}>
+                  <HelpCircle size={22} aria-hidden="true" />
+                </button>
+              }
+            />
+            <p className={styles.meta}>{order.storeName || 'Loja'}</p>
 
             <section className={styles.status}>
               <span aria-hidden="true"><OrderStatusBadge status={status} /></span>
               <p className={styles.statusBig} aria-live="polite">{view.label}</p>
               {tripMin && <p className={styles.statusSub}>{`Trajeto de cerca de ${tripMin} min`}</p>}
               {status === 'problem' && (
-                <Alert tone="error" title="Tivemos um problema na entrega" action={{ label: 'Falar com suporte', onClick: () => router.push('/suporte') }}>
+                <Alert tone="error" title="Tivemos um problema na entrega" action={{ label: 'Falar com suporte', onClick: () => router.push(ROUTES.ajuda) }}>
                   Já estamos olhando o seu pedido.
                 </Alert>
               )}
@@ -261,16 +282,20 @@ export default function PedidoPage() {
             )}
 
             {t.showPin && delivery?.pin && !['cancelado', 'rejeitado', 'entregue'].includes(order.status) && status !== 'delivered' && (
-              <section className={styles.block} aria-label="Código de entrega">
+              <section className={styles.pinBlock} aria-label="Código de entrega">
                 <p className={styles.blockLabel}>Código de entrega</p>
                 <DeliveryPin pin={delivery.pin} />
               </section>
             )}
 
             {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
-              <Button variant="secondary" leftIcon={<MapIcon size={18} strokeWidth={ICON_STROKE_WIDTH} />} onClick={() => setMapOpen(true)}>
-                Acompanhar no mapa
-              </Button>
+              <button type="button" className={styles.mapCard} onClick={() => setMapOpen(true)}>
+                {mapThumb && <img src={mapThumb} alt="" className={styles.mapImg} />}
+                <span className={styles.mapLabel}>
+                  <MapIcon size={18} aria-hidden="true" />
+                  Acompanhar no mapa
+                </span>
+              </button>
             )}
             {mapOpen && <ClienteTrackingMap order={order} onClose={() => setMapOpen(false)} />}
 
@@ -291,24 +316,33 @@ export default function PedidoPage() {
             )}
 
             <section className={styles.block}>
-              <OrderItemsSummary
-                items={(order.products || []).map((p: any) => ({
-                  name: p.productName,
-                  quantity: p.quantity,
-                  price: p.price,
-                }))}
-                subtotal={order.subtotal ?? 0}
-                deliveryFee={order.deliveryFee ?? 0}
-                // Cupom/desconto não é campo próprio do Order; é derivado do que
-                // sobrou entre (subtotal + entrega) e o total do pedido.
-                discount={Math.max(0, Math.round(((Number(order.subtotal) || 0) + (Number(order.deliveryFee) || 0) - (Number(order.totalValue) || 0)) * 100) / 100)}
-                total={order.totalValue ?? 0}
-                paymentMethod={order.paymentMethod}
-                installmentCount={order.installmentCount}
-                walletApplied={order.walletApplied ? Number(order.walletApplied) : 0}
-                cardChargedTotal={order.cardChargedTotal ? Number(order.cardChargedTotal) : undefined}
-                installmentValue={order.installmentValue ? Number(order.installmentValue) : undefined}
-              />
+              <button type="button" className={styles.itemsRow} aria-expanded={itemsOpen} onClick={() => setItemsOpen((v) => !v)}>
+                <span className={styles.itemsText}>
+                  <b>{`${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'} · ${order.storeName || 'Loja'}`}</b>
+                  <span>{(order.products || []).slice(0, 3).map((p: any) => p.productName).join(', ')}</span>
+                </span>
+                <ChevronDown size={18} aria-hidden="true" className={itemsOpen ? styles.chevOpen : styles.chev} />
+              </button>
+              {itemsOpen && (
+                <OrderItemsSummary
+                  items={(order.products || []).map((p: any) => ({
+                    name: p.productName,
+                    quantity: p.quantity,
+                    price: p.price,
+                  }))}
+                  subtotal={order.subtotal ?? 0}
+                  deliveryFee={order.deliveryFee ?? 0}
+                  // Cupom/desconto não é campo próprio do Order; é derivado do que
+                  // sobrou entre (subtotal + entrega) e o total do pedido.
+                  discount={Math.max(0, Math.round(((Number(order.subtotal) || 0) + (Number(order.deliveryFee) || 0) - (Number(order.totalValue) || 0)) * 100) / 100)}
+                  total={order.totalValue ?? 0}
+                  paymentMethod={order.paymentMethod}
+                  installmentCount={order.installmentCount}
+                  walletApplied={order.walletApplied ? Number(order.walletApplied) : 0}
+                  cardChargedTotal={order.cardChargedTotal ? Number(order.cardChargedTotal) : undefined}
+                  installmentValue={order.installmentValue ? Number(order.installmentValue) : undefined}
+                />
+              )}
             </section>
 
             <OrderActions
