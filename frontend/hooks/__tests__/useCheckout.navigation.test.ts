@@ -30,7 +30,7 @@ beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); mockPlan = 2; moc
 
 test('resposta do Asaas sem Pix ({ order, card }) navega para o pedido', async () => {
   setup({ order: { _id: 'ord-card' }, card: { status: 'CONFIRMED', approved: true } });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   act(() => { result.current.setPaymentMethod('credit_card'); });
   act(() => { result.current.setCardPayload({ valid: true, card: { holderName: 'F', number: '4111111111111111', expiryMonth: '12', expiryYear: '2030', ccv: '123' }, cardHolder: { name: 'F', email: 'f@x', cpfCnpj: '39053344705', postalCode: '20000000', addressNumber: '10', phone: '21999999999' } }); });
@@ -40,7 +40,7 @@ test('resposta do Asaas sem Pix ({ order, card }) navega para o pedido', async (
 
 test('resposta legada (o próprio pedido) navega para o pedido', async () => {
   setup({ _id: 'ord-legado' });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   act(() => { result.current.setPaymentMethod('wallet'); });
   await act(async () => { await result.current.placeOrder(); });
@@ -49,7 +49,7 @@ test('resposta legada (o próprio pedido) navega para o pedido', async () => {
 
 test('expõe a loja, aberta e o horário de abertura da cotação', async () => {
   setup({});
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.store).toMatchObject({ _id: 's1' });
   expect(result.current.storeOpen).toBe(true);
@@ -61,7 +61,7 @@ const orderCalls = () => mockedApi.post.mock.calls.filter(([u]) => u === '/order
 test('Plano 1: resposta do Asaas ({ order, pix }) expõe o Pix do pedido e closePix navega para ele', async () => {
   mockPlan = 1;
   setup({ order: { _id: 'ord-asaas', totalValue: 10, walletApplied: 0 }, pix: { paymentId: 'pay_1', qrCodePayload: 'abc' } });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.isPlan1).toBe(true);
   await act(async () => { await result.current.placeOrder(); });
@@ -75,7 +75,7 @@ test('Plano 1: resposta do Asaas ({ order, pix }) expõe o Pix do pedido e close
 test('Plano 1: resposta legada (o próprio pedido) continua navegando', async () => {
   mockPlan = 1;
   setup({ _id: 'ord-legado' });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   await act(async () => { await result.current.placeOrder(); });
   expect(push).toHaveBeenCalledWith(pedidoHref('ord-legado'));
@@ -83,7 +83,7 @@ test('Plano 1: resposta legada (o próprio pedido) continua navegando', async ()
 
 test('valor do Pix = total do pedido no servidor menos o saldo usado', async () => {
   setup({ order: { _id: 'o2', totalValue: '100.00', walletApplied: '18.20' }, pix: { paymentId: 'p', qrCodePayload: 'x' } });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   await act(async () => { await result.current.placeOrder(); });
   expect(result.current.pixData?.amount).toBe(81.8);
@@ -91,7 +91,7 @@ test('valor do Pix = total do pedido no servidor menos o saldo usado', async () 
 
 test('loja fechada: a cotação traz open=false e o horário de abertura', async () => {
   setup({}, { open: false, opensAt: '09:00' });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.storeOpen).toBe(false);
   expect(result.current.opensAt).toBe('09:00');
@@ -100,7 +100,7 @@ test('loja fechada: a cotação traz open=false e o horário de abertura', async
 test('Plano 1 sem cotação: vale Store.isOpen', async () => {
   mockPlan = 1; mockIsOpen = false;
   setup({});
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.storeOpen).toBe(false);
   expect(result.current.opensAt).toBeNull();
@@ -108,7 +108,7 @@ test('Plano 1 sem cotação: vale Store.isOpen', async () => {
 
 test('STORE_NO_LOCATION não é "fora da área": tem motivo próprio e continua sem poder pagar', async () => {
   setup({}, { inArea: false, reason: 'STORE_NO_LOCATION', deliveryFee: null, distanceKm: null, etaMinutes: null });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.outOfArea).toBe(false);
   expect(result.current.deliveryIssue).toBe('STORE_NO_LOCATION');
@@ -117,7 +117,7 @@ test('STORE_NO_LOCATION não é "fora da área": tem motivo próprio e continua 
 
 test('NO_ADDRESS vindo da cotação vira motivo próprio e bloqueia', async () => {
   setup({}, { inArea: null, reason: 'NO_ADDRESS', deliveryFee: null, distanceKm: null, etaMinutes: null });
-  const { result } = renderHook(() => useCheckout({ redirectPlan1: false }));
+  const { result } = renderHook(() => useCheckout());
   await act(async () => {}); await act(async () => {});
   expect(result.current.deliveryIssue).toBe('NO_ADDRESS');
   expect(result.current.canPlace).toBe(false);

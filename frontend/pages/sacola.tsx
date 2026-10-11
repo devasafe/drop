@@ -40,7 +40,7 @@ export default function SacolaPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const cart = useCart() || ({} as any);
-  const c = useCheckout({ redirectPlan1: false });
+  const c = useCheckout();
   const { settlementMode, directCardEnabled } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];

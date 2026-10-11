@@ -19,8 +19,8 @@ const files = [...CLIENT_FILES, ...walk('components/drop'), ...walk('hooks'), ..
 
 // Navegação (push/replace/href) para uma rota antiga do cliente.
 const OLD_NAV = /(router\.(?:push|replace)\(|href=\{?|href:\s*)\s*[`'"]\/(?:stores(?:[`'"?/])|product\/|store-order\/|checkout(?:-vitrine)?[`'"?]|user-dashboard|wallet[`'"?]|my-wallet|minha-conta|user-profile|produtos[`'"?]|[`'"?])/;
-// Exceção conhecida: o padrão legado do useCheckout (redirectPlan1 = true) mantém o teste antigo do Plano 1.
-const EXCEPTIONS = new Set(["hooks/useCheckout.ts:router.replace('/checkout-vitrine')"]);
+// Sem exceções: o redirect legado do useCheckout para /checkout-vitrine (redirectPlan1) saiu.
+const EXCEPTIONS = new Set<string>();
 
 it('nenhuma tela ou componente do cliente navega para rota antiga', () => {
   const hits: string[] = [];

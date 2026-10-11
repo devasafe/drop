@@ -72,13 +72,7 @@ interface UserProfileResponse {
   cpfStatus?: 'valid' | 'missing' | 'invalid';
 }
 
-export interface UseCheckoutOptions {
-  /** Padrão true (legado): Plano 1 da custódia → /checkout-vitrine. A Sacola passa false. */
-  redirectPlan1?: boolean;
-}
-
-export function useCheckout(opts: UseCheckoutOptions = {}) {
-  const { redirectPlan1 = true } = opts;
+export function useCheckout() {
   const router = useRouter();
   const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
@@ -88,7 +82,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
   const storeId = cart.length > 0 ? cart[0].storeId || '' : '';
   const store = stores.find((s: { _id: string; plan?: number; latitude?: string; longitude?: string }) => s._id === storeId);
   // Modo direto: plano único, entrega sempre por motoboy — Store.plan sai do fluxo.
-  const { settlementMode, loading: saasLoading } = useSaasConfig();
+  const { settlementMode } = useSaasConfig();
   const isPlan1 = settlementMode !== 'direto' && store?.plan === 1;
 
   const subtotal = useMemo(
@@ -166,12 +160,6 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
     const role = user?.activeRole || user?.role;
     setBlocked(!!(user && role && role !== 'cliente'));
   }, [user]);
-
-  // Guard: loja Plano 1 usa checkout-vitrine dedicado (sem motoboy). Espera o modo de
-  // liquidação carregar: no modo direto não há plano 1 e o redirect não pode acontecer.
-  useEffect(() => {
-    if (redirectPlan1 && isPlan1 && !saasLoading) router.replace('/checkout-vitrine');
-  }, [redirectPlan1, isPlan1, saasLoading, router]);
 
   // Restaura rascunho (endereço em edição + método de pagamento) salvo em
   // localStorage — uma única vez ao montar. `hydrated` só vira true depois
