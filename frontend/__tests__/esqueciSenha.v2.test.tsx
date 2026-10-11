@@ -69,3 +69,14 @@ test('conta bloqueada: troca a senha, não entra e diz o porquê', async () => {
   expect(acceptSession).not.toHaveBeenCalled();
   expect(push).not.toHaveBeenCalled();
 });
+
+test.each([
+  ['lojista', '/seller/dashboard'],
+  ['motoboy', '/motoboy'],
+  ['cliente', '/inicio'],
+])('M7: %s que redefine a senha entra no destino do papel', async (role, home) => {
+  await irParaOCodigo();
+  post.mockResolvedValueOnce({ data: { user: { id: 'u1', role, activeRole: role } } });
+  salvar('482190');
+  await waitFor(() => expect(push).toHaveBeenCalledWith(home));
+});

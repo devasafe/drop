@@ -4,6 +4,7 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { maskEmail } from '../lib/maskEmail';
 import { ROUTES, safeNext } from '../lib/routes';
+import { ROLE_HOME } from '../lib/navConfig';
 import { ScreenHeader } from '../components/drop/ScreenHeader';
 import { PasswordField } from '../components/drop/PasswordField';
 import { Input } from '../components/ui/Input';
@@ -49,7 +50,9 @@ export default function EsqueciSenhaPage() {
       const { data } = await api.post('/auth/reset-password', { email, code: code.trim(), newPassword: pw });
       if (data?.blocked) { setAlert({ tone: 'warning', title: data.message }); return; }
       if (data?.user) acceptSession?.(data.user);
-      router.push(next ?? ROUTES.inicio);
+      // M7: como o login, cada papel entra na sua área (lojista no painel, motoboy no app dele).
+      const role = (data?.user?.activeRole ?? data?.user?.role) as keyof typeof ROLE_HOME | undefined;
+      router.push(next ?? (role && ROLE_HOME[role]) ?? ROUTES.inicio);
     } catch (err: any) {
       const d = err?.response?.data || {};
       if (d.code === 'RESET_CODE_LOCKED' || d.error === 'Código inválido ou expirado') {
