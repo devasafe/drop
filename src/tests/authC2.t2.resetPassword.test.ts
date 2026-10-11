@@ -71,3 +71,18 @@ it('código expirado: 400 sem sessão', async () => {
   expect(r.status).toBe(400);
   expect(r.body).toEqual({ error: 'Código inválido ou expirado' });
 });
+
+it('corrida: 8 tentativas erradas em paralelo avaliam no máximo 5 códigos; o certo depois trava', async () => {
+  const { email } = await cenario();
+  const rs = await Promise.all(
+    Array.from({ length: 8 }, () => reset({ email, code: '000000', newPassword: 'NovaSenha1' })),
+  );
+  const avaliadas = rs.filter((r) => r.body.error === 'Código incorreto').length;
+  const travadas = rs.filter((r) => r.body.code === 'RESET_CODE_LOCKED').length;
+  expect(avaliadas).toBeLessThanOrEqual(4);
+  expect(avaliadas + travadas).toBe(8);
+  const lefts = rs.filter((r) => r.body.error === 'Código incorreto').map((r) => r.body.attemptsLeft).sort();
+  expect(new Set(lefts).size).toBe(lefts.length);
+  const certo = await reset({ email, code: '482190', newPassword: 'NovaSenha1' });
+  expect(certo.body.code).toBe('RESET_CODE_LOCKED');
+});

@@ -248,17 +248,17 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
     if (!record || record.expiresAt.getTime() < Date.now()) {
       return res.status(400).json({ error: 'Código inválido ou expirado' });
     }
-    if (record.attempts >= RESET_MAX_ATTEMPTS) return res.status(400).json(RESET_LOCKED);
+    // Reserva a tentativa ANTES de comparar o código: um único UPDATE atômico devolve o contador
+    // já incrementado, então requisições paralelas nunca avaliam mais que RESET_MAX_ATTEMPTS códigos.
+    const claimed = await prisma.$queryRaw<{ attempts: number }[]>`
+      UPDATE "PasswordResetToken" SET "attempts" = "attempts" + 1
+      WHERE "id" = ${record.id} AND "attempts" < ${RESET_MAX_ATTEMPTS}
+      RETURNING "attempts"`;
+    if (claimed.length === 0) return res.status(400).json(RESET_LOCKED);
 
     if (record.tokenHash !== sha256(String(code).trim())) {
-      // Incremento condicional: duas tentativas simultâneas não passam do teto.
-      const bumped = await prisma.passwordResetToken.updateMany({
-        where: { id: record.id, attempts: { lt: RESET_MAX_ATTEMPTS } },
-        data: { attempts: { increment: 1 } },
-      });
-      const after = await prisma.passwordResetToken.findUnique({ where: { id: record.id }, select: { attempts: true } });
-      const left = Math.max(0, RESET_MAX_ATTEMPTS - (after?.attempts ?? RESET_MAX_ATTEMPTS));
-      if (bumped.count === 0 || left === 0) return res.status(400).json(RESET_LOCKED);
+      const left = Math.max(0, RESET_MAX_ATTEMPTS - Number(claimed[0].attempts));
+      if (left === 0) return res.status(400).json(RESET_LOCKED);
       return res.status(400).json({ error: 'Código incorreto', attemptsLeft: left });
     }
 
