@@ -17,10 +17,23 @@ export const ROUTES = {
   privacidadeConta: '/conta/privacidade',
 } as const;
 
-/** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */
+const NEXT_BASE = 'https://x.invalid';
+/**
+ * Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect.
+ * Recusa controle, espaço e `\` (o `new URL` do navegador apaga TAB/LF/CR e lê `\` como `/`,
+ * então `/\t/evil.com` viraria `//evil.com`) e confere a origem depois de normalizar.
+ */
 export function safeNext(v: unknown): string | null {
   const s = Array.isArray(v) ? v[0] : v;
-  return typeof s === 'string' && s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : null;
+  if (typeof s !== 'string' || !s.startsWith('/') || s.startsWith('//')) return null;
+  if (/[\u0000-\u001F\u007F\s\\]/.test(s)) return null;
+  try {
+    const u = new URL(s, NEXT_BASE);
+    if (u.origin !== NEXT_BASE || !u.pathname.startsWith('/') || u.pathname.startsWith('//')) return null;
+  } catch {
+    return null;
+  }
+  return s;
 }
 /** Telas de entrar/cadastro/senha levando o caminho de volta. */
 export function authHref(path: string, next?: string | null): string {
