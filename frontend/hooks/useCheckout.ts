@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { useCart } from '../contexts/CartContext';
@@ -277,6 +277,21 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
     phone: onlyDigits(userProfile.telefone || ''),
   }), [user?.name, user?.email, userProfile, address.selected]);
 
+  // idempotentKey estável por tentativa: o retry depois de erro/timeout reusa a chave (o servidor
+  // devolve o pedido já criado com ela, e apaga o pedido quando a cobrança falha). Chave nova só
+  // quando a sacola, o método, o valor ou o endereço mudam, ou depois de um pedido criado.
+  const idemKey = useRef<{ sig: string; key: string } | null>(null);
+  const attemptSig = JSON.stringify([
+    storeId,
+    cart.map((c: { productId: string; quantity: number; price?: number }) => [c.productId, c.quantity, c.price]),
+    paymentMethod, installmentCount, useWallet, Math.round(total * 100), coupon.code.trim().toUpperCase(),
+    address.selected?.latitude ?? null, address.selected?.longitude ?? null,
+  ]);
+  const attemptKey = () => {
+    if (!idemKey.current || idemKey.current.sig !== attemptSig) idemKey.current = { sig: attemptSig, key: uuid() };
+    return idemKey.current.key;
+  };
+
   const placeOrder = async (): Promise<{ ok: boolean; error?: string }> => {
     if (outOfArea) return { ok: false, error: 'Esta loja não entrega nesse endereço.' };
     if (!canPlace) return { ok: false, error: quoteError ?? 'Confirme o endereço no mapa' };
@@ -299,7 +314,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
         address: addrStr,
         latitude: Number(sel.latitude),
         longitude: Number(sel.longitude),
-        idempotentKey: uuid(),
+        idempotentKey: attemptKey(),
       };
       if (paymentMethod === 'credit_card') {
         if (!cardPayload?.valid) return { ok: false, error: 'Dados do cartão incompletos' };
@@ -312,6 +327,7 @@ export function useCheckout(opts: UseCheckoutOptions = {}) {
       if (cpfRequired && cpfValid) payload.cpf = cpfDigits;
 
       const res = await api.post<PlaceOrderResponse>('/orders', payload);
+      idemKey.current = null; // pedido criado: a próxima compra é outra tentativa
       const data = res.data;
       const order: OrderLike = 'order' in data ? data.order : data;
       const pix = 'pix' in data ? data.pix : undefined;

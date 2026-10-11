@@ -44,6 +44,10 @@ export default function SacolaPage() {
   const { settlementMode, directCardEnabled } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
+  // Ruling F-I4: sem "pagar só com saldo" (método wallet). Com o gateway Asaas o servidor recusa
+  // tudo que não é pix/credit_card com 400, e o front não tem sinal confiável do gateway: fail
+  // closed. O saldo continua pelo toggle "Usar saldo" no Pix (que cobre até 100% do total).
+  const methods: ('pix' | 'credit_card')[] = direct ? directMethods : ['pix', 'credit_card'];
   const [pickerOpen, setPickerOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [pixAmount, setPixAmount] = useState<number | undefined>(undefined);
@@ -59,9 +63,10 @@ export default function SacolaPage() {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
-  // Rascunho antigo pode ter método que não existe no modo direto: volta para o Pix (igual ao /checkout).
+  // Rascunho antigo pode ter método que não é oferecido (modo direto sem cartão, ou o antigo
+  // "wallet"): volta para o Pix, para a Sacola nunca ficar sem chip selecionado.
   useEffect(() => {
-    if (direct && !directMethods.includes(c.paymentMethod as any)) c.setPaymentMethod('pix');
+    if (!methods.includes(c.paymentMethod as any)) c.setPaymentMethod('pix');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [direct, directCardEnabled, c.paymentMethod]);
 
@@ -105,7 +110,6 @@ export default function SacolaPage() {
     : undefined;
 
   const payLabel = isCard ? (chosen && chosen.count > 1 ? `Pagar ${chosen.count}x de ${formatMoney(chosen.installmentValue)}` : `Pagar ${formatMoney(chosen?.total ?? c.total)} no cartão`)
-    : c.paymentMethod === 'wallet' ? `Pagar ${formatMoney(c.total)} com saldo`
     : toPay === 0 && walletUse > 0 ? 'Pagar com o saldo da carteira'
     : `Pagar ${formatMoney(toPay)} com Pix`;
 
@@ -208,7 +212,7 @@ export default function SacolaPage() {
           <section className={styles.block} aria-labelledby="sacola-pagamento">
             <h2 id="sacola-pagamento" className={styles.blockTitle}>Pagamento</h2>
             <PaymentSelector value={c.paymentMethod} onChange={c.setPaymentMethod}
-              methods={direct ? directMethods : (c.walletBalance >= c.total && c.total > 0 ? ['pix', 'credit_card', 'wallet'] : ['pix', 'credit_card'])} />
+              methods={methods} />
             {direct && !directCardEnabled && <p className={styles.muted}>Cartão: esta loja ainda não aceita cartão.</p>}
             {c.paymentMethod === 'credit_card' && (
               <div className={styles.card}>

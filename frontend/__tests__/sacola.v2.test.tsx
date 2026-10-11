@@ -250,3 +250,18 @@ test('F-I2 — Plano 1 fechado pela cotação: "Loja fechada agora" com horário
   expect(screen.getByText(/Abre às 09:00/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled();
 });
+
+test('F-I4 — saldo cobrindo o total: não oferece "pagar só com saldo" (o Asaas recusa); o toggle no Pix continua', () => {
+  mocked.mockReturnValue(hook({ walletBalance: 500 }));
+  render(<SacolaPage />);
+  expect(screen.queryByText('Crédito na carteira')).not.toBeInTheDocument();
+  expect(screen.getByText('PIX')).toBeInTheDocument();
+  expect(screen.getByRole('switch', { name: /saldo/i })).toBeInTheDocument();
+});
+
+test('M6 — rascunho antigo com "wallet" volta para o Pix (nunca fica sem chip)', () => {
+  const setPaymentMethod = jest.fn();
+  mocked.mockReturnValue(hook({ paymentMethod: 'wallet', walletBalance: 10, setPaymentMethod }));
+  render(<SacolaPage />);
+  expect(setPaymentMethod).toHaveBeenCalledWith('pix');
+});
