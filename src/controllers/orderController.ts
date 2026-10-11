@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
+import { customerRefundStage } from '../utils/customerRefund';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { toApiDelivery, serializeDeliveryFor, stripDeliveryPins } from '../repositories/delivery.repository';
 
@@ -940,9 +941,20 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       if (dr) directRefund = { status: dr.status, amount: Number(dr.amount), lastError: storeSafeLastError(dr.lastError), attempts: dr.attempts };
     }
 
+    // Fase C2: o cliente do pedido direto vê a etapa do estorno (sem lastError/attempts).
+    let customerRefund: { stage: string; amount: number; requestedAt: Date; acceptedAt: Date | null; doneAt: Date | null } | null = null;
+    if (isCustomer && order.paymentProvider === 'asaas_loja') {
+      const dr = await prisma.directRefund.findUnique({
+        where: { orderId: id },
+        select: { status: true, amount: true, createdAt: true, acceptedAt: true, doneAt: true },
+      });
+      if (dr) customerRefund = { stage: customerRefundStage(dr.status), amount: Number(dr.amount), requestedAt: dr.createdAt, acceptedAt: dr.acceptedAt, doneAt: dr.doneAt };
+    }
+
     return res.json({
       ...order,
       ...((isStoreOwner || isAdmin) ? { directRefund } : {}),
+      ...(isCustomer ? { customerRefund } : {}),
       products: productsWithNames,
       // PIN só para quem deve ver: o cliente recebe o de entrega; loja/admin nenhum.
       delivery: delivery ? { ...serializeDeliveryFor(toApiDelivery(delivery), userId, { customerId: order.customerId }), motoboyName } : null,
