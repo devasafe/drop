@@ -27,6 +27,8 @@ import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../l
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { buildRouteThumbnailUrl } from '../../lib/staticMap';
 import { ROUTES } from '../../lib/routes';
+import { consumeJustPaid } from '../../lib/justPaid';
+import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
 
@@ -51,6 +53,7 @@ export default function PedidoPage() {
   const { showToast } = useToast();
   const t = useOrderTracking(id);
   const { cancelOrder, getCancellationHistory } = useCancellation();
+  const [justPaid, setJustPaid] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [itemsOpen, setItemsOpen] = useState(false);
   const reorderFlow = useReorderFlow();
@@ -152,6 +155,10 @@ export default function PedidoPage() {
   };
 
   const order = t.order;
+  // Só consome a marca quando o pagamento já está confirmado (o webhook pode chegar depois).
+  useEffect(() => {
+    if (order?._id && order.paymentStatus === 'paid' && consumeJustPaid(order._id)) setJustPaid(true);
+  }, [order?._id, order?.paymentStatus]);
   const delivery = t.delivery;
 
   // Busca o registro do cancelamento (motivo, reembolso, taxa) só quando o
@@ -245,6 +252,10 @@ export default function PedidoPage() {
               action={<Button onClick={() => router.push(ROUTES.pedidos)}>Ver meus pedidos</Button>}
             />
           </div>
+        ) : justPaid ? (
+          <main className={styles.page}>
+            <OrderConfirmed order={order} onTrack={() => setJustPaid(false)} onContinue={() => router.push(ROUTES.inicio)} />
+          </main>
         ) : (
           <main className={styles.page}>
             <ScreenHeader

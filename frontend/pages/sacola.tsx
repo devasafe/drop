@@ -33,6 +33,7 @@ import { isValidCPF } from '../lib/cpf';
 import { maskCpfMiddle } from '../lib/maskCpf';
 import { imageUrl } from '../lib/config';
 import { installmentOptions } from '../lib/cardInstallments';
+import { markJustPaid } from '../lib/justPaid';
 import { ROUTES, buscarHref, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
 
@@ -294,7 +295,7 @@ export default function SacolaPage() {
       {/* Fora dos ramos de estado: o pedido limpa a sacola ANTES do pixData chegar (teste movido). */}
       {c.pixData && (
         <PixPaymentSheet pix={c.pixData} paymentProvider={c.pixNotice.paymentProvider} recipientName={c.pixNotice.recipientName} amount={c.pixData.amount ?? pixAmount} storeName={storeName}
-          onPaid={(id) => router.push(pedidoHref(id))} onClose={c.closePix} />
+          onPaid={(id) => { markJustPaid(id); router.push(pedidoHref(id)); }} onClose={c.closePix} />
       )}
     </ProtectedRoute>
   );

@@ -14,6 +14,7 @@ import { onlyDigits } from '../lib/masks';
 import { isValidCPF } from '../lib/cpf';
 import { useSaasConfig } from './useSaasConfig';
 import { pedidoHref } from '../lib/routes';
+import { markJustPaid } from '../lib/justPaid';
 
 const DRAFT_KEY = 'checkout_draft';
 const QUOTE_FAILED_MSG = 'Não conseguimos calcular a entrega agora.';
@@ -341,6 +342,7 @@ export function useCheckout() {
         const charged = Number(order.totalValue) - Number(order.walletApplied ?? 0);
         setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined, serverNow: order.createdAt });
       } else {
+        if ('card' in data && data.card?.approved) markJustPaid(order._id);
         router.push(pedidoHref(order._id));
       }
       return { ok: true };
