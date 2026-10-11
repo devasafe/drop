@@ -670,6 +670,10 @@ model Delivery {
   dataConfirmacaoDevolucao  DateTime?
   pendingReturnAction       PendingReturnAction?
   rating                    Int?
+  /// Hora real de cada etapa (fase C2): aceite do motoboy, retirada na loja (PIN da loja) e entrega (PIN do cliente).
+  assignedAt                DateTime?
+  pickedAt                  DateTime?
+  deliveredAt               DateTime?
   comment                   String?
   storeAddress              String?
   storeLatitude             Float?
