@@ -13,6 +13,7 @@ import { sendEmail } from '../services/emailProvider';
 import env from '../config/env';
 import { recordConsent } from '../services/consent.service';
 import logger from '../config/logger';
+import { attemptsLeftOf } from '../middleware/authLimiter';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -93,16 +94,22 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/** Corpo do 401 do login: igual para e-mail inexistente e senha errada (não revela a conta). */
+const invalidCredentials = (req: AuthenticatedRequest) => {
+  const left = attemptsLeftOf(req as any);
+  return left === undefined ? { error: 'Invalid credentials' } : { error: 'Invalid credentials', attemptsLeft: left };
+};
+
 export const login = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
 
     const user = await userRepository.findByEmailWithAddresses(email);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) return res.status(401).json(invalidCredentials(req));
 
     const matched = await bcrypt.compare(password, user.passwordHash);
-    if (!matched) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!matched) return res.status(401).json(invalidCredentials(req));
 
     // Conta bloqueada nao pode logar
     if ((user as any).status === 'blocked') {
