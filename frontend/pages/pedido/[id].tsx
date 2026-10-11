@@ -21,6 +21,8 @@ import { RatingForm } from '../../components/drop/order/RatingForm';
 import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet';
 import { CancelOrderSheet } from '../../components/drop/order/CancelOrderSheet';
 import { CancellationStatus, type CancellationInfo } from '../../components/drop/order/CancellationStatus';
+import { ReorderConfirmSheet } from '../../components/drop/ReorderConfirmSheet';
+import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
 import { ROUTES } from '../../lib/routes';
 import styles from './Pedido.module.css';
@@ -48,6 +50,7 @@ export default function PedidoPage() {
   const t = useOrderTracking(id);
   const { cancelOrder, getCancellationHistory } = useCancellation();
   const [mapOpen, setMapOpen] = useState(false);
+  const reorderFlow = useReorderFlow();
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -352,6 +355,17 @@ export default function PedidoPage() {
                 </section>
               );
             })}
+
+            {status === 'delivered' && (
+              <Button
+                variant="secondary"
+                loading={reorderFlow.busy}
+                onClick={() => reorderFlow.start({ _id: order._id, storeId: order.storeId, storeName: order.storeName })}
+              >
+                Comprar de novo
+              </Button>
+            )}
+            <ReorderConfirmSheet {...reorderFlow.confirm} />
 
             <CancelOrderSheet
               open={cancelOpen}

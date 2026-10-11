@@ -1,8 +1,5 @@
-/* CancelOrderSheet — motivos pré-definidos (de-cardificados, mesmo padrão de
- * linha de AddressSelector), aviso de taxa em --danger (mesmo tom de
- * Toast tone="error") e confirmação em --danger. Regra D: perigo não é roxo,
- * então o botão primário ganha override de cor local em vez de nova variante
- * em Button (mesmo espírito de OrderActions.module.css .cancel).
+/* CancelOrderSheet — motivos pré-definidos em linhas (alvo >= 44px), aviso de
+ * taxa em tom de erro e confirmação destrutiva em --color-error. Só tokens semânticos.
  */
 
 .wrap {
@@ -13,9 +10,8 @@
 
 .hint {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
 }
 
 .feeWarning {
@@ -23,17 +19,15 @@
   align-items: flex-start;
   gap: var(--space-2);
   padding: var(--space-3);
-  background: var(--surface-2);
-  border: 1px solid var(--danger);
-  border-radius: var(--r-md);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
+  background: var(--color-error-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font: var(--text-meta);
 }
 
 .feeWarning svg {
   flex-shrink: 0;
-  color: var(--danger);
+  color: var(--color-error-text);
 }
 
 .reasons {
@@ -42,71 +36,73 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .reason {
   display: block;
   width: 100%;
-  padding: var(--space-3) 0;
+  min-height: var(--touch-min);
+  padding: var(--space-3) var(--space-2);
   border: none;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--color-border-default);
   background: none;
   text-align: left;
   cursor: pointer;
 }
 
 .reasonLabel {
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--text-subtle);
-  transition: color var(--dur-fast) var(--ease);
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+  transition: color var(--motion-fast);
 }
 
 .reason:hover .reasonLabel {
-  color: var(--text);
+  color: var(--color-text-primary);
+}
+
+.reasonActive {
+  background: var(--color-action-primary-subtle);
 }
 
 .reasonActive .reasonLabel {
-  color: var(--brand);
+  color: var(--color-action-primary-subtle-text);
   font-weight: 600;
 }
 
 .label {
-  font-family: var(--font-body);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
 }
 
 .textarea {
   min-height: 72px;
   padding: var(--space-2) var(--space-3);
-  background: var(--surface-field);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--text);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  font: var(--text-body);
+  color: var(--color-text-primary);
   resize: vertical;
-  transition: border-color var(--dur-fast) var(--ease);
+  transition: border-color var(--motion-fast);
 }
 
 .textarea:focus {
   outline: none;
-  border-color: var(--brand-2);
+  border-color: var(--color-action-primary);
 }
 
 .textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
 .confirm {
-  background: var(--danger);
+  background: var(--color-error);
+  color: var(--color-on-action);
 }
 
 .confirm:hover:not(:disabled) {
-  background: var(--danger);
-  box-shadow: var(--shadow-neutral);
+  background: var(--color-error);
 }
 
 @media (prefers-reduced-motion: reduce) {

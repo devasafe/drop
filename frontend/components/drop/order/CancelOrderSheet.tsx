@@ -73,7 +73,7 @@ export function CancelOrderSheet({ open, onClose, onConfirm, fee, submitting }: 
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Cancelar pedido">
+    <Sheet open={open} onClose={onClose} title="Cancelar pedido" presentation="center">
       <div className={styles.wrap}>
         <p className={styles.hint}>
           Cancelar o pedido é irreversível. O reembolso é processado automaticamente após a confirmação.
