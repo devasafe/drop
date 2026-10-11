@@ -18,6 +18,7 @@ import { DeliveryPin } from '../../components/drop/order/DeliveryPin';
 import { OrderItemsSummary } from '../../components/drop/order/OrderItemsSummary';
 import { OrderActions } from '../../components/drop/order/OrderActions';
 import { RatingForm } from '../../components/drop/order/RatingForm';
+import { DeliveredReview } from '../../components/drop/order/DeliveredReview';
 import { PixPaymentSheet } from '../../components/drop/checkout/PixPaymentSheet';
 import { CancelOrderSheet } from '../../components/drop/order/CancelOrderSheet';
 import { CancellationStatus, type CancellationInfo } from '../../components/drop/order/CancellationStatus';
@@ -71,8 +72,6 @@ export default function PedidoPage() {
   } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [payingPix, setPayingPix] = useState(false);
-  const [submittingMotoboyRating, setSubmittingMotoboyRating] = useState(false);
-  const [submittingStoreRating, setSubmittingStoreRating] = useState(false);
   const [reviewedProducts, setReviewedProducts] = useState<Record<string, boolean>>({});
   const [submittingProduct, setSubmittingProduct] = useState<string | null>(null);
 
@@ -113,17 +112,19 @@ export default function PedidoPage() {
   };
 
   const handleMotoboyRating = async (rating: number, comment: string) => {
-    setSubmittingMotoboyRating(true);
     const r = await t.submitMotoboyRating(rating, comment);
-    if (!r.ok && r.error) showToast(r.error, 'error');
-    setSubmittingMotoboyRating(false);
+    if (!r.ok) {
+      if (r.error) showToast(r.error, 'error');
+      throw new Error(r.error || 'rating_failed');
+    }
   };
 
   const handleStoreRating = async (rating: number, comment: string) => {
-    setSubmittingStoreRating(true);
     const r = await t.submitStoreRating(rating, comment);
-    if (!r.ok && r.error) showToast(r.error, 'error');
-    setSubmittingStoreRating(false);
+    if (!r.ok) {
+      if (r.error) showToast(r.error, 'error');
+      throw new Error(r.error || 'rating_failed');
+    }
   };
 
   const handleProductRating = (productId: string) => async (rating: number, comment: string) => {
@@ -211,7 +212,6 @@ export default function PedidoPage() {
   // Mostra a section pelo estado que HABILITA avaliar (não por "ainda não
   // avaliado") — o `RatingForm` decide sozinho form vs. confirmação via
   // `submitted`. Assim o envio não faz a confirmação sumir sem feedback.
-  const showMotoboyRating = delivery?.status === 'delivered';
   const showStoreRating = delivery?.status === 'delivered' || order?.status === 'entregue';
 
   const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
@@ -364,28 +364,31 @@ export default function PedidoPage() {
               onConfirmReceived={handleConfirmReceived}
             />
 
-            {showMotoboyRating && (
-              <section className={styles.block}>
-                <RatingForm
-                  title="Avaliar motoboy"
-                  onSubmit={handleMotoboyRating}
-                  submitting={submittingMotoboyRating}
-                  submitted={!!delivery?.rating}
-                />
-              </section>
-            )}
-
             {showStoreRating && (
-              <section className={styles.block}>
-                <RatingForm
-                  title="Avaliar loja"
-                  onSubmit={handleStoreRating}
-                  submitting={submittingStoreRating}
-                  submitted={!!order?.storeRating}
-                />
-              </section>
+              <DeliveredReview
+                storeName={order.storeName || 'Loja'}
+                courier={delivery?.motoboyObj ? { name: delivery.motoboyObj.name, plate: delivery.motoboyObj.plate } : null}
+                createdAt={order.createdAt}
+                deliveredAt={delivery?.deliveredAt}
+                storeDone={!!order.storeRating}
+                courierDone={!delivery?.motoboyObj || !!delivery?.rating}
+                onHelp={() => router.push(ROUTES.ajuda)}
+                onSubmit={async ({ store, courier, storeComment, courierComment }) => {
+                  if (store > 0) await handleStoreRating(store, storeComment);
+                  if (courier > 0) await handleMotoboyRating(courier, courierComment);
+                }}
+              />
             )}
 
+            {status === 'delivered' && (
+              <Button
+                variant="secondary"
+                loading={reorderFlow.busy}
+                onClick={() => reorderFlow.start({ _id: order._id, storeId: order.storeId, storeName: order.storeName })}
+              >
+                Comprar de novo
+              </Button>
+            )}
             {showStoreRating && (order.products || []).map((p: any) => {
               const pid = p.productId || p.product?._id || p.product?.id;
               if (!pid) return null;
@@ -401,15 +404,6 @@ export default function PedidoPage() {
               );
             })}
 
-            {status === 'delivered' && (
-              <Button
-                variant="secondary"
-                loading={reorderFlow.busy}
-                onClick={() => reorderFlow.start({ _id: order._id, storeId: order.storeId, storeName: order.storeName })}
-              >
-                Comprar de novo
-              </Button>
-            )}
             <ReorderConfirmSheet {...reorderFlow.confirm} />
 
             <CancelOrderSheet
