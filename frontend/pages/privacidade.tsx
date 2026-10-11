@@ -5,7 +5,7 @@ import styles from '../components/legal/LegalPage.module.css';
 export default function PrivacidadePage() {
   return (
     <LegalPage title="Política de Privacidade" version={LEGAL_VERSIONS.privacy} updatedAt={LEGAL_UPDATED}>
-      <LegalSection title="1. Controlador e Encarregado de Dados">
+      <LegalSection id="controlador" title="1. Controlador e Encarregado de Dados">
         <p>
           Esta Política de Privacidade descreve como{' '}
           <span className={styles.placeholder}>[RAZÃO SOCIAL]</span>, inscrita no CNPJ sob o
@@ -26,7 +26,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Dados que tratamos, por perfil de usuário">
+      <LegalSection id="dados" title="2. Dados que tratamos, por perfil de usuário">
         <p>
           Coletamos diferentes categorias de dados pessoais conforme o perfil do usuário
           (cliente, lojista ou motoboy) e a forma como utiliza a Plataforma:
@@ -65,7 +65,7 @@ export default function PrivacidadePage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="3. Finalidades e bases legais do tratamento">
+      <LegalSection id="finalidades" title="3. Finalidades e bases legais do tratamento">
         <p>
           Tratamos dados pessoais para as finalidades abaixo, com fundamento nas seguintes
           bases legais previstas nos artigos 7º e 11 da LGPD:
@@ -95,7 +95,7 @@ export default function PrivacidadePage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="4. Compartilhamento de dados com operadores">
+      <LegalSection id="compartilhamento" title="4. Compartilhamento de dados com operadores">
         <p>
           Para viabilizar o funcionamento da Plataforma, compartilhamos dados pessoais com
           operadores (subprocessadores) que tratam dados em nosso nome e sob nossas
@@ -130,7 +130,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Transferência internacional de dados">
+      <LegalSection id="internacional" title="5. Transferência internacional de dados">
         <p>
           O banco de dados principal da DROP é hospedado no <strong>Brasil</strong>. No
           entanto, alguns dos operadores mencionados na Seção 4 — Cloudinary (Estados
@@ -146,7 +146,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Retenção de dados">
+      <LegalSection id="retencao" title="6. Retenção de dados">
         <p>
           Mantemos os dados pessoais pelo tempo necessário ao cumprimento das finalidades
           para as quais foram coletados, observados os prazos exigidos por obrigações legais,
@@ -161,7 +161,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Segurança da informação">
+      <LegalSection id="seguranca" title="7. Segurança da informação">
         <p>
           Adotamos medidas técnicas e administrativas aptas a proteger os dados pessoais de
           acessos não autorizados e de situações acidentais ou ilícitas de destruição, perda,
@@ -177,7 +177,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Direitos do titular de dados">
+      <LegalSection id="direitos" title="8. Direitos do titular de dados">
         <p>
           Nos termos do artigo 18 da LGPD, o titular dos dados pessoais tem direito a obter,
           a qualquer momento e mediante requisição, entre outros: confirmação da existência
@@ -194,7 +194,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Cookies e tecnologias semelhantes">
+      <LegalSection id="cookies" title="9. Cookies e tecnologias semelhantes">
         <p>
           A DROP utiliza cookies e tecnologias semelhantes (como armazenamento local do
           navegador) para manter sua sessão ativa e viabilizar o funcionamento da Plataforma.
@@ -204,7 +204,7 @@ export default function PrivacidadePage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Alterações desta política">
+      <LegalSection id="alteracoes" title="10. Alterações desta política">
         <p>
           Esta Política de Privacidade pode ser atualizada periodicamente para refletir
           mudanças na Plataforma, na legislação aplicável ou em nossas práticas de

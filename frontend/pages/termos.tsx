@@ -2,10 +2,19 @@ import LegalPage, { LegalSection } from '../components/legal/LegalPage';
 import { LEGAL_VERSIONS, LEGAL_UPDATED } from '../lib/legalDocs';
 import styles from '../components/legal/LegalPage.module.css';
 
+// TEXTO JURIDICO PROVISORIO: o resumo "O essencial" abaixo foi escrito a partir do protótipo (decisão 22).
+// O dono valida estas 4 frases antes do merge.
+const TERMS_SUMMARY = [
+  'A loja vende e responde pelo produto.',
+  'O motoboy é autônomo e recebe 80% da entrega.',
+  'Cancelar antes da retirada é grátis.',
+  'O estorno volta para onde você pagou.',
+];
+
 export default function TermosPage() {
   return (
-    <LegalPage title="Termos de Uso" version={LEGAL_VERSIONS.terms} updatedAt={LEGAL_UPDATED}>
-      <LegalSection title="1. Aceitação dos termos">
+    <LegalPage title="Termos de Uso" version={LEGAL_VERSIONS.terms} updatedAt={LEGAL_UPDATED} summary={TERMS_SUMMARY}>
+      <LegalSection id="aceitacao" title="1. Aceitação dos termos">
         <p>
           Estes Termos de Uso ("Termos") regem o acesso e a utilização da plataforma DROP
           ("DROP", "Plataforma", "nós"), operada por{' '}
@@ -25,7 +34,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Descrição do serviço">
+      <LegalSection id="servico" title="2. Descrição do serviço">
         <p>
           A DROP é um marketplace que conecta clientes, lojistas e entregadores parceiros
           ("motoboys") para a compra, venda e entrega de produtos oferecidos por lojas
@@ -47,7 +56,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="3. Tipos de conta e regras de cada perfil">
+      <LegalSection id="contas" title="3. Tipos de conta e regras de cada perfil">
         <p>
           A Plataforma disponibiliza três tipos de conta, cada um sujeito a regras próprias de
           cadastro, verificação e uso:
@@ -86,7 +95,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="4. Pagamentos e custódia">
+      <LegalSection id="pagamentos" title="4. Pagamentos e custódia">
         <p>
           Os pagamentos realizados na Plataforma são processados por meio da{' '}
           <strong>Asaas</strong>, instituição de pagamento parceira, que atua como processadora
@@ -107,7 +116,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Comissões">
+      <LegalSection id="comissoes" title="5. Comissões">
         <p>
           A DROP retém uma comissão sobre as transações realizadas na Plataforma, como
           contrapartida pela intermediação, processamento de pagamentos e demais serviços
@@ -131,7 +140,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Cancelamento, taxas e reembolso">
+      <LegalSection id="cancelamento" title="6. Cancelamento, taxas e reembolso">
         <p>
           Pedidos podem ser cancelados nas hipóteses e prazos descritos no fluxo de pedido da
           Plataforma. O cancelamento pode gerar a cobrança de uma <strong>taxa</strong>, cujo
@@ -167,7 +176,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Condutas proibidas">
+      <LegalSection id="condutas" title="7. Condutas proibidas">
         <p>Ao utilizar a DROP, você concorda em não:</p>
         <ul>
           <li>Fornecer informações falsas, incompletas ou de terceiros sem autorização no cadastro ou na verificação de identidade;</li>
@@ -185,7 +194,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Propriedade intelectual">
+      <LegalSection id="propriedade" title="8. Propriedade intelectual">
         <p>
           A marca DROP, seu logotipo, layout, design, código-fonte, funcionalidades e demais
           elementos da Plataforma são de titularidade de{' '}
@@ -201,7 +210,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Limitação de responsabilidade">
+      <LegalSection id="responsabilidade" title="9. Limitação de responsabilidade">
         <p>
           A DROP envida esforços para manter a Plataforma disponível, segura e funcional, mas
           não garante operação ininterrupta ou livre de erros. Na máxima extensão permitida
@@ -220,7 +229,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Suspensão e encerramento de conta">
+      <LegalSection id="suspensao" title="10. Suspensão e encerramento de conta">
         <p>
           A DROP pode suspender ou encerrar, a qualquer momento e mediante comunicação ao
           usuário sempre que possível, contas que descumpram estes Termos, apresentem indícios
@@ -234,7 +243,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="11. Alterações destes termos">
+      <LegalSection id="alteracoes" title="11. Alterações destes termos">
         <p>
           Estes Termos podem ser atualizados periodicamente para refletir mudanças na
           Plataforma, na legislação aplicável ou nas práticas de mercado. A versão vigente e a
@@ -249,7 +258,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Foro e legislação aplicável">
+      <LegalSection id="foro" title="12. Foro e legislação aplicável">
         <p>
           Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o
           foro da comarca de{' '}

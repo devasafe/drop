@@ -1,7 +1,10 @@
 import LegalPage, { LegalSection } from '../../components/legal/LegalPage';
 import { LEGAL_VERSIONS, LEGAL_UPDATED, PRIVACY_EMAIL } from '../../lib/legalDocs';
+import { useClienteRedirect } from '../../hooks/useClienteRedirect';
+import { ROUTES } from '../../lib/routes';
 
 export default function SolicitacoesPrivacidadePage() {
+  useClienteRedirect(ROUTES.privacidadeConta);
   return (
     <LegalPage
       title="Canal de Direitos do Titular"
