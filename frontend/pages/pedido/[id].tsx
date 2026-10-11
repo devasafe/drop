@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { Map as MapIcon, PackageSearch, HelpCircle, ChevronDown } from 'lucide-react';
+import { Map as MapIcon, PackageSearch, HelpCircle, ChevronDown, MessageCircle } from 'lucide-react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -27,7 +27,7 @@ import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { buildRouteThumbnailUrl } from '../../lib/staticMap';
-import { ROUTES, buscarHref } from '../../lib/routes';
+import { ROUTES, buscarHref, pedidoConversaHref } from '../../lib/routes';
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import styles from './Pedido.module.css';
@@ -289,6 +289,9 @@ export default function PedidoPage() {
                     {[mb.rating ? `★ ${String(mb.rating).replace('.', ',')}` : null, mb.plate ? `moto ${mb.plate}` : null].filter(Boolean).join(' · ')}
                   </p>
                 </div>
+                <button type="button" className={styles.iconBtn} aria-label="Conversar com o entregador" onClick={() => router.push(pedidoConversaHref(order._id, 'entregador'))}>
+                  <MessageCircle size={20} aria-hidden="true" />
+                </button>
               </section>
             )}
 
@@ -361,6 +364,9 @@ export default function PedidoPage() {
                   installmentValue={order.installmentValue ? Number(order.installmentValue) : undefined}
                 />
               )}
+              <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoConversaHref(order._id, 'loja'))}>
+                Falar com a loja
+              </button>
             </section>
 
             <OrderActions
