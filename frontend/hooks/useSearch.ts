@@ -8,7 +8,7 @@ export const SEARCH_PAGE_SIZE = 20;
 export function buildSearchUrl(query: SearchQuery, cursor?: string | null): string {
   const f = query.filters;
   const qs = new URLSearchParams();
-  qs.set('q', query.q.trim());
+  if (query.q.trim()) qs.set('q', query.q.trim());
   qs.set('type', query.type);
   qs.set('sort', !query.point && f.sort === 'distance' ? 'relevance' : f.sort);
   qs.set('limit', String(SEARCH_PAGE_SIZE));
@@ -20,9 +20,13 @@ export function buildSearchUrl(query: SearchQuery, cursor?: string | null): stri
   if (f.minPrice != null) qs.set('minPrice', String(f.minPrice));
   if (f.maxPrice != null) qs.set('maxPrice', String(f.maxPrice));
   if (f.categoryName) qs.set('categoryName', f.categoryName);
+  if (f.subCategory) qs.set('subCategory', f.subCategory);
   if (cursor) qs.set('cursor', cursor);
   return `/search?${qs.toString().replace(/\+/g, '%20')}`;
 }
+
+/** Busca com termo (2+ letras) ou navegação por categoria (sem termo; só produtos — o servidor exige). */
+const searchable = (q: SearchQuery | null) => !!q && (q.q.trim().length >= 2 || (q.type === 'products' && !!q.filters.categoryName));
 
 export function useSearch(query: SearchQuery | null) {
   const [items, setItems] = useState<any[]>([]);
@@ -38,7 +42,7 @@ export function useSearch(query: SearchQuery | null) {
   useEffect(() => {
     const run = ++seq.current;
     setItems([]); setCursor(null); setFailed(false); setFailedMore(false); setLoadingMore(false);
-    if (!query || query.q.trim().length < 2) { setLoading(false); return; }
+    if (!searchable(query)) { setLoading(false); return; }
     setLoading(true);
     api.get<{ data?: { items: any[]; nextCursor: string | null } }>(key)
       .then((r) => { if (run === seq.current) { setItems(r.data?.data?.items ?? []); setCursor(r.data?.data?.nextCursor ?? null); } })

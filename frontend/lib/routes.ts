@@ -56,11 +56,12 @@ export const contaHref = (secao?: ContaSecao, next?: string | null): string => {
 const enc = encodeURIComponent;
 export const lojaHref = (id: string): string => `/loja/${enc(id)}`;
 export const produtoHref = (id: string): string => `/produto/${enc(id)}`;
+export const categoriaHref = (nome: string): string => `/categoria/${enc(nome)}`;
 export const pedidoHref = (id: string): string => `/pedido/${enc(id)}`;
 
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
-export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/loja/[id]', '/pedido/[id]'];
+export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/loja/[id]', '/pedido/[id]', '/categoria/[nome]'];
 /** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
-export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]'];
+export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/categoria/[nome]'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
 export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola'];

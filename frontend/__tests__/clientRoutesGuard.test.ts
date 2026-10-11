@@ -5,7 +5,7 @@ import path from 'path';
 const ROOT = path.join(__dirname, '..');
 const CLIENT_FILES = [
   'pages/inicio.tsx', 'pages/buscar.tsx', 'pages/loja/[id].tsx', 'pages/produto/[id].tsx', 'pages/sacola.tsx',
-  'pages/pedido/[id].tsx', 'pages/pedidos.tsx', 'pages/conta/index.tsx', 'pages/conta/carteira.tsx',
+  'pages/pedido/[id].tsx', 'pages/pedidos.tsx', 'pages/conta/index.tsx', 'pages/conta/carteira.tsx', 'pages/categoria/[nome].tsx',
   'components/Nav.tsx', 'components/Footer.tsx', 'components/nav/AccountMenu.tsx',
 ];
 function walk(dir: string): string[] {

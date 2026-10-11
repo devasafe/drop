@@ -26,7 +26,7 @@ import { mapStore } from '../lib/mapStore';
 import { deliveryStates } from '../lib/deliveryView';
 import { effectiveFilters, soldOutLast, SORT_LABEL } from '../lib/searchFilters';
 import { addRecentSearch, clearRecentSearches, getRecentSearches } from '../lib/recentSearches';
-import { buscarHref, lojaHref, produtoHref, type BuscarTab } from '../lib/routes';
+import { buscarHref, categoriaHref, lojaHref, produtoHref, type BuscarTab } from '../lib/routes';
 import type { SearchQuery, SearchType } from '../types/search';
 import styles from './Buscar.module.css';
 
@@ -202,7 +202,7 @@ export default function BuscarPage() {
         <SearchSuggestions id="busca-sugestoes" term={input.trim()} data={suggest.data} loading={suggest.loading} quotes={quotes}
           onProduct={(id) => { remember(); router.push(produtoHref(id)); }}
           onStore={(id) => { remember(); router.push(lojaHref(id)); }}
-          onCategory={(c) => submit(input, { categoria: c })}
+          onCategory={(c) => { remember(); router.push(categoriaHref(c)); }}
           onSearch={(t) => submit(t)} />
       ) : (
         <>
