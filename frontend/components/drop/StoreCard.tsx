@@ -1,7 +1,10 @@
 import { KeyboardEvent } from 'react';
-import { Store as StoreIcon } from 'lucide-react';
+import { Store as StoreIcon, Truck, Zap } from 'lucide-react';
 import { StatusPill, StoreStatus } from '../ui/StatusPill';
 import { ICON_STROKE_WIDTH } from '../ui/Icon';
+import { Badge } from '../ui/Badge';
+import { formatRating } from '../ui/Rating';
+import { initials } from '../ui/Avatar';
 import { formatMoney } from '../../lib/money';
 import { formatEtaRange } from '../../lib/deliveryView';
 import styles from './StoreCard.module.css';
@@ -19,6 +22,25 @@ export interface StoreCardData {
   outOfArea?: boolean;
   opensAt?: string;
   distanceKm?: number;
+  /** Média (≥ 3 avaliações) e contagem — vem do backend. */
+  rating?: { average: number; count: number };
+  /** "fecha às HH:MM" quando aberta pelo horário cadastrado. */
+  closesAt?: string;
+  /** Plano 1: a loja combina a entrega com o cliente. */
+  vitrine?: boolean;
+}
+
+const km = (n?: number) => (typeof n === 'number' ? `${n.toFixed(1).replace('.', ',')} km` : null);
+
+/** Linha embaixo do nome (variante resultado): nota + horário, ou o aviso que manda. */
+function subLine(s: StoreCardData): string {
+  if (s.outOfArea) return 'Não entrega aqui';
+  if (s.status === 'fechada') return s.opensAt ? `Loja fechada · abre às ${s.opensAt}` : 'Loja fechada';
+  const parts: string[] = [];
+  if (s.rating) parts.push(`★ ${formatRating(s.rating.average)} (${s.rating.count})`);
+  if (s.vitrine) parts.push('Vitrine · você combina a entrega');
+  else if (s.closesAt) parts.push(`fecha às ${s.closesAt}`);
+  return parts.length ? parts.join(' · ') : s.category;
 }
 
 export interface StoreCardProps {
@@ -85,22 +107,35 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
     );
   }
 
+  // Prazo só vem da cotação; a loja vitrine sem prazo mostra o selo "Vitrine" no lugar.
+  const closed = store.status === 'fechada' || !!store.outOfArea;
+  const eta = !closed ? formatEtaRange(store.etaMin) : null;
+  const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : km(store.distanceKm);
   return (
-    <div className={styles.row} {...interactiveProps}>
+    <div className={[styles.row, closed && styles.dim].filter(Boolean).join(' ')} {...interactiveProps}>
       <span
-        className={styles.photo}
+        className={styles.logo}
         style={store.imageUrl ? { backgroundImage: `url(${store.imageUrl})` } : undefined}
         aria-hidden="true"
       >
-        {!store.imageUrl && <StoreIcon size={22} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
+        {!store.imageUrl && initials(store.name)}
       </span>
       <div className={styles.meta}>
         <div className={styles.rowName}>{store.name}</div>
-        <div className={styles.category}>{store.category}</div>
-        {lineEl}
+        <div className={[styles.sub, store.outOfArea && styles.off].filter(Boolean).join(' ')}>{subLine(store)}</div>
       </div>
-      <div className={styles.right}>
-        <StatusPill status={store.status} />
+      <div className={styles.end}>
+        {eta ? (
+          <span className={styles.eta}><Zap size={14} aria-hidden="true" />{eta}</span>
+        ) : store.vitrine && !closed ? (
+          <Badge tone="status">Vitrine</Badge>
+        ) : null}
+        {tail && !store.outOfArea && (
+          <span className={store.freeDelivery ? styles.free : styles.tail}>
+            {store.freeDelivery && <Truck size={14} aria-hidden="true" />}
+            {tail}
+          </span>
+        )}
       </div>
     </div>
   );

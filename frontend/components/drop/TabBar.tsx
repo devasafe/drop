@@ -9,6 +9,8 @@ export interface TabItem {
   key: TabKey;
   label: string;
   icon: ComponentType<LucideProps>;
+  /** Contador (ex.: pedidos em andamento). */
+  badge?: number;
 }
 
 export interface TabBarProps {
@@ -35,18 +37,21 @@ export const DEFAULT_TABS: TabItem[] = [
 export function TabBar({ active, onNavigate, items = DEFAULT_TABS }: TabBarProps) {
   return (
     <nav className={styles.tabBar} aria-label="Navegação principal">
-      {items.map(({ key, label, icon: TabIcon }) => {
+      {items.map(({ key, label, icon: TabIcon, badge }) => {
         const isActive = key === active;
         return (
           <button
             key={key}
             type="button"
             className={[styles.item, isActive && styles.on].filter(Boolean).join(' ')}
-            aria-label={label}
+            aria-label={badge ? `${label}, ${badge} em andamento` : label}
             aria-current={isActive ? 'page' : undefined}
             onClick={() => onNavigate(key)}
           >
-            <TabIcon size={21} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+            <span className={styles.icon}>
+              <TabIcon size={21} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
+              {badge ? <span className={styles.badge} aria-hidden="true">{badge}</span> : null}
+            </span>
             <span className={styles.label}>{label}</span>
           </button>
         );

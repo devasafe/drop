@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { Search, Store as StoreIcon } from 'lucide-react';
+import { Bell, Search, Store as StoreIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useStores, useFeaturedStores, usePromoBanners } from '../hooks/useSync';
+import { useStores, useFeaturedStores, usePromoBanners, useNotifications } from '../hooks/useSync';
 import { useActiveOrders } from '../hooks/useActiveOrders';
 import { useDeliveryAddress } from '../hooks/useDeliveryAddress';
 import { useAddressPicker } from '../hooks/useAddressPicker';
@@ -11,6 +11,7 @@ import { useOffers, useNearbyStores } from '../hooks/useCatalogHome';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { imageUrl } from '../lib/config';
 import { mapStore } from '../lib/mapStore';
+import { repeatItems } from '../lib/repeatItems';
 import { productCardData } from '../lib/catalogCards';
 import { deliveryStates } from '../lib/deliveryView';
 import { ROUTES, buscarHref, lojaHref, produtoHref, pedidoHref } from '../lib/routes';
@@ -33,6 +34,7 @@ export default function Inicio() {
   const address = useDeliveryAddress();
   const picker = useAddressPicker();
   const { orders, activeOrders } = useActiveOrders();
+  const { unreadCount } = useNotifications();
   const { banners } = usePromoBanners();
   const { stores: featured } = useFeaturedStores();
   const { stores: allStores, loading: storesLoading } = useStores();
@@ -47,17 +49,7 @@ export default function Inicio() {
     ...featured.map((s: any) => ({ id: s._id, title: s.name, subtitle: s.neighborhood, imageUrl: imageUrl(s.featuredBannerUrl, { w: 1600 }) || undefined, href: lojaHref(s._id) })),
   ], [banners, featured]);
 
-  const repeatItems = useMemo(() => {
-    if (!user) return [];
-    const seen = new Set<string>();
-    const out: any[] = [];
-    for (const o of orders) for (const it of o.products || []) {
-      if (!it.productId || seen.has(it.productId) || out.length >= 4) continue;
-      seen.add(it.productId);
-      out.push({ productId: it.productId, storeId: o.storeId, storeName: o.storeName, name: it.productName || 'Produto', image: it.image, price: Number(it.price) || 0 });
-    }
-    return out;
-  }, [orders, user]);
+  const repeat = useMemo(() => (user ? repeatItems(orders) : []), [orders, user]);
 
   const storeList = address.point ? nearby.stores : allStores.slice(0, 8);
   const noAddress = deliveryStates({ hasPoint: !!address.point, address: address.label, onSetAddress: picker.request, onChangeAddress: picker.request });
@@ -65,7 +57,15 @@ export default function Inicio() {
   return (
     <div className={styles.page}>
       <header className={styles.top}>
-        <DeliveryAddressControl address={address} picker={picker} />
+        <div className={styles.topRow}>
+          <div className={styles.address}><DeliveryAddressControl address={address} picker={picker} /></div>
+          {user && (
+            <button type="button" className={styles.bell} aria-label={unreadCount ? `Notificações, ${unreadCount} não lidas` : 'Notificações'} onClick={() => router.push(ROUTES.notificacoes)}>
+              <Bell size={22} aria-hidden="true" />
+              {unreadCount > 0 && <i className={styles.bellCount} aria-hidden="true">{unreadCount}</i>}
+            </button>
+          )}
+        </div>
         <button type="button" className={styles.searchButton} onClick={() => router.push(buscarHref({ focus: true }))}>
           <Search size={20} strokeWidth={1.75} aria-hidden="true" />
           <span>Buscar produtos e lojas</span>
@@ -80,16 +80,18 @@ export default function Inicio() {
 
       {bannerItems.length > 0 && <div className={styles.section}><Banner items={bannerItems} /></div>}
 
-      {repeatItems.length > 0 && (
+      {repeat.length > 0 && (
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Pra você repetir</h2>
             <button type="button" className={styles.sectionLink} onClick={() => router.push(ROUTES.pedidos)}>Ver pedidos</button>
           </div>
-          {repeatItems.map((r) => (
-            <RepeatRow key={r.productId} product={{ name: r.name, store: r.storeName, imageUrl: imageUrl(r.image) || undefined, price: r.price }}
-              onAdd={() => addToCart({ productId: r.productId, quantity: 1, name: r.name, price: r.price, storeId: r.storeId, storeName: r.storeName, image: r.image })} />
-          ))}
+          <div className={styles.card}>
+            {repeat.map((r) => (
+              <RepeatRow key={r.productId} meta={r.meta} product={{ name: r.name, store: r.storeName, imageUrl: imageUrl(r.image) || undefined, price: r.price }}
+                onAdd={() => addToCart({ productId: r.productId, quantity: 1, name: r.name, price: r.price, storeId: r.storeId, storeName: r.storeName, image: r.image })} />
+            ))}
+          </div>
         </section>
       )}
 
@@ -102,9 +104,9 @@ export default function Inicio() {
           {offers.failed ? (
             <EmptyState variant="error" icon={<StoreIcon />} title="Não carregamos as ofertas" description="Confira sua conexão." onRetry={offers.retry} />
           ) : offers.loading ? (
-            <div className={styles.row}><Skeleton width={156} height={220} radius="var(--radius-lg)" /><Skeleton width={156} height={220} radius="var(--radius-lg)" /></div>
+            <div className={styles.grid}><Skeleton height={220} radius="var(--radius-lg)" /><Skeleton height={220} radius="var(--radius-lg)" /></div>
           ) : (
-            <div className={styles.row}>
+            <div className={styles.grid}>
               {offers.products.map((p: any) => (
                 <div key={p._id} className={styles.tile} onClick={() => router.push(produtoHref(p._id))}>
                   <ProductCard variant="home" product={productCardData(p, quotes[p.storeId])}

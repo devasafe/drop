@@ -1,5 +1,3 @@
-import { Route } from 'lucide-react';
-import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import { ProgressBar } from '../ui/ProgressBar';
 import styles from './OrderTracker.module.css';
 
@@ -12,6 +10,8 @@ export interface OrderTrackerProps {
   orderId: string;
   storeName: string;
   imageUrl?: string;
+  /** "2 itens" — resumo do pedido, embaixo do nome da loja. */
+  itemsLabel?: string;
   /** Sem cálculo de ETA real no backend hoje — opcional. Quando ausente, o
    * bloco de tempo inteiro (minutos + horário) some, em vez de mostrar um
    * número inventado. */
@@ -39,7 +39,7 @@ function deriveStatusLabel(steps: OrderTrackerStep[]): string {
 export function OrderTracker({
   orderId,
   storeName,
-  imageUrl,
+  itemsLabel,
   etaMin,
   etaLabel,
   statusLabel,
@@ -64,41 +64,17 @@ export function OrderTracker({
           : undefined
       }
     >
-      <div className={styles.row}>
-        <span
-          className={styles.thumb}
-          style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
-          aria-hidden="true"
-        />
-        <div className={styles.meta}>
-          <div className={styles.status} aria-live="polite">
-            <Route size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-            {resolvedLabel}
-          </div>
-          <div className={styles.title}>
-            Pedido #{orderId} · {storeName}
-          </div>
-        </div>
-        {etaMin !== undefined && (
-          <div className={styles.eta}>
-            <div className={styles.etaBig}>{etaMin} min</div>
-            {etaLabel && <div className={styles.etaLabel}>{etaLabel}</div>}
-          </div>
-        )}
+      <div className={styles.head}>
+        <span className={styles.badge} aria-live="polite">
+          <span className={styles.dot} aria-hidden="true" />
+          {resolvedLabel}
+        </span>
+        <span className={styles.code}>Pedido #{orderId}</span>
       </div>
-
+      <p className={styles.store}>{storeName}</p>
+      {itemsLabel && <p className={styles.items}>{itemsLabel}</p>}
+      {etaMin !== undefined && <p className={styles.items}>{`~${etaMin} min${etaLabel ? ` · ${etaLabel}` : ''}`}</p>}
       <ProgressBar value={clampedProgress * 100} label={`Progresso do pedido #${orderId}`} valueText={resolvedLabel} />
-
-      <div className={styles.steps}>
-        {steps.map((step) => (
-          <span
-            key={step.label}
-            className={step.done ? styles.stepDone : undefined}
-          >
-            {step.label}
-          </span>
-        ))}
-      </div>
     </section>
   );
 }

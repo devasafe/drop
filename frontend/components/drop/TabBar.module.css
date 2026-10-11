@@ -28,6 +28,27 @@
   transition: color var(--motion-fast) var(--ease);
 }
 
+.icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.badge {
+  position: absolute;
+  top: -3px;
+  left: calc(50% + 6px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: var(--color-on-action);
+  font: var(--text-caption);
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
 .on {
   color: var(--color-text-brand);
 }

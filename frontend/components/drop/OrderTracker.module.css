@@ -1,79 +1,57 @@
-/* OrderTracker — pedido em andamento, elemento dominante da Home (DS v2, flat). */
+/* OrderTracker — pedido em andamento, bloco tingido da marca (protótipo Início). */
 
 .track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   margin: var(--space-4) 0;
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--color-action-primary-subtle);
 }
 
-.row {
+.head {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.thumb {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-default);
-  background-position: center;
-  background-size: cover;
-}
-
-.meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font: var(--text-label);
-  color: var(--color-action-primary-subtle-text);
-}
-
-.title {
-  margin-top: 2px;
-  font: var(--text-body);
-  color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.eta {
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.etaBig {
-  font: var(--text-body);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
-}
-
-.etaLabel {
-  margin-top: 2px;
-  font: var(--text-caption);
-  color: var(--color-text-muted);
-}
-
-.steps {
-  display: flex;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-action-primary);
   font: var(--text-caption);
+  font-weight: 600;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.code {
+  font: var(--text-meta);
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
-.stepDone {
+.store {
+  margin: 0;
+  font: var(--text-title);
   color: var(--color-text-primary);
+}
+
+.items {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
 }
 
 .clickable {
@@ -81,6 +59,6 @@
 }
 
 .clickable:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }

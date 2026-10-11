@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { Home, Search, LogIn, LucideProps } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
+import { useActiveOrders } from '../../hooks/useActiveOrders';
 import { spaceGrotesk, inter } from '../../lib/fonts';
 import { getNavItems, isItemActive, GUEST_BOTTOM_NAV } from '../../lib/navConfig';
 import { StickyCart } from './StickyCart';
@@ -46,6 +47,7 @@ export function CustomerAppChrome() {
   const router = useRouter();
   const { user } = useAuth();
   const { cart } = useCart();
+  const { activeOrders } = useActiveOrders();
   const loggedOut = !user;
 
   const items = (cart || []) as CartItem[];
@@ -71,7 +73,7 @@ export function CustomerAppChrome() {
         <TabBar
           active={activeTab(router.pathname)}
           onNavigate={handleTabNavigate}
-          items={loggedOut ? GUEST_TAB_ITEMS : DEFAULT_TABS}
+          items={loggedOut ? GUEST_TAB_ITEMS : DEFAULT_TABS.map((t) => (t.key === 'pedidos' && activeOrders.length ? { ...t, badge: activeOrders.length } : t))}
         />
       </div>
     </div>

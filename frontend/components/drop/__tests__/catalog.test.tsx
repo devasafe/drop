@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { StoreCard } from '../StoreCard';
 import { ProductCard } from '../ProductCard';
-const store = { name:'TechStore', status:'aberta' as const, category:'Eletrônicos • Acessórios', rating:4.8, etaMin:[25,35] as [number,number], fee:5.9 };
+const store = { name:'TechStore', status:'aberta' as const, category:'Eletrônicos • Acessórios', rating:{ average:4.8, count:12 }, etaMin:[25,35] as [number,number], fee:5.9 };
 test('StoreCard resultado é linha (sem classe de card com borda)', () => {
   const { container } = render(<StoreCard variant="resultado" store={store} onClick={()=>{}} />);
   expect(container.firstChild).toHaveClass('row');       // linha

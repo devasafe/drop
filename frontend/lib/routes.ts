@@ -12,6 +12,8 @@ export const ROUTES = {
   login: '/login',
   cadastro: '/register',
   esqueciSenha: '/esqueci-senha',
+  // provisório: vira /conta/notificacoes na Task 29
+  notificacoes: '/notifications',
 } as const;
 
 /** Só caminho interno (`/x`), nunca `//host` ou URL absoluta: evita open redirect. */

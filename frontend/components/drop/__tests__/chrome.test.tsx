@@ -8,6 +8,7 @@ let mockPathname = '/inicio';
 let mockUser: any = { id: 'u1', role: 'cliente' };
 jest.mock('next/router', () => ({ useRouter: () => ({ pathname: mockPathname, push: mockPush }) }));
 jest.mock('../../../contexts/CartContext', () => ({ useCart: () => ({ cart: [] }) }));
+jest.mock('../../../hooks/useActiveOrders', () => ({ useActiveOrders: () => ({ activeOrders: [], orders: [], loading: false }) }));
 jest.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
 
 test('Logo mostra DROP em caixa alta', () => {

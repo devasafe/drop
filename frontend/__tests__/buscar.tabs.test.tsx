@@ -74,7 +74,8 @@ test('sem termo: Lojas mostra as que entregam perto; Produtos mostra ofertas', a
   mockAddresses = [casa];
   const { unmount } = render(<BuscarPage />);
   expect(await screen.findByText('Pet&Cia')).toBeInTheDocument();
-  expect(screen.getByText('20–30 min · Frete grátis')).toBeInTheDocument();
+  expect(screen.getByText('20–30 min')).toBeInTheDocument();
+  expect(screen.getByText('Frete grátis')).toBeInTheDocument();
   expect(get).not.toHaveBeenCalledWith(expect.stringContaining('/products/offers'));
   unmount();
   mockQuery = { tab: 'produtos' };

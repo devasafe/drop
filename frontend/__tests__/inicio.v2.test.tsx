@@ -21,6 +21,7 @@ jest.mock('../hooks/useSync', () => ({
   useStores: () => ({ stores: allStores, loading: false }),
   useFeaturedStores: () => ({ stores: [{ _id: 'f1', name: 'Banner Loja', featuredBannerUrl: 'b.jpg' }], loading: false }),
   usePromoBanners: () => ({ banners: [], loading: false }),
+  useNotifications: () => ({ notifications: [], unreadCount: 0, loading: false }),
 }));
 jest.mock('../hooks/useActiveOrders', () => ({ useActiveOrders: () => ({ activeOrders: mockActive, orders: mockActive, loading: false }) }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
@@ -54,7 +55,8 @@ test('com endereço: lojas perto (todas os planos) com prazo e frete', async () 
   mockUser = { _id: 'u1' };
   mockAddresses = [{ _id: 'a1', isDefault: true, street: 'Av. Paulista', number: '1578', latitude: '-23.56', longitude: '-46.65' }];
   render(<Inicio />);
-  expect(await screen.findByText('25–35 min · R$ 6,20')).toBeInTheDocument();
+  expect(await screen.findByText('25–35 min')).toBeInTheDocument();
+  expect(screen.getByText('R$ 6,20')).toBeInTheDocument();
   expect(get).toHaveBeenCalledWith('/stores/nearby?lat=-23.56&lng=-46.65&limit=12');
   expect(screen.getByRole('button', { name: /Entregar em Av\. Paulista, 1578/ })).toBeInTheDocument();
 });

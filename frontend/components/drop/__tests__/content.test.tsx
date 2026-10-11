@@ -5,7 +5,7 @@ import { ShoppingBag } from 'lucide-react';
 test('OrderTracker mostra loja e ETA', () => {
   render(<OrderTracker orderId="2481" storeName="TechStore" etaMin={12} progress={0.66} steps={[{label:'Confirmado',done:true},{label:'Saiu p/ entrega',done:true},{label:'Chegando',done:false}]} />);
   expect(screen.getByText(/TechStore/)).toBeInTheDocument();
-  expect(screen.getByText('12 min')).toBeInTheDocument();
+  expect(screen.getByText('~12 min')).toBeInTheDocument();
 });
 test('CategoryRail marca ativo e chama onSelect', () => {
   const onSelect = jest.fn();

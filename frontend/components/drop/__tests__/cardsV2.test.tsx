@@ -61,11 +61,13 @@ describe('StoreCard v2', () => {
   const s = { name: 'Eletro Center', status: 'aberta' as const, category: 'Pinheiros • São Paulo' };
   it('prazo e frete na mesma linha', () => {
     render(<StoreCard variant="resultado" store={{ ...s, etaMin: [25, 35], fee: 6.2 }} onClick={jest.fn()} />);
-    expect(screen.getByText('25–35 min · R$ 6,20')).toBeInTheDocument();
+    expect(screen.getByText('25–35 min')).toBeInTheDocument();
+    expect(screen.getByText('R$ 6,20')).toBeInTheDocument();
   });
   it('frete grátis, fechada e fora da área', () => {
     const { rerender } = render(<StoreCard variant="resultado" store={{ ...s, etaMin: [25, 35], freeDelivery: true }} onClick={jest.fn()} />);
-    expect(screen.getByText('25–35 min · Frete grátis')).toBeInTheDocument();
+    expect(screen.getByText('25–35 min')).toBeInTheDocument();
+    expect(screen.getByText('Frete grátis')).toBeInTheDocument();
     rerender(<StoreCard variant="resultado" store={{ ...s, status: 'fechada', opensAt: '09:00' }} onClick={jest.fn()} />);
     expect(screen.getByText('Loja fechada · abre às 09:00')).toBeInTheDocument();
     rerender(<StoreCard variant="resultado" store={{ ...s, outOfArea: true }} onClick={jest.fn()} />);
