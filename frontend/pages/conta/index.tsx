@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Bell, ChevronRight, HelpCircle, LogOut, MapPin, ShieldCheck, User, Wallet, Lock, Check } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import MeusDadosForm from '../../components/MeusDadosForm';
+import { PersonalData } from '../../components/drop/PersonalData';
 import { IdentityCheck } from '../../components/drop/IdentityCheck';
 import AddressManager from '../../components/AddressManager';
 import { Avatar } from '../../components/ui/Avatar';
@@ -122,7 +122,7 @@ export default function ContaPage() {
           <section className={styles.detail} aria-label={TITULO[secao]}>
             <button type="button" className={styles.back} onClick={() => setSecao(null)}>Voltar para Conta</button>
             <h1 className={styles.detailTitle}>{TITULO[secao]}</h1>
-            {secao === 'dados' && <MeusDadosForm />}
+            {secao === 'dados' && <PersonalData />}
             {secao === 'verificacao' && (
               <IdentityCheck emailResult={router.query.email === 'ok' || router.query.email === 'erro' ? router.query.email : null} onDone={() => { const n = safeNext(router.query.next); if (n) router.push(n); else setSecao(null); }} />
             )}

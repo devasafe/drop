@@ -14,7 +14,7 @@ jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => mockSaas }));
 jest.mock('../hooks/useCustodyLeftover', () => ({ useCustodyLeftover: () => mockLeftover }));
 jest.mock('../hooks/useSync', () => ({ useAddresses: () => ({ addresses: [], loading: false, setAddresses: jest.fn() }) }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
-jest.mock('../components/MeusDadosForm', () => ({ __esModule: true, default: () => <div>MEUS_DADOS_FORM</div> }));
+jest.mock('../components/drop/PersonalData', () => ({ PersonalData: () => <div>PERSONAL_DATA</div> }));
 jest.mock('../components/drop/IdentityCheck', () => ({ IdentityCheck: () => <div>IDENTITY_CHECK</div> }));
 jest.mock('../components/AddressManager', () => ({ __esModule: true, default: () => <div>ADDRESS_MANAGER</div> }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
@@ -61,7 +61,7 @@ test('seções inline e deep-link ?secao=', () => {
   expect(screen.getByText('ADDRESS_MANAGER')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Voltar para Conta' }));
   fireEvent.click(screen.getByText('Dados pessoais'));
-  expect(screen.getByText('MEUS_DADOS_FORM')).toBeInTheDocument();
+  expect(screen.getByText('PERSONAL_DATA')).toBeInTheDocument();
 });
 
 test('verificação pendente vira aviso com ação; Sair chama logout', async () => {
