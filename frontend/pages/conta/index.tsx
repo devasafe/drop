@@ -109,7 +109,7 @@ export default function ContaPage() {
             <h1 className={styles.detailTitle}>{TITULO[secao]}</h1>
             {secao === 'dados' && <MeusDadosForm />}
             {secao === 'verificacao' && (
-              <IdentityCheck onDone={() => { const n = safeNext(router.query.next); if (n) router.push(n); else setSecao(null); }} />
+              <IdentityCheck emailResult={router.query.email === 'ok' || router.query.email === 'erro' ? router.query.email : null} onDone={() => { const n = safeNext(router.query.next); if (n) router.push(n); else setSecao(null); }} />
             )}
             {secao === 'enderecos' && <AddressManager />}
           </section>

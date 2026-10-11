@@ -14,7 +14,7 @@ type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Ver { email?: { status?: string }; document?: { status?: DocStatus; rejectionReason?: string } }
 
 /** Verificação do cliente (e-mail + documento) numa tela só (protótipo "Verificar identidade"). */
-export function IdentityCheck({ onDone }: { onDone?: () => void }) {
+export function IdentityCheck({ onDone, emailResult }: { onDone?: () => void; emailResult?: 'ok' | 'erro' | null }) {
   const [ver, setVer] = useState<Ver | null>(null);
   const [failed, setFailed] = useState(false);
   const [cpf, setCpf] = useState('');
@@ -62,6 +62,8 @@ export function IdentityCheck({ onDone }: { onDone?: () => void }) {
 
   return (
     <div className={styles.wrap}>
+      {emailResult === 'ok' && <Alert tone="success" title="E-mail confirmado" />}
+      {emailResult === 'erro' && <Alert tone="warning" title="Link inválido ou expirado" >Peça um código novo.</Alert>}
       <p className={styles.lead}>Pedimos uma vez, antes da primeira compra. Protege você contra uso indevido do seu cartão e do seu Pix.</p>
       <ul className={styles.list}>
         <li className={styles.row}>
