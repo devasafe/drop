@@ -1,236 +1,90 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import api from '../lib/api';
-import AuthContext from '../contexts/AuthContext';
+import { Package } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useOrders } from '../hooks/useSync';
 import { useAutoRefetch } from '../hooks/useAutoRefetch';
-import LoadingSkeleton from '../components/LoadingSkeleton';
-import { Package, FileText } from 'lucide-react';
+import { useReorderFlow } from '../hooks/useReorderFlow';
+import { Tabs, tabPanelProps } from '../components/ui/Tabs';
+import { List } from '../components/ui/List';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Select } from '../components/ui/Select';
-import { Chip } from '../components/ui/Chip';
-import { List } from '../components/ui/List';
-import { OrderRow, OrderRowData } from '../components/drop/OrderRow';
-import AddressManager from '../components/AddressManager';
+import { Skeleton } from '../components/ui/Skeleton';
+import { OrderRow, type OrderRowData } from '../components/drop/OrderRow';
+import { ReorderConfirmSheet } from '../components/drop/ReorderConfirmSheet';
+import { isActiveOrder } from '../lib/activeOrder';
+import { groupOrdersByMonth } from '../lib/orderGroups';
 import { ROUTES, pedidoHref } from '../lib/routes';
-import styles from './UserDashboard.module.css';
+import styles from './Pedidos.module.css';
 
-/** Resumo de itens do pedido: "3 itens · Pizza, Refri…". */
 function itemsSummary(products: any[]): string {
   if (!Array.isArray(products) || products.length === 0) return '';
-  const totalQty = products.reduce((s, p) => s + (Number(p.quantity) || 1), 0);
-  const names = products
-    .slice(0, 2)
-    .map((p: any) => p.name || p.product?.name || p.productName || 'Produto');
-  const unit = totalQty === 1 ? 'item' : 'itens';
-  const more = products.length > 2 ? '…' : '';
-  return `${totalQty} ${unit} · ${names.join(', ')}${more}`;
+  const qty = products.reduce((s, p) => s + (Number(p.quantity) || 1), 0);
+  const names = products.slice(0, 2).map((p: any) => p.productName || p.name || 'Produto');
+  return `${qty} ${qty === 1 ? 'item' : 'itens'} · ${names.join(', ')}${products.length > 2 ? '…' : ''}`;
 }
+const toRow = (o: any): OrderRowData => ({
+  _id: String(o._id), code: String(o._id).slice(-6).toUpperCase(), storeName: o.storeName || o.storeObj?.name || 'Loja',
+  status: o.status, paymentStatus: o.paymentStatus, total: Number(o.totalValue) || 0, itemsLabel: itemsSummary(o.products),
+  createdAt: o.createdAt, paymentMethod: o.paymentMethod, installmentCount: o.installmentCount,
+});
+const EVENTS = ['order:created', 'order:updated', 'order:status_changed', 'order:cancelled', 'order:accepted_by_store', 'order:rejected_by_store',
+  'delivery:assigned', 'delivery:picked', 'delivery:completed', 'delivery:cancelled'];
 
-/** Normaliza um pedido para o OrderRow. */
-function toOrderRow(order: any): OrderRowData {
-  const id = order._id || order.id || order.orderId || '';
-  return {
-    _id: String(id),
-    code: String(id).slice(-8).toUpperCase(),
-    storeName: order.storeName || order.storeObj?.name || 'Loja',
-    status: order.status,
-    paymentStatus: order.paymentStatus,
-    total: order.totalValue || 0,
-    itemsLabel: itemsSummary(order.products),
-    createdAt: order.createdAt,
-    paymentMethod: order.paymentMethod,
-    installmentCount: order.installmentCount,
-  };
-}
-
-export default function UserDashboard() {
-  const { user: authUser } = useContext(AuthContext);
+export default function PedidosPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [addressCount, setAddressCount] = useState(0);
-  const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders();
-  const [activeTab, setActiveTab] = useState('pending'); // pending, history, addresses
-  // Deep-link: /user-dashboard?tab=addresses (ex.: atalho "Endereços" do perfil).
-  useEffect(() => {
-    const t = router.query.tab;
-    if (typeof t === 'string' && ['pending', 'history', 'addresses'].includes(t)) setActiveTab(t);
-  }, [router.query.tab]);
-  const [loading, setLoading] = useState(true);
-
-  // 🔄 Auto-refetch quando socket events chegam (pedidos + endereços)
-  const handleSocketUpdate = useCallback(async () => {
-    console.log('📡 [UserDashboard] Socket event received - refetching...');
-    refetchOrders();
-    try {
-      const addr = await api.get('/user/addresses');
-      setAddressCount(Array.isArray(addr.data) ? addr.data.length : 0);
-    } catch (e) {
-      console.error('[Dashboard] Erro ao recarregar endereços:', e);
-    }
-  }, [refetchOrders]);
-
-  useAutoRefetch(
-    [
-      'order:created', 'order:updated', 'order:status_changed',
-      'order:cancelled', 'order:accepted_by_store', 'order:rejected_by_store',
-      'delivery:assigned', 'delivery:picked', 'delivery:completed', 'delivery:cancelled',
-    ],
-    handleSocketUpdate
-  );
-
-  useEffect(() => {
-    if (!authUser) return;
-    async function fetchAll() {
-      setLoading(true);
-      try {
-        console.log('[Dashboard] 🔄 Carregando dados do usuário e endereços...');
-        const [me, addr] = await Promise.all([
-          api.get('/user/me'),
-          api.get('/user/addresses'),
-        ]);
-        console.log('[Dashboard] /me response:', me.data?.name, 'ID:', me.data?.id);
-        console.log('[Dashboard] /addresses RAW response:', addr.data);
-        console.log('[Dashboard] /addresses response type:', typeof addr.data, 'isArray:', Array.isArray(addr.data));
-        setUser(me.data);
-        // ✅ FIX: Endpoint agora retorna array direto
-        const addressesData = Array.isArray(addr.data) ? addr.data : [];
-        setAddressCount(addressesData.length);
-      } catch (e) {
-        console.error('[Dashboard] ❌ Error loading data:', e);
-      }
-      setLoading(false);
-    }
-    fetchAll();
-  }, [authUser]);
-
-  // Escutar mudanças em localStorage para recarregar endereços quando novo é salvo no checkout
-  useEffect(() => {
-    const handleStorageChange = async (e: StorageEvent) => {
-      if (e.key !== 'newAddressSaved' || !e.newValue) return;
-      try {
-        const addr = await api.get('/user/addresses');
-        setAddressCount(Array.isArray(addr.data) ? addr.data.length : 0);
-        localStorage.removeItem('newAddressSaved');
-      } catch {
-        // silently ignore reload errors
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  // Envolve o loading no ProtectedRoute também: deslogado, o ProtectedRoute
-  // redireciona pro /login em vez de ficar preso no skeleton pra sempre (o
-  // fetch de dados falha/pende e `loading` nunca zeraria).
-  if (loading || ordersLoading) return (
-    <ProtectedRoute required_role="cliente">
-      <div className={styles.loadingScreen}>
-        <LoadingSkeleton variant="dashboard" />
-      </div>
-    </ProtectedRoute>
-  );
-
-  // Helper function to get status badge info
-  const pendingOrders = orders.filter(order => !['entregue', 'delivered', 'cancelado', 'rejeitado'].includes(order.status));
-  const completedOrders = orders.filter(order => ['entregue', 'delivered', 'cancelado', 'rejeitado'].includes(order.status));
+  const { orders, loading, refetch } = useOrders();
+  useAutoRefetch(EVENTS, useCallback(() => refetch(), [refetch]));
+  const reorderFlow = useReorderFlow();
+  const [tab, setTab] = useState(router.query.tab === 'historico' ? 'historico' : 'andamento');
+  const active = useMemo(() => orders.filter((o: any) => isActiveOrder(o.status)), [orders]);
+  const history = useMemo(() => orders.filter((o: any) => !isActiveOrder(o.status)), [orders]);
+  const open = (id: string) => router.push(pedidoHref(id));
+  const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
 
   return (
     <ProtectedRoute required_role="cliente">
-      <div className={styles.page}>
-        <div className={styles.container}>
-
-          {/* Cabeçalho da tela de Pedidos */}
-          <header className={styles.header}>
-            <h1 className={styles.title}>Pedidos</h1>
-          </header>
-
-          <div className={styles.content}>
-            {/* Conteúdo */}
-            <div className={styles.mainContent}>
-
-              {/* Select de seção — visível apenas em tablet/mobile via CSS */}
-              <div className={styles.tabsMobile}>
-                <Select
-                  value={activeTab}
-                  onChange={setActiveTab}
-                  options={[
-                    { value: 'pending', label: `Em Andamento (${pendingOrders.length})` },
-                    { value: 'addresses', label: `Endereços (${addressCount})` },
-                    { value: 'history', label: `Histórico (${completedOrders.length})` },
-                  ]}
-                />
-              </div>
-
-              {/* Tabs (Chip do DS) */}
-              <div className={styles.tabs}>
-                {[
-                  { id: 'pending',   label: `Em Andamento (${pendingOrders.length})` },
-                  { id: 'addresses', label: `Endereços (${addressCount})` },
-                  { id: 'history',   label: `Histórico (${completedOrders.length})` },
-                ].map(tab => (
-                  <Chip key={tab.id} label={tab.label} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
-                ))}
-              </div>
-
-              {/* === PEDIDOS EM ANDAMENTO === */}
-              {activeTab === 'pending' && (
-                pendingOrders.length === 0 ? (
-                  <EmptyState
-                    icon={<Package />}
-                    title="Nenhum pedido em andamento"
-                    description="Quando você fizer um pedido, ele aparecerá aqui."
-                    action={<Button variant="primary" onClick={() => router.push(ROUTES.inicio)}>Explorar lojas</Button>}
-                  />
+      <main className={styles.page}>
+        <h1 className={styles.title}>Pedidos</h1>
+        {loading ? (
+          <div className={styles.list}><Skeleton height={88} /><Skeleton height={88} /></div>
+        ) : orders.length === 0 ? (
+          <EmptyState icon={<Package />} title="Seus pedidos aparecem aqui" description="Quando você comprar, acompanha tudo por aqui."
+            action={<Button onClick={() => router.push(ROUTES.inicio)}>Explorar lojas</Button>} />
+        ) : (
+          <>
+            <Tabs label="Pedidos" idPrefix="pedidos" value={tab} onChange={setTab}
+              items={[{ id: 'andamento', label: 'Em andamento', count: active.length }, { id: 'historico', label: 'Histórico', count: history.length }]} />
+            <div {...tabPanelProps(tab, 'pedidos')} className={styles.panel}>
+              {tab === 'andamento' ? (
+                active.length === 0 ? (
+                  <EmptyState icon={<Package />} title="Nenhum pedido em andamento" description="Seus pedidos ativos aparecem aqui."
+                    action={<Button variant="secondary" onClick={() => router.push(ROUTES.inicio)}>Explorar lojas</Button>} />
                 ) : (
-                  <List>
-                    {pendingOrders.map((order, idx) => {
-                      const row = toOrderRow(order);
-                      return (
-                        <OrderRow
-                          key={row._id || idx}
-                          order={row}
-                          onClick={() => router.push(pedidoHref(row._id))}
-                        />
-                      );
-                    })}
-                  </List>
+                  <List>{active.map((o: any) => (
+                    <OrderRow key={o._id} order={toRow(o)} onClick={() => open(o._id)}
+                      action={<Button size="sm" variant="secondary" onClick={stop(() => open(o._id))}>Acompanhar</Button>} />
+                  ))}</List>
                 )
+              ) : (
+                groupOrdersByMonth(history).map((g) => (
+                  <section key={g.key} className={styles.month} aria-label={g.label}>
+                    <h2 className={styles.monthTitle}>{g.label}</h2>
+                    <List>{g.orders.map((o: any) => (
+                      <OrderRow key={o._id} order={toRow(o)} showDate onClick={() => open(o._id)}
+                        action={o.status === 'entregue' && o.storeId ? (
+                          <Button size="sm" variant="secondary" loading={reorderFlow.busy}
+                            onClick={stop(() => reorderFlow.start({ _id: o._id, storeId: o.storeId, storeName: o.storeName }))}>De novo</Button>
+                        ) : undefined} />
+                    ))}</List>
+                  </section>
+                ))
               )}
-
-              {/* === ENDEREÇOS === (gerenciador reutilizável) */}
-              {activeTab === 'addresses' && (
-                <AddressManager onCountChange={setAddressCount} />
-              )}
-
-              {/* === HISTÓRICO === */}
-              {activeTab === 'history' && (
-                completedOrders.length === 0 ? (
-                  <EmptyState icon={<FileText />} title="Nenhum pedido no histórico" description="Seus pedidos concluídos aparecem aqui." />
-                ) : (
-                  <List>
-                    {completedOrders.map((order, idx) => {
-                      const row = toOrderRow(order);
-                      return (
-                        <OrderRow
-                          key={row._id || idx}
-                          order={row}
-                          showDate
-                          onClick={() => router.push(pedidoHref(row._id))}
-                        />
-                      );
-                    })}
-                  </List>
-                )
-              )}
-
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+        <ReorderConfirmSheet {...reorderFlow.confirm} />
+      </main>
     </ProtectedRoute>
   );
 }

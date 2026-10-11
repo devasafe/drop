@@ -11,7 +11,7 @@ const ALLOW = new Set<string>([
 ]);
 
 // CSS de página do cliente já redesenhada (fase C). Cada task de tela acrescenta o seu.
-const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css', 'pages/produto/Produto.module.css', 'pages/Sacola.module.css', 'pages/pedido/Pedido.module.css'];
+const CLIENT_PAGE_CSS: string[] = ['pages/Inicio.module.css', 'pages/Buscar.module.css', 'pages/loja/Loja.module.css', 'pages/produto/Produto.module.css', 'pages/Sacola.module.css', 'pages/pedido/Pedido.module.css', 'pages/Pedidos.module.css'];
 
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

@@ -33,6 +33,10 @@
   gap: var(--space-3);
 }
 
+.action {
+  margin-left: auto;
+}
+
 .total {
   font-weight: 700;
   color: var(--color-text-primary);

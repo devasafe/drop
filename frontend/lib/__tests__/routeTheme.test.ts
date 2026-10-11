@@ -2,7 +2,7 @@ import { themeForPath, LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '.
 
 describe('routeTheme', () => {
   it('rota fora da lista é escura (padrão até a fase C)', () => {
-    expect(themeForPath('/pedidos')).toBe('dark');
+    expect(themeForPath('/notifications')).toBe('dark');
     expect(themeForPath('/seller/dashboard')).toBe('dark');
   });
   it('styleguide é clara', () => {

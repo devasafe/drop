@@ -17,6 +17,8 @@ jest.mock('../hooks/useSync', () => ({
   useOrders: () => ({ orders, loading: false, refetch: jest.fn() }),
 }));
 jest.mock('../hooks/useAutoRefetch', () => ({ useAutoRefetch: () => {} }));
+jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [] }) }));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
 describe('Pedidos (/pedidos)', () => {
   it('mostra cabeçalho Pedidos e o pedido em andamento como card', async () => {

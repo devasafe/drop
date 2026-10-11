@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Row } from '../ui/List';
 import { OrderStatusBadge, type CustomerOrderStatus } from './OrderStatusBadge';
 import { formatMoney } from '../../lib/money';
@@ -47,10 +48,12 @@ interface OrderRowProps {
   onClick?: () => void;
   /** Mostra a data de criação (histórico). */
   showDate?: boolean;
+  /** Ação secundária no rodapé da linha ("Acompanhar", "De novo"). */
+  action?: ReactNode;
 }
 
 /** Linha de pedido nas listas do cliente (DS v2): uma `Row` de `List`. */
-export function OrderRow({ order, onClick, showDate = false }: OrderRowProps) {
+export function OrderRow({ order, onClick, showDate = false, action }: OrderRowProps) {
   const sub = [order.code ? `#${order.code}` : null, order.itemsLabel].filter(Boolean).join(' · ');
   const installments = order.installmentCount && order.installmentCount > 1 ? order.installmentCount : null;
   const payLabel = order.paymentMethod
@@ -73,6 +76,7 @@ export function OrderRow({ order, onClick, showDate = false }: OrderRowProps) {
         <div className={styles.foot}>
           <span className={styles.total}>{formatMoney(order.total)}</span>
           {date && <span className={styles.sub}>{date}</span>}
+          {action && <div className={styles.action}>{action}</div>}
         </div>
       </div>
     </Row>
