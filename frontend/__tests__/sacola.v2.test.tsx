@@ -265,3 +265,14 @@ test('M6 — rascunho antigo com "wallet" volta para o Pix (nunca fica sem chip)
   render(<SacolaPage />);
   expect(setPaymentMethod).toHaveBeenCalledWith('pix');
 });
+
+test('M1 — parcela fora das opções (sacola encolheu): a escolha volta para a opção mostrada', () => {
+  const setInstallmentCount = jest.fn();
+  mocked.mockReturnValue(hook({
+    paymentMethod: 'credit_card', installmentCount: 6, setInstallmentCount, cardPayload: { valid: true }, subtotal: 20, deliveryFee: 0, total: 20,
+    config: { base: 5, perKm: 1, cardFeePercent: 2.99, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 1.99, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5 },
+  }));
+  render(<SacolaPage />);
+  expect(setInstallmentCount).toHaveBeenCalledWith(1);
+  expect(screen.getByRole('button', { name: /^Pagar R\$ [\d.,]+ no cartão$/ })).toBeInTheDocument();
+});

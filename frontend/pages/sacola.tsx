@@ -91,6 +91,13 @@ export default function SacolaPage() {
     cardInstallmentMaxCount: c.config.cardInstallmentMaxCount ?? 12, cardInstallmentMinValue: c.config.cardInstallmentMinValue ?? 5,
   }) : [];
   const chosen = cardOpts.find((o) => o.count === c.installmentCount) ?? cardOpts[0];
+  // M1: a parcela enviada é a mostrada. Se a escolhida saiu das opções (a sacola encolheu e a
+  // parcela ficou abaixo do mínimo), a escolha acompanha a opção exibida.
+  const chosenCount = chosen?.count;
+  useEffect(() => {
+    if (isCard && chosenCount != null && chosenCount !== c.installmentCount) c.setInstallmentCount(chosenCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCard, chosenCount, c.installmentCount]);
   const toPay = isCard && chosen ? chosen.total : Math.max(0, Math.round((c.total - walletUse) * 100) / 100);
   const cardInvalid = c.paymentMethod === 'credit_card' && !c.cardPayload?.valid;
   const cpfBad = c.cpfRequired && !isValidCPF(c.cpf);
