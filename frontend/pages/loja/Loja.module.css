@@ -56,11 +56,35 @@
   z-index: 1;
 }
 
+.searchBtn {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
+}
+
 .head {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
+  margin-top: calc(-1 * var(--space-6));
+  padding: 0 var(--space-4) var(--space-4);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-surface-default);
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-top: -32px;
+  border: 3px solid var(--color-surface-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  font: var(--text-title);
 }
 
 .title {
@@ -75,10 +99,63 @@
   color: var(--color-text-secondary);
 }
 
-.delivery {
+.facts {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.rating {
+  font: var(--text-meta);
+  color: var(--color-text-primary);
+}
+
+.openPill,
+.closedPill {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font: var(--text-caption);
+  font-weight: 600;
+}
+
+.openPill {
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.openPill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.closedPill {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: var(--text-label);
+  cursor: pointer;
+}
+
+.sortButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .actions {
@@ -173,21 +250,6 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-4) 0;
-}
-
-.chips {
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.chips::-webkit-scrollbar {
-  height: 0;
-}
-
-.chips > * {
-  flex-shrink: 0;
 }
 
 /* ---- produtos + sacola (desktop) ---- */

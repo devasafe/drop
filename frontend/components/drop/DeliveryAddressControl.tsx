@@ -4,6 +4,7 @@ import { AddressBar } from './AddressBar';
 import { AddressPickerSheet } from './AddressPickerSheet';
 import { AddressSheet } from './checkout/AddressSheet';
 import { Skeleton } from '../ui/Skeleton';
+import styles from './DeliveryAddressControl.module.css';
 import { useToast } from '../ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAddressForm } from '../../hooks/useAddressForm';
@@ -12,10 +13,12 @@ import type { useAddressPicker } from '../../hooks/useAddressPicker';
 
 export interface DeliveryAddressControlProps {
   address: DeliveryAddressState; picker: ReturnType<typeof useAddressPicker>; storeId?: string | null; storeName?: string;
+  /** 'link': só um "Trocar" (blocos de entrega da Loja e do Produto); 'bar' (padrão): a barra "Entregar em X". */
+  trigger?: 'bar' | 'link';
 }
 
 /** "Entregar em X" no topo das telas de compra + seletor de baixo + formulário de endereço novo. */
-export function DeliveryAddressControl({ address, picker, storeId, storeName }: DeliveryAddressControlProps) {
+export function DeliveryAddressControl({ address, picker, storeId, storeName, trigger = 'bar' }: DeliveryAddressControlProps) {
   const { user } = useAuth() || ({} as any);
   const { showToast } = useToast();
   const form = useAddressForm();
@@ -30,7 +33,9 @@ export function DeliveryAddressControl({ address, picker, storeId, storeName }: 
 
   return (
     <>
-      <AddressBar label={bar.label} address={bar.address} onClick={picker.request} />
+      {trigger === 'link'
+        ? <button type="button" className={styles.change} aria-label="Trocar endereço de entrega" onClick={picker.request}>Trocar</button>
+        : <AddressBar label={bar.label} address={bar.address} onClick={picker.request} />}
       <AddressPickerSheet
         open={picker.open}
         onClose={() => picker.setOpen(false)}

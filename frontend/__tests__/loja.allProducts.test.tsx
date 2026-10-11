@@ -11,6 +11,7 @@ jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [], add: j
 jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('../contexts/SocketContext', () => ({ useSocket: () => ({ on: () => () => {}, isConnected: false }) }));
 jest.mock('../components/drop/StoreCartPanel', () => ({ StoreCartPanel: () => null }));
+jest.mock('../components/drop/StoreReviews', () => ({ StoreReviews: () => null }));
 
 const stores = [{ _id: 's1', name: 'Loja Grande', isOpen: true, plan: 2 }];
 // O app inteiro (useProducts) só enxerga 20 produtos — não pode ser a fonte da página da loja.

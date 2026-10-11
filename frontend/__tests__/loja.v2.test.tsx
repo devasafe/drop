@@ -15,6 +15,7 @@ jest.mock('../contexts/SocketContext', () => ({ useSocket: () => ({ on: () => ()
 jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: mockCart, add: (_i: any, o: any) => { o?.onAdded?.(); return 'added'; }, updateQuantity, removeItem }) }));
 jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast }) }));
 jest.mock('../components/drop/StoreCartPanel', () => ({ StoreCartPanel: () => null }));
+jest.mock('../components/drop/StoreReviews', () => ({ StoreReviews: () => null }));
 jest.mock('../hooks/useSync', () => ({
   useStores: () => ({ stores: mockStores, loading: false }),
   useAddresses: () => ({ addresses: mockAddresses, loading: false, setAddresses: jest.fn() }),
