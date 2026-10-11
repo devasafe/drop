@@ -43,7 +43,12 @@ function voltaTexto(p: CancelPreview): string {
   const provider = p.walletPart == null && p.providerPart == null ? (p.refund ?? 0) : (p.providerPart ?? 0);
   const parts: string[] = [];
   if (wallet > 0) parts.push(`${formatBRL(wallet)} voltam para a carteira`);
-  if (provider > 0) parts.push(`${formatBRL(provider)} voltam ${destino(p.paymentMethod)} em até 1 dia útil`);
+  // M2: estorno de cartão aparece na fatura conforme o emissor — sem prazo prometido.
+  if (provider > 0) {
+    parts.push(p.paymentMethod === 'credit_card'
+      ? `${formatBRL(provider)} voltam para o cartão; o estorno aparece na fatura`
+      : `${formatBRL(provider)} voltam ${destino(p.paymentMethod)} em até 1 dia útil`);
+  }
   return parts.length ? `${parts.join(' e ')}.` : 'Não há valor a devolver.';
 }
 

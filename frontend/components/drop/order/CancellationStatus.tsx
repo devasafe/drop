@@ -130,14 +130,26 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
   const hasFee = cancellation.cancellationFee !== undefined && cancellation.cancellationFee > 0;
   const failed = cancellation.refundStatus === 'failed';
   const processed = cancellation.refundStatus === 'processed';
+  const held = cancellation.refundStatus === 'pending';
   // Pedido cancelado antes de pagar: o cancelamento grava refundAmount = total, mas nada foi cobrado.
   const unpaid = paymentStatus === 'pending' || paymentStatus === 'failed';
   const walletBack = unpaid && (walletApplied ?? 0) > 0 ? (walletApplied as number) : 0;
 
   const custodySteps: Step[] = [
     { label: 'Cancelado', detail: hasFee ? 'Com taxa de cancelamento' : 'Sem taxa para você', time: `${ddmm(cancellation.createdAt)} ${hhmm(cancellation.createdAt)}`, state: 'done' },
-    { label: 'Estorno pedido ao banco', detail: paymentMethod === 'credit_card' ? 'No cartão que pagou' : 'Pix para a conta que pagou', state: failed ? 'current' : 'done' },
-    { label: 'Dinheiro na sua conta', detail: processed ? 'Concluído' : 'Até 1 dia útil', state: processed ? 'done' : failed ? 'upcoming' : 'current' },
+    // M1: 'pending' na custódia = estorno retido para o admin (payout já liquidado ou falha no
+    // Asaas): nada foi pedido ao banco ainda, então nada de "feito" nem de prazo.
+    {
+      label: 'Estorno pedido ao banco',
+      detail: held ? 'Em análise pelo DROP' : paymentMethod === 'credit_card' ? 'No cartão que pagou' : 'Pix para a conta que pagou',
+      state: failed || held ? 'current' : 'done',
+    },
+    {
+      label: 'Dinheiro na sua conta',
+      // M2: estorno de cartão aparece na fatura conforme o emissor — sem prazo.
+      detail: processed ? 'Concluído' : failed || held ? undefined : paymentMethod === 'credit_card' ? 'Aparece na fatura do cartão' : 'Até 1 dia útil',
+      state: processed ? 'done' : failed || held ? 'upcoming' : 'current',
+    },
   ];
   const directSteps: Step[] | null = direct
     ? [
@@ -240,7 +252,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
           {onSupport && (
             <button type="button" className={styles.exit} onClick={onSupport}>
               <span className={styles.exitIcon}><Headphones size={20} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /></span>
-              <span className={styles.exitText}><b>Falar com o suporte</b><small>Com o pedido já anexado</small></span>
+              <span className={styles.exitText}><b>Falar com o suporte</b><small>Escolha o pedido e fale com a gente</small></span>
             </button>
           )}
         </div>
