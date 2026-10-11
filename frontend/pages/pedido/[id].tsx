@@ -27,7 +27,7 @@ import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { buildRouteThumbnailUrl } from '../../lib/staticMap';
-import { ROUTES, buscarHref, pedidoConversaHref } from '../../lib/routes';
+import { ROUTES, buscarHref, pedidoConversaHref, pedidoReciboHref } from '../../lib/routes';
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import styles from './Pedido.module.css';
@@ -401,6 +401,11 @@ export default function PedidoPage() {
               >
                 Comprar de novo
               </Button>
+            )}
+            {status === 'delivered' && order.deliveryId && (
+              <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoReciboHref(order._id))}>
+                Recibo da entrega
+              </button>
             )}
             {showStoreRating && (order.products || []).map((p: any) => {
               const pid = p.productId || p.product?._id || p.product?.id;

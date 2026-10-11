@@ -1,0 +1,95 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: var(--app-max);
+  margin: 0 auto;
+  background: var(--color-bg-primary);
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.iconBtn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-8);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+.cap {
+  margin: 0;
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.value {
+  margin: 0;
+  font: var(--text-price-lg);
+  color: var(--color-price);
+  font-variant-numeric: tabular-nums;
+}
+.sub {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+
+.card > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.card dt {
+  flex: none;
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+.card dd {
+  margin: 0;
+  text-align: right;
+  font: var(--text-body);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+.total dt,
+.total dd {
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+
+@media print {
+  .page {
+    background: var(--color-surface-default);
+  }
+  .page > header,
+  .page [role='status'] {
+    display: none;
+  }
+}
