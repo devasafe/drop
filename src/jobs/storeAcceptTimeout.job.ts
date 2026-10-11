@@ -28,8 +28,9 @@ import { cancelOrderWithFullRefund } from '../controllers/cancellationController
  * já aceitos (`aguardando_motoboy`/`enviado`, com `acceptedAt`) ficam fora. A trava
  * `updateMany` de `cancelOrderWithFullRefund` impede reembolso duplo entre rodadas.
  *
- * Prazo: o Order não tem `paidAt`, então o prazo conta de `createdAt`. Um PIX pago
- * perto do fim da validade pode ser cancelado logo após o pagamento.
+ * Prazo: conta de `paidAt` (gravado na confirmação do pagamento), para a loja ter
+ * sempre `storeAcceptTimeoutMin` inteiros mesmo com PIX pago perto do fim da validade.
+ * Pedidos anteriores à coluna (`paidAt` nulo) usam `createdAt`.
  */
 
 const DEFAULT_STORE_ACCEPT_TIMEOUT_MIN = 10;
@@ -51,7 +52,11 @@ export async function runStoreAcceptTimeout(): Promise<StoreAcceptTimeoutSummary
       paymentStatus: 'paid',
       acceptedAt: null,
       status: { in: ['criado', 'pago'] },
-      createdAt: { lt: cutoff },
+      // Prazo conta do pagamento; pedido antigo sem paidAt (antes da coluna) usa createdAt.
+      OR: [
+        { paidAt: { lt: cutoff } },
+        { paidAt: null, createdAt: { lt: cutoff } },
+      ],
     },
     include: orderInclude,
     // Mais antigos primeiro: com mais de 100 vencidos, nenhum fica para trás para sempre.

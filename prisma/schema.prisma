@@ -578,6 +578,7 @@ model Order {
   storeRating       Int?
   storeComment      String?
   createdAt         DateTime           @default(now())
+  paidAt            DateTime?          // confirmação do pagamento (prazo de aceite da loja conta daqui)
   acceptedAt        DateTime?
   cancelledAt       DateTime?
   updatedAt         DateTime           @updatedAt
