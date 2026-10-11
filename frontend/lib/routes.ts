@@ -73,7 +73,7 @@ export const pedidoConversaHref = (id: string, com?: 'loja' | 'entregador'): str
 
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */
 export const CUSTOMER_TAB_ROUTES: string[] = ['/inicio', '/buscar', '/pedidos', '/conta', '/conta/carteira', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/loja/[id]', '/pedido/[id]', '/categoria/[nome]'];
-/** Telas do cliente com header próprio no mobile: a Nav global só aparece no desktop. */
-export const CUSTOMER_HEADERLESS_ROUTES: string[] = ['/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/conta/notificacoes', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/categoria/[nome]', '/conta/ajuda', '/conta/privacidade'];
+/** Telas do cliente com header próprio no mobile (todas, como no protótipo): a Nav global só aparece no desktop. */
+export const CUSTOMER_HEADERLESS_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola', '/pedido/[id]/conversa', '/pedido/[id]/recibo'];
 /** Todas as telas do cliente (faixa "Sem conexão"). */
 export const CUSTOMER_ROUTES: string[] = [...CUSTOMER_TAB_ROUTES, '/produto/[id]', '/sacola', '/pedido/[id]/conversa', '/pedido/[id]/recibo'];
