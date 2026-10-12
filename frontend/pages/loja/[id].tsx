@@ -174,7 +174,7 @@ export default function StorePage() {
     onSetAddress: picker.request, onChangeAddress: picker.request,
   });
   const hours = store ? openStatus(store) : { open: true, closesAt: null, opensAt: null };
-  const closed = quote ? quote.open === false : !hours.open;
+  const closed = hours.pausedBackAt ? true : quote ? quote.open === false : !hours.open;
   const opensAt = quote?.opensAt ?? hours.opensAt;
   const qtyById = useMemo(
     () => Object.fromEntries(cart.filter((i: any) => i.storeId === store?._id).map((i: any) => [i.productId, i.quantity])),
@@ -277,7 +277,8 @@ export default function StorePage() {
             {typeof store.ratingAverage === 'number' && <span className={styles.rating}>{`★ ${formatRating(store.ratingAverage)} (${store.ratingCount})`}</span>}
             {lines.map((s, i) => <DeliveryBadge key={i} state={s} />)}
             {!closed && hours.closesAt && <span className={styles.openPill}>{`Aberta até ${hours.closesAt}`}</span>}
-            {closed && opensAt && <span className={styles.closedPill}>{`Fechada · abre às ${opensAt}`}</span>}
+            {hours.pausedBackAt && <span className={styles.closedPill}>{`Pausada · volta às ${hours.pausedBackAt}`}</span>}
+            {closed && !hours.pausedBackAt && opensAt && <span className={styles.closedPill}>{`Fechada · abre às ${opensAt}`}</span>}
           </div>
           <DeliveryAddressControl trigger="link" address={address} picker={picker} storeId={store._id} storeName={store.name} />
           <div className={styles.actions}>

@@ -12,6 +12,7 @@ import { Address, CardHolderInfo, PaymentMethod, PixInfo, PlatformFeeConfig, Pla
 import type { CardPayload } from '../components/drop/checkout/CardForm';
 import { onlyDigits } from '../lib/masks';
 import { isValidCPF } from '../lib/cpf';
+import { pausedBackAt } from '../lib/storeHours';
 import { useSaasConfig } from './useSaasConfig';
 import { pedidoHref } from '../lib/routes';
 import { markJustPaid } from '../lib/justPaid';
@@ -162,7 +163,7 @@ export function useCheckout() {
     : ((!!selForQuote && !quotePoint) || quote?.reason === 'NO_ADDRESS') ? 'NO_ADDRESS' : null;
   // Aberta/fechada: a cotação traz `open` (horário de funcionamento). Sem cotação vale Store.isOpen.
   // No Plano 1 os dois valem: fechada por qualquer um deles → o servidor recusa.
-  const storeIsOpen = (store as { isOpen?: boolean } | undefined)?.isOpen !== false;
+  const storeIsOpen = (store as { isOpen?: boolean } | undefined)?.isOpen !== false && !pausedBackAt((store as { pausedUntil?: string | null } | undefined)?.pausedUntil);
   const storeOpen = !quote ? storeIsOpen : isPlan1 ? storeIsOpen && quote.open !== false : quote.open !== false;
   const opensAt = quote?.open === false ? quote.opensAt ?? null : null;
 
@@ -388,7 +389,7 @@ export function useCheckout() {
       }
       return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.'),
         // Só os códigos que a Sacola traduz em tela (loja pausada no modo direto); os demais seguem só com a mensagem.
-        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
+        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'PRODUCT_PAUSED' || d?.code === 'STORE_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
     } finally {
       setPlacing(false);
     }

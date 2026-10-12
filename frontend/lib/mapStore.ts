@@ -9,7 +9,7 @@ export function mapStore(store: any, quote?: DeliveryQuote | null): StoreCardDat
   const base: StoreCardData = {
     name: store.name,
     imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl, { w: 1000 }) || undefined,
-    status: (quote ? quote.open : hours.open) ? 'aberta' : 'fechada',
+    status: (hours.pausedBackAt ? false : quote ? quote.open : hours.open) ? 'aberta' : 'fechada',
     category:
       [store.neighborhood, store.city].filter(Boolean).join(' • ') ||
       store.address ||
@@ -18,6 +18,7 @@ export function mapStore(store: any, quote?: DeliveryQuote | null): StoreCardDat
     closesAt: hours.closesAt ?? undefined,
     vitrine: Number(store.plan) === 1 || undefined,
   };
+  if (hours.pausedBackAt) return { ...base, pausedBackAt: hours.pausedBackAt };
   if (!quote) return hours.open ? base : { ...base, opensAt: hours.opensAt ?? undefined };
   if (quote.inArea === false && quote.reason !== 'STORE_NO_LOCATION') return { ...base, outOfArea: true };
   if (quote.inArea !== true) return base;

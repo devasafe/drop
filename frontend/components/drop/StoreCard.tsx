@@ -21,6 +21,8 @@ export interface StoreCardData {
   freeDelivery?: boolean;
   outOfArea?: boolean;
   opensAt?: string;
+  /** Loja pausada pelo lojista: "HH:MM" em que volta. */
+  pausedBackAt?: string;
   distanceKm?: number;
   /** Média (≥ 3 avaliações) e contagem — vem do backend. */
   rating?: { average: number; count: number };
@@ -35,6 +37,7 @@ const km = (n?: number) => (typeof n === 'number' ? `${n.toFixed(1).replace('.',
 /** Linha embaixo do nome (variante resultado): nota + horário, ou o aviso que manda. */
 function subLine(s: StoreCardData): string {
   if (s.outOfArea) return 'Não entrega aqui';
+  if (s.status === 'fechada' && s.pausedBackAt) return `Pausada · volta às ${s.pausedBackAt}`;
   if (s.status === 'fechada') return s.opensAt ? `Loja fechada · abre às ${s.opensAt}` : 'Loja fechada';
   const parts: string[] = [];
   if (s.rating) parts.push(`★ ${formatRating(s.rating.average)} (${s.rating.count})`);
@@ -53,6 +56,7 @@ type LineTone = 'fast' | 'off' | 'muted' | 'normal';
 
 function deliveryLineOf(store: StoreCardData): { text: string; tone: LineTone } | null {
   if (store.outOfArea) return { text: 'Não entrega aqui', tone: 'off' };
+  if (store.status === 'fechada' && store.pausedBackAt) return { text: `Pausada · volta às ${store.pausedBackAt}`, tone: 'muted' };
   if (store.status === 'fechada') {
     return { text: store.opensAt ? `Loja fechada · abre às ${store.opensAt}` : 'Loja fechada', tone: 'muted' };
   }

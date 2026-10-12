@@ -40,6 +40,10 @@ import { ROUTES, buscarHref, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
 
 const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
+const PAUSE_MESSAGES: Record<string, string> = {
+  PRODUCT_PAUSED: 'Este produto foi pausado pela loja',
+  STORE_PAUSED: 'A loja pausou os pedidos agora',
+};
 const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
 const STORE_GONE_MSG = 'Esta loja não está mais disponível';
 const STORE_LOOKUP_FAILED_MSG = 'Não deu para carregar a loja';
@@ -159,6 +163,7 @@ export default function SacolaPage() {
     setPixAmount(toPay); // o carrinho é limpo ao criar o pedido: guarda o valor a pagar antes
     const r = await c.placeOrder();
     if (!r.ok && r.code && STORE_UNAVAILABLE_CODES.includes(r.code)) { setUnavailable(true); return; }
+    if (!r.ok && r.code && PAUSE_MESSAGES[r.code]) { showToast(PAUSE_MESSAGES[r.code], 'error'); return; }
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
 
