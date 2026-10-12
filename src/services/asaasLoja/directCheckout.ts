@@ -160,6 +160,7 @@ export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) 
         asaasChargeStatus: 'pending',
         paymentProvider: 'asaas_loja',
         walletApplied: 0,
+        couponId: ctx.appliedCouponId ? String(ctx.appliedCouponId) : undefined,
       },
       include: orderInclude,
     });

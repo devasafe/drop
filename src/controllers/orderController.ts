@@ -524,6 +524,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         asaasChargeStatus: useAsaas ? 'pending' : 'none',
         paymentProvider: activeProvider,
         walletApplied,
+        // Cupom aplicado (validado acima por computeCouponDiscount): base de "vendas por cupom".
+        couponId: appliedCouponId ? String(appliedCouponId) : undefined,
       },
       include: orderInclude,
     });
