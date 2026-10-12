@@ -60,8 +60,10 @@ export default function DadosRecebimento() {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
     if (!isReceiver) { setLoading(false); return; }
+    // A chave vem mascarada do servidor (só para exibição): o campo editável começa vazio,
+    // senão salvar sem redigitar gravaria a máscara como chave.
     api.get('/onboarding/status')
-      .then((r) => { setStatus(r.data); if (r.data?.pixKey) setPixKey(r.data.pixKey); })
+      .then((r) => setStatus(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [authLoading, user]);
