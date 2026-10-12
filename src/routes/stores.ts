@@ -6,6 +6,8 @@ import { getNearbyStores, NearbyQuerySchema } from '../controllers/catalogContro
 import { storeQuotesLimiter, catalogHomeLimiter } from '../middleware/publicRateLimit';
 import { quoteStores, StoreQuotesSchema } from '../controllers/deliveryQuoteController';
 import upload from '../middleware/upload';
+import { pauseStore, unpauseStore } from '../controllers/storePauseController';
+import { storePauseSchema } from '../validation/storeSchemas';
 
 const router = Router();
 
@@ -30,6 +32,9 @@ router.post('/', authenticate, authorizeRoles('lojista'), createStore);
 router.put('/:id', authenticate, authorizeRoles('lojista'), updateStore);
 // Atualizar horário de funcionamento
 router.put('/:id/operating-hours', authenticate, authorizeRoles('lojista'), updateOperatingHours);
+// D1: pausar a loja (30/60/120 min ou até amanhã) e tirar a pausa — só o dono
+router.put('/:id/pause', authenticate, authorizeRoles('lojista'), validate(storePauseSchema), pauseStore);
+router.delete('/:id/pause', authenticate, authorizeRoles('lojista'), unpauseStore);
 // Listar avaliações da loja
 router.get('/:id/ratings', listarAvaliacoesLoja);
 // Top produtos vendidos da loja (público)

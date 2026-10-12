@@ -433,8 +433,13 @@ model Store {
   customCommissionRate Decimal?  @db.Decimal(5, 2)
   featuredBannerUrl    String?
   coverBannerUrl       String?
+  /// D1: identidade da loja (todos os planos). Logo enviado por POST /stores/:id/logo.
+  logoUrl              String?
+  tagline              String?   @db.VarChar(80)
   operatingHours       Json?
   isOpen               Boolean   @default(true)
+  /// D1: pausa temporária. "Aberta agora" = isOpen && (pausedUntil nulo ou vencido); sem job.
+  pausedUntil          DateTime?
   isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
