@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import { emitStockChanged } from '../services/storeIntegration';
@@ -11,6 +11,7 @@ import {
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
 import logger from '../config/logger';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { AppError } from '../utils/AppError';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
@@ -314,5 +315,32 @@ export const updateStock = async (req: AuthenticatedRequest, res: Response) => {
     // eslint-disable-next-line no-console
     console.error(err);
     return res.status(500).json({ error: 'Failed to update stock' });
+  }
+};
+
+/**
+ * PUT /products/:id/active — o dono pausa (false) ou reativa (true) o produto.
+ * Pausado some de toda leitura pública e o checkout recusa com PRODUCT_PAUSED; o painel continua mostrando.
+ * Sem socket: o painel recarrega a lista (regra do projeto: nada de broadcast novo).
+ */
+export const setProductActive = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body as { isActive: boolean };
+    const product = await prisma.product.findUnique({ where: { id: String(id) }, select: { id: true, storeId: true } });
+    if (!product) throw new AppError('Produto não encontrado', 404, true, 'PRODUCT_NOT_FOUND');
+    const owns = await prisma.store.count({ where: { id: product.storeId, ownerId: String(req.user?.id ?? '') } });
+    if (!owns) throw new AppError('Este produto não é da sua loja', 403, true, 'NOT_STORE_OWNER');
+
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: { isActive },
+      include: { category: { select: { name: true } } },
+    });
+    void emitStockChanged(String(product.storeId), [product.id]); // webhook do integrador (best-effort)
+    logger.info('Produto pausado/reativado pelo dono', { productId: product.id, storeId: product.storeId, isActive });
+    return res.json({ success: true, data: toApiProduct(updated) });
+  } catch (err) {
+    return next(err);
   }
 };

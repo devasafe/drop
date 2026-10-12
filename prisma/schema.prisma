@@ -520,6 +520,8 @@ model Product {
   categoryId  String?
   subCategory String?
   tags        String[] @default([])
+  /// D1: pausado pelo lojista some da vitrine, da busca e do checkout. O painel do dono continua mostrando.
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -530,6 +532,7 @@ model Product {
 
   @@index([storeId])
   @@index([categoryId])
+  @@index([storeId, isActive])
 }
 
 model ProductReview {
