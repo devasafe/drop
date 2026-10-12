@@ -39,26 +39,29 @@ export const listProductsForIntegration = async (req: ApiKeyRequest, res: Respon
 
   const products = await prisma.product.findMany({
     where,
-    select: { id: true, name: true, quantity: true, price: true, updatedAt: true },
+    select: { id: true, name: true, quantity: true, price: true, isActive: true, updatedAt: true },
     orderBy: { id: 'asc' },
     take: limit,
     ...(after ? { cursor: { id: after }, skip: 1 } : {}),
   });
 
+  // D1: o pausado continua na lista (o ERP precisa saber da pausa pelo updated_since), mas sai
+  // como indisponível e com active=false. Coluna nova no FIM do CSV: quem lê por posição não quebra.
   const rows = products.map((p) => ({
     id: p.id,
     name: p.name,
     quantity: p.quantity,
     price: Number(p.price),
-    available: p.quantity > 0,
+    available: p.isActive && p.quantity > 0,
     updated_at: p.updatedAt.toISOString(),
+    active: p.isActive,
   }));
   // cursor pra próxima página (null = acabou).
   const next = products.length === limit ? products[products.length - 1].id : null;
 
   if (String(req.query.format).toLowerCase() === 'csv') {
-    const header = 'id,name,quantity,price,available,updated_at';
-    const csv = [header, ...rows.map((r) => [r.id, r.name, r.quantity, r.price, r.available, r.updated_at].map(csvEscape).join(','))].join('\n');
+    const header = 'id,name,quantity,price,available,updated_at,active';
+    const csv = [header, ...rows.map((r) => [r.id, r.name, r.quantity, r.price, r.available, r.updated_at, r.active].map(csvEscape).join(','))].join('\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="estoque.csv"');
     return res.send(csv);
@@ -143,11 +146,12 @@ export const exportProductsCsv = async (req: AuthenticatedRequest, res: Response
   if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
   const products = await prisma.product.findMany({
     where: { storeId: store.id },
-    select: { id: true, name: true, quantity: true, price: true, updatedAt: true },
+    select: { id: true, name: true, quantity: true, price: true, isActive: true, updatedAt: true },
     orderBy: { name: 'asc' },
   });
-  const header = 'id,name,quantity,price,available,updated_at';
-  const lines = products.map((p) => [p.id, p.name, p.quantity, Number(p.price), p.quantity > 0, p.updatedAt.toISOString()].map(csvEscape).join(','));
+  // D1: `active` no fim (o import do painel lê as colunas pelo nome: id e quantity).
+  const header = 'id,name,quantity,price,available,updated_at,active';
+  const lines = products.map((p) => [p.id, p.name, p.quantity, Number(p.price), p.isActive && p.quantity > 0, p.updatedAt.toISOString(), p.isActive].map(csvEscape).join(','));
   const csv = '﻿' + [header, ...lines].join('\n'); // BOM p/ o Excel ler acentos
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="estoque.csv"');
@@ -161,12 +165,15 @@ export const listProductsForOwner = async (req: AuthenticatedRequest, res: Respo
   if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
   const products = await prisma.product.findMany({
     where: { storeId: store.id },
-    select: { id: true, name: true, quantity: true, price: true, updatedAt: true },
+    select: { id: true, name: true, quantity: true, price: true, isActive: true, updatedAt: true },
     orderBy: { name: 'asc' },
   });
   return res.json({
     count: products.length,
-    products: products.map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, price: Number(p.price), available: p.quantity > 0, updated_at: p.updatedAt.toISOString() })),
+    products: products.map((p) => ({
+      id: p.id, name: p.name, quantity: p.quantity, price: Number(p.price),
+      available: p.isActive && p.quantity > 0, updated_at: p.updatedAt.toISOString(), active: p.isActive,
+    })),
   });
 };
 

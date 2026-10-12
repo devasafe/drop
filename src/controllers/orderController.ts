@@ -49,6 +49,7 @@ import { isDirectMode, isDirectOrder } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
 import { precheckBuyerCpf } from '../utils/buyerCpf';
 import { AppError } from '../utils/AppError';
+import { assertProductsActive, pausedProductError } from '../services/catalog/activeProduct';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
 import { confirmDirectOrderPaid } from '../services/asaasLoja/orderPaymentDirect';
@@ -177,6 +178,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });
     }
 
+    // D1: item pausado pelo lojista é recusado ANTES de qualquer escrita (CPF, estoque, pedido),
+    // nos dois modos — o direto passa por aqui antes do precheckDirectOrder/finishDirectOrder.
+    try {
+      await assertProductsActive(products.map((p: any) => String(p?.productId ?? '')));
+    } catch (e) {
+      if (e instanceof AppError && e.code) return sendAppError(res, e);
+      throw e;
+    }
+
     // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
     // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
     // via RouteService — o mesmo cálculo que o checkout exibe (endpoint /quote).
@@ -287,6 +297,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         await restoreStock(items);
         return res.status(400).json({ error: `O produto ${prod.name} não é desta loja`, code: 'PRODUCT_FROM_OTHER_STORE' });
       }
+      // D1: corrida com a pausa (o lojista pausou entre a checagem lá de cima e este ponto).
+      if (!prod.isActive) {
+        await restoreStock(items);
+        return sendAppError(res, pausedProductError(prod.name));
+      }
 
       // ✅ SEGURANÇA: NUNCA confiar no preço enviado pelo frontend.
       // O preço é SEMPRE o que está no banco de dados (fonte da verdade).
@@ -304,7 +319,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // estoque nunca fica negativo, nem transitoriamente (antes o valor era
       // decrementado e só depois conferido).
       const dec = await prisma.product.updateMany({
-        where: { id: String(p.productId), quantity: { gte: p.quantity } },
+        // isActive no WHERE: a baixa nunca acontece num produto pausado, nem na corrida.
+        where: { id: String(p.productId), isActive: true, quantity: { gte: p.quantity } },
         data: { quantity: { decrement: p.quantity } },
       });
 
@@ -313,7 +329,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         // Postgres e não participa do rollback da transação Mongo — a compensação
         // é explícita (já era assim, agora é obrigatória).
         await restoreStock(items);
-        const current = await prisma.product.findUnique({ where: { id: String(p.productId) }, select: { quantity: true } });
+        const current = await prisma.product.findUnique({ where: { id: String(p.productId) }, select: { quantity: true, isActive: true } });
+        if (current && !current.isActive) return sendAppError(res, pausedProductError(prod.name));
         const available = current?.quantity ?? 0;
         return res.status(409).json({
           error: `Estoque insuficiente para ${prod.name}. Disponível: ${available}.`,

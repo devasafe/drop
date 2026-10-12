@@ -113,14 +113,15 @@ export async function emitStockChanged(storeId: string, productIds: string[]): P
 
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, storeId },
-      select: { id: true, name: true, quantity: true, price: true },
+      select: { id: true, name: true, quantity: true, price: true, isActive: true },
     });
     if (products.length === 0) return;
 
     const payload = {
       event: 'stock.updated',
       store_id: storeId,
-      products: products.map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, price: Number(p.price) })),
+      // D1: `active` avisa o integrador de pausa/reativação (PUT /products/:id/active dispara este evento).
+      products: products.map((p) => ({ id: p.id, name: p.name, quantity: p.quantity, price: Number(p.price), active: p.isActive })),
       occurred_at: new Date().toISOString(),
     };
 

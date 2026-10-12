@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
+import { generateApiKey } from '../services/storeIntegration';
 
 const DOMAIN = '@d1paths.test';
 // Rio Branco (AC): coordenada exclusiva desta suíte, para a vitrine por ponto só achar estas lojas.
@@ -124,5 +125,89 @@ describe('produto pausado — leituras públicas', () => {
     const a = items.find((i) => i.productId === c.ativo.id);
     expect(p).toMatchObject({ available: false, reason: 'OUT_OF_STOCK', quantity: 0 });
     expect(a).toMatchObject({ available: true, reason: null });
+  });
+});
+
+describe('produto pausado — compra, integração e visão do dono', () => {
+  const pedido = (storeId: string, productIds: string[]) => ({
+    storeId,
+    products: productIds.map((productId) => ({ productId, quantity: 1 })),
+    paymentMethod: 'pix',
+    deliveryDistanceKm: 0,
+    address: 'Rua das Flores, 100 - Centro',
+  });
+
+  /** Coluna `column` da linha do produto num CSV simples (nomes de teste não têm vírgula). */
+  function csvField(csv: string, productId: string, column: string): string | undefined {
+    const lines = csv.replace(/^﻿/, '').split('\n');
+    const header = lines[0].split(',');
+    const row = lines.find((l) => l.startsWith(`${productId},`));
+    return row?.split(',')[header.indexOf(column)];
+  }
+
+  it('checkout custódia: 409 PRODUCT_PAUSED com o nome, sem baixar estoque nem criar pedido', async () => {
+    const c = await cenario();
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(c.cliente)).send(pedido(c.store.id, [c.pausado.id]));
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('PRODUCT_PAUSED');
+    expect(res.body.error).toContain(c.pausado.name);
+    expect((await prisma.product.findUnique({ where: { id: c.pausado.id } }))?.quantity).toBe(50);
+    expect(await prisma.order.count({ where: { storeId: c.store.id } })).toBe(1); // só o pedido antigo do cenário
+  });
+
+  it('checkout custódia, sacola mista: recusa antes de baixar o estoque do item ativo', async () => {
+    const c = await cenario();
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(c.cliente)).send(pedido(c.store.id, [c.ativo.id, c.pausado.id]));
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('PRODUCT_PAUSED');
+    expect((await prisma.product.findUnique({ where: { id: c.ativo.id } }))?.quantity).toBe(50);
+  });
+
+  it('checkout direto: 409 PRODUCT_PAUSED', async () => {
+    await updatePlatformConfig({ settlementMode: 'direto' } as any, 'test');
+    const c = await cenario();
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(c.cliente)).send(pedido(c.store.id, [c.pausado.id]));
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('PRODUCT_PAUSED');
+    expect((await prisma.product.findUnique({ where: { id: c.pausado.id } }))?.quantity).toBe(50);
+    expect(await prisma.order.count({ where: { storeId: c.store.id } })).toBe(1);
+  });
+
+  it('API de integração (JSON e CSV): o pausado sai indisponível, com active=false', async () => {
+    const c = await cenario();
+    const { key, prefix, keyHash } = generateApiKey();
+    await prisma.storeApiKey.create({ data: { storeId: c.store.id, name: 'ERP teste', prefix, keyHash, scopes: ['read'] } });
+
+    const json = await request(app).get('/api/integrations/v1/products').set('Authorization', `Bearer ${key}`);
+    expect(json.status).toBe(200);
+    const p = (json.body.products as any[]).find((r) => r.id === c.pausado.id);
+    const a = (json.body.products as any[]).find((r) => r.id === c.ativo.id);
+    expect(p).toMatchObject({ quantity: 50, available: false, active: false });
+    expect(a).toMatchObject({ quantity: 50, available: true, active: true });
+
+    const csv = await request(app).get('/api/integrations/v1/products').query({ format: 'csv' }).set('Authorization', `Bearer ${key}`);
+    expect(csv.status).toBe(200);
+    expect(csvField(csv.text, c.pausado.id, 'available')).toBe('false');
+    expect(csvField(csv.text, c.pausado.id, 'active')).toBe('false');
+    expect(csvField(csv.text, c.ativo.id, 'active')).toBe('true');
+  });
+
+  it('painel: export CSV e prévia em tabela mostram a coluna active', async () => {
+    const c = await cenario();
+    const csv = await request(app).get('/api/integrations/export/products.csv').set('Authorization', bearer(c.dono));
+    expect(csv.status).toBe(200);
+    expect(csvField(csv.text, c.pausado.id, 'active')).toBe('false');
+    expect(csvField(csv.text, c.pausado.id, 'available')).toBe('false');
+
+    const tabela = await request(app).get('/api/integrations/products').set('Authorization', bearer(c.dono));
+    expect(tabela.status).toBe(200);
+    expect((tabela.body.products as any[]).find((r) => r.id === c.pausado.id)).toMatchObject({ active: false, available: false });
+  });
+
+  it('painel do dono (GET /stores/dashboard) continua listando o pausado', async () => {
+    const c = await cenario();
+    const res = await request(app).get('/api/stores/dashboard').set('Authorization', bearer(c.dono));
+    expect(res.status).toBe(200);
+    expect((res.body.products as any[]).find((p) => p._id === c.pausado.id)?.isActive).toBe(false);
   });
 });
