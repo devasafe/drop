@@ -15,6 +15,7 @@ interface PlatformConfig {
   motoboyCutPerDelivery: number;
   motoboyCutPerKm: number;
   motoboyMinimumWithdraw: number;
+  storeMinimumWithdraw: number;
   motoboyCommissionPercent: number; // ✨ NOVO
   cancelFeeCustomerPercent: number; // ✨ NOVO
   cancelFeeStorePercent: number; // ✨ NOVO
@@ -70,8 +71,10 @@ export default function AdminSettings() {
     setSaving(true);
     try {
       const res = await api.put('/settings/platform-config', editConfig);
-      setConfig(res.data);
-      setEditConfig(res.data);
+      // O PUT devolve { config, message }; usar a config salva (antes os campos zeravam).
+      const saved = res.data?.config ?? res.data;
+      setConfig(saved);
+      setEditConfig(saved);
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -233,10 +236,10 @@ export default function AdminSettings() {
                   </p>
                 </div>
 
-                {/* Valor Mínimo de Saque */}
+                {/* Saque mínimo do motoboy */}
                 <div>
                   <label className={styles.fieldLabel}>
-                    <Icon name="credit-card" size={14} /> Valor Mínimo de Saque
+                    <Icon name="credit-card" size={14} /> Saque mínimo do motoboy
                   </label>
                   <div className={styles.inputRow}>
                     <span className={styles.inputPrefix}>R$</span>
@@ -244,13 +247,36 @@ export default function AdminSettings() {
                       type="number"
                       min="0"
                       step="0.01"
-                      value={editConfig.motoboyMinimumWithdraw || 0}
+                      aria-label="Saque mínimo do motoboy (R$)"
+                      value={editConfig.motoboyMinimumWithdraw ?? 0}
                       onChange={(e) => setEditConfig({ ...editConfig, motoboyMinimumWithdraw: parseFloat(e.target.value) })}
                       className={styles.fieldInputFlex}
                     />
                   </div>
                   <p className={styles.fieldHintSmall}>
-                    Saldo mínimo para solicitar saque
+                    Menor valor que o motoboy pode sacar de uma vez
+                  </p>
+                </div>
+
+                {/* Saque mínimo da loja (D1) */}
+                <div>
+                  <label className={styles.fieldLabel}>
+                    <Icon name="credit-card" size={14} /> Saque mínimo da loja
+                  </label>
+                  <div className={styles.inputRow}>
+                    <span className={styles.inputPrefix}>R$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      aria-label="Saque mínimo da loja (R$)"
+                      value={editConfig.storeMinimumWithdraw ?? 0}
+                      onChange={(e) => setEditConfig({ ...editConfig, storeMinimumWithdraw: parseFloat(e.target.value) })}
+                      className={styles.fieldInputFlex}
+                    />
+                  </div>
+                  <p className={styles.fieldHintSmall}>
+                    Menor valor que a loja pode sacar de uma vez
                   </p>
                 </div>
 
