@@ -282,3 +282,31 @@ export async function endCoupon(req: AuthenticatedRequest, res: Response) {
   logger.info('[coupon] cupom encerrado', { couponId: coupon.id, by: req.user?.id });
   return res.json({ success: true, data: await findCouponById(coupon.id) });
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * GET /api/coupons/:id/results — o cupom traz venda?
+ * Só pedidos PAGOS com o cupom. O desconto é derivado (subtotal + taxa − total), porque o
+ * pedido não guarda o valor do desconto.
+ */
+export async function getCouponResults(req: AuthenticatedRequest, res: Response) {
+  const coupon = await loadOwnedCoupon(req, String(req.params.id));
+  const agg = await prisma.order.aggregate({
+    where: { couponId: coupon.id, paymentStatus: 'paid' },
+    _count: { _all: true },
+    _sum: { subtotal: true, deliveryFee: true, totalValue: true },
+  });
+  const sub = Number(agg._sum.subtotal ?? 0);
+  const fee = Number(agg._sum.deliveryFee ?? 0);
+  const total = Number(agg._sum.totalValue ?? 0);
+  return res.json({
+    success: true,
+    data: {
+      uses: Number(coupon.usedCount ?? 0),
+      ordersPaid: agg._count._all,
+      salesTotal: round2(sub),
+      discountTotal: round2(Math.max(0, sub + fee - total)),
+    },
+  });
+}
