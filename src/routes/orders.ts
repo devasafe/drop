@@ -12,6 +12,8 @@ import {
   posDevolucaoDecision,
   poolTimeoutDecision,
 } from '../controllers/cancellationController';
+import { markOrderReady } from '../controllers/orderReadyController';
+import { catchAsync } from '../middleware/errorHandler';
 import { getMyProductReviewsForOrder } from '../controllers/productReviewController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
@@ -58,6 +60,8 @@ router.get('/:id/reorder', authenticate, getReorder);
 router.post('/:id/accept', authenticate, requireActiveUser, authorizeRoles('lojista'), acceptOrderByStore);
 // store rejects order -> cancels and refunds
 router.post('/:id/reject', authenticate, requireActiveUser, authorizeRoles('lojista'), validate(RejectOrderSchema), rejectOrderByStore);
+// D1: loja avisa "pronto para retirada" (grava readyAt uma vez; socket só para o motoboy da entrega)
+router.post('/:id/ready', authenticate, requireActiveUser, authorizeRoles('lojista'), catchAsync(markOrderReady));
 
 // ========== CUSTOMER OPERATIONS ==========
 // customer cancels order -> refunds payment
