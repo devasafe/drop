@@ -1001,6 +1001,9 @@ model Notification {
   type        NotificationType @default(system)
   broadcastId String?
   read        Boolean          @default(false)
+  // D1: para onde o toque leva (ex.: /seller/pedido/<id>) e a entidade do aviso (pedido, loja, transferência).
+  link        String?
+  entityId    String?
   createdAt   DateTime         @default(now())
 
   @@index([userId, createdAt])
@@ -1359,6 +1362,8 @@ model MotoboyTransfer {
   resolvedBy       String?
   resolutionNote   String?
   doneAt           DateTime?
+  // D1: primeira falha (o prazo de "Pix parado" que a loja vê conta daqui). Gravada uma vez só.
+  firstFailedAt    DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
