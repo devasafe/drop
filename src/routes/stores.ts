@@ -4,6 +4,7 @@ import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { catchAsync } from '../middleware/errorHandler';
 import { StoreReplySchema, replyToStoreRating } from '../controllers/storeRatingReplyController';
+import { DirectSummaryQuerySchema, getDirectSummary } from '../controllers/directSummaryController';
 import { getNearbyStores, NearbyQuerySchema } from '../controllers/catalogController';
 import { storeQuotesLimiter, catalogHomeLimiter } from '../middleware/publicRateLimit';
 import { quoteStores, StoreQuotesSchema } from '../controllers/deliveryQuoteController';
@@ -43,6 +44,8 @@ router.delete('/:id/pause', authenticate, authorizeRoles('lojista'), unpauseStor
 router.get('/:id/ratings', listarAvaliacoesLoja);
 // Responder uma avaliação (só o dono; uma resposta por avaliação, editável)
 router.put('/:id/ratings/:orderId/reply', authenticate, authorizeRoles('lojista'), validate(StoreReplySchema), catchAsync(replyToStoreRating));
+// Modo direto: resumo do mês (pedidos pagos, Pix aos motoboys, estornos) — só o dono
+router.get('/:id/direct-summary', authenticate, authorizeRoles('lojista'), validate(DirectSummaryQuerySchema, 'query'), catchAsync(getDirectSummary));
 // Top produtos vendidos da loja (público)
 router.get('/:id/top-products', getStoreTopProducts);
 
