@@ -1,5 +1,5 @@
 // pages/conta/index.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Bell, ChevronRight, HelpCircle, LogOut, MapPin, ShieldCheck, User, Wallet, Lock, Check } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -13,7 +13,8 @@ import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
-import { getNavItems } from '../../lib/navConfig';
+import { getNavItems, ROLE_AREAS, ROLE_HOME } from '../../lib/navConfig';
+import Icon from '../../components/Icon';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { useAddresses } from '../../hooks/useSync';
 import { ROUTES, safeNext, type ContaSecao } from '../../lib/routes';
@@ -24,7 +25,7 @@ const TITULO: Record<ContaSecao, string> = { dados: 'Dados pessoais', verificaca
 
 export default function ContaPage() {
   const router = useRouter();
-  const { user, logout } = useAuth() || ({} as any);
+  const { user, logout, switchRole } = useAuth() || ({} as any);
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
   const custodia = settlementMode !== 'direto';
@@ -56,6 +57,16 @@ export default function ContaPage() {
   // A regra P16 (Carteira só na custódia; "Saldo do modo anterior" no direto com saldo) vem do navConfig.
   const walletRows = useMemo(() => getNavItems('cliente', () => true, false, { settlementMode, custodyLeftover })
     .filter((i) => i.placement.includes('account')), [settlementMode, custodyLeftover]);
+
+  // Conta com vários perfis: no celular a Nav antiga (AccountMenu) não aparece nas telas do
+  // cliente, então a troca de área mora aqui. O backend decide; se recusar, não navega.
+  const activeRole = user?.activeRole || user?.role || 'cliente';
+  const roles: string[] = user?.roles || (user?.role ? [user.role] : []);
+  const otherAreas = roles.length > 1 ? ROLE_AREAS.filter((a) => roles.includes(a.role) && a.role !== activeRole) : [];
+  const goToArea = async (role: string) => {
+    try { await switchRole(role); } catch { return; }
+    router.push(ROLE_HOME[role as keyof typeof ROLE_HOME]);
+  };
 
   const row = (label: string, icon: JSX.Element, onClick: () => void, meta?: string, sub?: string) => (
     <button type="button" className={styles.row} onClick={onClick}>
@@ -109,6 +120,14 @@ export default function ContaPage() {
             {row('Dados pessoais', <User size={20} />, () => setSecao('dados'))}
             {row('Verificações e segurança', <ShieldCheck size={20} />, () => setSecao('verificacao'))}
           </section>
+          {otherAreas.length > 0 && (
+            <section className={styles.group} aria-label="Suas áreas">
+              <h2 className={styles.groupTitle}>Suas áreas</h2>
+              {otherAreas.map((a) => (
+                <Fragment key={a.role}>{row(a.label, <Icon name={a.icon} size={20} />, () => goToArea(a.role), undefined, a.description)}</Fragment>
+              ))}
+            </section>
+          )}
           <section className={styles.group} aria-label="App">
             <h2 className={styles.groupTitle}>App</h2>
             {row('Notificações', <Bell size={20} />, () => router.push(ROUTES.notificacoes))}
