@@ -41,6 +41,19 @@ function pctDelta(current: number, previous: number): number {
   return Number((((current - previous) / previous) * 100).toFixed(1));
 }
 
+/**
+ * Média de cancelamento da PLATAFORMA (todas as lojas), últimos 30 dias, em % com 1 casa.
+ * Mesma base da `cancellationRate` da loja: (cancelado + rejeitado) / todos os pedidos do recorte.
+ */
+export async function platformCancellationRate(now: Date = new Date()): Promise<number> {
+  const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const [total, cancelled] = await Promise.all([
+    prisma.order.count({ where: { createdAt: { gte: since } } }),
+    prisma.order.count({ where: { createdAt: { gte: since }, status: { in: ['cancelado', 'rejeitado'] as any } } }),
+  ]);
+  return total > 0 ? Number(((cancelled / total) * 100).toFixed(1)) : 0;
+}
+
 /** Receita da loja para um pedido (usa walletDistribution quando disponível) */
 function storeRevenueOfOrder(o: any): number {
   if (o.walletDistribution?.storeAmount != null) return o.walletDistribution.storeAmount;
@@ -96,9 +109,10 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
 
     const { days, start, end, prevStart } = parsePeriod(req.query);
 
-    const [currentOrders, previousOrders] = await Promise.all([
+    const [currentOrders, previousOrders, platformRate] = await Promise.all([
       fetchOrdersForReport({ storeId: store.id, createdAt: { gte: start, lte: end } }),
       fetchOrdersForReport({ storeId: store.id, createdAt: { gte: prevStart, lt: start } }),
+      platformCancellationRate(),
     ]);
 
     const computeMetrics = (orders: any[]) => {
@@ -134,6 +148,8 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
         avgTicket: pctDelta(current.avgTicket, previous.avgTicket),
         cancellationRate: Number((current.cancellationRate - previous.cancellationRate).toFixed(1)),
       },
+      // Média da plataforma (30 dias, todas as lojas) para comparar com a taxa da loja.
+      platformCancellationRate: platformRate,
     });
   } catch (err: any) {
     console.error('[analytics.storeOverview] error:', err);
