@@ -12,6 +12,7 @@ const DECIMAL_FIELDS = [
   'motoboyCutPerDelivery',
   'motoboyCutPerKm',
   'motoboyMinimumWithdraw',
+  'storeMinimumWithdraw',
   'motoboyCommissionPercent',
   'lateCancellationFeePercent',
   'lateCancellationMotoboyShare',
