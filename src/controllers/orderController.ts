@@ -81,7 +81,7 @@ export const avaliarLoja = async (req: AuthenticatedRequest, res: Response) => {
     notifyStoreOwner(order.storeId, {
       title: 'Nova avaliação ⭐',
       body: `Sua loja recebeu uma avaliação de ${storeRating} estrela${storeRating > 1 ? 's' : ''}.`,
-      url: '/store-dashboard',
+      url: '/seller/avaliacoes',
       tag: 'nova-avaliacao',
     });
 

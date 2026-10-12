@@ -1,6 +1,7 @@
 import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
-import { notifyOnlineMotoboysNewDelivery, notifyStoreOwner, notifyAdmins } from '../services/pushService';
+import { notifyOnlineMotoboysNewDelivery, notifyAdmins } from '../services/pushService';
+import { notifyStore, STORE_LINKS } from '../services/storeNotify';
 import { toPublicStore } from '../repositories/store.repository';
 import logger from '../config/logger';
 
@@ -123,14 +124,18 @@ export const emitOrderCreated = (order: any) => {
     // Também emitir order:created para consistency
     emitToRoom(`store:${order.storeId}`, 'order:created', payload);
 
-    // 📲 Push pro dono da loja — chega mesmo com o app fechado.
+    // 📲 Sino + push pro dono da loja (chega mesmo com o app fechado). Dedupe por pedido:
+    // webhook e conciliação podem confirmar o mesmo pagamento.
     const totalTxt = Number.isFinite(Number(order.totalValue)) && Number(order.totalValue) > 0
       ? ` • R$ ${Number(order.totalValue).toFixed(2).replace('.', ',')}` : '';
-    notifyStoreOwner(order.storeId, {
-      title: 'Novo pedido! 🛍️',
-      body: `Você recebeu um pedido novo${totalTxt}. Toque para ver.`,
-      url: '/store-dashboard',
+    void notifyStore(order.storeId, {
+      title: 'Novo pedido',
+      message: `Você recebeu um pedido novo${totalTxt}. Toque para ver.`,
+      link: STORE_LINKS.order(String(order._id)),
+      entityId: String(order._id),
+      type: 'order',
       tag: 'novo-pedido',
+      dedupe: true,
     });
   }
   

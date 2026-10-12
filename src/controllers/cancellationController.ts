@@ -30,7 +30,7 @@ import payoutService from '../services/payout.service';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
-import { notifyStoreOwner } from '../services/pushService';
+import { notifyStore, STORE_LINKS } from '../services/storeNotify';
 import { createDebt } from '../repositories/customerDebt.repository';
 import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
@@ -577,12 +577,15 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
     // Emite evento de cancelamento
     emitOrderCancelled(order, cancellation);
 
-    // 📲 Push pro dono da loja: o cliente cancelou o pedido.
-    notifyStoreOwner(order.storeId, {
+    // 📲 Sino + push pro dono da loja: o cliente cancelou o pedido.
+    await notifyStore(String(order.storeId), {
       title: 'Pedido cancelado',
-      body: 'Um cliente cancelou um pedido da sua loja. Toque para ver.',
-      url: '/store-dashboard',
+      message: 'O cliente cancelou um pedido da sua loja. Toque para ver.',
+      link: STORE_LINKS.order(String(order.id)),
+      entityId: String(order.id),
+      type: 'order',
       tag: 'pedido-cancelado',
+      dedupe: true,
     });
 
     return res.json({
@@ -1255,6 +1258,20 @@ export async function cancelOrderWithFullRefund(
   }
 
   emitOrderCancelled(order, cancellation);
+
+  // Sino + push da loja: timeout de aceite, decisão pós-devolução ou desistência no pool.
+  const cancelledOrderId = String(order.id ?? order._id);
+  await notifyStore(String(order.storeId), {
+    title: 'Pedido cancelado',
+    message: opts.reasonCode === 'store_rejected'
+      ? 'O prazo para aceitar acabou e o cliente foi reembolsado. Toque para ver.'
+      : 'Um pedido foi cancelado e o cliente foi reembolsado. Toque para ver.',
+    link: STORE_LINKS.order(cancelledOrderId),
+    entityId: cancelledOrderId,
+    type: 'order',
+    tag: 'pedido-cancelado',
+    dedupe: true,
+  });
   return { ok: true, refundAmount, refundStatus, cancellation };
 }
 
