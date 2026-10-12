@@ -313,6 +313,11 @@ export const getStoreFinancialSummary = async (req: Request, res: Response) => {
       billableCount,
       cancelledCount,
       ticketMedio,
+      // Próxima liberação: SEM data previsível hoje. Payout pending → released só acontece
+      // (a) na entrega, se PlatformConfig.autoApprovePayouts=true, ou (b) quando o admin
+      // libera em /admin/payouts. Não há liberação por prazo. Se uma regra de prazo
+      // (ex.: D+N da entrega) for criada, é aqui que ela entra.
+      nextReleaseAt: null as string | null,
     });
   } catch (err: any) {
     console.error('[STORE FINANCIAL SUMMARY ERROR]', err);
