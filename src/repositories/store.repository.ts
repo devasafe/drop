@@ -21,6 +21,9 @@ export function toPublicStore(store: any): any {
   }
   out.id = out.id ?? store._id;
   out._id = out.id; // o frontend ainda lê `_id`
+  // Banner da Home é do Premium: enviado antes da aprovação fica guardado, mas só aparece
+  // com o Plano 3 ativo (Store.plan é sincronizado na aprovação do CEO).
+  if (out.featuredBannerUrl && Number(store.plan ?? 1) !== 3) out.featuredBannerUrl = null;
   return out;
 }
 

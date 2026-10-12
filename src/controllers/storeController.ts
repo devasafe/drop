@@ -523,10 +523,18 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
       where: featuredFilter,
       select: { id: true, name: true, featuredBannerUrl: true, coverBannerUrl: true, plan: true, isOpen: true, city: true, neighborhood: true },
     });
-    const stores = rows.map((st) => ({ ...st, _id: st.id }));
+    // O banner pode ter subido antes da aprovação: confere a assinatura (sem assinatura = legado, segue).
+    const subs = await prisma.storeSubscription.findMany({
+      where: { storeId: { in: rows.map((r) => r.id) } },
+      select: { storeId: true, currentPlan: true },
+    });
+    const planBySub = new Map(subs.map((s) => [s.storeId, s.currentPlan]));
+    const stores = rows
+      .filter((st) => !planBySub.has(st.id) || planBySub.get(st.id) === 'plan3')
+      .map((st) => ({ ...st, _id: st.id }));
     return res.json(stores);
   } catch (err) {
-    console.error('[getFeaturedStores] error:', err);
+    logger.error('[getFeaturedStores] erro ao buscar lojas em destaque', err as Error);
     return res.status(500).json({ error: 'Erro ao buscar lojas em destaque' });
   }
 };
