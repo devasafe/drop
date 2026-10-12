@@ -37,6 +37,7 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       motoboyCutPerDelivery,
       motoboyCutPerKm,
       motoboyMinimumWithdraw,
+      storeMinimumWithdraw,
       motoboyCommissionPercent,
       lateCancellationFeePercent,
       lateCancellationMotoboyShare,
@@ -46,6 +47,21 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       cardFeePercent, cardFeeFixed, cardAnticipationMonthlyRate, cardInstallmentMaxCount, cardInstallmentMinValue,
     } = req.body;
 
+    // Saque mínimo (D1): número >= 0 e <= 100.000; texto numérico vira número; o resto é recusado.
+    const minimums: Record<string, unknown> = { motoboyMinimumWithdraw, storeMinimumWithdraw };
+    for (const [field, value] of Object.entries(minimums)) {
+      if (value === undefined) continue;
+      const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+      if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 100000) {
+        return res.status(400).json({
+          error: 'O saque mínimo precisa ser um valor entre R$ 0 e R$ 100.000',
+          code: 'INVALID_MINIMUM_WITHDRAW',
+          field,
+        });
+      }
+      minimums[field] = n;
+    }
+
     // Só grava os campos enviados (patch parcial), preservando o resto da config.
     const patch: Record<string, any> = {};
     if (commissionPlan1 !== undefined) patch.commissionPlan1 = commissionPlan1;
@@ -53,7 +69,8 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
     if (commissionPlan3 !== undefined) patch.commissionPlan3 = commissionPlan3;
     if (motoboyCutPerDelivery !== undefined) patch.motoboyCutPerDelivery = motoboyCutPerDelivery;
     if (motoboyCutPerKm !== undefined) patch.motoboyCutPerKm = motoboyCutPerKm;
-    if (motoboyMinimumWithdraw !== undefined) patch.motoboyMinimumWithdraw = motoboyMinimumWithdraw;
+    if (motoboyMinimumWithdraw !== undefined) patch.motoboyMinimumWithdraw = minimums.motoboyMinimumWithdraw;
+    if (storeMinimumWithdraw !== undefined) patch.storeMinimumWithdraw = minimums.storeMinimumWithdraw;
     if (motoboyCommissionPercent !== undefined) patch.motoboyCommissionPercent = motoboyCommissionPercent;
     if (lateCancellationFeePercent !== undefined) patch.lateCancellationFeePercent = lateCancellationFeePercent;
     if (lateCancellationMotoboyShare !== undefined) patch.lateCancellationMotoboyShare = lateCancellationMotoboyShare;
