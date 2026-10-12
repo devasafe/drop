@@ -587,6 +587,10 @@ model Order {
   deliveryId        String?
   storeRating       Int?
   storeComment      String?
+  storeReply        String?            @db.VarChar(500) // resposta pública da loja à avaliação (D1)
+  storeRepliedAt    DateTime?
+  couponId          String?            // cupom aplicado no checkout (sem FK: DELETE /coupons/:id continua livre)
+  readyAt           DateTime?          // loja marcou "pronto para retirada" (D1, parte P4)
   createdAt         DateTime           @default(now())
   paidAt            DateTime?          // confirmação do pagamento (prazo de aceite da loja conta daqui)
   acceptedAt        DateTime?
@@ -606,6 +610,7 @@ model Order {
   @@index([status, createdAt])
   @@index([customerId, createdAt])
   @@index([asaasPaymentId])
+  @@index([couponId])
 }
 
 model OrderItem {
