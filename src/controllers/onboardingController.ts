@@ -5,6 +5,9 @@ import userRepository from '../repositories/user.repository';
 
 import logger from '../config/logger';
 import { ensureStoreSubaccount, ensureMotoboySubaccount } from '../services/asaas/subaccount';
+import { maskPixKey, looksMaskedPixKey } from '../utils/maskPixKey';
+
+const MASKED_PIX_KEY_ERROR = 'Digite a chave Pix completa. A chave que aparece na tela fica escondida por segurança.';
 
 type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP';
 
@@ -31,6 +34,9 @@ export const setPixKey = async (req: AuthenticatedRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Não autenticado' });
     if (!pixKey || typeof pixKey !== 'string' || !pixKey.trim()) {
       return res.status(400).json({ error: 'Chave PIX obrigatória' });
+    }
+    if (looksMaskedPixKey(pixKey)) {
+      return res.status(400).json({ error: MASKED_PIX_KEY_ERROR, code: 'PIX_KEY_MASKED' });
     }
     const valid: PixKeyType[] = ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'];
     const type: PixKeyType = valid.includes(pixKeyType) ? pixKeyType : inferPixKeyType(pixKey.trim());
@@ -83,7 +89,7 @@ export const getOnboardingStatus = async (req: AuthenticatedRequest, res: Respon
         target: 'motoboy',
         accountStatus: user?.asaas?.status || 'none',
         hasPixKey: !!user?.asaas?.pixKey,
-        pixKey: user?.asaas?.pixKey,
+        pixKey: maskPixKey(user?.asaas?.pixKey, user?.asaas?.pixKeyType),
         hasAddress,
         lastError: user?.asaas?.lastError,
       });
@@ -95,7 +101,7 @@ export const getOnboardingStatus = async (req: AuthenticatedRequest, res: Respon
         target: 'store',
         accountStatus: store?.asaas?.status || 'none',
         hasPixKey: !!store?.asaas?.pixKey,
-        pixKey: store?.asaas?.pixKey,
+        pixKey: maskPixKey(store?.asaas?.pixKey, store?.asaas?.pixKeyType),
         hasAddress,
         lastError: store?.asaas?.lastError,
       });
@@ -121,6 +127,9 @@ export const setupReceiver = async (req: AuthenticatedRequest, res: Response) =>
     if (!userId) return res.status(401).json({ error: 'Não autenticado' });
     if (!pixKey || typeof pixKey !== 'string' || !pixKey.trim()) {
       return res.status(400).json({ error: 'Chave PIX obrigatória' });
+    }
+    if (looksMaskedPixKey(pixKey)) {
+      return res.status(400).json({ error: MASKED_PIX_KEY_ERROR, code: 'PIX_KEY_MASKED' });
     }
     const valid: PixKeyType[] = ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'];
     const type: PixKeyType = valid.includes(pixKeyType) ? pixKeyType : inferPixKeyType(pixKey.trim());
