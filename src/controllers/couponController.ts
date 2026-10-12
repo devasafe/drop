@@ -127,6 +127,9 @@ export const toggleCoupon = async (req: AuthenticatedRequest, res: Response) => 
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
+    // Encerrado não volta a valer (nem por toggle).
+    if (coupon.endedAt) return sendCouponError(res, couponEnded());
+
     const updated = await updateCoupon(id, { isActive: !coupon.isActive });
     return res.json({ success: true, isActive: updated.isActive });
   } catch (err) {
@@ -203,6 +206,7 @@ export async function computeCouponDiscount(
   const coupon = await findCouponByCode(code);
 
   if (!coupon) return { valid: false, discount: 0, reason: 'Cupom não encontrado' };
+  if (coupon.endedAt) return { valid: false, discount: 0, reason: 'Cupom encerrado' };
   if (!coupon.isActive) return { valid: false, discount: 0, reason: 'Cupom inativo' };
   if (now < coupon.validFrom) return { valid: false, discount: 0, reason: 'Cupom ainda não é válido' };
   if (now > coupon.validUntil) return { valid: false, discount: 0, reason: 'Cupom expirado' };
@@ -262,4 +266,19 @@ export async function updateCouponVisibility(req: AuthenticatedRequest, res: Res
   if (coupon.endedAt) throw couponEnded();
   const saved = await updateCoupon(coupon.id, { isPublic: req.body.isPublic });
   return res.json({ success: true, data: saved });
+}
+
+/**
+ * POST /api/coupons/:id/end — encerra o cupom de vez (isActive=false + endedAt).
+ * updateMany condicional em `endedAt: null`: duas chamadas juntas → só uma encerra, a outra 409.
+ */
+export async function endCoupon(req: AuthenticatedRequest, res: Response) {
+  const coupon = await loadOwnedCoupon(req, String(req.params.id));
+  const r = await prisma.coupon.updateMany({
+    where: { id: coupon.id, endedAt: null },
+    data: { isActive: false, endedAt: new Date() },
+  });
+  if (r.count !== 1) throw couponEnded();
+  logger.info('[coupon] cupom encerrado', { couponId: coupon.id, by: req.user?.id });
+  return res.json({ success: true, data: await findCouponById(coupon.id) });
 }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   createCoupon, listCoupons, toggleCoupon, deleteCoupon, validateCoupon,
-  UpdateCouponSchema, updateCouponVisibility,
+  UpdateCouponSchema, updateCouponVisibility, endCoupon,
 } from '../controllers/couponController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -16,6 +16,8 @@ router.post('/validate', authenticate, validateCoupon);
 router.get('/', authenticate, authorizeRoles('lojista', 'ceo'), listCoupons);
 router.post('/', authenticate, authorizeRoles('lojista', 'ceo'), createCoupon);
 router.put('/:id/toggle', authenticate, authorizeRoles('lojista', 'ceo'), toggleCoupon);
+// D1: encerrar (soft-delete; o histórico fica nos pedidos). DELETE /:id não muda.
+router.post('/:id/end', authenticate, authorizeRoles('lojista', 'ceo'), catchAsync(endCoupon));
 // D1: visibilidade (cupom público aparece na página da loja)
 router.put('/:id', authenticate, authorizeRoles('lojista', 'ceo'), validate(UpdateCouponSchema), catchAsync(updateCouponVisibility));
 router.delete('/:id', authenticate, authorizeRoles('lojista', 'ceo'), deleteCoupon);
