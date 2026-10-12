@@ -191,18 +191,19 @@ export const updateOperatingHours = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
-// Listar avaliações recebidas pela loja
+// Listar avaliações recebidas pela loja (pública). Array puro: o StoreReviews lê `r.data` como lista.
+// Nunca dados do cliente; `orderId` é o que a loja usa para responder.
 export const listarAvaliacoesLoja = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params; // storeId
-    const avaliacoes = await prisma.order.findMany({
+    const rows = await prisma.order.findMany({
       where: { storeId: id, storeRating: { not: null } },
-      select: { storeRating: true, storeComment: true, createdAt: true },
+      select: { id: true, storeRating: true, storeComment: true, createdAt: true, storeReply: true, storeRepliedAt: true },
       orderBy: { createdAt: 'desc' },
     });
-    return res.json(avaliacoes);
+    return res.json(rows.map(({ id: orderId, ...r }) => ({ orderId, ...r })));
   } catch (err) {
-    console.error(err);
+    logger.error('Erro ao buscar avaliações da loja', err as Error);
     return res.status(500).json({ error: 'Erro ao buscar avaliações da loja' });
   }
 };

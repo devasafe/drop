@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { createStore, listStores, deleteStoreAndUser, getStore, listarAvaliacoesLoja, dashboard, updateStore, getFeaturedStores, uploadStoreBanner, uploadStoreLogo, updateOperatingHours, getStoreTopProducts, getTopStores } from '../controllers/storeController';
 import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { catchAsync } from '../middleware/errorHandler';
+import { StoreReplySchema, replyToStoreRating } from '../controllers/storeRatingReplyController';
 import { getNearbyStores, NearbyQuerySchema } from '../controllers/catalogController';
 import { storeQuotesLimiter, catalogHomeLimiter } from '../middleware/publicRateLimit';
 import { quoteStores, StoreQuotesSchema } from '../controllers/deliveryQuoteController';
@@ -39,6 +41,8 @@ router.put('/:id/pause', authenticate, authorizeRoles('lojista'), validate(store
 router.delete('/:id/pause', authenticate, authorizeRoles('lojista'), unpauseStore);
 // Listar avaliações da loja
 router.get('/:id/ratings', listarAvaliacoesLoja);
+// Responder uma avaliação (só o dono; uma resposta por avaliação, editável)
+router.put('/:id/ratings/:orderId/reply', authenticate, authorizeRoles('lojista'), validate(StoreReplySchema), catchAsync(replyToStoreRating));
 // Top produtos vendidos da loja (público)
 router.get('/:id/top-products', getStoreTopProducts);
 
