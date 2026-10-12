@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import {
   getPlatformConfig,
@@ -23,11 +23,13 @@ import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT } from '../legal/stor
 
 const router = Router();
 
-// Public - flags do modo SaaS
-router.get('/saas', async (_req, res) => {
+// Public - flags do modo SaaS. Logado (ex.: lojista na tela de assinatura) também recebe a
+// mensalidade padrão e os dias de teste; o anônimo mantém o formato público de antes.
+router.get('/saas', optionalAuth, async (req: any, res) => {
   try {
-    const { settlementMode, billingModel, directCardEnabled } = await getSaasConfig();
-    return res.json({ settlementMode, billingModel, directCardEnabled, egressIp: env.DROP_EGRESS_IP || null });
+    const { settlementMode, billingModel, directCardEnabled, saasMonthlyFee, saasTrialDays } = await getSaasConfig();
+    const base = { settlementMode, billingModel, directCardEnabled, egressIp: env.DROP_EGRESS_IP || null };
+    return res.json(req.user ? { ...base, saasMonthlyFee, saasTrialDays } : base);
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao ler as configurações' });
   }

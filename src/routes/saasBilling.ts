@@ -9,8 +9,8 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { isStoreOwner } from '../utils/storeOwnership';
-import { effectiveFee, isStoreBlocked } from '../services/saasBilling/policy';
-import { SAAS_OPEN_STATUSES } from '../services/saasBilling/payments';
+import { effectiveFee, isStoreBlocked, billingBlockAt } from '../services/saasBilling/policy';
+import { SAAS_OPEN_STATUSES, SAAS_PAID_STATUSES } from '../services/saasBilling/payments';
 import { updateSubscriptionValue, deleteSubscription } from '../services/asaas/subscription';
 
 /**
@@ -130,6 +130,13 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
   const fee = effectiveFee(billing, cfg);
   // Sem assinatura com fee > 0: a fatura só é gerada quando o dono tiver documento aprovado.
   const pendingReason = !billing.asaasSubscriptionId && fee > 0 ? 'owner_document' : null;
+  // Faturas pagas (histórico da tela de assinatura): as 12 mais recentes.
+  const paid = await prisma.saasBillingPayment.findMany({
+    where: { billingId: billing.id, status: { in: SAAS_PAID_STATUSES } },
+    orderBy: { dueDate: 'desc' },
+    take: 12,
+  });
+  const blockAt = billingBlockAt(billing, cfg);
   return res.json({
     success: true,
     data: {
@@ -140,6 +147,8 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
       nextPayment: p ? { dueDate: p.dueDate, value: Number(p.value), invoiceUrl: p.invoiceUrl, status: p.status } : null,
       blocked: isStoreBlocked(billing, new Date(), cfg),
       pendingReason,
+      payments: paid.map((x) => ({ id: x.id, value: Number(x.value), dueDate: x.dueDate, paidAt: x.paidAt, invoiceUrl: x.invoiceUrl })),
+      blockAt: blockAt ? blockAt.toISOString() : null,
     },
   });
 }));

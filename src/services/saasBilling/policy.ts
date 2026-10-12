@@ -79,6 +79,21 @@ export function shouldPause(billing: BillingWithFee | null | undefined, now: Dat
 }
 
 /**
+ * Quando a loja SERÁ pausada pela mensalidade: o instante após o qual `isBillingBlocked`
+ * vira true (fim do dia em Brasília da cobertura + graceDays). Mostrado na tela "atrasada".
+ * null quando ela nunca será pausada por data: sem linha, `cancelled` (já bloqueada, o
+ * `blocked` da resposta cobre), fee ≤ 0 (isenta) ou sem assinatura (sem fatura) — as mesmas
+ * condições de `shouldPause`.
+ */
+export function billingBlockAt(billing: BillingWithFee | null | undefined, config: BlockConfig): Date | null {
+  if (!billing) return null;
+  if (billing.status === 'cancelled') return null;
+  if (!(effectiveFee(billing, config) > 0)) return null;
+  if (!billing.asaasSubscriptionId) return null;
+  return new Date(coverageEnd(billing) + Math.max(0, config.saasGraceDays) * DAY_MS);
+}
+
+/**
  * A loja está bloqueada AGORA pela mensalidade (gate de pedido e visões usam esta)?
  * Sem linha → não; cancelled → sempre; fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
  * demais → já `paused` ou shouldPause (que exige assinatura) (antes de o job, de 1 em 1 h, gravar a pausa).
