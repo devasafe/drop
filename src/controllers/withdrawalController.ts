@@ -76,6 +76,15 @@ async function checkAsaasReceiverReady(
   return { ok: true };
 }
 
+/** Saque mínimo (D1): vem do PlatformConfig; sem config ou valor estranho, R$ 10. */
+async function minimumWithdrawFor(recipientType: 'motoboy' | 'store'): Promise<number> {
+  const { getPlatformConfig } = await import('../repositories/platformConfig.repository');
+  const config = await getPlatformConfig();
+  const raw = recipientType === 'store' ? config?.storeMinimumWithdraw : config?.motoboyMinimumWithdraw;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 10;
+}
+
 // ✅ Motoboy/Lojista - Solicitar saque (consome payouts FIFO)
 export const requestWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
@@ -124,6 +133,16 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
 
     if (totalAvailable <= 0) {
       return res.status(400).json({ error: 'Nenhum saldo disponível para saque' });
+    }
+
+    // Saque mínimo (D1) — loja e motoboy, inclusive no "sacar tudo". Fail closed em valor não numérico.
+    const wanted = amount === 'all' ? totalAvailable : Math.min(Number(amount), totalAvailable);
+    if (!Number.isFinite(wanted)) {
+      return res.status(400).json({ error: 'Valor inválido' });
+    }
+    const minimum = await minimumWithdrawFor(recipientType);
+    if (Math.round(wanted * 100) < Math.round(minimum * 100)) {
+      return res.status(400).json({ error: `O saque mínimo é ${brl(minimum)}`, code: 'BELOW_MINIMUM_WITHDRAW', minimum });
     }
 
     // amount === 'all' (ou >= totalAvailable) → saca tudo

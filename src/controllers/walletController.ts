@@ -730,7 +730,7 @@ export const getMyWallet = async (req: Request, res: Response) => {
       try {
         logger.debug('🔄 Buscando PlatformConfig...');
         const config = await getPlatformConfig();
-        responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw || 50;
+        responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw ?? 10;
         responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery || 5;
         responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm || 1;
         logger.debug('✅ PlatformConfig encontrado');
