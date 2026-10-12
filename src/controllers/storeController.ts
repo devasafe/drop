@@ -24,6 +24,8 @@ import { findPublicCouponsForStore } from '../repositories/coupon.repository';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 import { isStoreOpenWithHoursNow } from '../utils/storeOpen';
 import { AppError } from '../utils/AppError';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
+import { acceptDeadline, isAwaitingStoreAccept, storeAcceptTimeoutMin } from '../utils/acceptDeadline';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -59,6 +61,8 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       const appCommission = productTotal * 0.10; // 10% padrão
       return sum + (productTotal - appCommission);
     }, 0);
+    // Prazo do aceite: mesmo relógio do job storeAcceptTimeout (config, nunca 5 min fixo).
+    const timeoutMin = storeAcceptTimeoutMin(await getPlatformConfig());
     // Enriquecer pedidos com delivery info
     const ordersWithDelivery = await Promise.all(orders.map(async o => {
       let delivery = null;
@@ -111,6 +115,7 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
       }
       return {
         ...o,
+        acceptDeadline: isAwaitingStoreAccept(o) ? acceptDeadline(o, timeoutMin).toISOString() : null,
         delivery,
         customerName,
         customerObj,

@@ -4,6 +4,7 @@ import logger from '../config/logger';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { cancelOrderWithFullRefund } from '../controllers/cancellationController';
+import { acceptDeadline, storeAcceptTimeoutMin } from '../utils/acceptDeadline';
 
 /**
  * 🕐 JOB: Timeout de aceite da loja (spec §6.1)
@@ -33,8 +34,6 @@ import { cancelOrderWithFullRefund } from '../controllers/cancellationController
  * Pedidos anteriores à coluna (`paidAt` nulo) usam `createdAt`.
  */
 
-const DEFAULT_STORE_ACCEPT_TIMEOUT_MIN = 10;
-
 export interface StoreAcceptTimeoutSummary {
   processed: number;
   cancelled: number;
@@ -44,8 +43,10 @@ export interface StoreAcceptTimeoutSummary {
 /** Função testável, separada do agendamento — roda uma varredura e retorna um resumo. */
 export async function runStoreAcceptTimeout(): Promise<StoreAcceptTimeoutSummary> {
   const config = await getPlatformConfig();
-  const timeoutMin = config?.storeAcceptTimeoutMin ?? DEFAULT_STORE_ACCEPT_TIMEOUT_MIN;
-  const cutoff = new Date(Date.now() - timeoutMin * 60000);
+  const timeoutMin = storeAcceptTimeoutMin(config);
+  const now = new Date();
+  // `paidAt < cutoff` <=> acceptDeadline(pedido) < now: a query e o painel usam o mesmo relógio.
+  const cutoff = new Date(now.getTime() - timeoutMin * 60000);
 
   const stale = await prisma.order.findMany({
     where: {
@@ -68,6 +69,9 @@ export async function runStoreAcceptTimeout(): Promise<StoreAcceptTimeoutSummary
   let failed = 0;
 
   for (const raw of stale) {
+    // Defesa: o prazo que o painel mostra (acceptDeadline) é quem manda. Equivalente ao `where`
+    // acima, então não muda o comportamento; só impede que os dois relógios se separem.
+    if (acceptDeadline(raw, timeoutMin).getTime() >= now.getTime()) continue;
     try {
       const order = toApiOrder(raw);
       const result = await cancelOrderWithFullRefund(order, {
