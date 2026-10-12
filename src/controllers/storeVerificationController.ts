@@ -14,6 +14,7 @@ import {
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
+import { notifyStore, STORE_LINKS } from '../services/storeNotify';
 
 const ensureUserVerification = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -240,6 +241,20 @@ async function decideStoreItem(req: AuthenticatedRequest, res: Response, item: '
   await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
   await recomputeStoreVerification(storeId);
   logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id });
+
+  // Aviso ao dono (sino + push): a tela "Em análise" (/seller/abrir) mostra a etapa e o motivo.
+  const label = item === 'cnpj' ? 'CNPJ' : 'Endereço';
+  const reason = String(store.verification![item].rejectionReason || 'Não aprovado').slice(0, 300);
+  await notifyStore(store.id, {
+    title: `${label} ${approved ? 'aprovado' : 'recusado'}`,
+    message: approved
+      ? `O DROP aprovou o ${item === 'cnpj' ? 'CNPJ' : 'comprovante de endereço'} da sua loja.`
+      : `Motivo: ${reason}. Corrija e envie de novo.`,
+    link: STORE_LINKS.verification,
+    entityId: store.id,
+    type: 'system',
+    tag: 'verificacao-loja',
+  });
   return res.json({ message: `${item} ${approved ? 'aprovado' : 'rejeitado'}` });
 }
 export const approveStoreCnpj = (req: AuthenticatedRequest, res: Response) => decideStoreItem(req, res, 'cnpj', true);
