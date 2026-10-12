@@ -37,6 +37,7 @@ import { ProductCard } from '../../components/drop/ProductCard';
 import { DeliveryBadge } from '../../components/drop/DeliveryBadge';
 import { DeliveryAddressControl } from '../../components/drop/DeliveryAddressControl';
 import { StoreReviews } from '../../components/drop/StoreReviews';
+import { StoreCouponChips } from '../../components/drop/StoreCouponChips';
 import { StoreUnavailable } from '../../components/drop/StoreUnavailable';
 
 import styles from './Loja.module.css';
@@ -303,6 +304,8 @@ export default function StorePage() {
           </div>
         </div>
       </header>
+
+      <StoreCouponChips storeId={store._id} />
 
       {closed && (
         <div className={styles.notice}>
