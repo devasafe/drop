@@ -8,6 +8,10 @@ import { toApiProduct } from '../../controllers/productController';
 import { toPublicStore } from '../../repositories/store.repository';
 import { withStoreRatings } from '../catalog/storeRatings';
 import { hasSearchExtensions } from './extensions';
+import { ACTIVE_PRODUCT_WHERE } from '../catalog/activeProduct';
+
+/** D1: o equivalente SQL de ACTIVE_PRODUCT_WHERE para o alias `p` de "Product". */
+const ACTIVE_PRODUCT_SQL = Prisma.sql`p."isActive" = true`;
 
 /**
  * Busca no servidor (produtos e lojas) e sugestões.
@@ -200,7 +204,9 @@ export async function search(params: SearchParams): Promise<SearchResult> {
 async function searchProductIds(params: SearchParams, scope: StoreScope, trgm: boolean, offset: number): Promise<string[]> {
   const term = params.q ? termSql('p."name"', params.q, trgm) : null;
   const relevance = term ? term.relevance : Prisma.sql`0::int`; // `0` solto no ORDER BY vira posição de coluna
-  const conds: Prisma.Sql[] = term ? [term.match] : [];
+  // D1: produto pausado pelo lojista nunca entra na busca (vale também para o caminho pg_trgm).
+  const conds: Prisma.Sql[] = [ACTIVE_PRODUCT_SQL];
+  if (term) conds.push(term.match);
   if (params.minPrice != null) conds.push(Prisma.sql`p."price" >= ${params.minPrice}`);
   if (params.maxPrice != null) conds.push(Prisma.sql`p."price" <= ${params.maxPrice}`);
   if (params.subCategory) conds.push(Prisma.sql`p."subCategory" = ${params.subCategory}`);
@@ -261,7 +267,7 @@ function inOrder<T extends { id: string }>(ids: string[], rows: T[]): T[] {
 async function hydrateProducts(ids: string[]): Promise<any[]> {
   if (ids.length === 0) return [];
   const rows = await prisma.product.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, ...ACTIVE_PRODUCT_WHERE },
     include: { category: { select: { name: true } }, store: { select: { name: true } } },
   });
   return inOrder(ids, rows).map((row) => {
@@ -295,13 +301,13 @@ export async function categorySummary(name: string): Promise<CategorySummary> {
     FROM "Product" p
     ${scopeJoin(scope, 'p."storeId"')}
     JOIN "Category" c ON c."id" = p."categoryId"
-    WHERE ${cat}`;
+    WHERE ${cat} AND ${ACTIVE_PRODUCT_SQL}`;
   const subs = await prisma.$queryRaw<{ name: string; count: number }[]>`
     SELECT p."subCategory" AS "name", COUNT(*)::int AS "count"
     FROM "Product" p
     ${scopeJoin(scope, 'p."storeId"')}
     JOIN "Category" c ON c."id" = p."categoryId"
-    WHERE ${cat} AND p."subCategory" IS NOT NULL AND btrim(p."subCategory") <> ''
+    WHERE ${cat} AND ${ACTIVE_PRODUCT_SQL} AND p."subCategory" IS NOT NULL AND btrim(p."subCategory") <> ''
     GROUP BY p."subCategory"
     ORDER BY "count" DESC, p."subCategory" ASC
     LIMIT 12`;
@@ -345,7 +351,7 @@ export async function suggest(q: string): Promise<Suggestions> {
       SELECT p."id", p."name", p."image", p."price", p."oldPrice", p."storeId", s."name" AS "storeName" FROM "Product" p
       ${scopeJoin(scope, 'p."storeId"')}
       JOIN "Store" s ON s."id" = p."storeId"
-      WHERE ${prod.match}
+      WHERE ${prod.match} AND ${ACTIVE_PRODUCT_SQL}
       ORDER BY ${prod.relevance} DESC, p."createdAt" DESC, p."id" DESC
       LIMIT 5`,
     prisma.$queryRaw<{ id: string; name: string }[]>`

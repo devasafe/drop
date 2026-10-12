@@ -20,6 +20,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
+import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -537,7 +538,7 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
     });
 
     const productMap = new Map(
-      (await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } }))
+      (await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) }, ...ACTIVE_PRODUCT_WHERE } }))
         .map((p) => [p.id, p]),
     );
 
@@ -607,7 +608,7 @@ export const getTopProducts = async (req: Request, res: Response) => {
       _sum: { quantity: true },
     });
     const sold = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
-    const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } });
+    const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) }, ...ACTIVE_PRODUCT_WHERE } });
     const storeIds = [...new Set(products.map((p) => p.storeId))];
     // Modo direto: produto de loja pausada/cancelada pela mensalidade não aparece.
     const billingWhere = await publicStoreBillingWhere();

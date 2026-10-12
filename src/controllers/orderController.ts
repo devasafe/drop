@@ -1269,7 +1269,8 @@ export const getReorder = async (req: AuthenticatedRequest, res: Response) => {
       let reason: 'DELETED' | 'OUT_OF_STOCK' | 'STORE_UNAVAILABLE' | null = null;
       if (!storeAvailable) reason = 'STORE_UNAVAILABLE';
       else if (!p) reason = 'DELETED';
-      else if (stock <= 0) reason = 'OUT_OF_STOCK';
+      // D1: pausado pelo lojista = indisponível (mesmo motivo do esgotado; o front já trata).
+      else if (!p.isActive || stock <= 0) reason = 'OUT_OF_STOCK';
       const price = p ? Number(p.price) : previousPrice;
       return {
         productId: it.productId,

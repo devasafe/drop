@@ -12,6 +12,7 @@ import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary
 import logger from '../config/logger';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { AppError } from '../utils/AppError';
+import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
 // Converte na fronteira de saída da API. Mantém _id para compatibilidade.
@@ -114,7 +115,8 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const { category, storeId } = req.query;
     // Cada restrição entra como um termo do AND — nenhuma sobrescreve a outra
     // (o filtro por loja não pode furar o gate de KYC nem o da mensalidade).
-    const and: any[] = [];
+    // D1: produto pausado pelo lojista nunca entra na vitrine (o dono vê pelo /stores/dashboard).
+    const and: any[] = [ACTIVE_PRODUCT_WHERE];
     // `category` na query é o id da Category (Product só tem `categoryId`; filtrar pela
     // relação `category` com uma string fazia o Prisma lançar → 500).
     if (category) and.push({ categoryId: String(category) });
@@ -170,9 +172,9 @@ export const getProduct = async (req: AuthenticatedRequest & Request<{ id: strin
       include: { category: { select: { name: true } } },
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    // Modo direto: produto de loja pausada/cancelada pela mensalidade fica fora do ar
-    // (link direto incluso) — exceto para o próprio dono, que gerencia o catálogo.
-    if (await isStoreHiddenByBilling(String(product.storeId))) {
+    // Fora do ar para o público (link direto incluso), exceto para o próprio dono, que gerencia o catálogo:
+    // produto pausado pelo lojista (D1) ou loja pausada/cancelada pela mensalidade (modo direto).
+    if (!product.isActive || (await isStoreHiddenByBilling(String(product.storeId)))) {
       const owner = req.user?.id
         ? await prisma.store.count({ where: { id: String(product.storeId), ownerId: String(req.user.id) } })
         : 0;

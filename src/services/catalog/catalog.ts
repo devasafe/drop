@@ -12,6 +12,7 @@ import {
 } from '../deliveryQuote/quote';
 import { discountPercent } from '../search/search';
 import { publicStoreVisibilityWhere } from './visibility';
+import { ACTIVE_PRODUCT_WHERE } from './activeProduct';
 
 /**
  * Corte das ofertas: são lidas as 500 ofertas MAIS RECENTES (createdAt desc) e a ordem por % de
@@ -48,7 +49,7 @@ export async function listOffers(params: { point: LatLngPoint | null; limit: num
   }
 
   const rows = await prisma.product.findMany({
-    where: { ...storeFilter, oldPrice: { gt: prisma.product.fields.price } },
+    where: { ...storeFilter, ...ACTIVE_PRODUCT_WHERE, oldPrice: { gt: prisma.product.fields.price } },
     include: { category: { select: { name: true } }, store: { select: { name: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: OFFER_CANDIDATES,
