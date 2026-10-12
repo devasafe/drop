@@ -455,12 +455,15 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
     const store = await prisma.store.findFirst({ where: { ownerId } });
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
     const type = (req.query.type as string) === 'cover' ? 'cover' : 'featured';
-    // A capa da página da loja vale para todos os planos (D1). Só o banner de destaque segue a regra do Premium.
+    // A capa da página da loja vale para todos os planos (D1). O banner de destaque (carrossel da Home) aceita
+    // Plano 3 ativo OU troca para o Plano 3 pendente: fica guardado antes da aprovação, mas a Home só mostra
+    // com o Plano 3 ativo (getFeaturedStores e toPublicStore conferem na leitura).
     if (type === 'featured') {
       const sub = await findSubByStoreId(store.id);
       const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
       const storePlan = sub ? (planMap[sub.currentPlan] ?? 1) : (store.plan ?? 1);
-      if (storePlan !== 3) return res.status(403).json({ error: 'Recurso exclusivo do Plano 3 (Premium)' });
+      const premiumPending = !!sub && sub.planChangeStatus === 'pending' && sub.requestedPlan === 'plan3';
+      if (storePlan !== 3 && !premiumPending) return res.status(403).json({ error: 'Recurso exclusivo do Plano 3 (Premium)' });
     }
 
     const file = (req as any).file;
@@ -474,7 +477,7 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
     });
     return res.json({ success: true, type, url });
   } catch (err) {
-    console.error('[uploadStoreBanner] error:', err);
+    logger.error('[uploadStoreBanner] erro ao salvar banner', err as Error);
     return res.status(500).json({ error: 'Erro ao salvar banner' });
   }
 };
