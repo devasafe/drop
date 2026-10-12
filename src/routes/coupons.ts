@@ -1,6 +1,11 @@
 import { Router } from 'express';
-import { createCoupon, listCoupons, toggleCoupon, deleteCoupon, validateCoupon } from '../controllers/couponController';
+import {
+  createCoupon, listCoupons, toggleCoupon, deleteCoupon, validateCoupon,
+  UpdateCouponSchema, updateCouponVisibility,
+} from '../controllers/couponController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
+import { validate } from '../middleware/validate';
+import { catchAsync } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -11,6 +16,8 @@ router.post('/validate', authenticate, validateCoupon);
 router.get('/', authenticate, authorizeRoles('lojista', 'ceo'), listCoupons);
 router.post('/', authenticate, authorizeRoles('lojista', 'ceo'), createCoupon);
 router.put('/:id/toggle', authenticate, authorizeRoles('lojista', 'ceo'), toggleCoupon);
+// D1: visibilidade (cupom público aparece na página da loja)
+router.put('/:id', authenticate, authorizeRoles('lojista', 'ceo'), validate(UpdateCouponSchema), catchAsync(updateCouponVisibility));
 router.delete('/:id', authenticate, authorizeRoles('lojista', 'ceo'), deleteCoupon);
 
 export default router;

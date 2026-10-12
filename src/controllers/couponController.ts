@@ -9,9 +9,11 @@ import {
   removeCoupon,
 } from '../repositories/coupon.repository';
 
+import { z } from 'zod';
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
 import { isDirectMode } from '../utils/settlement';
+import { AppError } from '../utils/AppError';
 
 // Criar cupom
 // Lojista: type='store', storeId obrigatório
@@ -62,6 +64,8 @@ export const createCoupon = async (req: AuthenticatedRequest, res: Response) => 
       validFrom: new Date(validFrom),
       validUntil: new Date(validUntil),
       isActive: true,
+      // Só `true` literal torna o cupom público; qualquer outro valor mantém secreto.
+      isPublic: req.body.isPublic === true,
       createdBy: userId,
     });
 
@@ -221,4 +225,41 @@ export async function computeCouponDiscount(
     : Math.min(orderValue, coupon.discountValue);
 
   return { valid: true, discount: parseFloat(discount.toFixed(2)), coupon };
+}
+
+// ---------- D1: cupom público, encerramento e resultados ----------
+
+/** Corpo do PUT /coupons/:id: hoje só a visibilidade muda (valor e validade ficam). */
+export const UpdateCouponSchema = z.object({ isPublic: z.boolean() }).strict();
+
+export const couponEnded = () =>
+  new AppError('Este cupom foi encerrado e não pode voltar a valer.', 409, true, 'COUPON_ENDED');
+
+/** Mesmo formato do errorHandler global, para os handlers antigos que respondem por conta própria. */
+export function sendCouponError(res: Response, err: AppError) {
+  return res.status(err.statusCode).json({
+    success: false,
+    error: { message: err.message, statusCode: err.statusCode, ...(err.code ? { code: err.code } : {}) },
+  });
+}
+
+/** Cupom que o usuário pode mexer: lojista dono da loja do cupom, ou CEO. Lança 404/403. */
+export async function loadOwnedCoupon(req: AuthenticatedRequest, id: string): Promise<any> {
+  const coupon = await findCouponById(id);
+  if (!coupon) throw new AppError('Cupom não encontrado', 404, true, 'COUPON_NOT_FOUND');
+  const activeRole = (req.user as any)?.activeRole || req.user?.role;
+  if (activeRole === 'ceo') return coupon;
+  if (activeRole === 'lojista') {
+    const store = await prisma.store.findFirst({ where: { ownerId: req.user?.id }, select: { id: true } });
+    if (store && coupon.storeId && String(coupon.storeId) === String(store.id)) return coupon;
+  }
+  throw new AppError('Sem permissão', 403, true, 'FORBIDDEN');
+}
+
+/** PUT /api/coupons/:id — muda a visibilidade (isPublic). Encerrado → 409 COUPON_ENDED. */
+export async function updateCouponVisibility(req: AuthenticatedRequest, res: Response) {
+  const coupon = await loadOwnedCoupon(req, String(req.params.id));
+  if (coupon.endedAt) throw couponEnded();
+  const saved = await updateCoupon(coupon.id, { isPublic: req.body.isPublic });
+  return res.json({ success: true, data: saved });
 }
