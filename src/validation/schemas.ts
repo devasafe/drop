@@ -108,6 +108,18 @@ export const UpdateOrderStatusSchema = z.object({
   status: z.enum(['criado', 'pago', 'enviado', 'entregue', 'cancelado', 'rejeitado']),
 });
 
+/**
+ * Motivos que a LOJA pode mandar ao recusar um pedido (D1). 'store_rejected' é o padrão do
+ * servidor e do app. Os demais valores do enum CancellationReasonCode são gravados pelo
+ * sistema (late_cancellation, customer_request...) e não podem vir do cliente HTTP.
+ */
+export const STORE_REJECT_REASON_CODES = ['store_closed', 'store_busy', 'not_available', 'payment_issue', 'other', 'store_rejected'] as const;
+
+export const RejectOrderSchema = z.object({
+  reason: z.string().max(1000).optional(),
+  reasonCode: z.enum(STORE_REJECT_REASON_CODES).optional(),
+});
+
 export const RateStoreSchema = z.object({
   storeRating: z.number().int().min(1, 'Nota mínima é 1').max(5, 'Nota máxima é 5'),
   storeComment: z.string().max(500).optional(),

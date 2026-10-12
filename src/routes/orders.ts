@@ -17,7 +17,7 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { requireActiveUser } from '../middleware/requireActive';
 import { validate } from '../middleware/validate';  // ✅ NOVO
-import { CreateOrderSchema } from '../validation/schemas';  // ✅ NOVO
+import { CreateOrderSchema, RejectOrderSchema } from '../validation/schemas';  // ✅ NOVO
 
 const router = Router();
 
@@ -57,7 +57,7 @@ router.get('/:id/reorder', authenticate, getReorder);
 // store accepts order -> moves to processing
 router.post('/:id/accept', authenticate, requireActiveUser, authorizeRoles('lojista'), acceptOrderByStore);
 // store rejects order -> cancels and refunds
-router.post('/:id/reject', authenticate, requireActiveUser, authorizeRoles('lojista'), rejectOrderByStore);
+router.post('/:id/reject', authenticate, requireActiveUser, authorizeRoles('lojista'), validate(RejectOrderSchema), rejectOrderByStore);
 
 // ========== CUSTOMER OPERATIONS ==========
 // customer cancels order -> refunds payment
