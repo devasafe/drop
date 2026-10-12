@@ -12,6 +12,7 @@ import {
   syncCommissionForPlan,
 } from '../repositories/storeSubscription.repository';
 import logger from '../config/logger';
+import { AppError } from '../utils/AppError';
 
 // ✅ GET Current Platform Config
 export const getPlatformConfig = async (req: Request, res: Response) => {
@@ -181,6 +182,22 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
     return res.status(500).json({ error: 'Erro ao solicitar mudança de plano' });
   }
 };
+
+/**
+ * DELETE /api/settings/store-subscription/request-change — a loja desiste da troca pendente.
+ * updateMany condicional: só sai de `pending`; se o CEO já decidiu, 409 (nada muda).
+ */
+export async function cancelPlanChangeRequest(req: Request & { user?: any }, res: Response) {
+  const store = await prisma.store.findFirst({ where: { ownerId: String(req.user?.id) }, select: { id: true } });
+  if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+  const r = await prisma.storeSubscription.updateMany({
+    where: { storeId: store.id, planChangeStatus: 'pending' },
+    data: { planChangeStatus: 'none', requestedPlan: null, requestedAt: null },
+  });
+  if (r.count !== 1) throw new AppError('Não há troca de plano pendente.', 409, true, 'NO_PENDING_PLAN_CHANGE');
+  logger.info('[plan] loja cancelou o pedido de troca de plano', { storeId: store.id });
+  return res.json({ success: true, data: await findSubByStoreId(store.id) });
+}
 
 // ✅ GET Pending Plan Changes (CEO vê requisições)
 export const getPendingPlanChanges = async (req: Request & { user?: any }, res: Response) => {

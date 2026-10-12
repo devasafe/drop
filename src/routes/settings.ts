@@ -11,7 +11,9 @@ import {
   rejectPlanChange,
   getAllStoreSubscriptions,
   updateStorePlan,
+  cancelPlanChangeRequest,
 } from '../controllers/settingsController';
+import { catchAsync } from '../middleware/errorHandler';
 
 import { getSaasConfig } from '../utils/settlement';
 import { hasCustodyLeftover } from '../services/custodyLeftover';
@@ -57,6 +59,8 @@ router.get('/store-subscription', authenticate, getStoreSubscription);
 
 // Store - Request plan change (papel-base)
 router.post('/store-subscription/request-change', authenticate, requestPlanChange);
+// Store - Cancel pending plan change (papel-base)
+router.delete('/store-subscription/request-change', authenticate, catchAsync(cancelPlanChangeRequest));
 
 // Admin - Get pending changes
 router.get('/pending-plan-changes', authenticate, authorizePermission('plan:view'), getPendingPlanChanges);
