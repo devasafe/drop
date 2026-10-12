@@ -915,6 +915,8 @@ model Coupon {
   validFrom     DateTime
   validUntil    DateTime
   isActive      Boolean            @default(true)
+  isPublic      Boolean            @default(false) // aparece na página da loja; os existentes seguem secretos
+  endedAt       DateTime?                          // encerrado pela loja: não volta a ficar ativo
   createdBy     String
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
