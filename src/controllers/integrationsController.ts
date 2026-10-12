@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../types';
 import { ApiKeyRequest } from '../middleware/storeApiKey';
-import { generateApiKey, generateWebhookSecret, sendTestWebhook } from '../services/storeIntegration';
+import { generateApiKey, generateWebhookSecret, sendTestWebhook, applyStockOp } from '../services/storeIntegration';
 import { checkWebhookUrl } from '../utils/ssrfGuard';
 
 /** Resolve a loja do lojista logado. */
@@ -83,24 +83,6 @@ export function parseStockOp(body: any): { set: number } | { adjust: number } | 
   const a = Number(body.adjust);
   if (!Number.isInteger(a)) return { error: '"adjust" deve ser inteiro (ex.: -2 vendeu 2)' };
   return { adjust: a };
-}
-
-/**
- * Aplica a operação de estoque de forma ATÔMICA (delta via `increment`, com clamp
- * de negativo em outra query) — evita lost-update sob concorrência. Retorna a
- * quantidade nova, ou null se o produto não pertence à loja.
- */
-async function applyStockOp(storeId: string, productId: string, op: { set: number } | { adjust: number }): Promise<number | null> {
-  if ('set' in op) {
-    const r = await prisma.product.updateMany({ where: { id: productId, storeId }, data: { quantity: op.set } });
-    if (r.count === 0) return null;
-  } else {
-    const r = await prisma.product.updateMany({ where: { id: productId, storeId }, data: { quantity: { increment: op.adjust } } });
-    if (r.count === 0) return null;
-    if (op.adjust < 0) await prisma.product.updateMany({ where: { id: productId, storeId, quantity: { lt: 0 } }, data: { quantity: 0 } });
-  }
-  const p = await prisma.product.findFirst({ where: { id: productId, storeId }, select: { quantity: true } });
-  return p?.quantity ?? null;
 }
 
 /** PATCH /v1/products/:id/stock — atualiza o estoque de UM produto (write). */

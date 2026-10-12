@@ -6,6 +6,7 @@ import {
   updateProduct,
   deleteProduct,
   updateStock,
+  bulkUpdateStock,
   setProductActive,
 } from '../controllers/productController';
 import { getTopProducts } from '../controllers/storeController';
@@ -14,9 +15,10 @@ import { authenticate, authorizeRoles, optionalAuth } from '../middleware/auth';
 
 import upload, { uploadProductMedia } from '../middleware/upload';
 import { validate } from '../middleware/validate';
+import { catchAsync } from '../middleware/errorHandler';
 import { catalogHomeLimiter } from '../middleware/publicRateLimit';
 import { getOffers, OffersQuerySchema } from '../controllers/catalogController';
-import { createProductSchema, updateProductSchema, updateStockSchema, setProductActiveSchema } from '../validation/productSchemas';
+import { createProductSchema, updateProductSchema, updateStockSchema, setProductActiveSchema, bulkStockSchema } from '../validation/productSchemas';
 
 const router = Router();
 
@@ -45,6 +47,8 @@ router.delete('/:id', authenticate, authorizeRoles('lojista'), deleteProduct);
 
 // stock update
 router.put('/stock/:id', authenticate, authorizeRoles('lojista'), validate(updateStockSchema), updateStock);
+// D1: estoque em lote pelo painel (até 200 itens)
+router.patch('/stock', authenticate, authorizeRoles('lojista'), validate(bulkStockSchema), catchAsync(bulkUpdateStock));
 // D1: pausar/reativar o produto (só o dono)
 router.put('/:id/active', authenticate, authorizeRoles('lojista'), validate(setProductActiveSchema), setProductActive);
 

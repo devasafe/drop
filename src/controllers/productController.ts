@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
-import { emitStockChanged } from '../services/storeIntegration';
+import { emitStockChanged, applyStockOp } from '../services/storeIntegration';
 
 import {
   emitProductCreated,
@@ -12,6 +12,8 @@ import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary
 import logger from '../config/logger';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { AppError } from '../utils/AppError';
+import { isStoreOwner } from '../utils/storeOwnership';
+import type { BulkStockInput } from '../validation/productSchemas';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 
 // Prisma serializa Decimal (price) como string; o front espera number.
@@ -318,6 +320,28 @@ export const updateStock = async (req: AuthenticatedRequest, res: Response) => {
     console.error(err);
     return res.status(500).json({ error: 'Failed to update stock' });
   }
+};
+
+/**
+ * PATCH /products/stock — repõe o estoque de vários produtos de uma vez (painel da loja).
+ * Mesma operação atômica da integração (`applyStockOp`). Produto de outra loja é ignorado
+ * (o where é sempre `{ id, storeId }`). Item repetido: vale o último.
+ */
+export const bulkUpdateStock = async (req: AuthenticatedRequest, res: Response) => {
+  const { storeId, items } = req.body as BulkStockInput;
+  if (!(await isStoreOwner(storeId, req.user?.id))) {
+    throw new AppError('Sem permissão para esta loja', 403, true, 'FORBIDDEN');
+  }
+  const last = new Map<string, number>();
+  for (const it of items) last.set(it.productId, it.stock);
+
+  const changed: string[] = [];
+  for (const [productId, stock] of last) {
+    const q = await applyStockOp(storeId, productId, { set: stock });
+    if (q !== null) changed.push(productId);
+  }
+  if (changed.length) void emitStockChanged(storeId, changed); // webhook (best-effort)
+  return res.json({ success: true, data: { updated: changed.length } });
 };
 
 /**

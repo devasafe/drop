@@ -133,3 +133,24 @@ export async function emitStockChanged(storeId: string, productIds: string[]): P
     // best-effort: nunca quebra o fluxo de negócio (venda/cancelamento/ajuste)
   }
 }
+
+export type StockOp = { set: number } | { adjust: number };
+
+/**
+ * Aplica a operação de estoque de forma ATÔMICA (delta via `increment`, com clamp
+ * de negativo em outra query) — evita lost-update sob concorrência. Retorna a
+ * quantidade nova, ou null se o produto não pertence à loja.
+ * Usada pela API de integração (API key) e pelo lote do painel (PATCH /products/stock).
+ */
+export async function applyStockOp(storeId: string, productId: string, op: StockOp): Promise<number | null> {
+  if ('set' in op) {
+    const r = await prisma.product.updateMany({ where: { id: productId, storeId }, data: { quantity: op.set } });
+    if (r.count === 0) return null;
+  } else {
+    const r = await prisma.product.updateMany({ where: { id: productId, storeId }, data: { quantity: { increment: op.adjust } } });
+    if (r.count === 0) return null;
+    if (op.adjust < 0) await prisma.product.updateMany({ where: { id: productId, storeId, quantity: { lt: 0 } }, data: { quantity: 0 } });
+  }
+  const p = await prisma.product.findFirst({ where: { id: productId, storeId }, select: { quantity: true } });
+  return p?.quantity ?? null;
+}
