@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma';
 import { AppError } from '../../utils/AppError';
 import { publicStoreVisibilityWhere } from '../catalog/visibility';
 import { brazilNow, isOpenAt } from '../../utils/storeHours';
+import { isStorePaused } from '../../utils/storeOpen';
 import { storePoint, straightKm, type LatLngPoint } from '../deliveryQuote/quote';
 import { toApiProduct } from '../../controllers/productController';
 import { toPublicStore } from '../../repositories/store.repository';
@@ -135,13 +136,14 @@ interface VisibleStore {
   longitude: string | null;
   isOpen: boolean;
   operatingHours: any;
+  pausedUntil: Date | null;
 }
 
 /** Mesmo filtro do `listStores`: KYC (com KYC_ENFORCED) AND mensalidade (modo direto). */
 async function visibleStores(): Promise<VisibleStore[]> {
   return prisma.store.findMany({
     where: await publicStoreVisibilityWhere(),
-    select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true },
+    select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true, pausedUntil: true },
   });
 }
 
@@ -155,7 +157,8 @@ async function storeScope(origin: LatLngPoint | null, openNow: boolean, now = ne
   let stores = await visibleStores();
   if (openNow) {
     const { dayIndex, minutes } = brazilNow(now);
-    stores = stores.filter((s) => isOpenAt(s, dayIndex, minutes));
+    // D1: loja pausada não está "aberta agora".
+    stores = stores.filter((s) => !isStorePaused(s, now) && isOpenAt(s, dayIndex, minutes));
   }
   const distById = new Map<string, number | null>();
   const ids: string[] = [];

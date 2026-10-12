@@ -5,6 +5,7 @@ import { calculateDeliveryFeeWithConfig } from '../../utils/walletCalculations';
 import { isDirectMode } from '../../utils/settlement';
 import { findSubByStoreId } from '../../repositories/storeSubscription.repository';
 import { brazilNow, isOpenAt, nextOpeningTime } from '../../utils/storeHours';
+import { isStorePaused } from '../../utils/storeOpen';
 import {
   DeliveryConfig,
   effectivePrepMinutes,
@@ -41,6 +42,8 @@ export interface QuoteStore {
   prepMinutes?: number | null;
   isOpen?: boolean | null;
   operatingHours?: any;
+  /** D1: pausa da loja; enquanto no futuro, a cotação vem fechada. */
+  pausedUntil?: Date | null;
 }
 
 export interface LatLngPoint {
@@ -92,10 +95,17 @@ function etaFrom(prepMinutes: number, travelMinutes: number): [number, number] {
   return [min, min + 10];
 }
 
+const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
 function openState(store: QuoteStore, now: Date): { open: boolean; opensAt?: string } {
-  const { dayIndex, minutes } = brazilNow(now);
+  // D1: loja pausada = fechada até `pausedUntil`. A volta é a hora da pausa, se o horário estiver
+  // aberto nesse momento; senão, o próximo horário de abertura a partir dali.
+  const paused = isStorePaused({ pausedUntil: store.pausedUntil ?? null }, now);
+  const ref = paused ? new Date(store.pausedUntil as Date) : now;
+  const { dayIndex, minutes } = brazilNow(ref);
   const open = isOpenAt({ isOpen: store.isOpen, operatingHours: store.operatingHours }, dayIndex, minutes);
-  if (open) return { open: true };
+  if (open && !paused) return { open: true };
+  if (open && paused) return { open: false, opensAt: toHHMM(minutes) };
   // Fechada pelo toggle manual não tem hora de volta; só informa quando é o horário que fecha.
   const opensAt = store.isOpen ? nextOpeningTime(store, dayIndex, minutes) : undefined;
   return opensAt ? { open: false, opensAt } : { open: false };

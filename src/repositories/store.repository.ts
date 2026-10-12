@@ -9,6 +9,8 @@ const PUBLIC_STORE_FIELDS = [
   'id', 'ownerId', 'name', 'address', 'street', 'number', 'neighborhood', 'city', 'state',
   'latitude', 'longitude', 'plan', 'isOpen', 'isVerified', 'operatingHours',
   'featuredBannerUrl', 'coverBannerUrl', 'createdAt',
+  // D1: identidade e pausa (públicos: a vitrine mostra logo/frase e "volta às HH:MM").
+  'logoUrl', 'tagline', 'pausedUntil',
 ] as const;
 
 export function toPublicStore(store: any): any {

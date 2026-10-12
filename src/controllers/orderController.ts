@@ -49,6 +49,7 @@ import { isDirectMode, isDirectOrder } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
 import { precheckBuyerCpf } from '../utils/buyerCpf';
 import { AppError } from '../utils/AppError';
+import { isStorePaused } from '../utils/storeOpen';
 import { assertProductsActive, pausedProductError } from '../services/catalog/activeProduct';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
@@ -173,6 +174,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     const storeForCheck: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!storeForCheck) {
       return res.status(404).json({ error: 'Loja não encontrada' });
+    }
+    // D1: loja pausada pelo lojista — a mesma regra da vitrine (utils/storeOpen), nos dois modos,
+    // antes de qualquer escrita. Vem antes do "fechada" para o cliente ver o motivo certo.
+    if (isStorePaused(storeForCheck)) {
+      return sendAppError(res, new AppError('A loja pausou os pedidos por um tempo. Tente de novo mais tarde.', 409, true, 'STORE_PAUSED'));
     }
     if (!isStoreCurrentlyOpen(storeForCheck)) {
       return res.status(400).json({ error: 'Loja fechada no momento. Tente novamente quando estiver aberta.' });

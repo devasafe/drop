@@ -21,6 +21,7 @@ import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saa
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
+import { isStoreOpenWithHoursNow } from '../utils/storeOpen';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -657,7 +658,8 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
       });
     }
     const [rated] = await withStoreRatings([toPublicStore(store)]);
-    return res.json(rated);
+    // D1: aberta agora = toggle + pausa + horário (mesmas regras da vitrine e do checkout).
+    return res.json({ ...rated, isOpenNow: isStoreOpenWithHoursNow(store) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to get store' });
