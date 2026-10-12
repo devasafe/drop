@@ -4,7 +4,14 @@ import { Sheet } from '../ui/Sheet';
 import { Rating } from '../ui/Rating';
 import styles from './StoreReviews.module.css';
 
-interface Review { storeRating: number; storeComment?: string | null; createdAt: string }
+interface Review {
+  orderId?: string;
+  storeRating: number;
+  storeComment?: string | null;
+  createdAt: string;
+  storeReply?: string | null;
+  storeRepliedAt?: string | null;
+}
 
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -12,7 +19,7 @@ const when = (iso: string) => {
   return days <= 0 ? 'hoje' : days === 1 ? 'ontem' : d.toLocaleDateString('pt-BR');
 };
 
-/** "O que dizem" (protótipo Loja): a última avaliação com comentário; "Ver N" abre todas. */
+/** "O que dizem" (protótipo Loja): a última avaliação com comentário; "Ver N" abre todas, com a resposta da loja. */
 export function StoreReviews({ storeId }: { storeId: string }) {
   const [list, setList] = useState<Review[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -41,10 +48,16 @@ export function StoreReviews({ storeId }: { storeId: string }) {
       <Sheet open={open} onClose={() => setOpen(false)} title="O que dizem" presentation="bottom">
         <ul className={styles.list}>
           {list.map((r, i) => (
-            <li key={i} className={styles.item}>
+            <li key={r.orderId ?? i} className={styles.item}>
               <Rating value={r.storeRating} />
               {r.storeComment && <p className={styles.text}>{r.storeComment}</p>}
               <span className={styles.meta}>{when(r.createdAt)}</span>
+              {r.storeReply && r.storeReply.trim() && (
+                <div className={styles.reply}>
+                  <span className={styles.replyLabel}>Resposta da loja</span>
+                  <p className={styles.replyText}>{r.storeReply}</p>
+                </div>
+              )}
             </li>
           ))}
         </ul>
