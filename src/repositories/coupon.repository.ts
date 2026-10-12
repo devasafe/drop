@@ -54,3 +54,37 @@ export async function incrementCouponUse(id: string, maxUses: number | null | un
   });
   return r.count === 1;
 }
+
+export interface PublicCoupon {
+  _id: string;
+  code: string;
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+  minOrderValue: number | null;
+  validUntil: Date;
+}
+
+/**
+ * Cupons que a página pública da loja mostra. Allowlist de campos: nunca usedCount,
+ * maxUses, createdBy, productIds. Cupom secreto (isPublic=false) NUNCA entra.
+ */
+export async function findPublicCouponsForStore(storeId: string, now = new Date()): Promise<PublicCoupon[]> {
+  const rows = await prisma.coupon.findMany({
+    where: {
+      storeId: String(storeId), type: 'store', isPublic: true, isActive: true, endedAt: null,
+      validFrom: { lte: now }, validUntil: { gte: now },
+    },
+    orderBy: { validUntil: 'asc' },
+    take: 20,
+  });
+  return rows
+    .filter((c) => c.maxUses == null || c.usedCount < c.maxUses)
+    .map((c) => ({
+      _id: c.id,
+      code: c.code,
+      discountType: c.discountType as 'percent' | 'fixed',
+      discountValue: Number(c.discountValue),
+      minOrderValue: c.minOrderValue == null ? null : Number(c.minOrderValue),
+      validUntil: c.validUntil,
+    }));
+}

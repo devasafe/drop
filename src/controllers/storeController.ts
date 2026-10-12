@@ -20,6 +20,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
+import { findPublicCouponsForStore } from '../repositories/coupon.repository';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 import { isStoreOpenWithHoursNow } from '../utils/storeOpen';
 import { AppError } from '../utils/AppError';
@@ -691,7 +692,8 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     }
     const [rated] = await withStoreRatings([toPublicStore(store)]);
     // D1: aberta agora = toggle + pausa + horário (mesmas regras da vitrine e do checkout).
-    return res.json({ ...rated, isOpenNow: isStoreOpenWithHoursNow(store) });
+    const publicCoupons = await findPublicCouponsForStore(store.id);
+    return res.json({ ...rated, isOpenNow: isStoreOpenWithHoursNow(store), publicCoupons });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to get store' });
