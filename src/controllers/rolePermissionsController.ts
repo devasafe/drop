@@ -70,6 +70,8 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'verification:review_motoboys',label: 'Verificar motoboys (CNH/placa)', category: 'Verificação (KYC)' },
   // Cupons
   { key: 'coupon:create_global',        label: 'Criar cupons globais',        category: 'Cupons' },
+  // Avaliações
+  { key: 'reviews:moderate',            label: 'Apagar resposta de loja em avaliação', category: 'Avaliações' },
   // Conversas
   { key: 'conversations:view_all',      label: 'Ver todas as conversas',      category: 'Conversas' },
   // Endereço

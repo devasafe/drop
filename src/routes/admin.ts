@@ -3,6 +3,8 @@ import walletService from '../services/wallet.prisma.service';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
+import { catchAsync } from '../middleware/errorHandler';
+import { deleteStoreRatingReply } from '../controllers/storeRatingReplyController';
 import { prisma } from '../lib/prisma';
 import userRepository from '../repositories/user.repository';
 import { emitForceLogout } from '../utils/socketEmitter';
@@ -971,5 +973,8 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
     return res.status(500).json({ error: 'Erro ao salvar os freios' });
   }
 });
+
+// Moderação: apaga a resposta da loja a uma avaliação (a tela do admin entra na D3).
+router.delete('/ratings/:orderId/reply', authenticate, authorizePermission('reviews:moderate'), catchAsync(deleteStoreRatingReply));
 
 export default router;

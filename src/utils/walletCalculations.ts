@@ -296,7 +296,8 @@ export const rolePermissions: { [key: string]: string[] } = {
     'verification:view_queue',
     'verification:review_clients',
     'verification:review_stores',
-    'verification:review_motoboys'
+    'verification:review_motoboys',
+    'reviews:moderate'
   ],
 
   gerente_clientes: [
@@ -316,7 +317,8 @@ export const rolePermissions: { [key: string]: string[] } = {
     'wallet:view_stores',
     'dashboard:view_store_metrics',
     'verification:view_queue',
-    'verification:review_stores'
+    'verification:review_stores',
+    'reviews:moderate'
   ],
 
   gerente_motoboys: [
