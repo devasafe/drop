@@ -1,4 +1,4 @@
-import { Response, Request } from 'express';
+import { Response, Request, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
@@ -22,6 +22,7 @@ import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 import { isStoreOpenWithHoursNow } from '../utils/storeOpen';
+import { AppError } from '../utils/AppError';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -397,6 +398,10 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (latitude) data.latitude = String(latitude);
     if (longitude) data.longitude = String(longitude);
     Object.assign(data, deliverySettings);
+    // D1: identidade (logo, frase, capa) em todos os planos — já validada na borda (updateStoreIdentitySchema).
+    if (req.body.logoUrl !== undefined) data.logoUrl = req.body.logoUrl;
+    if (req.body.tagline !== undefined) data.tagline = req.body.tagline;
+    if (req.body.coverBannerUrl !== undefined) data.coverBannerUrl = req.body.coverBannerUrl;
 
     // Construir endereço completo para o campo address (com os valores já atualizados)
     const merged = { ...store, ...data };
@@ -439,7 +444,7 @@ export const listStores = async (_req: Request, res: Response) => {
   }
 };
 
-// Upload de banner da loja (apenas Plano 3)
+// Upload de capa (cover, todos os planos — D1) ou banner de destaque da Home (featured, regra do Premium)
 export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const ownerId = req.user?.id;
@@ -447,15 +452,18 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 
     const store = await prisma.store.findFirst({ where: { ownerId } });
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-    const sub = await findSubByStoreId(store.id);
-    const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
-    const storePlan = sub ? (planMap[sub.currentPlan] ?? 1) : (store.plan ?? 1);
-    if (storePlan !== 3) return res.status(403).json({ error: 'Recurso exclusivo do Plano 3 (Premium)' });
+    const type = (req.query.type as string) === 'cover' ? 'cover' : 'featured';
+    // A capa da página da loja vale para todos os planos (D1). Só o banner de destaque segue a regra do Premium.
+    if (type === 'featured') {
+      const sub = await findSubByStoreId(store.id);
+      const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
+      const storePlan = sub ? (planMap[sub.currentPlan] ?? 1) : (store.plan ?? 1);
+      if (storePlan !== 3) return res.status(403).json({ error: 'Recurso exclusivo do Plano 3 (Premium)' });
+    }
 
     const file = (req as any).file;
     if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
-    const type = (req.query.type as string) === 'cover' ? 'cover' : 'featured';
     const url = await uploadToCloudinary(file.buffer, 'drop/banners');
 
     await prisma.store.update({
@@ -466,6 +474,29 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
   } catch (err) {
     console.error('[uploadStoreBanner] error:', err);
     return res.status(500).json({ error: 'Erro ao salvar banner' });
+  }
+};
+
+/**
+ * POST /stores/:id/logo — logo da loja (D1, todos os planos). Multipart, campo `logo`, imagem até 5 MB
+ * (middleware/upload). Grava `logoUrl` e devolve `{ logoUrl }`.
+ */
+export const uploadStoreLogo = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const store = await prisma.store.findUnique({ where: { id: String(req.params.id) }, select: { id: true, ownerId: true } });
+    if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
+    if (String(store.ownerId) !== String(req.user?.id ?? '')) {
+      throw new AppError('Sem permissão para esta loja', 403, true, 'NOT_STORE_OWNER');
+    }
+    const file = (req as any).file;
+    if (!file) throw new AppError('Envie uma imagem para o logo', 400, true, 'NO_FILE');
+
+    const logoUrl = await uploadToCloudinary(file.buffer, 'drop/logos');
+    await prisma.store.update({ where: { id: store.id }, data: { logoUrl } });
+    logger.info('Logo da loja atualizado', { storeId: store.id });
+    return res.json({ success: true, data: { logoUrl } });
+  } catch (err) {
+    return next(err);
   }
 };
 
