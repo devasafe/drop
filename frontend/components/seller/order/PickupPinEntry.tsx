@@ -46,10 +46,12 @@ export function PickupPinEntry({ deliveryId, onValidated }: { deliveryId: string
         const e = apiError(err);
         if (e.status === 429) {
           setStatus('locked');
+          // O 429 não consome tentativa (o servidor checa a trava antes de comparar): libera reenviar o mesmo PIN.
+          lastSent.current = null;
           setMessage(e.message || 'Muitas tentativas de PIN. Espere alguns minutos.');
         } else if (e.status === 400 && /pin/i.test(e.message || '')) {
           setStatus('wrong');
-          setMessage('PIN não confere. Peça de novo ao motoboy.');
+          setMessage(e.message || 'PIN não confere.');
         } else {
           setStatus('error');
           setMessage(e.message || 'Não deu para validar agora. Confira a conexão.');
@@ -92,6 +94,7 @@ export function PickupPinEntry({ deliveryId, onValidated }: { deliveryId: string
         <p role="status" className={styles.ok}><CheckCircle2 size={16} aria-hidden="true" /> Retirada confirmada</p>
       )}
       {showError && <p id={msgId} role="alert" className={styles.error}>{message}</p>}
+      {status === 'wrong' && <p className={styles.note}>Peça de novo ao motoboy.</p>}
       {status === 'error' && <Button variant="tertiary" size="sm" onClick={retry}>Tentar de novo</Button>}
     </div>
   );

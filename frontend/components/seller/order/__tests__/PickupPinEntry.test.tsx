@@ -40,7 +40,8 @@ test('PIN errado: avisa, não reenvia o mesmo PIN e envia de novo quando o PIN m
   post.mockRejectedValueOnce({ response: { status: 400, data: { error: 'PIN de retirada inválido' } } });
   render(<PickupPinEntry deliveryId="d1" onValidated={jest.fn()} />);
   type('48213');
-  expect(await screen.findByText('PIN não confere. Peça de novo ao motoboy.')).toBeInTheDocument();
+  expect(await screen.findByText('PIN de retirada inválido')).toBeInTheDocument();
+  expect(screen.getByText('Peça de novo ao motoboy.')).toBeInTheDocument();
   type('4821');
   type('48213');
   await new Promise((r) => setTimeout(r, 0));
@@ -56,6 +57,18 @@ test('bloqueio por tentativas (429) mostra a mensagem do servidor', async () => 
   render(<PickupPinEntry deliveryId="d1" onValidated={jest.fn()} />);
   type('48213');
   expect(await screen.findByText('Muitas tentativas de PIN. Tente novamente em 9 min.')).toBeInTheDocument();
+});
+
+test('429 não consome tentativa: o mesmo PIN completo é reenviado depois', async () => {
+  post.mockRejectedValueOnce({ response: { status: 429, data: { error: 'Muitas tentativas de PIN. Tente novamente em 9 min.', code: 'PIN_LOCKED' } } });
+  render(<PickupPinEntry deliveryId="d1" onValidated={jest.fn()} />);
+  type('48213');
+  expect(await screen.findByText(/Muitas tentativas de PIN/)).toBeInTheDocument();
+  post.mockResolvedValueOnce({ data: {} });
+  type('4821');
+  type('48213');
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+  expect(post).toHaveBeenLastCalledWith('/deliveries/d1/validar-pin-retirada', { pinRetirada: '48213' });
 });
 
 test('aceita só dígitos', () => {
