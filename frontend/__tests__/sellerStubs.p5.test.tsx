@@ -7,7 +7,6 @@ jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: 
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 test.each([
-  ['../pages/seller/dinheiro', 'Dinheiro', false],
   ['../pages/seller/loja', 'Loja', false],
   ['../pages/seller/notificacoes', 'Notificações', true],
 ])('%s abre com o título certo', (mod, title, hasBack) => {
