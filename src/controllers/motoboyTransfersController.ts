@@ -143,6 +143,48 @@ export async function retryTransfer(req: any, res: Response) {
   return res.json({ success: true, data: serialize(fresh!) });
 }
 
+/** "Tentar agora" da loja: no máximo uma tentativa a cada 5 min por transferência. */
+export const STORE_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+
+function storeNotRetryable(status: string): AppError {
+  if (status === 'uncertain') return new AppError('O DROP está conferindo esta transferência no Asaas', 409, true, 'TRANSFER_UNCERTAIN');
+  if (status === 'done') return new AppError('Esta transferência já foi concluída', 409, true, 'TRANSFER_ALREADY_DONE');
+  if (status === 'failed_final') return new AppError('O DROP está cuidando desta transferência', 409, true, 'TRANSFER_WITH_ADMIN');
+  return new AppError('Esta transferência já está em andamento', 409, true, 'TRANSFER_IN_PROGRESS');
+}
+
+/**
+ * POST /api/stores/:storeId/transfers/:transferId/retry — a loja antecipa a próxima tentativa
+ * de um Pix `failed` (mesmo padrão condicional do retry do admin). Diferenças deliberadas:
+ *  - só `failed` (failed_final é "com o admin"; uncertain nunca é reenviada);
+ *  - não zera `attempts`: a escada até failed_final continua valendo;
+ *  - trava de 5 min atômica no `where` (updatedAt): qualquer escrita na linha, inclusive a
+ *    tentativa do job, conta como a última tentativa.
+ * Só reagenda; quem envia é o job (e só com directTransfersEnabled).
+ */
+export async function retryStoreTransfer(req: any, res: Response) {
+  const storeId = String(req.params.storeId);
+  const transferId = String(req.params.transferId);
+  if (!(await isStoreOwner(storeId, req.user?.id))) throw new AppError('Sem permissão para esta loja', 403, true, 'FORBIDDEN');
+  const t = await prisma.motoboyTransfer.findFirst({ where: { id: transferId, storeId } });
+  if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
+  if (t.status !== 'failed') throw storeNotRetryable(t.status);
+
+  const now = new Date();
+  const { count } = await prisma.motoboyTransfer.updateMany({
+    where: { id: t.id, storeId, status: 'failed', updatedAt: { lt: new Date(now.getTime() - STORE_RETRY_COOLDOWN_MS) } },
+    data: { nextAttemptAt: now },
+  });
+  if (count !== 1) {
+    const current = await prisma.motoboyTransfer.findUnique({ where: { id: t.id }, select: { status: true } });
+    if (current && current.status !== 'failed') throw storeNotRetryable(current.status);
+    throw new AppError('Aguarde 5 minutos entre uma tentativa e outra', 429, true, 'RETRY_TOO_SOON');
+  }
+  logger.info('[motoboyTransfer][AUDIT]', { transferId: t.id, storeId, ownerId: req.user?.id, action: 'store_retry' });
+  const fresh = await prisma.motoboyTransfer.findUnique({ where: { id: t.id } });
+  return res.json({ success: true, data: { transfer: serializeForStore(fresh!) } });
+}
+
 /** POST /api/admin/transfers/:id/resolve — o admin conferiu no Asaas e marca como concluída. */
 export async function resolveTransfer(req: any, res: Response) {
   const id = String(req.params.id);
