@@ -20,7 +20,7 @@ import { encryptSensitiveData } from '../utils/encryption';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
-import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT } from '../legal/storeAsaasTerms';
+import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT, STORE_ASAAS_TERMS_CHANGES } from '../legal/storeAsaasTerms';
 import { isStorePaymentsReady } from '../services/asaasLoja/charge';
 import { getStoreConsent } from '../services/asaasLoja/account';
 
@@ -169,6 +169,6 @@ describe('t2.0 — termo de autorização da conta Asaas da loja', () => {
   it('GET /api/settings/store-asaas-terms é público', async () => {
     const r = await request(app).get('/api/settings/store-asaas-terms');
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ version: STORE_ASAAS_TERMS_VERSION, text: STORE_ASAAS_TERMS_TEXT });
+    expect(r.body).toEqual({ version: STORE_ASAAS_TERMS_VERSION, text: STORE_ASAAS_TERMS_TEXT, changes: STORE_ASAAS_TERMS_CHANGES[STORE_ASAAS_TERMS_VERSION] });
   });
 });

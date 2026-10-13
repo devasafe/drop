@@ -13,3 +13,17 @@ export const STORE_ASAAS_TERMS_TEXT = [
   'O Pix é processado pelo Asaas Gestão Financeira Instituição de Pagamento S.A., instituição responsável pela minha conta.',
   'Posso revogar esta autorização a qualquer momento desconectando a conta ou revogando a chave no Asaas; pedidos em andamento continuam sendo finalizados.',
 ].join('\n');
+
+/**
+ * "O que mudou" em cada versão, em português simples, para a tela de aceite (D1).
+ * Ao subir STORE_ASAAS_TERMS_VERSION, acrescente aqui a entrada da versão nova
+ * (o teste d1.p4.12 falha se a versão vigente não tiver resumo).
+ */
+export const STORE_ASAAS_TERMS_CHANGES: Record<string, string[]> = {
+  '2026-10-08': [
+    'Primeira versão do termo.',
+    'A DROP cobra os pedidos por Pix direto na sua conta Asaas.',
+    'Quando um pedido pago é cancelado, o estorno ao cliente sai da sua conta.',
+    'A taxa de entrega do motoboy é paga por Pix da sua conta.',
+  ],
+};

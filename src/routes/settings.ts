@@ -19,7 +19,7 @@ import { getSaasConfig } from '../utils/settlement';
 import { hasCustodyLeftover } from '../services/custodyLeftover';
 import logger from '../config/logger';
 import env from '../config/env';
-import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT } from '../legal/storeAsaasTerms';
+import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT, STORE_ASAAS_TERMS_CHANGES } from '../legal/storeAsaasTerms';
 
 const router = Router();
 
@@ -48,7 +48,11 @@ router.get('/custody-leftover', authenticate, async (req: any, res) => {
 });
 
 // Public - termo de autorização da conta Asaas da loja (texto e versão vigentes)
-router.get('/store-asaas-terms', (_req, res) => res.json({ version: STORE_ASAAS_TERMS_VERSION, text: STORE_ASAAS_TERMS_TEXT }));
+router.get('/store-asaas-terms', (_req, res) => res.json({
+  version: STORE_ASAAS_TERMS_VERSION,
+  text: STORE_ASAAS_TERMS_TEXT,
+  changes: STORE_ASAAS_TERMS_CHANGES[STORE_ASAAS_TERMS_VERSION] ?? [],
+}));
 
 // Public - Get current config
 router.get('/platform-config', getPlatformConfig);
