@@ -369,10 +369,14 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     // Compara com o valor atual (não basta vir no body) — assim salvar só o nome
     // não derruba a verificação de endereço da loja.
     const norm = (v: any) => (v === undefined || v === null) ? undefined : String(v).trim();
+    // CEP: compara e grava só os dígitos ("01310-100" e "01310100" são o mesmo CEP;
+    // lojas antigas podem ter o CEP salvo com máscara).
+    const zipDigits = (v: any) => (v === undefined || v === null) ? undefined : String(v).replace(/\D/g, '');
     const addressChanged = ([
       ['street', street], ['number', number], ['neighborhood', neighborhood],
-      ['city', city], ['state', state], ['zip', zip],
-    ] as [string, any][]).some(([k, v]) => v !== undefined && norm(v) !== norm((store as any)[k]));
+      ['city', city], ['state', state],
+    ] as [string, any][]).some(([k, v]) => v !== undefined && norm(v) !== norm((store as any)[k]))
+      || (zip !== undefined && zipDigits(zip) !== zipDigits((store as any).zip));
     const { onlyDigits } = require('../utils/documentValidation');
     const cnpjChanged = cnpj !== undefined && onlyDigits(String(cnpj)) !== onlyDigits(String(store.cnpj || ''));
     // `verification` é JSONB: montamos o objeto inteiro e gravamos de uma vez.
@@ -401,7 +405,7 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (neighborhood) data.neighborhood = neighborhood;
     if (city) data.city = city;
     if (state) data.state = state;
-    if (zip) data.zip = zip;
+    if (zip && zipDigits(zip)) data.zip = zipDigits(zip);
     if (latitude) data.latitude = String(latitude);
     if (longitude) data.longitude = String(longitude);
     Object.assign(data, deliverySettings);
