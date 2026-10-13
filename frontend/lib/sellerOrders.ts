@@ -76,9 +76,11 @@ export const REJECT_REASONS = [
 ] as const;
 export type RejectReasonCode = (typeof REJECT_REASONS)[number]['code'];
 
-export type PedidosSeg = 'andamento' | 'historico' | 'devolucoes';
+export type PedidosSeg = 'novos' | 'andamento' | 'concluidos' | 'devolucoes';
+/** Links antigos (?seg=historico) abrem Concluídos. */
 export function parseSeg(v: unknown): PedidosSeg {
-  return v === 'historico' || v === 'devolucoes' ? v : 'andamento';
+  if (v === 'historico') return 'concluidos';
+  return v === 'novos' || v === 'concluidos' || v === 'devolucoes' ? v : 'andamento';
 }
 
 /** Até 3 unidades é estoque baixo; 0 é esgotado. */

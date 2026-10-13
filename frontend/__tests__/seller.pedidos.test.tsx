@@ -13,7 +13,7 @@ jest.mock('../contexts/AuthContext', () => ({
 }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/seller/panel/SellerShell', () => {
-  const Shell = ({ title, children }: any) => <div><h1>{title}</h1>{children}</div>;
+  const Shell = ({ title, actions, children }: any) => <div><h1>{title}</h1>{actions}{children}</div>;
   return { __esModule: true, default: Shell, SellerShell: Shell };
 });
 let mockPanel: any;
@@ -32,24 +32,64 @@ beforeEach(() => {
   mockPanel = { store: { _id: 's1' }, orders: [o('ord000004819'), o('ord000004823', { status: 'criado', customerName: 'Bruno Reis', delivery: null })], returnRequests: [], dismissReturn: jest.fn(), refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 1 };
 });
 
-test('Em andamento é o padrão, com os novos primeiro e o contador', () => {
+test('abre em Novos quando há pedido aguardando aceite, com os 4 segmentos e contadores', () => {
+  mockPanel.orders[1].acceptDeadline = new Date(Date.now() + 4 * 60000).toISOString();
+  render(<SellerPedidosPage />);
+  const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+  expect(tabs).toEqual(['Novos1', 'Em andamento1', 'Concluídos', 'Devoluções0']);
+  expect(screen.getByRole('tab', { name: /^Novos/ })).toHaveAttribute('aria-selected', 'true');
+  const rows = screen.getAllByRole('listitem');
+  expect(rows).toHaveLength(1);
+  expect(within(rows[0]).getByRole('link', { name: /#004823/ })).toHaveAttribute('href', SELLER_ROUTES.pedido('ord000004823'));
+  expect(within(rows[0]).getByText('Novo')).toBeInTheDocument();
+  expect(within(rows[0]).getByRole('timer')).toHaveTextContent(/^cancela em [34]:\d\d$/);
+  expect(within(rows[0]).getByText('R$ 109,70')).toBeInTheDocument();
+});
+
+test('sem pedido novo, abre em Em andamento', () => {
+  mockPanel.orders = [o('ord000004819')];
   render(<SellerPedidosPage />);
   expect(screen.getByRole('tab', { name: /^Em andamento/ })).toHaveAttribute('aria-selected', 'true');
-  const rows = screen.getAllByRole('row').slice(1);
-  expect(within(rows[0]).getByText('#004823')).toBeInTheDocument();
-  expect(within(rows[0]).getByText('Novo')).toBeInTheDocument();
-  expect(within(rows[1]).getByText('Separando')).toBeInTheDocument();
-  expect(within(rows[1]).getByRole('link', { name: '#004819' })).toHaveAttribute('href', SELLER_ROUTES.pedido('ord000004819'));
+  const rows = screen.getAllByRole('listitem');
+  expect(within(rows[0]).getByText('Separando')).toBeInTheDocument();
+  expect(within(rows[0]).getByRole('link', { name: /#004819/ })).toHaveAttribute('href', SELLER_ROUTES.pedido('ord000004819'));
+});
+
+test('Em andamento não repete os novos', () => {
+  mockQuery = { seg: 'andamento' };
+  render(<SellerPedidosPage />);
+  expect(screen.getByText('Ana Souza')).toBeInTheDocument();
+  expect(screen.queryByText('Bruno Reis')).not.toBeInTheDocument();
 });
 
 test('trocar de segmento atualiza a URL sem recarregar', () => {
   render(<SellerPedidosPage />);
-  fireEvent.click(screen.getByRole('tab', { name: /^Histórico/ }));
-  expect(mockReplace).toHaveBeenCalledWith(SELLER_ROUTES.pedidos('historico'), undefined, { shallow: true });
+  fireEvent.click(screen.getByRole('tab', { name: /^Concluídos/ }));
+  expect(mockReplace).toHaveBeenCalledWith(SELLER_ROUTES.pedidos('concluidos'), undefined, { shallow: true });
 });
 
-test('Histórico busca o dashboard e mostra entregues e cancelados', async () => {
+test('link antigo ?seg=historico abre Concluídos', async () => {
   mockQuery = { seg: 'historico' };
+  get.mockResolvedValue({ data: { history: [] } });
+  render(<SellerPedidosPage />);
+  expect(screen.getByRole('tab', { name: /^Concluídos/ })).toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByText('Nenhum pedido concluído')).toBeInTheDocument();
+});
+
+test('Concluídos separa por período', async () => {
+  mockQuery = { seg: 'concluidos' };
+  const now = Date.now();
+  get.mockResolvedValue({ data: { history: [
+    o('ord000004812', { status: 'entregue', createdAt: new Date(now - 60000).toISOString(), delivery: { deliveredAt: new Date(now - 60000).toISOString() } }),
+    o('ord000004800', { status: 'cancelado', customerName: 'Pedro Alves', createdAt: new Date(now - 30 * 3600000).toISOString(), cancelledAt: new Date(now - 30 * 3600000).toISOString() }),
+  ] } });
+  render(<SellerPedidosPage />);
+  expect(await screen.findByText('Hoje')).toBeInTheDocument();
+  expect(screen.getByText('Ontem')).toBeInTheDocument();
+});
+
+test('Concluídos busca o dashboard e mostra entregues e cancelados', async () => {
+  mockQuery = { seg: 'concluidos' };
   get.mockResolvedValue({ data: { history: [o('ord000004812', { status: 'entregue', customerName: 'Júlia Martins' }), o('ord000004809', { status: 'cancelado', customerName: 'Pedro Alves' })] } });
   render(<SellerPedidosPage />);
   expect(await screen.findByText('Júlia Martins')).toBeInTheDocument();
@@ -58,14 +98,14 @@ test('Histórico busca o dashboard e mostra entregues e cancelados', async () =>
   expect(screen.getByText('Cancelado')).toBeInTheDocument();
 });
 
-test('Histórico com erro oferece tentar de novo', async () => {
-  mockQuery = { seg: 'historico' };
+test('Concluídos com erro oferece tentar de novo', async () => {
+  mockQuery = { seg: 'concluidos' };
   get.mockRejectedValueOnce(new Error('x'));
   render(<SellerPedidosPage />);
-  expect(await screen.findByText('Não carregamos o histórico')).toBeInTheDocument();
+  expect(await screen.findByText('Não carregamos os concluídos')).toBeInTheDocument();
   get.mockResolvedValue({ data: { history: [] } });
   fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
-  expect(await screen.findByText('Nenhum pedido no histórico')).toBeInTheDocument();
+  expect(await screen.findByText('Nenhum pedido concluído')).toBeInTheDocument();
 });
 
 test('Devoluções: contador e confirmação com o PIN de devolução', async () => {
@@ -98,8 +138,12 @@ test('devolução que chegou pelo socket (returnRequests) também entra no conta
   expect(screen.getByRole('tab', { name: /^Devoluções/ })).toHaveTextContent('1');
 });
 
-test('busca por cliente ou número', () => {
+test('busca é um ícone no topo que abre o campo; filtra por cliente ou número', () => {
+  mockQuery = { seg: 'andamento' };
+  mockPanel.orders = [o('ord000004819'), o('ord000004817', { customerName: 'Bruno Reis' })];
   render(<SellerPedidosPage />);
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar pedidos' }));
   fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar pedidos' }), { target: { value: 'bruno' } });
   expect(screen.getByText('Bruno Reis')).toBeInTheDocument();
   expect(screen.queryByText('Ana Souza')).not.toBeInTheDocument();

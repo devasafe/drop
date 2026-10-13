@@ -52,8 +52,10 @@ describe('listas', () => {
     expect(REJECT_REASONS.find((r) => r.code === 'not_available')!.description).toBe('Item fora de estoque');
     expect(REJECT_REASONS.find((r) => r.code === 'payment_issue')!.description).toBe('Problema com o pagamento');
   });
-  it('parseSeg cai em andamento por padrão', () => {
-    expect(parseSeg('historico')).toBe('historico');
+  it('parseSeg: historico vira concluidos; padrão é andamento', () => {
+    expect(parseSeg('historico')).toBe('concluidos');
+    expect(parseSeg('concluidos')).toBe('concluidos');
+    expect(parseSeg('novos')).toBe('novos');
     expect(parseSeg('devolucoes')).toBe('devolucoes');
     expect(parseSeg('xyz')).toBe('andamento');
     expect(parseSeg(undefined)).toBe('andamento');

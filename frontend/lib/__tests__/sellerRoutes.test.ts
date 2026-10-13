@@ -5,7 +5,7 @@ describe('rotas da loja (D1)', () => {
   it('as 5 abas', () => {
     expect(SELLER_ROUTES.agora).toBe('/seller/dashboard');
     expect(SELLER_ROUTES.pedidos()).toBe('/seller/pedidos');
-    expect(SELLER_ROUTES.pedidos('historico')).toBe('/seller/pedidos?seg=historico');
+    expect(SELLER_ROUTES.pedidos('concluidos')).toBe('/seller/pedidos?seg=concluidos');
     expect(SELLER_ROUTES.produtos).toBe('/seller/products');
     expect(SELLER_ROUTES.dinheiro).toBe('/seller/dinheiro');
     expect(SELLER_ROUTES.loja).toBe('/seller/loja');

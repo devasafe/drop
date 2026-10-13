@@ -2,7 +2,7 @@
  * Rotas do painel da loja (DS v2, fase D1) — fonte única. Telas e componentes da loja
  * navegam por aqui, nunca por literal.
  */
-export type PedidosSeg = 'andamento' | 'historico' | 'devolucoes';
+export type PedidosSeg = 'novos' | 'andamento' | 'concluidos' | 'devolucoes';
 
 const enc = encodeURIComponent;
 
