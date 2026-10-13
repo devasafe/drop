@@ -1,5 +1,5 @@
 // frontend/__tests__/seller-plano.test.tsx
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ToastProvider } from '../components/ui/Toast';
 import SellerPlano, { received, prevMonthRange } from '../pages/seller/plano';
 import api from '../lib/api';
@@ -7,6 +7,8 @@ import api from '../lib/api';
 const mockRefresh = jest.fn();
 let mockPanel: any;
 let mockSub: any;
+let mockSaas: any;
+jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => mockSaas }));
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/seller/plano' }) }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/ModeGate', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
@@ -19,6 +21,7 @@ jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), po
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSaas = { settlementMode: 'custodia', loading: false, error: false, retry: jest.fn() };
   mockPanel = { store: { _id: 's1', plan: 2, customCommissionRate: null, featuredBannerUrl: null }, orders: [], refresh: mockRefresh, newOrderCount: 0 };
   mockSub = { currentPlan: 'plan2', requestedPlan: null, planChangeStatus: 'none' };
   (api.get as jest.Mock).mockImplementation((url: string) => {
@@ -41,6 +44,36 @@ test('plano atual com a comissão do admin e simulação com as vendas do mês a
   expect(screen.getAllByText(/R\$ 850,00/).length).toBeGreaterThan(0);
   expect(api.get).toHaveBeenCalledWith('/analytics/store/overview', { params: { from: expect.any(String), to: expect.any(String) } });
   expect(document.body.textContent).not.toMatch(/mensalidade|renova/i);
+});
+
+test('valores calculados aparecem como estimativa, nunca como recebido', async () => {
+  renderPage();
+  expect(await screen.findByText(/você receberia cerca de R\$ 850,00 \(estimativa\)/)).toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/você recebeu|teria recebido/i);
+});
+
+test('falha no overview mostra erro com tentar de novo, não "sem vendas"', async () => {
+  const base = (api.get as jest.Mock).getMockImplementation()!;
+  (api.get as jest.Mock).mockImplementation((url: string) => (url === '/analytics/store/overview' ? Promise.reject(new Error('x')) : base(url)));
+  renderPage();
+  expect(await screen.findByText('Não carregamos as suas vendas')).toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/sem vendas no mês/);
+  (api.get as jest.Mock).mockImplementation(base);
+  fireEvent.click(screen.getByText('Tentar de novo'));
+  await waitFor(() => expect(screen.queryByText('Não carregamos as suas vendas')).not.toBeInTheDocument());
+});
+
+test('erro ao ler o modo não mostra plano nem comissão; carregando mostra skeleton', async () => {
+  mockSaas = { settlementMode: 'custodia', loading: false, error: true, retry: jest.fn() };
+  const { unmount } = renderPage();
+  expect(await screen.findByText('Não carregamos o seu plano')).toBeInTheDocument();
+  expect(screen.queryByText('15%')).not.toBeInTheDocument();
+  unmount();
+  mockSaas = { settlementMode: 'custodia', loading: true, error: false };
+  renderPage();
+  await act(async () => {});
+  expect(screen.queryByText('Sua comissão')).not.toBeInTheDocument();
+  expect(screen.queryByText('Não carregamos o seu plano')).not.toBeInTheDocument();
 });
 
 test('comissão personalizada aparece como condição especial', async () => {

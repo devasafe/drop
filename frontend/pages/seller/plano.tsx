@@ -53,6 +53,8 @@ function PlanoInner() {
   const [config, setConfig] = useState<any>(null);
   const [failed, setFailed] = useState(false);
   const [sales, setSales] = useState<number | null>(null);
+  const [salesFailed, setSalesFailed] = useState(false);
+  const [salesTry, setSalesTry] = useState(0);
   const [confirmPlan, setConfirmPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [bannerBusy, setBannerBusy] = useState(false);
@@ -69,10 +71,11 @@ function PlanoInner() {
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    setSalesFailed(false);
     storeAnalytics.overview('custom', { from: month.from, to: month.to })
       .then((o) => setSales(Number(o?.current?.revenue) || 0))
-      .catch(() => setSales(null));
-  }, [month]);
+      .catch(() => { setSales(null); setSalesFailed(true); });
+  }, [month, salesTry]);
 
   const current: Plan = PLANS.find((p) => p.id === sub?.currentPlan) ?? PLANS[0];
   const commissionOf = (p: Plan) => Number(config?.[`commissionPlan${p.n}`] ?? 0);
@@ -161,7 +164,12 @@ function PlanoInner() {
             <em>produtos, sem o frete</em>
           </div>
         </div>
-        {sales != null && <p className={blocks.sub}>{`Em ${month.label} você recebeu ${formatMoney(received(sales, myCommission))} das suas vendas.`}</p>}
+        {salesFailed && (
+          <Alert tone="error" title="Não carregamos as suas vendas" action={{ label: 'Tentar de novo', onClick: () => setSalesTry((n) => n + 1) }}>
+            Sem elas não dá para estimar quanto você receberia.
+          </Alert>
+        )}
+        {sales != null && <p className={blocks.sub}>{`Pelas suas vendas de ${month.label}, você receberia cerca de ${formatMoney(received(sales, myCommission))} (estimativa).`}</p>}
       </section>
 
       {pending && requested && (
@@ -199,13 +207,13 @@ function PlanoInner() {
 
       <div className={blocks.head}>
         <h2 className={blocks.headTitle}>Comparar</h2>
-        <span className={blocks.meta}>{`quanto você teria recebido em ${month.label}`}</span>
+        <span className={blocks.meta}>{`estimativa do que você receberia em ${month.label}`}</span>
       </div>
       <ul className={blocks.list}>
         {PLANS.map((p) => {
           const isCurrent = p.id === current.id;
           const c = isCurrent ? myCommission : commissionOf(p);
-          const money = sales != null ? formatMoney(received(sales, c)) : 'sem vendas no mês';
+          const money = sales != null ? `cerca de ${formatMoney(received(sales, c))}` : salesFailed ? 'não carregamos as vendas' : 'carregando vendas';
           const isRequested = pending && p.id === sub.requestedPlan;
           return (
             <li key={p.id} className={[blocks.row, isCurrent && blocks.rowCurrent].filter(Boolean).join(' ')}>
