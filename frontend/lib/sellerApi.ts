@@ -74,6 +74,14 @@ export function formatDayMonth(v: string | number | Date | null | undefined): st
   return `${p.day}/${p.month}`;
 }
 
+/** "10/10/2026" no fuso de São Paulo. */
+export function formatFullDate(v: string | number | Date | null | undefined): string | null {
+  const d = toDate(v);
+  if (!d) return null;
+  const p = spParts(d);
+  return `${p.day}/${p.month}/${p.year}`;
+}
+
 /** "10/10 09:05" no fuso de São Paulo. */
 export function formatDateTime(v: string | number | Date | null | undefined): string | null {
   const d = toDate(v);
