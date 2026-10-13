@@ -110,3 +110,24 @@ describe('SellerShell: respiro de baixo só com a barra (V7)', () => {
     expect((b.container.firstElementChild as HTMLElement).className).toContain('noBar');
   });
 });
+
+describe('etapas do cadastro da loja fora de /seller (V13)', () => {
+  it.each(['/verificacao-loja', '/dados-recebimento'])(
+    'lojista em %s: moldura do painel (Nav só no computador, sem aviso, sem chat)',
+    (path) => {
+      renderApp(path, 'lojista');
+      expect(navSoNoDesktop()).toBe(true);
+      expect(screen.queryByTestId('verification-banner')).toBeNull();
+      expect(screen.queryByTestId('chat-fab')).toBeNull();
+      expect(screen.queryByTestId('footer-marketing')).toBeNull();
+    },
+  );
+
+  it('motoboy em /dados-recebimento mantém a Nav dele, o aviso e o chat', () => {
+    renderApp('/dados-recebimento', 'motoboy');
+    const navs = screen.getAllByTestId('nav-global');
+    expect(navs.some((n) => n.closest('.navDesktopOnly') === null)).toBe(true);
+    expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-fab')).toBeInTheDocument();
+  });
+});

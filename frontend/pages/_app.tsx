@@ -69,10 +69,16 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
   // Painel da loja (D1): menu lateral fixo a partir de 900px, como o app do cliente.
   const isSellerPanel = isSellerPanelRoute(router.pathname);
+  // Etapas do cadastro da loja fora de /seller (V13): para o lojista, a mesma moldura do painel.
+  // O motoboy também usa /dados-recebimento (etapa Pix) e mantém a moldura dele.
+  const activeRole = user?.activeRole || user?.role;
+  const isStoreRole = activeRole === 'lojista' || activeRole === 'seller';
+  const isSellerOnboarding = isStoreRole && SELLER_ONBOARDING_ROUTES.includes(router.pathname);
+  const sellerFrame = isSellerPanel || isSellerOnboarding;
 
   // Não mostrar chat em páginas específicas. No painel da loja a conversa é por pedido (OrderChatSheet).
   const isChatPage = router.pathname.includes('/chat');
-  const shouldShowChat = !isChatPage && !isSellerPanel;
+  const shouldShowChat = !isChatPage && !sellerFrame;
 
   // Não mostrar footer em painéis internos
   const isDashboard =
@@ -90,7 +96,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // Telas com header próprio no mobile (loja e produto): a Nav global só aparece no desktop.
   const hideChrome = CUSTOMER_HEADERLESS_ROUTES.includes(router.pathname);
   // Painel da loja (V7): o topo é o da própria tela; a Nav global só aparece no computador.
-  const navDesktopOnly = hideChrome || isSellerPanel;
+  const navDesktopOnly = hideChrome || sellerFrame;
   // Barra de abas: no painel da loja, só nas 5 abas (e Assinatura); as secundárias têm o voltar.
   const showPanelBottomNav = isDashboard && (!isSellerPanel || sellerShowsTabBar(router.pathname));
   // As telas do app do cliente e as etapas do cadastro da loja não têm o rodapé de marketing.
@@ -128,8 +134,8 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {user && isDashboard && <AppSidebar />}
         {user && showPanelBottomNav && <PanelBottomNav />}
         {CUSTOMER_ROUTES.includes(router.pathname) && <OfflineBanner />}
-        {/* No painel da loja o aviso vira o estado de cadastro do Agora (T5). */}
-        {!isSellerPanel && <VerificationBanner />}
+        {/* No painel da loja (e nas etapas do cadastro dela) o aviso vira o estado de cadastro do Agora (T5). */}
+        {!sellerFrame && <VerificationBanner />}
         {shouldShowFooter && <SeasonalBanner />}
         <main
           className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}`}
