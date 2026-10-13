@@ -105,8 +105,7 @@ export default function SellerAbrir() {
       <ProtectedRoute required_role="lojista">
         <SellerShell title="Sua identidade" back="/seller/abrir">
           <div className={blocks.body}>
-            <p className={blocks.sub}>Confirmamos o e-mail e o documento do dono uma vez só.</p>
-            <IdentityCheck emailResult={email} onDone={() => router.push('/seller/abrir')} />
+            <IdentityCheck audience="loja" emailResult={email} onDone={() => router.push('/seller/abrir')} />
           </div>
         </SellerShell>
       </ProtectedRoute>
@@ -136,7 +135,7 @@ export default function SellerAbrir() {
     if (s.key === 'loja') {
       body = <DadosLojaStep store={data.store} cnpjRequired={!direto} onDone={stepDone} />;
     } else if (s.key === 'identidade') {
-      body = <IdentityCheck onDone={stepDone} />;
+      body = <IdentityCheck audience="loja" onDone={stepDone} />;
     } else if (!storeId) {
       body = (
         <Alert tone="info" title="Crie a loja primeiro" action={{ label: 'Criar a loja', onClick: () => router.push('/seller/abrir?etapa=loja') }}>

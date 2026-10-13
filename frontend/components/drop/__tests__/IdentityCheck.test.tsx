@@ -57,3 +57,21 @@ test('em análise: sem formulário; recusado: motivo e "Enviar de novo"', async 
   expect(await screen.findByText('Foto ilegível')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enviar de novo' })).toBeInTheDocument();
 });
+
+describe('texto por público', () => {
+  test('cliente (padrão): fala da compra e da sacola', async () => {
+    backend({ email: { status: 'verified' }, document: { status: 'pending' } });
+    render(<IdentityCheck />);
+    expect(await screen.findByText(/antes da primeira compra/)).toBeInTheDocument();
+    expect(screen.getByText(/montar a sacola/)).toBeInTheDocument();
+  });
+
+  test('loja: fala do dono e do cadastro da loja, sem compra nem sacola', async () => {
+    backend({ email: { status: 'verified' }, document: { status: 'pending' } });
+    render(<IdentityCheck audience="loja" />);
+    expect(await screen.findByText(/documento do dono/)).toBeInTheDocument();
+    expect(screen.getByText(/seguir o cadastro da loja/)).toBeInTheDocument();
+    expect(screen.queryByText(/primeira compra/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sacola/)).not.toBeInTheDocument();
+  });
+});

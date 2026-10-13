@@ -13,8 +13,21 @@ import styles from './IdentityCheck.module.css';
 type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Ver { email?: { status?: string }; document?: { status?: DocStatus; rejectionReason?: string } }
 
-/** Verificação do cliente (e-mail + documento) numa tela só (protótipo "Verificar identidade"). */
-export function IdentityCheck({ onDone, emailResult }: { onDone?: () => void; emailResult?: 'ok' | 'erro' | null }) {
+/** Textos por público: o cliente verifica antes de comprar; a loja verifica o dono no cadastro. */
+const COPY = {
+  cliente: {
+    lead: 'Pedimos uma vez, antes da primeira compra. Protege você contra uso indevido do seu cartão e do seu Pix.',
+    wait: 'Leva até 1 dia útil. Você pode navegar e montar a sacola enquanto isso.',
+  },
+  loja: {
+    lead: 'Confirmamos o e-mail e o documento do dono uma vez só. É o que garante que a loja é sua.',
+    wait: 'Leva até 1 dia útil. Você pode seguir o cadastro da loja enquanto isso.',
+  },
+} as const;
+
+/** Verificação de identidade (e-mail + documento) numa tela só (protótipo "Verificar identidade"). */
+export function IdentityCheck({ onDone, emailResult, audience = 'cliente' }: { onDone?: () => void; emailResult?: 'ok' | 'erro' | null; audience?: 'cliente' | 'loja' }) {
+  const copy = COPY[audience];
   const [ver, setVer] = useState<Ver | null>(null);
   const [failed, setFailed] = useState(false);
   const [cpf, setCpf] = useState('');
@@ -64,7 +77,7 @@ export function IdentityCheck({ onDone, emailResult }: { onDone?: () => void; em
     <div className={styles.wrap}>
       {emailResult === 'ok' && <Alert tone="success" title="E-mail confirmado" />}
       {emailResult === 'erro' && <Alert tone="warning" title="Link inválido ou expirado" >Peça um código novo.</Alert>}
-      <p className={styles.lead}>Pedimos uma vez, antes da primeira compra. Protege você contra uso indevido do seu cartão e do seu Pix.</p>
+      <p className={styles.lead}>{copy.lead}</p>
       <ul className={styles.list}>
         <li className={styles.row}>
           <span className={emailOk ? styles.icoOk : styles.icoBrand} aria-hidden="true">{emailOk ? <Check size={18} /> : <Mail size={18} />}</span>
@@ -92,7 +105,7 @@ export function IdentityCheck({ onDone, emailResult }: { onDone?: () => void; em
         </div>
       )}
 
-      {doc === 'pending' && <Alert tone="info" title="Documento em análise">Leva até 1 dia útil. Você pode navegar e montar a sacola enquanto isso.</Alert>}
+      {doc === 'pending' && <Alert tone="info" title="Documento em análise">{copy.wait}</Alert>}
       {doc === 'approved' && emailOk && <Alert tone="success" title="Tudo certo">Sua conta está verificada.</Alert>}
       {doc === 'rejected' && !retry && (
         <Alert tone="error" title="Documento recusado" action={{ label: 'Enviar de novo', onClick: () => setRetry(true) }}>
@@ -118,7 +131,7 @@ export function IdentityCheck({ onDone, emailResult }: { onDone?: () => void; em
           </div>
           {error && <Alert tone="error" title={error} />}
           <Button onClick={submitDoc} loading={busy} disabled={cpfState !== 'ok' || !front || !back}>Enviar para análise</Button>
-          <p className={styles.note}>Leva até 1 dia útil. Você pode navegar e montar a sacola enquanto isso.</p>
+          <p className={styles.note}>{copy.wait}</p>
         </div>
       )}
       {!showForm && error && <Alert tone="error" title={error} />}

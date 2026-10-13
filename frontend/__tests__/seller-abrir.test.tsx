@@ -14,7 +14,8 @@ jest.mock('../components/seller/panel/SellerShell', () => {
 });
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: mockMode, directCardEnabled: false, loading: false }) }));
 jest.mock('../components/drop/IdentityCheck', () => ({
-  IdentityCheck: ({ onDone }: any) => <button type="button" onClick={onDone}>Concluir identidade</button>,
+  // Só com o texto da loja (audience="loja") o botão tem o nome que os testes procuram.
+  IdentityCheck: ({ onDone, audience }: any) => <button type="button" onClick={onDone}>{audience === 'loja' ? 'Concluir identidade' : 'texto de cliente'}</button>,
 }));
 // As etapas embutidas têm testes próprios (components/seller/abrir, components/onboarding); aqui só a costura.
 jest.mock('../components/seller/abrir/DadosLojaStep', () => ({
