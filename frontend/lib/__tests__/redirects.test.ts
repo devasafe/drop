@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { resolveRedirect, type RedirectRule } from '../../__tests__/helpers/nextRedirects';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const rules: RedirectRule[] = require('../redirects');
@@ -72,5 +74,49 @@ describe('Task 13 — sacola', () => {
 describe('Task 15 — pedido', () => {
   it('/store-order/:id vira /pedido/:id (com a query)', () => {
     expect(resolveRedirect(rules, '/store-order/abc?from=push')?.location).toBe('/pedido/abc?from=push');
+  });
+});
+
+describe('D1 — painel da loja', () => {
+  const go = (u: string) => resolveRedirect(rules, u)?.location;
+
+  it('/store-dashboard (pushes antigas) vai para a aba Agora', () => {
+    expect(resolveRedirect(rules, '/store-dashboard')).toEqual({ location: '/seller/dashboard', permanent: true });
+  });
+
+  it('a aba Agora não redireciona (sem ?tab= ou com overview)', () => {
+    expect(resolveRedirect(rules, '/seller/dashboard')).toBeNull();
+    expect(resolveRedirect(rules, '/seller/dashboard?tab=overview')).toBeNull();
+  });
+
+  it('abas antigas por ?tab= viram rotas (a query segue junto)', () => {
+    expect(go('/seller/dashboard?tab=orders')).toBe('/seller/pedidos?seg=andamento&tab=orders');
+    expect(go('/seller/dashboard?tab=history')).toBe('/seller/pedidos?seg=historico&tab=history');
+    expect(go('/seller/dashboard?tab=returns')).toBe('/seller/pedidos?seg=devolucoes&tab=returns');
+    expect(go('/seller/dashboard?tab=chat')).toBe('/seller/pedidos?seg=andamento&tab=chat');
+    expect(go('/seller/dashboard?tab=config')).toBe('/seller/loja?tab=config');
+  });
+
+  it('pedido, dinheiro e o plano órfão', () => {
+    expect(go('/seller/order-abc?from=push')).toBe('/seller/pedido/abc?from=push');
+    expect(go('/seller/wallet')).toBe('/seller/dinheiro');
+    expect(go('/seller/transfer-wallet')).toBe('/seller/dinheiro');
+    expect(go('/store/plan-selection')).toBe('/seller/select-plan');
+  });
+
+  it('etapas do onboarding e rotas compartilhadas não redirecionam aqui (decisão por estado fica na página)', () => {
+    for (const u of ['/seller/pagamentos', '/seller/select-plan', '/verificacao', '/verificacao-loja', '/dados-recebimento', '/notifications']) {
+      expect(resolveRedirect(rules, u)).toBeNull();
+    }
+  });
+
+  it('todo destino da loja é uma página que existe (sem 404 entre commits)', () => {
+    const PAGES = path.join(__dirname, '..', '..', 'pages');
+    const d1 = rules.filter((r) => r.source.startsWith('/seller') || r.source.startsWith('/store'));
+    expect(d1.length).toBeGreaterThan(0);
+    const missing = d1
+      .map((r) => r.destination.split('?')[0].replace(/:(\w+)/g, '[$1]'))
+      .filter((p) => !fs.existsSync(path.join(PAGES, `${p}.tsx`)));
+    expect(missing).toEqual([]);
   });
 });

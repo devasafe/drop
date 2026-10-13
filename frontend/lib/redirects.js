@@ -31,4 +31,18 @@ module.exports = [
 
   // Task 15 — Pedido
   { source: '/store-order/:id', destination: '/pedido/:id', permanent: true },
+
+  // D1 — painel da loja em 5 abas. /seller/dashboard SEM ?tab= é a aba Agora e não redireciona.
+  // /seller/pagamentos e /seller/select-plan são etapas do onboarding: o destino depende da loja
+  // e fica na própria página (parte P7), não aqui.
+  { source: '/store-dashboard', destination: '/seller/dashboard', permanent: true },
+  { source: '/seller/dashboard', has: [{ type: 'query', key: 'tab', value: 'orders' }], destination: '/seller/pedidos?seg=andamento', permanent: true },
+  { source: '/seller/dashboard', has: [{ type: 'query', key: 'tab', value: 'history' }], destination: '/seller/pedidos?seg=historico', permanent: true },
+  { source: '/seller/dashboard', has: [{ type: 'query', key: 'tab', value: 'returns' }], destination: '/seller/pedidos?seg=devolucoes', permanent: true },
+  { source: '/seller/dashboard', has: [{ type: 'query', key: 'tab', value: 'chat' }], destination: '/seller/pedidos?seg=andamento', permanent: true },
+  { source: '/seller/dashboard', has: [{ type: 'query', key: 'tab', value: 'config' }], destination: '/seller/loja', permanent: true },
+  { source: '/seller/order-:id', destination: '/seller/pedido/:id', permanent: true },
+  { source: '/seller/wallet', destination: '/seller/dinheiro', permanent: true },
+  { source: '/seller/transfer-wallet', destination: '/seller/dinheiro', permanent: true },
+  { source: '/store/plan-selection', destination: '/seller/select-plan', permanent: true },
 ];
