@@ -2,7 +2,7 @@
 // Pedido da loja (DS v2, D1): separar os itens, retirada com PIN, "Pronto para retirada",
 // cliente e conversa, linha do tempo com horas reais, resumo, aceite/recusa/cancelamento,
 // devolução e estorno direto. A rota antiga seller/order-[id] reexporta esta tela.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { MessageCircle, CheckCircle2, Bike } from 'lucide-react';
@@ -129,6 +129,29 @@ export default function SellerPedidoPage() {
     if (!rejecting || rejectDone) return;
     if (status !== rejecting.order.status || (rejecting.mode === 'cancelar' && motoboyId)) setRejecting(null);
   }, [status, motoboyId, rejecting, rejectDone]);
+
+  // Devolução pedida pelo motoboy: o backend só emite delivery:return_requested, que entra em
+  // panel.returnRequests sem mexer no pedido. Recarrega o pedido (PIN e estado vêm do servidor),
+  // uma vez por entrega. A chave é só o deliveryId: o returnedAt das devoluções lidas do
+  // /stores/dashboard muda a cada carga e geraria um loop de recarga.
+  const seenReturns = useRef<Set<string>>(new Set());
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  const pendingReturnRef = useRef(false);
+  pendingReturnRef.current = !!order && hasPendingReturn(order);
+  const returnRequests = panel?.returnRequests;
+  useEffect(() => {
+    if (!id) return;
+    let fresh = false;
+    for (const r of returnRequests || []) {
+      if (String(r?.orderId) !== id || !r?.deliveryId) continue;
+      const key = String(r.deliveryId);
+      if (seenReturns.current.has(key)) continue;
+      seenReturns.current.add(key);
+      fresh = true;
+    }
+    if (fresh && !pendingReturnRef.current) reloadRef.current();
+  }, [returnRequests, id]);
 
   const deadline = order?.acceptDeadline;
   useEffect(() => { setExpired(deadlinePassed(deadline)); }, [deadline]);
