@@ -1,0 +1,30 @@
+/* frontend/pages/seller/SellerAvaliacoes.module.css */
+.summary { flex-direction: row; align-items: center; gap: var(--space-4); }
+.avg { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.dist { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.distRow {
+  display: grid;
+  grid-template-columns: 16px 1fr 32px;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+.score svg { color: var(--color-rating); }
+.reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-action-primary-subtle);
+}
+.replyText { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.replyText b { color: var(--color-text-brand); }

@@ -99,6 +99,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     // a marca de modo continua aqui (b4.saasBilling, navConfig.saas). As partes P6/P7 acrescentam
     // Avaliações, Horários, Notificações, Plano e Conta Asaas quando as telas existirem.
     { label: 'Desempenho',        icon: 'chart-up',  route: SELLER_ROUTES.desempenho,  placement: ['sidebar'], group: 'Loja', pathOnly: true },
+    { label: 'Avaliações',        icon: 'star',      route: SELLER_ROUTES.avaliacoes,  placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Cupons',            icon: 'megaphone', route: SELLER_ROUTES.cupons,      placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Horários',          icon: 'clock',     route: SELLER_ROUTES.horarios,    placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Integrações (API)', icon: 'link',      route: SELLER_ROUTES.integracoes, placement: ['sidebar'], group: 'Loja', pathOnly: true },
