@@ -21,12 +21,16 @@ describe('tema do painel da loja (D1)', () => {
     for (const r of ['/store-dashboard', '/verificacao-loja']) expect(themeForPath(r)).toBe('light');
   });
 
+  it('/dados-recebimento é clara para loja e motoboy (decisão do usuário na V7)', () => {
+    expect(themeForPath('/dados-recebimento')).toBe('light');
+  });
+
   it('URL real de um pedido também é clara (o boot script recebe a URL, não o padrão)', () => {
     expect(themeForPath('/seller/pedido/abc123')).toBe('light');
   });
 
   it('rotas compartilhadas com outros papéis e os outros painéis continuam escuros', () => {
-    for (const r of ['/verificacao', '/notifications', '/dados-recebimento', '/motoboy', '/motoboy/wallet', '/admin/dashboard']) {
+    for (const r of ['/verificacao', '/notifications', '/motoboy', '/motoboy/wallet', '/admin/dashboard']) {
       expect(themeForPath(r)).toBe('dark');
     }
   });
