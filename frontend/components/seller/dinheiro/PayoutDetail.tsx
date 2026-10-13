@@ -6,7 +6,6 @@ import { Alert } from '../../ui/Alert';
 import { EmptyState } from '../../ui/EmptyState';
 import { Skeleton } from '../../ui/Skeleton';
 import { OrderTimeline, type TimelineStep } from '../../drop/OrderTimeline';
-import { OrderSummary } from '../../drop/OrderSummary';
 import { StageTag } from '../StageTag';
 import { PAYOUT_LABEL, PAYOUT_TONE } from './moneyLabels';
 import { formatMoney } from '../../../lib/money';
@@ -52,12 +51,14 @@ function moneySteps(p: any, o: any | null, inv: any | null): TimelineStep[] {
 
 export function PayoutDetail({ payoutId, storeId, onBack }: { payoutId: string; storeId: string; onBack: () => void }) {
   const [payout, setPayout] = useState<any | null | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
   const [order, setOrder] = useState<any | null>(null);
   const [invoice, setInvoice] = useState<any | null>(null);
 
   useEffect(() => {
     let off = false;
     setPayout(undefined);
+    setFailed(false);
     setOrder(null);
     setInvoice(null);
     api.get(`/payouts/my?storeId=${storeId}`)
@@ -69,7 +70,7 @@ export function PayoutDetail({ payoutId, storeId, onBack }: { payoutId: string; 
         api.get(`/orders/${found.orderId}`).then((o) => { if (!off) setOrder(o?.data ?? null); }).catch(() => {});
         api.get(`/invoices/by-order/${found.orderId}`).then((i) => { if (!off) setInvoice(i?.data ?? null); }).catch(() => {});
       })
-      .catch(() => { if (!off) setPayout(null); });
+      .catch(() => { if (!off) { setFailed(true); setPayout(null); } });
     return () => { off = true; };
   }, [payoutId, storeId]);
 
@@ -83,11 +84,16 @@ export function PayoutDetail({ payoutId, storeId, onBack }: { payoutId: string; 
     return <div className={styles.stack}>{back}<div role="status" aria-label="Carregando" className={styles.stack}><Skeleton height={120} /><Skeleton height={180} /></div></div>;
   }
   if (payout === null) {
-    return <div className={styles.stack}>{back}<EmptyState icon={<SearchX size={28} />} title="Repasse não encontrado" description="Ele pode ter sido cancelado ou ser de outra loja." /></div>;
+    return (
+      <div className={styles.stack}>{back}
+        {failed
+          ? <EmptyState icon={<SearchX size={28} />} title="Não deu para carregar o repasse" description="Confira sua conexão e tente de novo." />
+          : <EmptyState icon={<SearchX size={28} />} title="Repasse não encontrado" description="Ele pode ter sido cancelado ou ser de outra loja." />}
+      </div>
+    );
   }
 
   const products: any[] = Array.isArray(order?.products) ? order.products : [];
-  const itemsTotal = products.reduce((s, p) => s + (Number(p.price) || 0) * (Number(p.quantity) || 0), 0);
   const itemsCount = products.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
 
   return (
@@ -110,19 +116,6 @@ export function PayoutDetail({ payoutId, storeId, onBack }: { payoutId: string; 
         </Alert>
       )}
 
-      {order && (
-        <section className={styles.block} aria-label="Valores do pedido">
-          <OrderSummary
-            lines={[
-              { label: `Itens (${itemsCount})`, value: itemsTotal },
-              { label: 'Frete (vai para o motoboy)', value: Number(order.deliveryFee) || 0 },
-            ]}
-            total={Number(payout.amount) || 0}
-            totalLabel="Seu repasse"
-          />
-        </section>
-      )}
-
       <section className={styles.block} aria-label="Caminho do dinheiro">
         <h3 className={styles.blockTitle}>Caminho do dinheiro</h3>
         <OrderTimeline steps={moneySteps(payout, order, invoice)} />
@@ -135,7 +128,7 @@ export function PayoutDetail({ payoutId, storeId, onBack }: { payoutId: string; 
           </Link>
         )}
         <Link href={SELLER_ROUTES.pedido(String(payout.orderId))} className={styles.link}>
-          <Receipt size={18} aria-hidden="true" /> Ver o pedido <small>{order?.customerName ? `${itemsCount} itens · ${order.customerName}` : 'Itens e andamento'}</small>
+          <Receipt size={18} aria-hidden="true" /> Ver o pedido <small>{order?.customerName ? `${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'} · ${order.customerName}` : 'Itens e andamento'}</small>
         </Link>
       </nav>
     </div>

@@ -67,6 +67,22 @@ test('repasse que não existe', async () => {
   expect(await screen.findByText('Repasse não encontrado')).toBeInTheDocument();
 });
 
+test('mostra só o valor do repasse do servidor, sem somar itens nem frete no cliente', async () => {
+  render(<PayoutDetail payoutId="py1" storeId="s1" onBack={jest.fn()} />);
+  await screen.findByRole('heading', { name: 'Pedido #004812' });
+  await screen.findByRole('link', { name: /Nota do pedido/ });
+  expect(screen.queryByText(/^Itens/)).toBeNull();
+  expect(screen.queryByText(/Frete/)).toBeNull();
+  expect(screen.queryByText('R$ 74,30')).toBeNull();
+  expect(screen.getAllByText('R$ 63,15')).toHaveLength(1);
+});
+
+test('erro de rede não vira "não encontrado"', async () => {
+  get.mockImplementation(() => Promise.reject(new Error('net')));
+  render(<PayoutDetail payoutId="py1" storeId="s1" onBack={jest.fn()} />);
+  expect(await screen.findByText('Não deu para carregar o repasse')).toBeInTheDocument();
+});
+
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'PayoutDetail.module.css'), 'utf8'))).toEqual([]);
 });
