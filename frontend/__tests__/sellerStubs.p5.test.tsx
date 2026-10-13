@@ -8,7 +8,6 @@ jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({
 
 test.each([
   ['../pages/seller/pedidos', 'Pedidos', false],
-  ['../pages/seller/pedido/[id]', 'Pedido', true],
   ['../pages/seller/dinheiro', 'Dinheiro', false],
   ['../pages/seller/loja', 'Loja', false],
   ['../pages/seller/notificacoes', 'Notificações', true],
