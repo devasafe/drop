@@ -70,18 +70,15 @@ describe('parseMoneyInput', () => {
   it('aceita formatos válidos', () => {
     expect(parseMoneyInput('49,90')).toBe(49.9);
     expect(parseMoneyInput('49.90')).toBe(49.9);
+    expect(parseMoneyInput('49.9')).toBe(49.9);
     expect(parseMoneyInput('1.234,56')).toBe(1234.56);
     expect(parseMoneyInput('1.842,60')).toBe(1842.6);
     expect(parseMoneyInput('1234,56')).toBe(1234.56);
     expect(parseMoneyInput('10')).toBe(10);
     expect(parseMoneyInput(' 10,5 ')).toBe(10.5);
   });
-  it('milhar BR sem decimais vale 1000, nunca 1', () => {
-    expect(parseMoneyInput('1.000')).toBe(1000);
-    expect(parseMoneyInput('1.234.567')).toBe(1234567);
-  });
   it('falha fechado (NaN) em entrada ambígua ou inválida', () => {
-    for (const bad of ['49,999', '1,234.56', '49,9,0', '-10', '-10,50', '', '   ', 'abc', '1.23,4', '12.3456', '1.2.3', ',50', '49,', 'R$ 10']) {
+    for (const bad of ['1.000', '49.999', '1.234.567', '49,999', '1,234.56', '49,9,0', '-10', '-10,50', '', '   ', 'abc', '1.23,4', '12.3456', '1.2.3', ',50', '49,', 'R$ 10']) {
       expect(parseMoneyInput(bad)).toBeNaN();
     }
   });

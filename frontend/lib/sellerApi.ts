@@ -93,9 +93,10 @@ export function currentMonth(now: Date = new Date()): string {
 }
 
 /**
- * Valor digitado em reais → número. Falha fechado: qualquer entrada ambígua ou inválida dá NaN.
- * Aceita "10", "49,90", "49.90", "1234,56", "1.234,56" e milhar BR sem decimais ("1.000" = 1000,
- * grupos de exatamente 3 dígitos). Recusa mais de 2 decimais com vírgula, mais de uma vírgula,
+ * Valor digitado em reais -> numero. Falha fechado: qualquer entrada ambigua ou invalida da NaN.
+ * Aceita "10", "49,90", "49.90", "49.9", "1234,56" e "1.234,56" (ponto de milhar so com virgula decimal).
+ * Recusa ponto seguido de 3 digitos sem virgula ("1.000", "49.999", "1.234.567"), pois "49.999" poderia
+ * ser lido como 49999 e sacar o saldo inteiro; tambem recusa mais de 2 decimais, varias virgulas,
  * separadores misturados ("1,234.56"), negativo, vazio e texto.
  */
 export function parseMoneyInput(s: string): number {
@@ -108,8 +109,6 @@ export function parseMoneyInput(s: string): number {
     normalized = `${m[1].replace(/\./g, '')}.${m[2]}`;
   } else if (/^\d+$/.test(t) || /^\d+\.\d{1,2}$/.test(t)) {
     normalized = t;
-  } else if (/^\d{1,3}(?:\.\d{3})+$/.test(t)) {
-    normalized = t.replace(/\./g, '');
   } else {
     return NaN;
   }
