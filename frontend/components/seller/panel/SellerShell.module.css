@@ -11,6 +11,10 @@
   background: var(--color-bg-primary);
 }
 
+.page.noBar {
+  padding-bottom: var(--space-8);
+}
+
 .top {
   background: var(--color-bg-primary);
 }

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { ScreenHeader } from '../../drop/ScreenHeader';
+import { sellerShowsTabBar } from '../../../lib/sellerRoutes';
 import styles from './SellerShell.module.css';
 
 export interface SellerShellProps {
@@ -21,8 +22,10 @@ export interface SellerShellProps {
  */
 export function SellerShell({ title, back, actions, lead, children }: SellerShellProps) {
   const router = useRouter();
+  // Sem a barra de 5 abas (telas secundárias), o fundo não reserva o espaço dela.
+  const noBar = !sellerShowsTabBar(router?.pathname ?? '');
   return (
-    <div className={styles.page}>
+    <div className={noBar ? `${styles.page} ${styles.noBar}` : styles.page}>
       <div className={back ? styles.topWhite : styles.top} data-shell-top={back ? 'secundaria' : 'aba'}>
         <ScreenHeader title={title} onBack={back ? () => router.push(back) : undefined} end={actions} start={lead} />
       </div>

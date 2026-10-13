@@ -39,6 +39,16 @@ export const SELLER_TAB_ROUTES: string[] = [
   '/seller/loja',
 ];
 
+/** Rotas do painel com a barra de 5 abas: as 5 abas e a Assinatura (protótipo, telas 35 e 36). As secundárias têm só o voltar. */
+export const SELLER_TAB_BAR_ROUTES: string[] = [...SELLER_TAB_ROUTES, '/seller/assinatura'];
+
+export function sellerShowsTabBar(pathname: string): boolean {
+  return SELLER_TAB_BAR_ROUTES.includes(pathname);
+}
+
+/** Etapas do cadastro da loja que ainda moram fora de /seller (sem rodapé de marketing). */
+export const SELLER_ONBOARDING_ROUTES: string[] = ['/verificacao-loja', '/dados-recebimento'];
+
 /** Rotas em que o painel da loja (SellerPanelProvider) fica montado: todo /seller/* e o antigo /store-dashboard. */
 export function isSellerPanelRoute(pathname: string): boolean {
   return pathname.startsWith('/seller/') || pathname === '/store-dashboard';
