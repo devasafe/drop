@@ -46,39 +46,72 @@ function toDate(v: string | number | Date | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** "09:05" no fuso do aparelho. */
+const TZ = 'America/Sao_Paulo';
+const tzFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+});
+
+/** Partes da data no fuso de São Paulo (o mesmo do backend), independente do aparelho. */
+function spParts(d: Date) {
+  const o: Record<string, string> = {};
+  for (const p of tzFormatter.formatToParts(d)) o[p.type] = p.value;
+  return { year: o.year, month: o.month, day: o.day, hour: o.hour, minute: o.minute };
+}
+
+/** "09:05" no fuso de São Paulo. */
 export function formatHour(v: string | number | Date | null | undefined): string | null {
   const d = toDate(v);
-  return d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : null;
+  if (!d) return null;
+  const p = spParts(d);
+  return `${p.hour}:${p.minute}`;
 }
 
-/** "10/10". */
+/** "10/10" no fuso de São Paulo. */
 export function formatDayMonth(v: string | number | Date | null | undefined): string | null {
   const d = toDate(v);
-  return d ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)}` : null;
+  if (!d) return null;
+  const p = spParts(d);
+  return `${p.day}/${p.month}`;
 }
 
-/** "10/10 09:05". */
+/** "10/10 09:05" no fuso de São Paulo. */
 export function formatDateTime(v: string | number | Date | null | undefined): string | null {
   const d = toDate(v);
   return d ? `${formatDayMonth(d)} ${formatHour(d)}` : null;
 }
 
-/** "2026-01-07" (data local, para ?from=&to= do analytics). */
+/** "2026-01-07" (data de São Paulo, para ?from=&to= do analytics). */
 export function todayISO(now: Date = new Date()): string {
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const p = spParts(now);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
-/** "2026-01" (?month= do resumo SaaS). */
+/** "2026-01" (mês de São Paulo, para ?month= do resumo SaaS). */
 export function currentMonth(now: Date = new Date()): string {
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const p = spParts(now);
+  return `${p.year}-${p.month}`;
 }
 
-/** "1.842,60" / "49,90" / "49.90" → número; vazio ou inválido → NaN. */
+/**
+ * Valor digitado em reais → número. Falha fechado: qualquer entrada ambígua ou inválida dá NaN.
+ * Aceita "10", "49,90", "49.90", "1234,56", "1.234,56" e milhar BR sem decimais ("1.000" = 1000,
+ * grupos de exatamente 3 dígitos). Recusa mais de 2 decimais com vírgula, mais de uma vírgula,
+ * separadores misturados ("1,234.56"), negativo, vazio e texto.
+ */
 export function parseMoneyInput(s: string): number {
   const t = String(s ?? '').trim();
   if (!t) return NaN;
-  const normalized = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t;
-  if (!/^\d+(\.\d+)?$/.test(normalized)) return NaN;
+  let normalized: string;
+  if (t.includes(',')) {
+    const m = /^(\d+|\d{1,3}(?:\.\d{3})+),(\d{1,2})$/.exec(t);
+    if (!m) return NaN;
+    normalized = `${m[1].replace(/\./g, '')}.${m[2]}`;
+  } else if (/^\d+$/.test(t) || /^\d+\.\d{1,2}$/.test(t)) {
+    normalized = t;
+  } else if (/^\d{1,3}(?:\.\d{3})+$/.test(t)) {
+    normalized = t.replace(/\./g, '');
+  } else {
+    return NaN;
+  }
   return Number(normalized);
 }

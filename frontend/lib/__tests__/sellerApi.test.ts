@@ -11,6 +11,10 @@ describe('apiError', () => {
     expect(apiError(httpErr(400, { success: false, error: { message: 'O saque mínimo é R$ 10,00', statusCode: 400, code: 'BELOW_MINIMUM_WITHDRAW' } })))
       .toEqual({ status: 400, code: 'BELOW_MINIMUM_WITHDRAW', message: 'O saque mínimo é R$ 10,00' });
   });
+  it('lê d.message e tolera data nulo', () => {
+    expect(apiError(httpErr(500, { message: 'Falha interna' }))).toEqual({ status: 500, code: null, message: 'Falha interna' });
+    expect(apiError(httpErr(502, null))).toEqual({ status: 502, code: null, message: null });
+  });
   it('sem resposta (rede) devolve tudo nulo', () => {
     expect(apiError(new Error('Network Error'))).toEqual({ status: null, code: null, message: null });
   });
@@ -19,6 +23,10 @@ describe('apiError', () => {
 describe('unwrap', () => {
   it('abre { success:true, data }', () => {
     expect(unwrap({ data: { success: true, data: { readyAt: '2026-10-12T12:00:00Z' } } })).toEqual({ readyAt: '2026-10-12T12:00:00Z' });
+  });
+  it('tolera null e undefined', () => {
+    expect(unwrap(null)).toBeUndefined();
+    expect(unwrap(undefined)).toBeUndefined();
   });
   it('devolve o corpo cru das rotas antigas', () => {
     expect(unwrap({ data: { success: true, orderId: 'o1', refundStatus: 'pending' } })).toEqual({ success: true, orderId: 'o1', refundStatus: 'pending' });
@@ -41,19 +49,40 @@ describe('relógio e datas', () => {
     expect(formatHour(null)).toBeNull();
     expect(formatHour('lixo')).toBeNull();
   });
-  it('todayISO e currentMonth no fuso local', () => {
-    const d = new Date(2026, 0, 7, 23, 59);
-    expect(todayISO(d)).toBe('2026-01-07');
-    expect(currentMonth(d)).toBe('2026-01');
+  it('hora e data sempre em America/Sao_Paulo, qualquer que seja o fuso do aparelho', () => {
+    const d = new Date('2026-10-12T02:30:00Z'); // 23:30 de 11/10 em SP
+    expect(formatHour(d)).toBe('23:30');
+    expect(formatDayMonth(d)).toBe('11/10');
+    expect(formatDateTime(d)).toBe('11/10 23:30');
+    expect(formatHour('2026-10-10T12:05:00Z')).toBe('09:05');
+    expect(formatHour(null)).toBeNull();
+    expect(formatHour('lixo')).toBeNull();
+  });
+  it('todayISO e currentMonth em America/Sao_Paulo', () => {
+    expect(todayISO(new Date('2026-10-12T02:30:00Z'))).toBe('2026-10-11');
+    expect(currentMonth(new Date('2026-11-01T01:00:00Z'))).toBe('2026-10');
+    expect(todayISO(new Date('2026-01-07T12:00:00Z'))).toBe('2026-01-07');
+    expect(currentMonth(new Date('2026-01-07T12:00:00Z'))).toBe('2026-01');
   });
 });
 
 describe('parseMoneyInput', () => {
-  it('aceita vírgula ou ponto decimal e milhar com ponto', () => {
+  it('aceita formatos válidos', () => {
     expect(parseMoneyInput('49,90')).toBe(49.9);
-    expect(parseMoneyInput('1.842,60')).toBe(1842.6);
     expect(parseMoneyInput('49.90')).toBe(49.9);
-    expect(parseMoneyInput('')).toBeNaN();
-    expect(parseMoneyInput('abc')).toBeNaN();
+    expect(parseMoneyInput('1.234,56')).toBe(1234.56);
+    expect(parseMoneyInput('1.842,60')).toBe(1842.6);
+    expect(parseMoneyInput('1234,56')).toBe(1234.56);
+    expect(parseMoneyInput('10')).toBe(10);
+    expect(parseMoneyInput(' 10,5 ')).toBe(10.5);
+  });
+  it('milhar BR sem decimais vale 1000, nunca 1', () => {
+    expect(parseMoneyInput('1.000')).toBe(1000);
+    expect(parseMoneyInput('1.234.567')).toBe(1234567);
+  });
+  it('falha fechado (NaN) em entrada ambígua ou inválida', () => {
+    for (const bad of ['49,999', '1,234.56', '49,9,0', '-10', '-10,50', '', '   ', 'abc', '1.23,4', '12.3456', '1.2.3', ',50', '49,', 'R$ 10']) {
+      expect(parseMoneyInput(bad)).toBeNaN();
+    }
   });
 });
