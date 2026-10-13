@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
+import { Alert } from '../../components/ui/Alert';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CustodyMoney } from '../../components/seller/dinheiro/CustodyMoney';
 import { DirectMoney } from '../../components/seller/dinheiro/DirectMoney';
@@ -18,7 +19,7 @@ import styles from './DinheiroPagina.module.css';
  */
 export default function SellerDinheiroPage() {
   const router = useRouter();
-  const { settlementMode, loading } = useSaasConfig();
+  const { settlementMode, loading, error, retry } = useSaasConfig();
   const leftover = useCustodyLeftoverState();
   const { store } = useSellerPanel();
   const storeId = store?._id ? String(store._id) : null;
@@ -27,7 +28,14 @@ export default function SellerDinheiroPage() {
   const repasse = typeof router.query.repasse === 'string' ? router.query.repasse : null;
 
   let content: JSX.Element;
-  if (!ready || !storeId) {
+  if (error && !loading) {
+    // falha aberta seria mostrar a custódia a uma loja do modo direto: sem o modo, não mostra dinheiro
+    content = (
+      <Alert tone="error" title="Não carregamos o seu Dinheiro" action={{ label: 'Tentar de novo', onClick: () => retry?.() }}>
+        Não conseguimos confirmar como você recebe. Tente de novo em instantes.
+      </Alert>
+    );
+  } else if (!ready || !storeId) {
     content = (
       <div role="status" aria-label="Carregando" className={styles.loading}>
         <Skeleton height={140} />

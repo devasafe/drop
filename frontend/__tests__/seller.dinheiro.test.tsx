@@ -112,6 +112,16 @@ test('?repasse= mostra o detalhe', async () => {
   expect(mockPush).toHaveBeenCalledWith('/seller/dinheiro');
 });
 
+test('?repasse= no modo direto não abre o extrato nem chama a custódia', async () => {
+  mockSaas = { settlementMode: 'direto', directCardEnabled: false, loading: false };
+  mockQuery = { repasse: 'p1' };
+  const { container } = render(<SellerDinheiroPage />);
+  await screen.findByRole('region', { name: 'Recebido na sua conta Asaas' });
+  expect(screen.queryByRole('button', { name: 'Voltar para Dinheiro' })).not.toBeInTheDocument();
+  expect(container.textContent).not.toMatch(/Extrato do repasse/);
+  expect(get.mock.calls.some(([u]) => CUSTODY_URLS.some((c) => String(u).startsWith(c)))).toBe(false);
+});
+
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'pages', 'seller', 'DinheiroPagina.module.css'), 'utf8'))).toEqual([]);
 });

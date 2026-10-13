@@ -6,6 +6,10 @@ export interface SaasConfig {
   settlementMode: SettlementMode;
   directCardEnabled: boolean;
   loading: boolean;
+  /** true quando a leitura de /settings/saas falhou (o modo acima é só o padrão). */
+  error?: boolean;
+  /** refaz a leitura do modo depois de um erro. */
+  retry?: () => void;
 }
 
 interface Loaded { settlementMode: SettlementMode; directCardEnabled: boolean }
@@ -44,21 +48,25 @@ export function __resetSaasConfigCache() { cached = null; inflight = null; }
 export function useSaasConfig(): SaasConfig {
   const [state, setState] = useState<Loaded | null>(cached);
   const [loading, setLoading] = useState(!cached);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (cached) return;
     let cancelled = false;
     load().then((v) => {
       if (cancelled) return;
-      if (v) setState(v);
+      if (v) { setState(v); setError(false); } else setError(true);
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [attempt]);
 
   return {
     settlementMode: state?.settlementMode ?? 'custodia',
     directCardEnabled: state?.directCardEnabled ?? false,
     loading,
+    error,
+    retry: () => { setError(false); setLoading(true); setAttempt((n) => n + 1); },
   };
 }
