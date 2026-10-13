@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 
 const mockReplace = jest.fn();
-const mockPatch = jest.fn(() => Promise.resolve({}));
+const mockPatch = jest.fn((..._args: unknown[]) => Promise.resolve({}));
 let mockRole = 'lojista';
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: mockReplace }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { _id: 'u1', activeRole: mockRole }, loading: false }) }));
