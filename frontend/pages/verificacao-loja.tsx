@@ -1,5 +1,4 @@
 import { useEffect, useState, ChangeEvent } from 'react';
-import { useRouter } from 'next/router';
 import { CheckCircle2, Clock, XCircle, Upload, AlertTriangle } from 'lucide-react';
 import api from '../lib/api';
 import { maskCNPJ } from '../lib/masks';
@@ -29,9 +28,6 @@ function VerificacaoLojaPageInner() {
   const [selfie, setSelfie] = useState<File | null>(null);
   const [storeCnpj, setStoreCnpj] = useState('');
   const [comprovante, setComprovante] = useState<File | null>(null);
-
-  const router = useRouter();
-  const onboarding = router.query.onboarding === '1';
 
   const loadStatus = async (id: string) => {
     const { data } = await api.get(`/verification/store/${id}`);
@@ -64,7 +60,7 @@ function VerificacaoLojaPageInner() {
     if (!selfie) throw { response: { data: { error: 'Selecione a selfie.' } } };
     const fd = new FormData(); fd.append('selfie', selfie);
     await api.post('/verification/facial', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-  }, 'Selfie enviada para análise.');
+  }, 'Foto enviada para análise.');
 
   const sendCnpj = () => run(() => api.post(`/verification/store/${storeId}/cnpj`, {}), 'CNPJ enviado para análise.');
 
@@ -104,7 +100,7 @@ function VerificacaoLojaPageInner() {
 
         <div className={styles.header}>
           <h1 className={styles.title}>Verificação da loja</h1>
-          {!onboarding && <a href="/store-dashboard" className={styles.laterLink}>Verificar depois →</a>}
+          <a href="/seller/abrir" className={styles.laterLink}>Voltar para Abrir a loja</a>
         </div>
         <p className={`${styles.subtitle} ${ver?.isVerified ? styles.subtitleOk : ''}`}>
           {ver?.isVerified && <CheckCircle2 size={16} aria-hidden="true" />}
@@ -130,7 +126,7 @@ function VerificacaoLojaPageInner() {
         {/* Facial */}
         <section className={styles.section}>
           <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle}>Selfie (facial do dono)</h2>
+            <h2 className={styles.sectionTitle}>Foto do rosto (dono)</h2>
             <StatusBadge s={facialStatus} />
           </div>
           {facialStatus === 'pending' && (
@@ -141,10 +137,22 @@ function VerificacaoLojaPageInner() {
           )}
           {(facialStatus === 'none' || facialStatus === 'rejected') && (
             <>
+              <ul className={styles.tips}>
+                <li>Lugar bem iluminado</li>
+                <li>Sem boné, óculos escuros ou máscara</li>
+                <li>Rosto inteiro na foto, olhando para a câmera</li>
+              </ul>
               <div className={styles.uploadSingle}>
-                <DropzoneField label="Selfie" file={selfie} onChange={setSelfie} />
+                <DropzoneField
+                  label="Tirar foto do rosto"
+                  file={selfie}
+                  onChange={setSelfie}
+                  capture="user"
+                  inputLabel="Tirar ou escolher a foto do rosto"
+                />
               </div>
-              <Button variant="primary" onClick={sendFacial} className={styles.submitBtn}>Enviar selfie</Button>
+              <Button variant="primary" onClick={sendFacial} className={styles.submitBtn} disabled={!selfie}>Enviar foto</Button>
+              <p className={styles.hintSmall}>Usamos a foto só para confirmar que você é o dono do CNPJ.</p>
             </>
           )}
         </section>
@@ -230,7 +238,14 @@ function StatusBadge({ s }: { s: St }) {
   );
 }
 
-function DropzoneField({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+function DropzoneField({ label, file, onChange, capture, inputLabel }: {
+  label: string;
+  file: File | null;
+  onChange: (f: File | null) => void;
+  /** 'user' abre a câmera frontal no celular; no computador continua escolhendo arquivo. */
+  capture?: 'user' | 'environment';
+  inputLabel?: string;
+}) {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => onChange(e.target.files?.[0] || null);
   return (
     <label className={`${styles.dropzone} ${file ? styles.dropzoneFilled : ''}`}>
@@ -245,7 +260,8 @@ function DropzoneField({ label, file, onChange }: { label: string; file: File | 
         accept="image/*"
         onChange={handleChange}
         className={styles.hiddenInput}
-        aria-label={`Foto — ${label.toLowerCase()}`}
+        capture={capture}
+        aria-label={inputLabel ?? `Foto — ${label.toLowerCase()}`}
       />
     </label>
   );
