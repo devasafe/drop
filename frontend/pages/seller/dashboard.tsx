@@ -388,7 +388,7 @@ export default function AgoraPage() {
                     <h2 id="agora-novos" className={styles.sectionTitle}>
                       Novos pedidos {novos.length > 0 && <span className={styles.count}>{novos.length}</span>}
                     </h2>
-                    <Link href={SELLER_ROUTES.pedidos('andamento')} className={styles.link}>Ver todos</Link>
+                    <Link href={SELLER_ROUTES.pedidos('novos')} className={styles.link}>Ver todos</Link>
                   </div>
                   {novos.length === 0 ? (
                     <div className={styles.empty}>

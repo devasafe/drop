@@ -280,6 +280,12 @@ describe('V4 · topo e ordem como o protótipo', () => {
     expect(sw.compareDocumentPosition(novos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  test('"Ver todos" de Novos pedidos leva ao segmento Novos', async () => {
+    mockPanel.orders = [novo()];
+    await renderAgora();
+    expect(screen.getByRole('link', { name: 'Ver todos' })).toHaveAttribute('href', '/seller/pedidos?seg=novos');
+  });
+
   test('"Hoje" diz até que horas os números valem; sem números, não diz', async () => {
     const { unmount } = await renderAgora();
     expect(await screen.findByText(/^até \d{2}:\d{2}$/)).toBeInTheDocument();
