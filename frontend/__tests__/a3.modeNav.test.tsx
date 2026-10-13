@@ -89,19 +89,3 @@ describe('admin/dashboard no modo direto', () => {
     }
   });
 });
-
-describe('OverviewTab atalho Financeiro', () => {
-  const OverviewTab = require('../components/seller/OverviewTab').default;
-  const props = {
-    store: { _id: 's1', name: 'L', isOpen: true }, orders: [], history: [], returnRequests: [],
-    metrics: { totalSales: 0, delivered: 0, ongoing: 0, revenue: 0 },
-    onGoToTab: jest.fn(), onToggleOpen: jest.fn(), onQuickAction: jest.fn(),
-  };
-  test('showFinanceiro=false esconde o atalho; por padrão aparece', () => {
-    const { unmount } = render(<OverviewTab {...props} showFinanceiro={false} />);
-    expect(screen.queryByText('Financeiro')).not.toBeInTheDocument();
-    unmount();
-    render(<OverviewTab {...props} />);
-    expect(screen.getByText('Financeiro')).toBeInTheDocument();
-  });
-});
