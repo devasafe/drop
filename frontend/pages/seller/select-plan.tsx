@@ -1,293 +1,111 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '../../contexts/AuthContext';
-import Link from 'next/link';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import OnboardingProgress from '../../components/OnboardingProgress';
-import OnboardingFooter from '../../components/OnboardingFooter';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import api from '../../lib/api';
-import styles from './SelectPlan.module.css';
+import { Wallet } from 'lucide-react';
+import ProtectedRoute from '../../components/ProtectedRoute';
 import ModeGate from '../../components/ModeGate';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { RadioRow } from '../../components/ui/RadioRow';
+import { Skeleton } from '../../components/ui/Skeleton';
+import api from '../../lib/api';
+import { formatMoney } from '../../lib/money';
+import { payload, apiErrorMessage } from '../../lib/sellerApi';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 
-const PlanFeatures = {
-  plan1: [
-    { included: true, text: 'Vitrine no marketplace' },
-    { included: true, text: 'Gestão de produtos' },
-    { included: true, text: 'Pedidos pelo app' },
-    { included: false, text: 'Motoboy integrado (entrega por conta própria)' },
-    { included: false, text: 'Taxa de entrega pelo app' },
-    { included: false, text: 'Banners e destaque' },
-  ],
-  plan2: [
-    { included: true, text: 'Vitrine no marketplace' },
-    { included: true, text: 'Gestão de produtos' },
-    { included: true, text: 'Pedidos pelo app' },
-    { included: true, text: 'Motoboy integrado' },
-    { included: true, text: 'Taxa de entrega calculada por distância' },
-    { included: false, text: 'Banners e destaque' },
-  ],
-  plan3: [
-    { included: true, text: 'Vitrine no marketplace' },
-    { included: true, text: 'Gestão de produtos' },
-    { included: true, text: 'Pedidos pelo app' },
-    { included: true, text: 'Motoboy integrado' },
-    { included: true, text: 'Taxa de entrega calculada por distância' },
-    { included: true, text: 'Banners rotativos na homepage e lojas' },
-    { included: true, text: 'Prioridade no topo das buscas' },
-    { included: true, text: 'Badge Premium visível para clientes' },
-    { included: true, text: 'Capa personalizada no perfil da loja' },
-    { included: true, text: 'Analytics avançados de conversão' },
-  ],
-};
+const PLANS = [
+  { id: 'plan1', n: 1, name: 'Vitrine', desc: 'Plano 1 · você mesmo entrega ou o cliente retira. Frete zero para o cliente.' },
+  { id: 'plan2', n: 2, name: 'Pool de motoboys', desc: 'Plano 2 · motoboys do DROP buscam e entregam. O cliente paga o frete.' },
+  { id: 'plan3', n: 3, name: 'Premium', desc: 'Plano 3 · motoboys e destaque no Início, com o seu banner.' },
+] as const;
 
-function SelectPlanInner() {
+function EscolherPlano() {
   const router = useRouter();
+  const ready = router.isReady !== false;
   const onboarding = router.query.onboarding === '1';
-  const { user, loading: authLoading } = useAuth() || {};
-  const [subscription, setSubscription] = useState<any>(null);
+  const [sub, setSub] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [requesting, setRequesting] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [chosen, setChosen] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-  // Verificar permissão - apenas lojistas
-  useEffect(() => {
-    if (!authLoading && user?.activeRole !== 'lojista') {
-      router.push('/access-denied');
-    }
-  }, [user, authLoading, router]);
+  // Com a loja aberta, a troca de plano mora em "Plano e comissão".
+  useEffect(() => { if (ready && !onboarding) router.replace('/seller/plano'); }, [ready, onboarding, router]);
 
-  // Carregar dados
-  useEffect(() => {
-    if (user?.activeRole === 'lojista') {
-      loadData();
-    }
-  }, [user]);
-
-  const loadData = async () => {
+  const load = async () => {
+    setFailed(false);
     try {
-      setLoading(true);
-      const [subRes, configRes] = await Promise.all([
-        api.get('/settings/store-subscription'),
-        api.get('/settings/platform-config'),
-      ]);
-      setSubscription(subRes.data);
-      setConfig(configRes.data);
-      setMessage(null);
-    } catch (err: any) {
-      console.error('Erro ao carregar:', err);
-      setMessage({ type: 'error', text: 'Erro ao carregar dados' });
-    } finally {
-      setLoading(false);
+      const [s, c] = await Promise.all([api.get('/settings/store-subscription'), api.get('/settings/platform-config')]);
+      const subData = payload<any>(s);
+      setSub(subData);
+      setConfig(payload(c));
+      setChosen(subData?.currentPlan || 'plan1');
+    } catch {
+      setFailed(true);
     }
   };
+  useEffect(() => { if (onboarding) load(); }, [onboarding]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRequestPlanChange = async (newPlan: string) => {
-    if (subscription.currentPlan === newPlan) {
-      setMessage({ type: 'info', text: 'Você já está neste plano' });
-      return;
-    }
+  if (!onboarding) return null;
+  if (failed) return <div className={blocks.body}><EmptyState variant="error" icon={<Wallet />} title="Não carregamos os planos" onRetry={load} /></div>;
+  if (!sub || !config) return <div className={blocks.body}><Skeleton height={300} radius="var(--radius-lg)" /></div>;
 
-    setRequesting(newPlan);
+  const commission = (n: number) => Number(config[`commissionPlan${n}`] ?? 0);
+  const plan = PLANS.find((p) => p.id === chosen) ?? PLANS[0];
+
+  const start = async () => {
+    const same = chosen === sub.currentPlan || (sub.planChangeStatus === 'pending' && sub.requestedPlan === chosen);
+    if (same) { router.push('/seller/abrir'); return; }
+    setBusy(true);
+    setError('');
     try {
-      const res = await api.post('/settings/store-subscription/request-change', { newPlan });
-      setSubscription(res.data.subscription);
-      setMessage({
-        type: 'success',
-        text: 'Solicitação enviada! O CEO analisará sua requisição em breve.',
-      });
-      setTimeout(() => setMessage(null), 4000);
-    } catch (err: any) {
-      console.error('Erro:', err);
-      setMessage({
-        type: 'error',
-        text: err?.response?.data?.error || 'Erro ao solicitar mudança',
-      });
+      await api.post('/settings/store-subscription/request-change', { newPlan: chosen });
+      router.push('/seller/abrir');
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Não foi possível salvar o plano. Tente de novo.'));
     } finally {
-      setRequesting(null);
+      setBusy(false);
     }
   };
-
-  if (authLoading || loading) {
-    return (
-      <div className={styles.loadingWrapper}>
-        <LoadingSkeleton variant="cards" />
-      </div>
-    );
-  }
-
-  if (user?.activeRole !== 'lojista' || !subscription || !config) {
-    return null;
-  }
-
-  const getPlanName = (plan: string) => {
-    switch (plan) {
-      case 'plan1': return 'Plano 1 (Marketplace Only)';
-      case 'plan2': return 'Plano 2 (Marketplace + Motoboys)';
-      case 'plan3': return 'Plano 3 (Premium)';
-      default: return 'Desconhecido';
-    }
-  };
-
-  const getPlanEmoji = (plan: string) => {
-    switch (plan) {
-      case 'plan1': return <Icon name="package" size={16} />;
-      case 'plan2': return <Icon name="truck" size={16} />;
-      case 'plan3': return <Icon name="crown" size={16} />;
-      default: return <Icon name="clipboard" size={16} />;
-    }
-  };
-
-  const plans = [
-    {
-      id: 'plan1',
-      name: 'Plano 1',
-      subtitle: 'Marketplace Only',
-      emoji: <Icon name="package" size={24} />,
-      commission: config.commissionPlan1,
-      features: PlanFeatures.plan1,
-    },
-    {
-      id: 'plan2',
-      name: 'Plano 2',
-      subtitle: 'Marketplace + Motoboys',
-      emoji: <Icon name="truck" size={24} />,
-      commission: config.commissionPlan2,
-      features: PlanFeatures.plan2,
-    },
-    {
-      id: 'plan3',
-      name: 'Plano 3',
-      subtitle: 'Premium',
-      emoji: <Icon name="crown" size={24} />,
-      commission: config.commissionPlan3,
-      features: PlanFeatures.plan3,
-    },
-  ];
 
   return (
-    <div className={styles.page}>
-      <OnboardingProgress />
-      <div className={styles.container}>
-        <h1 className={styles.pageTitle}><Icon name="package" size={20} /> Escolher Plano</h1>
-        <p className={styles.pageSubtitle}>
-          Seu plano atual: {getPlanEmoji(subscription.currentPlan)} {getPlanName(subscription.currentPlan)}
-        </p>
-
-        {message && (
-          <div
-            className={`${styles.alert} ${
-              message.type === 'success'
-                ? styles.alertSuccess
-                : message.type === 'error'
-                ? styles.alertError
-                : styles.alertInfo
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        {/* Status de requisição pendente */}
-        {subscription.planChangeStatus === 'pending' && (
-          <div className={styles.pendingBanner}>
-            <p className={styles.pendingBannerTitle}><Icon name="clock" size={14} /> Você tem uma solicitação pendente</p>
-            <p className={styles.pendingBannerText}>
-              Plano solicitado: {getPlanEmoji(subscription.requestedPlan)} {getPlanName(subscription.requestedPlan)}
-            </p>
-            <p className={styles.pendingBannerNote}>
-              Aguardando aprovação do CEO...
-            </p>
-          </div>
-        )}
-
-        {subscription.planChangeStatus === 'rejected' && (
-          <div className={styles.rejectedBanner}>
-            <p className={styles.rejectedBannerTitle}><Icon name="x-circle" size={14} /> Sua solicitação foi rejeitada</p>
-            <p className={styles.rejectedBannerText}>
-              Motivo: {subscription.rejectionReason}
-            </p>
-          </div>
-        )}
-
-        {/* Planos */}
-        <div className={styles.plansGrid}>
-          {plans.map((plan) => {
-            const isCurrent = subscription.currentPlan === plan.id;
-            const isPending = subscription.planChangeStatus === 'pending' && subscription.requestedPlan === plan.id;
-
-            return (
-              <Card
-                key={plan.id}
-                className={`${styles.planCard} ${isCurrent ? styles.planCardSelected : ''}`}
-              >
-                {isCurrent && (
-                  <div className={styles.currentBadge}>
-                    <Icon name="check-circle" size={14} /> Plano Atual
-                  </div>
-                )}
-
-                <div className={styles.planHeader}>
-                  <span className={styles.planEmoji}>{plan.emoji}</span>
-                  <h3 className={styles.planName}>{plan.name}</h3>
-                  <p className={styles.planSubtitle}>{plan.subtitle}</p>
-                </div>
-
-                <div className={styles.commissionBox}>
-                  <p className={styles.commissionLabel}>Comissão da plataforma</p>
-                  <p className={styles.commissionValue}>{plan.commission}%</p>
-                  <p className={styles.commissionNote}>
-                    Você recebe: {100 - plan.commission}%
-                  </p>
-                </div>
-
-                <div className={styles.featuresList}>
-                  <p className={styles.featuresTitle}>Recursos:</p>
-                  {plan.features.map((feature, idx) => (
-                    <p key={idx} className={styles.planFeature}>
-                      <Icon name={feature.included ? 'check-circle' : 'x-circle'} size={14} color={feature.included ? 'var(--success)' : 'var(--danger)'} /> {feature.text}
-                    </p>
-                  ))}
-                </div>
-
-                <Button
-                  variant={isCurrent || isPending ? 'tertiary' : 'primary'}
-                  onClick={() => handleRequestPlanChange(plan.id)}
-                  disabled={isCurrent || requesting === plan.id || isPending}
-                  loading={requesting === plan.id}
-                  className={styles.selectBtn}
-                >
-                  {isCurrent
-                    ? 'Plano Atual'
-                    : isPending
-                    ? 'Pendente'
-                    : requesting === plan.id
-                    ? 'Solicitando...'
-                    : 'Selecionar'}
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Link para voltar */}
-        {!onboarding && (
-          <div className={styles.backLinkWrapper}>
-            <Link href="/seller/dashboard" className={styles.backLink}>
-              ← Voltar ao Dashboard
-            </Link>
-          </div>
-        )}
+    <div className={blocks.body}>
+      <p className={blocks.sub}>A diferença é quem entrega e quanto fica com o DROP. Dá para trocar depois.</p>
+      <div className={blocks.stack} role="radiogroup" aria-label="Planos">
+        {PLANS.map((p) => {
+          const c = commission(p.n);
+          return (
+            <RadioRow
+              key={p.id}
+              name="plano"
+              value={p.id}
+              checked={chosen === p.id}
+              onChange={setChosen}
+              label={`${p.name} · ${c}%`}
+              description={`${p.desc} Venda de R$ 100,00 → você recebe ${formatMoney(100 - c)}.`}
+            />
+          );
+        })}
       </div>
-      <OnboardingFooter />
+      {error && <p role="alert" className={blocks.errText}>{error}</p>}
+      <div className={blocks.bar}>
+        <Button loading={busy} onClick={start}>{`Começar com ${plan.name}`}</Button>
+        <small>Sem fidelidade · a troca de plano passa pela aprovação do DROP</small>
+      </div>
     </div>
   );
 }
 
-// Tela do modo custodia: fora dele abre o painel do papel em vez de bater 404 na API.
+// Tela do modo custódia: fora dele, o ModeGate leva ao painel em vez de bater 404 na API.
 export default function SelectPlan() {
-  return (<ModeGate mode="custodia"><SelectPlanInner /></ModeGate>);
+  return (
+    <ProtectedRoute required_role="lojista">
+      <ModeGate mode="custodia">
+        <SellerShell title="Escolha seu plano" back="/seller/abrir">
+          <EscolherPlano />
+        </SellerShell>
+      </ModeGate>
+    </ProtectedRoute>
+  );
 }
