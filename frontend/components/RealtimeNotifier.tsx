@@ -65,6 +65,22 @@ export default function RealtimeNotifier() {
     return () => unsub();
   }, [user, isLojista, on]);
 
+  // Motoboy pediu devolução → a loja precisa digitar o PIN quando ele voltar com o produto
+  useEffect(() => {
+    if (!user || !isLojista) return;
+    const handler = () => {
+      notify({
+        kind: 'order',
+        title: 'Devolução pedida ↩️',
+        body: 'O motoboy vai voltar com o produto. Confirme com o PIN quando ele chegar.',
+        url: SELLER_ROUTES.pedidos('devolucoes'),
+        tag: 'return-requested',
+      });
+    };
+    const unsub = on('delivery:return_requested', handler);
+    return () => unsub();
+  }, [user, isLojista, on]);
+
   // Nova entrega disponível (motoboy entra na sala "motoboys" no connect) → notifica
   useEffect(() => {
     if (!user || !isMotoboy) return;

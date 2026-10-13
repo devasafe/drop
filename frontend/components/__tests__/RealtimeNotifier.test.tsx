@@ -46,3 +46,17 @@ test('motoboy segue com o aviso de entrega em /motoboy', async () => {
   mockHandlers['delivery:available']();
   expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ url: '/motoboy', tag: 'new-delivery' }));
 });
+
+test('lojista: devolução pedida abre Pedidos > Devoluções', async () => {
+  render(<RealtimeNotifier />);
+  await waitFor(() => expect(mockHandlers['delivery:return_requested']).toBeDefined());
+  mockHandlers['delivery:return_requested']({ orderId: 'o9', deliveryId: 'd1' });
+  expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ kind: 'order', url: '/seller/pedidos?seg=devolucoes', tag: 'return-requested' }));
+});
+
+test('motoboy não recebe o aviso de devolução da loja', async () => {
+  mockAuth.user = { _id: 'u2', activeRole: 'motoboy' };
+  render(<RealtimeNotifier />);
+  await waitFor(() => expect(mockHandlers['delivery:available']).toBeDefined());
+  expect(mockHandlers['delivery:return_requested']).toBeUndefined();
+});

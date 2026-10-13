@@ -27,7 +27,7 @@ import { formatMoney } from '../../lib/money';
 import { paymentMethodLabel } from '../../lib/paymentLabel';
 import { shortOrderCode } from '../../lib/customerOrder';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
-import { isAwaitingAccept, isCancelled, itemsSummary, orderStage, sortOngoing, isLowStock } from '../../lib/sellerOrders';
+import { hasPendingReturn, isAwaitingAccept, isCancelled, itemsSummary, orderStage, sortOngoing, isLowStock } from '../../lib/sellerOrders';
 import { apiError, formatHour, todayISO } from '../../lib/sellerApi';
 import styles from './Agora.module.css';
 
@@ -112,6 +112,11 @@ export default function AgoraPage() {
   const list = Array.isArray(orders) ? orders : [];
   const novos = sortOngoing(list.filter(isAwaitingAccept));
   const andamento = sortOngoing(list.filter((o) => !isAwaitingAccept(o)));
+  // Devolução pendente: vem do aviso em tempo real e do próprio pedido (sem contar duas vezes).
+  const pendingReturns = new Set<string>([
+    ...(Array.isArray(panel.returnRequests) ? panel.returnRequests : []).map((r) => String(r.orderId)),
+    ...list.filter(hasPendingReturn).map((o) => String(o._id)),
+  ]).size;
 
   // Lista mais recente + quem espera a próxima recarga (para o "Já aceito" do AcceptButton).
   const ordersRef = useRef<any[]>(list);
@@ -240,6 +245,15 @@ export default function AgoraPage() {
         <div className={styles.page}>
           {!online && (
             <Alert tone="warning" title="Sem conexão">Pedidos novos aparecem quando a internet voltar.</Alert>
+          )}
+          {pendingReturns > 0 && (
+            <Alert
+              tone="warning"
+              title={pendingReturns === 1 ? '1 devolução esperando resposta' : `${pendingReturns} devoluções esperando resposta`}
+              action={{ label: 'Ver devoluções', onClick: () => router.push(SELLER_ROUTES.pedidos('devolucoes')) }}
+            >
+              O motoboy volta com o produto. Confirme com o PIN quando ele chegar.
+            </Alert>
           )}
           <div className={styles.grid}>
             <div className={styles.main}>

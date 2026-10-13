@@ -224,3 +224,18 @@ test('pedido em andamento aparece com o estado e leva ao pedido', async () => {
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'pages', 'seller', 'Agora.module.css'), 'utf8'))).toEqual([]);
 });
+
+test('devolução pendente ao vivo: aviso no Agora com link para Pedidos > Devoluções', async () => {
+  mockPanel.returnRequests = [{ orderId: 'ord000004823', deliveryId: 'd1' }];
+  await renderAgora();
+  const alert = screen.getByText(/1 devolução esperando resposta/i).closest('[role]') as HTMLElement;
+  expect(alert).toBeTruthy();
+  fireEvent.click(within(alert).getByRole('button', { name: /ver devoluções/i }));
+  expect(mockPush).toHaveBeenCalledWith('/seller/pedidos?seg=devolucoes');
+});
+
+test('sem devolução pendente, o Agora não mostra o aviso', async () => {
+  mockPanel.returnRequests = [];
+  await renderAgora();
+  expect(screen.queryByText(/devoluç/i)).not.toBeInTheDocument();
+});
