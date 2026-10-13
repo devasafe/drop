@@ -1,0 +1,36 @@
+/* frontend/components/seller/asaas/ContaAsaas.module.css */
+.terms {
+  max-height: 180px;
+  overflow: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+.terms:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.termsTitle { margin: 0 0 var(--space-1); font: var(--text-label); color: var(--color-text-primary); }
+.termsText { margin: 0; white-space: pre-wrap; font: var(--text-meta); font-family: inherit; color: var(--color-text-secondary); }
+.changes {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+.step { display: flex; align-items: center; gap: var(--space-3); }
+.num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 2px var(--color-action-primary);
+  color: var(--color-action-primary-subtle-text);
+  font: var(--text-label);
+}
