@@ -61,7 +61,7 @@ const historyTime = (o: any) => formatDateTime(o.delivery?.deliveredAt || o.canc
 export default function SellerPedidosPage() {
   const router = useRouter();
   const seg = parseSeg(router.query.seg);
-  const { orders, returnRequests, refresh } = useSellerPanel();
+  const { orders, returnRequests, refresh, dismissReturn } = useSellerPanel();
   const [history, setHistory] = useState<any[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -135,7 +135,7 @@ export default function SellerPedidosPage() {
               </div>
               <p className={styles.meta}>{`${o.customerName || 'Cliente'} · ${itemsSummary(o)}`}</p>
               <p className={styles.meta}>O motoboy está voltando com o produto. Confira e digite o PIN que ele mostrar.</p>
-              <ReturnConfirm deliveryId={String(o.delivery?._id)} onDone={() => { setNotice('Devolução confirmada.'); refresh(); }} />
+              <ReturnConfirm deliveryId={String(o.delivery?._id)} onDone={() => { setNotice('Devolução confirmada.'); dismissReturn(String(o.delivery._id)); refresh(); }} />
             </li>
           ))}
         </ul>

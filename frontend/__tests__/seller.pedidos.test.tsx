@@ -29,7 +29,7 @@ const o = (id: string, over: any = {}) => ({ _id: id, status: 'aguardando_motobo
 beforeEach(() => {
   jest.clearAllMocks();
   mockQuery = {};
-  mockPanel = { store: { _id: 's1' }, orders: [o('ord000004819'), o('ord000004823', { status: 'criado', customerName: 'Bruno Reis', delivery: null })], returnRequests: [], refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 1 };
+  mockPanel = { store: { _id: 's1' }, orders: [o('ord000004819'), o('ord000004823', { status: 'criado', customerName: 'Bruno Reis', delivery: null })], returnRequests: [], dismissReturn: jest.fn(), refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 1 };
 });
 
 test('Em andamento é o padrão, com os novos primeiro e o contador', () => {
@@ -109,4 +109,19 @@ test('busca por cliente ou número', () => {
 
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'pages', 'seller', 'PedidosLoja.module.css'), 'utf8'))).toEqual([]);
+});
+
+test('confirmar devolução vinda de returnRequests dispensa o aviso mesmo com o pedido ainda em orders', async () => {
+  mockQuery = { seg: 'devolucoes' };
+  mockPanel.returnRequests = [{ deliveryId: 'dord000004819', orderId: 'ord000004819', motoboyId: 'm', message: '', pinRequired: true, returnedAt: '' }];
+  mockPanel.dismissReturn = jest.fn((id: string) => { mockPanel = { ...mockPanel, returnRequests: mockPanel.returnRequests.filter((r: any) => r.deliveryId !== id) }; });
+  post.mockResolvedValue({ data: { success: true } });
+  const { rerender } = render(<SellerPedidosPage />);
+  expect(screen.getByRole('tab', { name: /^Devoluções/ })).toHaveTextContent('1');
+  fireEvent.change(screen.getByLabelText('PIN de devolução (6 dígitos)'), { target: { value: '123456' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
+  await waitFor(() => expect(mockPanel.dismissReturn).toHaveBeenCalledWith('dord000004819'));
+  rerender(<SellerPedidosPage />);
+  expect(screen.getByRole('tab', { name: /^Devoluções/ })).toHaveTextContent('0');
+  expect(screen.getByText('Nenhuma devolução — ótimo sinal')).toBeInTheDocument();
 });
