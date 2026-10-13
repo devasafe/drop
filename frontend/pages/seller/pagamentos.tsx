@@ -1,47 +1,43 @@
-import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+// D1: "Recebimentos" virou duas telas. Esta rota fica viva porque o onboardingFlow (intocável)
+// e o VerificationHub ainda apontam a etapa "Conta Asaas" para cá: decide na página para onde ir.
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { useAuth } from '../../contexts/AuthContext';
-import { AsaasConnectCard } from '../../components/drop/asaas/AsaasConnectCard';
-import MotoboyTransfersCard from '../../components/drop/asaas/MotoboyTransfersCard';
-import OnboardingProgress from '../../components/OnboardingProgress';
-import OnboardingFooter from '../../components/OnboardingFooter';
-import styles from './Integrations.module.css';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { asaasConsentState } from '../../components/seller/asaas/asaasShared';
+import api from '../../lib/api';
 
 export default function SellerPagamentos() {
-  const { user } = useAuth() as any;
-  const [storeId, setStoreId] = useState<string | null>(user?.storeId ?? null);
-  const [egressIp, setEgressIp] = useState<string | null>(null);
+  const router = useRouter();
+  const ready = router.isReady !== false;
+  const onboarding = router.query.onboarding === '1';
 
   useEffect(() => {
+    if (!ready) return undefined;
+    if (onboarding) { router.replace('/seller/conta-asaas?onboarding=1'); return undefined; }
     let cancelled = false;
     (async () => {
+      let dest = '/seller/dinheiro';
       try {
-        const dash = await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
-        const id = dash?.store?._id || dash?._id || user?.storeId;
-        if (!cancelled && id) setStoreId(String(id));
-      } catch { /* sem loja */ }
-      try {
-        const r = await api.get('/settings/saas');
-        if (!cancelled) setEgressIp(r.data?.egressIp ?? null);
-      } catch { /* opcional */ }
+        const dash = await api.get('/stores/dashboard').then((r) => r.data);
+        const id = dash?.store?._id;
+        if (id) {
+          const st = await api.get(`/stores/${id}/asaas`).then((r) => r.data?.data);
+          // pronta = conta válida e sem bloqueio de aceite (termo antigo só avisa, não bloqueia)
+          if (!(st?.status === 'valid' && !asaasConsentState(st).blocking)) dest = '/seller/conta-asaas';
+        }
+      } catch {
+        /* sem leitura: Dinheiro, que tem o próprio estado de erro */
+      }
+      if (!cancelled) router.replace(dest);
     })();
     return () => { cancelled = true; };
-  }, [user?.storeId]);
+  }, [ready, onboarding]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ProtectedRoute required_role="lojista">
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <OnboardingProgress />
-          <header className={styles.header}>
-            <h1 className={styles.title}>Recebimentos</h1>
-            <p className={styles.subtitle}>Conecte a sua conta Asaas. Os pagamentos dos seus pedidos caem direto nela.</p>
-          </header>
-          {storeId && <AsaasConnectCard apiBase={`/stores/${storeId}/asaas`} storeId={storeId} egressIp={egressIp} />}
-          {storeId && <MotoboyTransfersCard storeId={storeId} />}
-        </div>
-        <OnboardingFooter />
+      <div role="status" aria-label="Abrindo">
+        <Skeleton height={120} radius="var(--radius-lg)" />
       </div>
     </ProtectedRoute>
   );
