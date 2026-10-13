@@ -35,6 +35,8 @@ export interface StoreOverview {
     avgTicket: number;
     cancellationRate: number;
   };
+  /** Taxa de cancelamento de todas as lojas no mesmo período (P4); ausente em backend antigo. */
+  platformCancellationRate?: number | null;
 }
 
 export interface TimelinePoint {
