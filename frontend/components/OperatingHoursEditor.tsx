@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import { Copy } from 'lucide-react';
 import api from '../lib/api';
+import { Alert } from './ui/Alert';
 import { Button } from './ui/Button';
 import { Switch } from './ui/Switch';
 import { useToast } from './ui/Toast';
@@ -29,6 +30,10 @@ export default function OperatingHoursEditor({ storeId, initialHours, onSaved }:
     return r;
   });
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<DayKey | null>(null);
+  const [saved, setSaved] = useState(false);
+  // Dia sem horário salvo mostra o padrão: avisar até a primeira gravação.
+  const notSaved = !saved && WEEK.some(({ key }) => !initialHours?.[key]);
   const today = JS_DAYS[new Date().getDay()];
 
   const errors = useMemo(() => {
@@ -46,6 +51,8 @@ export default function OperatingHoursEditor({ storeId, initialHours, onSaved }:
     setSaving(true);
     try {
       await api.put(`/stores/${storeId}/operating-hours`, { operatingHours: hours });
+      setSaved(true);
+      setEditing(null);
       showToast('Horários salvos', 'success');
       onSaved?.();
     } catch (e) {
@@ -56,22 +63,40 @@ export default function OperatingHoursEditor({ storeId, initialHours, onSaved }:
   };
 
   return (
-    <div className={styles.wrap}>
+    <>
       <ul className={styles.list}>
         {WEEK.map(({ key, label }) => {
           const d = hours[key];
           const err = errors[key];
+          const isEditing = !d.closed && (editing === key || !!err);
+          const range = `${d.open} – ${d.close}`;
           return (
             <li key={key} className={styles.day}>
-              <Switch
-                label={label}
-                description={key === today ? 'hoje' : undefined}
-                checked={!d.closed}
-                onChange={(on) => update(key, { closed: !on })}
-              />
+              <div className={styles.sw}>
+                <Switch
+                  label={label}
+                  description={key === today ? 'hoje' : undefined}
+                  checked={!d.closed}
+                  onChange={(on) => {
+                    update(key, { closed: !on });
+                    setEditing(null);
+                  }}
+                />
+              </div>
               {d.closed ? (
                 <span className={styles.closed}>Fechado</span>
               ) : (
+                <button
+                  type="button"
+                  className={styles.range}
+                  aria-expanded={isEditing}
+                  aria-label={`${label}: editar horário, ${range}`}
+                  onClick={() => setEditing(isEditing ? null : key)}
+                >
+                  {range}
+                </button>
+              )}
+              {isEditing && (
                 <span className={styles.times}>
                   <input
                     type="time"
@@ -99,7 +124,14 @@ export default function OperatingHoursEditor({ storeId, initialHours, onSaved }:
         <Copy size={16} aria-hidden="true" />
         Copiar segunda para os dias úteis
       </button>
-      <Button onClick={save} loading={saving} disabled={hasError}>Salvar horários</Button>
-    </div>
+      {notSaved && (
+        <Alert tone="warning">
+          Estes horários ainda não foram salvos: é o horário sugerido. Ajuste o que precisar e toque em Salvar horários.
+        </Alert>
+      )}
+      <div className={styles.bar}>
+        <Button onClick={save} loading={saving} disabled={hasError}>Salvar horários</Button>
+      </div>
+    </>
   );
 }

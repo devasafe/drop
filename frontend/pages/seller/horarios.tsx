@@ -73,8 +73,8 @@ export default function SellerHorarios() {
                 <Button size="sm" variant="secondary" leftIcon={<CirclePause size={16} />} onClick={() => setPauseOpen(true)}>Pausar</Button>
               )}
             </div>
-            <OperatingHoursEditor storeId={String(store._id)} initialHours={store.operatingHours} onSaved={refresh} />
             <Alert tone="info">Fora do horário, a loja aparece como fechada e ninguém consegue pedir.</Alert>
+            <OperatingHoursEditor storeId={String(store._id)} initialHours={store.operatingHours} onSaved={refresh} />
           </div>
         )}
         <PauseSheet

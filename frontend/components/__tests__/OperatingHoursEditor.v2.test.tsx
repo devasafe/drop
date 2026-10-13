@@ -34,8 +34,35 @@ test('copiar a segunda para os dias úteis e salvar manda só operatingHours (se
   await waitFor(() => expect(onSaved).toHaveBeenCalled());
 });
 
+const openDay = (label: string) => fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}: editar`) }));
+
+test('cada dia é uma linha com o horário resumido e as horas só aparecem ao tocar', () => {
+  renderEditor();
+  expect(screen.getByRole('button', { name: 'Segunda: editar horário, 09:00 – 22:00' })).toHaveTextContent('09:00 – 22:00');
+  expect(screen.getByText('Fechado')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Segunda: abre às')).not.toBeInTheDocument();
+  openDay('Segunda');
+  expect(screen.getByLabelText('Segunda: abre às')).toBeInTheDocument();
+});
+
+test('sem horário salvo mostra o aviso de padrão não salvo; com horários salvos não', () => {
+  const { unmount } = render(<ToastProvider><OperatingHoursEditor storeId="s1" initialHours={null} /></ToastProvider>);
+  expect(screen.getByText(/ainda não foram salvos/i)).toBeInTheDocument();
+  unmount();
+  renderEditor();
+  expect(screen.queryByText(/ainda não foram salvos/i)).not.toBeInTheDocument();
+});
+
+test('depois de salvar o aviso de padrão some', async () => {
+  render(<ToastProvider><OperatingHoursEditor storeId="s1" initialHours={null} /></ToastProvider>);
+  fireEvent.click(screen.getByText('Salvar horários'));
+  await waitFor(() => expect(api.put).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByText(/ainda não foram salvos/i)).not.toBeInTheDocument());
+});
+
 test('fechamento igual à abertura: erro na linha e salvar bloqueado', () => {
   renderEditor();
+  openDay('Segunda');
   fireEvent.change(screen.getByLabelText('Segunda: fecha às'), { target: { value: '09:00' } });
   expect(screen.getByText('O fechamento precisa ser diferente da abertura.')).toBeInTheDocument();
   expect(screen.getByText('Salvar horários').closest('button')).toBeDisabled();
@@ -43,6 +70,7 @@ test('fechamento igual à abertura: erro na linha e salvar bloqueado', () => {
 
 test('horário que vira a meia-noite (18:00 às 02:00) é aceito', () => {
   renderEditor();
+  openDay('Segunda');
   fireEvent.change(screen.getByLabelText('Segunda: abre às'), { target: { value: '18:00' } });
   fireEvent.change(screen.getByLabelText('Segunda: fecha às'), { target: { value: '02:00' } });
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -53,7 +81,7 @@ test('ligar o domingo mostra os horários do dia', () => {
   renderEditor();
   expect(screen.queryByLabelText('Domingo: abre às')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('switch', { name: 'Domingo' }));
-  expect(screen.getByLabelText('Domingo: abre às')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Domingo: editar horário, 09:00 – 18:00/ })).toBeInTheDocument();
 });
 
 test('erro do servidor aparece no aviso', async () => {
