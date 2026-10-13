@@ -1004,6 +1004,11 @@ body.theme-halloween {
   .panelContentOffset { margin-left: 256px; }
 }
 
+/* Lojista (D1): o menu lateral fixo entra a partir de 900px (mesmo ponto do app do cliente). */
+@media (min-width: 900px) {
+  .panelContentOffsetSeller { margin-left: 256px; }
+}
+
 /* ── Nav global só no desktop ───────────────────────────────
    Produto/loja usam header próprio no mobile (hideChrome), mas no desktop
    devem mostrar a navbar do topo (padrão web; a bottom bar some no desktop).

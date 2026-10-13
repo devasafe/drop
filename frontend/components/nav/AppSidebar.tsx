@@ -53,7 +53,7 @@ export default function AppSidebar() {
 
   return (
     <>
-      <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''}`}>
+      <aside className={`${styles.sidebar}${effRole === 'lojista' ? ` ${styles.seller}` : ''} ${open ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <div className={styles.sidebarLogoRow}>
             <div className={styles.sidebarLogoIcon}><Icon name={meta.icon} size={16} /></div>

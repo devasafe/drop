@@ -15,3 +15,8 @@
 @media (min-width: 1024px) {
   .bar { display: none; }
 }
+
+/* Lojista (D1): a barra some a partir de 900px, como a TabBar do cliente; o menu lateral assume. */
+@media (min-width: 900px) {
+  .seller { display: none; }
+}

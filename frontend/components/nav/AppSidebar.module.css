@@ -125,3 +125,8 @@
     display: block;
   }
 }
+
+/* Lojista (D1): o menu lateral fica fixo a partir de 900px, mesmo ponto do app do cliente. */
+@media (min-width: 900px) {
+  .seller { transform: none; }
+}

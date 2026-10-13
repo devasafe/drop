@@ -28,6 +28,7 @@ import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
 import { useRouter } from 'next/router';
 import { useState, useEffect, useRef } from 'react';
 import { ROLE_HOME } from '../lib/navConfig';
+import { isSellerPanelRoute } from '../lib/sellerRoutes';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
 import { useRouteTheme } from '../lib/routeTheme';
@@ -88,6 +89,8 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   const hideChrome = CUSTOMER_HEADERLESS_ROUTES.includes(router.pathname);
   // As telas do app do cliente não têm o rodapé de marketing.
   const shouldShowFooter = !isDashboard && !CUSTOMER_ROUTES.includes(router.pathname);
+  // Painel da loja (D1): menu lateral fixo a partir de 900px, como o app do cliente.
+  const isSellerPanel = isSellerPanelRoute(router.pathname);
 
   return (
     <SocketProvider enabled={!!user}>
@@ -120,7 +123,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <VerificationBanner />
         {shouldShowFooter && <SeasonalBanner />}
         <main
-          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}`}
+          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}`}
           style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
         >
           <PageTransition>
