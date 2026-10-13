@@ -375,3 +375,52 @@ describe('V5 · loja ainda não aprovada (tela 13 "Em análise")', () => {
     expect(within(screen.getByTestId('novo-ord000004823')).getByRole('button', { name: /aceitar pedido/i })).toBeInTheDocument();
   });
 });
+
+describe('V5 fix · a tela de cadastro só substitui o Agora quando a loja não está verificada', () => {
+  const pixPendente = () => onb({
+    approved: false, allSubmitted: false,
+    steps: [step('loja', 'Criar loja', 'done'), step('pix', 'Recebimento (PIX)', 'todo')],
+    current: step('pix', 'Recebimento (PIX)', 'todo'),
+  });
+
+  test('(a) verificada + Pix pendente: Agora normal com o switch e só um aviso "Falta …" para /seller/abrir', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: true };
+    mockLoadOnb.mockResolvedValue(pixPendente());
+    await renderAgora();
+    expect(await screen.findByText('Falta Recebimento (PIX)')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Loja aberta' })).toBeInTheDocument();
+    expect(screen.getByText('Recebendo pedidos')).toBeInTheDocument();
+    expect(screen.queryByText(/Termine o cadastro|Quase lá/)).toBeNull();
+    expect(screen.queryByText(/^(pendente|em análise)$/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+  });
+
+  test('(b) não verificada: estado de cadastro, sem switch e sem "Recebendo pedidos"', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: false };
+    mockLoadOnb.mockResolvedValue(pixPendente());
+    await renderAgora();
+    expect(await screen.findByText('Termine o cadastro')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+
+  test('verificada + cadastro que não deu para conferir: Agora normal, sem alerta', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: true };
+    mockLoadOnb.mockRejectedValue(new Error('rede'));
+    await renderAgora();
+    await waitFor(() => expect(mockLoadOnb).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByText('Não conseguimos conferir o seu cadastro')).toBeNull();
+    expect(screen.getByText('Recebendo pedidos')).toBeInTheDocument();
+  });
+
+  test('não verificada + leitura falhou: continua fail closed com "Tentar de novo"', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: false };
+    mockLoadOnb.mockRejectedValue(new Error('rede'));
+    await renderAgora();
+    expect(await screen.findByText('Não conseguimos conferir o seu cadastro')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+});

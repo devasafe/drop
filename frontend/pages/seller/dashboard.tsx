@@ -141,8 +141,15 @@ export default function AgoraPage() {
     return () => { off = true; };
   }, [modeLoading, settlementMode]);
   useEffect(() => checkApproval(), [checkApproval]);
-  const approved = approval.status === 'approved';
-  const pending = approval.status === 'pending' ? approval.data : null;
+  // Decisão do controlador: a tela de cadastro só substitui o Agora quando a loja NÃO está
+  // verificada. Verificada com etapa pendente (ex.: sem chave Pix) segue o Agora normal, com um
+  // aviso discreto; verificada e cadastro sem conferir ('unknown'): Agora normal, sem aviso.
+  const verified = store?.isVerified === true;
+  const onbPending = approval.status === 'pending' ? approval.data : null;
+  const pending = verified ? null : onbPending;
+  const missing = verified ? onbPending : null;
+  const canSayReceiving = verified || approval.status === 'approved';
+  const failClosed = !verified && approval.status === 'unknown';
 
   const list = Array.isArray(orders) ? orders : [];
   const novos = sortOngoing(list.filter(isAwaitingAccept));
@@ -271,7 +278,7 @@ export default function AgoraPage() {
   const switchDescription = saasBlocked
     ? 'Abre sozinha quando o pagamento cair'
     : isOpen
-      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : approved ? 'Recebendo pedidos' : undefined
+      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : canSayReceiving ? 'Recebendo pedidos' : undefined
       : 'Clientes não veem seus produtos';
 
   return (
@@ -303,9 +310,14 @@ export default function AgoraPage() {
             {/* 1º bloco no celular (protótipo); no computador fica no topo da coluna lateral. */}
             <div className={styles.open}>
               {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
-              {approval.status === 'unknown' && (
+              {failClosed && (
                 <Alert tone="warning" title="Não conseguimos conferir o seu cadastro" action={{ label: 'Tentar de novo', onClick: checkApproval }}>
                   Por isso não dá para confirmar agora se a loja recebe pedidos. Tente de novo em instantes.
+                </Alert>
+              )}
+              {missing && (
+                <Alert tone="info" title={missing.current ? `Falta ${missing.current.label}` : 'Cadastro em análise'} action={{ label: 'Continuar', onClick: () => router.push('/seller/abrir') }}>
+                  Termine essa etapa em Abrir a loja.
                 </Alert>
               )}
               {!pending && (
@@ -361,7 +373,7 @@ export default function AgoraPage() {
                   {novos.length === 0 ? (
                     <div className={styles.empty}>
                       <p className={styles.emptyTitle}>Nenhum pedido novo.</p>
-                      {isOpen && approved && <p className={styles.emptyText}>{hours.closesAt ? `Loja aberta até ${hours.closesAt}.` : 'Sua loja está aberta.'}</p>}
+                      {isOpen && canSayReceiving && <p className={styles.emptyText}>{hours.closesAt ? `Loja aberta até ${hours.closesAt}.` : 'Sua loja está aberta.'}</p>}
                     </div>
                   ) : (
                     novos.map((o) => (
