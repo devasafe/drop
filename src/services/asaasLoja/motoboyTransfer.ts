@@ -70,10 +70,19 @@ function noticeFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId
  * Grava `firstFailedAt` UMA vez (condicional em `firstFailedAt: null`) e só quem gravou avisa
  * a loja. Chamado depois de cada escrita que leva a linha a `failed`/`failed_final`.
  */
-async function markFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId' | 'amount'>, reason: string | null, now: Date = new Date()): Promise<void> {
+async function markFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId' | 'amount'>, reason: string | null, now: Date = new Date(), background = false): Promise<void> {
   try {
     const { count } = await prisma.motoboyTransfer.updateMany({ where: { id: t.id, firstFailedAt: null }, data: { firstFailedAt: now } });
-    if (count === 1) await noticeFirstFailure(t, reason);
+    if (count === 1) {
+      // background (webhook do Asaas): o push não pode atrasar nem derrubar a resposta ao Asaas.
+      if (background) {
+        void noticeFirstFailure(t, reason).catch((err) => {
+          logger.warn('[motoboyTransfer] falha ao avisar a loja da 1ª falha', { transferId: t.id, errName: (err as Error)?.name });
+        });
+      } else {
+        await noticeFirstFailure(t, reason);
+      }
+    }
   } catch (err) {
     logger.warn('[motoboyTransfer] falha ao gravar a 1ª falha', { transferId: t.id, errName: (err as Error)?.name });
   }
@@ -215,6 +224,7 @@ async function registerFailure(
   from: MotoboyTransferStatus[],
   now: Date = new Date(),
   bindAsaasId?: string,
+  background = false,
 ): Promise<'failed' | 'failed_final' | null> {
   const lastError = String(message || 'erro').slice(0, 500);
   const backoff = MOTOBOY_TRANSFER_BACKOFF_MS[Math.max(t.attempts, 1) - 1];
@@ -228,7 +238,7 @@ async function registerFailure(
       data: { status: 'failed_final', lastError, ...bindData },
     });
     if (count !== 1) return null;
-    await markFirstFailure(t, lastError, now);
+    await markFirstFailure(t, lastError, now, background);
     logger.warn('[motoboyTransfer] transferência esgotou as tentativas', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
     alertAdmin(t, 'Pix ao motoboy falhou em definitivo', `${t.attempts} tentativas sem sucesso; requer ação do admin.`);
     return 'failed_final';
@@ -238,7 +248,7 @@ async function registerFailure(
     data: { status: 'failed', lastError, nextAttemptAt: new Date(now.getTime() + backoff), ...bindData },
   });
   if (count !== 1) return null;
-  await markFirstFailure(t, lastError, now);
+  await markFirstFailure(t, lastError, now, background);
   logger.warn('[motoboyTransfer] transferência recusada; nova tentativa agendada', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
   return 'failed';
 }
@@ -522,7 +532,7 @@ export async function reconcileTransferFromWebhook(storeId: string, event: strin
   }
 
   // FAILED / CANCELLED: só o que estava em voo (requested) ou incerto vira falha com retentativa.
-  await registerFailure(t, event, ['requested', 'uncertain'], new Date(), asaasId || undefined);
+  await registerFailure(t, event, ['requested', 'uncertain'], new Date(), asaasId || undefined, true);
 }
 
 /**
