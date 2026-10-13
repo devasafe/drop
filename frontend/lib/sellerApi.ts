@@ -122,3 +122,36 @@ export function parseMoneyInput(s: string): number {
   }
   return Number(normalized);
 }
+
+// --- Leitura simplificada da API (P7.2) ---------------------------------------------------
+// Complementa apiError/unwrap acima sem mudar o comportamento deles.
+
+/** `{ success:true, data }` → data; corpo antigo (objeto direto, lista) volta como veio. */
+export function payload<T = any>(res: { data?: any } | null | undefined): T {
+  const body = res?.data;
+  if (body && typeof body === 'object' && !Array.isArray(body) && body.success === true && 'data' in body) {
+    return body.data as T;
+  }
+  return body as T;
+}
+
+/** Código estável do erro: `{ error: { code } }` (AppError) ou `{ code }` solto (formato antigo). */
+export function apiErrorCode(err: any): string | undefined {
+  const e = err?.response?.data?.error;
+  if (e && typeof e === 'object' && typeof e.code === 'string') return e.code;
+  const loose = err?.response?.data?.code;
+  return typeof loose === 'string' ? loose : undefined;
+}
+
+/** Mensagem do servidor nos dois formatos, ou o texto de reserva. */
+export function apiErrorMessage(err: any, fallback: string): string {
+  const e = err?.response?.data?.error;
+  if (e && typeof e === 'object' && typeof e.message === 'string' && e.message) return e.message;
+  if (typeof e === 'string' && e) return e;
+  return fallback;
+}
+
+export function apiStatus(err: any): number | undefined {
+  const s = err?.response?.status;
+  return typeof s === 'number' ? s : undefined;
+}
