@@ -3,6 +3,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { notify, primeAudio, requestNotificationPermission } from '../lib/notify';
+import { SELLER_ROUTES } from '../lib/sellerRoutes';
 
 /**
  * Notificador global de tempo real. Mantém o lojista avisado de novos pedidos
@@ -50,12 +51,13 @@ export default function RealtimeNotifier() {
   // Novo pedido (evento específico da loja) → notifica
   useEffect(() => {
     if (!user || !isLojista) return;
-    const handler = () => {
+    const handler = (data?: { orderId?: string | number }) => {
       notify({
         kind: 'order',
         title: 'Novo pedido recebido! 🛒',
         body: 'Você tem um novo pedido esperando na sua loja.',
-        url: '/store-dashboard',
+        // D1: abre o pedido certo; sem id, a aba Agora
+        url: data?.orderId !== undefined && data?.orderId !== null ? SELLER_ROUTES.pedido(String(data.orderId)) : SELLER_ROUTES.agora,
         tag: 'new-order',
       });
     };
