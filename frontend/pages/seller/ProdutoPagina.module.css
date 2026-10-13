@@ -116,3 +116,7 @@
   }
   .barNote { text-align: left; }
 }
+.link {
+  font: var(--text-label);
+  color: var(--color-text-link);
+}

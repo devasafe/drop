@@ -116,3 +116,13 @@ test('sem style inline e CSS só com tokens', () => {
   expect(src).not.toMatch(/style=\{\{/);
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'pages', 'seller', 'ProdutoPagina.module.css'), 'utf8'))).toEqual([]);
 });
+
+test('produto não encontrado: "Voltar para Produtos" com estilo de link, como "Ver pedidos" no Pedido (V13)', () => {
+  mockQuery = { edit: 'zzz' };
+  render(<EditProduct />);
+  const link = screen.getByRole('link', { name: 'Voltar para Produtos' });
+  expect(link).toHaveAttribute('href', '/seller/products');
+  expect(link).toHaveClass('link');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'pages', 'seller', 'ProdutoPagina.module.css'), 'utf8');
+  expect(css).toMatch(/\.link\s*\{[^}]*color:\s*var\(--color-text-link\)/);
+});

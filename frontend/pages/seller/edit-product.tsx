@@ -19,6 +19,7 @@ import { storeAnalytics } from '../../lib/analyticsApi';
 import { imageUrl } from '../../lib/config';
 import { daysLeft } from '../../lib/sellerOrders';
 import { apiError } from '../../lib/sellerApi';
+import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import styles from './ProdutoPagina.module.css';
 
 const toInput = (n: any) => (n === null || n === undefined || n === '' ? '' : String(n).replace('.', ','));
@@ -147,7 +148,7 @@ export default function EditProduct() {
               icon={<PackageX size={28} />}
               title="Produto não encontrado"
               description="Ele pode ter sido excluído ou ser de outra loja."
-              action={<Link href="/seller/products">Voltar para Produtos</Link>}
+              action={<Link href={SELLER_ROUTES.produtos} className={styles.link}>Voltar para Produtos</Link>}
             />
           </div>
         </SellerShell>
