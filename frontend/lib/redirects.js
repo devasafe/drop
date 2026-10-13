@@ -45,4 +45,6 @@ module.exports = [
   { source: '/seller/wallet', destination: '/seller/dinheiro', permanent: true },
   { source: '/seller/transfer-wallet', destination: '/seller/dinheiro', permanent: true },
   { source: '/store/plan-selection', destination: '/seller/select-plan', permanent: true },
+  // V13 — o nome em português da aba Produtos leva à rota real (o /produtos do cliente segue para a busca).
+  { source: '/seller/produtos', destination: '/seller/products', permanent: true },
 ];

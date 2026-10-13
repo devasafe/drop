@@ -120,3 +120,12 @@ describe('D1 — painel da loja', () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe('V13 — /seller/produtos (pt) leva à aba Produtos', () => {
+  it('/seller/produtos → /seller/products, sem mexer no /produtos do cliente', () => {
+    expect(resolveRedirect(rules, '/seller/produtos')).toEqual({ location: '/seller/products', permanent: true });
+    expect(resolveRedirect(rules, '/seller/produtos?q=fone')?.location).toBe('/seller/products?q=fone');
+    expect(resolveRedirect(rules, '/produtos')?.location).toBe('/buscar?tab=produtos');
+    expect(resolveRedirect(rules, '/seller/products')).toBeNull();
+  });
+});
