@@ -111,7 +111,9 @@ export function DadosLojaStep({ store, cnpjRequired, onDone }: Props) {
     try {
       if (editing) {
         await api.put(`/stores/${store!._id}`, {
-          name: name.trim(), cnpj: onlyDigits(cnpj), street, number, neighborhood, city, state: uf, zip: cep, latitude: lat, longitude: lng,
+          // O backend guarda o CEP só com dígitos e compara campo a campo: formatado, acusaria
+          // endereço alterado e zeraria a verificação do comprovante.
+          name: name.trim(), cnpj: onlyDigits(cnpj), street, number, neighborhood, city, state: uf, zip: onlyDigits(cep), latitude: lat, longitude: lng,
         });
         setSaved('Dados da loja salvos.');
         onDone();

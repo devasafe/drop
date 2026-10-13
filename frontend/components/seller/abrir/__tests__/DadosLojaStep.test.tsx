@@ -27,6 +27,17 @@ test('loja já criada: abre em modo edição, preenchido, e salva com PUT (nunca
   await waitFor(() => expect(onDone).toHaveBeenCalled());
 });
 
+test('editar só o nome não muda o endereço salvo: zip em dígitos e demais campos iguais aos da loja', async () => {
+  render(<DadosLojaStep store={store} cnpjRequired onDone={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Nome da loja'), { target: { value: 'Outro nome' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar dados da loja' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalled());
+  const body = (api.put as jest.Mock).mock.calls[0][1];
+  expect(body.zip).toBe('01305100');
+  for (const k of ['street', 'number', 'neighborhood', 'city', 'state'] as const) expect(body[k]).toBe((store as any)[k]);
+  expect(body.cnpj).toBe('12345678000190');
+});
+
 test('erro do servidor na edição aparece e não avança', async () => {
   (api.put as jest.Mock).mockRejectedValue({ response: { status: 409, data: { error: 'O CNPJ não pode ser alterado após ser aprovado. Entre em contato com o suporte.' } } });
   const onDone = jest.fn();
