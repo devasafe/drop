@@ -10,6 +10,8 @@ import AccountMenuButton from './nav/AccountMenuButton';
 import { getNavItems, ROLE_HOME, Role, GUEST_BOTTOM_NAV, isItemActive } from '../lib/navConfig';
 import { ROUTES } from '../lib/routes';
 import Icon from './Icon';
+import { Logo } from './drop/Logo';
+import { themeForPath } from '../lib/routeTheme';
 import styles from './Nav.module.css';
 
 // Badge numérico do menu (chip). Não renderiza nada se count <= 0.
@@ -58,9 +60,17 @@ export default function Nav() {
       <nav className={styles.nav}>
 
         {/* Logo */}
-        <Link href={homeHref} className={styles.logo}>
-          <img src="/images/logog_png.png" alt="DROP" />
-        </Link>
+        {/* No tema claro (ex.: painel da loja no computador) a arte para fundo escuro some no
+            branco: usa a marca do DS, que segue os tokens do tema. */}
+        {themeForPath(router.pathname) === 'light' ? (
+          <Link href={homeHref} className={styles.logo} aria-label="DROP">
+            <Logo size="sm" />
+          </Link>
+        ) : (
+          <Link href={homeHref} className={styles.logo}>
+            <img src="/images/logog_png.png" alt="DROP" />
+          </Link>
+        )}
 
         {/* Miolo: navegação principal do cliente (desktop). No mobile some — a
             bottom bar cobre esses destinos. */}
