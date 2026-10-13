@@ -49,7 +49,7 @@ beforeEach(() => {
   mockMode = 'custodia';
   mockProducts = [];
   mockPanel = {
-    store: { _id: 's1', name: 'Eletro Center', isOpen: true, plan: 2 }, orders: [], refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 0,
+    store: { _id: 's1', name: 'Eletro Center', isOpen: true, plan: 2, isVerified: true }, orders: [], refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 0,
     patchOrder: jest.fn(), removeOrder: jest.fn(), clearNewOrders: jest.fn(),
   };
   get.mockImplementation((url: string) => {
@@ -305,6 +305,8 @@ describe('V5 · loja ainda não aprovada (tela 13 "Em análise")', () => {
     steps: [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'todo'), step('lojaVerif', 'Verificar loja', 'todo')],
     current: step('identidade', 'Sua identidade', 'todo'),
   });
+  // Fix round 2: o padrão do painel é loja verificada; aqui a loja ainda não foi verificada.
+  beforeEach(() => { mockPanel.store = { ...mockPanel.store, isVerified: false }; });
 
   test('aprovada: switch "Loja aberta" recebendo pedidos, sem selo nem aviso de cadastro', async () => {
     await renderAgora();
@@ -422,5 +424,77 @@ describe('V5 fix · a tela de cadastro só substitui o Agora quando a loja não 
     expect(await screen.findByText('Não conseguimos conferir o seu cadastro')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
     expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+});
+
+describe('V5 fix 2 · fonte da verificação e corrida do "Tentar de novo"', () => {
+  const pixPendente = (verified?: boolean) => onb({
+    store: { _id: 's1', isVerified: verified }, approved: false, allSubmitted: false,
+    steps: [step('loja', 'Criar loja', 'done'), step('pix', 'Recebimento (PIX)', 'todo')],
+    current: step('pix', 'Recebimento (PIX)', 'todo'),
+  });
+  const deferred = () => {
+    let resolve!: (v: any) => void;
+    const promise = new Promise((r) => { resolve = r; });
+    return { promise, resolve };
+  };
+
+  test('painel ainda sem a loja: vale o isVerified do cadastro (verificada → Agora normal + aviso)', async () => {
+    mockPanel.store = null;
+    mockLoadOnb.mockResolvedValue(pixPendente(true));
+    await renderAgora();
+    expect(await screen.findByText('Falta Recebimento (PIX)')).toBeInTheDocument();
+    expect(screen.queryByText('Termine o cadastro')).toBeNull();
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+  });
+
+  test('painel sem isVerified e cadastro carregando: mostra o carregamento, sem decidir', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: undefined };
+    mockLoadOnb.mockReturnValue(new Promise(() => undefined));
+    await renderAgora();
+    expect(screen.getByRole('status', { name: 'Conferindo sua loja' })).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByText('Termine o cadastro')).toBeNull();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+
+  test('as duas fontes sem resposta: fail closed, mas os pedidos continuam na tela', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: undefined };
+    mockPanel.orders = [novo()];
+    mockLoadOnb.mockRejectedValue(new Error('rede'));
+    await renderAgora();
+    expect(await screen.findByText('Não conseguimos conferir o seu cadastro')).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+    expect(within(screen.getByTestId('novo-ord000004823')).getByRole('button', { name: /aceitar pedido/i })).toBeInTheDocument();
+  });
+
+  test('"Tentar de novo": só a última leitura vale (resposta antiga não sobrescreve a nova)', async () => {
+    mockPanel.store = { ...mockPanel.store, isVerified: false };
+    mockLoadOnb.mockRejectedValueOnce(new Error('rede'));
+    const { rerender } = await renderAgora();
+    const old = deferred();
+    const fresh = deferred();
+    mockLoadOnb.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
+    fireEvent.click(await screen.findByRole('button', { name: 'Tentar de novo' }));
+    // O modo muda enquanto o "Tentar de novo" ainda espera: o efeito faz uma leitura nova.
+    mockMode = 'direto';
+    rerender(<AgoraPage />);
+    await waitFor(() => expect(mockLoadOnb).toHaveBeenCalledTimes(3));
+    await act(async () => { fresh.resolve(onb({ mode: 'direto' })); });
+    expect(await screen.findByRole('switch')).toBeInTheDocument();
+    await act(async () => { old.resolve(pixPendente(false)); });
+    expect(screen.queryByText('Termine o cadastro')).toBeNull();
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+  });
+
+  test('desmontou com a leitura pendente: a resposta não mexe na tela', async () => {
+    const late = deferred();
+    mockLoadOnb.mockReturnValue(late.promise);
+    const err = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { unmount } = await renderAgora();
+    unmount();
+    await act(async () => { late.resolve(onb()); });
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 });

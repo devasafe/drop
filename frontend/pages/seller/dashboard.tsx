@@ -12,6 +12,7 @@ import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvide
 import { Switch } from '../../components/ui/Switch';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { AcceptButton } from '../../components/seller/order/AcceptButton';
 import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
 import { RejectSheet } from '../../components/seller/order/RejectSheet';
@@ -47,9 +48,9 @@ const sameId = (a: unknown, b: unknown) => String(a) === String(b);
  */
 type Approval =
   | { status: 'loading' }
-  | { status: 'approved' }
+  | { status: 'approved'; data: StoreOnboarding }
   | { status: 'pending'; data: StoreOnboarding }
-  | { status: 'unknown' };
+  | { status: 'unknown'; data?: StoreOnboarding };
 
 /**
  * Cartão ainda não aprovado pelo Asaas (ex.: em análise de risco). O GET /stores/dashboard
@@ -126,29 +127,43 @@ export default function AgoraPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [approval, setApproval] = useState<Approval>({ status: 'loading' });
 
+  // Só a última leitura vale ("Tentar de novo" e o efeito podem se cruzar) e nada muda depois de desmontar.
+  const approvalReq = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const checkApproval = useCallback(() => {
-    if (modeLoading) return () => undefined;
-    let off = false;
+    if (modeLoading) return;
+    const req = ++approvalReq.current;
+    const current = () => mountedRef.current && req === approvalReq.current;
     setApproval({ status: 'loading' });
     loadStoreOnboarding(settlementMode)
       .then((d) => {
-        if (off) return;
-        if (d.approved) setApproval({ status: 'approved' });
-        else if (d.steps.some((st) => st.state === 'unknown')) setApproval({ status: 'unknown' });
+        if (!current()) return;
+        if (d.approved) setApproval({ status: 'approved', data: d });
+        else if (d.steps.some((st) => st.state === 'unknown')) setApproval({ status: 'unknown', data: d });
         else setApproval({ status: 'pending', data: d });
       })
-      .catch(() => { if (!off) setApproval({ status: 'unknown' }); });
-    return () => { off = true; };
+      .catch(() => { if (current()) setApproval({ status: 'unknown' }); });
   }, [modeLoading, settlementMode]);
-  useEffect(() => checkApproval(), [checkApproval]);
+  useEffect(() => { checkApproval(); }, [checkApproval]);
   // Decisão do controlador: a tela de cadastro só substitui o Agora quando a loja NÃO está
   // verificada. Verificada com etapa pendente (ex.: sem chave Pix) segue o Agora normal, com um
   // aviso discreto; verificada e cadastro sem conferir ('unknown'): Agora normal, sem aviso.
-  const verified = store?.isVerified === true;
+  // Fonte da verificação: o painel; se ele ainda não tem a loja (1º render, falha), a loja lida pelo cadastro.
+  const onbStore = approval.status !== 'loading' ? approval.data?.store : undefined;
+  const isVerifiedRaw: unknown = store?.isVerified ?? onbStore?.isVerified;
+  const verifiedKnown = typeof isVerifiedRaw === 'boolean';
+  const verified = isVerifiedRaw === true;
+  // Nenhuma das duas fontes respondeu ainda: não decide (mostra o carregamento no lugar do switch).
+  const deciding = !verifiedKnown && approval.status === 'loading';
   const onbPending = approval.status === 'pending' ? approval.data : null;
   const pending = verified ? null : onbPending;
   const missing = verified ? onbPending : null;
   const canSayReceiving = verified || approval.status === 'approved';
+  // Sem confirmação de verificação e cadastro sem conferir: fail closed (os pedidos continuam na tela).
   const failClosed = !verified && approval.status === 'unknown';
 
   const list = Array.isArray(orders) ? orders : [];
@@ -320,7 +335,12 @@ export default function AgoraPage() {
                   Termine essa etapa em Abrir a loja.
                 </Alert>
               )}
-              {!pending && (
+              {deciding && (
+                <div role="status" aria-label="Conferindo sua loja">
+                  <Skeleton height={64} radius="var(--radius-lg)" />
+                </div>
+              )}
+              {!pending && !deciding && (
                 <>
                   <div className={styles.block}>
                     <Switch
