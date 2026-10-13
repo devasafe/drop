@@ -1,3 +1,5 @@
+import { maskCredentials } from './safeErrorText';
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const cloudinaryLib = require('cloudinary');
 const cloudinary = cloudinaryLib.v2;
@@ -23,26 +25,42 @@ export function kycFolder(bucket: KycBucket, id: string, sub?: string): string {
   return `drop/documentos/${bucket}/${id}${sub ? `/${sub}` : ''}`;
 }
 
-export function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
+/**
+ * Erro de upload do Cloudinary como `Error` de verdade (o SDK rejeita com objeto simples
+ * `{ message, http_code }`), com a mensagem sem credenciais: o 401 do Cloudinary ecoa a
+ * api_key ("Invalid api_key 7219…").
+ */
+export class CloudinaryUploadError extends Error {
+  status?: number;
+  constructor(cause: any, fallback: string) {
+    super(maskCredentials(cause?.message || fallback));
+    this.name = 'CloudinaryUploadError';
+    if (typeof cause?.http_code === 'number') this.status = cause.http_code;
+  }
+}
+
+function uploadBuffer(buffer: Buffer, folder: string, resourceType: 'image' | 'video'): Promise<string> {
+  const fallback = resourceType === 'video' ? 'Video upload failed' : 'Upload failed';
   return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image' },
+    // disable_promises: sem isso o SDK cria uma promessa interna (Q) que, no upload_stream,
+    // nunca é devolvida a ninguém; num erro do Cloudinary ela rejeita sem tratamento →
+    // unhandledRejection. O resultado chega só pelo callback.
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: resourceType, disable_promises: true },
       (error: any, result: any) => {
-        if (error || !result) return reject(error || new Error('Upload failed'));
+        if (error || !result) return reject(new CloudinaryUploadError(error, fallback));
         resolve(result.secure_url);
       }
-    ).end(buffer);
+    );
+    stream.on('error', (err: any) => reject(new CloudinaryUploadError(err, fallback)));
+    stream.end(buffer);
   });
 }
 
+export function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
+  return uploadBuffer(buffer, folder, 'image');
+}
+
 export function uploadVideoToCloudinary(buffer: Buffer, folder: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'video' },
-      (error: any, result: any) => {
-        if (error || !result) return reject(error || new Error('Video upload failed'));
-        resolve(result.secure_url);
-      }
-    ).end(buffer);
-  });
+  return uploadBuffer(buffer, folder, 'video');
 }

@@ -8,7 +8,7 @@ try { (dns as any).setDefaultResultOrder?.('ipv4first'); } catch { /* Node < 16.
 
 // ✅ VALIDAR ENV NO STARTUP (falha rápido com mensagens claras)
 import env from './config/env';
-import logger from './config/logger';
+import logger, { installUnhandledRejectionHandler } from './config/logger';
 
 import http from 'http';
 import app from './app';
@@ -21,6 +21,9 @@ import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 import { startSaasBillingJob } from './jobs/saasBilling.job';
+
+// Promessa rejeitada sem tratamento: loga e segue no ar (V15). Exceção síncrona ainda encerra.
+installUnhandledRejectionHandler();
 
 logger.info('📍 [INDEX] Starting application...');
 

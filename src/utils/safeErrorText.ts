@@ -43,3 +43,19 @@ export function safeErrorText(err: unknown): string {
   }
   return (err as Error)?.message || 'erro';
 }
+
+/**
+ * Tira credenciais de texto de erro antes de ir para log: `api_key 7219…`, `api_secret=…`
+ * (o Cloudinary ecoa a api_key na mensagem do 401) e os valores literais das chaves do
+ * Cloudinary configuradas no ambiente.
+ */
+export function maskCredentials(text: unknown): string {
+  let out = String(text ?? '').replace(
+    /\b(api[_-]?key|api[_-]?secret)\b(\s*[:=]?\s*)(["']?)[^\s"',;&]+/gi,
+    '$1$2$3***',
+  );
+  for (const secret of [process.env.CLOUDINARY_API_KEY, process.env.CLOUDINARY_API_SECRET]) {
+    if (secret && secret.length >= 6) out = out.split(secret).join('***');
+  }
+  return out;
+}
