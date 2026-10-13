@@ -7,7 +7,7 @@ import { cssViolations } from './helpers/dsTokens';
 // STRICT: escrito do zero no DS v2 (sem cor fixa, token antigo, gradiente nem rgba/hsla).
 // FIXED_COLOR: CSS antigo que só trocou as cores fixas por token (sem hex, rgba nem hsla).
 const ROOT = path.join(__dirname, '..');
-const STRICT: string[] = ['components/seller/ui/SellerBlocks.module.css', 'components/OperatingHoursEditor.module.css', 'pages/seller/SellerLoja.module.css'];
+const STRICT: string[] = ['components/seller/ui/SellerBlocks.module.css', 'components/OperatingHoursEditor.module.css', 'pages/seller/SellerLoja.module.css', 'pages/seller/Analytics.module.css'];
 const FIXED_COLOR: string[] = [];
 
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
