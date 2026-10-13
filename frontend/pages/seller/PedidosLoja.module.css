@@ -1,0 +1,142 @@
+/* frontend/pages/seller/PedidosLoja.module.css */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 120px;
+  max-width: var(--app-max);
+  margin-inline: auto;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.panel:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.table tbody {
+  display: flex;
+  flex-direction: column;
+}
+.table tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.table tbody tr + tr {
+  border-top: 1px solid var(--color-border-default);
+}
+.table td {
+  padding: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.cCode { grid-column: 1; grid-row: 1; }
+.cMoney { grid-column: 2; grid-row: 1; justify-self: end; }
+.cCustomer { grid-column: 1; grid-row: 2; }
+.cStage { grid-column: 2; grid-row: 2; justify-self: end; }
+.cItems { grid-column: 1 / -1; grid-row: 3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cTime { grid-column: 1 / -1; grid-row: 4; color: var(--color-text-muted); }
+.code {
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+.code:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.money,
+.table td.cMoney {
+  font: var(--text-price-sm);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.returns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.returnCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.returnHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.meta {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+  font: var(--text-label);
+}
+
+@media (min-width: 900px) {
+  .table thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  .table tbody { display: table-row-group; }
+  .table tr { display: table-row; }
+  .table th,
+  .table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    vertical-align: middle;
+  }
+  .table th {
+    font: var(--text-caption);
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border-default);
+  }
+  .table tbody tr + tr td { border-top: 1px solid var(--color-border-default); }
+  .cItems { max-width: 280px; }
+}
