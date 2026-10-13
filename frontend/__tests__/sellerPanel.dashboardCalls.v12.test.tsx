@@ -30,6 +30,7 @@ jest.mock('../hooks/useSaasConfig', () => ({
   loadSaasConfig: () => Promise.resolve({ settlementMode: 'direto' }),
 }));
 jest.mock('../components/ui/Toast', () => ({ ...jest.requireActual('../components/ui/Toast'), useToast: () => ({ show: jest.fn(), success: jest.fn(), error: jest.fn() }) }));
+jest.mock('../hooks/useSync', () => ({ ...jest.requireActual('../hooks/useSync'), useCategories: () => ({ categories: [] }) }));
 jest.mock('../hooks/useCustodyLeftover', () => ({ useCustodyLeftover: () => false }));
 jest.mock('../lib/analyticsApi', () => ({ storeAnalytics: { topProducts: () => Promise.resolve({ products: [] }), overview: () => Promise.reject(new Error('fora do teste')) } }));
 const mockGet = jest.fn();
@@ -62,6 +63,8 @@ import SellerEstoque from '../pages/seller/estoque';
 import AgoraPage from '../pages/seller/dashboard';
 // eslint-disable-next-line import/first
 import SellerAbrir from '../pages/seller/abrir';
+// eslint-disable-next-line import/first
+import EditProduct from '../pages/seller/edit-product';
 
 const lojista = { _id: 'u1', role: 'lojista', activeRole: 'lojista', name: 'L' };
 let dashboard: any;
@@ -236,6 +239,16 @@ describe('V12 (fix): Agora, Abrir e catálogo fresco ao entrar', () => {
     afterFirstRead({ ...baseDashboard, products: [{ ...baseDashboard.products[0], quantity: 1 }] });
     inPanel(<Later><SellerEstoque /></Later>);
     expect(await screen.findByText('Bolo')).toBeInTheDocument();
+    expect(dashCalls()).toBe(2);
+  });
+
+  test('Editar produto com o painel já carregado: o estoque do formulário vem da leitura nova, não do cache', async () => {
+    mockPath = '/seller/edit-product';
+    mockQuery = { edit: 'p1' };
+    // o ERP mudou o estoque de 9 para 2 depois que o painel leu
+    afterFirstRead({ ...baseDashboard, products: [{ ...baseDashboard.products[0], quantity: 2 }] });
+    inPanel(<Later><EditProduct /></Later>);
+    await waitFor(() => expect(screen.getByLabelText('Estoque')).toHaveValue('2'));
     expect(dashCalls()).toBe(2);
   });
 

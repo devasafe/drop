@@ -27,7 +27,8 @@ export default function EditProduct() {
   const router = useRouter();
   const editId = typeof router.query.edit === 'string' ? router.query.edit : undefined;
   // Catálogo do dono (rota autenticada): produto pausado continua editável mesmo fora da vitrine.
-  const { store, products, loading, reload } = useMyStore();
+  // V12: leitura nova ao abrir — o PUT regrava o estoque, então o formulário não pode vir do cache do painel.
+  const { store, products, loading, reload } = useMyStore({ fresh: true });
   const product = useMemo(() => (products || []).find((p: any) => String(p._id) === editId) || null, [products, editId]);
   const { categories } = useCategories(store?._id);
   const [values, setValues] = useState<ProductValues>(EMPTY_VALUES);
