@@ -107,6 +107,58 @@ test('resultados mostram vendas e desconto', async () => {
   expect(screen.getByText('R$ 218,00')).toBeInTheDocument();
 });
 
+test('tornar público um cupom secreto: PUT { isPublic: true }', async () => {
+  mockList = [{ ...C1, isPublic: false }];
+  renderPage();
+  const card = await screen.findByRole('article', { name: 'Cupom VOLTA10' });
+  const sw = within(card).getByRole('switch', { name: 'Aparece na página da loja' });
+  expect(sw).toHaveAttribute('aria-checked', 'false');
+  fireEvent.click(sw);
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/coupons/c1', { isPublic: true }));
+});
+
+test('visibilidade: erro mostra a mensagem e recarrega (switch volta)', async () => {
+  mockList = [{ ...C1, isPublic: false }];
+  (api.put as jest.Mock).mockRejectedValue({ response: { status: 500, data: { error: { message: 'Falhou feio', statusCode: 500 } } } });
+  renderPage();
+  const card = await screen.findByRole('article', { name: 'Cupom VOLTA10' });
+  fireEvent.click(within(card).getByRole('switch', { name: 'Aparece na página da loja' }));
+  expect(await screen.findByText('Falhou feio')).toBeInTheDocument();
+  await waitFor(() => expect((api.get as jest.Mock).mock.calls.filter((c) => c[0] === '/coupons').length).toBe(2));
+  expect(within(screen.getByRole('article', { name: 'Cupom VOLTA10' })).getByRole('switch', { name: 'Aparece na página da loja' })).toHaveAttribute('aria-checked', 'false');
+});
+
+test('visibilidade: 409 COUPON_ENDED avisa e recarrega; encerrado não tem o switch', async () => {
+  (api.put as jest.Mock).mockRejectedValue({ response: { status: 409, data: { success: false, error: { message: 'x', statusCode: 409, code: 'COUPON_ENDED' } } } });
+  renderPage();
+  const card = await screen.findByRole('article', { name: 'Cupom VOLTA10' });
+  fireEvent.click(within(card).getByRole('switch', { name: 'Aparece na página da loja' }));
+  expect(await screen.findByText('Este cupom foi encerrado e não pode voltar.')).toBeInTheDocument();
+  await waitFor(() => expect((api.get as jest.Mock).mock.calls.filter((c) => c[0] === '/coupons').length).toBe(2));
+  expect(within(screen.getByRole('region', { name: 'Encerrados' })).queryByRole('switch')).not.toBeInTheDocument();
+});
+
+test('validade em fuso de São Paulo: payload e exibição', async () => {
+  // 2026-10-14T02:00Z = 13/10 23:00 em SP
+  mockList = [{ ...C1, validUntil: '2026-10-14T02:59:59.000Z' }, C2];
+  jest.useFakeTimers({ doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'queueMicrotask', 'nextTick'] });
+  jest.setSystemTime(new Date('2026-10-12T12:00:00Z'));
+  try {
+    renderPage();
+    const card = await screen.findByRole('article', { name: 'Cupom VOLTA10' });
+    expect(within(card).getByText(/até 13\/10/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Criar'));
+    fireEvent.change(screen.getByLabelText('Valor do desconto'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Válido até'), { target: { value: '2026-10-13' } });
+    fireEvent.click(screen.getByText('Criar cupom'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/coupons', expect.objectContaining({
+      validFrom: '2026-10-12T00:00:00-03:00', validUntil: '2026-10-13T23:59:59-03:00',
+    })));
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test('lista vazia', async () => {
   mockList = [];
   renderPage();

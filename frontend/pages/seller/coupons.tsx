@@ -13,7 +13,7 @@ import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../components/ui/Toast';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
-import { payload, apiErrorCode, apiErrorMessage, apiStatus, parseMoneyInput } from '../../lib/sellerApi';
+import { payload, apiErrorCode, apiErrorMessage, apiStatus, parseMoneyInput, formatDayMonth, todayISO } from '../../lib/sellerApi';
 import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 import styles from './SellerCupons.module.css';
 
@@ -43,8 +43,8 @@ export function suggestCode(type: 'percent' | 'fixed', value: string): string {
   return `${type === 'percent' ? 'VOLTA' : 'DESCONTO'}${Number.isFinite(n) && n > 0 ? n : ''}`;
 }
 
-const ddmm = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const ddmm = (iso: string) => formatDayMonth(iso) ?? '';
+const isoDay = (d: Date) => todayISO(d);
 
 export function couponSummary(c: Coupon): string {
   const v = c.discountType === 'percent' ? `${Number(c.discountValue)}% de desconto` : `${formatMoney(Number(c.discountValue))} de desconto`;
@@ -52,7 +52,7 @@ export function couponSummary(c: Coupon): string {
   return `${v}${min} · até ${ddmm(c.validUntil)}`;
 }
 
-function CouponCard({ c, onToggle, onEnd, onResults }: { c: Coupon; onToggle: (c: Coupon) => void; onEnd: (c: Coupon) => void; onResults: (c: Coupon) => void }) {
+function CouponCard({ c, busy, onToggle, onPublic, onEnd, onResults }: { c: Coupon; busy: boolean; onToggle: (c: Coupon) => void; onPublic: (c: Coupon) => void; onEnd: (c: Coupon) => void; onResults: (c: Coupon) => void }) {
   const used = Number(c.usedCount) || 0;
   const max = c.maxUses ? Number(c.maxUses) : null;
   const ending = max != null && used / max >= 0.8;
@@ -67,7 +67,8 @@ function CouponCard({ c, onToggle, onEnd, onResults }: { c: Coupon; onToggle: (c
       <p className={[blocks.meta, ending ? blocks.warn : ''].filter(Boolean).join(' ')}>
         {max != null ? `${used} de ${max} usos` : `${used} usos`}{ending ? ' · acaba logo' : ''}
       </p>
-      <Switch label="Ativo" checked={c.isActive} onChange={() => onToggle(c)} />
+      <Switch label="Ativo" checked={c.isActive} disabled={busy} onChange={() => onToggle(c)} />
+      <Switch label="Aparece na página da loja" checked={!!c.isPublic} disabled={busy} onChange={() => onPublic(c)} />
       <div className={blocks.actions}>
         <Button size="sm" variant="secondary" onClick={() => onResults(c)}>Resultados</Button>
         <Button size="sm" variant="tertiary" onClick={() => onEnd(c)}>Encerrar</Button>
@@ -126,8 +127,8 @@ function CreateSheet({ open, onClose, onCreated }: { open: boolean; onClose: () 
         discountValue: parseMoneyInput(value),
         minOrderValue: min.trim() ? parseMoneyInput(min) : undefined,
         maxUses: maxUses.trim() ? Number(maxUses) : undefined,
-        validFrom: isoDay(new Date()),
-        validUntil: until,
+        validFrom: `${isoDay(new Date())}T00:00:00-03:00`,
+        validUntil: `${until}T23:59:59-03:00`,
         isPublic,
       });
       showToast('Cupom criado', 'success');
@@ -186,15 +187,22 @@ export default function SellerCoupons() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const toggle = async (c: Coupon) => {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const change = async (c: Coupon, call: () => Promise<unknown>, fallback: string) => {
+    setBusyId(c._id);
     try {
-      await api.put(`/coupons/${c._id}/toggle`);
+      await call();
     } catch (e) {
       if (apiErrorCode(e) === 'COUPON_ENDED') showToast('Este cupom foi encerrado e não pode voltar.', 'error');
-      else showToast(apiErrorMessage(e, 'Não foi possível mudar o cupom agora.'), 'error');
+      else showToast(apiErrorMessage(e, fallback), 'error');
+    } finally {
+      setBusyId(null);
     }
     load();
   };
+  const toggle = (c: Coupon) => change(c, () => api.put(`/coupons/${c._id}/toggle`), 'Não foi possível mudar o cupom agora.');
+  const setPublic = (c: Coupon) => change(c, () => api.put(`/coupons/${c._id}`, { isPublic: !c.isPublic }), 'Não foi possível mudar a visibilidade agora.');
 
   const confirmEnd = async () => {
     if (!ending) return;
@@ -254,7 +262,7 @@ export default function SellerCoupons() {
           ) : (
             <>
               {ativos.map((c) => (
-                <CouponCard key={c._id} c={c} onToggle={toggle} onEnd={setEnding} onResults={openResults} />
+                <CouponCard key={c._id} c={c} busy={busyId === c._id} onToggle={toggle} onPublic={setPublic} onEnd={setEnding} onResults={openResults} />
               ))}
               {encerrados.length > 0 && (
                 <section aria-label="Encerrados" className={blocks.stack}>
