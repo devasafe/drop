@@ -2,7 +2,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import VerificacaoLojaPage from '../pages/verificacao-loja';
 import api from '../lib/api';
 
-jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: { onboarding: '1' }, pathname: '/verificacao-loja' }) }));
+const mockPush = jest.fn();
+jest.mock('next/router', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn(), query: { onboarding: '1' }, pathname: '/verificacao-loja' }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { activeRole: 'lojista', role: 'lojista' }, loading: false }) }));
 jest.mock('../components/ModeGate', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: 'custodia', directCardEnabled: false, loading: false }) }));
@@ -41,8 +42,9 @@ test('enviar a foto chama POST /verification/facial com o campo selfie', async (
   expect(fd.get('selfie')).toBe(file);
 });
 
-test('o link de saída volta para o checklist', async () => {
+test('o voltar do topo leva para o checklist', async () => {
   render(<VerificacaoLojaPage />);
-  const link = await screen.findByText('Voltar para Abrir a loja');
-  expect(link.closest('a')).toHaveAttribute('href', '/seller/abrir');
+  await screen.findByText('Recusado: Rosto cortado');
+  fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+  expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
 });
