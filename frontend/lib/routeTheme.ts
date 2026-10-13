@@ -18,7 +18,7 @@ export const SELLER_LIGHT_ROUTES: string[] = [
   '/seller/products', '/seller/create-product', '/seller/edit-product', '/seller/estoque',
   '/seller/dinheiro', '/seller/wallet', '/seller/transfer-wallet', '/seller/pagamentos',
   '/seller/loja', '/seller/avaliacoes', '/seller/notificacoes', '/seller/analytics', '/seller/coupons', '/seller/integrations',
-  '/seller/assinatura', '/seller/select-plan', '/seller/create-store', '/seller/horarios', '/seller/plano',
+  '/seller/assinatura', '/seller/select-plan', '/seller/create-store', '/seller/horarios', '/seller/plano', '/seller/abrir',
 ];
 
 export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', ...SELLER_LIGHT_ROUTES];

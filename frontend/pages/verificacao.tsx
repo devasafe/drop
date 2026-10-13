@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import { CheckCircle2, Clock, Upload } from 'lucide-react';
 import api from '../lib/api';
 import { useClienteRedirect } from '../hooks/useClienteRedirect';
+import { useLojistaRedirect } from '../hooks/useLojistaRedirect';
+import { useAuth } from '../contexts/AuthContext';
 import { contaHref } from '../lib/routes';
 import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
 import OnboardingProgress from '../components/OnboardingProgress';
@@ -41,6 +43,21 @@ export default function VerificacaoPage() {
   const router = useRouter();
   useClienteRedirect(contaHref('verificacao', router.query.next as string | undefined));
   const onboarding = router.query.onboarding === '1';
+
+  // Lojista com loja ainda não verificada faz a identidade em /seller/abrir (fase D1).
+  // Fail closed: null = não sabemos (carregando ou erro) e então NÃO redireciona.
+  const { user, loading: authLoading } = useAuth() || ({} as any);
+  const isLojista = (user?.activeRole || user?.role) === 'lojista';
+  const [lojaVerificada, setLojaVerificada] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (authLoading || !isLojista) return;
+    let alive = true;
+    api.get('/stores/dashboard')
+      .then((r) => { if (alive && r.data?.store) setLojaVerificada(r.data.store.isVerified === true); })
+      .catch((e) => { if (alive && e?.response?.status === 404) setLojaVerificada(false); });
+    return () => { alive = false; };
+  }, [authLoading, isLojista]);
+  useLojistaRedirect(lojaVerificada === false ? '/seller/abrir?etapa=identidade' : null);
 
   const load = async () => {
     try {

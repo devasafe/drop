@@ -1,0 +1,237 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import { Bike, CalendarDays, Check, Clock, HelpCircle, ListChecks, Package, QrCode, TriangleAlert } from 'lucide-react';
+import ProtectedRoute from '../../components/ProtectedRoute';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { NavRow } from '../../components/seller/ui/NavRow';
+import { IdentityCheck } from '../../components/drop/IdentityCheck';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ProgressBar } from '../../components/ui/ProgressBar';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
+import api from '../../lib/api';
+import { formatMoney } from '../../lib/money';
+import { summarizeHours } from '../../lib/sellerHours';
+import { loadStoreOnboarding, type ChecklistStep, type StepState, type StoreOnboarding } from '../../lib/storeOnboarding';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+
+const ICON_CLASS: Record<StepState, string> = { done: blocks.icoOk, review: blocks.icoInfo, rejected: blocks.icoErr, todo: '', unknown: '' };
+
+function stateIcon(state: StepState, index: number) {
+  if (state === 'done') return <Check size={18} />;
+  if (state === 'review') return <Clock size={18} />;
+  if (state === 'rejected') return <TriangleAlert size={18} />;
+  if (state === 'unknown') return <HelpCircle size={18} />;
+  return <span>{index + 1}</span>;
+}
+
+function stepSub(s: { state: StepState; reason?: string; detail?: string }, doneText?: string) {
+  if (s.state === 'rejected') return `Recusado: ${s.reason || 'veja o que corrigir e envie de novo'}`;
+  if (s.state === 'review') return 'Em análise';
+  if (s.state === 'unknown') return 'Não deu para conferir agora';
+  if (s.state === 'done' && doneText) return doneText;
+  return s.detail || '';
+}
+
+function ComoFunciona({ fee, trialDays }: { fee: number | null; trialDays: number | null }) {
+  const feeText = fee == null ? null : fee > 0
+    ? `Mensalidade fixa de ${formatMoney(fee)}${trialDays ? `, com ${trialDays} dias grátis` : ''}. Nenhuma comissão por venda.`
+    : 'Grátis no lançamento. Nenhuma comissão por venda.';
+  return (
+    <section className={blocks.blk} aria-label="Como funciona">
+      <div className={blocks.head}>
+        <h2 className={blocks.headTitle}>Como funciona</h2>
+        <span className={[blocks.tag, blocks.tagInfo].join(' ')}>modo SaaS</span>
+      </div>
+      <div className={[blocks.blkRow, blocks.row].join(' ')}>
+        <span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><QrCode size={18} /></span>
+        <p className={blocks.sub}>O cliente paga por Pix e o valor cai na sua conta Asaas. Não tem saque nem espera.</p>
+      </div>
+      <div className={[blocks.blkRow, blocks.row].join(' ')}>
+        <span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><Bike size={18} /></span>
+        <p className={blocks.sub}>Na entrega, a sua conta paga o motoboy por Pix sozinha, com a taxa que o cliente já pagou no frete.</p>
+      </div>
+      {feeText && (
+        <div className={[blocks.blkRow, blocks.row].join(' ')}>
+          <span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><CalendarDays size={18} /></span>
+          <p className={blocks.sub}>{feeText}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function SellerAbrir() {
+  const router = useRouter();
+  const { settlementMode, loading: modeLoading } = useSaasConfig();
+  const etapa = typeof router.query.etapa === 'string' ? router.query.etapa : null;
+  const [data, setData] = useState<StoreOnboarding | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [saas, setSaas] = useState<{ saasMonthlyFee?: number; saasTrialDays?: number } | null>(null);
+
+  const load = useCallback(() => {
+    if (modeLoading || etapa === 'identidade') return;
+    setFailed(false);
+    setData(null);
+    loadStoreOnboarding(settlementMode).then(setData).catch(() => setFailed(true));
+  }, [modeLoading, settlementMode, etapa]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (settlementMode !== 'direto') return;
+    api.get('/settings/saas').then((r) => setSaas(r.data ?? null)).catch(() => setSaas(null));
+  }, [settlementMode]);
+
+  if (etapa === 'identidade') {
+    const email = router.query.email === 'ok' || router.query.email === 'erro' ? router.query.email : null;
+    return (
+      <ProtectedRoute required_role="lojista">
+        <SellerShell title="Sua identidade" back="/seller/abrir">
+          <div className={blocks.body}>
+            <p className={blocks.sub}>Confirmamos o e-mail e o documento do dono uma vez só.</p>
+            <IdentityCheck emailResult={email} onDone={() => router.push('/seller/abrir')} />
+          </div>
+        </SellerShell>
+      </ProtectedRoute>
+    );
+  }
+
+  const direto = settlementMode === 'direto';
+  const hasUnknown = !!data && data.steps.some((s) => s.state === 'unknown');
+  const fee = saas?.saasMonthlyFee != null ? Number(saas.saasMonthlyFee) : null;
+  const trialDays = saas?.saasTrialDays != null ? Number(saas.saasTrialDays) : null;
+
+  const unknownAlert = hasUnknown ? (
+    <Alert tone="warning" title="Não conseguimos conferir tudo" action={{ label: 'Tentar de novo', onClick: load }}>
+      Alguma etapa não carregou agora. Isso não quer dizer que falta algo: tente de novo em instantes.
+    </Alert>
+  ) : null;
+
+  let content: JSX.Element;
+  if (failed) {
+    content = <EmptyState variant="error" icon={<ListChecks />} title="Não carregamos o seu cadastro" onRetry={load} />;
+  } else if (!data) {
+    content = (
+      <>
+        <Skeleton height={120} radius="var(--radius-lg)" />
+        <Skeleton height={240} radius="var(--radius-lg)" />
+      </>
+    );
+  } else if (data.approved) {
+    content = (
+      <section className={[blocks.blk, blocks.blkSuccess].join(' ')} aria-label="Loja aprovada">
+        <h2 className={blocks.headTitle}>Sua loja está aprovada</h2>
+        <p className={blocks.sub}>Abra quando quiser. Os pedidos chegam na aba Agora.</p>
+        <Button onClick={() => router.push('/seller/dashboard')}>Ir para Agora</Button>
+      </section>
+    );
+  } else if (data.mode === 'custodia' && data.store && data.steps.every((s) => s.state !== 'todo' && s.state !== 'unknown')) {
+    // Em análise: tudo enviado; pode haver item recusado para reenviar.
+    const done = data.steps.filter((s) => s.state === 'done').length;
+    const rejected = data.steps.find((s) => s.state === 'rejected') || null;
+    const rows: Array<{ key: string; label: string; state: StepState; reason?: string; step: ChecklistStep }> = [];
+    for (const s of data.steps) {
+      if (s.items && s.items.length) for (const it of s.items) rows.push({ key: `${s.key}-${it.key}`, label: it.label, state: it.state, reason: it.reason, step: s });
+      else rows.push({ key: s.key, label: s.label, state: s.state, reason: s.reason, step: s });
+    }
+    content = (
+      <>
+        {unknownAlert}
+        <section className={[blocks.blk, blocks.blkBrand].join(' ')} aria-label="Em análise">
+          <h2 className={blocks.headTitle}>Quase lá</h2>
+          <p className={blocks.sub}>O DROP confere seus documentos em até 1 dia útil.</p>
+          <ProgressBar value={done} max={data.steps.length} label="Etapas aprovadas" valueText={`${done} de ${data.steps.length}`} />
+        </section>
+        <ul className={blocks.list}>
+          {rows.map((r, i) => (
+            <li key={r.key} className={[blocks.row, r.state === 'rejected' && blocks.rowCurrent].filter(Boolean).join(' ')}>
+              <span className={[blocks.ico, ICON_CLASS[r.state]].filter(Boolean).join(' ')} aria-hidden="true">{stateIcon(r.state, i)}</span>
+              <span className={blocks.tx}>
+                <b>{r.label}</b>
+                <span className={r.state === 'rejected' ? blocks.warn : undefined}>{stepSub(r, 'Aprovado')}</span>
+              </span>
+              {r.state === 'rejected' && <Button size="sm" onClick={() => router.push(r.step.href)}>Reenviar</Button>}
+            </li>
+          ))}
+        </ul>
+        <h2 className={blocks.cap}>Enquanto isso</h2>
+        <ul className={blocks.list}>
+          <NavRow
+            icon={<Package size={20} />}
+            iconClassName={blocks.icoBrand}
+            label="Cadastre seus produtos"
+            sub={`${data.productsCount} cadastrados · aparecem quando a loja for aprovada`}
+            onClick={() => router.push('/seller/create-product')}
+          />
+          <NavRow icon={<Clock size={20} />} label="Defina seus horários" sub={summarizeHours(data.store?.operatingHours)} onClick={() => router.push('/seller/horarios')} />
+        </ul>
+        <div className={blocks.bar}>
+          {rejected && <Button onClick={() => router.push(rejected.href)}>{`Reenviar: ${rejected.label}`}</Button>}
+          <small>Avisamos por e-mail e notificação quando a loja for aprovada.</small>
+        </div>
+      </>
+    );
+  } else {
+    const total = data.steps.length;
+    const done = data.steps.filter((s) => s.state === 'done').length;
+    const left = total - done;
+    content = (
+      <>
+        {unknownAlert}
+        <section className={[blocks.blk, blocks.blkBrand].join(' ')} aria-label="Progresso">
+          <div className={blocks.head}>
+            <h2 className={blocks.headTitle}>
+              {direto ? (left === 1 ? 'Falta 1 passo para vender' : `Faltam ${left} passos para vender`) : 'Abrir sua loja'}
+            </h2>
+            <span className={blocks.meta}>{`${done} de ${total}`}</span>
+          </div>
+          <ProgressBar value={done} max={total} label="Etapas concluídas" valueText={`${done} de ${total}`} />
+          <p className={blocks.sub}>Dá para parar e continuar depois. Salvamos cada etapa.</p>
+        </section>
+        <ul className={blocks.list}>
+          {data.steps.map((s, i) => {
+            const isCurrent = data.current?.key === s.key;
+            return (
+              <NavRow
+                key={s.key}
+                icon={stateIcon(s.state, i)}
+                iconClassName={isCurrent && s.state === 'todo' ? blocks.icoBrand : ICON_CLASS[s.state]}
+                label={s.label}
+                sub={stepSub(s)}
+                current={isCurrent}
+                end={isCurrent ? <span className={[blocks.tag, blocks.tagBrand].join(' ')}>agora</span> : undefined}
+                onClick={() => router.push(s.href)}
+              />
+            );
+          })}
+        </ul>
+        {direto ? (
+          <>
+            <ComoFunciona fee={fee} trialDays={trialDays} />
+            <Alert tone="info" title="Você pulou 2 etapas">
+              No modo SaaS não pedimos verificação da loja, chave Pix nem escolha de plano: quem é verificado é o dono.
+            </Alert>
+          </>
+        ) : (
+          <Alert tone="info">A análise leva até 1 dia útil. Você já pode cadastrar produtos enquanto isso.</Alert>
+        )}
+        {data.current && (
+          <div className={blocks.bar}>
+            <Button onClick={() => router.push(data.current!.href)}>{`Continuar: ${data.current.label}`}</Button>
+            {direto && data.current.key === 'asaas' && <small>Leva uns 5 minutos com o Asaas aberto.</small>}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <ProtectedRoute required_role="lojista">
+      <SellerShell title="Abrir a loja" back="/seller/loja">
+        <div className={blocks.body}>{content}</div>
+      </SellerShell>
+    </ProtectedRoute>
+  );
+}

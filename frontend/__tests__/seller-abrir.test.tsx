@@ -1,0 +1,130 @@
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import SellerAbrir from '../pages/seller/abrir';
+import { loadStoreOnboarding } from '../lib/storeOnboarding';
+import api from '../lib/api';
+
+const mockPush = jest.fn();
+let mockQuery: any = {};
+let mockMode = 'custodia';
+jest.mock('next/router', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn(), query: mockQuery, pathname: '/seller/abrir' }) }));
+jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
+jest.mock('../components/seller/panel/SellerShell', () => {
+  const Shell = ({ title, actions, children }: any) => <div><h1>{title}</h1>{actions}{children}</div>;
+  return { __esModule: true, default: Shell, SellerShell: Shell };
+});
+jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: mockMode, directCardEnabled: false, loading: false }) }));
+jest.mock('../components/drop/IdentityCheck', () => ({
+  IdentityCheck: ({ onDone }: any) => <button type="button" onClick={onDone}>Concluir identidade</button>,
+}));
+jest.mock('../lib/storeOnboarding', () => {
+  const actual = jest.requireActual('../lib/storeOnboarding');
+  return { ...actual, loadStoreOnboarding: jest.fn() };
+});
+jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
+
+const step = (key: string, label: string, state: string, extra: any = {}) => ({ key, label, path: `/${key}`, href: `/href-${key}`, state, detail: `detalhe ${key}`, ...extra });
+const store = { _id: 's1', name: 'Eletro Center', operatingHours: null };
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockQuery = {};
+  mockMode = 'custodia';
+  (api.get as jest.Mock).mockResolvedValue({ data: { settlementMode: 'direto', saasMonthlyFee: 149, saasTrialDays: 14 } });
+});
+
+test('checklist: etapa atual em destaque e "Continuar" leva para ela', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'todo'), step('pix', 'Recebimento (PIX)', 'todo'), step('plano', 'Plano', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('2 de 5')).toBeInTheDocument();
+  expect(screen.getByText('agora')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Continuar: Verificar loja'));
+  expect(mockPush).toHaveBeenCalledWith('/href-lojaVerif');
+});
+
+test('etapa recusada mostra o motivo no checklist', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'rejected', { reason: 'Documento ilegível' }), step('lojaVerif', 'Verificar loja', 'todo'), step('pix', 'Recebimento (PIX)', 'todo'), step('plano', 'Plano', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: steps[1], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Recusado: Documento ilegível')).toBeInTheDocument();
+});
+
+test('em análise: item recusado com motivo e "Reenviar"; "Enquanto isso" com produtos', async () => {
+  const items = [
+    { key: 'facial', label: 'Foto do rosto', state: 'done' },
+    { key: 'cnpj', label: 'CNPJ', state: 'review' },
+    { key: 'address', label: 'Comprovante de endereço', state: 'rejected', reason: 'Foto cortada' },
+  ];
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'rejected', { items, reason: 'Foto cortada' }), step('pix', 'Recebimento (PIX)', 'done'), step('plano', 'Plano', 'done')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 3, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Quase lá')).toBeInTheDocument();
+  expect(screen.getByText('Recusado: Foto cortada')).toBeInTheDocument();
+  expect(screen.getByText('Em análise')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Reenviar'));
+  expect(mockPush).toHaveBeenCalledWith('/href-lojaVerif');
+  expect(screen.getByText('3 cadastrados · aparecem quando a loja for aprovada')).toBeInTheDocument();
+});
+
+test('aprovada: leva para Agora', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: null, allSubmitted: true, approved: true });
+  render(<SellerAbrir />);
+  fireEvent.click(await screen.findByText('Ir para Agora'));
+  expect(mockPush).toHaveBeenCalledWith('/seller/dashboard');
+});
+
+test('modo SaaS: 3 etapas, mensalidade e dias grátis do servidor', async () => {
+  mockMode = 'direto';
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('asaas', 'Conta Asaas', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'direto', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Falta 1 passo para vender')).toBeInTheDocument();
+  expect(await screen.findByText(/R\$ 149,00/)).toBeInTheDocument();
+  expect(screen.getByText(/14 dias grátis/)).toBeInTheDocument();
+  expect(screen.getByText('Você pulou 2 etapas')).toBeInTheDocument();
+  expect(loadStoreOnboarding).toHaveBeenCalledWith('direto');
+});
+
+test('modo SaaS com mensalidade zero: "Grátis no lançamento"', async () => {
+  mockMode = 'direto';
+  (api.get as jest.Mock).mockResolvedValue({ data: { saasMonthlyFee: 0, saasTrialDays: 14 } });
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('asaas', 'Conta Asaas', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'direto', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText(/Grátis no lançamento/)).toBeInTheDocument();
+});
+
+test('identidade abre dentro da tela e volta ao checklist', async () => {
+  mockQuery = { etapa: 'identidade' };
+  render(<SellerAbrir />);
+  fireEvent.click(screen.getByText('Concluir identidade'));
+  expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+  expect(loadStoreOnboarding).not.toHaveBeenCalled();
+});
+
+test('erro ao carregar: "Tentar de novo" recarrega', async () => {
+  const steps = [step('loja', 'Criar loja', 'todo')];
+  (loadStoreOnboarding as jest.Mock)
+    .mockRejectedValueOnce(new Error('rede'))
+    .mockResolvedValueOnce({ mode: 'custodia', store: null, productsCount: 0, steps, current: steps[0], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  fireEvent.click(await screen.findByText('Tentar de novo'));
+  expect(await screen.findByText('Continuar: Criar loja')).toBeInTheDocument();
+});
+
+test('etapa que não deu para conferir: aviso, "Tentar de novo" recarrega e não entra em "Quase lá"', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'done'), step('pix', 'Recebimento (PIX)', 'unknown'), step('plano', 'Plano', 'done')];
+  const again = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'done'), step('pix', 'Recebimento (PIX)', 'done'), step('plano', 'Plano', 'done')];
+  (loadStoreOnboarding as jest.Mock)
+    .mockResolvedValueOnce({ mode: 'custodia', store, productsCount: 0, steps, current: steps[3], allSubmitted: false, approved: false })
+    .mockResolvedValueOnce({ mode: 'custodia', store, productsCount: 0, steps: again, current: null, allSubmitted: true, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Não conseguimos conferir tudo')).toBeInTheDocument();
+  expect(screen.getByText('Não deu para conferir agora')).toBeInTheDocument();
+  expect(screen.queryByText('Quase lá')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Tentar de novo'));
+  expect(await screen.findByText('Quase lá')).toBeInTheDocument();
+  expect(loadStoreOnboarding).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText('Não conseguimos conferir tudo')).not.toBeInTheDocument();
+});
