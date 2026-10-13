@@ -1,0 +1,7 @@
+.code {
+  margin: 0;
+  font: var(--text-title);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  color: var(--color-text-primary);
+}

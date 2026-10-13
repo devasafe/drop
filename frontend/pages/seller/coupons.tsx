@@ -1,213 +1,306 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import api from '../../lib/api';
-import useRequireAuth from '../../hooks/useRequireAuth';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import { useCallback, useEffect, useState } from 'react';
+import { Plus, Ticket } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { List, Row } from '../../components/ui/List';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { Button } from '../../components/ui/Button';
+import { Chip } from '../../components/ui/Chip';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Input } from '../../components/ui/Input';
+import { ProgressBar } from '../../components/ui/ProgressBar';
+import { Sheet } from '../../components/ui/Sheet';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { Switch } from '../../components/ui/Switch';
+import { useToast } from '../../components/ui/Toast';
+import api from '../../lib/api';
+import { formatMoney } from '../../lib/money';
+import { payload, apiErrorCode, apiErrorMessage, apiStatus, parseMoneyInput } from '../../lib/sellerApi';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import styles from './SellerCupons.module.css';
 
-interface Coupon {
+export interface Coupon {
   _id: string;
   code: string;
   discountType: 'percent' | 'fixed';
   discountValue: number;
-  minOrderValue?: number;
-  maxUses?: number;
+  minOrderValue?: number | null;
+  maxUses?: number | null;
   usedCount: number;
   validFrom: string;
   validUntil: string;
   isActive: boolean;
+  isPublic?: boolean;
+  endedAt?: string | null;
+}
+interface Results { uses: number; ordersPaid: number; salesTotal: number; discountTotal: number }
+
+export function couponState(c: Coupon, now: Date = new Date()): 'ativo' | 'pausado' | 'encerrado' {
+  if (c.endedAt || new Date(c.validUntil).getTime() < now.getTime()) return 'encerrado';
+  return c.isActive ? 'ativo' : 'pausado';
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-const nextMonth = () => {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  return d.toISOString().slice(0, 10);
-};
+export function suggestCode(type: 'percent' | 'fixed', value: string): string {
+  const n = Math.round(parseMoneyInput(value));
+  return `${type === 'percent' ? 'VOLTA' : 'DESCONTO'}${Number.isFinite(n) && n > 0 ? n : ''}`;
+}
 
-export default function SellerCoupons() {
-  useRequireAuth(['lojista']);
-  const router = useRouter();
+const ddmm = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+export function couponSummary(c: Coupon): string {
+  const v = c.discountType === 'percent' ? `${Number(c.discountValue)}% de desconto` : `${formatMoney(Number(c.discountValue))} de desconto`;
+  const min = c.minOrderValue ? ` em pedidos acima de ${formatMoney(Number(c.minOrderValue))}` : '';
+  return `${v}${min} · até ${ddmm(c.validUntil)}`;
+}
 
-  const [code, setCode] = useState('');
-  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState<number>(10);
-  const [minOrderValue, setMinOrderValue] = useState('');
-  const [maxUses, setMaxUses] = useState('');
-  const [validFrom, setValidFrom] = useState(today());
-  const [validUntil, setValidUntil] = useState(nextMonth());
-  const [saving, setSaving] = useState(false);
-
-  const fetchCoupons = async () => {
-    try {
-      const res = await api.get('/coupons');
-      setCoupons(res.data);
-    } catch {
-      /* silencioso */
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchCoupons(); }, []);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.post('/coupons', {
-        code, type: 'store', discountType, discountValue: Number(discountValue),
-        minOrderValue: minOrderValue ? Number(minOrderValue) : undefined,
-        maxUses: maxUses ? Number(maxUses) : undefined,
-        validFrom, validUntil,
-      });
-      setShowForm(false);
-      setCode(''); setDiscountValue(10); setMinOrderValue(''); setMaxUses('');
-      setValidFrom(today()); setValidUntil(nextMonth());
-      await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao criar cupom');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggle = async (id: string) => {
-    try {
-      await api.put(`/coupons/${id}/toggle`);
-      await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Deletar este cupom?')) return;
-    try {
-      await api.delete(`/coupons/${id}`);
-      await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro');
-    }
-  };
-
-  const labelStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 4 };
-
+function CouponCard({ c, onToggle, onEnd, onResults }: { c: Coupon; onToggle: (c: Coupon) => void; onEnd: (c: Coupon) => void; onResults: (c: Coupon) => void }) {
+  const used = Number(c.usedCount) || 0;
+  const max = c.maxUses ? Number(c.maxUses) : null;
+  const ending = max != null && used / max >= 0.8;
   return (
-    <ProtectedRoute required_role="lojista">
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 20px', fontFamily: 'var(--font-body)' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div>
-              <button onClick={() => router.push('/seller/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
-                ← Painel
-              </button>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0 }}>
-                Cupons da Loja
-              </h1>
-            </div>
-            <button
-              onClick={() => setShowForm(v => !v)}
-              style={{ padding: '10px 20px', background: 'var(--brand)', border: 'none', borderRadius: 10, color: 'var(--on-brand)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
-            >
-              {showForm ? 'Cancelar' : '+ Novo Cupom'}
-            </button>
-          </div>
-
-          {showForm && (
-            <form onSubmit={handleCreate} style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 24, marginBottom: 24 }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--text-strong)', marginBottom: 16 }}>Criar Cupom</h3>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={labelStyle}>Código</label>
-                  <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} required placeholder="EX: PROMO10" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Tipo de desconto</label>
-                  <select value={discountType} onChange={e => setDiscountType(e.target.value as any)} style={inputStyle}>
-                    <option value="percent">Percentual (%)</option>
-                    <option value="fixed">Fixo (R$)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Valor do desconto</label>
-                  <input type="number" min="1" max={discountType === 'percent' ? 100 : undefined} step="0.01" value={discountValue} onChange={e => setDiscountValue(Number(e.target.value))} required style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Pedido mínimo (R$) — opcional</label>
-                  <input type="number" min="0" step="0.01" value={minOrderValue} onChange={e => setMinOrderValue(e.target.value)} placeholder="Sem mínimo" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Limite de usos — opcional</label>
-                  <input type="number" min="1" value={maxUses} onChange={e => setMaxUses(e.target.value)} placeholder="Ilimitado" style={inputStyle} />
-                </div>
-                <div />
-                <div>
-                  <label style={labelStyle}>Válido de</label>
-                  <input type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} required style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Válido até</label>
-                  <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} required style={inputStyle} />
-                </div>
-              </div>
-
-              <button type="submit" disabled={saving} style={{ padding: '10px 24px', background: 'var(--brand)', border: 'none', borderRadius: 10, color: 'var(--on-brand)', fontWeight: 600, fontSize: 14, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Salvando...' : 'Criar Cupom'}
-              </button>
-            </form>
-          )}
-
-          {loading ? (
-            <LoadingSkeleton variant="list" count={4} />
-          ) : coupons.length === 0 ? (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-              Nenhum cupom criado ainda.
-            </div>
-          ) : (
-            <List>
-              {coupons.map(c => (
-                <Row key={c._id} style={{ display: 'flex', alignItems: 'center', gap: 16, opacity: c.isActive ? 1 : 0.55 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, color: 'var(--brand-2)', letterSpacing: 1 }}>{c.code}</span>
-                      <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: c.isActive ? 'color-mix(in srgb, var(--success) 15%, transparent)' : 'var(--surface-chip)', color: c.isActive ? 'var(--success)' : 'var(--text-subtle)', fontWeight: 600 }}>
-                        {c.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                      {c.discountType === 'percent' ? `${c.discountValue}% de desconto` : `R$ ${c.discountValue.toFixed(2)} de desconto`}
-                      {c.minOrderValue ? ` • mín. R$ ${c.minOrderValue.toFixed(2)}` : ''}
-                      {' • '}
-                      {c.usedCount}/{c.maxUses ?? '∞'} usos
-                      {' • '}
-                      até {new Date(c.validUntil).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                  <button onClick={() => handleToggle(c._id)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer' }}>
-                    {c.isActive ? 'Desativar' : 'Ativar'}
-                  </button>
-                  <button onClick={() => handleDelete(c._id)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)', background: 'color-mix(in srgb, var(--danger) 8%, transparent)', color: 'var(--danger)', fontSize: 13, cursor: 'pointer' }}>
-                    Excluir
-                  </button>
-                </Row>
-              ))}
-            </List>
-          )}
-        </div>
+    <article className={blocks.blk} aria-label={`Cupom ${c.code}`}>
+      <div className={blocks.head}>
+        <h3 className={styles.code}>{c.code}</h3>
+        <span className={[blocks.tag, c.isPublic ? blocks.tagBrand : ''].filter(Boolean).join(' ')}>{c.isPublic ? 'Público' : 'Secreto'}</span>
       </div>
-    </ProtectedRoute>
+      <p className={blocks.sub}>{couponSummary(c)}</p>
+      {max != null && <ProgressBar value={used} max={max} label={`Usos do cupom ${c.code}`} valueText={`${used} de ${max}`} />}
+      <p className={[blocks.meta, ending ? blocks.warn : ''].filter(Boolean).join(' ')}>
+        {max != null ? `${used} de ${max} usos` : `${used} usos`}{ending ? ' · acaba logo' : ''}
+      </p>
+      <Switch label="Ativo" checked={c.isActive} onChange={() => onToggle(c)} />
+      <div className={blocks.actions}>
+        <Button size="sm" variant="secondary" onClick={() => onResults(c)}>Resultados</Button>
+        <Button size="sm" variant="tertiary" onClick={() => onEnd(c)}>Encerrar</Button>
+      </div>
+    </article>
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: 'var(--surface-field)', border: '1px solid var(--line)',
-  borderRadius: 8, color: 'var(--text)', padding: '9px 12px', fontSize: 14, fontFamily: 'inherit',
-};
+function CreateSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const { showToast } = useToast();
+  const [type, setType] = useState<'percent' | 'fixed'>('percent');
+  const [value, setValue] = useState('');
+  const [min, setMin] = useState('');
+  const [until, setUntil] = useState(() => isoDay(new Date(Date.now() + 30 * 86400000)));
+  const [maxUses, setMaxUses] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeTouched, setCodeTouched] = useState(false);
+  const [error, setError] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { if (!codeTouched) setCode(suggestCode(type, value)); }, [type, value, codeTouched]);
+  useEffect(() => {
+    if (!open) return;
+    setType('percent'); setValue(''); setMin(''); setMaxUses(''); setIsPublic(false);
+    setUntil(isoDay(new Date(Date.now() + 30 * 86400000)));
+    setCode(''); setCodeTouched(false); setError(''); setCodeError('');
+  }, [open]);
+
+  const problem = (): string | null => {
+    const v = parseMoneyInput(value);
+    if (!Number.isFinite(v) || v <= 0) return 'Informe um desconto válido, maior que zero.';
+    if (type === 'percent' && v > 100) return 'O desconto em % vai até 100.';
+    if (min.trim()) {
+      const m = parseMoneyInput(min);
+      if (!Number.isFinite(m) || m < 0) return 'Informe um pedido mínimo válido ou deixe em branco.';
+    }
+    if (maxUses.trim() && !/^[1-9]\d*$/.test(maxUses.trim())) return 'O limite de usos precisa ser um número inteiro maior que zero.';
+    if (!until || until < isoDay(new Date())) return 'A validade precisa ser hoje ou depois.';
+    if (!/^[A-Z0-9]{3,20}$/.test(code)) return 'Use de 3 a 20 letras ou números, sem espaço.';
+    return null;
+  };
+
+  const submit = async () => {
+    const p = problem();
+    if (p) { setError(p); return; }
+    setBusy(true);
+    setError('');
+    setCodeError('');
+    try {
+      await api.post('/coupons', {
+        code,
+        type: 'store',
+        discountType: type,
+        discountValue: parseMoneyInput(value),
+        minOrderValue: min.trim() ? parseMoneyInput(min) : undefined,
+        maxUses: maxUses.trim() ? Number(maxUses) : undefined,
+        validFrom: isoDay(new Date()),
+        validUntil: until,
+        isPublic,
+      });
+      showToast('Cupom criado', 'success');
+      onCreated();
+      onClose();
+    } catch (e) {
+      if (apiStatus(e) === 409) setCodeError('Esse código já está em uso. Tente outro.');
+      else setError(apiErrorMessage(e, 'Não foi possível criar o cupom. Tente de novo.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Novo cupom" presentation="bottom">
+      <div className={blocks.stack}>
+        <div className={blocks.chips} role="group" aria-label="Tipo de desconto">
+          <Chip label="% de desconto" active={type === 'percent'} onClick={() => setType('percent')} />
+          <Chip label="R$ de desconto" active={type === 'fixed'} onClick={() => setType('fixed')} />
+        </div>
+        <Input label="Valor do desconto" inputMode="decimal" value={value} onChange={setValue} placeholder={type === 'percent' ? 'Ex.: 10' : 'Ex.: 20,00'} />
+        <Input label="Pedido mínimo (opcional)" inputMode="decimal" value={min} onChange={setMin} placeholder="Sem mínimo" />
+        <Input label="Válido até" type="date" value={until} onChange={setUntil} />
+        <Input label="Limite de usos (opcional)" inputMode="numeric" value={maxUses} onChange={setMaxUses} placeholder="Sem limite" />
+        <Switch label="Mostrar na página da loja" description="Desligado, só quem tem o código consegue usar." checked={isPublic} onChange={setIsPublic} />
+        <Input
+          label="Código"
+          value={code}
+          onChange={(v) => { setCodeTouched(true); setCode(v.toUpperCase().replace(/\s+/g, '')); }}
+          hint="Sugerimos um. Pode trocar: letras e números, de 3 a 20."
+          error={codeError || undefined}
+        />
+        {error && <p role="alert" className={blocks.errText}>{error}</p>}
+        <Button onClick={submit} loading={busy}>Criar cupom</Button>
+      </div>
+    </Sheet>
+  );
+}
+
+export default function SellerCoupons() {
+  const { showToast } = useToast();
+  const [list, setList] = useState<Coupon[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [ending, setEnding] = useState<Coupon | null>(null);
+  const [endBusy, setEndBusy] = useState(false);
+  const [resultsOf, setResultsOf] = useState<Coupon | null>(null);
+  const [results, setResults] = useState<Results | null>(null);
+  const [resultsFailed, setResultsFailed] = useState(false);
+
+  const load = useCallback(() => {
+    setFailed(false);
+    api.get('/coupons')
+      .then((r) => { const d = payload<Coupon[]>(r); setList(Array.isArray(d) ? d : []); })
+      .catch(() => setFailed(true));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (c: Coupon) => {
+    try {
+      await api.put(`/coupons/${c._id}/toggle`);
+    } catch (e) {
+      if (apiErrorCode(e) === 'COUPON_ENDED') showToast('Este cupom foi encerrado e não pode voltar.', 'error');
+      else showToast(apiErrorMessage(e, 'Não foi possível mudar o cupom agora.'), 'error');
+    }
+    load();
+  };
+
+  const confirmEnd = async () => {
+    if (!ending) return;
+    setEndBusy(true);
+    try {
+      await api.post(`/coupons/${ending._id}/end`);
+      showToast('Cupom encerrado', 'success');
+      setEnding(null);
+      load();
+    } catch (e) {
+      if (apiStatus(e) === 409) {
+        showToast('Este cupom já estava encerrado.', 'error');
+        setEnding(null);
+        load();
+      } else {
+        showToast(apiErrorMessage(e, 'Não foi possível encerrar agora.'), 'error');
+      }
+    } finally {
+      setEndBusy(false);
+    }
+  };
+
+  const openResults = (c: Coupon) => {
+    setResultsOf(c);
+    setResults(null);
+    setResultsFailed(false);
+    api.get(`/coupons/${c._id}/results`)
+      .then((r) => setResults(payload<Results>(r)))
+      .catch(() => setResultsFailed(true));
+  };
+
+  const ativos = (list || []).filter((c) => couponState(c) !== 'encerrado');
+  const encerrados = (list || []).filter((c) => couponState(c) === 'encerrado');
+
+  return (
+    <ProtectedRoute required_role="lojista">
+      <SellerShell
+        title="Cupons"
+        back="/seller/loja"
+        actions={<Button size="sm" leftIcon={<Plus size={16} />} onClick={() => setCreating(true)}>Criar</Button>}
+      >
+        <div className={blocks.body}>
+          {failed ? (
+            <EmptyState variant="error" icon={<Ticket />} title="Não carregamos os cupons" onRetry={load} />
+          ) : !list ? (
+            <>
+              <Skeleton height={140} radius="var(--radius-lg)" />
+              <Skeleton height={140} radius="var(--radius-lg)" />
+            </>
+          ) : list.length === 0 ? (
+            <EmptyState
+              icon={<Ticket />}
+              title="Cupom traz o cliente de volta"
+              description="Crie o primeiro em 30 segundos."
+              action={<Button onClick={() => setCreating(true)}>Criar cupom</Button>}
+            />
+          ) : (
+            <>
+              {ativos.map((c) => (
+                <CouponCard key={c._id} c={c} onToggle={toggle} onEnd={setEnding} onResults={openResults} />
+              ))}
+              {encerrados.length > 0 && (
+                <section aria-label="Encerrados" className={blocks.stack}>
+                  <h2 className={blocks.cap}>Encerrados</h2>
+                  <ul className={blocks.list}>
+                    {encerrados.map((c) => (
+                      <li key={c._id} className={blocks.row}>
+                        <span className={blocks.tx}>
+                          <b className={blocks.mono}>{c.code}</b>
+                          <span>{`${c.endedAt ? `Encerrado em ${ddmm(c.endedAt)}` : `Venceu em ${ddmm(c.validUntil)}`} · ${c.usedCount} usos`}</span>
+                        </span>
+                        <button type="button" className={blocks.link} onClick={() => openResults(c)}>Resultados</button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+
+        <CreateSheet open={creating} onClose={() => setCreating(false)} onCreated={load} />
+
+        <Sheet open={!!ending} onClose={() => setEnding(null)} title={ending ? `Encerrar o cupom ${ending.code}?` : undefined} presentation="bottom">
+          <div className={blocks.stack}>
+            <p className={blocks.sub}>Ele para de valer na hora e não pode ser reativado. O histórico de usos fica guardado.</p>
+            <Button variant="danger" loading={endBusy} onClick={confirmEnd}>Encerrar cupom</Button>
+            <Button variant="tertiary" onClick={() => setEnding(null)}>Cancelar</Button>
+          </div>
+        </Sheet>
+
+        <Sheet open={!!resultsOf} onClose={() => setResultsOf(null)} title={resultsOf ? `Resultados do ${resultsOf.code}` : undefined} presentation="bottom">
+          {resultsFailed ? (
+            <p className={blocks.errText}>Não carregamos os resultados. Feche e tente de novo.</p>
+          ) : !results ? (
+            <Skeleton height={120} />
+          ) : (
+            <div className={blocks.kpis}>
+              <div className={blocks.kpi}><small>Usos</small><b>{results.uses}</b></div>
+              <div className={blocks.kpi}><small>Pedidos pagos</small><b>{results.ordersPaid}</b></div>
+              <div className={blocks.kpi}><small>Vendas com o cupom</small><b>{formatMoney(Number(results.salesTotal) || 0)}</b></div>
+              <div className={blocks.kpi}><small>Desconto dado</small><b>{formatMoney(Number(results.discountTotal) || 0)}</b></div>
+            </div>
+          )}
+        </Sheet>
+      </SellerShell>
+    </ProtectedRoute>
+  );
+}
