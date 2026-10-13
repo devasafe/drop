@@ -143,8 +143,11 @@ export function DocumentosStep({ storeId, storeCnpj, onChanged, onEditStore, onO
         ) : (
           <div className={styles.doc}>
             <DocIcon s="none"><Hash size={18} /></DocIcon>
-            <span className={styles.docBody}><b>CNPJ</b><span>Cadastre o CNPJ da loja para enviar.</span></span>
-            <button type="button" className={blocks.link} onClick={onEditStore}>Pôr o CNPJ em Dados da loja</button>
+            <span className={styles.docBody}>
+              <b>CNPJ</b>
+              <span>Cadastre o CNPJ da loja para enviar.</span>
+              <button type="button" className={blocks.link} onClick={onEditStore}>Pôr o CNPJ em Dados da loja</button>
+            </span>
           </div>
         )}
       </div>
