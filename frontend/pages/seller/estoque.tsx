@@ -17,7 +17,7 @@ import styles from './Estoque.module.css';
 const validStock = (s: string) => /^\d+$/.test(s.trim());
 
 export default function EstoquePage() {
-  const { store, products, loading, reload } = useMyStore();
+  const { store, products, loading, reload } = useMyStore({ fresh: true }); // V12: relê o catálogo ao entrar
   const [sold, setSold] = useState<Record<string, number>>({});
   const [base, setBase] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});

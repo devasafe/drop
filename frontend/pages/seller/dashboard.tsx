@@ -134,12 +134,21 @@ export default function AgoraPage() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+  // V12: o cadastro usa a leitura de /stores/dashboard que o painel já fez (espera ele carregar).
+  // Painel com erro ou fora do painel: o cadastro lê sozinho, como antes.
+  const inPanel = panel?.inPanel === true;
+  const panelWaiting = inPanel && !!panel.loading;
+  const panelDashRef = useRef<{ store: any | null; products: any[] } | undefined>(undefined);
+  panelDashRef.current = inPanel && !panel.loading && !panel.error
+    ? { store: panel.store ?? null, products: Array.isArray(panel.products) ? panel.products : [] }
+    : undefined;
   const checkApproval = useCallback(() => {
-    if (modeLoading) return;
+    if (modeLoading || panelWaiting) return;
     const req = ++approvalReq.current;
     const current = () => mountedRef.current && req === approvalReq.current;
     setApproval({ status: 'loading' });
-    loadStoreOnboarding(settlementMode)
+    const dash = panelDashRef.current;
+    (dash === undefined ? loadStoreOnboarding(settlementMode) : loadStoreOnboarding(settlementMode, dash))
       .then((d) => {
         if (!current()) return;
         if (d.approved) setApproval({ status: 'approved', data: d });
@@ -147,7 +156,7 @@ export default function AgoraPage() {
         else setApproval({ status: 'pending', data: d });
       })
       .catch(() => { if (current()) setApproval({ status: 'unknown' }); });
-  }, [modeLoading, settlementMode]);
+  }, [modeLoading, settlementMode, panelWaiting]);
   useEffect(() => { checkApproval(); }, [checkApproval]);
   // Decisão do controlador: a tela de cadastro só substitui o Agora quando a loja NÃO está
   // verificada. Verificada com etapa pendente (ex.: sem chave Pix) segue o Agora normal, com um

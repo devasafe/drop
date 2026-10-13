@@ -31,7 +31,7 @@ jest.mock('../hooks/useSaasConfig', () => ({
 }));
 jest.mock('../components/ui/Toast', () => ({ ...jest.requireActual('../components/ui/Toast'), useToast: () => ({ show: jest.fn(), success: jest.fn(), error: jest.fn() }) }));
 jest.mock('../hooks/useCustodyLeftover', () => ({ useCustodyLeftover: () => false }));
-jest.mock('../lib/analyticsApi', () => ({ storeAnalytics: { topProducts: () => Promise.resolve({ products: [] }) } }));
+jest.mock('../lib/analyticsApi', () => ({ storeAnalytics: { topProducts: () => Promise.resolve({ products: [] }), overview: () => Promise.reject(new Error('fora do teste')) } }));
 const mockGet = jest.fn();
 const mockPut = jest.fn(() => Promise.resolve({ data: {} }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, get: (...a: any[]) => mockGet(...a), post: jest.fn(), put: (...a: any[]) => (mockPut as any)(...a) } }));
@@ -56,9 +56,16 @@ import SellerPagamentos from '../pages/seller/pagamentos';
 import SellerWallet from '../pages/seller/wallet';
 // eslint-disable-next-line import/first
 import SellerPedidosPage from '../pages/seller/pedidos';
+// eslint-disable-next-line import/first
+import SellerEstoque from '../pages/seller/estoque';
+// eslint-disable-next-line import/first
+import AgoraPage from '../pages/seller/dashboard';
+// eslint-disable-next-line import/first
+import SellerAbrir from '../pages/seller/abrir';
 
 const lojista = { _id: 'u1', role: 'lojista', activeRole: 'lojista', name: 'L' };
-const dashboard = {
+let dashboard: any;
+const baseDashboard = {
   store: { _id: 's1', name: 'Loja Teste' },
   products: [{ _id: 'p1', name: 'Bolo', price: 10, quantity: 9, isActive: true }],
   orders: [],
@@ -86,6 +93,7 @@ beforeEach(() => {
   mockPath = '/seller/products';
   holdDashboard = false;
   resolveDashboard = null;
+  dashboard = baseDashboard;
   mockGet.mockImplementation((url: string) => {
     if (url === '/stores/dashboard') {
       if (holdDashboard) return new Promise((r) => { resolveDashboard = r; });
@@ -174,3 +182,91 @@ describe('V12: uma leitura de /stores/dashboard por montagem do painel', () => {
     expect(dashCalls()).toBe(1);
   });
 });
+
+describe('V12 (fix): Agora, Abrir e catálogo fresco ao entrar', () => {
+  /** Monta a tela depois que o painel já carregou (navegação pelas abas). */
+  function Later({ children }: { children: ReactNode }) {
+    const { loading } = useMyStore();
+    const [show, setShow] = React.useState(false);
+    React.useEffect(() => { if (!loading) setShow(true); }, [loading]);
+    return <>{show ? children : <p>antes</p>}</>;
+  }
+  const extra = (url: string) => {
+    if (url === '/verification/me') return Promise.resolve({ data: { verification: { email: { status: 'verified' }, document: { status: 'approved' } } } });
+    return null;
+  };
+  const afterFirstRead = (next: any) => {
+    const base = mockGet.getMockImplementation()!;
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/stores/dashboard' && dashCalls() > 1) return Promise.resolve({ data: next });
+      return base(url);
+    });
+  };
+  beforeEach(() => {
+    const base = mockGet.getMockImplementation()!;
+    mockGet.mockImplementation((url: string) => extra(url) || base(url));
+  });
+
+  test('Agora (carga direta) no painel: 1 leitura do dashboard, o cadastro usa a do painel', async () => {
+    mockPath = '/seller/dashboard';
+    inPanel(<AgoraPage />);
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith('/verification/me'));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dashCalls()).toBe(1);
+  });
+
+  test('Abrir a loja (carga direta) no painel: 1 leitura do dashboard', async () => {
+    mockPath = '/seller/abrir';
+    inPanel(<SellerAbrir />);
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith('/verification/me'));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dashCalls()).toBe(1);
+  });
+
+  test('entrar em Produtos com o painel já carregado relê o catálogo (mudança de outro aparelho aparece)', async () => {
+    // a partir da 2ª leitura, o catálogo mudou em outro aparelho
+    afterFirstRead({ ...baseDashboard, products: [...baseDashboard.products, { _id: 'p2', name: 'Torta', price: 12, quantity: 3, isActive: true }] });
+    inPanel(<Later><SellerProducts /></Later>);
+    expect(await screen.findByText('Torta')).toBeInTheDocument();
+    expect(dashCalls()).toBe(2);
+  });
+
+  test('entrar em Estoque com o painel já carregado relê o catálogo', async () => {
+    mockPath = '/seller/estoque';
+    afterFirstRead({ ...baseDashboard, products: [{ ...baseDashboard.products[0], quantity: 1 }] });
+    inPanel(<Later><SellerEstoque /></Later>);
+    expect(await screen.findByText('Bolo')).toBeInTheDocument();
+    expect(dashCalls()).toBe(2);
+  });
+
+  test('Produtos na carga direta (painel ainda carregando) não lê duas vezes', async () => {
+    inPanel(<SellerProducts />);
+    expect(await screen.findByText('Bolo')).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dashCalls()).toBe(1);
+  });
+});
+
+describe('V12 (fix): sessão ainda carregando numa rota do painel', () => {
+  test('o painel espera a sessão; a tela não faz o próprio GET antes dela (1 leitura no total)', async () => {
+    const tree = (auth: any) => (
+      <AuthContext.Provider value={auth}>
+        <SellerPanelProvider><StoreProbe id="probe" /></SellerPanelProvider>
+      </AuthContext.Provider>
+    );
+    const r = render(tree({ user: null, loading: true, can: () => true }));
+    expect(screen.getByTestId('probe')).toHaveTextContent('carregando');
+    await new Promise((res) => setTimeout(res, 20));
+    expect(dashCalls()).toBe(0);
+    r.rerender(tree({ user: lojista, loading: false, can: () => true }));
+    await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('s1:1'));
+    expect(dashCalls()).toBe(1);
+  });
+
+  test('sessão terminou sem ninguém logado: o painel para de carregar, sem loja', async () => {
+    render(<AuthContext.Provider value={{ user: null, loading: false } as any}><SellerPanelProvider><StoreProbe id="probe" /></SellerPanelProvider></AuthContext.Provider>);
+    await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('sem loja:0'));
+    expect(dashCalls()).toBe(0);
+  });
+});
+

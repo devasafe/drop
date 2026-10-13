@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Bike, CalendarDays, Clock, ListChecks, Package, QrCode } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -16,6 +16,7 @@ import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { payload } from '../../lib/sellerApi';
 import { summarizeHours } from '../../lib/sellerHours';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { loadStoreOnboarding, type ChecklistStep, type StepState, type StoreOnboarding } from '../../lib/storeOnboarding';
 import { DadosLojaStep } from '../../components/seller/abrir/DadosLojaStep';
 import { DocumentosStep } from '../../components/seller/abrir/DocumentosStep';
@@ -71,12 +72,24 @@ export default function SellerAbrir() {
   const [saas, setSaas] = useState<{ saasMonthlyFee?: number; saasTrialDays?: number } | null>(null);
   const [freight, setFreight] = useState<{ base: number; perKm: number } | null>(null);
 
+  // V12: o checklist usa a leitura de /stores/dashboard que o painel já fez (espera ele carregar).
+  // Painel com erro ou fora do painel: lê sozinho, como antes.
+  const panel = useSellerPanel();
+  const inPanel = panel?.inPanel === true;
+  const panelWaiting = inPanel && !!panel.loading;
+  const panelDashRef = useRef<{ store: any | null; products: any[] } | undefined>(undefined);
+  panelDashRef.current = inPanel && !panel.loading && !panel.error
+    ? { store: panel.store ?? null, products: Array.isArray(panel.products) ? panel.products : [] }
+    : undefined;
+
   const load = useCallback(() => {
-    if (modeLoading || etapa === 'identidade') return;
+    if (modeLoading || panelWaiting || etapa === 'identidade') return;
     setFailed(false);
     setData(null);
-    loadStoreOnboarding(settlementMode).then(setData).catch(() => setFailed(true));
-  }, [modeLoading, settlementMode, etapa]);
+    const dash = panelDashRef.current;
+    (dash === undefined ? loadStoreOnboarding(settlementMode) : loadStoreOnboarding(settlementMode, dash))
+      .then(setData).catch(() => setFailed(true));
+  }, [modeLoading, panelWaiting, settlementMode, etapa]);
   useEffect(() => { load(); }, [load]);
 
   // Depois de uma etapa embutida: relê sem trocar a tela por esqueleto (a próxima etapa abre sozinha).
@@ -126,7 +139,12 @@ export default function SellerAbrir() {
   // Etapa aberta: a de ?etapa= (se existir neste fluxo) ou a atual.
   const askedStep = etapa && data ? data.steps.find((s) => s.key === etapa) ?? null : null;
   // Com ?etapa=, voltar ao checklist já relê tudo (o efeito de carga depende da etapa).
-  const stepDone = () => { if (etapa) router.push('/seller/abrir'); else refresh(); };
+  // Etapa salva: no painel, recarrega a loja dele antes (Produtos, Agora e o checklist leem dali).
+  const stepDone = () => {
+    const go = () => { if (etapa) router.push('/seller/abrir'); else refresh(); };
+    if (inPanel && panel.refresh) panel.refresh().then(go, go);
+    else go();
+  };
 
   const embedded = (s: ChecklistStep | null): JSX.Element | null => {
     // Fail closed: etapa que não deu para conferir não abre como "a fazer" (o aviso no topo tem "Tentar de novo").

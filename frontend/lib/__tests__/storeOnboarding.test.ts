@@ -153,3 +153,28 @@ describe('falha de leitura = unknown', () => {
     expect(r.steps.find((s) => s.key === 'pix')?.state).toBe('todo');
   });
 });
+
+describe('V12: resposta do dashboard já lida (painel)', () => {
+  test('com o dashboard passado, não refaz o GET /stores/dashboard e usa loja e produtos dele', async () => {
+    mockApi({ '/verification/me': me, '/verification/store/s1': {}, '/onboarding/status': {}, '/settings/store-subscription': {} });
+    const r = await loadStoreOnboarding('custodia', { store, products: [{}, {}] });
+    expect((api.get as jest.Mock).mock.calls.map(([u]) => u)).not.toContain('/stores/dashboard');
+    expect(r.store?._id).toBe('s1');
+    expect(r.productsCount).toBe(2);
+    expect(r.steps.find((s) => s.key === 'loja')?.state).not.toBe('todo');
+  });
+
+  test('com null (o painel leu 404), é "sem loja" sem novo GET', async () => {
+    mockApi({ '/verification/me': me });
+    const r = await loadStoreOnboarding('custodia', null);
+    expect((api.get as jest.Mock).mock.calls.map(([u]) => u)).not.toContain('/stores/dashboard');
+    expect(r.store).toBeNull();
+    expect(r.current?.key).toBe('loja');
+  });
+
+  test('sem o parâmetro, segue com o GET (erro que não é 404 continua subindo)', async () => {
+    mockApi({ '/stores/dashboard': Object.assign(new Error('500'), { response: { status: 500 } }), '/verification/me': me });
+    await expect(loadStoreOnboarding('custodia')).rejects.toBeTruthy();
+    expect(api.get).toHaveBeenCalledWith('/stores/dashboard');
+  });
+});

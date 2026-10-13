@@ -41,7 +41,7 @@ function LivePresenceMount() {
 }
 
 function AppWrapper({ Component, pageProps }: AppProps) {
-  const { user } = useAuth() || {};
+  const { user, loading: authLoading } = useAuth() || {};
   const router = useRouter();
   useRouteTheme();
   const [isSeller, setIsSeller] = useState(false);
@@ -111,7 +111,9 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <ToastProvider>
         <SeasonalThemeProvider>
         {/* Painel da loja (D1): socket e pedidos montados uma vez para todo /seller/*. */}
-        <SellerPanelGate pathname={router.pathname} enabled={!!user}>
+        {/* Com a sessão ainda carregando o painel já monta (e espera): as telas não fazem GET próprio
+            antes dela, e a árvore não remonta quando o usuário chega (V12). */}
+        <SellerPanelGate pathname={router.pathname} enabled={!!user || authLoading === true}>
         {/* Dentro do Gate: no painel, a loja do notificador vem do painel, sem outro GET (V12). */}
         {user && <RealtimeNotifier />}
         {!navDesktopOnly && <Nav />}

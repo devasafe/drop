@@ -35,12 +35,17 @@ jest.mock('../lib/storeOnboarding', () => {
   return { ...actual, loadStoreOnboarding: jest.fn() };
 });
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
+// V12: fora do painel por padrão (como nos testes antigos); os testes do painel trocam o valor.
+const outOfPanel = () => ({ inPanel: false, store: null, products: [], loading: false, error: null, refresh: jest.fn(() => Promise.resolve()) });
+let mockPanel: any = outOfPanel();
+jest.mock('../components/seller/panel/SellerPanelProvider', () => ({ useSellerPanel: () => mockPanel }));
 
 const step = (key: string, label: string, state: string, extra: any = {}) => ({ key, label, path: `/${key}`, href: `/href-${key}`, state, detail: `detalhe ${key}`, ...extra });
 const store = { _id: 's1', name: 'Eletro Center', operatingHours: null };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPanel = outOfPanel();
   mockQuery = {};
   mockMode = 'custodia';
   (api.get as jest.Mock).mockResolvedValue({ data: { settlementMode: 'direto', saasMonthlyFee: 149, saasTrialDays: 14 } });
@@ -206,3 +211,42 @@ test('etapa que não deu para conferir: aviso, "Tentar de novo" recarrega e não
   expect(loadStoreOnboarding).toHaveBeenCalledTimes(2);
   expect(screen.queryByText('Não conseguimos conferir tudo')).not.toBeInTheDocument();
 });
+
+describe('V12: Abrir a loja usa a leitura do painel', () => {
+  const steps = () => [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'todo')];
+  const onbData = () => ({ mode: 'custodia', store, productsCount: 0, steps: steps(), current: steps()[2], allSubmitted: false, approved: false });
+
+  test('painel carregado: o checklist recebe loja e produtos do painel', async () => {
+    mockPanel = { ...outOfPanel(), inPanel: true, store, products: [{ _id: 'p1' }] };
+    (loadStoreOnboarding as jest.Mock).mockResolvedValue(onbData());
+    render(<SellerAbrir />);
+    expect(await screen.findByText('etapa documentos s1')).toBeInTheDocument();
+    expect(loadStoreOnboarding).toHaveBeenCalledWith('custodia', { store, products: [{ _id: 'p1' }] });
+  });
+
+  test('painel carregando: espera, sem ler o checklist', async () => {
+    mockPanel = { ...outOfPanel(), inPanel: true, loading: true };
+    (loadStoreOnboarding as jest.Mock).mockResolvedValue(onbData());
+    render(<SellerAbrir />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(loadStoreOnboarding).not.toHaveBeenCalled();
+  });
+
+  test('painel com erro: o checklist faz a própria leitura', async () => {
+    mockPanel = { ...outOfPanel(), inPanel: true, error: 'falhou' };
+    (loadStoreOnboarding as jest.Mock).mockResolvedValue(onbData());
+    render(<SellerAbrir />);
+    await waitFor(() => expect(loadStoreOnboarding).toHaveBeenCalledWith('custodia'));
+  });
+
+  test('etapa salva por ?etapa=: recarrega o painel antes de voltar ao checklist (a loja nova aparece)', async () => {
+    mockQuery = { etapa: 'loja' };
+    mockPanel = { ...outOfPanel(), inPanel: true, store, products: [] };
+    (loadStoreOnboarding as jest.Mock).mockResolvedValue(onbData());
+    render(<SellerAbrir />);
+    fireEvent.click(await screen.findByText('etapa loja edição cnpj obrigatório'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/seller/abrir'));
+    expect(mockPanel.refresh).toHaveBeenCalled();
+  });
+});
+

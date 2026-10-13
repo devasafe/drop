@@ -26,7 +26,7 @@ type Filter = 'todos' | 'esgotados' | 'pausados' | 'semFoto';
 export default function SellerProducts() {
   const router = useRouter();
   // Rota autenticada do dono: loja pausada some da vitrine pública, mas o painel segue funcionando.
-  const { products, loading, reload } = useMyStore();
+  const { products, loading, reload } = useMyStore({ fresh: true }); // V12: relê o catálogo ao entrar
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);

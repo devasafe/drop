@@ -504,3 +504,26 @@ describe('V5 fix 2 · fonte da verificação e corrida do "Tentar de novo"', () 
     err.mockRestore();
   });
 });
+
+describe('V12: o cadastro do Agora usa a leitura do painel', () => {
+  test('no painel carregado, passa loja e produtos do painel (sem outro GET do dashboard)', async () => {
+    mockPanel = { ...mockPanel, inPanel: true, loading: false, products: [{ _id: 'p1' }] };
+    render(<AgoraPage />);
+    await waitFor(() => expect(mockLoadOnb).toHaveBeenCalled());
+    expect(mockLoadOnb).toHaveBeenCalledWith('custodia', { store: mockPanel.store, products: [{ _id: 'p1' }] });
+  });
+
+  test('no painel ainda carregando, espera (não lê o cadastro)', async () => {
+    mockPanel = { ...mockPanel, inPanel: true, loading: true, store: null, products: [] };
+    render(<AgoraPage />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(mockLoadOnb).not.toHaveBeenCalled();
+  });
+
+  test('painel com erro: o cadastro faz a própria leitura (fail closed, como antes)', async () => {
+    mockPanel = { ...mockPanel, inPanel: true, loading: false, error: 'falhou', store: null, products: [] };
+    render(<AgoraPage />);
+    await waitFor(() => expect(mockLoadOnb).toHaveBeenCalledWith('custodia'));
+  });
+});
+

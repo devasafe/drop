@@ -14,10 +14,29 @@ type MyStore = { store: any; products: any[]; loading: boolean };
  * Como antes, os dados ficam fixos a partir da 1ª leitura desta tela (um rascunho, como o de Estoque,
  * não some quando o painel recarrega por um pedido novo); quem muda o catálogo chama `reload()`
  * para a próxima tela já abrir com ele. Fora do painel, segue o GET próprio.
+ *
+ * `fresh` (Produtos, Estoque): ao entrar na tela com o painel já carregado, relê o painel uma vez antes
+ * de mostrar (estoque mudado em outro aparelho ou pelo ERP não fica velho até o F5). Na carga direta
+ * o painel já está lendo agora, então não lê de novo.
  */
-export function useMyStore(): MyStore & { reload: () => Promise<void> } {
+export function useMyStore(opts?: { fresh?: boolean }): MyStore & { reload: () => Promise<void> } {
   const panel = useSellerPanel();
   const inPanel = panel?.inPanel === true;
+  const refresh = panel?.refresh;
+
+  // Decidido na montagem: só relê se o painel já tinha terminado de carregar.
+  const [freshPending, setFreshPending] = useState<boolean>(() => !!opts?.fresh && inPanel && !panel.loading && !!refresh);
+  const freshRead = useRef<Promise<void> | null>(null);
+  useEffect(() => {
+    if (!freshPending) return undefined;
+    let alive = true;
+    const done = () => { if (alive) setFreshPending(false); };
+    // Uma leitura só, mesmo com o efeito rodando duas vezes (StrictMode em dev).
+    if (!freshRead.current) freshRead.current = refresh!();
+    freshRead.current.then(done, done);
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [own, setOwn] = useState<MyStore>({ store: null, products: [], loading: true });
   useEffect(() => {
@@ -34,11 +53,10 @@ export function useMyStore(): MyStore & { reload: () => Promise<void> } {
 
   // Primeira leitura do painel que esta tela viu (fixa daqui em diante, como o GET de antes).
   const snap = useRef<MyStore | null>(null);
-  if (inPanel && !snap.current && !panel.loading) {
+  if (inPanel && !snap.current && !panel.loading && !freshPending) {
     snap.current = { store: panel.store, products: Array.isArray(panel.products) ? panel.products : [], loading: false };
   }
 
-  const refresh = panel?.refresh;
   const reload = async () => { if (inPanel && refresh) await refresh(); };
 
   if (inPanel) return { ...(snap.current || { store: null, products: [], loading: true }), reload };

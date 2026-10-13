@@ -58,12 +58,21 @@ function combine(items: ChecklistItem[]): StepState {
 /** Leitura que pode falhar: devolve o corpo ou null (null = "não sabemos"). */
 const read = (url: string) => api.get(url).then((r) => r.data ?? null).catch(() => null);
 
-export async function loadStoreOnboarding(mode: SettlementMode): Promise<StoreOnboarding> {
+/** Resposta de GET /stores/dashboard já lida (o painel da loja); null = a loja não existe (404). */
+export type DashboardRead = { store: any | null; products?: any[] } | null;
+
+/**
+ * `dash` (V12): a leitura que o painel já fez, para não repetir o GET. Sem ele (fora do painel, ou
+ * painel com erro), lê aqui como sempre.
+ */
+export async function loadStoreOnboarding(mode: SettlementMode, dash?: DashboardRead): Promise<StoreOnboarding> {
   const flow = getFlow('lojista', mode);
-  // 404 = a loja ainda não existe (etapa 1 pendente). Outro erro sobe para a tela mostrar "Tentar de novo".
-  const dash = await api.get('/stores/dashboard')
-    .then((r) => r.data)
-    .catch((e) => { if (e?.response?.status === 404) return null; throw e; });
+  if (dash === undefined) {
+    // 404 = a loja ainda não existe (etapa 1 pendente). Outro erro sobe para a tela mostrar "Tentar de novo".
+    dash = await api.get('/stores/dashboard')
+      .then((r) => r.data)
+      .catch((e) => { if (e?.response?.status === 404) return null; throw e; });
+  }
   const store = dash?.store ?? null;
   const storeId = store?._id ? String(store._id) : null;
   const productsCount = Array.isArray(dash?.products) ? dash.products.length : 0;

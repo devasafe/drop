@@ -34,8 +34,10 @@ export interface SellerPanelValue {
 const SellerPanelContext = createContext<SellerPanelValue | null>(null);
 
 function SellerPanelRoot({ children }: { children: ReactNode }) {
-  const { user } = (useContext(AuthContext) || {}) as any;
+  const { user, loading: authLoading } = (useContext(AuthContext) || {}) as any;
   const userKey: string | null = user ? String(user._id || user.id || 'me') : null;
+  // V12: com a sessão ainda carregando, o painel fica "carregando" (quem lê dele espera, sem GET próprio).
+  const sessionPending = !userKey && authLoading === true;
 
   const [store, setStore] = useState<any | null>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -44,7 +46,7 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<string[]>([]);
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
   const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(!!userKey);
+  const [loading, setLoading] = useState<boolean>(!!userKey || sessionPending);
   const [error, setError] = useState<string | null>(null);
 
   const mounted = useRef(true);
@@ -90,10 +92,10 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => { await load(); }, [load]);
 
   useEffect(() => {
-    if (!userKey) { setLoading(false); return; }
+    if (!userKey) { setLoading(sessionPending); return; }
     setLoading(true);
     load();
-  }, [userKey, load]);
+  }, [userKey, sessionPending, load]);
 
   // Sala da loja: entra ao saber o id e de novo a cada reconexão.
   const storeId: string | null = store?._id ? String(store._id) : null;
