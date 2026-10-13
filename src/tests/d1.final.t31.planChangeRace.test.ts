@@ -37,7 +37,8 @@ it('aprovar depois do cancelamento: 409 PLAN_CHANGE_NOT_PENDING e o plano não m
   expect((await cancel()).status).toBe(200);
   const r = await approve();
   expect(r.status).toBe(409);
-  expect(r.body.error.code).toBe('PLAN_CHANGE_NOT_PENDING');
+  expect(typeof r.body.error).toBe('string');
+  expect(r.body.code).toBe('PLAN_CHANGE_NOT_PENDING');
   const { sub, store } = await state();
   expect(sub.currentPlan).toBe('plan1');
   expect(sub.planChangeStatus).toBe('none');
@@ -48,7 +49,8 @@ it('recusar depois do cancelamento: 409 e fica como cancelado (não vira rejecte
   expect((await cancel()).status).toBe(200);
   const r = await reject();
   expect(r.status).toBe(409);
-  expect(r.body.error.code).toBe('PLAN_CHANGE_NOT_PENDING');
+  expect(typeof r.body.error).toBe('string');
+  expect(r.body.code).toBe('PLAN_CHANGE_NOT_PENDING');
   expect((await state()).sub.planChangeStatus).toBe('none');
 });
 
@@ -69,7 +71,8 @@ it.each([0, 1, 2, 3])('cancelar e aprovar ao mesmo tempo (rodada %i): só um ven
     expect(sub.currentPlan).toBe('plan3');
     expect(store.plan).toBe(3);
   } else {
-    expect(a.body.error.code).toBe('PLAN_CHANGE_NOT_PENDING');
+    expect(typeof a.body.error).toBe('string');
+    expect(a.body.code).toBe('PLAN_CHANGE_NOT_PENDING');
     expect(sub.currentPlan).toBe('plan1');
     expect(store.plan).toBe(1);
   }

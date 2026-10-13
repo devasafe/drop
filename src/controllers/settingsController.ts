@@ -210,6 +210,12 @@ export const getPendingPlanChanges = async (req: Request & { user?: any }, res: 
   }
 };
 
+/** Troca de plano que não está mais em `pending`: as rotas do CEO respondem { error: string, code } (a tela lê `error` como texto). */
+class PlanChangeNotPending extends Error {
+  static readonly MESSAGE = 'Esta troca de plano não está mais pendente.';
+  constructor() { super(PlanChangeNotPending.MESSAGE); }
+}
+
 // ✅ APPROVE Plan Change (CEO aprova)
 export const approvePlanChange = async (req: Request & { user?: any }, res: Response) => {
   try {
@@ -222,7 +228,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
     }
 
     if (subscription.planChangeStatus !== 'pending') {
-      throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
+      throw new PlanChangeNotPending();
     }
 
     const newPlan = subscription.requestedPlan as string;
@@ -243,7 +249,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
         where: { id: String(subscription.id), planChangeStatus: 'pending', requestedPlan: newPlan as any },
         data: { currentPlan: newPlan as any, planChangeStatus: 'none', approvedAt: new Date(), approvedBy: userId, commissionRate },
       });
-      if (count !== 1) throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
+      if (count !== 1) throw new PlanChangeNotPending();
       // Sincronizar Store.plan com o plano aprovado
       await tx.store.update({ where: { id: String(subscription.storeId) }, data: { plan: planNumber } });
     });
@@ -255,7 +261,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
       subscription: updated,
     });
   } catch (err) {
-    if (err instanceof AppError) throw err;
+    if (err instanceof PlanChangeNotPending) return res.status(409).json({ error: PlanChangeNotPending.MESSAGE, code: 'PLAN_CHANGE_NOT_PENDING' });
     console.error('❌ Error approving plan change:', err);
     return res.status(500).json({ error: 'Erro ao aprovar mudança' });
   }
@@ -276,7 +282,7 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
       where: { id: String(subscription.id), planChangeStatus: 'pending' },
       data: { planChangeStatus: 'rejected', rejectionReason: reason || 'Rejeitado pelo CEO' },
     });
-    if (count !== 1) throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
+    if (count !== 1) throw new PlanChangeNotPending();
     const updated = await findSubById(subscription.id);
 
     logger.debug('✅ Plan change rejected:', { subscriptionId, reason });
@@ -285,7 +291,7 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
       subscription: updated,
     });
   } catch (err) {
-    if (err instanceof AppError) throw err;
+    if (err instanceof PlanChangeNotPending) return res.status(409).json({ error: PlanChangeNotPending.MESSAGE, code: 'PLAN_CHANGE_NOT_PENDING' });
     console.error('❌ Error rejecting plan change:', err);
     return res.status(500).json({ error: 'Erro ao rejeitar mudança' });
   }
