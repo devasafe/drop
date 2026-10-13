@@ -21,6 +21,7 @@ import { CUSTOMER_TAB_ROUTES, CUSTOMER_HEADERLESS_ROUTES, CUSTOMER_ROUTES } from
 import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
 import RealtimeNotifier from '../components/RealtimeNotifier';
+import { SellerPanelGate } from '../components/seller/panel/SellerPanelGate';
 import NotificationToaster from '../components/NotificationToaster';
 import CookieBanner from '../components/CookieBanner';
 import { SeasonalThemeProvider } from '../contexts/SeasonalThemeContext';
@@ -102,6 +103,8 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <OverlayProvider>
         <ToastProvider>
         <SeasonalThemeProvider>
+        {/* Painel da loja (D1): socket e pedidos montados uma vez para todo /seller/*. */}
+        <SellerPanelGate pathname={router.pathname} enabled={!!user}>
         {!hideChrome && <Nav />}
         {/* Páginas com header próprio no mobile (produto/loja) ainda mostram a
             Nav global no DESKTOP — a bottom bar é escondida no desktop, então
@@ -131,6 +134,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {showBottomChrome && <CustomerAppChrome />}
 
         {shouldShowFooter && <Footer />}
+        </SellerPanelGate>
         </SeasonalThemeProvider>
 
         {/* Chat Widget - Mostrar para todos os usuários autenticados */}
