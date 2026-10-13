@@ -37,12 +37,12 @@ describe('lojista: 5 abas (spec D1 §3.1)', () => {
 
   it('subitens da Loja no menu lateral seguem o modo (cada um leva a uma tela de um modo só)', () => {
     const loja = (opts?: any) => getNavItems('lojista', allow, false, opts).filter((i) => i.group === 'Loja').map((i) => i.label);
-    expect(loja({ settlementMode: 'custodia' })).toEqual(['Desempenho', 'Avaliações', 'Cupons', 'Horários', 'Integrações (API)', 'Notificações', 'Plano e cobrança']);
-    expect(loja({ settlementMode: 'direto' })).toEqual(['Desempenho', 'Avaliações', 'Cupons', 'Horários', 'Integrações (API)', 'Notificações', 'Assinatura', 'Recebimentos']);
+    expect(loja({ settlementMode: 'custodia' })).toEqual(['Desempenho', 'Avaliações', 'Cupons', 'Horários', 'Integrações (API)', 'Notificações', 'Plano e comissão']);
+    expect(loja({ settlementMode: 'direto' })).toEqual(['Desempenho', 'Avaliações', 'Cupons', 'Horários', 'Integrações (API)', 'Notificações', 'Assinatura', 'Conta Asaas']);
   });
 
-  it('Recebimentos leva à Conta Asaas (C18), só no modo direto, e a aba Loja fica ativa lá', () => {
-    const rec = (opts?: any) => getNavItems('lojista', allow, false, opts).find((i) => i.label === 'Recebimentos');
+  it('Conta Asaas leva à Conta Asaas (C18), só no modo direto, e a aba Loja fica ativa lá', () => {
+    const rec = (opts?: any) => getNavItems('lojista', allow, false, opts).find((i) => i.label === 'Conta Asaas');
     expect(rec({ settlementMode: 'direto' })).toMatchObject({ route: '/seller/conta-asaas', placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true });
     expect(rec({ settlementMode: 'custodia' })).toBeUndefined();
     expect(tabs().filter((i) => isItemActive(i, '/seller/conta-asaas', { onboarding: '1' })).map((i) => i.label)).toEqual(['Loja']);
