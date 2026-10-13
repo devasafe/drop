@@ -100,6 +100,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     // Avaliações, Horários, Notificações, Plano e Conta Asaas quando as telas existirem.
     { label: 'Desempenho',        icon: 'chart-up',  route: SELLER_ROUTES.desempenho,  placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Cupons',            icon: 'megaphone', route: SELLER_ROUTES.cupons,      placement: ['sidebar'], group: 'Loja', pathOnly: true },
+    { label: 'Horários',          icon: 'clock',     route: SELLER_ROUTES.horarios,    placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Integrações (API)', icon: 'link',      route: SELLER_ROUTES.integracoes, placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Plano e cobrança',  icon: 'tag',       route: '/seller/select-plan',     placement: ['sidebar'], group: 'Loja', pathOnly: true, custodyOnly: true },
     { label: 'Assinatura',        icon: 'receipt',   route: SELLER_ROUTES.assinatura,  placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },

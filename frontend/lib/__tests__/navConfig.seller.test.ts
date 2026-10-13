@@ -37,8 +37,8 @@ describe('lojista: 5 abas (spec D1 §3.1)', () => {
 
   it('subitens da Loja no menu lateral seguem o modo (cada um leva a uma tela de um modo só)', () => {
     const loja = (opts?: any) => getNavItems('lojista', allow, false, opts).filter((i) => i.group === 'Loja').map((i) => i.label);
-    expect(loja({ settlementMode: 'custodia' })).toEqual(['Desempenho', 'Cupons', 'Integrações (API)', 'Plano e cobrança']);
-    expect(loja({ settlementMode: 'direto' })).toEqual(['Desempenho', 'Cupons', 'Integrações (API)', 'Assinatura', 'Recebimentos']);
+    expect(loja({ settlementMode: 'custodia' })).toEqual(['Desempenho', 'Cupons', 'Horários', 'Integrações (API)', 'Plano e cobrança']);
+    expect(loja({ settlementMode: 'direto' })).toEqual(['Desempenho', 'Cupons', 'Horários', 'Integrações (API)', 'Assinatura', 'Recebimentos']);
   });
 
   it('lojista: 5 abas e sem "Mais"; motoboy e admin seguem com 4 + "Mais"', () => {
