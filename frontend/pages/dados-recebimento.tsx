@@ -68,9 +68,15 @@ export default function DadosRecebimento() {
       .finally(() => setLoading(false));
   }, [authLoading, user]);
 
+  const reloadStatus = () => api.get('/onboarding/status').then((r) => setStatus(r.data)).catch(() => {});
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pixKey.trim()) { setMsg({ type: 'err', text: 'Informe sua chave PIX.' }); return; }
+    if (pixKey.includes('*')) {
+      setMsg({ type: 'err', text: 'Digite a chave inteira. A chave mascarada não serve para salvar.' });
+      return;
+    }
     // Modo direto: só a chave Pix (sem subconta, sem endereço).
     const needsAddress = !direct && status && !status.hasAddress;
     if (needsAddress && (!addr.street || !addr.number || !addr.zip)) {
@@ -86,16 +92,18 @@ export default function DadosRecebimento() {
       if (pixKeyType) body.pixKeyType = pixKeyType;
       if (direct) {
         await api.post('/onboarding/pix-key', body);
-        setStatus((s) => (s ? { ...s, hasPixKey: true, pixKey } : s));
+        setPixKey('');
         setEditing(false);
+        await reloadStatus();
         setMsg({ type: 'ok', text: 'Chave PIX salva. Os pagamentos caem direto na sua conta.' });
         return;
       }
       if (needsAddress) body.address = addr;
       const res = await api.post('/onboarding/receiver', body);
       const a = res.data?.asaas;
-      setStatus((s) => (s ? { ...s, accountStatus: a?.status, hasPixKey: a?.hasPix, hasAddress: true, pixKey: pixKey, lastError: a?.lastError } : s));
-      if (a?.hasPix) setEditing(false); // colapsa pro modo "Alterar chave PIX"
+      setStatus((s) => (s ? { ...s, accountStatus: a?.status, hasPixKey: a?.hasPix, hasAddress: true, lastError: a?.lastError } : s));
+      if (a?.hasPix) { setEditing(false); setPixKey(''); } // colapsa pro modo "Alterar chave PIX"
+      await reloadStatus(); // a chave volta mascarada do servidor
       if (a?.status === 'active') {
         setMsg({ type: 'ok', text: 'Conta de recebimento ativada! Você já pode receber e sacar.' });
       } else if (a?.status === 'error') {
@@ -190,7 +198,7 @@ export default function DadosRecebimento() {
               <div className={styles.numberField}>
                 <Input value={status.pixKey || '••••••'} onChange={() => {}} disabled aria-label="Chave PIX cadastrada" />
               </div>
-              <Button variant="primary" onClick={() => setEditing(true)} className={styles.submitBtn}>
+              <Button variant="primary" onClick={() => { setPixKey(''); setPixKeyType(''); setEditing(true); }} className={styles.submitBtn}>
                 Alterar chave PIX
               </Button>
             </>
