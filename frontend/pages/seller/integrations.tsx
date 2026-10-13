@@ -1,19 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { Section } from '../../components/ui/Section';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
-import { formatBRL } from '../../components/ui/PriceTag';
 import { Sheet } from '../../components/ui/Sheet';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { apiErrorMessage } from '../../lib/sellerApi';
+import { KeyRound, FileText, Upload, AlertTriangle } from 'lucide-react';
+import { NavRow } from '../../components/seller/ui/NavRow';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 import styles from './Integrations.module.css';
 
 interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; lastUsedAt?: string; revokedAt?: string; createdAt: string }
 interface Webhook { id: string; url: string; active: boolean; failureCount: number; lastStatus?: number; lastDeliveryAt?: string; createdAt: string }
 interface Product { id: string; name: string; quantity: number; price: number; available: boolean }
+
+/** "usada há 2 h" / "nunca usada". */
+function usedLabel(d?: string): string {
+  if (!d) return 'nunca usada';
+  const min = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));
+  if (min < 1) return 'usada agora';
+  if (min < 60) return `usada há ${min} min`;
+  if (min < 1440) return `usada há ${Math.round(min / 60)} h`;
+  return `usada há ${Math.round(min / 1440)} d`;
+}
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
@@ -57,14 +68,14 @@ export default function SellerIntegrations() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [query, setQuery] = useState('');
+  const [showKeyForm, setShowKeyForm] = useState(false);
   const [keyName, setKeyName] = useState('');
   const [readOnly, setReadOnly] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [hookUrl, setHookUrl] = useState('');
   const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   // Revogar chave / remover webhook: confirmação num sheet (sem window.confirm).
   const [confirmAction, setConfirmAction] = useState<{ kind: 'key' | 'webhook'; id: string } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -184,177 +195,164 @@ export default function SellerIntegrations() {
       <SellerShell
         title="Integrações"
         back="/seller/loja"
-        actions={<a className={styles.docsLinkInline} href="/docs/api" target="_blank" rel="noopener noreferrer">Docs da API</a>}
+        actions={<a className={blocks.link} href="/docs/api" target="_blank" rel="noopener noreferrer">Docs da API</a>}
       >
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <header className={styles.header}>
-            <h2 className={styles.title}>Meu estoque</h2>
-            <p className={styles.subtitle}>Veja, baixe e atualize o estoque da sua loja aqui — direto, sem complicação. Tem um sistema/ERP e quer sincronizar sozinho? Isso fica na parte <strong>avançada</strong>, no fim da página.</p>
-          </header>
+        <div className={blocks.body}>
+          <p className={blocks.sub}>Conecte seu sistema de estoque ou ERP. Se você não usa, pode ignorar esta tela.</p>
 
-          {/* ── Ver / baixar / atualizar (pra todo mundo, sem código) ── */}
-          <div className={styles.quickExport}>
-            <div className={styles.quickText}>
-              <div className={styles.quickTitle}>Ver, baixar ou atualizar o estoque</div>
-              <div className={styles.quickDesc}>Veja a lista aqui embaixo. Pra mudar tudo de uma vez: <strong>baixe</strong> a planilha (Excel), edite a coluna de estoque (<em>quantity</em>) e <strong>envie</strong> de volta.</div>
+          {/* Chaves de API */}
+          <section className={blocks.blk} aria-labelledby="int-keys">
+            <div className={blocks.head}>
+              <h2 id="int-keys" className={blocks.headTitle}>Chaves de API</h2>
+              <button type="button" className={blocks.link} onClick={() => setShowKeyForm((v) => !v)} aria-expanded={showKeyForm}>
+                {showKeyForm ? 'Fechar' : '+ Nova'}
+              </button>
             </div>
-            <div className={styles.quickBtns}>
-              <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque</Button>
-              <Button variant="tertiary" onClick={() => fileRef.current?.click()} loading={importing}>📤 Atualizar (enviar CSV)</Button>
-              <input ref={fileRef} type="file" accept=".csv,text/csv" className={styles.hiddenInput} aria-label="Escolher a planilha de estoque" onChange={onImportFile} />
-            </div>
-          </div>
 
-          {/* ── Prévia do estoque ── */}
-          <Section title={`Meu estoque (${products.length})`}>
-            {products.length > 8 && (
-              <div className={styles.previewSearch}>
-                <Input value={query} onChange={setQuery} placeholder="Buscar produto..." />
+            {showKeyForm && (
+              <div className={styles.form}>
+                <p className={blocks.meta}>Uma senha que o seu sistema usa para ler o estoque. Ela aparece inteira só uma vez.</p>
+                <div className={styles.formRow}>
+                  <Input value={keyName} onChange={setKeyName} placeholder="Nome (ex.: Meu ERP)" />
+                  <Button variant="primary" onClick={createKey} loading={busy}>Gerar chave</Button>
+                </div>
+                <label className={styles.checkRow}>
+                  <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} />
+                  Somente leitura (só puxa o estoque; não dá baixa)
+                </label>
               </div>
             )}
-            {products.length === 0 ? (
-              <div className={styles.empty}>Nenhum produto cadastrado ainda.</div>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.stockTable}>
-                  <thead><tr><th>Produto</th><th className={styles.num}>Estoque</th><th className={styles.num}>Preço</th></tr></thead>
-                  <tbody>
-                    {products
-                      .filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
-                      .map((p) => (
-                        <tr key={p.id}>
-                          <td>{p.name}</td>
-                          <td className={`${styles.num} ${p.quantity === 0 ? styles.out : ''}`}>{p.quantity === 0 ? 'esgotado' : p.quantity}</td>
-                          <td className={styles.num}>{formatBRL(p.price)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Section>
-
-          {/* ── Avançado: conectar um sistema/ERP (colapsável) ── */}
-          <button type="button" className={styles.advancedToggle} onClick={() => setAdvancedOpen((v) => !v)} aria-expanded={advancedOpen}>
-            <span>🔌 Conectar um sistema/ERP automaticamente <em>(avançado)</em></span>
-            <span className={styles.chev}>{advancedOpen ? '▲' : '▼'}</span>
-          </button>
-
-          {advancedOpen && (
-          <div className={styles.advancedBody}>
-            <div className={styles.advancedIntro}>
-              Esta parte é só pra quem vai <strong>conectar um sistema/ERP</strong> ao DROP (normalmente com ajuda de um programador). Se você só quer ver, baixar ou atualizar o estoque, use os botões e a tabela lá em cima — <strong>não precisa mexer aqui</strong>.
-              <a className={styles.docsLinkInline} href="/docs/api" target="_blank" rel="noopener noreferrer">📖 Ver documentação completa</a>
-            </div>
-
-          {/* ── Chaves de API ── */}
-          <Section title="Chaves de API">
-            <p className={styles.hint}>Uma "senha" que o sistema/ERP usa pra acessar seu estoque pela API. Gere uma e entregue ao seu programador — ela aparece <strong>só uma vez</strong>.</p>
-            <div className={styles.formRow}>
-              <Input value={keyName} onChange={setKeyName} placeholder="Nome (ex.: Meu ERP)" />
-              <Button variant="primary" onClick={createKey} loading={busy}>Gerar chave</Button>
-            </div>
-            <label className={styles.checkRow}>
-              <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} />
-              Somente leitura (só puxa o estoque; não deixa dar baixa)
-            </label>
 
             {newKey && (
-              <div className={styles.secretBox}>
-                <div className={styles.secretLabel}>Copie agora — a chave completa não aparece de novo:</div>
-                <div className={styles.secretRow}>
-                  <code className={styles.code}>{newKey}</code>
+              <div className={`${blocks.blk} ${blocks.blkBrand}`}>
+                <p className={blocks.meta}>Copie agora. A chave completa não aparece de novo.</p>
+                <div className={blocks.codeRow}>
+                  <code className={blocks.code}>{newKey}</code>
                   <Button size="sm" variant="tertiary" onClick={() => copy(newKey)}>Copiar</Button>
                 </div>
-                <button type="button" className={styles.dismiss} onClick={() => setNewKey(null)}>Ok, guardei</button>
+                <button type="button" className={blocks.link} onClick={() => setNewKey(null)}>Ok, guardei</button>
               </div>
             )}
 
-            <div className={styles.list}>
-              {keys.length === 0 && <div className={styles.empty}>Nenhuma chave ainda.</div>}
-              {keys.map((k) => (
-                <div key={k.id} className={styles.item}>
-                  <div className={styles.itemMain}>
-                    <div className={styles.itemName}>{k.name}
-                      <span className={styles.scope}>{k.scopes?.includes('write') ? 'leitura + escrita' : 'somente leitura'}</span>
-                      {k.revokedAt && <span className={styles.revoked}>revogada</span>}
-                    </div>
-                    <div className={styles.itemMeta}><code>{k.prefix}…</code> · criada {fmtDate(k.createdAt)} · último uso {fmtDate(k.lastUsedAt)}</div>
-                  </div>
-                  {!k.revokedAt && <Button size="sm" variant="danger" onClick={() => revokeKey(k.id)}>Revogar</Button>}
-                </div>
-              ))}
-            </div>
-          </Section>
+            {keys.length === 0 && <p className={blocks.meta}>Nenhuma chave ainda.</p>}
+            {keys.length > 0 && (
+              <ul className={styles.items}>
+                {keys.map((k) => (
+                  <li key={k.id} className={styles.item}>
+                    <span className={`${blocks.ico} ${blocks.icoBrand}`} aria-hidden="true"><KeyRound size={18} /></span>
+                    <span className={blocks.tx}>
+                      <b>{k.name}</b>
+                      <span className={blocks.mono}>{k.prefix}…</span>
+                      <span>{k.scopes?.includes('write') ? 'leitura + escrita' : 'somente leitura'} · criada {fmtDate(k.createdAt)}</span>
+                    </span>
+                    <span className={styles.itemEnd}>
+                      <span className={`${blocks.tag} ${k.revokedAt ? blocks.tagErr : k.lastUsedAt ? blocks.tagOk : ''}`}>{k.revokedAt ? 'revogada' : usedLabel(k.lastUsedAt)}</span>
+                      {!k.revokedAt && <Button size="sm" variant="danger" onClick={() => revokeKey(k.id)}>Revogar</Button>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-          {/* ── Webhooks ── */}
-          <Section title="Webhooks (avisar seu sistema quando o estoque muda)">
-            <p className={styles.hint}>Avise seu sistema <strong>automaticamente</strong> quando o estoque mudar (venda, cancelamento, ajuste). Coloque a URL <code>https</code> que vai receber os avisos — mandamos um <code>POST</code> assinado (seu programador valida com o secret).</p>
+          {/* Webhook */}
+          <section className={blocks.blk} aria-labelledby="int-hook">
+            <div className={blocks.head}>
+              <h2 id="int-hook" className={blocks.headTitle}>Webhook de estoque</h2>
+            </div>
+            <p className={blocks.meta}>Avisamos o seu sistema quando o estoque muda (venda, cancelamento, ajuste). Informe a URL https que recebe os avisos; o envio é um POST assinado com o secret.</p>
+
+            {newSecret && (
+              <div className={`${blocks.blk} ${blocks.blkBrand}`}>
+                <p className={blocks.meta}>Secret do webhook, para validar a assinatura. Só aparece agora.</p>
+                <div className={blocks.codeRow}>
+                  <code className={blocks.code}>{newSecret.secret}</code>
+                  <Button size="sm" variant="tertiary" onClick={() => copy(newSecret.secret)}>Copiar</Button>
+                </div>
+                <button type="button" className={blocks.link} onClick={() => setNewSecret(null)}>Ok, guardei</button>
+              </div>
+            )}
+
+            {webhooks.length === 0 && <p className={blocks.meta}>Nenhum webhook ainda.</p>}
+            {webhooks.map((w) => (
+              <div key={w.id} className={styles.hook}>
+                <code className={styles.hookUrl}>{w.url}</code>
+                <p className={blocks.meta}>
+                  Última entrega {fmtDate(w.lastDeliveryAt)} · resposta {w.lastStatus ?? '—'} · {w.failureCount} {w.failureCount === 1 ? 'falha' : 'falhas'}
+                  {!w.active && ' · desativado'}
+                </p>
+                {w.failureCount >= 3 && (
+                  <p className={blocks.errText}>{w.failureCount} falhas seguidas. Confira a URL.</p>
+                )}
+                <div className={blocks.actions}>
+                  <Button size="sm" variant="tertiary" onClick={() => testWebhook(w.id)}>Testar</Button>
+                  <Button size="sm" variant="danger" onClick={() => deleteWebhook(w.id)}>Remover</Button>
+                </div>
+              </div>
+            ))}
+
             <div className={styles.formRow}>
               <Input value={hookUrl} onChange={setHookUrl} placeholder="https://seu-sistema.com/webhooks/drop" />
               <Button variant="primary" onClick={createWebhook} loading={busy}>Adicionar</Button>
             </div>
+          </section>
 
-            {newSecret && (
-              <div className={styles.secretBox}>
-                <div className={styles.secretLabel}>Secret do webhook (valide a assinatura com ele) — só aparece agora:</div>
-                <div className={styles.secretRow}>
-                  <code className={styles.code}>{newSecret.secret}</code>
-                  <Button size="sm" variant="tertiary" onClick={() => copy(newSecret.secret)}>Copiar</Button>
-                </div>
-                <button type="button" className={styles.dismiss} onClick={() => setNewSecret(null)}>Ok, guardei</button>
-              </div>
-            )}
+          {/* CSV do estoque */}
+          <h2 className={blocks.cap}>Meu estoque</h2>
+          <ul className={blocks.list}>
+            <NavRow
+              icon={<Upload size={18} />}
+              label="Importar estoque por planilha"
+              sub={importing ? 'Enviando…' : 'CSV com as colunas id e quantity'}
+              onClick={() => fileRef.current?.click()}
+            />
+            <NavRow
+              icon={<FileText size={18} />}
+              label="Exportar produtos (CSV)"
+              sub={downloading ? 'Baixando…' : `${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
+              onClick={downloadCsv}
+            />
+          </ul>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className={blocks.hiddenInput} aria-label="Escolher a planilha de estoque" onChange={onImportFile} />
 
-            <div className={styles.list}>
-              {webhooks.length === 0 && <div className={styles.empty}>Nenhum webhook ainda.</div>}
-              {webhooks.map((w) => (
-                <div key={w.id} className={styles.item}>
-                  <div className={styles.itemMain}>
-                    <div className={styles.itemName}>{w.url} {!w.active && <span className={styles.revoked}>desativado</span>}</div>
-                    <div className={styles.itemMeta}>última entrega {fmtDate(w.lastDeliveryAt)} · status {w.lastStatus ?? '—'} · falhas {w.failureCount}</div>
-                  </div>
-                  <div className={styles.itemActions}>
-                    <Button size="sm" variant="tertiary" onClick={() => testWebhook(w.id)}>Testar</Button>
-                    <Button size="sm" variant="danger" onClick={() => deleteWebhook(w.id)}>Remover</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Section>
-
-          {/* ── Docs ── */}
-          <Section title="Como puxar o estoque (API)">
-            <p className={styles.hint}>Endpoint sempre-atual (JSON, ou <code>?format=csv</code>). Autentique com a chave no header.</p>
-            <div className={styles.docsRow}>
-              <code className={styles.endpoint}>GET {apiBase}/integrations/v1/products</code>
-              <Button size="sm" variant="tertiary" onClick={() => copy(`${apiBase}/integrations/v1/products`)}>Copiar URL</Button>
-            </div>
-            <pre className={styles.pre}>{curl}</pre>
-          </Section>
+          <div className={`${blocks.blk} ${blocks.blkRow}`}>
+            <span className={`${blocks.ico} ${blocks.icoWarn}`} aria-hidden="true"><AlertTriangle size={18} /></span>
+            <p className={blocks.sub}>A chave aparece inteira só uma vez, quando você cria. Guarde num lugar seguro.</p>
           </div>
+
+          {/* Para o programador */}
+          <button type="button" className={blocks.link} onClick={() => setDocsOpen((v) => !v)} aria-expanded={docsOpen}>
+            Conectar um sistema/ERP: como puxar o estoque
+          </button>
+          {docsOpen && (
+            <section className={blocks.blk}>
+              <p className={blocks.meta}>Endpoint sempre atual (JSON, ou ?format=csv). Autentique com a chave no header.</p>
+              <div className={blocks.codeRow}>
+                <code className={blocks.code}>GET {apiBase}/integrations/v1/products</code>
+                <Button size="sm" variant="tertiary" onClick={() => copy(`${apiBase}/integrations/v1/products`)}>Copiar URL</Button>
+              </div>
+              <pre className={styles.pre}>{curl}</pre>
+            </section>
           )}
         </div>
-      </div>
-      <Sheet
-        open={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
-        title={confirmAction?.kind === 'key' ? 'Revogar esta chave?' : 'Remover este webhook?'}
-        presentation="bottom"
-      >
-        <p className={styles.hint}>
-          {confirmAction?.kind === 'key'
-            ? 'As integrações que usam esta chave param de funcionar na hora.'
-            : 'O seu sistema deixa de receber os avisos de estoque.'}
-        </p>
-        <div className={styles.itemActions}>
-          <Button variant="danger" loading={confirmBusy} onClick={runConfirm}>
-            {confirmAction?.kind === 'key' ? 'Revogar chave' : 'Remover webhook'}
-          </Button>
-          <Button variant="tertiary" onClick={() => setConfirmAction(null)}>Cancelar</Button>
-        </div>
-      </Sheet>
+        <Sheet
+          open={!!confirmAction}
+          onClose={() => setConfirmAction(null)}
+          title={confirmAction?.kind === 'key' ? 'Revogar esta chave?' : 'Remover este webhook?'}
+          presentation="bottom"
+        >
+          <p className={blocks.sub}>
+            {confirmAction?.kind === 'key'
+              ? 'As integrações que usam esta chave param de funcionar na hora.'
+              : 'O seu sistema deixa de receber os avisos de estoque.'}
+          </p>
+          <div className={blocks.actions}>
+            <Button variant="danger" loading={confirmBusy} onClick={runConfirm}>
+              {confirmAction?.kind === 'key' ? 'Revogar chave' : 'Remover webhook'}
+            </Button>
+            <Button variant="tertiary" onClick={() => setConfirmAction(null)}>Cancelar</Button>
+          </div>
+        </Sheet>
       </SellerShell>
     </ProtectedRoute>
   );
