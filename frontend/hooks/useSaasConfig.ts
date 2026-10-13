@@ -52,7 +52,7 @@ export function useSaasConfig(): SaasConfig {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (cached) return;
+    if (cached) { setState(cached); setError(false); setLoading(false); return undefined; }
     let cancelled = false;
     load().then((v) => {
       if (cancelled) return;
