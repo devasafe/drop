@@ -51,6 +51,7 @@ function serialize(t: MotoboyTransfer) {
     resolvedBy: t.resolvedBy,
     resolutionNote: t.resolutionNote,
     doneAt: t.doneAt,
+    firstFailedAt: t.firstFailedAt,
     createdAt: t.createdAt,
   };
 }

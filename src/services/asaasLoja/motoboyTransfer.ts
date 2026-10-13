@@ -11,6 +11,7 @@ import logger from '../../config/logger';
 import { maskSensitiveText } from '../../utils/safeErrorText';
 import { storeKey, translate, saoPauloToday, StorePaymentsNotReadyError } from './charge';
 import { DIRECT_REFUND_BACKOFF_MS } from './refund';
+import { notifyStore, STORE_LINKS } from '../storeNotify';
 
 export type TransferReason = 'delivery' | 'cancellation_compensation';
 
@@ -39,6 +40,43 @@ export function maskPixKey(key: string, type?: string): string {
   // Chave desconhecida/aleatória (EVP): só os 4 últimos caracteres.
   if (k.length <= 8) return '*'.repeat(k.length);
   return `***${k.slice(-4)}`;
+}
+
+/** Frase da loja para o motivo da 1ª falha (sem jargão; nunca a chave Pix). */
+function storeTransferReason(reason: string | null | undefined): string {
+  switch (reason) {
+    case 'MOTOBOY_PIX_KEY_MISSING': return 'O motoboy ainda não cadastrou a chave Pix. Avisamos ele.';
+    case 'AMOUNT_OVER_LIMIT': return 'O valor passou do limite por Pix. O DROP está conferindo.';
+    case 'DAILY_LIMIT': return 'A loja chegou ao limite de Pix do dia. Nova tentativa amanhã.';
+    case 'AUTH_WEBHOOK_NOT_CONFIRMED': return 'Falta confirmar a trava de transferências no Asaas. Toque para ver o que fazer.';
+    default: return 'O Pix não saiu da sua conta Asaas. Toque para ver o que fazer.';
+  }
+}
+
+/** Sino + push da loja na 1ª falha. Best-effort (notifyStore nunca lança). */
+function noticeFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId' | 'amount'>, reason: string | null | undefined): Promise<void> {
+  const valor = Number(t.amount).toFixed(2).replace('.', ',');
+  return notifyStore(t.storeId, {
+    title: 'Pix ao motoboy parado',
+    message: `Pedido #${String(t.orderId).slice(-6)} · R$ ${valor}. ${storeTransferReason(reason)}`,
+    link: STORE_LINKS.money,
+    entityId: t.id,
+    type: 'system',
+    tag: `motoboy-transfer-${t.id}`,
+  });
+}
+
+/**
+ * Grava `firstFailedAt` UMA vez (condicional em `firstFailedAt: null`) e só quem gravou avisa
+ * a loja. Chamado depois de cada escrita que leva a linha a `failed`/`failed_final`.
+ */
+async function markFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'storeId' | 'amount'>, reason: string | null, now: Date = new Date()): Promise<void> {
+  try {
+    const { count } = await prisma.motoboyTransfer.updateMany({ where: { id: t.id, firstFailedAt: null }, data: { firstFailedAt: now } });
+    if (count === 1) await noticeFirstFailure(t, reason);
+  } catch (err) {
+    logger.warn('[motoboyTransfer] falha ao gravar a 1ª falha', { transferId: t.id, errName: (err as Error)?.name });
+  }
 }
 
 /** Chave Pix ATUAL do motoboy (User.asaas.pixKey/pixKeyType) — usada para o snapshot da transferência. */
@@ -91,6 +129,8 @@ export async function createTransferForDelivery(
       pixKeyType: pixKey ? pixKeyType : '',
       status,
       lastError,
+      // Nasce falha (sem chave Pix / acima do teto): a 1ª falha é agora.
+      firstFailedAt: status === 'pending' ? null : new Date(),
     },
   });
 }
@@ -114,6 +154,8 @@ export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' |
       tag: `motoboy-transfer-${t.id}`,
     });
     logger.warn('[motoboyTransfer] transferência nasceu com pendência', { transferId: t.id, status: t.status, error: t.lastError });
+    // A linha já nasceu com firstFailedAt (createTransferForDelivery): avisa a loja uma vez aqui.
+    void noticeFirstFailure(t, t.lastError);
   } catch (err) {
     logger.error('[motoboyTransfer] falha ao notificar', err as Error, { transferId: t.id });
   }
@@ -186,6 +228,7 @@ async function registerFailure(
       data: { status: 'failed_final', lastError, ...bindData },
     });
     if (count !== 1) return null;
+    await markFirstFailure(t, lastError, now);
     logger.warn('[motoboyTransfer] transferência esgotou as tentativas', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
     alertAdmin(t, 'Pix ao motoboy falhou em definitivo', `${t.attempts} tentativas sem sucesso; requer ação do admin.`);
     return 'failed_final';
@@ -195,6 +238,7 @@ async function registerFailure(
     data: { status: 'failed', lastError, nextAttemptAt: new Date(now.getTime() + backoff), ...bindData },
   });
   if (count !== 1) return null;
+  await markFirstFailure(t, lastError, now);
   logger.warn('[motoboyTransfer] transferência recusada; nova tentativa agendada', { transferId: t.id, storeId: t.storeId, attempts: t.attempts });
   return 'failed';
 }
@@ -326,6 +370,8 @@ export async function sendTransfer(transferId: string, now: Date = new Date()): 
   if (claim.kind === 'skip') return 'skipped'; // outra execução pegou, não venceu ou já terminou
   if (claim.kind === 'limited') {
     const r = claim.row;
+    // Retenção ou teto: a linha está em failed/failed_final — conta como falha para o prazo da loja.
+    await markFirstFailure(r, claim.error, now);
     if (claim.error === 'AMOUNT_OVER_LIMIT') {
       alertAdmin(r, 'Transferência ao motoboy acima do limite', 'acima do teto por transferência; requer análise.');
       return 'failed_final';
