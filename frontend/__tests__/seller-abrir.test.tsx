@@ -9,12 +9,25 @@ let mockMode = 'custodia';
 jest.mock('next/router', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn(), query: mockQuery, pathname: '/seller/abrir' }) }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/seller/panel/SellerShell', () => {
-  const Shell = ({ title, actions, children }: any) => <div><h1>{title}</h1>{actions}{children}</div>;
+  const Shell = ({ title, back, actions, children }: any) => <div>{back && <button type="button" onClick={() => mockPush(back)}>Voltar</button>}<h1>{title}</h1>{actions}{children}</div>;
   return { __esModule: true, default: Shell, SellerShell: Shell };
 });
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: mockMode, directCardEnabled: false, loading: false }) }));
 jest.mock('../components/drop/IdentityCheck', () => ({
   IdentityCheck: ({ onDone }: any) => <button type="button" onClick={onDone}>Concluir identidade</button>,
+}));
+// As etapas embutidas têm testes próprios (components/seller/abrir, components/onboarding); aqui só a costura.
+jest.mock('../components/seller/abrir/DadosLojaStep', () => ({
+  DadosLojaStep: ({ store, cnpjRequired, onDone }: any) => <button type="button" onClick={onDone}>{`etapa loja ${store ? 'edição' : 'nova'} ${cnpjRequired ? 'cnpj obrigatório' : 'cnpj opcional'}`}</button>,
+}));
+jest.mock('../components/seller/abrir/DocumentosStep', () => ({
+  DocumentosStep: ({ storeId, onChanged }: any) => <button type="button" onClick={onChanged}>{`etapa documentos ${storeId}`}</button>,
+}));
+jest.mock('../components/onboarding/RecebimentoForm', () => ({
+  RecebimentoForm: ({ onSaved }: any) => <button type="button" onClick={onSaved}>etapa recebimento</button>,
+}));
+jest.mock('../components/seller/abrir/PlanoStep', () => ({
+  PlanoStep: ({ onDone }: any) => <button type="button" onClick={onDone}>etapa plano</button>,
 }));
 jest.mock('../lib/storeOnboarding', () => {
   const actual = jest.requireActual('../lib/storeOnboarding');
@@ -32,14 +45,58 @@ beforeEach(() => {
   (api.get as jest.Mock).mockResolvedValue({ data: { settlementMode: 'direto', saasMonthlyFee: 149, saasTrialDays: 14 } });
 });
 
-test('checklist: etapa atual em destaque e "Continuar" leva para ela', async () => {
+test('checklist: etapa atual em destaque e aberta DENTRO da tela (sem mandar para outra rota)', async () => {
   const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'todo'), step('pix', 'Recebimento (PIX)', 'todo'), step('plano', 'Plano', 'todo')];
   (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
   render(<SellerAbrir />);
   expect(await screen.findByText('2 de 5')).toBeInTheDocument();
   expect(screen.getByText('agora')).toBeInTheDocument();
+  expect(screen.getByText('etapa documentos s1')).toBeInTheDocument();
+  expect(screen.queryByText('Continuar: Verificar loja')).not.toBeInTheDocument();
+  expect(screen.queryByText('etapa recebimento')).not.toBeInTheDocument();
+  // tocar numa etapa leva para ela (dentro de /seller/abrir, pelo href da etapa)
+  fireEvent.click(screen.getByText('Recebimento (PIX)'));
+  expect(mockPush).toHaveBeenCalledWith('/href-pix');
+});
+
+test('etapa concluída embutida: relê o checklist sem sair da tela', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'done'), step('pix', 'Recebimento (PIX)', 'todo'), step('plano', 'Plano', 'todo')];
+  const next = steps.map((s) => (s.key === 'pix' ? { ...s, state: 'done' } : s));
+  (loadStoreOnboarding as jest.Mock)
+    .mockResolvedValueOnce({ mode: 'custodia', store, productsCount: 0, steps, current: steps[3], allSubmitted: false, approved: false })
+    .mockResolvedValueOnce({ mode: 'custodia', store, productsCount: 0, steps: next, current: next[4], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  fireEvent.click(await screen.findByText('etapa recebimento'));
+  expect(await screen.findByText('etapa plano')).toBeInTheDocument();
+  expect(loadStoreOnboarding).toHaveBeenCalledTimes(2);
+  expect(mockPush).not.toHaveBeenCalled();
+});
+
+test('?etapa= abre aquela etapa embutida, com voltar para o checklist e "Continuar" para a atual', async () => {
+  mockQuery = { etapa: 'loja' };
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('lojaVerif', 'Verificar loja', 'todo'), step('pix', 'Recebimento (PIX)', 'todo'), step('plano', 'Plano', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  // loja já criada → modo edição, não um formulário de criação de novo
+  expect(await screen.findByText('etapa loja edição cnpj obrigatório')).toBeInTheDocument();
+  expect(screen.queryByText('etapa documentos s1')).not.toBeInTheDocument();
   fireEvent.click(screen.getByText('Continuar: Verificar loja'));
   expect(mockPush).toHaveBeenCalledWith('/href-lojaVerif');
+  fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+  expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+  // salvar a etapa aberta por ?etapa= volta ao checklist (que relê tudo ao trocar a rota)
+  mockPush.mockClear();
+  fireEvent.click(screen.getByText('etapa loja edição cnpj obrigatório'));
+  expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+});
+
+test('a etapa da loja concluída mostra "Editar"; a identidade atual também abre embutida', async () => {
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 0, steps, current: steps[1], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Editar')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Concluir identidade'));
+  await waitFor(() => expect(loadStoreOnboarding).toHaveBeenCalledTimes(2));
 });
 
 test('etapa recusada mostra o motivo no checklist', async () => {
@@ -84,6 +141,9 @@ test('modo SaaS: 3 etapas, mensalidade e dias grátis do servidor', async () => 
   expect(screen.getByText(/14 dias grátis/)).toBeInTheDocument();
   expect(screen.getByText('Você pulou 2 etapas')).toBeInTheDocument();
   expect(loadStoreOnboarding).toHaveBeenCalledWith('direto');
+  // Conta Asaas não abre embutida: "Continuar" leva para a tela dela
+  fireEvent.click(screen.getByText('Continuar: Conta Asaas'));
+  expect(mockPush).toHaveBeenCalledWith('/href-asaas');
 });
 
 test('modo SaaS com mensalidade zero: "Grátis no lançamento"', async () => {
@@ -110,7 +170,7 @@ test('erro ao carregar: "Tentar de novo" recarrega', async () => {
     .mockResolvedValueOnce({ mode: 'custodia', store: null, productsCount: 0, steps, current: steps[0], allSubmitted: false, approved: false });
   render(<SellerAbrir />);
   fireEvent.click(await screen.findByText('Tentar de novo'));
-  expect(await screen.findByText('Continuar: Criar loja')).toBeInTheDocument();
+  expect(await screen.findByText('etapa loja nova cnpj obrigatório')).toBeInTheDocument();
 });
 
 test('etapa que não deu para conferir: aviso, "Tentar de novo" recarrega e não entra em "Quase lá"', async () => {

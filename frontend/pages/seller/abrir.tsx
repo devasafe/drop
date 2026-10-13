@@ -16,6 +16,10 @@ import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { summarizeHours } from '../../lib/sellerHours';
 import { loadStoreOnboarding, type ChecklistStep, type StepState, type StoreOnboarding } from '../../lib/storeOnboarding';
+import { DadosLojaStep } from '../../components/seller/abrir/DadosLojaStep';
+import { DocumentosStep } from '../../components/seller/abrir/DocumentosStep';
+import { PlanoStep } from '../../components/seller/abrir/PlanoStep';
+import { RecebimentoForm } from '../../components/onboarding/RecebimentoForm';
 import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 
 const ICON_CLASS = STEP_ICON_CLASS;
@@ -50,6 +54,9 @@ function ComoFunciona({ fee, trialDays }: { fee: number | null; trialDays: numbe
   );
 }
 
+/** Etapas que abrem DENTRO do checklist (protótipo 8). A Conta Asaas (direto) tem tela própria. */
+const EMBEDDED = new Set(['loja', 'identidade', 'lojaVerif', 'pix', 'plano']);
+
 export default function SellerAbrir() {
   const router = useRouter();
   const { settlementMode, loading: modeLoading } = useSaasConfig();
@@ -65,6 +72,12 @@ export default function SellerAbrir() {
     loadStoreOnboarding(settlementMode).then(setData).catch(() => setFailed(true));
   }, [modeLoading, settlementMode, etapa]);
   useEffect(() => { load(); }, [load]);
+
+  // Depois de uma etapa embutida: relê sem trocar a tela por esqueleto (a próxima etapa abre sozinha).
+  const refresh = useCallback(() => {
+    if (modeLoading) return;
+    loadStoreOnboarding(settlementMode).then(setData).catch(() => setFailed(true));
+  }, [modeLoading, settlementMode]);
 
   useEffect(() => {
     if (settlementMode !== 'direto') return;
@@ -95,6 +108,48 @@ export default function SellerAbrir() {
       Alguma etapa não carregou agora. Isso não quer dizer que falta algo: tente de novo em instantes.
     </Alert>
   ) : null;
+
+  // Etapa aberta: a de ?etapa= (se existir neste fluxo) ou a atual.
+  const askedStep = etapa && data ? data.steps.find((s) => s.key === etapa) ?? null : null;
+  // Com ?etapa=, voltar ao checklist já relê tudo (o efeito de carga depende da etapa).
+  const stepDone = () => { if (etapa) router.push('/seller/abrir'); else refresh(); };
+
+  const embedded = (s: ChecklistStep | null): JSX.Element | null => {
+    if (!s || !data || !EMBEDDED.has(s.key)) return null;
+    const storeId = data.store?._id ? String(data.store._id) : null;
+    let body: JSX.Element;
+    if (s.key === 'loja') {
+      body = <DadosLojaStep store={data.store} cnpjRequired={!direto} onDone={stepDone} />;
+    } else if (s.key === 'identidade') {
+      body = <IdentityCheck onDone={stepDone} />;
+    } else if (!storeId) {
+      body = (
+        <Alert tone="info" title="Crie a loja primeiro" action={{ label: 'Criar a loja', onClick: () => router.push('/seller/abrir?etapa=loja') }}>
+          Esta etapa precisa da loja já criada.
+        </Alert>
+      );
+    } else if (s.key === 'lojaVerif') {
+      body = (
+        <DocumentosStep
+          storeId={storeId}
+          storeCnpj={data.store?.cnpj}
+          onChanged={refresh}
+          onEditStore={() => router.push('/seller/abrir?etapa=loja')}
+          onOwner={() => router.push('/seller/abrir?etapa=identidade')}
+        />
+      );
+    } else if (s.key === 'pix') {
+      body = <RecebimentoForm direct={direto} store onSaved={stepDone} />;
+    } else {
+      body = <PlanoStep onDone={stepDone} />;
+    }
+    return (
+      <section className={blocks.stack} aria-label={`Etapa: ${s.label}`} data-etapa={s.key}>
+        <h2 className={blocks.cap}>{s.label}</h2>
+        {body}
+      </section>
+    );
+  };
 
   let content: JSX.Element;
   if (failed) {
@@ -143,6 +198,7 @@ export default function SellerAbrir() {
             </li>
           ))}
         </ul>
+        {embedded(askedStep)}
         <h2 className={blocks.cap}>Enquanto isso</h2>
         <ul className={blocks.list}>
           <NavRow
@@ -164,6 +220,8 @@ export default function SellerAbrir() {
     const total = data.steps.length;
     const done = data.steps.filter((s) => s.state === 'done').length;
     const left = total - done;
+    const open = askedStep ?? data.current;
+    const openSection = embedded(open);
     content = (
       <>
         {unknownAlert}
@@ -188,12 +246,15 @@ export default function SellerAbrir() {
                 label={s.label}
                 sub={stepSub(s)}
                 current={isCurrent}
-                end={isCurrent ? <span className={[blocks.tag, blocks.tagBrand].join(' ')}>agora</span> : undefined}
+                end={isCurrent
+                  ? <span className={[blocks.tag, blocks.tagBrand].join(' ')}>agora</span>
+                  : s.key === 'loja' && s.state === 'done' ? <span className={blocks.link}>Editar</span> : undefined}
                 onClick={() => router.push(s.href)}
               />
             );
           })}
         </ul>
+        {openSection}
         {direto ? (
           <>
             <ComoFunciona fee={fee} trialDays={trialDays} />
@@ -204,7 +265,7 @@ export default function SellerAbrir() {
         ) : (
           <Alert tone="info">A análise leva até 1 dia útil. Você já pode cadastrar produtos enquanto isso.</Alert>
         )}
-        {data.current && (
+        {data.current && !(openSection && open?.key === data.current.key) && (
           <div className={blocks.bar}>
             <Button onClick={() => router.push(data.current!.href)}>{`Continuar: ${data.current.label}`}</Button>
             {direto && data.current.key === 'asaas' && <small>Leva uns 5 minutos com o Asaas aberto.</small>}
@@ -216,7 +277,7 @@ export default function SellerAbrir() {
 
   return (
     <ProtectedRoute required_role="lojista">
-      <SellerShell title="Abrir a loja" back="/seller/loja">
+      <SellerShell title="Abrir a loja" back={etapa ? '/seller/abrir' : '/seller/loja'}>
         <div className={blocks.body}>{content}</div>
       </SellerShell>
     </ProtectedRoute>

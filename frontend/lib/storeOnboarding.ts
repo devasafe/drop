@@ -24,13 +24,17 @@ export interface StoreOnboarding {
   approved: boolean;
 }
 
-/** Para onde cada etapa leva. Identidade abre DENTRO de /seller/abrir (a /verificacao é compartilhada). */
+/**
+ * Para onde cada etapa leva. V8: as etapas abrem DENTRO de /seller/abrir (a etapa atual já aparece
+ * embutida no checklist; ?etapa= abre outra). As rotas antigas do onboardingFlow continuam vivas para
+ * links antigos e mostram o mesmo componente. Só a Conta Asaas (modo direto) tem tela própria.
+ */
 export const STEP_HREF: Record<string, string> = {
-  loja: '/seller/create-store?onboarding=1',
+  loja: '/seller/abrir?etapa=loja',
   identidade: '/seller/abrir?etapa=identidade',
-  lojaVerif: '/verificacao-loja?onboarding=1',
-  pix: '/dados-recebimento?onboarding=1',
-  plano: '/seller/select-plan?onboarding=1',
+  lojaVerif: '/seller/abrir?etapa=lojaVerif',
+  pix: '/seller/abrir?etapa=pix',
+  plano: '/seller/abrir?etapa=plano',
   asaas: '/seller/conta-asaas?onboarding=1',
 };
 

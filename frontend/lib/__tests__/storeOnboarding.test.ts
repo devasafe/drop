@@ -22,7 +22,7 @@ test('custódia sem loja: começa por "Criar loja" e mantém a ordem do onboardi
   expect(r.steps.map((s) => s.key)).toEqual(['loja', 'identidade', 'lojaVerif', 'pix', 'plano']);
   expect(r.store).toBeNull();
   expect(r.current?.key).toBe('loja');
-  expect(r.current?.href).toBe('/seller/create-store?onboarding=1');
+  expect(r.current?.href).toBe('/seller/abrir?etapa=loja');
   expect(r.approved).toBe(false);
 });
 
@@ -99,6 +99,14 @@ test('falha que não é 404 no painel: a promessa rejeita (a tela mostra "Tentar
 
 test('a identidade abre dentro de /seller/abrir', () => {
   expect(STEP_HREF.identidade).toBe('/seller/abrir?etapa=identidade');
+});
+
+test('V8: as etapas da custódia também abrem dentro de /seller/abrir; a Conta Asaas tem tela própria', () => {
+  expect(STEP_HREF.loja).toBe('/seller/abrir?etapa=loja');
+  expect(STEP_HREF.lojaVerif).toBe('/seller/abrir?etapa=lojaVerif');
+  expect(STEP_HREF.pix).toBe('/seller/abrir?etapa=pix');
+  expect(STEP_HREF.plano).toBe('/seller/abrir?etapa=plano');
+  expect(STEP_HREF.asaas).toBe('/seller/conta-asaas?onboarding=1');
 });
 
 // Fail closed: leitura que falha = "não sabemos", nunca "concluída" nem "a fazer".
