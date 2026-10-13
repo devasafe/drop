@@ -1,5 +1,5 @@
 // frontend/components/seller/asaas/AsaasChecklist.tsx
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import api from '../../../lib/api';
 import { apiErrorMessage } from '../../../lib/sellerApi';
@@ -28,6 +28,8 @@ export function AsaasChecklist({ apiBase, storeId, status, egressIp, onStatus }:
   const [busy, setBusy] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [sheet, setSheet] = useState<TokenSheet>(null);
+  // Token gerado nesta sessão: regerar invalida o que o lojista pode já ter colado no Asaas.
+  const generatedRef = useRef(false);
   const c = status.checklist || EMPTY;
   const url = authWebhookUrl(storeId);
   const done = [c.apiKey, c.paymentWebhook, c.ipWhitelistConfirmed, c.authWebhookConfirmed].filter(Boolean).length;
@@ -66,6 +68,7 @@ export function AsaasChecklist({ apiBase, storeId, status, egressIp, onStatus }:
     setGenBusy(true);
     try {
       const r = await api.post(`${apiBase}/auth-token`);
+      generatedRef.current = true;
       setSheet({ step: 'token', token: r.data?.data?.token ?? '', url: r.data?.data?.url ?? url });
       const s = await api.get(apiBase).catch(() => null);
       if (s) onStatus(s.data?.data ?? null);
@@ -80,7 +83,7 @@ export function AsaasChecklist({ apiBase, storeId, status, egressIp, onStatus }:
   // Trava já configurada: confirma ANTES de chamar a API. O token atual segue valendo até confirmar.
   const askToken = () => {
     if (genBusy) return;
-    if (c.authWebhookConfirmed) setSheet({ step: 'confirm' });
+    if (c.authWebhookConfirmed || generatedRef.current) setSheet({ step: 'confirm' });
     else generate();
   };
 

@@ -92,3 +92,15 @@ describe('regerar token com a trava já configurada (sheet no lugar do window.co
     expect(screen.queryByText('TK_NOVO')).not.toBeInTheDocument();
   });
 });
+
+test('token já gerado na sessão (sheet fechado sem "Já colei"): gerar de novo pede confirmação antes da API', async () => {
+  (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'TK_1', url: 'http://x/webhooks/asaas/loja/s1/autorizacao' } } });
+  renderList(st({ ipWhitelistConfirmed: true }));
+  fireEvent.click(screen.getByText('Gerar token'));
+  expect(await screen.findByText('TK_1')).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Fechar'));
+  (api.post as jest.Mock).mockClear();
+  fireEvent.click(screen.getByText('Gerar token'));
+  expect(screen.getByText('Gerar outro token?')).toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
+});
