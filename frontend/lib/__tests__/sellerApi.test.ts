@@ -42,7 +42,7 @@ describe('relógio e datas', () => {
     expect(formatClock(-5)).toBe('0:00');
   });
   it('formatHour, formatDayMonth e formatDateTime', () => {
-    const d = new Date(2026, 9, 10, 9, 5);
+    const d = new Date('2026-10-10T12:05:00Z'); // 09:05 em SP, em qualquer fuso do aparelho
     expect(formatHour(d)).toBe('09:05');
     expect(formatDayMonth(d)).toBe('10/10');
     expect(formatDateTime(d)).toBe('10/10 09:05');
