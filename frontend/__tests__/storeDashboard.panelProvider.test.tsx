@@ -59,3 +59,27 @@ test('pedido novo pelo socket do painel mostra o aviso na página', async () => 
   await act(async () => { await mockHandlers.new_order({ orderId: 'o2' }); });
   expect(screen.getByText(/Novo pedido recebido!/)).toBeInTheDocument();
 });
+
+test('aviso fechado não reaparece ao sair e voltar à página (provider continua montado)', async () => {
+  const { rerender } = render(
+    <AuthContext.Provider value={{ user: { _id: 'u1', activeRole: 'lojista' }, token: 'tok' } as any}>
+      <SellerPanelProvider><StoreDashboard /></SellerPanelProvider>
+    </AuthContext.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText('Faturamento hoje')).toBeInTheDocument());
+  mockDashboard = { ...mockDashboard, orders: [{ _id: 'o2', status: 'pago', products: [], totalValue: 10 }] };
+  await act(async () => { await mockHandlers.new_order({ orderId: 'o2' }); });
+  expect(screen.getByText(/Novo pedido recebido!/)).toBeInTheDocument();
+  await act(async () => { screen.getByLabelText('Fechar notificação').click(); });
+  expect(screen.queryByText(/Novo pedido recebido!/)).toBeNull();
+
+  const wrap = (page: React.ReactNode) => (
+    <AuthContext.Provider value={{ user: { _id: 'u1', activeRole: 'lojista' }, token: 'tok' } as any}>
+      <SellerPanelProvider>{page}</SellerPanelProvider>
+    </AuthContext.Provider>
+  );
+  rerender(wrap(<div>outra página</div>));
+  rerender(wrap(<StoreDashboard />));
+  await waitFor(() => expect(screen.getByText('Faturamento hoje')).toBeInTheDocument());
+  expect(screen.queryByText(/Novo pedido recebido!/)).toBeNull();
+});

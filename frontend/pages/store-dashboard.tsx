@@ -350,7 +350,7 @@ function StoreDashboardContent() {
     store, orders, history: historyOrders, categories: storeCategories, returnRequests,
     loading, refresh, newOrderIds, newOrderCount, dismissReturn, patchOrder, removeOrder,
   } = useSellerPanel();
-  const [seenNewOrders, setSeenNewOrders] = useState(0);
+  const [seenNewOrders, setSeenNewOrders] = useState(() => newOrderCount);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Deep-link da AppSidebar (?tab=orders) — sincroniza a aba ativa com a querystring.
