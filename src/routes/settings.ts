@@ -72,10 +72,10 @@ router.delete('/store-subscription/request-change', authenticate, catchAsync(can
 router.get('/pending-plan-changes', authenticate, authorizePermission('plan:view'), getPendingPlanChanges);
 
 // Admin - Approve plan change
-router.post('/approve-plan-change', authenticate, authorizePermission('plan:approve'), approvePlanChange);
+router.post('/approve-plan-change', authenticate, authorizePermission('plan:approve'), catchAsync(approvePlanChange));
 
 // Admin - Reject plan change
-router.post('/reject-plan-change', authenticate, authorizePermission('plan:approve'), rejectPlanChange);
+router.post('/reject-plan-change', authenticate, authorizePermission('plan:approve'), catchAsync(rejectPlanChange));
 
 // Admin - Get all subscriptions
 router.get('/all-store-subscriptions', authenticate, authorizePermission('plan:view'), getAllStoreSubscriptions);

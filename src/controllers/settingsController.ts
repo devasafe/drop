@@ -222,7 +222,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
     }
 
     if (subscription.planChangeStatus !== 'pending') {
-      return res.status(400).json({ error: 'Solicitação não está pendente' });
+      throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
     }
 
     const newPlan = subscription.requestedPlan as string;
@@ -234,19 +234,20 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
       : {};
     const commissionRate = planMap[newPlan] ?? 10;
 
-    const updated = await updateSub(subscription.id, {
-      currentPlan: newPlan,
-      // Volta para none após aprovar
-      planChangeStatus: 'none',
-      approvedAt: new Date(),
-      approvedBy: userId,
-      commissionRate,
-    });
-
-    // Sincronizar Store.plan com o plano aprovado
+    // Transição condicional: a loja pode ter desistido (DELETE request-change) depois da leitura acima.
+    // Só aplica o plano quem consegue sair de `pending` com o plano que o CEO viu.
     const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
     const planNumber = planNumberMap[newPlan] ?? 1;
-    await prisma.store.update({ where: { id: String(updated.storeId) }, data: { plan: planNumber } });
+    await prisma.$transaction(async (tx) => {
+      const { count } = await tx.storeSubscription.updateMany({
+        where: { id: String(subscription.id), planChangeStatus: 'pending', requestedPlan: newPlan as any },
+        data: { currentPlan: newPlan as any, planChangeStatus: 'none', approvedAt: new Date(), approvedBy: userId, commissionRate },
+      });
+      if (count !== 1) throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
+      // Sincronizar Store.plan com o plano aprovado
+      await tx.store.update({ where: { id: String(subscription.storeId) }, data: { plan: planNumber } });
+    });
+    const updated = await findSubById(subscription.id);
 
     logger.debug('✅ Plan change approved:', { subscriptionId, newPlan, planNumber });
     return res.json({
@@ -254,6 +255,7 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
       subscription: updated,
     });
   } catch (err) {
+    if (err instanceof AppError) throw err;
     console.error('❌ Error approving plan change:', err);
     return res.status(500).json({ error: 'Erro ao aprovar mudança' });
   }
@@ -269,10 +271,13 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
       return res.status(404).json({ error: 'Solicitação não encontrada' });
     }
 
-    const updated = await updateSub(subscription.id, {
-      planChangeStatus: 'rejected',
-      rejectionReason: reason || 'Rejeitado pelo CEO',
+    // Transição condicional: se a loja já desistiu (ou o CEO já decidiu), não vira `rejected`.
+    const { count } = await prisma.storeSubscription.updateMany({
+      where: { id: String(subscription.id), planChangeStatus: 'pending' },
+      data: { planChangeStatus: 'rejected', rejectionReason: reason || 'Rejeitado pelo CEO' },
     });
+    if (count !== 1) throw new AppError('Esta troca de plano não está mais pendente.', 409, true, 'PLAN_CHANGE_NOT_PENDING');
+    const updated = await findSubById(subscription.id);
 
     logger.debug('✅ Plan change rejected:', { subscriptionId, reason });
     return res.json({
@@ -280,6 +285,7 @@ export const rejectPlanChange = async (req: Request & { user?: any }, res: Respo
       subscription: updated,
     });
   } catch (err) {
+    if (err instanceof AppError) throw err;
     console.error('❌ Error rejecting plan change:', err);
     return res.status(500).json({ error: 'Erro ao rejeitar mudança' });
   }
