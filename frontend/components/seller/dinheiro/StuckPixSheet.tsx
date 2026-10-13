@@ -32,9 +32,12 @@ export function StuckPixSheet({ transfer, storeId, blockHours, onClose, onRetrie
   const first = transfer?.motoboyName ? String(transfer.motoboyName).split(' ')[0] : 'o motoboy';
   const lastError = transfer?.lastError || '';
   const keyMissing = /MOTOBOY_PIX_KEY_MISSING/.test(lastError);
+  // Espelha NON_STORE_TRANSFER_ERRORS do backend: motivos fora do controle da loja não bloqueiam.
+  const nonStoreReason = /MOTOBOY_PIX_KEY_MISSING|DAILY_LIMIT|AMOUNT_OVER_LIMIT/.test(lastError);
   const noBalance = /saldo|insufficient|balance/i.test(lastError);
   const uncertain = transfer?.status === 'uncertain';
-  const withAdmin = transfer?.status === 'failed_final' || uncertain;
+  const finalFail = transfer?.status === 'failed_final';
+  const withAdmin = finalFail || uncertain;
   // Só `failed` pode ser reenviado pela loja; `uncertain` pode já ter saído e nunca se tenta de novo.
   const canRetry = transfer?.status === 'failed' && !keyMissing;
   const reason = uncertain
@@ -80,8 +83,10 @@ export function StuckPixSheet({ transfer, storeId, blockHours, onClose, onRetrie
               ? `${first.charAt(0).toUpperCase()}${first.slice(1)} ainda não cadastrou a chave Pix. Avisamos ele.`
               : uncertain
                 ? 'O Pix pode ter saído. A DROP confere no Asaas. Não tente de novo.'
-                : withAdmin
-                  ? 'A DROP está conferindo. Você não precisa fazer nada.'
+                : finalFail
+                  ? (noBalance
+                    ? 'O Pix está com a DROP. Coloque saldo na sua conta Asaas para evitar o bloqueio de pedidos novos.'
+                    : 'O Pix está com a DROP.')
                   : noBalance
                     ? 'Coloque saldo no Asaas ou espere cair o Pix de uma venda. A gente tenta de novo sozinho.'
                     : 'A gente tenta de novo sozinho.'}
@@ -95,7 +100,7 @@ export function StuckPixSheet({ transfer, storeId, blockHours, onClose, onRetrie
               <dd>{`${transfer.attempts ?? 0}${transfer.nextAttemptAt && transfer.status === 'failed' ? ` · próxima às ${formatHour(transfer.nextAttemptAt)}` : ''}`}</dd>
             </div>
           </dl>
-          {!keyMissing && !withAdmin && Number.isFinite(deadlineMs) && (
+          {!uncertain && !nonStoreReason && Number.isFinite(deadlineMs) && (
             <Alert tone="warning" title={`Prazo: ${formatDateTime(deadlineMs)}`}>
               Se ainda estiver parado, a loja deixa de receber pedidos novos até o Pix sair.
             </Alert>

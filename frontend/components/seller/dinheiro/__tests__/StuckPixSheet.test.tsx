@@ -8,10 +8,10 @@ import { cssViolations } from '../../../../__tests__/helpers/dsTokens';
 
 jest.mock('../../../../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, post: jest.fn() } }));
 const post = api.post as jest.Mock;
-const createdAt = new Date(2026, 9, 12, 14, 32).toISOString();
+const createdAt = '2026-10-12T17:32:00Z';
 // firstFailedAt é de propósito diferente de createdAt: o prazo conta da criação.
-const firstFailedAt = new Date(2026, 9, 12, 16, 50).toISOString();
-const t = (over: any = {}) => ({ id: 't1', orderId: 'ord000004821', motoboyName: 'Carlos Lima', status: 'failed', amount: 12, lastError: 'saldo insuficiente', pixKeyMasked: '***.412.***-07', attempts: 2, nextAttemptAt: new Date(2026, 9, 12, 15, 10).toISOString(), createdAt, firstFailedAt, ...over });
+const firstFailedAt = '2026-10-12T19:50:00Z';
+const t = (over: any = {}) => ({ id: 't1', orderId: 'ord000004821', motoboyName: 'Carlos Lima', status: 'failed', amount: 12, lastError: 'saldo insuficiente', pixKeyMasked: '***.412.***-07', attempts: 2, nextAttemptAt: '2026-10-12T18:10:00Z', createdAt, firstFailedAt, ...over });
 const props = { storeId: 's1', blockHours: 24, onClose: jest.fn(), onRetried: jest.fn() };
 
 beforeEach(() => jest.clearAllMocks());
@@ -56,10 +56,22 @@ test('429 sem mensagem usa o texto padrão', async () => {
   expect(await screen.findByText('Você tentou há pouco. Espere 5 minutos para tentar de novo.')).toBeInTheDocument();
 });
 
-test('failed_final: está com o admin, sem "Tentar agora"', () => {
+test('failed_final sem saldo: com a DROP, sem botão, com prazo e aviso para pôr saldo', () => {
   render(<StuckPixSheet transfer={t({ status: 'failed_final' })} {...props} />);
-  expect(screen.getByText('A DROP está conferindo. Você não precisa fazer nada.')).toBeInTheDocument();
+  expect(screen.getByText('O Pix está com a DROP. Coloque saldo na sua conta Asaas para evitar o bloqueio de pedidos novos.')).toBeInTheDocument();
+  expect(screen.queryByText(/não precisa fazer nada/i)).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Tentar agora' })).not.toBeInTheDocument();
+  expect(screen.getByText('Prazo: 13/10 14:32')).toBeInTheDocument();
+});
+
+test('failed_final por outro motivo da loja: com a DROP e com prazo', () => {
+  render(<StuckPixSheet transfer={t({ status: 'failed_final', lastError: 'erro qualquer' })} {...props} />);
+  expect(screen.getByText('O Pix está com a DROP.')).toBeInTheDocument();
+  expect(screen.getByText('Prazo: 13/10 14:32')).toBeInTheDocument();
+});
+
+test.each(['DAILY_LIMIT', 'AMOUNT_OVER_LIMIT'])('%s não bloqueia a loja: sem prazo', (lastError) => {
+  render(<StuckPixSheet transfer={t({ lastError })} {...props} />);
   expect(screen.queryByText(/^Prazo:/)).not.toBeInTheDocument();
 });
 
