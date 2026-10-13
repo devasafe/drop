@@ -12,6 +12,7 @@ import { NavRow } from '../../components/seller/ui/NavRow';
 import PushEnableBanner from '../../components/PushEnableBanner';
 import StoreQRCode from '../../components/StoreQRCode';
 import Icon from '../../components/Icon';
+import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Sheet } from '../../components/ui/Sheet';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -37,8 +38,12 @@ export default function SellerLoja() {
   const router = useRouter();
   const { user, logout, switchRole } = useAuth() || ({} as any);
   const { store, orders, refresh } = useSellerPanel();
-  const { settlementMode } = useSaasConfig();
+  // O hook devolve 'custodia' enquanto carrega e quando falha: o que depende do modo
+  // (plano, comissão, Assinatura, Conta Asaas) só aparece com o modo confirmado.
+  const { settlementMode, loading: modeLoading, error: modeError, retry: modeRetry } = useSaasConfig();
+  const modeReady = !modeLoading && !modeError;
   const direto = settlementMode === 'direto';
+  const custodia = modeReady && !direto;
   const { showToast } = useToast();
 
   const storeId = store?._id ? String(store._id) : null;
@@ -72,9 +77,9 @@ export default function SellerLoja() {
   useEffect(() => { loadRatings(); }, [loadRatings]);
   useEffect(() => { loadOverview(); }, [loadOverview]);
   useEffect(() => {
-    if (direto) return;
+    if (!custodia) return;
     api.get('/settings/platform-config').then((r) => setConfig(payload(r))).catch(() => setConfig(null));
-  }, [direto]);
+  }, [custodia]);
 
   // Troca de perfil: mesma regra de /conta. O backend decide; se recusar, não navega.
   const activeRole = user?.activeRole || user?.role || 'lojista';
@@ -254,7 +259,7 @@ export default function SellerLoja() {
             ))}
           </section>
 
-          {!direto && (
+          {custodia && (
             <section className={blocks.blk} aria-label="Plano">
               <div className={blocks.head}>
                 <h2 className={blocks.headTitle}>{`Plano ${plan} · ${PLAN_NAME[plan] || 'Vitrine'}`}</h2>
@@ -290,16 +295,26 @@ export default function SellerLoja() {
 
           <section aria-label="Conta e plano" className={blocks.stack}>
             <h2 className={blocks.cap}>Conta e plano</h2>
-            <ul className={blocks.list}>
-              {direto ? (
-                <>
-                  <NavRow icon={<Receipt size={20} />} label="Assinatura" sub="Mensalidade e faturas" onClick={go('/seller/assinatura')} />
-                  <NavRow icon={<KeyRound size={20} />} label="Conta Asaas" sub="Termo, chave e ajustes" onClick={go('/seller/conta-asaas')} />
-                </>
-              ) : (
-                <NavRow icon={<Wallet size={20} />} label="Plano e comissão" sub="Compare e peça troca" onClick={go('/seller/plano')} />
-              )}
-            </ul>
+            {modeError && !modeLoading ? (
+              <Alert tone="error" title="Não carregamos o seu plano" action={{ label: 'Tentar de novo', onClick: () => modeRetry?.() }}>
+                Não conseguimos confirmar como você recebe. Tente de novo em instantes.
+              </Alert>
+            ) : !modeReady ? (
+              <div role="status" aria-label="Carregando o plano">
+                <Skeleton height={64} radius="var(--radius-lg)" />
+              </div>
+            ) : (
+              <ul className={blocks.list}>
+                {direto ? (
+                  <>
+                    <NavRow icon={<Receipt size={20} />} label="Assinatura" sub="Mensalidade e faturas" onClick={go('/seller/assinatura')} />
+                    <NavRow icon={<KeyRound size={20} />} label="Conta Asaas" sub="Termo, chave e ajustes" onClick={go('/seller/conta-asaas')} />
+                  </>
+                ) : (
+                  <NavRow icon={<Wallet size={20} />} label="Plano e comissão" sub="Compare e peça troca" onClick={go('/seller/plano')} />
+                )}
+              </ul>
+            )}
           </section>
 
           {otherAreas.length > 0 && (

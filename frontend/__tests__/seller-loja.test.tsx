@@ -16,6 +16,8 @@ const mockLogout = jest.fn();
 let mockUser: any;
 let mockPanel: any;
 let mockMode = 'custodia';
+let mockSaas: { loading: boolean; error: boolean } = { loading: false, error: false };
+const mockRetry = jest.fn();
 let mockRatings: any[] = [];
 jest.mock('next/router', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn(), query: {}, pathname: '/seller/loja' }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: mockUser, switchRole: mockSwitchRole, logout: mockLogout, loading: false }) }));
@@ -25,7 +27,7 @@ jest.mock('../components/seller/panel/SellerShell', () => {
   return { __esModule: true, default: Shell, SellerShell: Shell };
 });
 jest.mock('../components/seller/panel/SellerPanelProvider', () => ({ useSellerPanel: () => mockPanel }));
-jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: mockMode, directCardEnabled: false, loading: false }) }));
+jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: mockMode, directCardEnabled: false, ...mockSaas, retry: mockRetry }) }));
 jest.mock('../hooks/usePushNotifications', () => ({
   usePushNotifications: () => ({ supported: false, subscribed: false, permission: 'default', busy: false, enable: jest.fn(), disable: jest.fn(), sendTest: jest.fn() }),
 }));
@@ -44,6 +46,7 @@ const baseStore = { _id: 's1', name: 'Eletro Center', plan: 2, customCommissionR
 beforeEach(() => {
   jest.clearAllMocks();
   mockMode = 'custodia';
+  mockSaas = { loading: false, error: false };
   mockUser = { _id: 'u1', name: 'Ana', email: 'ana@email.com', activeRole: 'lojista', roles: ['lojista', 'cliente'] };
   mockPanel = { store: { ...baseStore }, orders: [], refresh: mockRefresh, newOrderCount: 0 };
   mockRatings = [
@@ -242,4 +245,36 @@ test('pausada: mostra "Reabrir agora" e reabre pela API', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Reabrir agora' }));
   expect(await screen.findByText('Loja reaberta')).toBeInTheDocument();
   expect(screen.getByText('Pausar')).toBeInTheDocument();
+});
+
+// O hook devolve 'custodia' enquanto carrega e quando falha: nada de modo aparece sem o modo confirmado.
+const expectNoModeContent = () => {
+  for (const name of [/Plano e comissão/, /Assinatura/, /Conta Asaas/]) {
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+  }
+  expect(screen.queryByText(/Comissão de/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: /^Plano \d/ })).not.toBeInTheDocument();
+  expect(api.get).not.toHaveBeenCalledWith('/settings/platform-config');
+};
+
+test('modo carregando: sem atalhos de modo nem platform-config; o resto da tela aparece', async () => {
+  mockSaas = { loading: true, error: false };
+  await renderPage();
+  expectNoModeContent();
+  expect(screen.getByRole('status', { name: 'Carregando o plano' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Horários/ })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Suas áreas' })).toBeInTheDocument();
+});
+
+test('modo com erro: mensagem com "Tentar de novo", sem atalhos de modo nem platform-config', async () => {
+  mockSaas = { loading: false, error: true };
+  await renderPage();
+  expectNoModeContent();
+  expect(screen.getByText('Não carregamos o seu plano')).toBeInTheDocument();
+  const retryBtn = screen.getAllByRole('button', { name: 'Tentar de novo' });
+  expect(retryBtn).toHaveLength(1);
+  fireEvent.click(retryBtn[0]);
+  expect(mockRetry).toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: /Cupons/ })).toBeInTheDocument();
 });
