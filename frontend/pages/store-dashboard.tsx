@@ -1,15 +1,14 @@
-import { useEffect, useState, useContext, useRef, useCallback } from 'react';
+import { useEffect, useState, useContext, useRef } from 'react';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
 import { RouteThumbnail } from '../components/map/RouteThumbnail';
 import { parseCoords } from '../lib/geo';
 import AuthContext from '../contexts/AuthContext';
-import { connectSocket, getSocket } from '../lib/socket';
+import { SellerPanelProvider, useSellerPanel } from '../components/seller/panel/SellerPanelProvider';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Icon from '../components/Icon';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useCancellation } from '../hooks/useCancellation';
-import { useSocketListener } from '../hooks/useAutoRefetch';
 import ChatConversationList from '../components/ChatConversationList';
 import ChatConversationDetail from '../components/ChatConversationDetail';
 import StoreBannerUpload from '../components/StoreBannerUpload';
@@ -341,15 +340,17 @@ function DetalhesPedidoModal({ order, onClose, token }: { order: any, onClose: (
 }
 
 
-export default function StoreDashboard() {
+function StoreDashboardContent() {
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
   const router = useRouter();
   const { user, token } = useContext(AuthContext);
-  const [store, setStore] = useState<any>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [historyOrders, setHistoryOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Loja, pedidos, devoluções e socket vêm do painel (SellerPanelProvider), montado em todo /seller/*.
+  const {
+    store, orders, history: historyOrders, categories: storeCategories, returnRequests,
+    loading, refresh, newOrderIds, newOrderCount, dismissReturn, patchOrder, removeOrder,
+  } = useSellerPanel();
+  const [seenNewOrders, setSeenNewOrders] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Deep-link da AppSidebar (?tab=orders) — sincroniza a aba ativa com a querystring.
@@ -365,8 +366,6 @@ export default function StoreDashboard() {
   const [pinInputs, setPinInputs] = useState<{[id:string]:string}>({});
   const [pinStatuses, setPinStatuses] = useState<{[id:string]:string}>({});
   const pollingRef = useRef<any>(null);
-  const [showNotif, setShowNotif] = useState(false);
-  const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
   const [detalhesPedido, setDetalhesPedido] = useState<any>(null);
   const [rejectModalOrderId, setRejectModalOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('store_closed');
@@ -374,7 +373,6 @@ export default function StoreDashboard() {
   const [rejectLoading, setRejectLoading] = useState(false);
 
   // ✅ FIX #6: Estados para devolução com PIN
-  const [returnRequests, setReturnRequests] = useState<any[]>([]);
   const [returnPinInputs, setReturnPinInputs] = useState<{[deliveryId: string]: string}>({});
 
   // 🆕 Estados para Chat Pré-Compra
@@ -391,106 +389,12 @@ export default function StoreDashboard() {
   const [filterMaxValue, setFilterMaxValue] = useState<string>('');
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterProductName, setFilterProductName] = useState<string>('');
-  const [storeCategories, setStoreCategories] = useState<string[]>([]);
   const [historyLimit, setHistoryLimit] = useState(10);
   // Painel de filtros do histórico recolhido por padrão (Task 6 — DS flat)
   const [filtersOpen, setFiltersOpen] = useState(false);
 
 
   const { acceptOrder, rejectOrder } = useCancellation();
-
-  // 🔄 Auto-refetch quando socket events chegam
-  const handleOrderUpdate = useCallback(async () => {
-    try {
-      const res = await api.get('/stores/dashboard');
-      setOrders(res.data.orders || []);
-    } catch (err) {
-      console.error('Erro ao refetch orders:', err);
-    }
-  }, []);
-
-  // Refetch completo após mudanças de status
-  const handleOrderStatusRefetch = useCallback(async () => {
-    try {
-      const r = await api.get('/stores/dashboard');
-      setOrders(r.data.orders || []);
-      setHistoryOrders(r.data.history || []);
-    } catch (e: any) {
-      console.error('[SOCKET] Erro ao refetch após status change:', e?.message);
-    }
-  }, []);
-
-  const handleNewOrder = useCallback(async () => {
-    try {
-      const r = await api.get('/stores/dashboard');
-      const incoming = r.data.orders || [];
-      setOrders(incoming);
-      if (incoming.length > 0) {
-        const newest = incoming[0];
-        setShowNotif(true);
-        setNewOrderIds(prev => [...prev, newest._id]);
-      }
-    } catch (e: any) {
-      console.error('[SOCKET] Erro ao atualizar pedidos:', e?.message);
-    }
-  }, []);
-
-  // Escutar tanto 'new_order' (room-specific) quanto 'order:created' (broadcast global)
-  useSocketListener('new_order', handleNewOrder);
-  useSocketListener('order:created', handleNewOrder);
-
-  useSocketListener('motoboy:assigned_to_order', useCallback(async (data: any) => {
-    try {
-      console.log('🏍️ [SOCKET] Motoboy atribuído:', data);
-      const r = await api.get('/stores/dashboard');
-      setOrders(r.data.orders || []);
-    } catch (e: any) {
-      console.error('[SOCKET] ❌ Erro motoboy:assigned_to_order:', e?.message);
-    }
-  }, []));
-
-  useSocketListener('order_update', handleOrderStatusRefetch);
-  useSocketListener('order:updated', handleOrderStatusRefetch);
-  useSocketListener('order:status_changed', handleOrderStatusRefetch);
-  useSocketListener('order:picked_up', handleOrderStatusRefetch);
-  useSocketListener('order:rejected_by_store', handleOrderStatusRefetch);
-  useSocketListener('delivery:completed', handleOrderStatusRefetch);
-  useSocketListener('delivery:cancelled', handleOrderStatusRefetch);
-  useSocketListener('delivery:assigned', handleOrderStatusRefetch);
-
-  useSocketListener('order:accepted_confirmation', useCallback((data: any) => {
-    if (!data?.orderId) return;
-    setOrders(prev => prev.map(o =>
-      o._id === data.orderId ? { ...o, status: data.status || 'aguardando_motoboy' } : o
-    ));
-  }, []));
-
-  useSocketListener('order:cancelled', useCallback((data: any) => {
-    const orderId = data?.orderId;
-    if (!orderId) return;
-    setOrders(prev => {
-      const cancelled = prev.find(o => o._id === orderId || o._id === orderId?.toString());
-      if (cancelled) {
-        setHistoryOrders(h => (h.some(o => o._id === cancelled._id) ? h : [{ ...cancelled, status: 'cancelado' }, ...h]));
-      }
-      return prev.filter(o => o._id !== orderId && o._id !== orderId?.toString());
-    });
-    setReturnRequests(prev => prev.filter(r => r.orderId !== orderId && r.orderId !== orderId?.toString()));
-  }, []));
-
-  useSocketListener('delivery:return_requested', useCallback((data: any) => {
-    console.log('🚚 [SOCKET] Devolução solicitada:', data);
-    if (data?.deliveryId && data?.orderId) {
-      setReturnRequests(prev => {
-        const exists = prev.some(r => r.deliveryId === data.deliveryId);
-        if (exists) return prev.map(r => r.deliveryId === data.deliveryId ? data : r);
-        return [data, ...prev];
-      });
-      router.push('/seller/dashboard?tab=returns');
-    } else {
-      console.error('[SOCKET] ❌ Data inválida - faltam deliveryId ou orderId', data);
-    }
-  }, []));
 
   function getStatusBadgeInfo(status: string) {
     // Cada status mapeia para uma classe modificadora do badge (tokens
@@ -592,11 +496,7 @@ export default function StoreDashboard() {
         // [Plan1] Se requiresDelivery === false: status fica 'pago' (sem motoboy)
         // [Plan2/3] Se requiresDelivery !== false: status vai para 'aguardando_motoboy'
         const isPlan1 = result.data?.requiresDelivery === false;
-        setOrders(prev => prev.map(o =>
-          o._id === orderId
-            ? { ...o, status: isPlan1 ? 'pago' : 'aguardando_motoboy' }
-            : o
-        ));
+        patchOrder(orderId, { status: isPlan1 ? 'pago' : 'aguardando_motoboy' });
       } else {
         alert(`Erro: ${result.error}`);
       }
@@ -632,7 +532,7 @@ export default function StoreDashboard() {
     setRejectLoading(false);
 
     if (result.success) {
-      setOrders(prev => prev.filter(o => o._id !== rejectModalOrderId));
+      removeOrder(rejectModalOrderId);
       setRejectModalOrderId(null);
       setRejectReason('store_closed');
       setRejectCustomReason('');
@@ -640,65 +540,6 @@ export default function StoreDashboard() {
       alert(`Erro ao rejeitar: ${result.error}`);
     }
   };
-
-  const [storeId, setStoreId] = useState<string|null>(null);
-
-  const fetchDashboard = async () => {
-    setLoading(true);
-    try {
-      const r = await api.get('/stores/dashboard');
-      setStore(r.data.store);
-      const loadedOrders = r.data.orders || [];
-      setOrders(loadedOrders);
-      setHistoryOrders(r.data.history || []);
-      setStoreCategories(r.data.categories || []);
-      // Inicializar devoluções pendentes a partir dos pedidos já carregados
-      const pendingReturns = loadedOrders
-        .filter((o: any) => o.delivery?.statusDevolucao === 'aguardando_confirmacao')
-        .map((o: any) => {
-          const rawMotoboy = o.delivery.motoboyId;
-          const motoboyId = o.delivery.motoboyName
-            || (rawMotoboy && typeof rawMotoboy === 'object' ? rawMotoboy.name || rawMotoboy._id?.toString() : rawMotoboy)
-            || '';
-          return {
-            deliveryId: typeof o.delivery._id === 'string' ? o.delivery._id : o.delivery._id?.toString(),
-            orderId: o._id,
-            motoboyId,
-            message: 'Motoboy solicitou devolução do produto',
-            pinRequired: true,
-            returnedAt: o.delivery.updatedAt || new Date().toISOString(),
-          };
-        });
-      if (pendingReturns.length > 0) {
-        setReturnRequests(pendingReturns);
-        router.replace('/seller/dashboard?tab=returns');
-      }
-      if (r.data.store && r.data.store._id) {
-        setStoreId(r.data.store._id);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchDashboard();
-    }
-    // eslint-disable-next-line
-  }, [user]);
-
-  // Join socket room — lean, apenas gerencia a sala
-  useEffect(() => {
-    if (!user || !storeId) return;
-    const socket = connectSocket();
-    if (!socket.connected) socket.connect();
-    const doJoin = () => socket.emit('join', { room: `store:${storeId}`, storeId });
-    doJoin();
-    socket.on('connect', doJoin);
-    return () => { socket.off('connect', doJoin); };
-    // eslint-disable-next-line
-  }, [user, storeId]);
 
   const handlePinInput = (orderId: string, value: string) => {
     setPinInputs(prev => ({ ...prev, [orderId]: value }));
@@ -726,7 +567,7 @@ export default function StoreDashboard() {
       console.log('✅ Devolução confirmada:', res.data);
 
       // Remover da lista de devoluções pendentes
-      setReturnRequests(prev => prev.filter(r => r.deliveryId !== returnRequest.deliveryId));
+      dismissReturn(returnRequest.deliveryId);
 
       // Limpar input
       setReturnPinInputs(prev => {
@@ -754,7 +595,7 @@ export default function StoreDashboard() {
     try {
       await api.post(`/deliveries/${order.delivery._id}/validar-pin-retirada`, { pinRetirada: pinInputs[order._id] });
       setPinStatuses(prev => ({ ...prev, [order._id]: 'PIN validado com sucesso!' }));
-      fetchDashboard();
+      refresh();
     } catch (e: any) {
       setPinStatuses(prev => ({ ...prev, [order._id]: e?.response?.data?.error || 'Erro ao validar PIN' }));
     }
@@ -764,7 +605,7 @@ export default function StoreDashboard() {
     if (!store?._id) return;
     try {
       await api.put(`/stores/${store._id}/operating-hours`, { isOpen: nextIsOpen });
-      fetchDashboard();
+      refresh();
     } catch (e) {
       console.error('[overview] toggle open falhou:', e);
     }
@@ -783,10 +624,10 @@ export default function StoreDashboard() {
         {/* ═══ MAIN CONTENT ═══ */}
         <main className={styles.mainContent}>
           {/* Notificação */}
-          {showNotif && newOrderIds.length > 0 && (
+          {newOrderCount > seenNewOrders && (
             <div className={styles.notifBanner}>
               <span><Icon name="bell" size={14} /> Novo pedido recebido!</span>
-              <button onClick={() => setShowNotif(false)} className={styles.notifClose} aria-label="Fechar notificação">×</button>
+              <button onClick={() => setSeenNewOrders(newOrderCount)} className={styles.notifClose} aria-label="Fechar notificação">×</button>
             </div>
           )}
 
@@ -830,7 +671,7 @@ export default function StoreDashboard() {
                   <StoreBannerUpload
                     currentFeaturedBanner={store?.featuredBannerUrl}
                     currentCoverBanner={store?.coverBannerUrl}
-                    onUploaded={fetchDashboard}
+                    onUploaded={refresh}
                   />
                 </section>
               )}
@@ -841,7 +682,7 @@ export default function StoreDashboard() {
                     storeId={store._id}
                     initialHours={store.operatingHours}
                     initialIsOpen={store.isOpen !== false}
-                    onSaved={fetchDashboard}
+                    onSaved={refresh}
                   />
                 </section>
               )}
@@ -874,7 +715,7 @@ export default function StoreDashboard() {
                     <OrderCard
                       key={order._id}
                       order={order}
-                      isNew={newOrderIds.includes(order._id)}
+                      isNew={newOrderIds.includes(String(order._id))}
                       pinInput={pinInputs[order._id] || ''}
                       pinStatus={pinStatuses[order._id]}
                       onPinInput={(v) => handlePinInput(order._id, v)}
@@ -1309,5 +1150,17 @@ export default function StoreDashboard() {
         </Sheet>
       </div>
     </ProtectedRoute>
+  );
+}
+
+/**
+ * Embrulha a si mesma no painel: dentro do _app o provider externo vale (este só repassa);
+ * renderizada sozinha (testes), monta o próprio painel.
+ */
+export default function StoreDashboard() {
+  return (
+    <SellerPanelProvider>
+      <StoreDashboardContent />
+    </SellerPanelProvider>
   );
 }
