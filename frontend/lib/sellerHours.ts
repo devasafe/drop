@@ -18,9 +18,14 @@ const fmt = (hhmm: string) => {
   const [h, m] = hhmm.split(':');
   return m === '00' ? `${Number(h)}h` : `${Number(h)}h${m}`;
 };
+const isNightshift = (open: string, close: string): boolean => {
+  const [oH, oM] = open.split(':').map(Number);
+  const [cH, cM] = close.split(':').map(Number);
+  return cH * 60 + cM < oH * 60 + oM;
+};
 const signature = (d?: DayConfig) => (!d ? 'free' : d.closed ? 'closed' : `${d.open}-${d.close}`);
 
-/** "Seg–Sex 9h–22h · Sáb 10h–18h · Dom fechado" */
+/** "Seg–Sex 9h–22h · Sáb 10h–18h · Dom fechado" — indica virada de meia-noite com "(fecha no dia seguinte)" */
 export function summarizeHours(oh?: OperatingHours | null): string {
   if (!oh || WEEK.every((d) => !oh[d.key])) return 'Sem horário definido';
   const parts: string[] = [];
@@ -33,17 +38,21 @@ export function summarizeHours(oh?: OperatingHours | null): string {
     const days = i === j ? WEEK[i].short : `${WEEK[i].short}–${WEEK[j].short}`;
     if (sig === 'free') parts.push(`${days} sem horário`);
     else if (sig === 'closed') parts.push(`${days} fechado`);
-    else parts.push(`${days} ${fmt(cur!.open)}–${fmt(cur!.close)}`);
+    else {
+      const timeStr = `${fmt(cur!.open)}–${fmt(cur!.close)}`;
+      const night = isNightshift(cur!.open, cur!.close) ? ' (fecha no dia seguinte)' : '';
+      parts.push(`${days} ${timeStr}${night}`);
+    }
     i = j + 1;
   }
   return parts.join(' · ');
 }
 
-/** Erro da linha do dia (null = ok). Horário "HH:MM" compara como texto. */
+/** Erro da linha do dia (null = ok). Aceita virada de meia-noite (close < open). */
 export function dayError(d: DayConfig): string | null {
   if (d.closed) return null;
   if (!HHMM.test(d.open) || !HHMM.test(d.close)) return 'Informe abertura e fechamento.';
-  return d.close > d.open ? null : 'O fechamento precisa ser depois da abertura.';
+  return d.close === d.open ? 'O fechamento precisa ser diferente da abertura.' : null;
 }
 
 /** Copia a segunda para terça a sexta (cópias novas, sem compartilhar objeto). */

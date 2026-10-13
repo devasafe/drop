@@ -16,10 +16,17 @@ test('minutos e dias sem horário', () => {
   expect(summarizeHours({})).toBe('Sem horário definido');
 });
 
+test('virada de meia-noite mostra dica', () => {
+  expect(summarizeHours({
+    monday: h('18:00', '02:00'), tuesday: h('18:00', '02:00'), wednesday: h('18:00', '02:00'),
+    thursday: h('18:00', '02:00'), friday: h('18:00', '02:00'), saturday: h('20:00', '04:00'), sunday: h('09:00', '22:00'),
+  })).toBe('Seg–Sex 18h–2h (fecha no dia seguinte) · Sáb 20h–4h (fecha no dia seguinte) · Dom 9h–22h');
+});
+
 test('dayError', () => {
   expect(dayError(h('09:00', '22:00'))).toBeNull();
-  expect(dayError(h('22:00', '09:00'))).toBe('O fechamento precisa ser depois da abertura.');
-  expect(dayError(h('09:00', '09:00'))).toBe('O fechamento precisa ser depois da abertura.');
+  expect(dayError(h('18:00', '02:00'))).toBeNull(); // virada de meia-noite é válida
+  expect(dayError(h('10:00', '10:00'))).toBe('O fechamento precisa ser diferente da abertura.');
   expect(dayError(h('', '09:00'))).toBe('Informe abertura e fechamento.');
   expect(dayError({ open: '', close: '', closed: true })).toBeNull();
 });
