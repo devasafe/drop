@@ -6,6 +6,9 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
 import { formatBRL } from '../../components/ui/PriceTag';
+import { Sheet } from '../../components/ui/Sheet';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { apiErrorMessage } from '../../lib/sellerApi';
 import styles from './Integrations.module.css';
 
 interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; lastUsedAt?: string; revokedAt?: string; createdAt: string }
@@ -62,6 +65,9 @@ export default function SellerIntegrations() {
   const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Revogar chave / remover webhook: confirmação num sheet (sem window.confirm).
+  const [confirmAction, setConfirmAction] = useState<{ kind: 'key' | 'webhook'; id: string } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   // Só depois de montar: a base do api depende de window.location (client-only).
   // Renderizar isso no SSR causaria mismatch de hidratação (crash na página).
@@ -127,15 +133,11 @@ export default function SellerIntegrations() {
       setNewKey(r.data.key);
       setKeyName('');
       await load();
-    } catch (e: any) { showToast(e?.response?.data?.error || 'Erro ao gerar chave', 'error'); }
+    } catch (e: any) { showToast(apiErrorMessage(e, 'Erro ao gerar chave'), 'error'); }
     setBusy(false);
   };
 
-  const revokeKey = async (id: string) => {
-    if (!window.confirm('Revogar esta chave? Integrações que a usam vão parar de funcionar.')) return;
-    try { await api.delete(`/integrations/keys/${id}`); await load(); showToast('Chave revogada', 'success'); }
-    catch (e: any) { showToast(e?.response?.data?.error || 'Erro', 'error'); }
-  };
+  const revokeKey = (id: string) => setConfirmAction({ kind: 'key', id });
 
   const createWebhook = async () => {
     setBusy(true);
@@ -144,14 +146,30 @@ export default function SellerIntegrations() {
       setNewSecret({ url: r.data.url, secret: r.data.secret });
       setHookUrl('');
       await load();
-    } catch (e: any) { showToast(e?.response?.data?.error || 'Erro ao criar webhook', 'error'); }
+    } catch (e: any) { showToast(apiErrorMessage(e, 'Erro ao criar webhook'), 'error'); }
     setBusy(false);
   };
 
-  const deleteWebhook = async (id: string) => {
-    if (!window.confirm('Remover este webhook?')) return;
-    try { await api.delete(`/integrations/webhooks/${id}`); await load(); }
-    catch (e: any) { showToast(e?.response?.data?.error || 'Erro', 'error'); }
+  const deleteWebhook = (id: string) => setConfirmAction({ kind: 'webhook', id });
+
+  const runConfirm = async () => {
+    if (!confirmAction) return;
+    setConfirmBusy(true);
+    try {
+      if (confirmAction.kind === 'key') {
+        await api.delete(`/integrations/keys/${confirmAction.id}`);
+        showToast('Chave revogada', 'success');
+      } else {
+        await api.delete(`/integrations/webhooks/${confirmAction.id}`);
+        showToast('Webhook removido', 'success');
+      }
+      setConfirmAction(null);
+      await load();
+    } catch (e: any) {
+      showToast(apiErrorMessage(e, 'Não foi possível concluir agora.'), 'error');
+    } finally {
+      setConfirmBusy(false);
+    }
   };
 
   const testWebhook = async (id: string) => {
@@ -163,10 +181,15 @@ export default function SellerIntegrations() {
 
   return (
     <ProtectedRoute required_role="lojista">
+      <SellerShell
+        title="Integrações"
+        back="/seller/loja"
+        actions={<a className={styles.docsLinkInline} href="/docs/api" target="_blank" rel="noopener noreferrer">Docs da API</a>}
+      >
       <div className={styles.page}>
         <div className={styles.container}>
           <header className={styles.header}>
-            <h1 className={styles.title}>Meu estoque</h1>
+            <h2 className={styles.title}>Meu estoque</h2>
             <p className={styles.subtitle}>Veja, baixe e atualize o estoque da sua loja aqui — direto, sem complicação. Tem um sistema/ERP e quer sincronizar sozinho? Isso fica na parte <strong>avançada</strong>, no fim da página.</p>
           </header>
 
@@ -179,7 +202,7 @@ export default function SellerIntegrations() {
             <div className={styles.quickBtns}>
               <Button variant="primary" onClick={downloadCsv} loading={downloading}>📥 Baixar estoque</Button>
               <Button variant="tertiary" onClick={() => fileRef.current?.click()} loading={importing}>📤 Atualizar (enviar CSV)</Button>
-              <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportFile} />
+              <input ref={fileRef} type="file" accept=".csv,text/csv" className={styles.hiddenInput} aria-label="Escolher a planilha de estoque" onChange={onImportFile} />
             </div>
           </div>
 
@@ -314,6 +337,25 @@ export default function SellerIntegrations() {
           )}
         </div>
       </div>
+      <Sheet
+        open={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction?.kind === 'key' ? 'Revogar esta chave?' : 'Remover este webhook?'}
+        presentation="bottom"
+      >
+        <p className={styles.hint}>
+          {confirmAction?.kind === 'key'
+            ? 'As integrações que usam esta chave param de funcionar na hora.'
+            : 'O seu sistema deixa de receber os avisos de estoque.'}
+        </p>
+        <div className={styles.itemActions}>
+          <Button variant="danger" loading={confirmBusy} onClick={runConfirm}>
+            {confirmAction?.kind === 'key' ? 'Revogar chave' : 'Remover webhook'}
+          </Button>
+          <Button variant="tertiary" onClick={() => setConfirmAction(null)}>Cancelar</Button>
+        </div>
+      </Sheet>
+      </SellerShell>
     </ProtectedRoute>
   );
 }

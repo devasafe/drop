@@ -120,3 +120,5 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); color: var(--text);
   overflow-x: auto; line-height: 1.5;
 }
+
+.hiddenInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; opacity: 0; }
