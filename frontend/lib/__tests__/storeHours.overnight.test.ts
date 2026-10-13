@@ -41,4 +41,17 @@ describe('openStatus: horário que vira a meia-noite (igual ao backend isOpenAt)
     const soSegunda: OperatingHours = { monday: { open: '18:00', close: '02:00', closed: false }, tuesday: { open: '09:00', close: '10:00', closed: false } };
     expect(openStatus({ operatingHours: soSegunda }, new Date('2026-10-13T02:30:00Z')).open).toBe(true);
   });
+
+  it('formato inválido ("abc" ou "9:00"): aberta, como o backend', () => {
+    const now = new Date('2026-10-13T15:00:00Z');
+    for (const [open, close] of [['abc', '18:00'], ['9:00', '18:00'], ['09:00', '6pm']]) {
+      const r = openStatus({ operatingHours: { tuesday: { open, close, closed: false } } }, now);
+      expect(r).toEqual({ open: true, closesAt: null, opensAt: null });
+    }
+  });
+
+  it('dia closed com open/close vazios: fechada (closed vem antes, como no backend)', () => {
+    const r = openStatus({ operatingHours: { tuesday: { open: '', close: '', closed: true } } }, new Date('2026-10-13T15:00:00Z'));
+    expect(r.open).toBe(false);
+  });
 });

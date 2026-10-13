@@ -38,8 +38,12 @@ export function openStatus(
   if (store.isOpen === false) return { open: false, closesAt: null, opensAt: null };
   const { dayIndex, minutes: t } = brazilNow(now);
   const day = store.operatingHours?.[DAYS[dayIndex]];
-  if (!day || !day.open || !day.close) return { open: true, closesAt: null, opensAt: null };
+  // Mesma ordem e mesmas validações do backend (isOpenAt).
+  if (!day) return { open: true, closesAt: null, opensAt: null };
   if (day.closed) return { open: false, closesAt: null, opensAt: null };
+  if (!day.open || !day.close) return { open: true, closesAt: null, opensAt: null };
+  const fmt = /^\d{2}:\d{2}$/;
+  if (!fmt.test(day.open) || !fmt.test(day.close)) return { open: true, closesAt: null, opensAt: null };
   const openMin = toMin(day.open);
   const closeMin = toMin(day.close);
   // Horário que vira a meia-noite (ex.: 18:00-02:00): mesma regra do backend (isOpenAt),
