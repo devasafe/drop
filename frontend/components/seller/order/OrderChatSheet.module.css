@@ -1,0 +1,77 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+}
+.quick {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+}
+.chip {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-meta);
+  cursor: pointer;
+}
+.chip:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+.composer {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.input {
+  flex: 1;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-body);
+}
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  cursor: pointer;
+}
+.send:disabled {
+  background: var(--color-action-disabled);
+  color: var(--color-text-disabled);
+}
+.chip:focus-visible,
+.input:focus-visible,
+.send:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.error {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-error-text);
+}
