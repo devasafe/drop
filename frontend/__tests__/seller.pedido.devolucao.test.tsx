@@ -1,7 +1,7 @@
 // Tela Pedido montada no SellerPanelProvider real: a devolução pedida pelo motoboy
 // (socket delivery:return_requested, único evento que o backend emite) aparece sem recarregar a página.
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 
 const mockHandlers: Record<string, (data?: any) => any> = {};
 jest.mock('../hooks/useAutoRefetch', () => ({
@@ -14,7 +14,8 @@ jest.mock('../lib/socket', () => ({
   getSocket: () => null,
 }));
 const mockGet = jest.fn();
-jest.mock('../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, get: (...a: any[]) => mockGet(...a), post: jest.fn(), put: jest.fn() } }));
+const mockPost = jest.fn();
+jest.mock('../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, get: (...a: any[]) => mockGet(...a), post: (...a: any[]) => mockPost(...a), put: jest.fn() } }));
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), query: { id: 'o1' }, asPath: '/seller/pedido/o1', pathname: '/seller/pedido/[id]' }) }));
 // Socket estável: o useOrder real refaz a busca quando `on` muda de identidade.
 jest.mock('../contexts/SocketContext', () => {
@@ -44,6 +45,8 @@ beforeEach(() => {
   Object.keys(mockHandlers).forEach((k) => delete mockHandlers[k]);
   returned = false;
   mockGet.mockReset();
+  mockPost.mockReset();
+  mockPost.mockResolvedValue({ data: {} });
   mockGet.mockImplementation((url: string) => {
     if (url === '/stores/dashboard') return Promise.resolve({ data: { store: { _id: 's1' }, orders: [theOrder()], history: [], categories: [] } });
     if (url === '/orders/o1') return Promise.resolve({ data: theOrder() });
@@ -85,4 +88,31 @@ test('devolução de outro pedido não recarrega este', async () => {
     mockHandlers['delivery:return_requested']({ deliveryId: 'd9', orderId: 'o9', motoboyId: 'm1', message: 'x', pinRequired: true, returnedAt: '2026-10-12T12:30:00Z' });
   });
   expect(mockGet.mock.calls.filter((c) => c[0] === '/orders/o1').length).toBe(before);
+});
+
+test('segunda devolução da mesma entrega (depois de confirmar a primeira) também aparece ao vivo', async () => {
+  render(
+    <AuthContext.Provider value={{ user: lojista, can: () => true } as any}>
+      <SellerPanelProvider><SellerPedidoPage /></SellerPanelProvider>
+    </AuthContext.Provider>,
+  );
+  await screen.findByText('Retirado por Carlos');
+  const ev = { deliveryId: 'd1', orderId: 'o1', motoboyId: 'm1', message: 'x', pinRequired: true, returnedAt: '2026-10-12T12:30:00Z' };
+  returned = true;
+  await act(async () => { mockHandlers['delivery:return_requested'](ev); });
+  await screen.findByText('Devolução pedida');
+
+  // A loja confirma a devolução: a entrada sai do painel (dismissReturn) e o pedido volta sem devolução pendente.
+  returned = false;
+  fireEvent.change(screen.getByLabelText('PIN de devolução (6 dígitos)'), { target: { value: '123456' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
+  await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/deliveries/d1/confirm-return', { pinDevolucao: '123456' }));
+  await waitFor(() => expect(screen.queryByText('Devolução pedida')).not.toBeInTheDocument());
+
+  // Outro motoboy pega a entrega e pede devolução de novo: mesmo deliveryId.
+  const before = mockGet.mock.calls.filter((c) => c[0] === '/orders/o1').length;
+  returned = true;
+  await act(async () => { mockHandlers['delivery:return_requested']({ ...ev, motoboyId: 'm2', returnedAt: '2026-10-12T13:10:00Z' }); });
+  expect(await screen.findByText('Devolução pedida')).toBeInTheDocument();
+  expect(mockGet.mock.calls.filter((c) => c[0] === '/orders/o1').length).toBeGreaterThan(before);
 });

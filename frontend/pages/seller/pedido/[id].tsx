@@ -133,7 +133,10 @@ export default function SellerPedidoPage() {
   // Devolução pedida pelo motoboy: o backend só emite delivery:return_requested, que entra em
   // panel.returnRequests sem mexer no pedido. Recarrega o pedido (PIN e estado vêm do servidor),
   // uma vez por entrega. A chave é só o deliveryId: o returnedAt das devoluções lidas do
-  // /stores/dashboard muda a cada carga e geraria um loop de recarga.
+  // /stores/dashboard muda a cada carga e geraria um loop de recarga. A chave sai quando a
+  // entrada some do painel (dismissReturn após confirmar): uma 2ª devolução da mesma entrega
+  // (reassign → outro motoboy → nova devolução) recarrega de novo. A recarga do dashboard
+  // repõe a mesma entrada sem que ela suma antes, então não há loop.
   const seenReturns = useRef<Set<string>>(new Set());
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
@@ -142,10 +145,12 @@ export default function SellerPedidoPage() {
   const returnRequests = panel?.returnRequests;
   useEffect(() => {
     if (!id) return;
+    const present = new Set(
+      (returnRequests || []).filter((r) => String(r?.orderId) === id && r?.deliveryId).map((r) => String(r.deliveryId)),
+    );
+    seenReturns.current.forEach((k) => { if (!present.has(k)) seenReturns.current.delete(k); });
     let fresh = false;
-    for (const r of returnRequests || []) {
-      if (String(r?.orderId) !== id || !r?.deliveryId) continue;
-      const key = String(r.deliveryId);
+    for (const key of Array.from(present)) {
       if (seenReturns.current.has(key)) continue;
       seenReturns.current.add(key);
       fresh = true;
@@ -285,7 +290,7 @@ export default function SellerPedidoPage() {
                 <section className={styles.block} aria-label="Devolução pedida">
                   <h2 className={styles.blockTitle}>Devolução pedida</h2>
                   <p className={styles.meta}>O motoboy está voltando com o produto. Quando ele chegar, confira o produto e digite o PIN que ele mostrar.</p>
-                  <ReturnConfirm deliveryId={String(d._id)} onDone={() => { setNotice('Devolução confirmada.'); reload(); }} />
+                  <ReturnConfirm deliveryId={String(d._id)} onDone={() => { setNotice('Devolução confirmada.'); panel?.dismissReturn?.(String(d._id)); reload(); }} />
                 </section>
               )}
 
