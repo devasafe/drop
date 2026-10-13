@@ -1,12 +1,29 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Bike, FileText, QrCode, Store } from 'lucide-react';
 import api from '../../lib/api';
+import { formatFullDate } from '../../lib/sellerApi';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import ModeGate from '../../components/ModeGate';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { Alert } from '../../components/ui/Alert';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { useAuth } from '../../contexts/AuthContext';
-import { Section } from '../../components/ui/Section';
-import Link from 'next/link';
-import { formatBRL, formatBillingDate, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView } from '../../lib/saasBilling';
-import styles from './Integrations.module.css';
+import {
+  formatBRL, saasStatusLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
+} from '../../lib/saasBilling';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import styles from './SellerAssinatura.module.css';
+
+const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const monthLabel = (iso: string) => {
+  const [, mm, yyyy] = (formatFullDate(iso) || '').split('/');
+  const name = MONTHS[Number(mm) - 1];
+  return name ? `${name} de ${yyyy}` : 'Fatura';
+};
+const TAG: Record<string, string> = {
+  trialing: blocks.tagInfo, active: blocks.tagOk, past_due: blocks.tagErr, paused: blocks.tagErr, cancelled: blocks.tagErr,
+};
 
 function Assinatura() {
   const { user } = useAuth() as any;
@@ -29,51 +46,97 @@ function Assinatura() {
     return () => { cancelled = true; };
   }, [user?.storeId]);
 
-  const warn = data && (data.status === 'past_due' || data.status === 'paused');
+  const warn = !!data && (data.status === 'past_due' || data.status === 'paused');
   const pay = data?.nextPayment;
+  const payments = Array.isArray(data?.payments) ? data!.payments! : [];
+  const daysLeft = data?.status === 'trialing' && data.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(data.trialEndsAt).getTime() - Date.now()) / 86400000))
+    : null;
 
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Assinatura</h1>
-          <p className={styles.subtitle}>A mensalidade da sua loja no DROP.</p>
-        </header>
-        {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        {data && (
-          <>
-            <Section title="Situação">
-              <p style={{ margin: 0, fontWeight: 600, color: warn ? 'var(--danger)' : 'var(--text-strong)' }}>
-                {saasStatusMessage(data)}
-              </p>
-            </Section>
-            {data.pendingReason === 'owner_document' && (
-              <Section title="Fatura pendente">
-                <p style={{ margin: 0, color: 'var(--text-strong)' }}>{SAAS_PENDING_MESSAGE.owner_document}</p>
-                <Link href="/verificacao" className={styles.docsLink}>
-                  Ir para a verificação
-                </Link>
-              </Section>
+    <div className={blocks.body}>
+      {error && <Alert tone="error" title={error} />}
+      {!data && !error && <Skeleton height={160} radius="var(--radius-lg)" />}
+      {data && (
+        <>
+          <section className={[blocks.blk, warn ? blocks.blkDanger : blocks.blkBrand].join(' ')} aria-label="Situação">
+            <div className={blocks.head}>
+              <span className={[blocks.tag, TAG[data.status] || ''].filter(Boolean).join(' ')}>{saasStatusLabel(data.status)}</span>
+            </div>
+            {daysLeft != null && <span className={blocks.big}>{daysLeft === 1 ? 'Falta 1 dia' : `Faltam ${daysLeft} dias`}</span>}
+            <p className={styles.status}>{saasStatusMessage(data)}</p>
+            {data.status === 'past_due' && data.blockAt && (
+              <p className={blocks.sub}>{`Pague até ${(formatFullDate(data.blockAt) || '—')} para a sua loja não ser pausada. Pausada, ela sai da vitrine e não recebe pedidos novos.`}</p>
             )}
-            <Section title="Valor mensal">
-              <p style={{ margin: 0, color: 'var(--text-strong)' }}>{formatBRL(data.fee)}</p>
-            </Section>
-            {pay && (
-              <Section title="Próxima cobrança">
-                <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                  Vencimento <span style={{ color: 'var(--text)' }}>{formatBillingDate(pay.dueDate)}</span>
-                  {' · '}Valor <span style={{ color: 'var(--text)' }}>{formatBRL(pay.value)}</span>
-                </p>
-                {pay.invoiceUrl && (
-                  <a className={styles.docsLink} href={pay.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                    Pagar fatura
-                  </a>
-                )}
-              </Section>
+            {data.status === 'trialing' && <p className={blocks.sub}>Sem cartão cadastrado: a primeira cobrança chega por Pix ou boleto.</p>}
+            {data.status === 'paused' && <p className={blocks.sub}>Pedidos já pagos seguem até o fim. Produtos, pedidos e avaliações estão guardados.</p>}
+          </section>
+
+          {data.pendingReason === 'owner_document' && (
+            <section className={blocks.blk} aria-label="Fatura pendente">
+              <p className={styles.status}>{SAAS_PENDING_MESSAGE.owner_document}</p>
+              <Link href="/verificacao" className={blocks.link}>Ir para a verificação</Link>
+            </section>
+          )}
+
+          {pay && (
+            <section className={blocks.blk} aria-label="Próxima cobrança">
+              <h2 className={blocks.headTitle}>Próxima cobrança</h2>
+              <div className={blocks.sum}>
+                <div><span>Vencimento</span><span>{(formatFullDate(pay.dueDate) || '—')}</span></div>
+                <div><span>Valor da fatura</span><span>{formatBRL(pay.value)}</span></div>
+              </div>
+              {pay.invoiceUrl ? (
+                <a className={styles.payBtn} href={pay.invoiceUrl} target="_blank" rel="noopener noreferrer">Pagar fatura</a>
+              ) : (
+                <p className={blocks.meta}>A fatura está sendo gerada. Tente de novo em alguns minutos.</p>
+              )}
+              <p className={blocks.meta}>Pix ou boleto. Pagou agora? A confirmação chega em alguns minutos.</p>
+            </section>
+          )}
+
+          <section className={blocks.blk} aria-label="Valores">
+            <div className={blocks.sum}>
+              <div><span>Mensalidade</span>{data.fee > 0 ? <span>{formatBRL(data.fee)}</span> : <span>Sua loja não paga mensalidade</span>}</div>
+              <div><span>Comissão por venda</span><span className={blocks.ok}>Nenhuma</span></div>
+              {data.paidUntil && <div><span>Coberto até</span><span>{(formatFullDate(data.paidUntil) || '—')}</span></div>}
+              {data.blockAt && <div><span>Pausa a partir de</span><span>{(formatFullDate(data.blockAt) || '—')}</span></div>}
+            </div>
+          </section>
+
+          <section aria-label="O que está incluído" className={blocks.stack}>
+            <h2 className={blocks.cap}>O que está incluído</h2>
+            <ul className={blocks.list}>
+              <li className={blocks.row}><span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><Store size={18} /></span><span className={blocks.tx}><b>Sua loja no app e na vitrine</b><span>Clientes da região encontram você</span></span></li>
+              <li className={blocks.row}><span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><QrCode size={18} /></span><span className={blocks.tx}><b>Pix direto na sua conta</b><span>Sem esperar repasse</span></span></li>
+              <li className={blocks.row}><span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><Bike size={18} /></span><span className={blocks.tx}><b>Motoboys do DROP</b><span>Pagos pela sua conta, com trava</span></span></li>
+            </ul>
+          </section>
+
+          <section aria-label="Faturas pagas" className={blocks.stack}>
+            <h2 className={blocks.cap}>Faturas pagas</h2>
+            {payments.length === 0 ? (
+              <p className={blocks.meta}>A primeira fatura paga aparece aqui.</p>
+            ) : (
+              <ul className={blocks.list}>
+                {payments.map((p) => (
+                  <li key={p.id} className={blocks.row}>
+                    <span className={[blocks.ico, blocks.icoOk].join(' ')} aria-hidden="true"><FileText size={18} /></span>
+                    <span className={blocks.tx}>
+                      <b>{monthLabel(p.dueDate)}</b>
+                      <span>{p.paidAt ? `Paga em ${(formatFullDate(p.paidAt) || '—')}` : 'Paga'}</span>
+                    </span>
+                    <span className={blocks.end}>
+                      <span className={styles.value}>{formatBRL(p.value)}</span>
+                      {p.invoiceUrl && <a className={blocks.link} href={p.invoiceUrl} target="_blank" rel="noopener noreferrer">Recibo</a>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
-          </>
-        )}
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -82,7 +145,9 @@ export default function SellerAssinatura() {
   return (
     <ProtectedRoute required_role="lojista">
       <ModeGate mode="direto">
-        <Assinatura />
+        <SellerShell title="Assinatura" back="/seller/loja">
+          <Assinatura />
+        </SellerShell>
       </ModeGate>
     </ProtectedRoute>
   );

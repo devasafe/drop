@@ -39,6 +39,10 @@ export interface SaasBillingView {
   blocked: boolean;
   /** Sem assinatura com fee > 0: a fatura só sai depois de o dono aprovar o documento. */
   pendingReason?: SaasPendingReason;
+  /** Faturas pagas, as 12 mais recentes (D1). */
+  payments?: Array<{ id: string; value: number; dueDate: string; paidAt: string | null; invoiceUrl: string | null }>;
+  /** A partir de quando a loja é pausada se não pagar (fim do dia, Brasília). D1. */
+  blockAt?: string | null;
 }
 
 export type SaasPendingReason = 'owner_document' | null;
