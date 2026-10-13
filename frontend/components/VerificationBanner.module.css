@@ -1,4 +1,4 @@
-/* Aviso de verificação nas telas do cliente (DS v2): faixa discreta, só tokens. */
+/* Aviso de verificação (DS v2): faixa discreta, só tokens. Vale para o cliente e para os outros papéis fora do painel da loja. */
 .customer {
   display: flex;
   align-items: center;

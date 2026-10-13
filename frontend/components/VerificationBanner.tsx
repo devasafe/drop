@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { CUSTOMER_ROUTES, ROUTES } from '../lib/routes';
+import { isSellerPanelRoute } from '../lib/sellerRoutes';
 import styles from './VerificationBanner.module.css';
 
 const LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const LABELS: Record<string, string> = {
 /**
  * Aviso global: aparece quando a conta/loja do usuário logado não está verificada,
  * dizendo o que falta e apontando para a página certa.
+ * No painel da loja não aparece: lá o Agora mostra o cadastro (V7, M2).
  */
 export default function VerificationBanner() {
   const { user, activeRole } = useAuth();
@@ -30,7 +32,7 @@ export default function VerificationBanner() {
   useEffect(() => {
     let mounted = true;
     const role = activeRole || (user as any)?.activeRole || (user as any)?.role;
-    if (!user || router.pathname.startsWith('/verificacao')) { setMissing([]); return; }
+    if (!user || router.pathname.startsWith('/verificacao') || isSellerPanelRoute(router.pathname)) { setMissing((m) => (m.length ? [] : m)); return; }
 
     const check = async () => {
       try {
@@ -56,7 +58,7 @@ export default function VerificationBanner() {
     return () => { mounted = false; };
   }, [user, activeRole, router.pathname]);
 
-  if (missing.length === 0) return null;
+  if (missing.length === 0 || isSellerPanelRoute(router.pathname)) return null;
 
   // Telas do cliente (DS v2): faixa discreta com tokens. A Conta já tem o Alert próprio.
   if (CUSTOMER_ROUTES.includes(router.pathname)) {
@@ -71,12 +73,9 @@ export default function VerificationBanner() {
 
   const labels = missing.map(m => LABELS[m] || m).join(', ');
   return (
-    <div style={{
-      background: '#F59E0B', color: '#1a1a1a', padding: '8px 16px',
-      textAlign: 'center', fontSize: 14, fontWeight: 600,
-    }}>
-      ⚠️ {scope} ainda não está verificada — falta: {labels}.{' '}
-      <a href={link} style={{ color: '#1a1a1a', textDecoration: 'underline' }}>Verificar agora →</a>
+    <div role="status" className={styles.customer}>
+      <span>{scope} ainda não está verificada. Falta: {labels}.</span>
+      <a href={link} className={styles.link}>Verificar agora</a>
     </div>
   );
 }
