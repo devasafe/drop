@@ -123,35 +123,25 @@ export function parseMoneyInput(s: string): number {
   return Number(normalized);
 }
 
-// --- Leitura simplificada da API (P7.2) ---------------------------------------------------
-// Complementa apiError/unwrap acima sem mudar o comportamento deles.
+// --- Atalhos de leitura (P7.2) -------------------------------------------------------------
+// Wrappers finos sobre apiError/unwrap: uma so fonte de verdade para ler resposta e erro.
 
-/** `{ success:true, data }` → data; corpo antigo (objeto direto, lista) volta como veio. */
+/** `{ success:true, data }` -> data; qualquer outro corpo volta como veio. */
 export function payload<T = any>(res: { data?: any } | null | undefined): T {
-  const body = res?.data;
-  if (body && typeof body === 'object' && !Array.isArray(body) && body.success === true && 'data' in body) {
-    return body.data as T;
-  }
-  return body as T;
+  return unwrap<T>(res);
 }
 
-/** Código estável do erro: `{ error: { code } }` (AppError) ou `{ code }` solto (formato antigo). */
-export function apiErrorCode(err: any): string | undefined {
-  const e = err?.response?.data?.error;
-  if (e && typeof e === 'object' && typeof e.code === 'string') return e.code;
-  const loose = err?.response?.data?.code;
-  return typeof loose === 'string' ? loose : undefined;
+/** Codigo estavel do erro (AppError ou formato antigo), ou null. */
+export function apiErrorCode(err: unknown): string | null {
+  return apiError(err).code;
 }
 
 /** Mensagem do servidor nos dois formatos, ou o texto de reserva. */
-export function apiErrorMessage(err: any, fallback: string): string {
-  const e = err?.response?.data?.error;
-  if (e && typeof e === 'object' && typeof e.message === 'string' && e.message) return e.message;
-  if (typeof e === 'string' && e) return e;
-  return fallback;
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  return apiError(err).message || fallback;
 }
 
-export function apiStatus(err: any): number | undefined {
-  const s = err?.response?.status;
-  return typeof s === 'number' ? s : undefined;
+/** Status HTTP do erro, ou null (sem resposta). */
+export function apiStatus(err: unknown): number | null {
+  return apiError(err).status;
 }

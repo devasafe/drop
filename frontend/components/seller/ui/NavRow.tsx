@@ -22,7 +22,7 @@ export function NavRow({ icon, label, sub, onClick, end, iconClassName, current 
       <button
         type="button"
         className={[blocks.row, blocks.rowButton, current && blocks.rowCurrent].filter(Boolean).join(' ')}
-        aria-current={current ? 'step' : undefined}
+        aria-current={current ? 'true' : undefined}
         onClick={onClick}
       >
         <span className={[blocks.ico, iconClassName].filter(Boolean).join(' ')} aria-hidden="true">{icon}</span>
@@ -36,3 +36,4 @@ export function NavRow({ icon, label, sub, onClick, end, iconClassName, current 
   );
 }
 
+export default NavRow;

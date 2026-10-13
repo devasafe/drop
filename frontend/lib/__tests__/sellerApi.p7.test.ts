@@ -15,10 +15,10 @@ describe('sellerApi (P7)', () => {
     expect(apiErrorCode(novo)).toBe('COUPON_ENDED');
     expect(apiErrorMessage(novo, 'x')).toBe('Cupom encerrado');
     expect(apiErrorMessage(antigo, 'x')).toBe('Plano inválido');
-    expect(apiErrorCode(antigo)).toBeUndefined();
+    expect(apiErrorCode(antigo)).toBeNull();
     expect(apiErrorCode(comCodigoSolto)).toBe('STORE_TRANSFER_PENDING');
     expect(apiErrorMessage(new Error('rede'), 'Tente de novo')).toBe('Tente de novo');
     expect(apiStatus(novo)).toBe(409);
-    expect(apiStatus(new Error('rede'))).toBeUndefined();
+    expect(apiStatus(new Error('rede'))).toBeNull();
   });
 });
