@@ -53,6 +53,7 @@ interface Props {
 export function RecebimentoForm({ direct, store, onSaved }: Props) {
   const [status, setStatus] = useState<ReceiverStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [pixKey, setPixKey] = useState('');
@@ -60,13 +61,17 @@ export function RecebimentoForm({ direct, store, onSaved }: Props) {
   const [addr, setAddr] = useState({ street: '', number: '', neighborhood: '', city: '', state: '', zip: '' });
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    // O campo editável começa vazio: salvar sem redigitar gravaria a máscara como chave.
+  // O campo editável começa vazio: salvar sem redigitar gravaria a máscara como chave.
+  // Fail closed: leitura que falha NÃO vira "sem chave" (o form vazio pediria uma chave que pode já existir).
+  const load = () => {
+    setLoading(true);
+    setLoadFailed(false);
     api.get('/onboarding/status')
       .then((r) => setStatus(r.data))
-      .catch(() => {})
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reloadStatus = () => api.get('/onboarding/status').then((r) => setStatus(r.data)).catch(() => {});
 
@@ -120,6 +125,13 @@ export function RecebimentoForm({ direct, store, onSaved }: Props) {
   };
 
   if (loading) return <Skeleton height={200} radius="var(--radius-lg)" />;
+  if (loadFailed) {
+    return (
+      <Alert tone="error" title="Não carregamos seus dados de recebimento" action={{ label: 'Tentar de novo', onClick: load }}>
+        Tente de novo em instantes. Nada foi alterado.
+      </Alert>
+    );
+  }
 
   const active = !direct && status?.accountStatus === 'active';
   const needsAddress = !direct && !!status && !status.hasAddress;

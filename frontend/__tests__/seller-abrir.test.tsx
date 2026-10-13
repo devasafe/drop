@@ -53,6 +53,9 @@ test('checklist: etapa atual em destaque e aberta DENTRO da tela (sem mandar par
   expect(await screen.findByText('2 de 5')).toBeInTheDocument();
   expect(screen.getByText('agora')).toBeInTheDocument();
   expect(screen.getByText('etapa documentos s1')).toBeInTheDocument();
+  // título do protótipo, uma vez só (sem repetir no bloco de progresso)
+  expect(screen.getAllByText('Abrir sua loja')).toHaveLength(1);
+  expect(screen.queryByText('Abrir a loja')).not.toBeInTheDocument();
   expect(screen.queryByText('Continuar: Verificar loja')).not.toBeInTheDocument();
   expect(screen.queryByText('etapa recebimento')).not.toBeInTheDocument();
   // tocar numa etapa leva para ela (dentro de /seller/abrir, pelo href da etapa)
@@ -195,6 +198,9 @@ test('etapa que não deu para conferir: aviso, "Tentar de novo" recarrega e não
   expect(await screen.findByText('Não conseguimos conferir tudo')).toBeInTheDocument();
   expect(screen.getByText('Não deu para conferir agora')).toBeInTheDocument();
   expect(screen.queryByText('Quase lá')).not.toBeInTheDocument();
+  // fail closed: etapa que não deu para conferir não abre embutida como "a fazer", nem vira "Continuar"
+  expect(screen.queryByText('etapa recebimento')).not.toBeInTheDocument();
+  expect(screen.queryByText(/^Continuar/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByText('Tentar de novo'));
   expect(await screen.findByText('Quase lá')).toBeInTheDocument();
   expect(loadStoreOnboarding).toHaveBeenCalledTimes(2);

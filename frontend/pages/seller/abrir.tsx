@@ -129,7 +129,8 @@ export default function SellerAbrir() {
   const stepDone = () => { if (etapa) router.push('/seller/abrir'); else refresh(); };
 
   const embedded = (s: ChecklistStep | null): JSX.Element | null => {
-    if (!s || !data || !EMBEDDED.has(s.key)) return null;
+    // Fail closed: etapa que não deu para conferir não abre como "a fazer" (o aviso no topo tem "Tentar de novo").
+    if (!s || !data || !EMBEDDED.has(s.key) || s.state === 'unknown') return null;
     const storeId = data.store?._id ? String(data.store._id) : null;
     let body: JSX.Element;
     if (s.key === 'loja') {
@@ -166,6 +167,8 @@ export default function SellerAbrir() {
   };
 
   let content: JSX.Element;
+  // Custódia (protótipo 8): "N de M" fica no topo, ao lado do título "Abrir sua loja".
+  let shellMeta: JSX.Element | undefined;
   if (failed) {
     content = <EmptyState variant="error" icon={<ListChecks />} title="Não carregamos o seu cadastro" onRetry={load} />;
   } else if (!data) {
@@ -235,17 +238,18 @@ export default function SellerAbrir() {
     const done = data.steps.filter((s) => s.state === 'done').length;
     const left = total - done;
     const open = askedStep ?? data.current;
+    if (!direto) shellMeta = <span className={blocks.meta}>{`${done} de ${total}`}</span>;
     const openSection = embedded(open);
     content = (
       <>
         {unknownAlert}
         <section className={[blocks.blk, blocks.blkBrand].join(' ')} aria-label="Progresso">
-          <div className={blocks.head}>
-            <h2 className={blocks.headTitle}>
-              {direto ? (left === 1 ? 'Falta 1 passo para vender' : `Faltam ${left} passos para vender`) : 'Abrir sua loja'}
-            </h2>
-            <span className={blocks.meta}>{`${done} de ${total}`}</span>
-          </div>
+          {direto && (
+            <div className={blocks.head}>
+              <h2 className={blocks.headTitle}>{left === 1 ? 'Falta 1 passo para vender' : `Faltam ${left} passos para vender`}</h2>
+              <span className={blocks.meta}>{`${done} de ${total}`}</span>
+            </div>
+          )}
           <ProgressBar value={done} max={total} label="Etapas concluídas" valueText={`${done} de ${total}`} />
           <p className={blocks.sub}>Dá para parar e continuar depois. Salvamos cada etapa.</p>
         </section>
@@ -279,7 +283,7 @@ export default function SellerAbrir() {
         ) : (
           <Alert tone="info">A análise leva até 1 dia útil. Você já pode cadastrar produtos enquanto isso.</Alert>
         )}
-        {data.current && !(openSection && open?.key === data.current.key) && (
+        {data.current && data.current.state !== 'unknown' && !(openSection && open?.key === data.current.key) && (
           <div className={blocks.bar}>
             <Button onClick={() => router.push(data.current!.href)}>{`Continuar: ${data.current.label}`}</Button>
             {direto && data.current.key === 'asaas' && <small>Leva uns 5 minutos com o Asaas aberto.</small>}
@@ -291,7 +295,7 @@ export default function SellerAbrir() {
 
   return (
     <ProtectedRoute required_role="lojista">
-      <SellerShell title="Abrir a loja" back={etapa ? '/seller/abrir' : '/seller/loja'}>
+      <SellerShell title={direto ? 'Abrir a loja' : 'Abrir sua loja'} back={etapa ? '/seller/abrir' : '/seller/loja'} actions={shellMeta}>
         <div className={blocks.body}>{content}</div>
       </SellerShell>
     </ProtectedRoute>

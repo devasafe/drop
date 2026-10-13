@@ -47,3 +47,13 @@ test('motoboy: sem o bloco da loja', async () => {
   await screen.findByPlaceholderText('CPF, e-mail, telefone ou chave aleatória');
   expect(screen.queryByText('Quanto e quando')).not.toBeInTheDocument();
 });
+
+test('falha ao ler o status: erro com "Tentar de novo", sem formulário vazio (fail closed)', async () => {
+  (api.get as jest.Mock).mockRejectedValueOnce(new Error('rede')).mockResolvedValueOnce({ data: { ...noKey, hasPixKey: true, pixKey: '***.456.789-**' } });
+  render(<RecebimentoForm direct={false} store />);
+  expect(await screen.findByText('Não carregamos seus dados de recebimento')).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText('CPF, e-mail, telefone ou chave aleatória')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Ativar recebimento' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Tentar de novo'));
+  expect(((await screen.findByLabelText('Chave PIX cadastrada')) as HTMLInputElement).value).toBe('***.456.789-**');
+});
