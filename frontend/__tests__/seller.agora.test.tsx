@@ -527,3 +527,35 @@ describe('V12: o cadastro do Agora usa a leitura do painel', () => {
   });
 });
 
+
+describe('V13 · dica "Primeiro pedido? É só aceitar." (protótipo, tela 1)', () => {
+  beforeEach(() => { window.localStorage.clear(); });
+
+  test('loja que ainda não teve pedido: mostra a dica com o primeiro pedido novo', async () => {
+    mockPanel.orders = [novo()];
+    mockPanel.history = [];
+    await renderAgora();
+    expect(screen.getByText('Primeiro pedido? É só aceitar.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar dica' }));
+    expect(screen.queryByText('Primeiro pedido? É só aceitar.')).toBeNull();
+  });
+
+  test('loja que já teve pedido (histórico ou pedido em andamento): sem a dica', async () => {
+    mockPanel.orders = [novo()];
+    mockPanel.history = [{ _id: 'old1', status: 'entregue' }];
+    const a = await renderAgora();
+    expect(screen.queryByText(/É só aceitar\./)).toBeNull();
+    a.unmount();
+    mockPanel.history = [];
+    mockPanel.orders = [novo(), novo({ _id: 'ord000004819', status: 'aguardando_motoboy', acceptDeadline: null, acceptedAt: new Date().toISOString() })];
+    await renderAgora();
+    expect(screen.queryByText(/É só aceitar\./)).toBeNull();
+  });
+
+  test('sem o histórico do painel (dado ausente): não supõe que é o primeiro', async () => {
+    mockPanel.orders = [novo()];
+    delete mockPanel.history;
+    await renderAgora();
+    expect(screen.queryByText(/É só aceitar\./)).toBeNull();
+  });
+});

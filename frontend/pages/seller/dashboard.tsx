@@ -177,6 +177,10 @@ export default function AgoraPage() {
 
   const list = Array.isArray(orders) ? orders : [];
   const novos = sortOngoing(list.filter(isAwaitingAccept));
+  // Primeiro pedido (V13): o /stores/dashboard traz todos os pedidos da loja (em andamento + histórico).
+  // Sem histórico e sem nenhum pedido já aceito, o pedido novo é o primeiro. Sem o histórico, não supõe.
+  const firstOrder = Array.isArray(panel?.history) && panel.history.length === 0
+    && novos.length > 0 && list.every(isAwaitingAccept);
   const andamento = sortOngoing(list.filter((o) => !isAwaitingAccept(o)));
   // Devolução pendente: vem do aviso em tempo real e do próprio pedido (sem contar duas vezes).
   const pendingReturns = new Set<string>([
@@ -379,11 +383,11 @@ export default function AgoraPage() {
               {pending && <AgoraAnalise data={pending} onGo={(p) => router.push(p)} />}
               {notice && <p role="status" className={styles.notice}>{notice}</p>}
 
-              {!hintClosed && !pending && novos.length > 0 && (
+              {!hintClosed && !pending && firstOrder && (
                 <div className={styles.hint}>
                   <Sparkles size={20} aria-hidden="true" className={styles.hintIcon} />
                   <p className={styles.hintText}>
-                    <b>Pedido novo? É só aceitar.</b> Depois de aceito, separe os itens e peça o PIN ao motoboy. A gente avisa cada passo.
+                    <b>Primeiro pedido? É só aceitar.</b> Depois de aceito, separe os itens e peça o PIN ao motoboy. A gente avisa cada passo.
                   </p>
                   <button type="button" className={styles.hintClose} onClick={closeHint} aria-label="Fechar dica">
                     <X size={18} aria-hidden="true" />
