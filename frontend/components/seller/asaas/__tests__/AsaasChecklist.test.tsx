@@ -60,3 +60,35 @@ test('tudo pronto: bloco verde', () => {
   expect(screen.getByText('Pronto para receber e pagar motoboys')).toBeInTheDocument();
   expect(screen.getByText('4 de 4')).toBeInTheDocument();
 });
+
+describe('regerar token com a trava já configurada (sheet no lugar do window.confirm)', () => {
+  const configured = () => st({ ipWhitelistConfirmed: true, authWebhookConfirmed: true });
+
+  test('clicar abre o sheet e NÃO chama a API', () => {
+    renderList(configured());
+    fireEvent.click(screen.getByText('Gerar token'));
+    expect(screen.getByText('Gerar outro token?')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  test('Cancelar fecha sem chamar a API', () => {
+    renderList(configured());
+    fireEvent.click(screen.getByText('Gerar token'));
+    fireEvent.click(screen.getByText('Cancelar'));
+    expect(screen.queryByText('Gerar outro token?')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  test('Confirmar chama auth-token uma vez e mostra o token novo uma vez', async () => {
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { token: 'TK_NOVO', url: 'http://x/webhooks/asaas/loja/s1/autorizacao' } } });
+    renderList(configured());
+    fireEvent.click(screen.getByText('Gerar token'));
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar outro token' }));
+    expect(await screen.findByText('TK_NOVO')).toBeInTheDocument();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/stores/s1/asaas/auth-token');
+    expect(screen.getAllByText('TK_NOVO')).toHaveLength(1);
+    fireEvent.click(screen.getByLabelText('Fechar'));
+    expect(screen.queryByText('TK_NOVO')).not.toBeInTheDocument();
+  });
+});
