@@ -3,7 +3,7 @@ import { themeForPath, LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '.
 describe('routeTheme', () => {
   it('rota fora da lista é escura (padrão até a fase C)', () => {
     expect(themeForPath('/notifications')).toBe('dark');
-    expect(themeForPath('/seller/dashboard')).toBe('dark');
+    expect(themeForPath('/motoboy')).toBe('dark');
   });
   it('styleguide é clara', () => {
     expect(LIGHT_ROUTES).toContain('/_styleguide');

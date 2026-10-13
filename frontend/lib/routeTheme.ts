@@ -7,7 +7,21 @@ export type Theme = 'light' | 'dark';
  * Rotas já redesenhadas no DS v2 (tema claro). Padrões no formato do router.pathname do Next
  * ("/stores/[id]"). A fase C adiciona cada tela aqui quando ela for migrada; o resto fica escuro.
  */
-export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500'];
+/**
+ * Painel da loja (fase D1). Toda página nova de /seller entra aqui na task que a cria
+ * (o teste __tests__/sellerTheme.test.ts cobra). Rotas compartilhadas com outros papéis
+ * (/verificacao, /notifications, /dados-recebimento) ficam fora: a loja ganha telas próprias.
+ */
+export const SELLER_LIGHT_ROUTES: string[] = [
+  '/store-dashboard', '/verificacao-loja',
+  '/seller/dashboard', '/seller/pedidos', '/seller/pedido/[id]', '/seller/order-[id]',
+  '/seller/products', '/seller/create-product', '/seller/edit-product',
+  '/seller/dinheiro', '/seller/wallet', '/seller/transfer-wallet', '/seller/pagamentos',
+  '/seller/loja', '/seller/notificacoes', '/seller/analytics', '/seller/coupons', '/seller/integrations',
+  '/seller/assinatura', '/seller/select-plan', '/seller/create-store',
+];
+
+export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', ...SELLER_LIGHT_ROUTES];
 
 export function patternToRegex(pattern: string): RegExp {
   // Escapa cada trecho literal; [slug] vira um segmento, [...slug] vira "o resto".
