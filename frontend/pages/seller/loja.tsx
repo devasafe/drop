@@ -1,7 +1,7 @@
 import { ChangeEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
-  Bell, Camera, ChartColumn, CirclePause, Clock, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, Star, Store, Ticket, Wallet,
+  Bell, Camera, ChartColumn, CirclePause, Clock, Headphones, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, Star, Store, Ticket, UserRound, Wallet,
 } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
@@ -268,6 +268,7 @@ export default function SellerLoja() {
               {commission != null && (
                 <p className={blocks.sub}>{`Comissão de ${commission}% por venda${custom != null ? ' · condição especial' : ''}`}</p>
               )}
+              <button type="button" className={[blocks.link, styles.compare].join(' ')} onClick={go('/seller/plano')}>Comparar planos</button>
             </section>
           )}
 
@@ -295,6 +296,7 @@ export default function SellerLoja() {
 
           <section aria-label="Conta e plano" className={blocks.stack}>
             <h2 className={blocks.cap}>Conta e plano</h2>
+            {/* O que depende do modo só aparece com o modo confirmado; perfil e ajuda ficam sempre (o grupo nunca fica vazio). */}
             {modeError && !modeLoading ? (
               <Alert tone="error" title="Não carregamos o seu plano" action={{ label: 'Tentar de novo', onClick: () => modeRetry?.() }}>
                 Não conseguimos confirmar como você recebe. Tente de novo em instantes.
@@ -303,18 +305,19 @@ export default function SellerLoja() {
               <div role="status" aria-label="Carregando o plano">
                 <Skeleton height={64} radius="var(--radius-lg)" />
               </div>
-            ) : (
-              <ul className={blocks.list}>
-                {direto ? (
-                  <>
-                    <NavRow icon={<Receipt size={20} />} label="Assinatura" sub="Mensalidade e faturas" onClick={go('/seller/assinatura')} />
-                    <NavRow icon={<KeyRound size={20} />} label="Conta Asaas" sub="Termo, chave e ajustes" onClick={go('/seller/conta-asaas')} />
-                  </>
-                ) : (
-                  <NavRow icon={<Wallet size={20} />} label="Plano e comissão" sub="Compare e peça troca" onClick={go('/seller/plano')} />
-                )}
-              </ul>
-            )}
+            ) : null}
+            <ul className={blocks.list}>
+              {modeReady && (direto ? (
+                <>
+                  <NavRow icon={<Receipt size={20} />} label="Assinatura" sub="Mensalidade e faturas" onClick={go('/seller/assinatura')} />
+                  <NavRow icon={<KeyRound size={20} />} label="Conta Asaas" sub="Termo, chave e ajustes" onClick={go('/seller/conta-asaas')} />
+                </>
+              ) : (
+                <NavRow icon={<Wallet size={20} />} label="Plano e comissão" sub="Compare e peça troca" onClick={go('/seller/plano')} />
+              ))}
+              <NavRow icon={<UserRound size={20} />} label="Meu perfil" sub="Seus dados, senha e segurança" onClick={go('/user-profile')} />
+              <NavRow icon={<Headphones size={20} />} label="Ajuda" sub="Fale com o suporte do DROP" onClick={go('/suporte')} />
+            </ul>
           </section>
 
           {otherAreas.length > 0 && (

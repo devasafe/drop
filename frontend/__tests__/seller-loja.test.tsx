@@ -278,3 +278,41 @@ test('modo com erro: mensagem com "Tentar de novo", sem atalhos de modo nem plat
   expect(mockRetry).toHaveBeenCalled();
   expect(screen.getByRole('button', { name: /Cupons/ })).toBeInTheDocument();
 });
+
+describe('V6 · Conta e plano (sem a Nav global)', () => {
+  const contaGroup = () => screen.getByRole('region', { name: 'Conta e plano' });
+
+  test('Meu perfil e Ajuda ficam no grupo "Conta e plano" e levam às rotas do menu da conta', async () => {
+    await renderPage();
+    const { getByRole } = require('@testing-library/react').within(contaGroup());
+    fireEvent.click(getByRole('button', { name: /Meu perfil/ }));
+    fireEvent.click(getByRole('button', { name: /Ajuda/ }));
+    expect(mockPush).toHaveBeenCalledWith('/user-profile');
+    expect(mockPush).toHaveBeenCalledWith('/suporte');
+  });
+
+  test.each([
+    ['carregando', { loading: true, error: false }],
+    ['com erro', { loading: false, error: true }],
+  ])('modo %s: o grupo "Conta e plano" nunca fica vazio', async (_n, saas) => {
+    mockSaas = saas;
+    await renderPage();
+    const { getByRole } = require('@testing-library/react').within(contaGroup());
+    expect(getByRole('button', { name: /Meu perfil/ })).toBeInTheDocument();
+    expect(getByRole('button', { name: /Ajuda/ })).toBeInTheDocument();
+  });
+
+  test('custódia: "Comparar planos" no bloco do Plano leva a /seller/plano', async () => {
+    await renderPage();
+    const plano = screen.getByRole('region', { name: 'Plano' });
+    const { getByRole } = require('@testing-library/react').within(plano);
+    fireEvent.click(getByRole('button', { name: 'Comparar planos' }));
+    expect(mockPush).toHaveBeenCalledWith('/seller/plano');
+  });
+
+  test('direto: sem "Comparar planos"', async () => {
+    mockMode = 'direto';
+    await renderPage();
+    expect(screen.queryByRole('button', { name: 'Comparar planos' })).not.toBeInTheDocument();
+  });
+});
