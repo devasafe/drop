@@ -1,0 +1,55 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.sum div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.sum dt {
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.sum dd {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch-min);
+  font: var(--text-label);
+  color: var(--color-text-link);
+}
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.ok {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-success-text);
+}
+.error {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-error-text);
+}
