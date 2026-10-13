@@ -47,20 +47,27 @@ export default function AppSidebar() {
 
   const items = getNavItems(effRole, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen }).filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
+  const isSeller = effRole === 'lojista';
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>
     b === 'storeOrders' ? badges.storeOrders : b === 'deliveries' ? badges.deliveries : b === 'verifications' ? badges.verifications : 0;
 
   return (
     <>
-      <aside className={`${styles.sidebar}${effRole === 'lojista' ? ` ${styles.seller}` : ''} ${open ? styles.sidebarOpen : ''}`}>
-        <div className={styles.sidebarHeader}>
-          <div className={styles.sidebarLogoRow}>
-            <div className={styles.sidebarLogoIcon}><Icon name={meta.icon} size={16} /></div>
-            <span className={styles.sidebarLogo}>{meta.title}</span>
+      <aside
+        className={`${styles.sidebar}${isSeller ? ` ${styles.seller}` : ''} ${open ? styles.sidebarOpen : ''}`}
+        aria-label={meta.subtitle}
+      >
+        {/* Painel da loja (V13): a marca fica só na Nav do computador (DROP, que leva à Home), como no app do cliente. */}
+        {!isSeller && (
+          <div className={styles.sidebarHeader}>
+            <div className={styles.sidebarLogoRow}>
+              <div className={styles.sidebarLogoIcon}><Icon name={meta.icon} size={16} /></div>
+              <span className={styles.sidebarLogo}>{meta.title}</span>
+            </div>
+            <p className={styles.sidebarSubtitle}>{meta.subtitle}</p>
           </div>
-          <p className={styles.sidebarSubtitle}>{meta.subtitle}</p>
-        </div>
+        )}
 
         <nav className={styles.sidebarNav}>
           {groups.map(({ group, items: gItems }) => (
