@@ -16,7 +16,7 @@ export const SELLER_LIGHT_ROUTES: string[] = [
   '/store-dashboard', '/verificacao-loja',
   '/seller/dashboard', '/seller/pedidos', '/seller/pedido/[id]', '/seller/order-[id]',
   '/seller/products', '/seller/create-product', '/seller/edit-product', '/seller/estoque',
-  '/seller/dinheiro', '/seller/wallet', '/seller/transfer-wallet', '/seller/pagamentos',
+  '/seller/dinheiro', '/seller/wallet', '/seller/transfer-wallet', '/seller/pagamentos', '/seller/conta-asaas',
   '/seller/loja', '/seller/avaliacoes', '/seller/notificacoes', '/seller/analytics', '/seller/coupons', '/seller/integrations',
   '/seller/assinatura', '/seller/select-plan', '/seller/create-store', '/seller/horarios', '/seller/plano', '/seller/abrir',
 ];

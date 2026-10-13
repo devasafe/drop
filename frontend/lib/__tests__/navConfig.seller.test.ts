@@ -41,6 +41,13 @@ describe('lojista: 5 abas (spec D1 §3.1)', () => {
     expect(loja({ settlementMode: 'direto' })).toEqual(['Desempenho', 'Avaliações', 'Cupons', 'Horários', 'Integrações (API)', 'Notificações', 'Assinatura', 'Recebimentos']);
   });
 
+  it('Recebimentos leva à Conta Asaas (C18), só no modo direto, e a aba Loja fica ativa lá', () => {
+    const rec = (opts?: any) => getNavItems('lojista', allow, false, opts).find((i) => i.label === 'Recebimentos');
+    expect(rec({ settlementMode: 'direto' })).toMatchObject({ route: '/seller/conta-asaas', placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true });
+    expect(rec({ settlementMode: 'custodia' })).toBeUndefined();
+    expect(tabs().filter((i) => isItemActive(i, '/seller/conta-asaas', { onboarding: '1' })).map((i) => i.label)).toEqual(['Loja']);
+  });
+
   it('lojista: 5 abas e sem "Mais"; motoboy e admin seguem com 4 + "Mais"', () => {
     expect(bottomNavLayout('lojista')).toEqual({ max: 5, more: false });
     expect(bottomNavLayout('motoboy')).toEqual({ max: 4, more: true });

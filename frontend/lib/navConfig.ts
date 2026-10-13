@@ -106,7 +106,7 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Notificações',      icon: 'bell',      route: SELLER_ROUTES.notificacoes, placement: ['sidebar'], group: 'Loja', pathOnly: true },
     { label: 'Plano e cobrança',  icon: 'tag',       route: SELLER_ROUTES.plano,         placement: ['sidebar'], group: 'Loja', pathOnly: true, custodyOnly: true },
     { label: 'Assinatura',        icon: 'receipt',   route: SELLER_ROUTES.assinatura,  placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },
-    { label: 'Recebimentos',      icon: 'bank',      route: '/seller/pagamentos',      placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },
+    { label: 'Recebimentos',      icon: 'bank',      route: SELLER_ROUTES.contaAsaas,  placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },
     // P16: o saldo da custódia termina no modo em que nasceu. A tela é o card dentro de Dinheiro (P6).
     { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet', placement: ['sidebar'], group: 'Dinheiro', pathOnly: true, custodyLeftoverOnly: true },
   ],
