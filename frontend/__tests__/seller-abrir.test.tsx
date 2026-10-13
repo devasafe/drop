@@ -146,6 +146,17 @@ test('modo SaaS: 3 etapas, mensalidade e dias grátis do servidor', async () => 
   expect(mockPush).toHaveBeenCalledWith('/href-asaas');
 });
 
+test('modo SaaS: a fórmula do frete do motoboy vem do servidor', async () => {
+  mockMode = 'direto';
+  (api.get as jest.Mock).mockImplementation((url: string) => Promise.resolve({ data: url === '/settings/platform-config'
+    ? { motoboyCutPerDelivery: 5, motoboyCutPerKm: 1 }
+    : { saasMonthlyFee: 149, saasTrialDays: 14 } }));
+  const steps = [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'), step('asaas', 'Conta Asaas', 'todo')];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'direto', store, productsCount: 0, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText(/R\$ 5,00 \+ R\$ 1,00 por km/)).toBeInTheDocument();
+});
+
 test('modo SaaS com mensalidade zero: "Grátis no lançamento"', async () => {
   mockMode = 'direto';
   (api.get as jest.Mock).mockResolvedValue({ data: { saasMonthlyFee: 0, saasTrialDays: 14 } });

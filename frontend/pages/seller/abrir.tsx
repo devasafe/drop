@@ -14,6 +14,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
+import { payload } from '../../lib/sellerApi';
 import { summarizeHours } from '../../lib/sellerHours';
 import { loadStoreOnboarding, type ChecklistStep, type StepState, type StoreOnboarding } from '../../lib/storeOnboarding';
 import { DadosLojaStep } from '../../components/seller/abrir/DadosLojaStep';
@@ -26,7 +27,7 @@ const ICON_CLASS = STEP_ICON_CLASS;
 const stateIcon = stepStateIcon;
 const stepSub = stepSubText;
 
-function ComoFunciona({ fee, trialDays }: { fee: number | null; trialDays: number | null }) {
+function ComoFunciona({ fee, trialDays, freight }: { fee: number | null; trialDays: number | null; freight: { base: number; perKm: number } | null }) {
   const feeText = fee == null ? null : fee > 0
     ? `Mensalidade fixa de ${formatMoney(fee)}${trialDays ? `, com ${trialDays} dias grátis` : ''}. Nenhuma comissão por venda.`
     : 'Grátis no lançamento. Nenhuma comissão por venda.';
@@ -42,7 +43,11 @@ function ComoFunciona({ fee, trialDays }: { fee: number | null; trialDays: numbe
       </div>
       <div className={[blocks.blkRow, blocks.row].join(' ')}>
         <span className={[blocks.ico, blocks.icoBrand].join(' ')} aria-hidden="true"><Bike size={18} /></span>
-        <p className={blocks.sub}>Na entrega, a sua conta paga o motoboy por Pix sozinha, com a taxa que o cliente já pagou no frete.</p>
+        <p className={blocks.sub}>
+          {freight
+            ? `Na entrega, a sua conta paga o motoboy por Pix sozinha: ${formatMoney(freight.base)} + ${formatMoney(freight.perKm)} por km, que o cliente já pagou no frete.`
+            : 'Na entrega, a sua conta paga o motoboy por Pix sozinha, com a taxa que o cliente já pagou no frete.'}
+        </p>
       </div>
       {feeText && (
         <div className={[blocks.blkRow, blocks.row].join(' ')}>
@@ -64,6 +69,7 @@ export default function SellerAbrir() {
   const [data, setData] = useState<StoreOnboarding | null>(null);
   const [failed, setFailed] = useState(false);
   const [saas, setSaas] = useState<{ saasMonthlyFee?: number; saasTrialDays?: number } | null>(null);
+  const [freight, setFreight] = useState<{ base: number; perKm: number } | null>(null);
 
   const load = useCallback(() => {
     if (modeLoading || etapa === 'identidade') return;
@@ -82,6 +88,15 @@ export default function SellerAbrir() {
   useEffect(() => {
     if (settlementMode !== 'direto') return;
     api.get('/settings/saas').then((r) => setSaas(r.data ?? null)).catch(() => setSaas(null));
+    // Fórmula do frete (a mesma do deliveryQuote): base por entrega + valor por km. Sem ela, texto genérico.
+    api.get('/settings/platform-config')
+      .then((r) => {
+        const cfg = payload<any>(r);
+        const base = Number(cfg?.motoboyCutPerDelivery);
+        const perKm = Number(cfg?.motoboyCutPerKm);
+        setFreight(Number.isFinite(base) && Number.isFinite(perKm) && base > 0 ? { base, perKm } : null);
+      })
+      .catch(() => setFreight(null));
   }, [settlementMode]);
 
   if (etapa === 'identidade') {
@@ -257,7 +272,7 @@ export default function SellerAbrir() {
         {openSection}
         {direto ? (
           <>
-            <ComoFunciona fee={fee} trialDays={trialDays} />
+            <ComoFunciona fee={fee} trialDays={trialDays} freight={freight} />
             <Alert tone="info" title="Você pulou 2 etapas">
               No modo SaaS não pedimos verificação da loja, chave Pix nem escolha de plano: quem é verificado é o dono.
             </Alert>
