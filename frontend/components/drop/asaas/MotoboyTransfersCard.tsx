@@ -3,8 +3,9 @@ import api from '../../../lib/api';
 import { Section } from '../../ui/Section';
 import { Button } from '../../ui/Button';
 import { humanizeTransferError, TRANSFER_STATUS_LABEL } from '../../../lib/transferErrors';
+import styles from './MotoboyTransfersCard.module.css';
 
-interface Row {
+export interface TransferRow {
   id: string;
   orderId: string;
   motoboyName: string | null;
@@ -12,11 +13,20 @@ interface Row {
   amount: number;
   lastError: string | null;
   pixKeyMasked: string;
+  attempts?: number;
+  nextAttemptAt?: string | null;
+  firstFailedAt?: string | null;
+  createdAt?: string;
 }
 
-/** Pagamentos (Pix) da loja aos motoboys no modo direto: o lojista vê o que está pendente e por quê. */
-export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
-  const [rows, setRows] = useState<Row[] | null>(null);
+const STUCK = new Set(['failed', 'failed_final', 'uncertain']);
+
+/**
+ * Pagamentos (Pix) da loja aos motoboys no modo direto: o lojista vê o que está pendente e por quê.
+ * Com `onOpen`, cada Pix parado oferece "Ver o que fazer" (sheet da tela Dinheiro).
+ */
+export default function MotoboyTransfersCard({ storeId, onOpen }: { storeId: string; onOpen?: (row: TransferRow) => void }) {
+  const [rows, setRows] = useState<TransferRow[] | null>(null);
   const [error, setError] = useState('');
   // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -50,7 +60,7 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
     try {
       const r = await api.get(`/stores/${storeId}/transfers`, { params: { cursor: nextCursor } });
       if (gen !== queryGen.current) return; // outra loja: resposta da lista antiga
-      const more: Row[] = Array.isArray(r.data?.data) ? r.data.data : [];
+      const more: TransferRow[] = Array.isArray(r.data?.data) ? r.data.data : [];
       setRows((prev) => [...(prev ?? []), ...more.filter((m) => !(prev ?? []).some((p) => p.id === m.id))]);
       setNextCursor(r.data?.nextCursor ?? null);
     } catch {
@@ -62,23 +72,28 @@ export default function MotoboyTransfersCard({ storeId }: { storeId: string }) {
 
   return (
     <Section title="Pagamentos a motoboys">
-      {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-      {!error && rows && rows.length === 0 && <p style={{ color: 'var(--text-muted)' }}>Nenhum pagamento a motoboy ainda.</p>}
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      {error && <p role="alert" className={styles.error}>{error}</p>}
+      {!error && rows && rows.length === 0 && <p className={styles.empty}>Nenhum pagamento a motoboy ainda.</p>}
+      <ul className={styles.list}>
         {(rows ?? []).map((r) => (
-          <li key={r.id} style={{ padding: 'var(--space-3)', border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', background: 'var(--surface)' }}>
-            <div style={{ color: 'var(--text)' }}>
+          <li key={r.id} className={styles.item}>
+            <div className={styles.title}>
               {r.motoboyName ?? 'Motoboy'} — pedido {String(r.orderId).slice(-6)} — R$ {Number(r.amount).toFixed(2).replace('.', ',')}
             </div>
-            <div style={{ color: 'var(--text-muted)' }}>
+            <div className={styles.meta}>
               {TRANSFER_STATUS_LABEL[r.status] ?? r.status}{r.pixKeyMasked ? ` · Pix ${r.pixKeyMasked}` : ''}
             </div>
-            {r.lastError && r.status !== 'done' && <div style={{ color: 'var(--danger)' }}>{humanizeTransferError(r.lastError)}</div>}
+            {r.lastError && r.status !== 'done' && <div className={styles.error}>{humanizeTransferError(r.lastError)}</div>}
+            {onOpen && r.status !== 'done' && (STUCK.has(r.status) || !!r.lastError) && (
+              <div className={styles.action}>
+                <Button variant="tertiary" size="sm" onClick={() => onOpen(r)}>Ver o que fazer</Button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
       {!error && nextCursor && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
+        <div className={styles.more}>
           <Button variant="tertiary" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
         </div>
       )}
