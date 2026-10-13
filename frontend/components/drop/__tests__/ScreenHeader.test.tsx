@@ -14,3 +14,10 @@ it('sem onBack não mostra o voltar', () => {
   render(<ScreenHeader title="Pedidos" />);
   expect(screen.queryByRole('button', { name: 'Voltar' })).toBeNull();
 });
+
+it('start aparece antes do título (ex.: avatar da loja)', () => {
+  render(<ScreenHeader title="Eletro Center" start={<span data-testid="av">EC</span>} />);
+  const av = screen.getByTestId('av');
+  const h = screen.getByRole('heading', { name: 'Eletro Center' });
+  expect(av.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

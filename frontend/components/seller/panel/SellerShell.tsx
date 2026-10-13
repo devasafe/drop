@@ -9,6 +9,8 @@ export interface SellerShellProps {
   back?: string;
   /** Ação à direita do título (ex.: "Criar", "Marcar lidas"). */
   actions?: ReactNode;
+  /** Antes do título (ex.: avatar com as iniciais da loja no topo do Agora). */
+  lead?: ReactNode;
   children: ReactNode;
 }
 
@@ -17,12 +19,12 @@ export interface SellerShellProps {
  * Decisão D7: não usa o provider do painel nem toast e não mostra aviso nem link de conferência de cadastro;
  * testes de telas legadas montam o Shell sem providers.
  */
-export function SellerShell({ title, back, actions, children }: SellerShellProps) {
+export function SellerShell({ title, back, actions, lead, children }: SellerShellProps) {
   const router = useRouter();
   return (
     <div className={styles.page}>
       <div className={back ? styles.topWhite : styles.top} data-shell-top={back ? 'secundaria' : 'aba'}>
-        <ScreenHeader title={title} onBack={back ? () => router.push(back) : undefined} end={actions} />
+        <ScreenHeader title={title} onBack={back ? () => router.push(back) : undefined} end={actions} start={lead} />
       </div>
       <div className={styles.body}>{children}</div>
     </div>

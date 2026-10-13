@@ -51,3 +51,9 @@ test('CSS só com tokens do DS v2 (sem cor fixa, token antigo ou gradiente)', ()
   const css = fs.readFileSync(path.join(__dirname, '..', 'SellerShell.module.css'), 'utf8');
   expect(cssViolations(css)).toEqual([]);
 });
+
+test('aba com lead: o avatar vem antes do título', () => {
+  render(<SellerShell title="Eletro Center" lead={<span data-testid="av">EC</span>}><p>x</p></SellerShell>);
+  const h = screen.getByRole('heading', { level: 1, name: 'Eletro Center' });
+  expect(screen.getByTestId('av').compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

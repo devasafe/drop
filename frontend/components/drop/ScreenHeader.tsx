@@ -9,13 +9,15 @@ export interface ScreenHeaderProps {
   backLabel?: string;
   /** Ação à direita (ajuda, "Marcar lidas", imprimir…). */
   end?: ReactNode;
+  /** Antes do título, sem voltar (ex.: avatar da loja no topo do Agora). */
+  start?: ReactNode;
   /** Texto curto à direita do título (ex.: "#4836", "Eletro Center"). */
   meta?: ReactNode;
   as?: 'h1' | 'h2';
 }
 
 /** Topo das telas com "voltar" (protótipo `.u-top`): voltar 44×44, título que corta com reticências, ação à direita. */
-export function ScreenHeader({ title, onBack, backLabel = 'Voltar', end, meta, as: H = 'h1' }: ScreenHeaderProps) {
+export function ScreenHeader({ title, onBack, backLabel = 'Voltar', end, start, meta, as: H = 'h1' }: ScreenHeaderProps) {
   return (
     <header className={styles.top}>
       {onBack && (
@@ -23,6 +25,7 @@ export function ScreenHeader({ title, onBack, backLabel = 'Voltar', end, meta, a
           <ArrowLeft size={22} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />
         </button>
       )}
+      {start}
       <H className={styles.title}>{title}</H>
       {meta && <span className={styles.meta}>{meta}</span>}
       {end && <div className={styles.end}>{end}</div>}

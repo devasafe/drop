@@ -16,6 +16,7 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+.open,
 .main,
 .side {
   display: flex;
@@ -250,6 +251,11 @@
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-rows: auto 1fr;
     align-items: start;
   }
+  /* no computador o switch volta para o topo da coluna lateral */
+  .open { grid-column: 2; grid-row: 1; }
+  .main { grid-column: 1; grid-row: 1 / span 2; }
+  .side { grid-column: 2; grid-row: 2; }
 }

@@ -11,7 +11,7 @@ jest.mock('../contexts/AuthContext', () => ({
 }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/seller/panel/SellerShell', () => {
-  const Shell = ({ title, actions, children }: any) => <div><h1>{title}</h1>{actions}{children}</div>;
+  const Shell = ({ title, lead, actions, children }: any) => <div>{lead}<h1>{title}</h1>{actions}{children}</div>;
   return { __esModule: true, default: Shell, SellerShell: Shell };
 });
 let mockPanel: any;
@@ -238,4 +238,53 @@ test('sem devolução pendente, o Agora não mostra o aviso', async () => {
   mockPanel.returnRequests = [];
   await renderAgora();
   expect(screen.queryByText(/devoluç/i)).not.toBeInTheDocument();
+});
+
+describe('V4 · topo e ordem como o protótipo', () => {
+  const withNotifications = (list: any[]) => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string, ...rest: any[]) => (url === '/notifications' ? Promise.resolve({ data: list }) : base(url, ...rest)));
+  };
+
+  test('topo: avatar com as iniciais da loja e sino com o número de não lidas, levando a Notificações', async () => {
+    withNotifications([{ _id: 'n1', read: false }, { _id: 'n2', read: false }, { _id: 'n3', read: true }]);
+    await renderAgora();
+    expect(screen.getByText('EC')).toBeInTheDocument();
+    const bell = await screen.findByRole('link', { name: 'Notificações, 2 não lidas' });
+    expect(bell).toHaveAttribute('href', '/seller/notificacoes');
+    expect(within(bell).getByText('2')).toBeInTheDocument();
+  });
+
+  test('sem não lidas (ou leitura com erro): sino sem número', async () => {
+    await renderAgora();
+    const bell = screen.getByRole('link', { name: 'Notificações' });
+    expect(bell).toHaveAttribute('href', '/seller/notificacoes');
+    expect(bell.textContent).toBe('');
+  });
+
+  test('o switch "Loja aberta" vem antes de "Novos pedidos" (1º bloco no celular)', async () => {
+    mockPanel.orders = [novo()];
+    await renderAgora();
+    const sw = screen.getByRole('switch', { name: 'Loja aberta' });
+    const novos = screen.getByRole('heading', { name: /Novos pedidos/ });
+    expect(sw.compareDocumentPosition(novos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('"Hoje" diz até que horas os números valem; sem números, não diz', async () => {
+    const { unmount } = await renderAgora();
+    expect(await screen.findByText(/^até \d{2}:\d{2}$/)).toBeInTheDocument();
+    unmount();
+    get.mockRejectedValue(new Error('n/a'));
+    await renderAgora();
+    expect(screen.queryByText(/^até \d{2}:\d{2}$/)).toBeNull();
+  });
+
+  test('não promete aceite automático (o prazo vencido cancela o pedido)', async () => {
+    await renderAgora();
+    expect(document.body.textContent).not.toMatch(/aceite autom/i);
+  });
+});
+
+test('CSS do topo do Agora só com tokens', () => {
+  expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'components', 'seller', 'agora', 'AgoraTop.module.css'), 'utf8'))).toEqual([]);
 });

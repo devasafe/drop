@@ -16,6 +16,7 @@ import { AcceptButton } from '../../components/seller/order/AcceptButton';
 import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
 import { RejectSheet } from '../../components/seller/order/RejectSheet';
 import { SaasPausedCard, type BillingStatus } from '../../components/seller/agora/SaasPausedCard';
+import { NotificationBell, StoreAvatar } from '../../components/seller/agora/AgoraTop';
 import { StageTag } from '../../components/seller/StageTag';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useMyStore } from '../../hooks/useMyStore';
@@ -106,6 +107,8 @@ export default function AgoraPage() {
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [kpi, setKpi] = useState<StoreOverview | null>(null);
+  /** Hora da leitura dos números de hoje ("Hoje · até HH:MM"). */
+  const [kpiAt, setKpiAt] = useState<Date | null>(null);
   const [hintClosed, setHintClosed] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -136,7 +139,7 @@ export default function AgoraPage() {
     let off = false;
     const d = todayISO();
     storeAnalytics.overview('custom', { from: d, to: d })
-      .then((v) => { if (!off) setKpi(v); })
+      .then((v) => { if (!off) { setKpi(v); setKpiAt(new Date()); } })
       .catch(() => { /* números do dia são opcionais */ });
     return () => { off = true; };
   }, []);
@@ -241,7 +244,11 @@ export default function AgoraPage() {
 
   return (
     <ProtectedRoute required_role="lojista">
-      <SellerShell title={store?.name || 'Agora'}>
+      <SellerShell
+        title={store?.name || 'Agora'}
+        lead={store ? <StoreAvatar name={store.name} logoUrl={store.logoUrl} /> : undefined}
+        actions={<NotificationBell />}
+      >
         <div className={styles.page}>
           {!online && (
             <Alert tone="warning" title="Sem conexão">Pedidos novos aparecem quando a internet voltar.</Alert>
@@ -256,8 +263,32 @@ export default function AgoraPage() {
             </Alert>
           )}
           <div className={styles.grid}>
-            <div className={styles.main}>
+            {/* 1º bloco no celular (protótipo); no computador fica no topo da coluna lateral. */}
+            <div className={styles.open}>
               {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
+              <div className={styles.block}>
+                <Switch
+                  label={isOpen ? 'Loja aberta' : 'Loja fechada'}
+                  description={switchDescription}
+                  checked={isOpen}
+                  disabled={toggling || saasBlocked || !store?._id}
+                  onChange={toggleOpen}
+                />
+                {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
+              </div>
+
+              {pausedUntil && (
+                <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
+                  Clientes não conseguem comprar enquanto a pausa durar.
+                </Alert>
+              )}
+              {!isOpen && !saasBlocked && (
+                <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
+                  Clientes não veem seus produtos.
+                </Alert>
+              )}
+            </div>
+            <div className={styles.main}>
               {notice && <p role="status" className={styles.notice}>{notice}</p>}
 
               {!hintClosed && novos.length > 0 && (
@@ -331,31 +362,10 @@ export default function AgoraPage() {
             </div>
 
             <aside className={styles.side}>
-              <div className={styles.block}>
-                <Switch
-                  label={isOpen ? 'Loja aberta' : 'Loja fechada'}
-                  description={switchDescription}
-                  checked={isOpen}
-                  disabled={toggling || saasBlocked || !store?._id}
-                  onChange={toggleOpen}
-                />
-                {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
-              </div>
-
-              {pausedUntil && (
-                <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
-                  Clientes não conseguem comprar enquanto a pausa durar.
-                </Alert>
-              )}
-              {!isOpen && !saasBlocked && (
-                <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
-                  Clientes não veem seus produtos.
-                </Alert>
-              )}
-
               <section aria-labelledby="agora-hoje" className={styles.section}>
                 <div className={styles.sectionHead}>
                   <h2 id="agora-hoje" className={styles.sectionTitle}>Hoje</h2>
+                  {kpi && kpiAt && <span className={styles.countMuted}>{`até ${formatHour(kpiAt)}`}</span>}
                 </div>
                 <div className={styles.kpis}>
                   <div className={styles.kpi}>
