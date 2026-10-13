@@ -372,11 +372,13 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     // CEP: compara e grava só os dígitos ("01310-100" e "01310100" são o mesmo CEP;
     // lojas antigas podem ter o CEP salvo com máscara).
     const zipDigits = (v: any) => (v === undefined || v === null) ? undefined : String(v).replace(/\D/g, '');
+    // CEP vazio, null ou sem dígitos = "não enviado": fora da comparação e não sobrescreve o salvo.
+    const zipNew = zipDigits(zip) || undefined;
     const addressChanged = ([
       ['street', street], ['number', number], ['neighborhood', neighborhood],
       ['city', city], ['state', state],
     ] as [string, any][]).some(([k, v]) => v !== undefined && norm(v) !== norm((store as any)[k]))
-      || (zip !== undefined && zipDigits(zip) !== zipDigits((store as any).zip));
+      || (!!zipNew && zipNew !== zipDigits((store as any).zip));
     const { onlyDigits } = require('../utils/documentValidation');
     const cnpjChanged = cnpj !== undefined && onlyDigits(String(cnpj)) !== onlyDigits(String(store.cnpj || ''));
     // `verification` é JSONB: montamos o objeto inteiro e gravamos de uma vez.
@@ -405,7 +407,7 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
     if (neighborhood) data.neighborhood = neighborhood;
     if (city) data.city = city;
     if (state) data.state = state;
-    if (zip && zipDigits(zip)) data.zip = zipDigits(zip);
+    if (zipNew) data.zip = zipNew;
     if (latitude) data.latitude = String(latitude);
     if (longitude) data.longitude = String(longitude);
     Object.assign(data, deliverySettings);

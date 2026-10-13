@@ -54,4 +54,14 @@ describe('PUT /stores/:id — CEP normalizado', () => {
     expect(saved!.isVerified).toBe(false);
     expect(saved!.zip).toBe('01001000');
   });
+
+  it.each([[''], [null], ['---']])('zip %p no corpo = não enviado: verificação e CEP salvo intactos', async (vazio) => {
+    const { dono, store } = await lojaVerificada('01310100');
+    const res = await request(app).put(`/api/stores/${store.id}`).set('Authorization', bearer(dono)).send({ ...ADDR, zip: vazio });
+    expect(res.status).toBe(200);
+    const saved = await prisma.store.findUnique({ where: { id: store.id } });
+    expect((saved!.verification as any).address.status).toBe('approved');
+    expect(saved!.isVerified).toBe(true);
+    expect(saved!.zip).toBe('01310100');
+  });
 });
