@@ -84,12 +84,10 @@ export function RejectSheet({ order, mode = 'recusar', onClose, onRejected, onAl
     <Sheet open={!!order} onClose={onClose} presentation="bottom" title={done ? `Pedido ${cancel ? 'cancelado' : 'recusado'}` : `${verb} o pedido #${code6}?`}>
       {order && done ? (
         <div className={styles.body}>
-          {done.result.refundStatus === 'pending' ? (
-            <Alert tone="info" title="Reembolso em análise">O reembolso está em análise pela DROP. Avisamos quando sair.</Alert>
-          ) : typeof done.result.refundAmount === 'number' ? (
+          {done.result.refundStatus === 'processed' && typeof done.result.refundAmount === 'number' ? (
             <p className={styles.text}>{formatMoney(done.result.refundAmount)} voltam para o cliente.</p>
           ) : (
-            <p className={styles.text}>O cliente foi avisado.</p>
+            <Alert tone="info" title="Reembolso em análise">O reembolso está em análise pela DROP. Avisamos quando sair.</Alert>
           )}
           {done.pauseFailed.length > 0 && (
             <Alert tone="warning" title="Não deu para pausar">

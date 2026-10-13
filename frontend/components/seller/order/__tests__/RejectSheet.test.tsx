@@ -55,6 +55,15 @@ test('refundStatus pending diz "em análise pela DROP"', async () => {
   expect(await screen.findByText(/em análise pela DROP/)).toBeInTheDocument();
 });
 
+test.each([['failed', { refundStatus: 'failed', refundAmount: 269.8 }], ['ausente', { refundAmount: 269.8 }]])('refundStatus %s não promete o valor', async (_n, data) => {
+  post.mockResolvedValue({ data: { success: true, ...data } });
+  render(<RejectSheet order={order} onClose={jest.fn()} onRejected={jest.fn()} />);
+  fireEvent.click(screen.getByLabelText('Loja cheia agora'));
+  fireEvent.click(screen.getByRole('button', { name: 'Recusar pedido' }));
+  expect(await screen.findByText(/em análise pela DROP/)).toBeInTheDocument();
+  expect(screen.queryByText(/voltam para o cliente/)).not.toBeInTheDocument();
+});
+
 test('"Acabou um item" pausa só o produto marcado, por PUT /products/:id/active', async () => {
   post.mockResolvedValue({ data: { success: true, refundStatus: 'processed', refundAmount: 269.8 } });
   put.mockResolvedValue({ data: { success: true, data: { _id: 'p1', isActive: false } } });
