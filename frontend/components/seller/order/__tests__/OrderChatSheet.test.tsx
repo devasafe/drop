@@ -1,12 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { OrderChatSheet } from '../OrderChatSheet';
 import { QUICK_REPLIES } from '../../../../lib/chatQuickReplies';
 import api from '../../../../lib/api';
 import { cssViolations } from '../../../../__tests__/helpers/dsTokens';
 
-jest.mock('../../../../contexts/SocketContext', () => ({ useSocket: () => ({ on: () => () => undefined, emit: jest.fn(), isConnected: true }) }));
+const handlers: Record<string, (d: any) => void> = {};
+const mockSocket = { on: (ev: string, fn: (d: any) => void) => { handlers[ev] = fn; return () => undefined; }, emit: jest.fn(), isConnected: true };
+jest.mock('../../../../contexts/SocketContext', () => ({ useSocket: () => mockSocket }));
 jest.mock('../../../../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(), post: jest.fn() } }));
 const get = api.get as jest.Mock;
 const post = api.post as jest.Mock;
@@ -50,4 +52,15 @@ test('falha ao abrir mostra "Tentar de novo"', async () => {
 
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'OrderChatSheet.module.css'), 'utf8'))).toEqual([]);
+});
+
+test('mensagem de outra conversa não entra no fio', async () => {
+  render(<OrderChatSheet open onClose={jest.fn()} order={order} currentUserId="u1" />);
+  await screen.findByText('O petisco tem de frango?');
+  act(() => {
+    handlers['chat:new_message']({ _id: 'x1', conversationId: 'outra', text: 'Segredo de outro pedido', senderId: 'c2', createdAt: '2026-10-12T12:40:00Z' });
+    handlers['chat:new_message']({ _id: 'x2', conversationId: 'cv1', text: 'Dessa conversa', senderId: 'c1', createdAt: '2026-10-12T12:41:00Z' });
+  });
+  expect(await screen.findByText('Dessa conversa')).toBeInTheDocument();
+  expect(screen.queryByText('Segredo de outro pedido')).not.toBeInTheDocument();
 });

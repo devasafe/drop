@@ -87,7 +87,9 @@ export function OrderChatSheet({ open, onClose, order, currentUserId }: Props) {
               <Skeleton height={44} />
             </>
           ) : (
-            chat.messages.map((m: any) => <MessageBubble key={m._id} message={m} isOwn={String(m.senderId) === currentUserId} />)
+            chat.messages
+              .filter((m: any) => !m.conversationId || String(m.conversationId) === convId)
+              .map((m: any) => <MessageBubble key={m._id} message={m} isOwn={String(m.senderId) === currentUserId} />)
           )}
         </section>
         <div className={styles.quick}>
