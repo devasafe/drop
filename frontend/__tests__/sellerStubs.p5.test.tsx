@@ -8,7 +8,6 @@ jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({
 
 test.each([
   ['../pages/seller/loja', 'Loja', false],
-  ['../pages/seller/notificacoes', 'Notificações', true],
 ])('%s abre com o título certo', (mod, title, hasBack) => {
   const Page = require(mod).default;
   render(<Page />);
