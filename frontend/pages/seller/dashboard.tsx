@@ -1,3 +1,392 @@
+// frontend/pages/seller/dashboard.tsx
+// Agora (DS v2, D1): o que a loja precisa resolver agora. Pedidos novos com o prazo do
+// servidor (ao vencer, o pedido é CANCELADO com reembolso), aceite em dois toques,
+// pedidos em andamento, switch Aberta/Fechada, números de hoje e avisos.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { ChevronRight, Sparkles, X } from 'lucide-react';
+import ProtectedRoute from '../../components/ProtectedRoute';
+import SellerShell from '../../components/seller/panel/SellerShell';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
+import { Switch } from '../../components/ui/Switch';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { AcceptButton } from '../../components/seller/order/AcceptButton';
+import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
+import { RejectSheet } from '../../components/seller/order/RejectSheet';
+import { SaasPausedCard, type BillingStatus } from '../../components/seller/agora/SaasPausedCard';
+import { StageTag } from '../../components/seller/StageTag';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { useMyStore } from '../../hooks/useMyStore';
+import { useOnline } from '../../hooks/useOnline';
+import api from '../../lib/api';
+import { storeAnalytics, type StoreOverview } from '../../lib/analyticsApi';
+import { openStatus } from '../../lib/storeHours';
+import { formatMoney } from '../../lib/money';
+import { paymentMethodLabel } from '../../lib/paymentLabel';
+import { shortOrderCode } from '../../lib/customerOrder';
+import { SELLER_ROUTES } from '../../lib/sellerRoutes';
+import { isAwaitingAccept, isCancelled, itemsSummary, orderStage, sortOngoing, isLowStock } from '../../lib/sellerOrders';
+import { apiError, formatHour, todayISO } from '../../lib/sellerApi';
+import styles from './Agora.module.css';
 
-import StoreDashboard from '../store-dashboard';
-export default StoreDashboard;
+const HINT_KEY = 'drop.loja.dicaPrimeiroPedido';
+/** Espera máxima pela lista nova depois de uma recarga (se nada mudar, vale a lista atual). */
+const RELOAD_WAIT_MS = 2000;
+
+const sameId = (a: unknown, b: unknown) => String(a) === String(b);
+
+/**
+ * Cartão ainda não aprovado pelo Asaas (ex.: em análise de risco). O GET /stores/dashboard
+ * só esconde PIX pendente e o aceite do servidor não confere o pagamento: a tela não oferece
+ * aceitar nem recusar até o pagamento cair.
+ */
+const cardAwaitingPayment = (o: any): boolean =>
+  o?.paymentMethod === 'credit_card' && !!o?.asaasPaymentId && o?.paymentStatus !== 'paid';
+
+const deadlinePassed = (o: any): boolean => {
+  const t = o?.acceptDeadline ? Date.parse(o.acceptDeadline) : NaN;
+  return !Number.isNaN(t) && t <= Date.now();
+};
+
+function Delta({ value }: { value?: number }) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) return <em className={styles.deltaFlat}>igual a ontem</em>;
+  const up = value > 0;
+  const n = Math.abs(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  return <em className={up ? styles.deltaUp : styles.deltaDown}>{`${up ? '↑' : '↓'} ${n}% vs. ontem`}</em>;
+}
+
+interface NewOrderCardProps {
+  order: any;
+  onReject: () => void;
+  onAccepted: () => void;
+  onAlready: () => Promise<boolean>;
+  onExpire: () => void;
+}
+
+function NewOrderCard({ order, onReject, onAccepted, onAlready, onExpire }: NewOrderCardProps) {
+  const [expired, setExpired] = useState(() => deadlinePassed(order));
+  const km = Number(order.deliveryDistance);
+  const dist = Number.isFinite(km) && km > 0 ? `${km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : null;
+  const pay = `${paymentMethodLabel(order.paymentMethod)}${Number(order.installmentCount) > 1 ? ` ${order.installmentCount}x` : ''}`;
+  const awaitingCard = cardAwaitingPayment(order);
+  return (
+    <article className={styles.newCard} data-testid={`novo-${order._id}`}>
+      <div className={styles.cardHead}>
+        <Link href={SELLER_ROUTES.pedido(order._id)} className={styles.cardTitle}>
+          {`#${shortOrderCode(order._id)} · ${formatMoney(Number(order.totalValue) || 0)}`}
+        </Link>
+        <AcceptCountdown deadline={order.acceptDeadline} onExpire={() => { setExpired(true); onExpire(); }} />
+      </div>
+      <p className={styles.cardItems}>{itemsSummary(order)}</p>
+      <p className={styles.cardMeta}>{[order.customerName, dist, pay].filter(Boolean).join(' · ')}</p>
+      {expired ? null : awaitingCard ? (
+        <p className={styles.cardWait}>Aguardando a aprovação do cartão</p>
+      ) : (
+        <div className={styles.cardActions}>
+          <Button variant="secondary" size="sm" onClick={onReject}>Recusar</Button>
+          <AcceptButton size="sm" orderId={order._id} distance={order.deliveryDistance || 0} onAccepted={onAccepted} onAlreadyHandled={onAlready} />
+        </div>
+      )}
+    </article>
+  );
+}
+
+export default function AgoraPage() {
+  const router = useRouter();
+  const panel = useSellerPanel();
+  const { store, orders, refresh, newOrderCount } = panel;
+  const { settlementMode } = useSaasConfig();
+  const { products } = useMyStore();
+  const online = useOnline();
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [rejecting, setRejecting] = useState<any | null>(null);
+  const [rejectDone, setRejectDone] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [kpi, setKpi] = useState<StoreOverview | null>(null);
+  const [hintClosed, setHintClosed] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const list = Array.isArray(orders) ? orders : [];
+  const novos = sortOngoing(list.filter(isAwaitingAccept));
+  const andamento = sortOngoing(list.filter((o) => !isAwaitingAccept(o)));
+
+  // Lista mais recente + quem espera a próxima recarga (para o "Já aceito" do AcceptButton).
+  const ordersRef = useRef<any[]>(list);
+  const waiters = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    ordersRef.current = Array.isArray(orders) ? orders : [];
+    const w = waiters.current;
+    waiters.current = [];
+    w.forEach((f) => f());
+  }, [orders]);
+
+  useEffect(() => {
+    try { setHintClosed(window.localStorage.getItem(HINT_KEY) === '1'); } catch { setHintClosed(false); }
+  }, []);
+
+  useEffect(() => {
+    let off = false;
+    const d = todayISO();
+    storeAnalytics.overview('custom', { from: d, to: d })
+      .then((v) => { if (!off) setKpi(v); })
+      .catch(() => { /* números do dia são opcionais */ });
+    return () => { off = true; };
+  }, []);
+
+  // Os pedidos novos estão na tela: o destaque do painel não reacende ao voltar à aba.
+  const hasNovos = novos.length > 0;
+  const clearNewOrders = panel.clearNewOrders;
+  useEffect(() => {
+    if (hasNovos && newOrderCount > 0) clearNewOrders?.();
+  }, [hasNovos, newOrderCount, clearNewOrders]);
+
+  // Sheet aberta e o pedido mudou por outro caminho (aceito, cancelado pelo job): fecha.
+  // Depois da recusa feita, a sheet fica com a confirmação até o lojista fechar.
+  useEffect(() => {
+    if (!rejecting || rejectDone) return;
+    const cur = (Array.isArray(orders) ? orders : []).find((o) => sameId(o._id, rejecting._id));
+    if (!cur || !isAwaitingAccept(cur)) setRejecting(null);
+  }, [orders, rejecting, rejectDone]);
+
+  const reloadAndCheck = useCallback(async (orderId: string): Promise<boolean> => {
+    const changed = new Promise<void>((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const done = () => { if (timer) clearTimeout(timer); resolve(); };
+      waiters.current.push(done);
+      timer = setTimeout(done, RELOAD_WAIT_MS);
+    });
+    await refresh();
+    await changed;
+    const cur = ordersRef.current.find((o) => sameId(o._id, orderId));
+    const still = !!cur && isAwaitingAccept(cur) && !deadlinePassed(cur);
+    // O card sai de "Novos" com a recarga (e leva junto o aviso do botão): avisa aqui também.
+    if (!still) {
+      const code = shortOrderCode(orderId);
+      setNotice(cur && !isAwaitingAccept(cur) && !isCancelled(cur)
+        ? `Já aceito: o pedido #${code} está em andamento.`
+        : `O pedido #${code} não espera mais aceite.`);
+    }
+    return still;
+  }, [refresh]);
+
+  const closeHint = () => {
+    setHintClosed(true);
+    try { window.localStorage.setItem(HINT_KEY, '1'); } catch { /* sem armazenamento: só some agora */ }
+  };
+
+  const lowStock = (products || []).filter((p: any) => p?.isActive !== false && isLowStock(p));
+  const saasBlocked = billing === 'paused' || billing === 'cancelled';
+  const isOpen = store?.isOpen !== false && !saasBlocked;
+  const hours = store ? openStatus(store) : { open: false, closesAt: null, opensAt: null };
+  const pausedUntil = store?.pausedUntil && Date.parse(store.pausedUntil) > Date.now() ? store.pausedUntil : null;
+
+  const toggleOpen = async (next: boolean) => {
+    if (!store?._id) return;
+    setToggling(true);
+    setToggleError(null);
+    try {
+      await api.put(`/stores/${store._id}/operating-hours`, { isOpen: next });
+      await refresh();
+    } catch (err) {
+      setToggleError(apiError(err).message || 'Não deu para mudar agora. Tente de novo.');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const resume = async () => {
+    if (!store?._id) return;
+    try {
+      await api.delete(`/stores/${store._id}/pause`);
+      await refresh();
+    } catch (err) {
+      setToggleError(apiError(err).message || 'Não deu para voltar agora. Tente de novo.');
+    }
+  };
+
+  // C12: o otimista vem antes da recarga.
+  const onAccepted = (o: any) => {
+    const id = String(o._id);
+    setNotice(`Pedido #${shortOrderCode(id)} aceito. Separe os itens.`);
+    panel.patchOrder?.(id, { status: 'pago' });
+    refresh();
+  };
+
+  const openReject = (o: any) => {
+    setRejectDone(false);
+    setRejecting(o);
+  };
+
+  // A sheet mantém o pedido até o onClose (a confirmação mostra o valor devolvido).
+  const onRejected = () => {
+    if (!rejecting) return;
+    setRejectDone(true);
+    panel.removeOrder?.(String(rejecting._id));
+    refresh();
+  };
+
+  const switchDescription = saasBlocked
+    ? 'Abre sozinha quando o pagamento cair'
+    : isOpen
+      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : 'Recebendo pedidos'
+      : 'Clientes não veem seus produtos';
+
+  return (
+    <ProtectedRoute required_role="lojista">
+      <SellerShell title={store?.name || 'Agora'}>
+        <div className={styles.page}>
+          {!online && (
+            <Alert tone="warning" title="Sem conexão">Pedidos novos aparecem quando a internet voltar.</Alert>
+          )}
+          <div className={styles.grid}>
+            <div className={styles.main}>
+              {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
+              {notice && <p role="status" className={styles.notice}>{notice}</p>}
+
+              {!hintClosed && novos.length > 0 && (
+                <div className={styles.hint}>
+                  <Sparkles size={20} aria-hidden="true" className={styles.hintIcon} />
+                  <p className={styles.hintText}>
+                    <b>Pedido novo? É só aceitar.</b> Depois de aceito, separe os itens e peça o PIN ao motoboy. A gente avisa cada passo.
+                  </p>
+                  <button type="button" className={styles.hintClose} onClick={closeHint} aria-label="Fechar dica">
+                    <X size={18} aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
+              <section aria-labelledby="agora-novos" className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <h2 id="agora-novos" className={styles.sectionTitle}>
+                    Novos pedidos {novos.length > 0 && <span className={styles.count}>{novos.length}</span>}
+                  </h2>
+                  <Link href={SELLER_ROUTES.pedidos('andamento')} className={styles.link}>Ver todos</Link>
+                </div>
+                {novos.length === 0 ? (
+                  <div className={styles.empty}>
+                    <p className={styles.emptyTitle}>Nenhum pedido novo.</p>
+                    {isOpen && <p className={styles.emptyText}>{hours.closesAt ? `Loja aberta até ${hours.closesAt}.` : 'Sua loja está aberta.'}</p>}
+                  </div>
+                ) : (
+                  novos.map((o) => (
+                    <NewOrderCard
+                      key={o._id}
+                      order={o}
+                      onReject={() => openReject(o)}
+                      onAccepted={() => onAccepted(o)}
+                      onAlready={() => reloadAndCheck(String(o._id))}
+                      onExpire={() => { refresh(); }}
+                    />
+                  ))
+                )}
+              </section>
+
+              {andamento.length > 0 && (
+                <section aria-labelledby="agora-andamento" className={styles.section}>
+                  <div className={styles.sectionHead}>
+                    <h2 id="agora-andamento" className={styles.sectionTitle}>
+                      Em andamento <span className={styles.countMuted}>{andamento.length}</span>
+                    </h2>
+                  </div>
+                  <ul className={styles.rows}>
+                    {andamento.map((o) => {
+                      const st = orderStage(o);
+                      const detail = o.delivery?.motoboyName
+                        ? `${o.delivery.motoboyName}${o.acceptedAt ? ` · aceito às ${formatHour(o.acceptedAt)}` : ''}`
+                        : itemsSummary(o);
+                      return (
+                        <li key={o._id}>
+                          <Link href={SELLER_ROUTES.pedido(o._id)} className={styles.row}>
+                            <span className={styles.rowText}>
+                              <b>{`#${shortOrderCode(o._id)}`}</b>
+                              <span className={styles.rowSub}>{detail}</span>
+                            </span>
+                            <StageTag label={st.label} tone={st.tone} />
+                            <ChevronRight size={18} aria-hidden="true" className={styles.chev} />
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {saasBlocked && <p className={styles.emptyText}>Pedidos pagos antes da pausa seguem até o fim.</p>}
+                </section>
+              )}
+            </div>
+
+            <aside className={styles.side}>
+              <div className={styles.block}>
+                <Switch
+                  label={isOpen ? 'Loja aberta' : 'Loja fechada'}
+                  description={switchDescription}
+                  checked={isOpen}
+                  disabled={toggling || saasBlocked || !store?._id}
+                  onChange={toggleOpen}
+                />
+                {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
+              </div>
+
+              {pausedUntil && (
+                <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
+                  Clientes não conseguem comprar enquanto a pausa durar.
+                </Alert>
+              )}
+              {!isOpen && !saasBlocked && (
+                <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
+                  Clientes não veem seus produtos.
+                </Alert>
+              )}
+
+              <section aria-labelledby="agora-hoje" className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <h2 id="agora-hoje" className={styles.sectionTitle}>Hoje</h2>
+                </div>
+                <div className={styles.kpis}>
+                  <div className={styles.kpi}>
+                    <small>Vendas</small>
+                    <b>{kpi ? formatMoney(kpi.current.revenue) : '—'}</b>
+                    {kpi && <Delta value={kpi.delta.revenue} />}
+                  </div>
+                  <div className={styles.kpi}>
+                    <small>Pedidos</small>
+                    <b>{kpi ? String(kpi.current.orders) : '—'}</b>
+                    {kpi && <Delta value={kpi.delta.orders} />}
+                  </div>
+                  <div className={styles.kpi}>
+                    <small>Ticket</small>
+                    <b>{kpi ? formatMoney(kpi.current.avgTicket) : '—'}</b>
+                    {kpi && <Delta value={kpi.delta.avgTicket} />}
+                  </div>
+                </div>
+              </section>
+
+              {lowStock.length > 0 && (
+                <Alert
+                  tone="warning"
+                  title={lowStock.length === 1 ? '1 produto com estoque baixo' : `${lowStock.length} produtos com estoque baixo`}
+                  action={{ label: 'Repor estoque', onClick: () => router.push(SELLER_ROUTES.estoque) }}
+                >
+                  {`${lowStock.slice(0, 2).map((p: any) => `${p.name} (${Number(p.quantity) || 0} un.)`).join(', ')}${lowStock.length > 2 ? ` e mais ${lowStock.length - 2}` : ''}.`}
+                </Alert>
+              )}
+
+              {saasBlocked && (
+                <Alert tone="info" title="Nada foi apagado">
+                  Produtos, pedidos e avaliações estão guardados. Você pode editar o catálogo enquanto isso.
+                </Alert>
+              )}
+            </aside>
+          </div>
+        </div>
+        <RejectSheet
+          order={rejecting}
+          onClose={() => { setRejecting(null); setRejectDone(false); }}
+          onRejected={onRejected}
+          onAlreadyHandled={() => { refresh(); }}
+        />
+      </SellerShell>
+    </ProtectedRoute>
+  );
+}

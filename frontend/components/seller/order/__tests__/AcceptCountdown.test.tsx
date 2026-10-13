@@ -36,6 +36,20 @@ test('prazo vencido avisa que o pedido foi cancelado', () => {
   expect(screen.getByText('Cancelado por falta de aceite')).toBeInTheDocument();
 });
 
+test('onExpire dispara uma vez quando o prazo vence', () => {
+  const onExpire = jest.fn();
+  render(<AcceptCountdown deadline={new Date(NOW + 2000).toISOString()} onExpire={onExpire} />);
+  expect(onExpire).not.toHaveBeenCalled();
+  act(() => { jest.advanceTimersByTime(5000); });
+  expect(onExpire).toHaveBeenCalledTimes(1);
+});
+
+test('onExpire dispara ao montar com prazo já vencido', () => {
+  const onExpire = jest.fn();
+  render(<AcceptCountdown deadline={new Date(NOW - 1000).toISOString()} onExpire={onExpire} />);
+  expect(onExpire).toHaveBeenCalledTimes(1);
+});
+
 test('sem deadline (ou inválido) não mostra nada', () => {
   const a = render(<AcceptCountdown deadline={null} />);
   expect(a.container).toBeEmptyDOMElement();
