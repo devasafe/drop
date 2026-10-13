@@ -15,7 +15,7 @@ export type Theme = 'light' | 'dark';
 export const SELLER_LIGHT_ROUTES: string[] = [
   '/store-dashboard', '/verificacao-loja',
   '/seller/dashboard', '/seller/pedidos', '/seller/pedido/[id]', '/seller/order-[id]',
-  '/seller/products', '/seller/create-product', '/seller/edit-product',
+  '/seller/products', '/seller/create-product', '/seller/edit-product', '/seller/estoque',
   '/seller/dinheiro', '/seller/wallet', '/seller/transfer-wallet', '/seller/pagamentos',
   '/seller/loja', '/seller/notificacoes', '/seller/analytics', '/seller/coupons', '/seller/integrations',
   '/seller/assinatura', '/seller/select-plan', '/seller/create-store',
