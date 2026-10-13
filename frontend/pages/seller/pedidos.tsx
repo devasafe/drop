@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ClipboardList, PackageCheck, Search, Undo2 } from 'lucide-react';
@@ -102,8 +102,16 @@ export default function SellerPedidosPage() {
   const sorted = sortOngoing(list);
   const novos = sorted.filter(isAwaitingAccept);
   const ongoing = sorted.filter((o) => !isAwaitingAccept(o));
-  // Sem ?seg, abre onde há trabalho: pedido esperando aceite primeiro.
-  const seg: PedidosSeg = router.query.seg === undefined ? (novos.length > 0 ? 'novos' : 'andamento') : parseSeg(router.query.seg);
+  // Sem ?seg, abre onde há trabalho: pedido esperando aceite primeiro. Calculado uma vez ao entrar,
+  // com o router e o painel prontos: um pedido que chega depois não troca o segmento (V13).
+  const routerReady = router.isReady !== false;
+  const ordersReady = !(inPanel && sellerPanel.loading);
+  const defaultSeg = useRef<PedidosSeg | null>(null);
+  if (defaultSeg.current === null && routerReady && router.query.seg === undefined && ordersReady) {
+    defaultSeg.current = novos.length > 0 ? 'novos' : 'andamento';
+  }
+  const seg: PedidosSeg | null = !routerReady ? null
+    : router.query.seg === undefined ? defaultSeg.current : parseSeg(router.query.seg);
 
   useEffect(() => {
     if (seg !== 'concluidos' || inPanel) return;
@@ -134,7 +142,9 @@ export default function SellerPedidosPage() {
   );
 
   let panel: JSX.Element;
-  if (seg === 'novos' || seg === 'andamento') {
+  if (seg === null) {
+    panel = <div role="status" aria-label="Carregando" className={styles.loading}><Skeleton height={56} /><Skeleton height={56} /><Skeleton height={56} /></div>;
+  } else if (seg === 'novos' || seg === 'andamento') {
     const all = seg === 'novos' ? novos : ongoing;
     const rows = all.filter(match);
     panel = all.length === 0
@@ -212,7 +222,7 @@ export default function SellerPedidosPage() {
           <Tabs
             label="Pedidos"
             idPrefix={TABS_ID}
-            value={seg}
+            value={seg ?? ''}
             onChange={go}
             items={[
               { id: 'novos', label: 'Novos', count: novos.length },
@@ -225,9 +235,11 @@ export default function SellerPedidosPage() {
             <SearchField value={q} onChange={setQ} placeholder="Buscar por número ou cliente" inputProps={{ 'aria-label': 'Buscar pedidos', autoFocus: true }} />
           )}
           {notice && <p role="status" className={styles.notice}>{notice}</p>}
-          <div {...tabPanelProps(seg, TABS_ID)} className={styles.panel}>
-            {panel}
-          </div>
+          {seg === null ? panel : (
+            <div {...tabPanelProps(seg, TABS_ID)} className={styles.panel}>
+              {panel}
+            </div>
+          )}
         </div>
       </SellerShell>
     </ProtectedRoute>
