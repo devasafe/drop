@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Bike, CalendarDays, Check, Clock, HelpCircle, ListChecks, Package, QrCode, TriangleAlert } from 'lucide-react';
+import { Bike, CalendarDays, Clock, ListChecks, Package, QrCode } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { NavRow } from '../../components/seller/ui/NavRow';
+import { STEP_ICON_CLASS, stepStateIcon, stepSubText } from '../../components/seller/abrir/stepView';
 import { IdentityCheck } from '../../components/drop/IdentityCheck';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -17,23 +18,9 @@ import { summarizeHours } from '../../lib/sellerHours';
 import { loadStoreOnboarding, type ChecklistStep, type StepState, type StoreOnboarding } from '../../lib/storeOnboarding';
 import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 
-const ICON_CLASS: Record<StepState, string> = { done: blocks.icoOk, review: blocks.icoInfo, rejected: blocks.icoErr, todo: '', unknown: '' };
-
-function stateIcon(state: StepState, index: number) {
-  if (state === 'done') return <Check size={18} />;
-  if (state === 'review') return <Clock size={18} />;
-  if (state === 'rejected') return <TriangleAlert size={18} />;
-  if (state === 'unknown') return <HelpCircle size={18} />;
-  return <span>{index + 1}</span>;
-}
-
-function stepSub(s: { state: StepState; reason?: string; detail?: string }, doneText?: string) {
-  if (s.state === 'rejected') return `Recusado: ${s.reason || 'veja o que corrigir e envie de novo'}`;
-  if (s.state === 'review') return 'Em análise';
-  if (s.state === 'unknown') return 'Não deu para conferir agora';
-  if (s.state === 'done' && doneText) return doneText;
-  return s.detail || '';
-}
+const ICON_CLASS = STEP_ICON_CLASS;
+const stateIcon = stepStateIcon;
+const stepSub = stepSubText;
 
 function ComoFunciona({ fee, trialDays }: { fee: number | null; trialDays: number | null }) {
   const feeText = fee == null ? null : fee > 0

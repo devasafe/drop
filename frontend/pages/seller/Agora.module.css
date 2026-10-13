@@ -11,6 +11,9 @@
   max-width: var(--app-max);
   margin-inline: auto;
 }
+.open:empty {
+  display: none;
+}
 .grid {
   display: flex;
   flex-direction: column;

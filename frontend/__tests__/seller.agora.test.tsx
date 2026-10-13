@@ -21,6 +21,15 @@ jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementM
 let mockProducts: any[] = [];
 jest.mock('../hooks/useMyStore', () => ({ useMyStore: () => ({ store: { _id: 's1' }, products: mockProducts, loading: false }) }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() } }));
+// Cadastro da loja (V5): por padrão aprovada; os testes do estado "em análise" trocam o retorno.
+const step = (key: string, label: string, state: string) => ({ key, label, path: '/x', href: '/x', state });
+const onb = (over: any = {}) => ({
+  mode: 'custodia', store: { _id: 's1' }, productsCount: 3,
+  steps: [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done')],
+  current: null, allSubmitted: true, approved: true, ...over,
+});
+let mockLoadOnb: jest.Mock;
+jest.mock('../lib/storeOnboarding', () => ({ loadStoreOnboarding: (...a: any[]) => mockLoadOnb(...a) }));
 
 import AgoraPage from '../pages/seller/dashboard';
 
@@ -36,6 +45,7 @@ const novo = (over: any = {}) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockLoadOnb = jest.fn().mockResolvedValue(onb());
   mockMode = 'custodia';
   mockProducts = [];
   mockPanel = {
@@ -287,4 +297,81 @@ describe('V4 · topo e ordem como o protótipo', () => {
 
 test('CSS do topo do Agora só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'components', 'seller', 'agora', 'AgoraTop.module.css'), 'utf8'))).toEqual([]);
+});
+
+describe('V5 · loja ainda não aprovada (tela 13 "Em análise")', () => {
+  const pendente = () => onb({
+    approved: false, allSubmitted: false,
+    steps: [step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'todo'), step('lojaVerif', 'Verificar loja', 'todo')],
+    current: step('identidade', 'Sua identidade', 'todo'),
+  });
+
+  test('aprovada: switch "Loja aberta" recebendo pedidos, sem selo nem aviso de cadastro', async () => {
+    await renderAgora();
+    expect(mockLoadOnb).toHaveBeenCalledWith('custodia');
+    expect(screen.getByRole('switch', { name: 'Loja aberta' })).toBeInTheDocument();
+    expect(screen.getByText('Recebendo pedidos')).toBeInTheDocument();
+    expect(screen.queryByText('em análise')).toBeNull();
+    expect(screen.queryByText(/Termine o cadastro|Quase lá/)).toBeNull();
+  });
+
+  test('cadastro incompleto: não diz "Recebendo pedidos" e leva para continuar em /seller/abrir', async () => {
+    mockLoadOnb.mockResolvedValue(pendente());
+    await renderAgora();
+    expect(await screen.findByText('Termine o cadastro')).toBeInTheDocument();
+    expect(screen.getByText('pendente')).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByText(/Sua loja está aberta/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar: Sua identidade' }));
+    expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+  });
+
+  test('tudo enviado: selo "em análise", "Quase lá", "Ver cadastro" e "Enquanto isso"', async () => {
+    mockLoadOnb.mockResolvedValue(onb({
+      approved: false, allSubmitted: true,
+      steps: [step('loja', 'Criar loja', 'done'), step('lojaVerif', 'Verificar loja', 'review')],
+    }));
+    await renderAgora();
+    expect(await screen.findByText('Quase lá')).toBeInTheDocument();
+    expect(screen.getByText('em análise')).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Enquanto isso' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Cadastre seus produtos/ }));
+    expect(mockPush).toHaveBeenCalledWith('/seller/create-product');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver cadastro' }));
+    expect(mockPush).toHaveBeenCalledWith('/seller/abrir');
+  });
+
+  test('não deu para conferir (erro): fail closed, aviso com "Tentar de novo" que recarrega', async () => {
+    mockLoadOnb.mockRejectedValue(new Error('rede'));
+    await renderAgora();
+    expect(await screen.findByText('Não conseguimos conferir o seu cadastro')).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+    mockLoadOnb.mockResolvedValue(onb());
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    await waitFor(() => expect(mockLoadOnb).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Recebendo pedidos')).toBeInTheDocument();
+  });
+
+  test('etapa que não carregou (unknown): também fail closed', async () => {
+    mockLoadOnb.mockResolvedValue(onb({ approved: false, allSubmitted: false, steps: [step('loja', 'Criar loja', 'done'), step('pix', 'Recebimento', 'unknown')], current: step('pix', 'Recebimento', 'unknown') }));
+    await renderAgora();
+    expect(await screen.findByText('Não conseguimos conferir o seu cadastro')).toBeInTheDocument();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+
+  test('enquanto confere: não promete "Recebendo pedidos"', async () => {
+    mockLoadOnb.mockReturnValue(new Promise(() => undefined));
+    await renderAgora();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+
+  test('pedido que já existe continua aparecendo mesmo sem aprovação (nenhuma regra de pedido muda)', async () => {
+    mockLoadOnb.mockResolvedValue(pendente());
+    mockPanel.orders = [novo()];
+    await renderAgora();
+    await screen.findByText('Termine o cadastro');
+    expect(within(screen.getByTestId('novo-ord000004823')).getByRole('button', { name: /aceitar pedido/i })).toBeInTheDocument();
+  });
 });

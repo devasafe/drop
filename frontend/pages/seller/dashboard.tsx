@@ -17,6 +17,9 @@ import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
 import { RejectSheet } from '../../components/seller/order/RejectSheet';
 import { SaasPausedCard, type BillingStatus } from '../../components/seller/agora/SaasPausedCard';
 import { NotificationBell, StoreAvatar } from '../../components/seller/agora/AgoraTop';
+import { AgoraAnalise, analiseTag } from '../../components/seller/agora/AgoraAnalise';
+import { loadStoreOnboarding, type StoreOnboarding } from '../../lib/storeOnboarding';
+import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 import { StageTag } from '../../components/seller/StageTag';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useMyStore } from '../../hooks/useMyStore';
@@ -37,6 +40,16 @@ const HINT_KEY = 'drop.loja.dicaPrimeiroPedido';
 const RELOAD_WAIT_MS = 2000;
 
 const sameId = (a: unknown, b: unknown) => String(a) === String(b);
+
+/**
+ * Cadastro da loja (tela 13). Fail closed: enquanto confere, e quando a leitura falha ou alguma
+ * etapa não carregou, a tela nunca diz "Recebendo pedidos".
+ */
+type Approval =
+  | { status: 'loading' }
+  | { status: 'approved' }
+  | { status: 'pending'; data: StoreOnboarding }
+  | { status: 'unknown' };
 
 /**
  * Cartão ainda não aprovado pelo Asaas (ex.: em análise de risco). O GET /stores/dashboard
@@ -98,7 +111,7 @@ export default function AgoraPage() {
   const router = useRouter();
   const panel = useSellerPanel();
   const { store, orders, refresh, newOrderCount } = panel;
-  const { settlementMode } = useSaasConfig();
+  const { settlementMode, loading: modeLoading } = useSaasConfig();
   const { products } = useMyStore();
   const online = useOnline();
   const [billing, setBilling] = useState<BillingStatus | null>(null);
@@ -111,6 +124,25 @@ export default function AgoraPage() {
   const [kpiAt, setKpiAt] = useState<Date | null>(null);
   const [hintClosed, setHintClosed] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [approval, setApproval] = useState<Approval>({ status: 'loading' });
+
+  const checkApproval = useCallback(() => {
+    if (modeLoading) return () => undefined;
+    let off = false;
+    setApproval({ status: 'loading' });
+    loadStoreOnboarding(settlementMode)
+      .then((d) => {
+        if (off) return;
+        if (d.approved) setApproval({ status: 'approved' });
+        else if (d.steps.some((st) => st.state === 'unknown')) setApproval({ status: 'unknown' });
+        else setApproval({ status: 'pending', data: d });
+      })
+      .catch(() => { if (!off) setApproval({ status: 'unknown' }); });
+    return () => { off = true; };
+  }, [modeLoading, settlementMode]);
+  useEffect(() => checkApproval(), [checkApproval]);
+  const approved = approval.status === 'approved';
+  const pending = approval.status === 'pending' ? approval.data : null;
 
   const list = Array.isArray(orders) ? orders : [];
   const novos = sortOngoing(list.filter(isAwaitingAccept));
@@ -239,7 +271,7 @@ export default function AgoraPage() {
   const switchDescription = saasBlocked
     ? 'Abre sozinha quando o pagamento cair'
     : isOpen
-      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : 'Recebendo pedidos'
+      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : approved ? 'Recebendo pedidos' : undefined
       : 'Clientes não veem seus produtos';
 
   return (
@@ -247,7 +279,12 @@ export default function AgoraPage() {
       <SellerShell
         title={store?.name || 'Agora'}
         lead={store ? <StoreAvatar name={store.name} logoUrl={store.logoUrl} /> : undefined}
-        actions={<NotificationBell />}
+        actions={(
+          <>
+            {pending && <span className={[blocks.tag, blocks.tagWarn].join(' ')}>{analiseTag(pending)}</span>}
+            <NotificationBell />
+          </>
+        )}
       >
         <div className={styles.page}>
           {!online && (
@@ -266,32 +303,42 @@ export default function AgoraPage() {
             {/* 1º bloco no celular (protótipo); no computador fica no topo da coluna lateral. */}
             <div className={styles.open}>
               {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
-              <div className={styles.block}>
-                <Switch
-                  label={isOpen ? 'Loja aberta' : 'Loja fechada'}
-                  description={switchDescription}
-                  checked={isOpen}
-                  disabled={toggling || saasBlocked || !store?._id}
-                  onChange={toggleOpen}
-                />
-                {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
-              </div>
-
-              {pausedUntil && (
-                <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
-                  Clientes não conseguem comprar enquanto a pausa durar.
+              {approval.status === 'unknown' && (
+                <Alert tone="warning" title="Não conseguimos conferir o seu cadastro" action={{ label: 'Tentar de novo', onClick: checkApproval }}>
+                  Por isso não dá para confirmar agora se a loja recebe pedidos. Tente de novo em instantes.
                 </Alert>
               )}
-              {!isOpen && !saasBlocked && (
-                <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
-                  Clientes não veem seus produtos.
-                </Alert>
+              {!pending && (
+                <>
+                  <div className={styles.block}>
+                    <Switch
+                      label={isOpen ? 'Loja aberta' : 'Loja fechada'}
+                      description={switchDescription}
+                      checked={isOpen}
+                      disabled={toggling || saasBlocked || !store?._id}
+                      onChange={toggleOpen}
+                    />
+                    {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
+                  </div>
+
+                  {pausedUntil && (
+                    <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
+                      Clientes não conseguem comprar enquanto a pausa durar.
+                    </Alert>
+                  )}
+                  {!isOpen && !saasBlocked && (
+                    <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
+                      Clientes não veem seus produtos.
+                    </Alert>
+                  )}
+                </>
               )}
             </div>
             <div className={styles.main}>
+              {pending && <AgoraAnalise data={pending} onGo={(p) => router.push(p)} />}
               {notice && <p role="status" className={styles.notice}>{notice}</p>}
 
-              {!hintClosed && novos.length > 0 && (
+              {!hintClosed && !pending && novos.length > 0 && (
                 <div className={styles.hint}>
                   <Sparkles size={20} aria-hidden="true" className={styles.hintIcon} />
                   <p className={styles.hintText}>
@@ -303,31 +350,33 @@ export default function AgoraPage() {
                 </div>
               )}
 
-              <section aria-labelledby="agora-novos" className={styles.section}>
-                <div className={styles.sectionHead}>
-                  <h2 id="agora-novos" className={styles.sectionTitle}>
-                    Novos pedidos {novos.length > 0 && <span className={styles.count}>{novos.length}</span>}
-                  </h2>
-                  <Link href={SELLER_ROUTES.pedidos('andamento')} className={styles.link}>Ver todos</Link>
-                </div>
-                {novos.length === 0 ? (
-                  <div className={styles.empty}>
-                    <p className={styles.emptyTitle}>Nenhum pedido novo.</p>
-                    {isOpen && <p className={styles.emptyText}>{hours.closesAt ? `Loja aberta até ${hours.closesAt}.` : 'Sua loja está aberta.'}</p>}
+              {(!pending || novos.length > 0) && (
+                <section aria-labelledby="agora-novos" className={styles.section}>
+                  <div className={styles.sectionHead}>
+                    <h2 id="agora-novos" className={styles.sectionTitle}>
+                      Novos pedidos {novos.length > 0 && <span className={styles.count}>{novos.length}</span>}
+                    </h2>
+                    <Link href={SELLER_ROUTES.pedidos('andamento')} className={styles.link}>Ver todos</Link>
                   </div>
-                ) : (
-                  novos.map((o) => (
-                    <NewOrderCard
-                      key={o._id}
-                      order={o}
-                      onReject={() => openReject(o)}
-                      onAccepted={() => onAccepted(o)}
-                      onAlready={() => reloadAndCheck(String(o._id))}
-                      onExpire={() => { refresh(); }}
-                    />
-                  ))
-                )}
-              </section>
+                  {novos.length === 0 ? (
+                    <div className={styles.empty}>
+                      <p className={styles.emptyTitle}>Nenhum pedido novo.</p>
+                      {isOpen && approved && <p className={styles.emptyText}>{hours.closesAt ? `Loja aberta até ${hours.closesAt}.` : 'Sua loja está aberta.'}</p>}
+                    </div>
+                  ) : (
+                    novos.map((o) => (
+                      <NewOrderCard
+                        key={o._id}
+                        order={o}
+                        onReject={() => openReject(o)}
+                        onAccepted={() => onAccepted(o)}
+                        onAlready={() => reloadAndCheck(String(o._id))}
+                        onExpire={() => { refresh(); }}
+                      />
+                    ))
+                  )}
+                </section>
+              )}
 
               {andamento.length > 0 && (
                 <section aria-labelledby="agora-andamento" className={styles.section}>
@@ -362,29 +411,31 @@ export default function AgoraPage() {
             </div>
 
             <aside className={styles.side}>
-              <section aria-labelledby="agora-hoje" className={styles.section}>
-                <div className={styles.sectionHead}>
-                  <h2 id="agora-hoje" className={styles.sectionTitle}>Hoje</h2>
-                  {kpi && kpiAt && <span className={styles.countMuted}>{`até ${formatHour(kpiAt)}`}</span>}
-                </div>
-                <div className={styles.kpis}>
-                  <div className={styles.kpi}>
-                    <small>Vendas</small>
-                    <b>{kpi ? formatMoney(kpi.current.revenue) : '—'}</b>
-                    {kpi && <Delta value={kpi.delta.revenue} />}
+              {!pending && (
+                <section aria-labelledby="agora-hoje" className={styles.section}>
+                  <div className={styles.sectionHead}>
+                    <h2 id="agora-hoje" className={styles.sectionTitle}>Hoje</h2>
+                    {kpi && kpiAt && <span className={styles.countMuted}>{`até ${formatHour(kpiAt)}`}</span>}
                   </div>
-                  <div className={styles.kpi}>
-                    <small>Pedidos</small>
-                    <b>{kpi ? String(kpi.current.orders) : '—'}</b>
-                    {kpi && <Delta value={kpi.delta.orders} />}
+                  <div className={styles.kpis}>
+                    <div className={styles.kpi}>
+                      <small>Vendas</small>
+                      <b>{kpi ? formatMoney(kpi.current.revenue) : '—'}</b>
+                      {kpi && <Delta value={kpi.delta.revenue} />}
+                    </div>
+                    <div className={styles.kpi}>
+                      <small>Pedidos</small>
+                      <b>{kpi ? String(kpi.current.orders) : '—'}</b>
+                      {kpi && <Delta value={kpi.delta.orders} />}
+                    </div>
+                    <div className={styles.kpi}>
+                      <small>Ticket</small>
+                      <b>{kpi ? formatMoney(kpi.current.avgTicket) : '—'}</b>
+                      {kpi && <Delta value={kpi.delta.avgTicket} />}
+                    </div>
                   </div>
-                  <div className={styles.kpi}>
-                    <small>Ticket</small>
-                    <b>{kpi ? formatMoney(kpi.current.avgTicket) : '—'}</b>
-                    {kpi && <Delta value={kpi.delta.avgTicket} />}
-                  </div>
-                </div>
-              </section>
+                </section>
+              )}
 
               {lowStock.length > 0 && (
                 <Alert
