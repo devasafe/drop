@@ -1,0 +1,98 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: var(--text-label);
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.title {
+  margin: 0;
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+}
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-action-primary-subtle);
+}
+.heroLabel {
+  font: var(--text-label);
+  color: var(--color-action-primary-subtle-text);
+}
+.heroValue {
+  font: var(--text-price-lg);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.struck {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.heroMeta {
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.blockTitle {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+.links {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: 56px;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+.link + .link {
+  border-top: 1px solid var(--color-border-default);
+}
+.link small {
+  flex-basis: 100%;
+  padding-left: calc(18px + var(--space-3));
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+.back:focus-visible,
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
