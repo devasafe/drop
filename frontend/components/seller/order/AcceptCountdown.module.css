@@ -1,0 +1,14 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-text);
+  font: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.urgent { background: var(--color-error-subtle); color: var(--color-error-text); }
+.over { background: var(--color-surface-sunken); color: var(--color-text-secondary); }
