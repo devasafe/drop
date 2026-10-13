@@ -8,7 +8,7 @@ import { cssViolations } from './helpers/dsTokens';
 // FIXED_COLOR: CSS antigo que só trocou as cores fixas por token (sem hex, rgba nem hsla).
 const ROOT = path.join(__dirname, '..');
 const STRICT: string[] = ['components/seller/ui/SellerBlocks.module.css', 'components/OperatingHoursEditor.module.css', 'pages/seller/SellerLoja.module.css', 'pages/seller/Analytics.module.css', 'pages/seller/SellerAvaliacoes.module.css', 'pages/seller/SellerCupons.module.css', 'pages/seller/SellerPlano.module.css', 'pages/seller/SellerAssinatura.module.css'];
-const FIXED_COLOR: string[] = [];
+const FIXED_COLOR: string[] = ['pages/seller/CreateStore.module.css'];
 
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const hits = (css: string, re: RegExp) =>

@@ -7,7 +7,6 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import OnboardingProgress from '../../components/OnboardingProgress';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
-import { getNextStep } from '../../lib/onboardingFlow';
 import styles from './CreateStore.module.css';
 
 export default function CreateStore() {
@@ -203,7 +202,8 @@ export default function CreateStore() {
         latitude,
         longitude,
       });
-      router.push(`${getNextStep('lojista', '/seller/create-store', settlementMode)?.path || '/verificacao'}?onboarding=1`);
+      // D1: o checklist "Abrir a loja" mostra a próxima etapa (identidade abre dentro dele).
+      router.push('/seller/abrir');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao cadastrar loja');
       setLoading(false);
