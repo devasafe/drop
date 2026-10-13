@@ -17,13 +17,12 @@ export function saasStatusLabel(status?: string | null): string {
   return SAAS_STATUS_LABEL[status as SaasBillingStatus] ?? status;
 }
 
-/** DD/MM/AAAA a partir de ISO; '—' se vazio/inválido. */
+/** DD/MM/AAAA a partir de ISO, no fuso de São Paulo; '—' se vazio/inválido. */
 export function formatBillingDate(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function formatBRL(v?: number | null): string {

@@ -61,6 +61,13 @@ test('isenta: sem mensalidade', async () => {
   expect(await screen.findByText('Sua loja não paga mensalidade')).toBeInTheDocument();
 });
 
+test('frase de status e "Coberto até" mostram o mesmo dia (02:59Z = fim do dia em Brasília)', async () => {
+  mockBilling(billing({ paidUntil: '2026-11-18T02:59:00.000Z' }));
+  render(<SellerAssinatura />);
+  expect(await screen.findByText('Em dia — pago até 17/11/2026')).toBeInTheDocument();
+  expect(screen.getByText('17/11/2026')).toBeInTheDocument();
+});
+
 test('sem style inline', () => {
   const src = fs.readFileSync(path.join(__dirname, '../pages/seller/assinatura.tsx'), 'utf8');
   expect(src).not.toMatch(/style=\{\{/);
