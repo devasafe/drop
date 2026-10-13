@@ -81,9 +81,17 @@ function periodOf(o: any): string {
 
 export default function SellerPedidosPage() {
   const router = useRouter();
-  const { orders, returnRequests, refresh, dismissReturn } = useSellerPanel();
-  const [history, setHistory] = useState<any[] | null>(null);
-  const [historyError, setHistoryError] = useState(false);
+  const sellerPanel = useSellerPanel();
+  const { orders, returnRequests, refresh, dismissReturn } = sellerPanel;
+  // V12: no painel, os concluídos vêm do histórico que o SellerPanelProvider já leu; fora, o GET próprio.
+  const inPanel = sellerPanel?.inPanel === true;
+  const [ownHistory, setHistory] = useState<any[] | null>(null);
+  const [ownHistoryError, setHistoryError] = useState(false);
+  const panelHistory: any[] = Array.isArray(sellerPanel?.history) ? sellerPanel.history : [];
+  const panelFailed = inPanel && !sellerPanel.loading && !!sellerPanel.error && panelHistory.length === 0;
+  const history = inPanel ? (sellerPanel.loading || panelFailed ? null : panelHistory) : ownHistory;
+  const historyError = inPanel ? panelFailed : ownHistoryError;
+  const retryHistory = () => { if (inPanel) refresh(); else setAttempt((n) => n + 1); };
   const [attempt, setAttempt] = useState(0);
   const [limit, setLimit] = useState(30);
   const [q, setQ] = useState('');
@@ -98,14 +106,14 @@ export default function SellerPedidosPage() {
   const seg: PedidosSeg = router.query.seg === undefined ? (novos.length > 0 ? 'novos' : 'andamento') : parseSeg(router.query.seg);
 
   useEffect(() => {
-    if (seg !== 'concluidos') return;
+    if (seg !== 'concluidos' || inPanel) return;
     let off = false;
     setHistoryError(false);
     api.get('/stores/dashboard')
       .then((r) => { if (!off) setHistory(Array.isArray(r?.data?.history) ? r.data.history : []); })
       .catch(() => { if (!off) setHistoryError(true); });
     return () => { off = true; };
-  }, [seg, attempt]);
+  }, [seg, attempt, inPanel]);
 
   // Devolução pendente vem do pedido e também do aviso em tempo real (panel.returnRequests).
   const requested = new Set((Array.isArray(returnRequests) ? returnRequests : []).map((r) => String(r.orderId)));
@@ -147,7 +155,7 @@ export default function SellerPedidosPage() {
   } else if (seg === 'concluidos') {
     const rows = historySorted.filter(match);
     panel = historyError
-      ? <EmptyState variant="error" icon={<ClipboardList size={28} />} title="Não carregamos os concluídos" description="Confira a conexão." onRetry={() => setAttempt((n) => n + 1)} />
+      ? <EmptyState variant="error" icon={<ClipboardList size={28} />} title="Não carregamos os concluídos" description="Confira a conexão." onRetry={retryHistory} />
       : history === null
         ? <div role="status" aria-label="Carregando" className={styles.loading}><Skeleton height={56} /><Skeleton height={56} /><Skeleton height={56} /></div>
         : history.length === 0

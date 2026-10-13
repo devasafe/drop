@@ -27,7 +27,7 @@ export default function EditProduct() {
   const router = useRouter();
   const editId = typeof router.query.edit === 'string' ? router.query.edit : undefined;
   // Catálogo do dono (rota autenticada): produto pausado continua editável mesmo fora da vitrine.
-  const { store, products, loading } = useMyStore();
+  const { store, products, loading, reload } = useMyStore();
   const product = useMemo(() => (products || []).find((p: any) => String(p._id) === editId) || null, [products, editId]);
   const { categories } = useCategories(store?._id);
   const [values, setValues] = useState<ProductValues>(EMPTY_VALUES);
@@ -85,6 +85,7 @@ export default function EditProduct() {
     setActiveError(null);
     try {
       await api.put(`/products/${editId}/active`, { isActive: next });
+      reload?.(); // V12: o painel guarda o catálogo; a próxima tela já abre com a mudança
     } catch (err) {
       setActive(!next);
       setActiveError(apiError(err).message || 'Não deu para mudar agora. Tente de novo.');
@@ -104,6 +105,7 @@ export default function EditProduct() {
     try {
       await api.put(`/products/${editId}`, buildProductFormData('edit', values, media), { headers: { 'Content-Type': 'multipart/form-data' } });
       setSaved(true);
+      reload?.(); // V12: idem
     } catch (err) {
       setSaveError(apiError(err).message || 'Confira a conexão e tente de novo.');
     } finally {
@@ -117,6 +119,7 @@ export default function EditProduct() {
     setDeleteError(null);
     try {
       await api.delete(`/products/${editId}`);
+      await reload?.(); // V12: Produtos lê o catálogo do painel; recarrega antes de abrir
       router.push('/seller/products');
     } catch (err) {
       setDeleteError(apiError(err).message || 'Não deu para excluir agora.');

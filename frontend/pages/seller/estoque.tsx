@@ -17,7 +17,7 @@ import styles from './Estoque.module.css';
 const validStock = (s: string) => /^\d+$/.test(s.trim());
 
 export default function EstoquePage() {
-  const { store, products, loading } = useMyStore();
+  const { store, products, loading, reload } = useMyStore();
   const [sold, setSold] = useState<Record<string, number>>({});
   const [base, setBase] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -86,6 +86,7 @@ export default function EstoquePage() {
         return next;
       });
       setDraft({});
+      reload?.(); // V12: o painel guarda o catálogo (Agora e Produtos leem dele); esta tela não muda
       setResult({ tone: 'success', text: `Estoque salvo: ${updated} ${updated === 1 ? 'produto' : 'produtos'}.` });
     } catch (err) {
       // O lote não é transacional: pode ter salvado só parte. Relê o servidor em vez de presumir.

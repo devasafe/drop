@@ -4,6 +4,7 @@ import { ArrowUpRight, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import api from '../../lib/api';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import TransactionDetailsModal, { DetailRow } from '../../components/TransactionDetailsModal';
 import { Chip } from '../../components/ui/Chip';
@@ -129,11 +130,20 @@ function SellerWalletPageInner() {
     }
   };
 
+  // V12: no painel, a loja vem do SellerPanelProvider (espera ele carregar); fora, o GET próprio.
+  const panel = useSellerPanel();
+  const inPanel = panel?.inPanel === true;
+  const panelWaiting = inPanel && panel.loading;
+  const panelStore = inPanel ? panel.store : null;
+
   useEffect(() => {
+    if (panelWaiting) return;
     const fetchWallet = async () => {
       try {
         // Resolve o storeId de forma robusta (o user do front pode não ter storeId).
-        const dash = await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
+        const dash = inPanel
+          ? { store: panelStore }
+          : await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
         const storeId = dash?.store?._id || dash?._id || user?.storeId || user?._id;
         if (!storeId) return;
         setResolvedStoreId(String(storeId));
@@ -169,7 +179,7 @@ function SellerWalletPageInner() {
     };
 
     fetchWallet();
-  }, [user?._id, user?.storeId]);
+  }, [user?._id, user?.storeId, panelWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (

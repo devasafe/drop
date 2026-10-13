@@ -9,7 +9,11 @@ import { ReturnRequest, mergeReturns, pendingReturnsFromOrders, sameId, upsertRe
 export type { ReturnRequest } from './sellerPanelState';
 
 export interface SellerPanelValue {
+  /** true só dentro do SellerPanelProvider: quem lê a loja daqui não refaz o GET /stores/dashboard (V12). */
+  inPanel: boolean;
   store: any | null;
+  /** Catálogo do dono, da mesma leitura de /stores/dashboard. */
+  products: any[];
   orders: any[];
   history: any[];
   categories: string[];
@@ -34,6 +38,7 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
   const userKey: string | null = user ? String(user._id || user.id || 'me') : null;
 
   const [store, setStore] = useState<any | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -58,6 +63,7 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
       const loaded: any[] = d.orders || [];
       if (!mounted.current) return loaded;
       setStore(d.store || null);
+      setProducts(Array.isArray(d.products) ? d.products : []);
       setOrders(loaded);
       setHistory(d.history || []);
       setCategories(d.categories || []);
@@ -69,6 +75,7 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
         if (e?.response?.status === 404) {
           // lojista ainda sem loja (ex.: em /seller/create-store): não é erro
           setStore(null);
+          setProducts([]);
           setError(null);
         } else {
           setError('Não foi possível carregar o painel. Tente de novo.');
@@ -158,10 +165,10 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SellerPanelValue>(() => ({
-    store, orders, history, categories, returnRequests, loading, error,
+    inPanel: true, store, products, orders, history, categories, returnRequests, loading, error,
     newOrderIds, newOrderCount: newOrderIds.length,
     refresh, clearNewOrders, dismissReturn, patchOrder, removeOrder,
-  }), [store, orders, history, categories, returnRequests, loading, error, newOrderIds, refresh, clearNewOrders, dismissReturn, patchOrder, removeOrder]);
+  }), [store, products, orders, history, categories, returnRequests, loading, error, newOrderIds, refresh, clearNewOrders, dismissReturn, patchOrder, removeOrder]);
 
   return <SellerPanelContext.Provider value={value}>{children}</SellerPanelContext.Provider>;
 }
@@ -177,7 +184,9 @@ export function SellerPanelProvider({ children }: { children: ReactNode }) {
 }
 
 const EMPTY_PANEL: SellerPanelValue = {
+  inPanel: false,
   store: null,
+  products: [],
   orders: [],
   history: [],
   categories: [],

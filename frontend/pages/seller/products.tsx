@@ -26,7 +26,7 @@ type Filter = 'todos' | 'esgotados' | 'pausados' | 'semFoto';
 export default function SellerProducts() {
   const router = useRouter();
   // Rota autenticada do dono: loja pausada some da vitrine pública, mas o painel segue funcionando.
-  const { products, loading } = useMyStore();
+  const { products, loading, reload } = useMyStore();
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +56,7 @@ export default function SellerProducts() {
     setError(null);
     try {
       await api.put(`/products/${p._id}/active`, { isActive: next });
+      reload?.(); // V12: o painel guarda o catálogo; a próxima tela já abre com a mudança
     } catch (err) {
       setActive((s) => ({ ...s, [p._id]: !next }));
       setError(`Não deu para ${next ? 'ativar' : 'pausar'} ${p.name}. ${apiError(err).message || 'Tente de novo.'}`);

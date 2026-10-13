@@ -14,6 +14,7 @@ import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import api from '../../lib/api';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { apiErrorMessage } from '../../lib/sellerApi';
 import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 
@@ -45,10 +46,19 @@ function ContaAsaasInner() {
   const [loadError, setLoadError] = useState('');
   const [swapKey, setSwapKey] = useState(false);
 
+  // V12: no painel, a loja vem do SellerPanelProvider (espera ele carregar); fora, o GET próprio.
+  const panel = useSellerPanel();
+  const inPanel = panel?.inPanel === true;
+  const panelWaiting = inPanel && panel.loading;
+  const panelStore = inPanel ? panel.store : null;
+
   useEffect(() => {
+    if (panelWaiting) return undefined;
     let cancelled = false;
     (async () => {
-      const dash = await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
+      const dash = inPanel
+        ? { store: panelStore }
+        : await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
       const id = dash?.store?._id || dash?._id;
       if (cancelled) return;
       if (id) setStoreId(String(id));
@@ -57,7 +67,7 @@ function ContaAsaasInner() {
       if (!cancelled) setEgressIp(saas?.egressIp ?? null);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [panelWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const apiBase = storeId ? `/stores/${storeId}/asaas` : null;
   const load = useCallback(async () => {

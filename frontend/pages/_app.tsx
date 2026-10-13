@@ -105,7 +105,6 @@ function AppWrapper({ Component, pageProps }: AppProps) {
       </Head>
       <LivePresenceMount />
       <ForceLogoutListener />
-      {user && <RealtimeNotifier />}
       <NotificationToaster />
       <CartProvider>
         <OverlayProvider>
@@ -113,6 +112,8 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <SeasonalThemeProvider>
         {/* Painel da loja (D1): socket e pedidos montados uma vez para todo /seller/*. */}
         <SellerPanelGate pathname={router.pathname} enabled={!!user}>
+        {/* Dentro do Gate: no painel, a loja do notificador vem do painel, sem outro GET (V12). */}
+        {user && <RealtimeNotifier />}
         {!navDesktopOnly && <Nav />}
         {/* Páginas com header próprio no mobile (produto/loja e o painel da loja) ainda
             mostram a Nav global no DESKTOP — a bottom bar é escondida no desktop, então

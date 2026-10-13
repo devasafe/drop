@@ -15,7 +15,7 @@ import styles from './ProdutoPagina.module.css';
 export default function CreateProduct() {
   const router = useRouter();
   // Rota autenticada do dono: loja pausada some da vitrine pública (GET /stores).
-  const { store } = useMyStore();
+  const { store, reload } = useMyStore();
   const { categories } = useCategories(store?._id);
   const storeId = store?._id ? String(store._id) : '';
   const [values, setValues] = useState<ProductValues>(EMPTY_VALUES);
@@ -33,6 +33,7 @@ export default function CreateProduct() {
     setSubmitError(null);
     try {
       await api.post('/products', buildProductFormData('create', values, media, storeId), { headers: { 'Content-Type': 'multipart/form-data' } });
+      await reload?.(); // V12: Produtos lê o catálogo do painel; recarrega antes de abrir
       router.push('/seller/products');
     } catch (err) {
       setSubmitError(apiError(err).message || 'Confira a conexão e tente de novo.');

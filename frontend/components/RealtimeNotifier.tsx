@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { notify, primeAudio, requestNotificationPermission } from '../lib/notify';
 import { SELLER_ROUTES } from '../lib/sellerRoutes';
+import { useSellerPanel } from './seller/panel/SellerPanelProvider';
 
 /**
  * Notificador global de tempo real. Mantém o lojista avisado de novos pedidos
@@ -13,7 +14,10 @@ import { SELLER_ROUTES } from '../lib/sellerRoutes';
 export default function RealtimeNotifier() {
   const { on, emit, isConnected } = useSocket();
   const { user } = useAuth() || {};
-  const [storeId, setStoreId] = useState<string | null>(null);
+  const [ownStoreId, setOwnStoreId] = useState<string | null>(null);
+  // V12: no painel da loja (/seller/*) a loja vem do SellerPanelProvider, que já leu /stores/dashboard.
+  const panel = useSellerPanel();
+  const inPanel = panel?.inPanel === true;
 
   const role = user?.activeRole || user?.role;
   const isLojista = role === 'lojista';
@@ -32,15 +36,18 @@ export default function RealtimeNotifier() {
     };
   }, [user]);
 
-  // Descobre a loja do lojista para entrar na sala de pedidos em qualquer página
+  // Descobre a loja do lojista para entrar na sala de pedidos em qualquer página.
+  // Dentro do painel, usa a do painel (enquanto ele carrega, sem sala: fail closed); fora, o GET próprio.
   useEffect(() => {
     let cancelled = false;
-    if (!user || !isLojista) { setStoreId(null); return; }
+    if (!user || !isLojista || inPanel) { setOwnStoreId(null); return; }
     api.get('/stores/dashboard')
-      .then(({ data }) => { if (!cancelled) setStoreId(data?.store?._id || null); })
+      .then(({ data }) => { if (!cancelled) setOwnStoreId(data?.store?._id || null); })
       .catch(() => { /* sem loja ainda */ });
     return () => { cancelled = true; };
-  }, [user, isLojista]);
+  }, [user, isLojista, inPanel]);
+  const panelStoreId = isLojista && panel?.store?._id ? String(panel.store._id) : null;
+  const storeId = inPanel ? panelStoreId : ownStoreId;
 
   // Entra na sala da loja (e re-entra ao reconectar)
   useEffect(() => {

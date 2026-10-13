@@ -9,6 +9,7 @@ import SellerShell from '../../components/seller/panel/SellerShell';
 import { Alert } from '../../components/ui/Alert';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import {
   formatBRL, saasStatusLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
 } from '../../lib/saasBilling';
@@ -29,12 +30,20 @@ function Assinatura() {
   const { user } = useAuth() as any;
   const [data, setData] = useState<SaasBillingView | null>(null);
   const [error, setError] = useState('');
+  // V12: no painel, a loja vem do SellerPanelProvider (espera ele carregar); fora, o GET próprio.
+  const panel = useSellerPanel();
+  const inPanel = panel?.inPanel === true;
+  const panelWaiting = inPanel && panel.loading;
+  const panelStore = inPanel ? panel.store : null;
 
   useEffect(() => {
+    if (panelWaiting) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const dash = await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
+        const dash = inPanel
+          ? { store: panelStore }
+          : await api.get('/stores/dashboard').then((r) => r.data).catch(() => null);
         const id = dash?.store?._id || dash?._id || user?.storeId;
         if (!id) { if (!cancelled) setError('Não encontramos a sua loja.'); return; }
         const r = await api.get(`/stores/${id}/saas-billing`);
@@ -44,7 +53,7 @@ function Assinatura() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.storeId]);
+  }, [user?.storeId, panelWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const warn = !!data && (data.status === 'past_due' || data.status === 'paused');
   const pay = data?.nextPayment;
