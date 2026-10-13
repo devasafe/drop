@@ -3,7 +3,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) 140px;
+  /* a SellerShell é dona do respiro horizontal e do espaço da barra de abas */
+  padding: var(--space-3) 0 var(--space-4);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   max-width: 760px;
   margin-inline: auto;
 }

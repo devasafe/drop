@@ -5,9 +5,11 @@
   flex-direction: column;
   gap: var(--space-3);
   width: 100%;
+  min-width: 0;
   max-width: 720px;
   margin: 0 auto;
-  padding: var(--space-3) var(--space-4) var(--space-8);
+  /* respiro horizontal é da SellerShell */
+  padding: var(--space-3) 0 var(--space-8);
   box-sizing: border-box;
 }
 .stack { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -243,6 +245,6 @@
 }
 
 @media (min-width: 900px) {
-  .body { padding: var(--space-6) var(--space-6) var(--space-10); }
+  .body { padding: var(--space-6) 0 var(--space-10); }
   .kpis4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
