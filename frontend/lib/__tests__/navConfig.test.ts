@@ -20,9 +20,9 @@ describe('navConfig', () => {
     );
   });
 
-  it('lojista usa "Financeiro da loja" e nunca expõe "Solicitar saque"', () => {
+  it('lojista usa "Dinheiro" e nunca expõe "Solicitar saque"', () => {
     const labels = getNavItems('lojista', allow, false).map((i) => i.label);
-    expect(labels).toContain('Financeiro da loja');
+    expect(labels).toContain('Dinheiro');
     expect(labels).not.toContain('Solicitar saque');
   });
 
@@ -98,14 +98,14 @@ describe('navConfig', () => {
     expect(isItemActive(perfil, '/editar-conta')).toBe(true);
   });
 
-  it('resolve o estado ativo por ?tab= no dashboard do lojista (um item por vez)', () => {
+  it('resolve o estado ativo por rota no painel do lojista (um item por vez)', () => {
     const items = getNavItems('lojista', () => true, false);
     const active = (pathname: string, query: Record<string, string>) =>
       items.filter((i) => isItemActive(i, pathname, query)).map((i) => i.label);
 
-    // Sem tab na URL → só a Visão geral
-    expect(active('/seller/dashboard', {})).toEqual(['Visão geral']);
-    // ?tab=orders → só Pedidos
-    expect(active('/seller/dashboard', { tab: 'orders' })).toEqual(['Pedidos']);
+    // Aba Agora
+    expect(active('/seller/dashboard', {})).toEqual(['Agora']);
+    // Pedidos (o ?tab= que sobra do redirect antigo não muda nada)
+    expect(active('/seller/pedidos', { seg: 'andamento', tab: 'orders' })).toEqual(['Pedidos']);
   });
 });

@@ -5,7 +5,7 @@ import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
 import { useAdminCustodyOpen } from '../../hooks/useAdminCustodyOpen';
-import { getNavItems, isItemActive, Role, NavItem } from '../../lib/navConfig';
+import { getNavItems, isItemActive, bottomNavLayout, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './PanelBottomNav.module.css';
 
@@ -23,7 +23,8 @@ export default function PanelBottomNav() {
   if (role === 'cliente') return null; // cliente usa CustomerAppChrome
 
   const all = getNavItems(role, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen });
-  const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, 4);
+  const layout = bottomNavLayout(role);
+  const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, layout.max);
   if (bottom.length === 0) return null; // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer)
   // "Mais" abre a sidebar lateral completa (o mesmo menu do antigo hambúrguer do topo).
   const menuOpen = overlay.isOpen('panelSidebar');
@@ -44,11 +45,13 @@ export default function PanelBottomNav() {
           </button>
         );
       })}
-      <button type="button" className={`${styles.item} ${menuOpen ? styles.on : ''}`}
-        aria-current={menuOpen ? 'page' : undefined} onClick={() => overlay.toggle('panelSidebar')}>
-        <Icon name="menu" size={20} />
-        <span>Mais</span>
-      </button>
+      {layout.more && (
+        <button type="button" className={`${styles.item} ${menuOpen ? styles.on : ''}`}
+          aria-current={menuOpen ? 'page' : undefined} onClick={() => overlay.toggle('panelSidebar')}>
+          <Icon name="menu" size={20} />
+          <span>Mais</span>
+        </button>
+      )}
     </nav>
   );
 }

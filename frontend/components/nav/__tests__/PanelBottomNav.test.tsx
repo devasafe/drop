@@ -27,14 +27,28 @@ beforeEach(() => {
 });
 
 describe('PanelBottomNav (lojista)', () => {
-  it('mostra 4 itens de bottomNav + botão Mais', () => {
+  it('mostra as 5 abas e nenhum botão Mais', () => {
     render(<PanelBottomNav />);
-    expect(screen.getByText('Visão geral')).toBeInTheDocument();
-    expect(screen.getByText('Pedidos')).toBeInTheDocument();
-    expect(screen.getByText('Mais')).toBeInTheDocument();
+    for (const l of ['Agora', 'Pedidos', 'Produtos', 'Dinheiro', 'Loja']) expect(screen.getByText(l)).toBeInTheDocument();
+    expect(screen.queryByText('Mais')).toBeNull();
   });
 
+  it('badge de pedidos na aba Pedidos', () => {
+    render(<PanelBottomNav />);
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('aba ativa pela rota', () => {
+    mockPathname = '/seller/edit-product'; mockQuery = { edit: 'p1' };
+    render(<PanelBottomNav />);
+    expect(screen.getByText('Produtos').closest('button')?.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Agora').closest('button')?.getAttribute('aria-current')).toBeNull();
+  });
+});
+
+describe('PanelBottomNav (motoboy)', () => {
   it('botão Mais abre a sidebar lateral (panelSidebar)', () => {
+    mockRole = 'motoboy'; mockRoles = ['motoboy']; mockPathname = '/motoboy';
     render(<PanelBottomNav />);
     fireEvent.click(screen.getByText('Mais'));
     expect(toggle).toHaveBeenCalledWith('panelSidebar');

@@ -1,5 +1,6 @@
 import { IconName } from '../components/Icon';
 import { visibleAdminMenu } from './adminMenu';
+import { SELLER_ROUTES } from './sellerRoutes';
 
 export type Role = 'cliente' | 'lojista' | 'motoboy' | 'ceo';
 export type Placement = 'sidebar' | 'bottomNav' | 'drawer' | 'account';
@@ -27,6 +28,9 @@ export interface NavItem {
   /** Aparece SÓ no modo 'direto' para quem ainda tem saldo da custódia (P16: o saldo
    * termina no modo em que nasceu). Quem decide é o backend (GET /settings/custody-leftover). */
   custodyLeftoverOnly?: boolean;
+  /** Estado ativo só pelo caminho; ignora ?tab= (painel da loja, D1: as URLs antigas chegam
+   * redirecionadas carregando a query). */
+  pathOnly?: boolean;
 }
 
 export interface RoleArea {
@@ -77,21 +81,31 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   ],
 
   lojista: [
-    { label: 'Visão geral',        icon: 'chart-bar', route: '/seller/dashboard',            placement: ['sidebar', 'bottomNav'], group: 'Visão geral' },
-    { label: 'Pedidos',            icon: 'receipt',   route: '/seller/dashboard?tab=orders', placement: ['sidebar', 'bottomNav'], group: 'Operação', badge: 'storeOrders', activeMatch: '/seller/dashboard' },
-    { label: 'Histórico',          icon: 'clock',     route: '/seller/dashboard?tab=history', placement: ['sidebar', 'drawer'],  group: 'Operação', activeMatch: '/seller/dashboard' },
-    { label: 'Devoluções',         icon: 'refresh',   route: '/seller/dashboard?tab=returns', placement: ['sidebar', 'drawer'],  group: 'Operação', activeMatch: '/seller/dashboard' },
-    { label: 'Produtos e estoque', icon: 'package',   route: '/seller/products',             placement: ['sidebar', 'bottomNav'], group: 'Operação' },
-    { label: 'Mensagens',          icon: 'chat',      route: '/seller/dashboard?tab=chat',   placement: ['sidebar', 'drawer'],   group: 'Operação' }, // FOLLOW-UP (Etapa 3): rota real
-    { label: 'Marketing',          icon: 'megaphone', route: '/seller/coupons',              placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
-    { label: 'Analytics',          icon: 'chart-up',  route: '/seller/analytics',            placement: ['sidebar', 'drawer'],   group: 'Crescimento' },
-    { label: 'Financeiro da loja', icon: 'wallet',    route: '/seller/wallet',               placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
-    { label: 'Plano e cobrança',   icon: 'tag',       route: '/seller/select-plan',          placement: ['sidebar', 'drawer'],   group: 'Loja', custodyOnly: true },
-    { label: 'Configurações da loja', icon: 'settings', route: '/seller/dashboard?tab=config', placement: ['sidebar', 'drawer'], group: 'Loja', activeMatch: '/seller/dashboard' },
-    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet',             placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
-    { label: 'Recebimentos',       icon: 'bank',      route: '/seller/pagamentos',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
-    { label: 'Assinatura',         icon: 'receipt',   route: '/seller/assinatura',           placement: ['sidebar', 'drawer'],   group: 'Financeiro', directOnly: true },
-    { label: 'Integrações (API)', icon: 'link', route: '/seller/integrations', placement: ['sidebar', 'drawer'], group: 'Loja' },
+    // 5 abas (spec D1 §3.1), iguais nos dois modos. O conteúdo de cada modo é decidido dentro da tela.
+    { label: 'Agora',    icon: 'home',    route: SELLER_ROUTES.agora,     placement: ['sidebar', 'bottomNav'], exact: true, pathOnly: true },
+    { label: 'Pedidos',  icon: 'receipt', route: SELLER_ROUTES.pedidos(), placement: ['sidebar', 'bottomNav'], badge: 'storeOrders', pathOnly: true,
+      activeMatch: ['/seller/pedidos', '/seller/pedido', '/seller/order-[id]'] },
+    { label: 'Produtos', icon: 'package', route: SELLER_ROUTES.produtos,  placement: ['sidebar', 'bottomNav'], pathOnly: true,
+      activeMatch: [SELLER_ROUTES.produtos, SELLER_ROUTES.novoProduto, '/seller/edit-product', SELLER_ROUTES.estoque] },
+    { label: 'Dinheiro', icon: 'wallet',  route: SELLER_ROUTES.dinheiro,  placement: ['sidebar', 'bottomNav'], pathOnly: true,
+      activeMatch: [SELLER_ROUTES.dinheiro, '/seller/wallet', '/seller/transfer-wallet'] },
+    { label: 'Loja',     icon: 'store',   route: SELLER_ROUTES.loja,      placement: ['sidebar', 'bottomNav'], pathOnly: true,
+      activeMatch: [
+        SELLER_ROUTES.loja, SELLER_ROUTES.desempenho, SELLER_ROUTES.avaliacoes, SELLER_ROUTES.cupons, SELLER_ROUTES.integracoes,
+        SELLER_ROUTES.horarios, SELLER_ROUTES.plano, '/seller/select-plan', SELLER_ROUTES.assinatura, '/seller/pagamentos',
+        SELLER_ROUTES.contaAsaas, SELLER_ROUTES.notificacoes,
+      ] },
+    // Subitens da Loja no menu lateral (computador). Cada um leva a uma tela de um modo só, por isso
+    // a marca de modo continua aqui (b4.saasBilling, navConfig.saas). As partes P6/P7 acrescentam
+    // Avaliações, Horários, Notificações, Plano e Conta Asaas quando as telas existirem.
+    { label: 'Desempenho',        icon: 'chart-up',  route: SELLER_ROUTES.desempenho,  placement: ['sidebar'], group: 'Loja', pathOnly: true },
+    { label: 'Cupons',            icon: 'megaphone', route: SELLER_ROUTES.cupons,      placement: ['sidebar'], group: 'Loja', pathOnly: true },
+    { label: 'Integrações (API)', icon: 'link',      route: SELLER_ROUTES.integracoes, placement: ['sidebar'], group: 'Loja', pathOnly: true },
+    { label: 'Plano e cobrança',  icon: 'tag',       route: '/seller/select-plan',     placement: ['sidebar'], group: 'Loja', pathOnly: true, custodyOnly: true },
+    { label: 'Assinatura',        icon: 'receipt',   route: SELLER_ROUTES.assinatura,  placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },
+    { label: 'Recebimentos',      icon: 'bank',      route: '/seller/pagamentos',      placement: ['sidebar'], group: 'Loja', pathOnly: true, directOnly: true },
+    // P16: o saldo da custódia termina no modo em que nasceu. A tela é o card dentro de Dinheiro (P6).
+    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet', placement: ['sidebar'], group: 'Dinheiro', pathOnly: true, custodyLeftoverOnly: true },
   ],
   motoboy: [
     { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
@@ -176,10 +190,18 @@ export function isItemActive(
     ? bases.some((base) => pathname === base)
     : bases.some((base) => pathname === base || pathname.startsWith(base + '/'));
   if (!pathMatches) return false;
+  // Painel da loja (D1): abas por rota; o ?tab= que sobra dos redirects antigos não conta.
+  if (item.pathOnly) return true;
   // Parse tab from the route (where it's defined in config)
   const routeQs = item.route.split('?')[1];
   const itemTab = routeQs ? new URLSearchParams(routeQs).get('tab') : null;
   const curTab = query && typeof query.tab === 'string' ? query.tab : null;
   if (itemTab) return curTab === itemTab;   // item targets a specific tab
   return curTab === null;                    // no-tab item = overview: active only when no tab selected
+}
+
+/** Barra de baixo de cada painel: o lojista tem 5 abas fixas e nenhum "Mais" (spec D1 §3.1);
+ * motoboy e admin seguem com 4 itens + "Mais" (abre o menu lateral). */
+export function bottomNavLayout(role: Role): { max: number; more: boolean } {
+  return role === 'lojista' ? { max: 5, more: false } : { max: 4, more: true };
 }

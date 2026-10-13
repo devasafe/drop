@@ -49,18 +49,24 @@ describe('AppSidebar (motoboy)', () => {
 });
 
 describe('AppSidebar (lojista)', () => {
-  it('lojista: só o item do tab atual fica ativo (?tab=orders → Pedidos)', () => {
+  it('lojista: aba ativa pela rota (/seller/pedidos, mesmo com o ?tab= do redirect)', () => {
     mockRole = 'lojista'; mockRoles = ['lojista'];
-    mockPathname = '/seller/dashboard'; mockQuery = { tab: 'orders' };
+    mockPathname = '/seller/pedidos'; mockQuery = { seg: 'andamento', tab: 'orders' };
     render(<AppSidebar />);
-    const pedidos = screen.getByText('Pedidos').closest('a');
-    expect(pedidos?.getAttribute('aria-current')).toBe('page');
-    // "Visão geral" aparece duas vezes: como rótulo do grupo (div) e como
-    // label do próprio item (a) — o grupo e o item de topo compartilham nome.
-    const visaoGeralLink = screen.getAllByText('Visão geral')
+    expect(screen.getByText('Pedidos').closest('a')?.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Agora').closest('a')?.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('lojista: subitem da Loja acende junto com a aba Loja', () => {
+    mockRole = 'lojista'; mockRoles = ['lojista'];
+    mockPathname = '/seller/analytics'; mockQuery = {};
+    render(<AppSidebar />);
+    expect(screen.getByText('Desempenho').closest('a')?.getAttribute('aria-current')).toBe('page');
+    // "Loja" aparece duas vezes: rótulo do grupo (div) e a aba (a).
+    const lojaTab = screen.getAllByText('Loja')
       .map((el) => el.closest('a'))
       .find((el): el is HTMLAnchorElement => el !== null);
-    expect(visaoGeralLink?.getAttribute('aria-current')).toBeNull();
+    expect(lojaTab?.getAttribute('aria-current')).toBe('page');
   });
 });
 

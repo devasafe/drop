@@ -20,7 +20,7 @@ describe('navConfig — modo de liquidação', () => {
 
   it('custódia: os itens aparecem', () => {
     expect(labels('cliente', 'custodia')).toContain('Carteira');
-    expect(labels('lojista', 'custodia')).toEqual(expect.arrayContaining(['Financeiro da loja', 'Plano e cobrança']));
+    expect(labels('lojista', 'custodia')).toEqual(expect.arrayContaining(['Dinheiro', 'Plano e cobrança']));
     expect(labels('motoboy', 'custodia')).toContain('Ganhos e saques');
     expect(labels('ceo', 'custodia', true)).toEqual(expect.arrayContaining(['Carteiras', 'Saques', 'Payouts', 'Caixa', 'Planos']));
   });
