@@ -3,7 +3,7 @@ import { splitAddressLines } from '../../../lib/address';
 import { shortOrderCode } from '../../../lib/customerOrder';
 import { formatMoney } from '../../../lib/money';
 
-/** Estimativa mostrada na oferta: a mesma do card antigo (DeliveryOfferCard), 80% da taxa.
+/** Estimativa mostrada na oferta: a mesma do card antigo de oferta, 80% da taxa.
  *  O valor que vale é o do servidor (repasse ou Pix), mostrado na conclusão. */
 export const OFFER_SHARE = 0.8;
 const MOTO_AVG_KMH = 20; // mesma média urbana do card antigo

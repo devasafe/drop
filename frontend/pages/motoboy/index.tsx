@@ -1,254 +1,320 @@
-import { useContext, useEffect, useState } from 'react';
+// Corridas (DS v2, D2): um estado por vez. Offline, online procurando, ofertas, oferta perdida,
+// em análise. useMotoboyStatus (status + GPS do despacho) não muda.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { WifiOff, PackageSearch, Wallet, Clock, Trophy, User, ChevronRight, MapPin, TriangleAlert, Bell, BellRing, Package } from 'lucide-react';
-import api from '../../lib/api';
-import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { Award, Bike, FileCheck2, ListChecks, MapPin, TriangleAlert, X, Zap } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import AuthContext from '../../contexts/AuthContext';
-import { EmptyState } from '../../components/ui/EmptyState';
-import { Skeleton } from '../../components/ui/Skeleton';
+import MotoboyShell from '../../components/motoboy/panel/MotoboyShell';
+import { Alert } from '../../components/ui/Alert';
+import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
-import { ICON_STROKE_WIDTH } from '../../components/ui/Icon';
-import { formatBRL } from '../../components/ui/PriceTag';
-import { useToast } from '../../components/ui/Toast';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { NavRow } from '../../components/panel/NavRow';
+import blocks from '../../components/panel/PanelBlocks.module.css';
+import { useAuth } from '../../contexts/AuthContext';
 import { useMotoboyStatus } from '../../hooks/useMotoboyStatus';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
-import { useDeliveries, useOngoingDeliveries, useDeliveryHistory } from '../../hooks/useSync';
-import { earningsToday, deliveriesToday, avgRating } from '../../lib/motoboyOverview';
-import { DeliveryOfferCard } from '../../components/motoboy/DeliveryOfferCard';
-import OnboardingResumeBanner from '../../components/OnboardingResumeBanner';
-import { RoutePoint } from '../../lib/staticMap';
-import styles from './MotoboyCockpit.module.css';
+import { useGamificationFeatures } from '../../hooks/useGamificationFeatures';
+import { useDeliveries, useOngoingDeliveries } from '../../hooks/useSync';
+import api from '../../lib/api';
+import { apiError } from '../../lib/sellerApi';
+import { formatMoney } from '../../lib/money';
+import { shortOrderCode } from '../../lib/customerOrder';
+import { formatPoints, levelProgress } from '../../lib/motoboyLevel';
+import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
+import type { RoutePoint } from '../../lib/staticMap';
+import { useNow } from '../../components/motoboy/corrida/useNow';
+import { useCorridasSummary } from '../../components/motoboy/corridas/useCorridasSummary';
+import { useCourierStatus } from '../../components/motoboy/corridas/useCourierStatus';
+import { EmAnalise } from '../../components/motoboy/corridas/EmAnalise';
+import { greeting, MotoboyBell, OnlineBadge, PowerButton } from '../../components/motoboy/corridas/CorridasTop';
+import { OfferCard } from '../../components/motoboy/corridas/OfferCard';
+import { OfferLost, type OfferLostVariant } from '../../components/motoboy/corridas/OfferLost';
+import { offerSummary } from '../../components/motoboy/corridas/offerView';
+import { readOnlineSince, writeOnlineSince } from '../../components/motoboy/corridas/onlineSince';
+import styles from '../../components/motoboy/corridas/Corridas.module.css';
 
-const POOL_POLL_MS = 25000;
-const SHORTCUTS = [
-  { href: '/motoboy/wallet', label: 'Ganhos e saques', icon: Wallet },
-  { href: '/motoboy/ongoing?tab=history', label: 'Histórico', icon: Clock },
-  { href: '/motoboy/gamification', label: 'Gamificação', icon: Trophy },
-  { href: '/motoboy/profile', label: 'Perfil', icon: User },
-];
+const POOL_POLL_MS = 25000; // mesmo polling da tela antiga, só online
+// Uma chave por dica (K39): dispensar uma não esconde a outra.
+const HINT_PEAK_KEY = 'drop.motoboy.dicaPico';
+const HINT_OPEN_KEY = 'drop.motoboy.dicaAppAberto';
+const readHintOff = (key: string) => { try { return window.localStorage.getItem(key) === '1'; } catch { return false; } };
+const writeHintOff = (key: string) => { try { window.localStorage.setItem(key, '1'); } catch { /* sem storage: some só nesta visita */ } };
 
-export default function MotoboyPage() {
+export default function CorridasPage() {
   const router = useRouter();
-  const { user } = useContext(AuthContext);
-  const { showToast } = useToast();
-  const { settlementMode } = useSaasConfig();
+  const { user } = useAuth();
+  const userId = String(user?.id ?? user?._id ?? '');
+  const firstName = String(user?.name || '').split(' ')[0] || 'motoboy';
   const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
   const push = usePushNotifications();
-
-  const enablePush = async () => {
-    const ok = await push.enable();
-    if (ok) { showToast('Notificações ativadas! Você recebe as corridas mesmo com o app fechado.', 'success'); push.sendTest(); }
-    else if (push.permission === 'denied') showToast('Notificações bloqueadas. Libere nas configurações do navegador.', 'error');
-    else showToast('Não foi possível ativar as notificações agora.', 'error');
-  };
-  const { deliveries: pool, loading: poolLoading, setDeliveries: setPool, refetch } = useDeliveries();
+  const courier = useCourierStatus();
+  const { summary, error: summaryError, retrying, retry: retrySummary } = useCorridasSummary();
+  const { features } = useGamificationFeatures();
+  const { deliveries: pool, loading: poolLoading, requiresVerification, setDeliveries: setPool, refetch } = useDeliveries();
   const { deliveries: ongoing } = useOngoingDeliveries();
-  const { deliveries: history } = useDeliveryHistory();
-  const [accepting, setAccepting] = useState<string | null>(null);
-  const [toggling, setToggling] = useState(false);
-  const [self, setSelf] = useState<RoutePoint | null>(null);
+  const now = useNow(30_000);
 
-  // Posição atual do motoboy p/ o pino nos thumbnails de rota das ofertas.
-  // Só quando online (é quando as ofertas aparecem). Baixa frequência basta.
+  const [gam, setGam] = useState<any>(null);
+  const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [notVerified, setNotVerified] = useState(false);
+  const [lost, setLost] = useState<{ variant: OfferLostVariant; summary: string } | null>(null);
+  const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
+  const [self, setSelf] = useState<RoutePoint | null>(null);
+  const [since, setSince] = useState<number | null>(null);
+  const [peakOff, setPeakOff] = useState(false);
+  const [openOff, setOpenOff] = useState(false);
+  const [pushMsg, setPushMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
   useEffect(() => {
-    if (!online || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setPeakOff(readHintOff(HINT_PEAK_KEY));
+    setOpenOff(readHintOff(HINT_OPEN_KEY));
+  }, []);
+
+  // "Online · 0h42": hora de início guardada no aparelho.
+  useEffect(() => {
+    if (statusLoading) return;
+    if (online) {
+      const s = readOnlineSince() ?? Date.now();
+      writeOnlineSince(s);
+      setSince(s);
+    } else {
+      writeOnlineSince(null);
+      setSince(null);
+    }
+  }, [online, statusLoading]);
+
+  // Pontos do nível: só com a gamificação ligada (freio).
+  useEffect(() => {
+    if (!features.gamificationPointsEnabled || !userId) return undefined;
+    let alive = true;
+    api.get(`/gamification/${userId}`).then((r: any) => { if (alive) setGam(r.data); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [features.gamificationPointsEnabled, userId]);
+
+  // Posição do motoboy para o mapa e a distância até a retirada (como a tela antiga).
+  useEffect(() => {
+    if (!online || typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
     const id = navigator.geolocation.watchPosition(
       (p) => setSelf({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {},
+      () => undefined,
       { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 },
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [online]);
 
-  // Polling do pool só quando online. Refetch imediato ao ficar online evita
-  // esperar até 25s (POOL_POLL_MS) pra ver o pool atualizado.
+  // Polling do pool só online (mesma regra da tela antiga).
   useEffect(() => {
-    if (!online) return;
+    if (!online) return undefined;
     refetch?.();
     const t = setInterval(() => refetch?.(), POOL_POLL_MS);
     return () => clearInterval(t);
   }, [online, refetch]);
 
-  const active = ongoing?.[0] || null;
-  const rating = avgRating(history);
-  const kpis = [
-    { label: 'Ganho hoje', value: formatBRL(earningsToday(history)) },
-    { label: 'Entregas hoje', value: String(deliveriesToday(history)) },
-    { label: 'Disponíveis', value: online ? String(pool.length) : '—' },
-    { label: 'Avaliação', value: rating != null ? `${rating.toFixed(1)} ★` : '—' },
-  ];
-
   const toggle = async () => {
     setToggling(true);
-    try { await setOnline(!online); }
-    catch { showToast('Não foi possível mudar seu status. Tente de novo.', 'error'); }
-    finally { setToggling(false); }
+    setToggleError(false);
+    try { await setOnline(!online); } catch { setToggleError(true); } finally { setToggling(false); }
   };
 
-  const claim = async (id: string) => {
-    setAccepting(id);
+  // "Tentar de novo" dos ganhos: uma releitura por vez.
+  const retry = () => { if (!retrying) retrySummary(); };
+
+  const claim = useCallback(async (d: any) => {
+    // Um aceite por vez: a ref barra o 2º toque antes de o botão re-renderizar desabilitado.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setAccepting(d._id);
+    setClaimError(null);
     try {
-      const res = await api.post(`/deliveries/${id}/claim`);
-      // ?nav=1 → a página da entrega abre a navegação automaticamente.
-      router.push(`/motoboy/delivery/${res.data._id}?nav=1`);
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
-        showToast('Essa corrida já foi aceita por outro motoboy.', 'error');
-        setPool((prev: any) => prev.filter((d: any) => d._id !== id));
+      const res = await api.post(`/deliveries/${d._id}/claim`);
+      // Sem ?nav=1 (K1): a navegação abre tocando no mapa da corrida.
+      router.push(MOTOBOY_ROUTES.corrida(String(res?.data?._id ?? d._id)));
+    } catch (err) {
+      const e = apiError(err);
+      if (e.status === 409) {
+        setLost({ variant: e.code === 'ORDER_CLOSED' ? 'closed' : 'claimed', summary: offerSummary(d) });
+        setPool((prev: any[]) => prev.filter((x: any) => x._id !== d._id));
         refetch?.();
+      } else if (e.status === 403 && e.code === 'COURIER_NOT_VERIFIED') {
+        // O servidor recusou por cadastro (C2): trava a tela e relê o estado do cadastro.
+        setNotVerified(true);
+        courier.reload();
       } else {
-        showToast(err?.response?.data?.error || 'Falha ao aceitar a corrida.', 'error');
+        setClaimError(e.message || 'Não deu para aceitar agora. Confira a conexão e tente de novo.');
       }
     } finally {
+      inFlight.current = false;
       setAccepting(null);
     }
+  }, [router, setPool, refetch, courier]);
+
+  const skip = (d: any) => {
+    setSkipped((prev) => new Set(prev).add(String(d._id)));
+    setLost({ variant: 'skipped', summary: offerSummary(d) });
   };
 
-  const reject = (id: string) => setPool((prev: any) => prev.filter((d: any) => d._id !== id));
+  const enablePush = async () => {
+    const ok = await push.enable();
+    if (ok) { setPushMsg({ tone: 'ok', text: 'Notificações ativadas! Você recebe as corridas mesmo com o app fechado.' }); push.sendTest(); }
+    else if (push.permission === 'denied') setPushMsg({ tone: 'err', text: 'Notificações bloqueadas. Libere nas configurações do navegador.' });
+    else setPushMsg({ tone: 'err', text: 'Não foi possível ativar as notificações agora.' });
+  };
+
+  const dismissPeak = () => { setPeakOff(true); writeHintOff(HINT_PEAK_KEY); };
+  const dismissOpen = () => { setOpenOff(true); writeHintOff(HINT_OPEN_KEY); };
+
+  // C2/K3: quem trava é o servidor (requiresVerification ou 403 no aceite). Erro de leitura não trava.
+  const blocked = requiresVerification === true || notVerified;
+  const unfinished = courier.state === 'incomplete' || courier.state === 'review';
+  const visible = (pool || []).filter((d: any) => !skipped.has(String(d._id)));
+  const active = ongoing?.[0] ?? null;
+  const level = gam ? levelProgress(Number(gam.totalPoints ?? gam.points ?? 0)) : null;
+
+  // KPIs só do servidor (K35): erro nunca vira R$ 0,00.
+  const kpis = summaryError ? (
+    <Alert tone="error" title="Não carregamos seus ganhos">
+      Confira sua conexão.{' '}
+      <Button size="sm" variant="secondary" onClick={retry} disabled={retrying} loading={retrying}>Tentar de novo</Button>
+    </Alert>
+  ) : !summary ? (
+    <div className={blocks.kpis}><Skeleton height={72} /><Skeleton height={72} /></div>
+  ) : (
+    <div className={blocks.kpis}>
+      <div className={blocks.kpi}><small>Ganhos hoje</small><b>{formatMoney(summary.today.earnings)}</b><em className={blocks.ok}>{summary.today.count} {summary.today.count === 1 ? 'corrida' : 'corridas'}</em></div>
+      <div className={blocks.kpi}><small>Esta semana</small><b>{formatMoney(summary.week.earnings)}</b><em>{summary.week.count} {summary.week.count === 1 ? 'corrida' : 'corridas'}</em></div>
+    </div>
+  );
+
+  const pushBlock = push.supported && !push.subscribed && (
+    push.permission === 'denied'
+      ? <Alert tone="warning" title="Notificações bloqueadas neste navegador">Libere a permissão de notificações do site para receber corridas com o celular bloqueado.</Alert>
+      : <Alert tone="info" title="Receba corridas com o celular bloqueado" action={{ label: push.busy ? 'Ativando…' : 'Ativar', onClick: enablePush }}>Ative as notificações para ser avisado mesmo com o app fechado.</Alert>
+  );
 
   return (
     <ProtectedRoute required_role="motoboy">
-      <div className={styles.page}>
-        <div className={styles.container}>
-          {/* Header de status */}
-          <header className={styles.header}>
-            <div>
-              <h1 className={styles.title}>Olá, {user?.name?.split(' ')[0] || 'Motoboy'}</h1>
-              <div className={styles.statusRow}>
-                <span className={`${styles.dot} ${online ? styles.dotOn : styles.dotOff}`} />
-                <span className={styles.statusText}>{online ? 'Online' : 'Offline'}</span>
-              </div>
-            </div>
-            <Button onClick={toggle} disabled={toggling || statusLoading} variant={online ? 'tertiary' : 'primary'}>
-              {online ? 'Ficar offline' : 'Ficar online'}
-            </Button>
-          </header>
-
-          <OnboardingResumeBanner />
-
-          {/* Notificações de corrida (Web Push) — só oferece se o navegador suporta e ainda não ativou */}
-          {push.supported && !push.subscribed && push.permission !== 'denied' && (
-            <div className={styles.pushBanner}>
-              <Bell size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <div className={styles.pushText}>
-                <strong>Receba corridas com o celular bloqueado</strong>
-                <span>Ative as notificações para ser avisado mesmo com o app fechado.</span>
-              </div>
-              <Button onClick={enablePush} size="sm" disabled={push.busy}>
-                {push.busy ? 'Ativando…' : 'Ativar'}
-              </Button>
-            </div>
-          )}
-          {push.supported && !push.subscribed && push.permission === 'denied' && (
-            <div className={`${styles.gpsBanner} ${styles.gpsWarn}`}>
-              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <span>Notificações bloqueadas neste navegador. Libere a permissão de notificações nas configurações do site para receber corridas com o celular bloqueado.</span>
-            </div>
-          )}
-          {push.subscribed && (
-            <div className={styles.pushOk}>
-              <BellRing size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <span>Notificações ativas</span>
-              <button className={styles.pushTest} onClick={() => push.sendTest()}>enviar teste</button>
-            </div>
-          )}
-
-          {/* Saúde do GPS — só faz sentido quando online */}
-          {online && gps === 'active' && (
-            <div className={`${styles.gpsBanner} ${styles.gpsOk}`}>
-              <MapPin size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <span>Localização ativa — você está recebendo corridas perto de você.</span>
-            </div>
-          )}
-          {online && gps === 'stale' && (
-            <div className={`${styles.gpsBanner} ${styles.gpsWarn}`} role="alert">
-              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <span>
-                <strong>Localização parada.</strong> Mantenha o app aberto e a tela ligada — com o
-                celular bloqueado ou fora do app, as corridas param de chegar.
-              </span>
-            </div>
-          )}
-          {online && gps === 'denied' && (
-            <div className={`${styles.gpsBanner} ${styles.gpsErr}`} role="alert">
-              <TriangleAlert size={16} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-              <span>
-                <strong>Localização desativada.</strong> Ative a localização do navegador para este
-                site para receber corridas perto de você.
-              </span>
-            </div>
-          )}
-
-          {/* Entrega ativa */}
+      <MotoboyShell
+        title={online ? '' : `${greeting(new Date(now))}, ${firstName}`}
+        lead={online ? <OnlineBadge since={since} now={now} /> : <Avatar name={user?.name || 'Motoboy'} size="sm" />}
+        actions={online ? <PowerButton onClick={toggle} disabled={toggling || statusLoading} /> : <MotoboyBell />}
+      >
+        <div className={styles.screen}>
           {active && (
-            <button className={styles.activeCard} onClick={() => router.push('/motoboy/ongoing')}>
-              <span className={styles.activeIcon}><Package size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /></span>
-              <span className={styles.activeText}>
-                <span className={styles.activeLabel}>Entrega em andamento</span>
-                <span className={styles.activeOrder}>Pedido #{(active.orderId || active._id)?.slice(-6)}</span>
-                <span className={styles.activeCta}>Ver detalhes →</span>
-              </span>
-            </button>
+            <section className={`${blocks.blk} ${blocks.blkBrand}`}>
+              <div className={blocks.head}><b className={blocks.headTitle}>Corrida em andamento</b><span className={blocks.meta}>Pedido #{shortOrderCode(String(active.orderId || active._id))}</span></div>
+              <Button onClick={() => router.push(MOTOBOY_ROUTES.corrida(String(active._id)))}>Continuar corrida</Button>
+            </section>
           )}
 
-          {/* KPIs */}
-          <div className={styles.kpis}>
-            {kpis.map((k) => (
-              <div key={k.label} className={styles.kpi}>
-                <div className={styles.kpiValue}>{k.value}</div>
-                <div className={styles.kpiLabel}>{k.label}</div>
-              </div>
-            ))}
-          </div>
+          {pushMsg && <p role="status" className={pushMsg.tone === 'ok' ? blocks.meta : blocks.errText}>{pushMsg.text}</p>}
+          {toggleError && <p role="alert" className={blocks.errText}>Não foi possível mudar seu status. Tente de novo.</p>}
 
-          {/* Pool / offline */}
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Corridas disponíveis</h2>
-            {!online ? (
-              <EmptyState
-                icon={<WifiOff size={22} strokeWidth={ICON_STROKE_WIDTH} />}
-                title="Você está offline"
-                description="Fique online para receber corridas perto de você."
-                action={<Button onClick={toggle} disabled={toggling}>Ficar online</Button>}
-              />
-            ) : poolLoading ? (
-              <div className={styles.list}><Skeleton height={120} /><Skeleton height={120} /></div>
-            ) : pool.length === 0 ? (
-              <EmptyState
-                icon={<PackageSearch size={22} strokeWidth={ICON_STROKE_WIDTH} />}
-                title="Nenhuma corrida agora"
-                description="Assim que aparecer uma corrida perto, ela surge aqui."
-              />
-            ) : (
-              <div className={styles.list}>
-                {pool.map((d: any) => (
-                  <DeliveryOfferCard key={d._id} delivery={d} accepting={accepting === d._id}
-                    self={self} onAccept={() => claim(d._id)} onReject={() => reject(d._id)} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Atalhos */}
-          <section className={styles.section}>
-            <div className={styles.shortcuts}>
-              {SHORTCUTS.map((s) => {
-                const Ico = s.icon;
-                // No modo direto o motoboy não tem carteira/saque: só vê os Pix recebidos da loja.
-                const label = s.href === '/motoboy/wallet' && settlementMode === 'direto' ? 'Repasses recebidos' : s.label;
-                return (
-                  <button key={s.href} className={styles.shortcut} onClick={() => router.push(s.href)}>
-                    <Ico size={18} className={styles.shortcutIcon} aria-hidden="true" />
-                    <span className={styles.shortcutLabel}>{label}</span>
-                    <ChevronRight size={16} className={styles.shortcutChevron} aria-hidden="true" />
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          {blocked ? (
+            <EmAnalise state={courier.state === 'incomplete' ? 'incomplete' : 'review'} />
+          ) : !online ? (
+            <>
+              <section className={`${blocks.blk} ${styles.offline}`}>
+                <span className={blocks.tag}>Você está offline</span>
+                <button type="button" className={styles.goOnline} onClick={toggle} disabled={toggling || statusLoading}>
+                  <Zap size={20} aria-hidden="true" /> Ficar online
+                </button>
+              </section>
+              {unfinished && (
+                <Alert tone="warning" title="Termine seu cadastro" action={{ label: 'Continuar cadastro', onClick: () => router.push(MOTOBOY_ROUTES.cadastro) }}>
+                  {courier.state === 'review'
+                    ? 'Seus documentos estão em análise. Confira se não falta nada.'
+                    : 'Falta enviar parte da verificação da sua conta.'}
+                </Alert>
+              )}
+              {pushBlock}
+              {kpis}
+              <ul className={blocks.list}>
+                {features.gamificationPointsEnabled && level && (
+                  <NavRow
+                    icon={<Award size={18} />}
+                    iconClassName={blocks.icoBrand}
+                    label={`${level.level} · ${formatPoints(level.points)} pts`}
+                    sub={level.next ? `Faltam ${formatPoints(level.toNext)} pts para ${level.next}` : 'Nível máximo'}
+                    onClick={() => router.push(MOTOBOY_ROUTES.nivel)}
+                  />
+                )}
+                {courier.state === 'error' ? (
+                  <NavRow icon={<TriangleAlert size={18} />} iconClassName={blocks.icoWarn} label="Não carregamos seus documentos" sub="Toque para tentar de novo" onClick={courier.reload} />
+                ) : courier.state === 'verified' ? (
+                  <NavRow icon={<FileCheck2 size={18} />} iconClassName={blocks.icoOk} label="Documentos em dia" sub="Verificação completa" onClick={() => router.push(MOTOBOY_ROUTES.perfil)} />
+                ) : null}
+                <NavRow icon={<ListChecks size={18} />} label="Suas entregas" sub="Em andamento e concluídas" onClick={() => router.push(MOTOBOY_ROUTES.entregas())} />
+              </ul>
+              {push.subscribed && (
+                <p className={blocks.meta}>Notificações ativas · <button type="button" className={blocks.link} onClick={() => push.sendTest()}>enviar teste</button></p>
+              )}
+              {!peakOff && (
+                <div className={styles.hint}>
+                  <span><b>Horário de pico</b>No fim da tarde as ofertas costumam chegar mais rápido.</span>
+                  <button type="button" className={styles.hintClose} aria-label="Dispensar dica" onClick={dismissPeak}><X size={16} aria-hidden="true" /></button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {gps === 'stale' && (
+                <Alert tone="warning" title="Localização parada.">
+                  Mantenha o app aberto e a tela ligada — com o celular bloqueado ou fora do app, as corridas param de chegar.
+                </Alert>
+              )}
+              {gps === 'denied' && (
+                <Alert tone="error" title="Localização desativada.">
+                  Ative a localização do navegador para este site para receber corridas perto de você.
+                </Alert>
+              )}
+              {pushBlock}
+              {lost && <OfferLost variant={lost.variant} summary={lost.summary} onContinue={() => setLost(null)} />}
+              {claimError && <p role="alert" className={blocks.errText}>{claimError}</p>}
+              {poolLoading ? (
+                <div className={blocks.stack}><Skeleton height={300} radius="var(--radius-lg)" /><Skeleton height={160} /></div>
+              ) : visible.length === 0 ? (
+                !lost && (
+                  <>
+                    <section className={`${blocks.blk} ${styles.searching}`} aria-live="polite">
+                      <span className={`${blocks.ico} ${blocks.icoBrand}`} aria-hidden="true"><Bike size={18} /></span>
+                      <span className={styles.searchingTitle}>Procurando corridas perto de você</span>
+                      <span className={blocks.sub}>Assim que aparecer uma corrida perto, ela surge aqui.</span>
+                    </section>
+                    {kpis}
+                    {!openOff && (
+                      <div className={styles.hint}>
+                        <span><b>Mantenha o app aberto</b>Com a tela apagada o GPS para e as corridas deixam de chegar.</span>
+                        <button type="button" className={styles.hintClose} aria-label="Dispensar dica" onClick={dismissOpen}><X size={16} aria-hidden="true" /></button>
+                      </div>
+                    )}
+                  </>
+                )
+              ) : (
+                visible.map((d: any, i: number) => (
+                  <OfferCard
+                    key={d._id}
+                    delivery={d}
+                    self={self}
+                    showMap={i === 0}
+                    accepting={accepting === d._id}
+                    disabled={!!accepting && accepting !== d._id}
+                    onAccept={() => claim(d)}
+                    onSkip={() => skip(d)}
+                  />
+                ))
+              )}
+              {gps === 'active' && visible.length > 0 && (
+                <p className={blocks.meta}><MapPin size={14} aria-hidden="true" /> Localização ativa — você está recebendo corridas perto de você.</p>
+              )}
+            </>
+          )}
         </div>
-      </div>
+      </MotoboyShell>
     </ProtectedRoute>
   );
 }

@@ -10,16 +10,18 @@ export interface CorridasSummary {
 
 const isPart = (p: any) => p && Number.isFinite(p.earnings) && Number.isFinite(p.count);
 
-/** KPIs do Corridas, calculados no servidor (fuso de São Paulo). Erro nunca vira R$ 0,00. */
-export function useCorridasSummary(): { summary: CorridasSummary | null; error: boolean; retry: () => void } {
+/** KPIs do Corridas, calculados no servidor (fuso de São Paulo). Erro nunca vira R$ 0,00.
+ *  `retrying`: a releitura pedida pelo "Tentar de novo" está em voo (a tela trava o botão). */
+export function useCorridasSummary(): { summary: CorridasSummary | null; error: boolean; retrying: boolean; retry: () => void } {
   const { on, onReconnect } = useSocket();
   const [summary, setSummary] = useState<CorridasSummary | null>(null);
   const [error, setError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const seq = useRef(0);
 
-  const load = useCallback(() => {
+  const fetchOnce = useCallback((): Promise<void> => {
     const my = ++seq.current;
-    api.get('/deliveries/summary')
+    return api.get('/deliveries/summary')
       .then((r: any) => {
         if (my !== seq.current) return;
         const d = unwrap<any>(r);
@@ -29,6 +31,7 @@ export function useCorridasSummary(): { summary: CorridasSummary | null; error: 
       })
       .catch(() => { if (my === seq.current) { setSummary(null); setError(true); } });
   }, []);
+  const load = useCallback(() => { fetchOnce(); }, [fetchOnce]);
 
   useEffect(() => {
     load();
@@ -39,5 +42,10 @@ export function useCorridasSummary(): { summary: CorridasSummary | null; error: 
 
   useEffect(() => () => { seq.current++; }, []);
 
-  return { summary, error, retry: load };
+  const retry = useCallback(() => {
+    setRetrying(true);
+    fetchOnce().finally(() => setRetrying(false));
+  }, [fetchOnce]);
+
+  return { summary, error, retrying, retry };
 }

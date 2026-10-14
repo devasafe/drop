@@ -60,3 +60,17 @@ test('falha depois de sucesso derruba o resumo (não mantém número velho como 
   await waitFor(() => expect(result.current.error).toBe(true));
   expect(result.current.summary).toBeNull();
 });
+
+test('retrying: verdadeiro só enquanto a releitura do "Tentar de novo" está em voo, também se falhar de novo', async () => {
+  let fail: (e: any) => void = () => undefined;
+  get.mockRejectedValueOnce(new Error('x')).mockImplementationOnce(() => new Promise((_, rej) => { fail = rej; }));
+  const { result } = renderHook(() => useCorridasSummary());
+  await waitFor(() => expect(result.current.error).toBe(true));
+  expect(result.current.retrying).toBe(false);
+  act(() => { result.current.retry(); });
+  expect(result.current.retrying).toBe(true);
+  await act(async () => { fail(new Error('de novo')); });
+  await waitFor(() => expect(result.current.retrying).toBe(false));
+  expect(result.current.error).toBe(true);
+  expect(result.current.summary).toBeNull();
+});
