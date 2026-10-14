@@ -193,6 +193,29 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       throw e;
     }
 
+    // Preço mostrado ≠ preço atual (lojista editou com a sacola aberta): recusa ANTES de baixar
+    // estoque, criar pedido ou cobrar, e devolve os preços atuais para o app atualizar a sacola.
+    // Opcional: app antigo (sem expectedPrice) segue como sempre, cobrando o preço do banco.
+    const expected = products.filter((p: any) => typeof p?.expectedPrice === 'number');
+    if (expected.length > 0) {
+      const current = await prisma.product.findMany({
+        where: { id: { in: [...new Set(expected.map((p: any) => String(p.productId)))] as string[] } },
+        select: { id: true, price: true },
+      });
+      const priceById = new Map(current.map((c) => [c.id, c.price.toNumber()]));
+      const changed: Array<{ productId: string; price: number }> = [];
+      const seen = new Set<string>();
+      for (const p of expected) {
+        const id = String(p.productId);
+        const now = priceById.get(id);
+        if (now === undefined || seen.has(id)) continue; // inexistente: o laço abaixo devolve 404
+        if (Math.round(now * 100) !== Math.round(Number(p.expectedPrice) * 100)) { changed.push({ productId: id, price: now }); seen.add(id); }
+      }
+      if (changed.length > 0) {
+        return res.status(409).json({ error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items: changed });
+      }
+    }
+
     // ✅ SEGURANÇA + CONSISTÊNCIA: NUNCA confiar na distância enviada pelo frontend.
     // A FONTE DA VERDADE da taxa é o backend, usando DISTÂNCIA DE ROTA (pelas ruas)
     // via RouteService — o mesmo cálculo que o checkout exibe (endpoint /quote).

@@ -112,9 +112,27 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-export const listProducts = async (req: Request<any, any, any, { category?: string; storeId?: string; page?: string; limit?: string }>, res: Response) => {
+/** Teto de ids por GET /products?ids= (conferência da sacola; o pedido aceita até 50 itens). */
+export const MAX_IDS_PER_LOOKUP = 50;
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** "a,b,c" → ids únicos e válidos; null se vazio, malformado ou acima do teto. */
+const parseIdsParam = (raw: unknown): string[] | null => {
+  if (typeof raw !== 'string') return null;
+  const ids = [...new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))];
+  if (ids.length === 0 || ids.length > MAX_IDS_PER_LOOKUP || !ids.every((id) => ID_RE.test(id))) return null;
+  return ids;
+};
+
+export const listProducts = async (req: Request<any, any, any, { category?: string; storeId?: string; page?: string; limit?: string; ids?: string }>, res: Response) => {
   try {
     const { category, storeId } = req.query;
+    // Conferência da sacola em lote (`?ids=a,b,c`): devolve só esses produtos, com os MESMOS gates
+    // da vitrine abaixo. Id ausente, pausado ou de loja oculta simplesmente não volta.
+    const lookupIds = req.query.ids !== undefined ? parseIdsParam(req.query.ids) : undefined;
+    if (lookupIds === null) {
+      return res.status(400).json({ error: `Informe de 1 a ${MAX_IDS_PER_LOOKUP} ids válidos, separados por vírgula.`, code: 'INVALID_IDS' });
+    }
     // Cada restrição entra como um termo do AND — nenhuma sobrescreve a outra
     // (o filtro por loja não pode furar o gate de KYC nem o da mensalidade).
     // D1: produto pausado pelo lojista nunca entra na vitrine (o dono vê pelo /stores/dashboard).
@@ -123,6 +141,7 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     // relação `category` com uma string fazia o Prisma lançar → 500).
     if (category) and.push({ categoryId: String(category) });
     if (storeId) and.push({ storeId: String(storeId) });
+    if (lookupIds) and.push({ id: { in: lookupIds } });
 
     // ✅ GATE KYC Fase 2: com KYC_ENFORCED, só produtos de lojas verificadas
     if (process.env.KYC_ENFORCED === 'true') {
@@ -134,6 +153,11 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
     const billingWhere = await publicStoreBillingWhere();
     if (billingWhere) and.push({ store: billingWhere });
     const filter: any = and.length ? { AND: and } : {};
+
+    if (lookupIds) {
+      const rows = await prisma.product.findMany({ where: filter, include: { category: { select: { name: true } } } });
+      return res.json({ products: rows.map(toApiProduct) });
+    }
 
     // ✅ SEGURANÇA: Paginação
     const page = Math.max(1, Number(req.query.page) || 1);

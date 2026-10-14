@@ -68,6 +68,9 @@ export const OrderProductSchema = z.object({
   // ⚠️ SEGURANÇA: preço é aceito por compatibilidade mas IGNORADO pelo servidor.
   // O preço real vem sempre do banco (ver orderController.createOrder). Nunca confiar no frontend.
   price: z.number().positive().finite().optional(),
+  // Preço que o app MOSTROU. Não define a cobrança (essa vem do banco): se vier e for diferente
+  // do preço atual, o pedido é recusado com 409 PRICE_CHANGED antes de qualquer cobrança.
+  expectedPrice: z.number().nonnegative().finite().optional(),
 });
 
 export const CreateOrderSchema = z.object({
