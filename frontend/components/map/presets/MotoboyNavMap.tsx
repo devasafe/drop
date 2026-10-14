@@ -8,6 +8,8 @@ import { MarkersLayer, LatLng } from '../layers/MarkersLayer';
 import { MapControls } from '../ui/MapControls';
 import { NavCard } from '../ui/NavCard';
 import { parseCoords, haversineKm } from '../../../lib/geo';
+import { useResolvedTheme } from '../../../hooks/useResolvedTheme';
+import { DARK_CUSTOMER_PIN } from '../style/dropDark';
 import api from '../../../lib/api';
 import styles from './MotoboyNavMap.module.css';
 
@@ -47,6 +49,7 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
   const followRef = useRef(true);
   const lastFrom = useRef<LatLng | null>(null);
   const lastLeg = useRef<string | undefined>(undefined);
+  const theme = useResolvedTheme();
 
   useEffect(() => setMounted(true), []);
 
@@ -114,7 +117,7 @@ export function MotoboyNavMap({ delivery, self, onClose, onFinalize, onChat }: P
         }}
       >
         {route?.polyline && <RouteLayer polyline={route.polyline} />}
-        <MarkersLayer store={store} customer={customer} motoboy={self} storeLabel="Loja" customerLabel="Cliente" customerColor="#3ddc84" />
+        <MarkersLayer store={store} customer={customer} motoboy={self} storeLabel="Loja" customerLabel="Cliente" customerColor={theme === 'dark' ? DARK_CUSTOMER_PIN : undefined} />
         <MapControls onRecenter={recenter} />
       </DropMap>
 

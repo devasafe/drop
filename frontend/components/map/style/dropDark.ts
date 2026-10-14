@@ -42,6 +42,9 @@ export const DARK_PALETTE = {
   halo: '#0a0a0e',
 };
 
+/** Pino do cliente no mapa escuro do motoboy ("Cockpit noturno", verde). No claro o pino usa o roxo do CSS. */
+export const DARK_CUSTOMER_PIN = '#3ddc84';
+
 export type DropPalette = typeof DARK_PALETTE;
 
 const FONT = ['Noto Sans Regular'];

@@ -4,6 +4,7 @@ import { DropMapContext } from './DropMapContext';
 import { mapStyleFor } from './style/dropLight';
 import { applyTheme } from './applyTheme';
 import { mapConfig, hasMapKey } from '../../lib/mapConfig';
+import { useResolvedTheme, readResolvedTheme } from '../../hooks/useResolvedTheme';
 import styles from './DropMap.module.css';
 
 export interface DropMapProps {
@@ -31,17 +32,19 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const [ready, setReady] = useState(false);
+  // Tema resolvido (claro/escuro, inclusive o noturno automático do motoboy) e o do estilo carregado no mapa.
+  const theme = useResolvedTheme();
+  const styleThemeRef = useRef(theme);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !hasMapKey()) return;
 
-    const themeNow = (): 'light' | 'dark' =>
-      document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-    let theme = themeNow();
+    const initialTheme = readResolvedTheme();
+    styleThemeRef.current = initialTheme;
 
     const map = new MaplibreMap({
       container: containerRef.current,
-      style: mapStyleFor(theme, mapConfig.maptilerKey),
+      style: mapStyleFor(initialTheme, mapConfig.maptilerKey),
       center: center ?? mapConfig.defaultCenter,
       zoom: zoom ?? mapConfig.defaultZoom,
       attributionControl: false, // adicionada manualmente abaixo (compacta, exigida por ToS)
@@ -63,19 +66,7 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(containerRef.current);
 
-    // Troca de tema em runtime: setStyle descarta as camadas de negócio (rota etc.),
-    // então desmontamos os filhos e os remontamos quando o novo estilo carrega.
-    const mo = new MutationObserver(() => {
-      const next = themeNow();
-      if (next === theme) return;
-      theme = next;
-      setReady(false);
-      applyTheme(map, next, mapConfig.maptilerKey, () => setReady(true));
-    });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-
     return () => {
-      mo.disconnect();
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -83,6 +74,16 @@ export default function DropMap({ center, zoom, className, children, onReady }: 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Troca de tema em runtime: setStyle descarta as camadas de negócio (rota etc.),
+  // então desmontamos os filhos e os remontamos quando o novo estilo carrega.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || theme === styleThemeRef.current) return;
+    styleThemeRef.current = theme;
+    setReady(false);
+    applyTheme(map, theme, mapConfig.maptilerKey, () => setReady(true));
+  }, [theme]);
 
   return (
     <div className={`${styles.wrap} ${className || ''}`}>
