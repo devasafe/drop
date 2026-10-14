@@ -21,3 +21,10 @@ it('start aparece antes do título (ex.: avatar da loja)', () => {
   const h = screen.getByRole('heading', { name: 'Eletro Center' });
   expect(av.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
+
+it('título vazio: sem heading vazio, e a ação continua à direita (espaçador no lugar do título)', () => {
+  const { container } = render(<ScreenHeader title="" start={<span>Online</span>} end={<button>Energia</button>} />);
+  expect(screen.queryByRole('heading')).toBeNull();
+  expect(container.querySelector('h1, h2')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Energia' })).toBeInTheDocument();
+});

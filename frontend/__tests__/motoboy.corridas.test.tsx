@@ -7,7 +7,8 @@ const mockRouter: any = { push: jest.fn(), replace: jest.fn(), query: {}, asPath
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/motoboy/panel/MotoboyShell', () => {
-  const Shell = ({ title, lead, actions, children }: any) => <div>{lead}<h1>{title}</h1>{actions}{children}</div>;
+  // Como o ScreenHeader real: título vazio não vira heading.
+  const Shell = ({ title, lead, actions, children }: any) => <div>{lead}{title ? <h1>{title}</h1> : null}{actions}{children}</div>;
   return { __esModule: true, default: Shell, MotoboyShell: Shell };
 });
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'm1', _id: 'm1', name: 'Carlos Lima', role: 'motoboy' } }) }));
@@ -122,6 +123,8 @@ test('online sem ofertas: procurando, badge Online e energia para ficar offline'
   await renderPage();
   expect(screen.getByText('Procurando corridas perto de você')).toBeInTheDocument();
   expect(screen.getByText(/^Online/)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 1, name: 'Corridas' })).toBeInTheDocument();
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   expect(screen.getByText('R$ 86,40')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Ficar offline' }));
   await waitFor(() => expect(mockStatus.setOnline).toHaveBeenCalledWith(false));
@@ -154,15 +157,14 @@ test('oferta: aceitar vai para a corrida (sem ?nav=1); toque duplo manda um pedi
   expect(mockRouter.push).toHaveBeenCalledWith('/motoboy/corrida/d1');
 });
 
-test('toque duplo antes do re-render (guarda de voo): um pedido só', async () => {
+test('toque duplo no mesmo act (antes do re-render): um pedido só', async () => {
   mockStatus = { ...mockStatus, online: true, gps: 'active' };
   mockPool.deliveries = [offer('d1')];
   post.mockImplementation(() => new Promise(() => undefined));
   await renderPage();
   const btn = within(screen.getByTestId('oferta-d1')).getByRole('button', { name: 'Aceitar por R$ 9,60' });
-  // Dois cliques no mesmo tick, sem o React re-renderizar entre eles (o botão ainda habilitado).
-  const props = Object.entries(btn).find(([k]) => k.startsWith('__reactProps'))![1] as any;
-  await act(async () => { props.onClick({}); props.onClick({}); });
+  // Os dois cliques dentro do mesmo act: o React só re-renderiza (botão desabilitado) no fim dele.
+  await act(async () => { fireEvent.click(btn); fireEvent.click(btn); });
   expect(post).toHaveBeenCalledTimes(1);
 });
 
@@ -235,6 +237,7 @@ test('C2 · 403 COURIER_NOT_VERIFIED no aceite: relê o cadastro e mostra EmAnal
   await waitFor(() => expect(mockCourier.reload).toHaveBeenCalled());
   expect(await screen.findByText('Estamos conferindo seus documentos')).toBeInTheDocument();
   expect(screen.queryByTestId('oferta-d1')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Ficar offline' })).toBeInTheDocument();
   expect(mockRouter.push).not.toHaveBeenCalled();
 });
 
@@ -249,12 +252,14 @@ test('C2 · trava desligada e cadastro incompleto: Ficar online + alerta "Termin
   expect(mockRouter.push).toHaveBeenCalledWith('/motoboy/cadastro');
 });
 
-test('C2 · trava desligada e cadastro em análise: Ficar online + alerta "Termine seu cadastro"', async () => {
+test('C2 · trava desligada e cadastro em análise: Ficar online + aviso "em análise", sem Continuar cadastro', async () => {
   mockCourier = { state: 'review', reload: jest.fn() };
   await renderPage();
   expect(screen.getByRole('button', { name: 'Ficar online' })).toBeInTheDocument();
   expect(screen.queryByText('Estamos conferindo seus documentos')).not.toBeInTheDocument();
-  expect(screen.getByText('Termine seu cadastro')).toBeInTheDocument();
+  expect(screen.getByText('Seus documentos estão em análise')).toBeInTheDocument();
+  expect(screen.queryByText('Termine seu cadastro')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Continuar cadastro' })).not.toBeInTheDocument();
 });
 
 test('C2 · erro ao ler o cadastro e o pool: Ficar online normal, sem trava', async () => {

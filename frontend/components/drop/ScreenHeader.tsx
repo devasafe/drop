@@ -26,7 +26,8 @@ export function ScreenHeader({ title, onBack, backLabel = 'Voltar', end, start, 
         </button>
       )}
       {start}
-      <H className={styles.title}>{title}</H>
+      {/* Título vazio (ex.: Corridas online, o badge no lugar): sem heading vazio; a tela nomeia a si mesma. */}
+      {title ? <H className={styles.title}>{title}</H> : <span className={styles.title} aria-hidden="true" />}
       {meta && <span className={styles.meta}>{meta}</span>}
       {end && <div className={styles.end}>{end}</div>}
     </header>

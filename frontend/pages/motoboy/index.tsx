@@ -170,7 +170,6 @@ export default function CorridasPage() {
 
   // C2/K3: quem trava é o servidor (requiresVerification ou 403 no aceite). Erro de leitura não trava.
   const blocked = requiresVerification === true || notVerified;
-  const unfinished = courier.state === 'incomplete' || courier.state === 'review';
   const visible = (pool || []).filter((d: any) => !skipped.has(String(d._id)));
   const active = ongoing?.[0] ?? null;
   const level = gam ? levelProgress(Number(gam.totalPoints ?? gam.points ?? 0)) : null;
@@ -204,6 +203,8 @@ export default function CorridasPage() {
         actions={online ? <PowerButton onClick={toggle} disabled={toggling || statusLoading} /> : <MotoboyBell />}
       >
         <div className={styles.screen}>
+          {/* Online, o badge ocupa o lugar do título: o nome da tela fica só para o leitor de tela. */}
+          {online && <h1 className={blocks.srOnly}>Corridas</h1>}
           {active && (
             <section className={`${blocks.blk} ${blocks.blkBrand}`}>
               <div className={blocks.head}><b className={blocks.headTitle}>Corrida em andamento</b><span className={blocks.meta}>Pedido #{shortOrderCode(String(active.orderId || active._id))}</span></div>
@@ -224,12 +225,13 @@ export default function CorridasPage() {
                   <Zap size={20} aria-hidden="true" /> Ficar online
                 </button>
               </section>
-              {unfinished && (
+              {courier.state === 'incomplete' && (
                 <Alert tone="warning" title="Termine seu cadastro" action={{ label: 'Continuar cadastro', onClick: () => router.push(MOTOBOY_ROUTES.cadastro) }}>
-                  {courier.state === 'review'
-                    ? 'Seus documentos estão em análise. Confira se não falta nada.'
-                    : 'Falta enviar parte da verificação da sua conta.'}
+                  Falta enviar parte da verificação da sua conta.
                 </Alert>
+              )}
+              {courier.state === 'review' && (
+                <Alert tone="info" title="Seus documentos estão em análise">Avisamos por notificação quando a análise terminar.</Alert>
               )}
               {pushBlock}
               {kpis}
