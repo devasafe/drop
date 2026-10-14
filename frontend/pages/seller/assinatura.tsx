@@ -11,7 +11,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import {
-  formatBRL, saasStatusLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
+  formatBRL, saasStatusLabel, saasTrialDaysLeft, saasTrialLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
 } from '../../lib/saasBilling';
 import blocks from '../../components/seller/ui/SellerBlocks.module.css';
 import styles from './SellerAssinatura.module.css';
@@ -59,7 +59,7 @@ function Assinatura() {
   const pay = data?.nextPayment;
   const payments = Array.isArray(data?.payments) ? data!.payments! : [];
   const daysLeft = data?.status === 'trialing' && data.trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(data.trialEndsAt).getTime() - Date.now()) / 86400000))
+    ? saasTrialDaysLeft(data.trialEndsAt)
     : null;
 
   return (
@@ -72,7 +72,7 @@ function Assinatura() {
             <div className={blocks.head}>
               <span className={[blocks.tag, TAG[data.status] || ''].filter(Boolean).join(' ')}>{saasStatusLabel(data.status)}</span>
             </div>
-            {daysLeft != null && <span className={blocks.big}>{daysLeft === 1 ? 'Falta 1 dia' : `Faltam ${daysLeft} dias`}</span>}
+            {daysLeft != null && <span className={blocks.big}>{saasTrialLabel(daysLeft)}</span>}
             <p className={styles.status}>{saasStatusMessage(data)}</p>
             {data.status === 'past_due' && data.blockAt && (
               <p className={blocks.sub}>{`Pague até ${(formatFullDate(data.blockAt) || '—')} para a sua loja não ser pausada. Pausada, ela sai da vitrine e não recebe pedidos novos.`}</p>

@@ -25,6 +25,28 @@ export function formatBillingDate(iso?: string | null): string {
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+const spDay = (d: Date): number => {
+  const [y, m, day] = d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number);
+  return Date.UTC(y, m - 1, day) / 86400000;
+};
+
+/**
+ * Dias de calendário (São Paulo) de hoje até o dia do fim do teste, o MESMO dia que
+ * formatBillingDate mostra. 0 = último dia; negativo = já encerrou; null = sem data.
+ */
+export function saasTrialDaysLeft(trialEndsAt?: string | null, now: Date = new Date()): number | null {
+  if (!trialEndsAt) return null;
+  const end = new Date(trialEndsAt);
+  if (Number.isNaN(end.getTime())) return null;
+  return spDay(end) - spDay(now);
+}
+
+export function saasTrialLabel(days: number): string {
+  if (days < 0) return 'Teste encerrado';
+  if (days === 0) return 'Último dia';
+  return days === 1 ? 'Falta 1 dia' : `Faltam ${days} dias`;
+}
+
 export function formatBRL(v?: number | null): string {
   return `R$ ${Number(v ?? 0).toFixed(2).replace('.', ',')}`;
 }

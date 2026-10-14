@@ -72,3 +72,20 @@ test('sem style inline', () => {
   const src = fs.readFileSync(path.join(__dirname, '../pages/seller/assinatura.tsx'), 'utf8');
   expect(src).not.toMatch(/style=\{\{/);
 });
+
+describe('teste grátis: contagem bate com a data mostrada (relógio fixo)', () => {
+  afterEach(() => jest.useRealTimers());
+  test.each([
+    ['2026-10-14T13:00:00Z', 'Faltam 9 dias'],
+    ['2026-10-13T13:00:00Z', 'Faltam 10 dias'],
+    ['2026-10-15T00:30:00Z', 'Faltam 9 dias'], // 14/10 21:30 em SP, já 15 em UTC
+    ['2026-10-23T15:00:00Z', 'Último dia'],
+  ])('agora %s -> %s, com "até 23/10/2026"', async (now, label) => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
+    jest.setSystemTime(new Date(now));
+    mockBilling(billing({ status: 'trialing', paidUntil: null, trialEndsAt: '2026-10-24T01:00:00.000Z' }));
+    render(<SellerAssinatura />);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(screen.getByText('Teste grátis até 23/10/2026')).toBeInTheDocument();
+  });
+});
