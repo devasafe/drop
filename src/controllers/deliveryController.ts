@@ -10,6 +10,7 @@ import userRepository from '../repositories/user.repository';
 
 
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
+import { customerAbsentWaitMinutes, customerAbsentAvailableAt } from '../utils/customerAbsent';
 import { defaultGam, findGamByUser, persistGam } from '../repositories/gamification.repository';
 import { getLevel, checkAndAwardBadges } from './gamificationController';
 import notifier from '../services/notifier';
@@ -692,6 +693,9 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     const defaultAddress = customerObj ? getDefaultAddress(customerObj) : null;
     // Motoboy só precisa do telefone enquanto a entrega está em andamento.
     const canSeeCustomerPhone = isCustomer || isStoreOwner || ['assigned', 'picked'].includes(delivery.status);
+    // Cronômetro do "cliente ausente" na tela da corrida: a tela não adivinha a espera.
+    const absentWaitMin = customerAbsentWaitMinutes(await getPlatformConfig());
+    const absentAvailableAt = customerAbsentAvailableAt(delivery, absentWaitMin);
 
     // Monta objeto de resposta com campos de texto e coordenadas para retirada e entrega
     const response = {
@@ -715,6 +719,8 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
         ...(delivery.customerAddress ? {} : { mainAddress: defaultAddress }),
       } : null,
       motoboyObj,
+      customerAbsentWaitMin: absentWaitMin,
+      customerAbsentAvailableAt: absentAvailableAt ? absentAvailableAt.toISOString() : null,
       // Campos para frontend
       pickupAddress: storeObj ? `${storeObj.name || ''} - ${storeObj.address || ''}` : '-',
       pickupLat: storeObj?.latitude ? parseFloat(storeObj.latitude) : null,

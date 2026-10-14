@@ -36,6 +36,7 @@ import env from '../config/env';
 import { refundOrderCharge } from '../services/asaas/refund';
 import { getPaymentProvider } from '../services/paymentProvider';
 import { isDirectOrder } from '../utils/settlement';
+import { customerAbsentWaitMinutes, customerAbsentWaitStart } from '../utils/customerAbsent';
 import {
   directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation, CancellationClaimLostError,
 } from '../services/asaasLoja/directCancellation';
@@ -861,14 +862,12 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
       });
     }
 
-    // Espera mínima: não há coluna `pickedAt` no schema. `persistDelivery`/`update`
-    // sempre tocam `updatedAt` (@updatedAt) e a transição pra 'picked' (validarPinRetirada)
-    // é a ÚLTIMA escrita na entrega antes deste endpoint — então `updatedAt` é o melhor
-    // proxy disponível do horário de retirada, sem precisar de migração de schema.
+    // Espera mínima a partir da retirada (`pickedAt ?? updatedAt`, ver utils/customerAbsent).
+    // O mesmo cálculo alimenta `customerAbsentAvailableAt` no GET /deliveries/:id.
     const cfg = await getPlatformConfig();
-    const waitMin = cfg?.customerAbsentWaitMin ?? 15;
+    const waitMin = customerAbsentWaitMinutes(cfg);
     const waitMs = waitMin * 60 * 1000;
-    const elapsedMs = Date.now() - new Date(deliveryRow.updatedAt).getTime();
+    const elapsedMs = Date.now() - customerAbsentWaitStart(deliveryRow).getTime();
     if (elapsedMs < waitMs) {
       return res.status(400).json({
         error: `Espera mínima de ${waitMin} min ainda não cumprida`,
