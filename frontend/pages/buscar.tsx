@@ -17,10 +17,12 @@ import { useDeliveryAddress } from '../hooks/useDeliveryAddress';
 import { useAddressPicker } from '../hooks/useAddressPicker';
 import { useSearchSuggest } from '../hooks/useSearchSuggest';
 import { useSearch } from '../hooks/useSearch';
+import { useAllProducts } from '../hooks/useAllProducts';
+import { Pagination } from '../components/ui/Pagination';
 import { useStoreQuotes } from '../hooks/useStoreQuotes';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { useStores } from '../hooks/useSync';
-import { useNearbyStores, useOffers } from '../hooks/useCatalogHome';
+import { useNearbyStores } from '../hooks/useCatalogHome';
 import { productCardData } from '../lib/catalogCards';
 import { mapStore } from '../lib/mapStore';
 import { deliveryStates } from '../lib/deliveryView';
@@ -84,12 +86,25 @@ export default function BuscarPage() {
     : null;
   const results = useSearch(editing ? null : query);
   const nearby = useNearbyStores(address.point, 12, { enabled: initial && tab === 'lojas' });
-  const offers = useOffers(address.point, 10, { enabled: initial && tab === 'produtos' });
+  const pageParam = Math.max(1, Math.floor(Number(str(router.query.page))) || 1);
+  const allProducts = useAllProducts(pageParam, { enabled: initial && tab === 'produtos' });
+  const listRef = useRef<HTMLDivElement>(null);
+  const pageChanged = useRef(false);
   const storeIds = useMemo(() => [
     ...(suggest.data?.products ?? []).map((p) => p.storeId),
-    ...(initial && tab === 'produtos' ? offers.products.map((p: any) => p.storeId) : []),
+    ...(initial && tab === 'produtos' ? allProducts.products.map((p: any) => p.storeId) : []),
     ...results.items.map((p: any) => (type === 'stores' ? p._id : p.storeId)),
-  ].filter(Boolean), [suggest.data, results.items, offers.products, initial, tab, type]);
+  ].filter(Boolean), [suggest.data, results.items, allProducts.products, initial, tab, type]);
+  // Página além do fim (ex.: ?page=999): leva para a última válida.
+  useEffect(() => {
+    if (allProducts.loading || allProducts.failed || allProducts.pages < 1 || pageParam <= allProducts.pages) return;
+    router.replace(buscarHref({ page: allProducts.pages }));
+  }, [allProducts.loading, allProducts.failed, allProducts.pages, pageParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Trocou de página: volta ao topo da lista.
+  useEffect(() => {
+    if (!pageChanged.current) { pageChanged.current = true; return; }
+    listRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [pageParam]);
   const { quotes } = useStoreQuotes(storeIds, address.point);
   const noAddress = deliveryStates({ hasPoint: !!address.point, address: address.label, onSetAddress: picker.request, onChangeAddress: picker.request });
 
@@ -139,12 +154,20 @@ export default function BuscarPage() {
         : nearby.stores.length === 0 ? <EmptyState icon={<StoreIcon />} title="Nenhuma loja entrega aqui ainda" description="Tente outro endereço." />
         : <div className={styles.list}>{[...nearby.stores.filter((st: any) => st.quote?.open !== false), ...nearby.stores.filter((st: any) => st.quote?.open === false)].map((st: any) => <StoreCard key={st._id} variant="resultado" store={mapStore(st, st.quote)} onClick={() => openStore(st._id)} />)}</div>}
     </section>
-  ) : (offers.loading || offers.failed || offers.products.length > 0) && (
+  ) : (
     <section className={styles.section}>
-      <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Ofertas</h2></div>
-      {offers.failed ? <EmptyState variant="error" icon={<SearchX />} title="Não carregamos as ofertas" description="Confira sua conexão." onRetry={offers.retry} />
-        : offers.loading ? <div className={styles.list} role="status" aria-label="Carregando ofertas"><Skeleton height={88} /><Skeleton height={88} /><Skeleton height={88} /></div>
-        : <div className={styles.grid}>{productList(offers.products)}</div>}
+      <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Todos os produtos</h2></div>
+      <div ref={listRef} />
+      {allProducts.failed ? <EmptyState variant="error" icon={<SearchX />} title="Não carregamos os produtos" description="Confira sua conexão." onRetry={allProducts.retry} />
+        : allProducts.loading || (allProducts.pages > 0 && pageParam > allProducts.pages) ? <div className={styles.list} role="status" aria-label="Carregando produtos"><Skeleton height={88} /><Skeleton height={88} /><Skeleton height={88} /></div>
+        : allProducts.products.length === 0 ? <EmptyState icon={<SearchX />} title="Nenhum produto por aqui ainda" />
+        : (
+          <>
+            <div className={styles.grid}>{productList(allProducts.products)}</div>
+            <Pagination page={pageParam} pages={allProducts.pages} label="Páginas de produtos"
+              onChange={(n) => router.push(buscarHref({ page: n }))} />
+          </>
+        )}
     </section>
   );
 

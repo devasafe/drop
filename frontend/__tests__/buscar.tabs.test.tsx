@@ -27,6 +27,7 @@ beforeEach(() => {
     if (url.startsWith('/search?') && url.includes('type=stores')) return Promise.resolve({ data: { success: true, data: { items: [{ _id: 's1', name: 'Eletro Center', isOpen: true }], nextCursor: null } } });
     if (url.startsWith('/search?')) return Promise.resolve({ data: { success: true, data: { items: [{ _id: 'p1', name: 'Fone', price: 40, storeId: 's1', quantity: 5 }], nextCursor: null } } });
     if (url.startsWith('/stores/nearby')) return Promise.resolve({ data: { success: true, data: [{ _id: 'n1', name: 'Pet&Cia', isOpen: true, quote: { storeId: 'n1', inArea: true, etaMinutes: [20, 30], fee: 0, freeDelivery: true, open: true, distanceKm: 3, source: 'estimate' } }] } });
+    if (url.startsWith('/products?')) return Promise.resolve({ data: { products: [{ _id: 'o1', name: 'Caderno A5', price: 64.9, storeId: 'c1' }], pagination: { page: 1, limit: 30, total: 1, pages: 1 } } });
     if (url.startsWith('/products/offers')) return Promise.resolve({ data: { success: true, data: [{ _id: 'o1', name: 'Caderno A5', price: 64.9, oldPrice: 79.9, storeId: 'c1' }] } });
     return Promise.resolve({ data: {} });
   });
@@ -69,7 +70,7 @@ test('sem endereço, "Mais perto" e "Abertas agora" ficam desabilitados', () => 
   expect(screen.getByRole('button', { name: 'Abertas agora' })).toBeDisabled();
 });
 
-test('sem termo: Lojas mostra as que entregam perto; Produtos mostra ofertas', async () => {
+test('sem termo: Lojas mostra as que entregam perto; Produtos mostra todos os produtos', async () => {
   mockQuery = { tab: 'lojas' };
   mockAddresses = [casa];
   const { unmount } = render(<BuscarPage />);

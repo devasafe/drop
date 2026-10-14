@@ -43,12 +43,13 @@ export function authHref(path: string, next?: string | null): string {
 
 export type BuscarTab = 'produtos' | 'lojas';
 
-export function buscarHref(p: { q?: string; tab?: BuscarTab; categoria?: string; focus?: boolean } = {}): string {
+export function buscarHref(p: { q?: string; tab?: BuscarTab; categoria?: string; focus?: boolean; page?: number } = {}): string {
   const qs = new URLSearchParams();
   if (p.q) qs.set('q', p.q);
   if (p.tab) qs.set('tab', p.tab);
   if (p.categoria) qs.set('categoria', p.categoria);
   if (p.focus) qs.set('focus', '1');
+  if (p.page && p.page > 1) qs.set('page', String(p.page));
   const s = qs.toString();
   return s ? `${ROUTES.buscar}?${s}` : ROUTES.buscar;
 }
