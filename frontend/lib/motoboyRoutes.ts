@@ -4,6 +4,35 @@
  * Os padrões são os do router.pathname do Next ('/motoboy/corrida/[id]').
  */
 
+export type EntregasSeg = 'andamento' | 'concluidas';
+export type GanhosSeg = 'corridas' | 'saques' | 'notas';
+
+const enc = encodeURIComponent;
+
+/** Fonte única das rotas do painel do motoboy (espelho de SELLER_ROUTES). Ids são codificados. */
+export const MOTOBOY_ROUTES = {
+  // Abas
+  corridas: '/motoboy',
+  ganhos: (seg?: GanhosSeg): string => (seg ? `/motoboy/ganhos?seg=${seg}` : '/motoboy/ganhos'),
+  nivel: '/motoboy/nivel',
+  perfil: '/motoboy/perfil',
+  // Sob a aba Corridas (com a barra)
+  entregas: (seg?: EntregasSeg): string => (seg ? `/motoboy/entregas?seg=${seg}` : '/motoboy/entregas'),
+  // Fluxo (sem barra, com voltar)
+  entrega: (id: string): string => `/motoboy/entregas/${enc(id)}`,
+  corrida: (id: string): string => `/motoboy/corrida/${enc(id)}`,
+  comoCalculamos: '/motoboy/ganhos/como-calculamos',
+  ranking: '/motoboy/ranking',
+  notificacoes: '/motoboy/notificacoes',
+  perfilPublico: (id: string): string => `/motoboy/${enc(id)}`,
+  cadastro: '/motoboy/cadastro',
+  // Subtelas do Perfil (C8)
+  perfilDados: '/motoboy/perfil/dados',
+  perfilAjuda: '/motoboy/perfil/ajuda',
+  // Compartilhada com a loja (clara, V7)
+  recebimento: '/dados-recebimento',
+} as const;
+
 /** As 4 abas, na ordem da barra (protótipo: Corridas · Ganhos · Nível · Perfil). */
 export const MOTOBOY_TAB_ROUTES: string[] = ['/motoboy', '/motoboy/ganhos', '/motoboy/nivel', '/motoboy/perfil'];
 
