@@ -28,8 +28,15 @@ it('tema claro (painel da loja): marca do DS em texto, sem a imagem para fundo e
   expect(link).toHaveTextContent('DROP');
 });
 
-it('tema escuro (motoboy): continua a arte para fundo escuro', () => {
-  mockPath = '/motoboy';
+it('tema escuro (admin): continua a arte para fundo escuro', () => {
+  mockPath = '/admin/dashboard';
   render(<Nav />);
   expect(screen.getByAltText('DROP').getAttribute('src')).toMatch(/logog_png/);
+});
+
+it('motoboy (night-auto, claro de dia): marca do DS, não a arte para fundo escuro', () => {
+  mockPath = '/motoboy';
+  const { container } = render(<Nav />);
+  expect(container.querySelector('img[src*="logog_png"]')).toBeNull();
+  expect(screen.getByRole('link', { name: 'DROP' })).toHaveTextContent('DROP');
 });

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { themeForPath, LIGHT_ROUTES } from '../routeTheme';
+import { themeForPath, LIGHT_ROUTES, MOTOBOY_NIGHT_ROUTES } from '../routeTheme';
 
 const PAGES = path.join(__dirname, '..', '..', 'pages');
 
@@ -23,7 +23,11 @@ describe('tema por rota × páginas reais', () => {
     const light = new Set(LIGHT_ROUTES);
     expect(routes.filter((p) => !light.has(p) && themeForPath(p) === 'light')).toEqual([]);
   });
-  it('toda entrada da lista clara é uma página que existe', () => {
-    expect(LIGHT_ROUTES.filter((r) => !routes.includes(r))).toEqual([]);
+  it('rota fora da lista noturna não fica noturna (padrão dinâmico noturno não engole irmã estática)', () => {
+    const night = new Set(MOTOBOY_NIGHT_ROUTES);
+    expect(routes.filter((p) => !night.has(p) && themeForPath(p) === 'night-auto')).toEqual([]);
+  });
+  it('toda entrada das listas clara e noturna é uma página que existe (página apagada sai da lista no mesmo commit)', () => {
+    expect([...LIGHT_ROUTES, ...MOTOBOY_NIGHT_ROUTES].filter((r) => !routes.includes(r))).toEqual([]);
   });
 });

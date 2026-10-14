@@ -62,7 +62,7 @@ export default function Nav() {
         {/* Logo */}
         {/* No tema claro (ex.: painel da loja no computador) a arte para fundo escuro some no
             branco: usa a marca do DS, que segue os tokens do tema. */}
-        {themeForPath(router.pathname) === 'light' ? (
+        {themeForPath(router.pathname) !== 'dark' ? (
           <Link href={homeHref} className={styles.logo} aria-label="DROP">
             <Logo size="sm" />
           </Link>

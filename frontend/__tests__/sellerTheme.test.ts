@@ -30,7 +30,7 @@ describe('tema do painel da loja (D1)', () => {
   });
 
   it('rotas compartilhadas com outros papéis e os outros painéis continuam escuros', () => {
-    for (const r of ['/verificacao', '/notifications', '/motoboy', '/motoboy/wallet', '/admin/dashboard']) {
+    for (const r of ['/verificacao', '/notifications', '/admin/dashboard']) {
       expect(themeForPath(r)).toBe('dark');
     }
   });
