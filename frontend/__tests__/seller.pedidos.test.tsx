@@ -32,6 +32,8 @@ beforeEach(() => {
   mockPanel = { store: { _id: 's1' }, orders: [o('ord000004819'), o('ord000004823', { status: 'criado', customerName: 'Bruno Reis', delivery: null })], returnRequests: [], dismissReturn: jest.fn(), refresh: jest.fn().mockResolvedValue(undefined), newOrderCount: 1 };
 });
 
+afterEach(() => { jest.useRealTimers(); });
+
 test('abre em Novos quando há pedido aguardando aceite, com os 4 segmentos e contadores', () => {
   mockPanel.orders[1].acceptDeadline = new Date(Date.now() + 4 * 60000).toISOString();
   render(<SellerPedidosPage />);
@@ -78,6 +80,8 @@ test('link antigo ?seg=historico abre Concluídos', async () => {
 
 test('Concluídos separa por período', async () => {
   mockQuery = { seg: 'concluidos' };
+  // relógio fixo (15:00 em São Paulo): "Ontem" não pode depender do horário em que o teste roda
+  jest.useFakeTimers({ doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'], now: new Date('2026-10-14T18:00:00Z') });
   const now = Date.now();
   get.mockResolvedValue({ data: { history: [
     o('ord000004812', { status: 'entregue', createdAt: new Date(now - 60000).toISOString(), delivery: { deliveredAt: new Date(now - 60000).toISOString() } }),
