@@ -7,7 +7,7 @@
  * Teste de comportamento da Etapa 0: as expectativas daqui são INTOCÁVEIS.
  */
 import { act, waitFor } from '@testing-library/react';
-import { ApiMock, SocketHarness, MotoboyServer, GeoHarness, callsTo, flush } from './motoboyHarness';
+import { ApiMock, SocketHarness, MotoboyServer, GeoHarness, callsTo, flush, spyConsole } from './motoboyHarness';
 
 export const CONTRACT_MOTOBOY_ID = 'm-1';
 /** Id fixo da corrida dos contratos (os drivers usam o mesmo literal no mock do router). */
@@ -193,6 +193,309 @@ export function runMotoboyOfferContract(screenName: string, getCtx: () => Motobo
       await waitFor(() => expect(driver.isOffered('d-a')).toBe(false));
       expect(driver.isOffered('d-b')).toBe(true);
       expect(api.post).not.toHaveBeenCalled();
+    });
+  });
+}
+
+// ── corrida ──────────────────────────────────────────────────────────────────
+
+export type GiveBackCode = 'motoboy_unavailable' | 'delivery_failed' | 'address_invalid';
+
+export interface MotoboyRideDriver {
+  /** Monta a tela da corrida `RIDE_ID` com `ctx.server.ride` e resolve quando ela aparece. */
+  mount(): Promise<void>;
+  /** 'pickup' = mostrando o PIN de retirada; 'deliver' = pedindo o PIN do cliente; 'other' = nenhum dos dois. */
+  stage(): 'pickup' | 'deliver' | 'other';
+  /** O PIN de retirada que o motoboy está vendo (só os dígitos), ou null. */
+  visiblePickupPin(): string | null;
+  /** Digita o PIN do cliente e toca em finalizar (se o botão estiver desabilitado, o toque não faz nada). */
+  submitDeliveryPin(pin: string): Promise<void>;
+  /** A tela mostra a corrida como concluída (ou saiu dela para seguir)? */
+  completed(): boolean;
+  /** Abre "devolver/problema", escolhe o motivo e confirma devolver a corrida. */
+  giveBack(code: GiveBackCode): Promise<void>;
+  /** Todo o texto que o motoboy vê agora (tela + avisos). */
+  shownText(): string;
+}
+
+export function runMotoboyRideContract(screenName: string, getCtx: () => MotoboyCtx, driver: MotoboyRideDriver): void {
+  describe(`Etapa 0 · corrida do motoboy (${screenName})`, () => {
+    beforeEach(() => {
+      const { api } = getCtx();
+      api.post.mockReset();
+      api.post.mockResolvedValue({ status: 200, data: { success: true } });
+    });
+
+    describe('retirada', () => {
+      test('mostra o PIN de retirada que veio do servidor', async () => {
+        getCtx().server.ride = ride('assigned');
+        await driver.mount();
+        expect(driver.stage()).toBe('pickup');
+        expect(driver.visiblePickupPin()).toBe(CONTRACT_PICKUP_PIN);
+      });
+
+      test('a loja valida o PIN (delivery:pin_validated): a tela passa sozinha para a entrega', async () => {
+        const { server, socket } = getCtx();
+        server.ride = ride('assigned');
+        await driver.mount();
+        server.ride = ride('picked');
+        socket.fire('delivery:pin_validated', { deliveryId: RIDE_ID, orderId: 'order-ride-000123' });
+        await waitFor(() => expect(driver.stage()).toBe('deliver'));
+        expect(driver.visiblePickupPin()).toBeNull();
+      });
+
+      test('evento de outra corrida não muda a tela', async () => {
+        const { server, socket } = getCtx();
+        server.ride = ride('assigned');
+        await driver.mount();
+        socket.fire('delivery:pin_validated', { deliveryId: 'd-outra', orderId: 'order-outra' });
+        await act(async () => { await flush(100); });
+        expect(driver.stage()).toBe('pickup');
+      });
+
+      test('socket voltou de uma queda: relê GET /deliveries/:id', async () => {
+        const { server, socket, api } = getCtx();
+        server.ride = ride('assigned');
+        await driver.mount();
+        const before = callsTo(api.get, `/deliveries/${RIDE_ID}`).length;
+        socket.reconnect();
+        await waitFor(() => expect(callsTo(api.get, `/deliveries/${RIDE_ID}`).length).toBeGreaterThan(before));
+      });
+    });
+
+    describe('entrega com o PIN do cliente', () => {
+      test('PIN com menos de 5 dígitos não é enviado', async () => {
+        getCtx().server.ride = ride('picked');
+        await driver.mount();
+        await driver.submitDeliveryPin('123');
+        await act(async () => { await flush(100); });
+        expect(callsTo(getCtx().api.post, `/deliveries/${RIDE_ID}/finalizar`)).toHaveLength(0);
+      });
+
+      test('PIN certo: um POST /finalizar com { pin } e a tela fica concluída', async () => {
+        const { server, api } = getCtx();
+        server.ride = ride('picked');
+        api.post.mockImplementation((url: string) => {
+          if (url === `/deliveries/${RIDE_ID}/finalizar`) server.ride = ride('delivered');
+          return Promise.resolve({ status: 200, data: { success: true } });
+        });
+        await driver.mount();
+        await driver.submitDeliveryPin(CONTRACT_DELIVERY_PIN);
+        await waitFor(() => expect(driver.completed()).toBe(true));
+        const calls = callsTo(api.post, `/deliveries/${RIDE_ID}/finalizar`);
+        expect(calls).toHaveLength(1);
+        expect(calls[0][1]).toEqual({ pin: CONTRACT_DELIVERY_PIN });
+      });
+
+      test('PIN errado: mostra a mensagem do servidor, nada concluído e o PIN fora dos logs', async () => {
+        const con = spyConsole();
+        try {
+          getCtx().api.post.mockImplementation((url: string) =>
+            url === `/deliveries/${RIDE_ID}/finalizar`
+              ? Promise.reject({ response: { status: 400, data: { error: 'PIN inválido' } } })
+              : Promise.resolve({ status: 200, data: {} }),
+          );
+          getCtx().server.ride = ride('picked');
+          await driver.mount();
+          await driver.submitDeliveryPin(CONTRACT_DELIVERY_PIN);
+          await waitFor(() => expect(driver.shownText()).toContain('PIN inválido'));
+          expect(driver.completed()).toBe(false);
+          expect(con.text()).not.toContain(CONTRACT_DELIVERY_PIN);
+        } finally {
+          con.restore();
+        }
+      });
+
+      test('PIN travado (429): mostra a mensagem do servidor com o tempo', async () => {
+        getCtx().api.post.mockImplementation((url: string) =>
+          url === `/deliveries/${RIDE_ID}/finalizar`
+            ? Promise.reject({
+                response: { status: 429, data: { error: 'Muitas tentativas de PIN. Tente novamente em 15 min.', code: 'PIN_LOCKED' } },
+              })
+            : Promise.resolve({ status: 200, data: {} }),
+        );
+        getCtx().server.ride = ride('picked');
+        await driver.mount();
+        await driver.submitDeliveryPin(CONTRACT_DELIVERY_PIN);
+        await waitFor(() => expect(driver.shownText()).toMatch(/Muitas tentativas de PIN\. Tente novamente em 15 min\./));
+        expect(driver.completed()).toBe(false);
+      });
+    });
+
+    describe('devolver a corrida', () => {
+      test('antes de retirar: um POST /reject com o motivo escolhido', async () => {
+        const { server, api } = getCtx();
+        server.ride = ride('assigned');
+        await driver.mount();
+        await driver.giveBack('motoboy_unavailable');
+        await waitFor(() => expect(callsTo(api.post, `/deliveries/${RIDE_ID}/reject`)).toHaveLength(1));
+        const body = callsTo(api.post, `/deliveries/${RIDE_ID}/reject`)[0][1];
+        expect(body.reasonCode).toBe('motoboy_unavailable');
+        expect(typeof body.reason).toBe('string');
+        expect(body.reason.trim().length).toBeGreaterThan(0);
+      });
+
+      test('depois de retirar: mostra o código de devolução que o servidor gerou', async () => {
+        const { server, api } = getCtx();
+        server.ride = ride('picked');
+        api.post.mockImplementation((url: string) =>
+          url === `/deliveries/${RIDE_ID}/reject`
+            ? Promise.resolve({
+                status: 202,
+                data: { success: true, isPending: true, statusDevolucao: 'aguardando_confirmacao', pinDevolucao: CONTRACT_RETURN_PIN },
+              })
+            : Promise.resolve({ status: 200, data: {} }),
+        );
+        await driver.mount();
+        await driver.giveBack('delivery_failed');
+        await waitFor(() => expect(driver.shownText()).toContain(CONTRACT_RETURN_PIN));
+        expect(callsTo(api.post, `/deliveries/${RIDE_ID}/reject`)).toHaveLength(1);
+      });
+
+      test('servidor recusa: mostra a mensagem do servidor', async () => {
+        const { server, api } = getCtx();
+        server.ride = ride('assigned');
+        api.post.mockImplementation((url: string) =>
+          url === `/deliveries/${RIDE_ID}/reject`
+            ? Promise.reject({ response: { status: 400, data: { error: 'Entrega não pode ser rejeitada no estado: delivered' } } })
+            : Promise.resolve({ status: 200, data: {} }),
+        );
+        await driver.mount();
+        await driver.giveBack('address_invalid');
+        await waitFor(() => expect(driver.shownText()).toContain('Entrega não pode ser rejeitada no estado: delivered'));
+      });
+    });
+
+    test('corrida cancelada (delivery:cancelled desta corrida): mostra o motivo', async () => {
+      const { server, socket } = getCtx();
+      server.ride = ride('picked');
+      await driver.mount();
+      server.ride = ride('cancelled');
+      socket.fire('delivery:cancelled', {
+        deliveryId: RIDE_ID, status: 'cancelled', reason: 'Cliente desistiu do pedido', cancellationCompensation: null,
+      });
+      await waitFor(() => expect(driver.shownText()).toContain('Cliente desistiu do pedido'));
+    });
+
+    describe('GPS', () => {
+      test('envia delivery:location_updated no máximo a cada 5 s e só se moveu ~10 m', async () => {
+        const { server, socket, geo } = getCtx();
+        server.ride = ride('assigned');
+        await driver.mount();
+        const clock = jest.spyOn(Date, 'now');
+        try {
+          let t = 1_700_000_000_000;
+          clock.mockImplementation(() => t);
+          const sent = () => socket.api.emit.mock.calls.filter((c) => c[0] === 'delivery:location_updated');
+
+          geo.push(-22.9, -43.2, 8);
+          expect(sent()).toHaveLength(1);
+          expect(sent()[0][1]).toEqual(expect.objectContaining({ deliveryId: RIDE_ID, latitude: -22.9, longitude: -43.2, accuracy: 8 }));
+          expect(typeof sent()[0][1].timestamp).toBe('string');
+
+          t += 1_000;
+          geo.push(-22.901, -43.2);
+          expect(sent()).toHaveLength(1); // menos de 5 s
+
+          t += 6_000;
+          geo.push(-22.902, -43.2);
+          expect(sent()).toHaveLength(2);
+
+          t += 6_000;
+          geo.push(-22.902, -43.2);
+          expect(sent()).toHaveLength(2); // não se moveu
+        } finally {
+          clock.mockRestore();
+        }
+      });
+
+      test('corrida entregue não envia posição', async () => {
+        const { server, socket, geo } = getCtx();
+        server.ride = ride('delivered');
+        await driver.mount();
+        geo.push(-22.9, -43.2);
+        expect(socket.api.emit.mock.calls.filter((c) => c[0] === 'delivery:location_updated')).toHaveLength(0);
+      });
+    });
+  });
+}
+
+// ── cliente ausente (sem tela atual: roda a partir da corrida nova, P3) ─────
+
+export interface MotoboyAbsentDriver {
+  /** Monta a tela da corrida `RIDE_ID` (status `picked`) com `ctx.server.ride`. */
+  mount(): Promise<void>;
+  /** A tela deixa encerrar como cliente ausente agora? */
+  canMarkAbsent(): boolean;
+  /**
+   * Faz o gesto completo de "Encerrar como ausente" (inclui confirmação, se houver).
+   * Se o caminho não estiver na tela ou estiver desabilitado, não faz nada.
+   */
+  markAbsent(): Promise<void>;
+  shownText(): string;
+}
+
+export function runMotoboyAbsentContract(screenName: string, getCtx: () => MotoboyCtx, driver: MotoboyAbsentDriver): void {
+  describe(`Etapa 0 · cliente ausente (${screenName})`, () => {
+    const url = `/deliveries/${RIDE_ID}/cliente-ausente`;
+    const past = () => new Date(Date.now() - 60_000).toISOString();
+
+    beforeEach(() => {
+      const { api } = getCtx();
+      api.post.mockReset();
+      api.post.mockResolvedValue({ status: 200, data: { success: true } });
+    });
+
+    test('antes da espera (o servidor diz que libera no futuro): não deixa encerrar', async () => {
+      getCtx().server.ride = ride('picked', { customerAbsentAvailableAt: new Date(Date.now() + 10 * 60_000).toISOString() });
+      await driver.mount();
+      expect(driver.canMarkAbsent()).toBe(false);
+      await driver.markAbsent();
+      await act(async () => { await flush(100); });
+      expect(callsTo(getCtx().api.post, url)).toHaveLength(0);
+    });
+
+    test('depois da espera: um POST /cliente-ausente e mostra o código de devolução', async () => {
+      const { server, api } = getCtx();
+      server.ride = ride('picked', { customerAbsentAvailableAt: past() });
+      api.post.mockImplementation((u: string) =>
+        u === url
+          ? Promise.resolve({ status: 200, data: { success: true, status: 'cancelado', statusDevolucao: 'aguardando_confirmacao', pinDevolucao: CONTRACT_RETURN_PIN } })
+          : Promise.resolve({ status: 200, data: {} }),
+      );
+      await driver.mount();
+      expect(driver.canMarkAbsent()).toBe(true);
+      await driver.markAbsent();
+      await waitFor(() => expect(driver.shownText()).toContain(CONTRACT_RETURN_PIN));
+      expect(callsTo(api.post, url)).toHaveLength(1);
+    });
+
+    test('o servidor diz que ainda falta (400 com remainingMs): mostra o tempo restante do servidor', async () => {
+      const { server, api } = getCtx();
+      server.ride = ride('picked', { customerAbsentAvailableAt: past() });
+      api.post.mockImplementation((u: string) =>
+        u === url
+          ? Promise.reject({ response: { status: 400, data: { error: 'Espera mínima de 15 min ainda não cumprida', waitMinutesRequired: 15, remainingMs: 120_000 } } })
+          : Promise.resolve({ status: 200, data: {} }),
+      );
+      await driver.mount();
+      await driver.markAbsent();
+      await waitFor(() => expect(driver.shownText()).toMatch(/\b2\s*min|\b0?2:00\b/));
+      expect(driver.shownText()).not.toContain(CONTRACT_RETURN_PIN);
+    });
+
+    test('409: relê a corrida', async () => {
+      const { server, api } = getCtx();
+      server.ride = ride('picked', { customerAbsentAvailableAt: past() });
+      api.post.mockImplementation((u: string) =>
+        u === url
+          ? Promise.reject({ response: { status: 409, data: { error: 'Pedido já foi cancelado ou está em processamento' } } })
+          : Promise.resolve({ status: 200, data: {} }),
+      );
+      await driver.mount();
+      const before = callsTo(api.get, `/deliveries/${RIDE_ID}`).length;
+      await driver.markAbsent();
+      await waitFor(() => expect(callsTo(api.get, `/deliveries/${RIDE_ID}`).length).toBeGreaterThan(before));
     });
   });
 }
