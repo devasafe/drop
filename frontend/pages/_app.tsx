@@ -29,6 +29,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect, useRef } from 'react';
 import { ROLE_HOME } from '../lib/navConfig';
 import { isSellerPanelRoute, sellerShowsTabBar, SELLER_ONBOARDING_ROUTES } from '../lib/sellerRoutes';
+import { isMotoboyPanelRoute, motoboyShowsTabBar } from '../lib/motoboyRoutes';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
 import { useRouteTheme } from '../lib/routeTheme';
@@ -70,15 +71,24 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // Painel da loja (D1): menu lateral fixo a partir de 900px, como o app do cliente.
   const isSellerPanel = isSellerPanelRoute(router.pathname);
   // Etapas do cadastro da loja fora de /seller (V13): para o lojista, a mesma moldura do painel.
-  // O motoboy também usa /dados-recebimento (etapa Pix) e mantém a moldura dele.
   const activeRole = user?.activeRole || user?.role;
   const isStoreRole = activeRole === 'lojista' || activeRole === 'seller';
   const isSellerOnboarding = isStoreRole && SELLER_ONBOARDING_ROUTES.includes(router.pathname);
   const sellerFrame = isSellerPanel || isSellerOnboarding;
+  // Painel do motoboy (D2): a mesma moldura da loja. O perfil público (/motoboy/[id]) só entra quando
+  // quem vê é motoboy ("Ver como o cliente vê"); para o cliente, segue a moldura de antes.
+  // A etapa Pix (/dados-recebimento) também ganha a moldura quando o papel ativo é motoboy.
+  const isMotoboyRole = activeRole === 'motoboy';
+  const isMotoboyPanel = isMotoboyPanelRoute(router.pathname)
+    || (isMotoboyRole && router.pathname === '/motoboy/[id]');
+  const motoboyFrame = isMotoboyPanel || (isMotoboyRole && router.pathname === '/dados-recebimento');
+  const panelFrame = sellerFrame || motoboyFrame;
 
-  // Não mostrar chat em páginas específicas. No painel da loja a conversa é por pedido (OrderChatSheet).
+  // Não mostrar chat em páginas específicas. Nos painéis a conversa é por pedido/corrida (OrderChatSheet, RideChatSheet).
   const isChatPage = router.pathname.includes('/chat');
-  const shouldShowChat = !isChatPage && !sellerFrame;
+  // A corrida antiga do motoboy ainda abre a conversa pelo widget; a P3 troca a tela pela sheet e tira esta exceção.
+  const legacyMotoboyChat = router.pathname === '/motoboy/delivery/[id]';
+  const shouldShowChat = !isChatPage && (!panelFrame || legacyMotoboyChat);
 
   // Não mostrar footer em painéis internos
   const isDashboard =
@@ -95,10 +105,13 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   const showBottomChrome = CUSTOMER_TAB_ROUTES.includes(router.pathname);
   // Telas com header próprio no mobile (loja e produto): a Nav global só aparece no desktop.
   const hideChrome = CUSTOMER_HEADERLESS_ROUTES.includes(router.pathname);
-  // Painel da loja (V7): o topo é o da própria tela; a Nav global só aparece no computador.
-  const navDesktopOnly = hideChrome || sellerFrame;
-  // Barra de abas: no painel da loja, só nas 5 abas (e Assinatura); as secundárias têm o voltar.
-  const showPanelBottomNav = isDashboard && (!isSellerPanel || sellerShowsTabBar(router.pathname));
+  // Painéis da loja (V7) e do motoboy (D2): o topo é o da própria tela; a Nav global só aparece no computador.
+  const navDesktopOnly = hideChrome || panelFrame;
+  // Barra de abas: na loja, só nas 5 abas (e Assinatura); no motoboy, só nas 4 abas e em Entregas.
+  // As telas de fluxo têm o voltar.
+  const showPanelBottomNav = isDashboard
+    && (!isSellerPanel || sellerShowsTabBar(router.pathname))
+    && (!isMotoboyPanel || motoboyShowsTabBar(router.pathname));
   // As telas do app do cliente e as etapas do cadastro da loja não têm o rodapé de marketing.
   const shouldShowFooter = !isDashboard && !CUSTOMER_ROUTES.includes(router.pathname)
     && !SELLER_ONBOARDING_ROUTES.includes(router.pathname);
@@ -134,11 +147,11 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         {user && isDashboard && <AppSidebar />}
         {user && showPanelBottomNav && <PanelBottomNav />}
         {CUSTOMER_ROUTES.includes(router.pathname) && <OfflineBanner />}
-        {/* No painel da loja (e nas etapas do cadastro dela) o aviso vira o estado de cadastro do Agora (T5). */}
-        {!sellerFrame && <VerificationBanner />}
+        {/* Nos painéis o aviso vira estado da tela: o Agora da loja (T5) e o Corridas/Perfil do motoboy (D2). */}
+        {!panelFrame && <VerificationBanner />}
         {shouldShowFooter && <SeasonalBanner />}
         <main
-          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}`}
+          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}${user && isMotoboyPanel ? ' panelContentOffsetMotoboy' : ''}`}
           style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
         >
           <PageTransition>

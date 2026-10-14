@@ -83,8 +83,8 @@ describe('moldura do painel da loja (V7)', () => {
     },
   );
 
-  it('fora do painel, o aviso e o chat continuam (motoboy)', () => {
-    renderApp('/motoboy', 'motoboy');
+  it('fora dos painéis novos, o aviso e o chat continuam (admin)', () => {
+    renderApp('/admin/dashboard', 'ceo');
     expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
     expect(screen.getByTestId('chat-fab')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Navegação do painel' })).toBeInTheDocument();
@@ -122,12 +122,4 @@ describe('etapas do cadastro da loja fora de /seller (V13)', () => {
       expect(screen.queryByTestId('footer-marketing')).toBeNull();
     },
   );
-
-  it('motoboy em /dados-recebimento mantém a Nav dele, o aviso e o chat', () => {
-    renderApp('/dados-recebimento', 'motoboy');
-    const navs = screen.getAllByTestId('nav-global');
-    expect(navs.some((n) => n.closest('.navDesktopOnly') === null)).toBe(true);
-    expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-fab')).toBeInTheDocument();
-  });
 });
