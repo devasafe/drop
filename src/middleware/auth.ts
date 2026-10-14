@@ -19,6 +19,37 @@ const JWT_SECRET = env.JWT_SECRET;
 
 const isDev = process.env.NODE_ENV === 'development';
 
+/** Token da requisição: header Authorization (Bearer) ou, na falta dele, o cookie httpOnly. */
+export const readRequestToken = (req: { headers: any; cookies?: any }): string | undefined => {
+  let token: string | undefined;
+  const authHeader = req.headers?.authorization;
+  if (authHeader) {
+    const parts = String(authHeader).split(' ');
+    if (parts.length === 2) token = parts[1];
+  }
+  if (!token) token = extractTokenFromCookie(req) || undefined;
+  return token;
+};
+
+/** Verifica a ASSINATURA do JWT com o segredo do servidor. Lança se inválido/expirado. */
+export const verifyAuthToken = (token: string): JwtPayload => jwt.verify(token, JWT_SECRET as string) as JwtPayload;
+
+/**
+ * Id do usuário do token da requisição, só se a assinatura confere (sem consultar o banco).
+ * Serve para chavear o rate limit por usuário; NÃO autoriza nada — rota protegida usa `authenticate`.
+ */
+export const verifiedUserIdFromRequest = (req: { headers: any; cookies?: any }): string | null => {
+  if (!JWT_SECRET) return null;
+  const token = readRequestToken(req);
+  if (!token) return null;
+  try {
+    const id = verifyAuthToken(token)?.id;
+    return id ? String(id) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (isDev) {
     logger.debug(`🔐 [AUTH] ${req.method} ${req.path}`);
@@ -34,15 +65,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
   }
 
   // Token pode vir do header Authorization OU do cookie httpOnly (fallback).
-  let token: string | undefined;
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-    const parts = authHeader.split(' ');
-    if (parts.length === 2) token = parts[1];
-  }
-  if (!token) {
-    token = extractTokenFromCookie(req) || undefined;
-  }
+  const token = readRequestToken(req);
   if (!token) {
     if (isDev) console.error(`🔐 [AUTH FAIL] ${req.path} - No token (header/cookie)`);
     return res.status(401).json({ error: 'No token provided' });
@@ -50,7 +73,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
 
   let decoded: JwtPayload;
   try {
-    decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    decoded = verifyAuthToken(token);
   } catch (err) {
     if (isDev) console.error(`🔐 [AUTH FAIL] ${req.path} - Invalid token`);
     return res.status(401).json({ error: 'Invalid token' });
@@ -93,11 +116,8 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
  */
 export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
   try {
-    let token: string | undefined;
-    const parts = (req.headers.authorization || '').split(' ');
-    if (parts.length === 2) token = parts[1];
-    if (!token) token = extractTokenFromCookie(req) || undefined;
-    if (token && JWT_SECRET) req.user = jwt.verify(token, JWT_SECRET) as JwtPayload as any;
+    const token = readRequestToken(req);
+    if (token && JWT_SECRET) req.user = verifyAuthToken(token) as any;
   } catch {
     // token inválido/expirado → anônimo
   }

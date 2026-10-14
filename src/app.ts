@@ -2,7 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import { createApiLimiter } from './middleware/apiLimiter';
 import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import path from 'path';
@@ -80,25 +80,10 @@ app.use(cookieParser()); // ✅ SEGURANÇA: Parse cookies
 // inputs para prevenir NoSQL injection em queries do Mongo.
 app.use(mongoSanitize());
 
-// ✅ SEGURANÇA: Rate limiting para endpoints críticos
-const validateAndFormatIp = (req: any): string => {
-  let ip = req.ip || req.connection?.remoteAddress || 'unknown';
-  if (ip?.startsWith('::ffff:')) {
-    ip = ip.slice(7);
-  }
-  return ip;
-};
-
+// ✅ SEGURANÇA: limite geral da API, 100/min por usuário (JWT verificado) ou por IP (sem usuário).
 // Rate limit específico de login/registro vive em routes/auth.ts.
 // Rate limit de criação de pedido vive em routes/orders.ts (createOrderLimiter).
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: validateAndFormatIp,
-  skip: (req) => env.NODE_ENV === 'test',
-});
+const apiLimiter = createApiLimiter({ skip: () => env.NODE_ENV === 'test' });
 
 // Log de requisições — apenas fora de produção (evita ruído e vazamento de paths/dados em prod)
 if (env.NODE_ENV !== 'production') {
@@ -115,7 +100,7 @@ if (env.NODE_ENV !== 'production') {
 // Health check endpoint
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// ✅ SEGURANÇA: rate limit geral por IP em toda a API (100/min). Os limites
+// ✅ SEGURANÇA: rate limit geral em toda a API (100/min por usuário ou, sem usuário, por IP). Os limites
 // específicos de login/registro e criação de pedido já vivem nas suas rotas.
 app.use('/api', apiLimiter);
 
