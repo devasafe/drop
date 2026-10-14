@@ -28,7 +28,7 @@ import { Sheet } from '../../components/ui/Sheet';
 import { RadioRow } from '../../components/ui/RadioRow';
 import { formatRating } from '../../components/ui/Rating';
 import { Alert } from '../../components/ui/Alert';
-import { initials } from '../../components/ui/Avatar';
+import { StoreLogo } from '../../components/drop/StoreLogo';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SearchField } from '../../components/ui/SearchField';
@@ -49,6 +49,8 @@ type StoreWithPlan = {
   plan?: number;
   coverBannerUrl?: string;
   featuredBannerUrl?: string;
+  logoUrl?: string | null;
+  tagline?: string | null;
   ownerId?: string;
   street?: string;
   latitude?: string;
@@ -87,7 +89,7 @@ export default function StorePage() {
 
   const [store, setStore] = useState<StoreWithPlan | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [unavailable, setUnavailable] = useState<null | { _id: string; name: string; neighborhood?: string | null; city?: string | null }>(null);
+  const [unavailable, setUnavailable] = useState<null | { _id: string; name: string; neighborhood?: string | null; city?: string | null; logoUrl?: string | null }>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -252,7 +254,7 @@ export default function StorePage() {
     <div className={styles.page}>
       <header className={styles.hero}>
         <div className={styles.cover} style={cover ? { backgroundImage: `url(${cover})` } : undefined} aria-hidden="true">
-          {!cover && <span className={styles.initials}>{initials(store.name)}</span>}
+          {!cover && <StoreLogo className={styles.initials} name={store.name} src={store.logoUrl} width={240} />}
         </div>
         <span className={styles.back}>
           <IconButton
@@ -271,8 +273,9 @@ export default function StorePage() {
           />
         </span>
         <div className={styles.head}>
-          <span className={styles.logo} aria-hidden="true">{initials(store.name)}</span>
+          <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} />
           <h1 className={styles.title}>{store.name}</h1>
+          {store.tagline && <p className={styles.tagline}>{store.tagline}</p>}
           <p className={styles.meta}>{[store.neighborhood || store.city, quote?.distanceKm != null ? `${String(quote.distanceKm).replace('.', ',')} km` : null].filter(Boolean).join(' · ')}</p>
           <div className={styles.facts} aria-live="polite">
             {typeof store.ratingAverage === 'number' && <span className={styles.rating}>{`★ ${formatRating(store.ratingAverage)} (${store.ratingCount})`}</span>}

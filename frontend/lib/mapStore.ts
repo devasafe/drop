@@ -9,6 +9,7 @@ export function mapStore(store: any, quote?: DeliveryQuote | null): StoreCardDat
   const base: StoreCardData = {
     name: store.name,
     imageUrl: imageUrl(store.featuredBannerUrl || store.coverBannerUrl, { w: 1000 }) || undefined,
+    logoUrl: store.logoUrl || undefined,
     status: (hours.pausedBackAt ? false : quote ? quote.open : hours.open) ? 'aberta' : 'fechada',
     category:
       [store.neighborhood, store.city].filter(Boolean).join(' • ') ||

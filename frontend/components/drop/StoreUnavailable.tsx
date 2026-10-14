@@ -4,15 +4,15 @@ import { useDeliveryAddress } from '../../hooks/useDeliveryAddress';
 import { useNearbyStores } from '../../hooks/useCatalogHome';
 import { mapStore } from '../../lib/mapStore';
 import { buscarHref, lojaHref } from '../../lib/routes';
-import { initials } from '../ui/Avatar';
 import { IconButton } from '../ui/IconButton';
 import { ICON_BUTTON_STROKE_WIDTH } from '../ui/Icon';
 import { Button } from '../ui/Button';
 import { StoreCard } from './StoreCard';
+import { StoreLogo } from './StoreLogo';
 import styles from './StoreUnavailable.module.css';
 
 export interface StoreUnavailableProps {
-  store: { _id: string; name: string; neighborhood?: string | null; city?: string | null };
+  store: { _id: string; name: string; neighborhood?: string | null; city?: string | null; logoUrl?: string | null };
 }
 
 /** Loja pausada (link ou QR): a cara continua reconhecível e há sempre uma saída. Nunca diz o motivo. */
@@ -28,7 +28,7 @@ export function StoreUnavailable({ store }: StoreUnavailableProps) {
         <IconButton variant="onImage" aria-label="Voltar" icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />} onClick={() => router.back()} />
       </span>
       <header className={styles.head}>
-        <span className={styles.logo} aria-hidden="true">{initials(store.name)}</span>
+        <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} />
         <h1 className={styles.title}>{store.name}</h1>
         {(store.neighborhood || store.city) && <p className={styles.meta}>{[store.neighborhood, store.city].filter(Boolean).join(' · ')}</p>}
         <span className={styles.pill}>Fora do ar por enquanto</span>

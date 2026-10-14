@@ -85,3 +85,13 @@ test('cotação que falha (ex.: 429) não fica em "Calculando entrega…"', asyn
   await waitFor(() => expect(screen.queryByText('Calculando entrega…')).not.toBeInTheDocument());
   expect(screen.getByRole('heading', { name: 'Eletro Center' })).toBeInTheDocument();
 });
+
+test('logo da loja aparece na página pública; falha volta às iniciais; frase curta', async () => {
+  mockStores = [{ _id: 's1', name: 'Eletro Center', isOpen: true, plan: 2, logoUrl: 'https://res.cloudinary.com/x/image/upload/v1/logo.png', tagline: 'Som e carga' }];
+  render(<StorePage />);
+  const imgs = await screen.findAllByAltText('Logo de Eletro Center');
+  expect(screen.getByText('Som e carga')).toBeInTheDocument();
+  imgs.forEach((i) => fireEvent.error(i));
+  expect(screen.queryByAltText('Logo de Eletro Center')).toBeNull();
+  expect(screen.getAllByText('EC').length).toBeGreaterThan(0);
+});

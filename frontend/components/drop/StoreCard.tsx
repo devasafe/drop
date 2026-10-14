@@ -4,7 +4,7 @@ import { StatusPill, StoreStatus } from '../ui/StatusPill';
 import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import { Badge } from '../ui/Badge';
 import { formatRating } from '../ui/Rating';
-import { initials } from '../ui/Avatar';
+import { StoreLogo } from './StoreLogo';
 import { formatMoney } from '../../lib/money';
 import { formatEtaRange } from '../../lib/deliveryView';
 import styles from './StoreCard.module.css';
@@ -12,6 +12,8 @@ import styles from './StoreCard.module.css';
 export interface StoreCardData {
   name: string;
   imageUrl?: string;
+  /** Logo do lojista (`Store.logoUrl`); sem ele, a linha mostra as iniciais. */
+  logoUrl?: string;
   status: StoreStatus;
   category: string;
   /** Prazo, frete e área são opcionais: sem dado, o pedaço não é renderizado
@@ -117,13 +119,7 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
   const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : km(store.distanceKm);
   return (
     <div className={[styles.row, closed && styles.dim].filter(Boolean).join(' ')} {...interactiveProps}>
-      <span
-        className={styles.logo}
-        style={store.imageUrl ? { backgroundImage: `url(${store.imageUrl})` } : undefined}
-        aria-hidden="true"
-      >
-        {!store.imageUrl && initials(store.name)}
-      </span>
+      <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} width={96} />
       <div className={styles.meta}>
         <div className={styles.rowName}>{store.name}</div>
         <div className={[styles.sub, store.outOfArea && styles.off].filter(Boolean).join(' ')}>{subLine(store)}</div>
