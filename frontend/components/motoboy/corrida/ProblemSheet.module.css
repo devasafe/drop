@@ -1,0 +1,15 @@
+.body { display: flex; flex-direction: column; gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.label { font: var(--text-label); color: var(--color-text-primary); }
+.textarea {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1.5px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-body);
+  resize: vertical;
+}
+.textarea:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
+.buttons { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); }
