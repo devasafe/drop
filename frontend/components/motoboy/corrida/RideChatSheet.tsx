@@ -35,6 +35,7 @@ export function RideChatSheet({ open, onClose, deliveryId, orderId, kind, otherP
   const [text, setText] = useState('');
   const [sendError, setSendError] = useState(false);
   const joined = useRef<string | null>(null);
+  const sending = useRef(false);
 
   useEffect(() => {
     if (!open || !deliveryId) return undefined;
@@ -66,7 +67,8 @@ export function RideChatSheet({ open, onClose, deliveryId, orderId, kind, otherP
 
   const send = async (t: string) => {
     const body = t.trim().slice(0, MAX_TEXT);
-    if (!body || !convId) return;
+    if (!body || !convId || sending.current) return;
+    sending.current = true;
     setText('');
     setSendError(false);
     try {
@@ -76,19 +78,25 @@ export function RideChatSheet({ open, onClose, deliveryId, orderId, kind, otherP
     } catch {
       setText(body);
       setSendError(true);
+    } finally {
+      sending.current = false;
     }
   };
 
   // Lição da Task 68 (D1): `chat:new_message` chega de todas as conversas; o fio só mostra esta.
   const thread = convId
-    ? chat.messages.filter((m: any) => !m.conversationId || String(m.conversationId) === convId)
+    ? chat.messages.filter((m: any) => String(m.conversationId ?? '') === convId)
     : [];
   const replies = kind === 'loja_motoboy' ? QUICK_REPLIES.motoboyLoja : QUICK_REPLIES.motoboyCliente;
 
   return (
     <Sheet open={open} onClose={onClose} presentation="bottom" title={`Conversa com ${otherName}`}>
       <div className={styles.body}>
-        <Alert tone="warning">Não combine pagamento fora do app. O código de entrega o cliente diz pessoalmente.</Alert>
+        <Alert tone="warning">
+          {kind === 'motoboy_cliente'
+            ? 'Não combine pagamento fora do app. O código de entrega o cliente fala pessoalmente — não peça por mensagem.'
+            : 'Não combine pagamento fora do app.'}
+        </Alert>
         <section className={styles.thread} aria-live="polite" aria-label="Mensagens">
           {failed ? (
             <Alert tone="error" title="Não abrimos a conversa" action={{ label: 'Tentar de novo', onClick: () => setAttempt((n) => n + 1) }}>

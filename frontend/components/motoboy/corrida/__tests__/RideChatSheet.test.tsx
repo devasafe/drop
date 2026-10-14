@@ -76,6 +76,32 @@ test('mensagem de outra conversa não entra no fio', async () => {
   expect(screen.queryByText('Segredo de outra corrida')).not.toBeInTheDocument();
 });
 
+test('mensagem sem conversationId não aparece no fio', async () => {
+  render(<RideChatSheet {...props} kind="loja_motoboy" otherParticipantId="s1" otherName="Eletro Center" />);
+  await screen.findByText('Já está separado');
+  act(() => { handlers['chat:new_message']({ _id: 'x3', text: 'Sem conversa', senderId: 'u9', createdAt: '2026-10-14T12:42:00Z' }); });
+  expect(screen.queryByText('Sem conversa')).not.toBeInTheDocument();
+});
+
+test('dois toques rápidos numa resposta pronta geram um POST só', async () => {
+  render(<RideChatSheet {...props} kind="loja_motoboy" otherParticipantId="s1" otherName="Eletro Center" />);
+  await screen.findByText('Já está separado');
+  const btn = screen.getByRole('button', { name: 'Cheguei na loja' });
+  fireEvent.click(btn);
+  fireEvent.click(btn);
+  await screen.findByText('Cheguei na loja', { selector: 'p' });
+  expect(post.mock.calls.filter((c) => c[0] === '/chat/conversations/cv1/messages')).toHaveLength(1);
+});
+
+test('aviso do código de entrega só na conversa com o cliente', async () => {
+  const { unmount } = render(<RideChatSheet {...props} kind="loja_motoboy" otherParticipantId="s1" otherName="Eletro Center" />);
+  await screen.findByText('Já está separado');
+  expect(screen.queryByText(/código de entrega/)).not.toBeInTheDocument();
+  unmount();
+  render(<RideChatSheet {...props} kind="motoboy_cliente" otherParticipantId="c1" otherName="Ana" />);
+  expect(screen.getByText(/não peça por mensagem/)).toBeInTheDocument();
+});
+
 test('falha ao abrir mostra "Tentar de novo" e tenta de novo', async () => {
   post.mockRejectedValueOnce(new Error('x'));
   render(<RideChatSheet {...props} kind="loja_motoboy" otherParticipantId="s1" otherName="Eletro Center" />);

@@ -2,7 +2,7 @@
 .thread { flex: 1; min-height: 200px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; }
 .quick { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-pill);
