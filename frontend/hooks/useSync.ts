@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import AuthContext from '../contexts/AuthContext';
 import api from '../lib/api';
 import { useSocket } from '../contexts/SocketContext';
 
@@ -199,11 +200,32 @@ export const useDeliveries = () => {
   return { deliveries, loading, setDeliveries, refetch };
 };
 
+/**
+ * Leitura de /notifications compartilhada entre as instâncias montadas ao mesmo tempo (Nav + página):
+ * um pedido em voo por vez. Na releitura por reconexão (V16) as instâncias disparam juntas → 1 GET.
+ */
+let notificationsInFlight: Promise<any[]> | null = null;
+const fetchNotificationsShared = (): Promise<any[]> => {
+  if (notificationsInFlight) return notificationsInFlight;
+  const req: Promise<any[]> = api
+    .get('/notifications')
+    .then((res) => {
+      // ✅ FIX: Suporta tanto array direto quanto { notifications: [...] }
+      const data = Array.isArray(res.data) ? res.data : res.data?.notifications || [];
+      return Array.isArray(data) ? data : [];
+    })
+    .finally(() => {
+      if (notificationsInFlight === req) notificationsInFlight = null;
+    });
+  notificationsInFlight = req;
+  return req;
+};
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const { on } = useSocket();
+  const { on, onReconnect } = useSocket();
 
   useEffect(() => {
     // Não tentar buscar notificações sem token (usuário deslogado em páginas
@@ -218,12 +240,8 @@ export const useNotifications = () => {
 
     const fetchNotifications = async () => {
       try {
-        const res = await api.get('/notifications');
-        // ✅ FIX: Suporta tanto array direto quanto { notifications: [...] }
-        const notificationsData = Array.isArray(res.data)
-          ? res.data
-          : res.data?.notifications || [];
-        setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+        const notificationsData = await fetchNotificationsShared();
+        setNotifications(notificationsData);
         const unread = (notificationsData || []).filter((n: any) => !n.read).length;
         setUnreadCount(unread);
         setLoading(false);
@@ -251,15 +269,21 @@ export const useNotifications = () => {
 
     const unsubscribe1 = on('notification:received', handleNotificationReceived);
     const unsubscribe2 = on('notification:read', handleNotificationRead);
+    // Socket voltou de uma queda: relê o que pode ter chegado nesse meio tempo (V16).
+    const unsubscribe3 = onReconnect?.(fetchNotifications);
 
     return () => {
       unsubscribe1();
       unsubscribe2();
+      unsubscribe3?.();
     };
-  }, [on]);
+  }, [on, onReconnect]);
 
   return { notifications, unreadCount, loading, setNotifications };
 };
+
+/** Contexto vazio para quando AuthContext não existe (mocks de teste sem export default). */
+const NoAuthContext = createContext<unknown>(undefined);
 
 type BadgeCounts = { verifications: number; storeOrders: number; deliveries: number };
 const ZERO_BADGES: BadgeCounts = { verifications: 0, storeOrders: 0, deliveries: 0 };
@@ -299,26 +323,41 @@ export const resetBadgeCountsCache = () => {
   badgeStore.listeners.clear();
 };
 
+/** Chave do número: usuário + papel ativo (/badges depende do papel; switchRole troca o número). */
+const badgeKeyOf = (u: any): string | null => {
+  if (!u) return null;
+  const id = u._id ?? u.id;
+  if (id === undefined || id === null) return null;
+  return `${String(id)}:${String(u.activeRole || u.role || '')}`;
+};
+
 const readBadgeUserKey = (): string | null => {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('user');
   if (!raw) return null;
   try {
-    const u = JSON.parse(raw);
-    return String(u?._id ?? u?.id ?? raw);
+    return badgeKeyOf(JSON.parse(raw)) ?? raw;
   } catch {
     return raw;
   }
 };
 
-/** Troca de usuário: descarta o número do anterior. */
-const syncBadgeUser = (userKey: string) => {
+/** Troca de usuário/papel (ou logout, com null): descarta o número do anterior e avisa as instâncias. */
+const syncBadgeUser = (userKey: string | null) => {
   if (badgeStore.userKey === userKey) return;
   badgeStore.userKey = userKey;
   badgeStore.counts = ZERO_BADGES;
   badgeStore.loadedAt = 0;
   badgeStore.again = false;
   badgeStore.inFlight = null; // resposta do usuário anterior é ignorada (checa userKey)
+  if (badgeStore.timer) { clearTimeout(badgeStore.timer); badgeStore.timer = null; }
+  badgeStore.listeners.forEach((l) => l(ZERO_BADGES));
+};
+
+/** Releitura por reconexão: todas as instâncias disparam juntas; só a 1ª pede (as outras pegam carona). */
+const refreshBadgesAfterReconnect = () => {
+  if (badgeStore.inFlight || badgeStore.listeners.size === 0) return;
+  void fetchBadgeCounts();
 };
 
 const fetchBadgeCounts = (): Promise<void> => {
@@ -366,14 +405,28 @@ const scheduleBadgeRefetch = () => {
  * Atualiza em tempo real pelos eventos socket já existentes.
  */
 export const useBadgeCounts = () => {
+  // Sessão do AuthContext quando houver (logout/switchRole sem recarregar a página); sem ele, o localStorage.
+  const auth = useContext(AuthContext || NoAuthContext) as any;
+  const hasAuth = auth !== undefined && auth !== null;
+  const authKey = hasAuth ? badgeKeyOf(auth.user) : undefined;
+  const authPending = hasAuth && !auth.user && auth.loading === true;
+  const loggedOut = hasAuth && !auth.user && !authPending;
+
   const [counts, setCounts] = useState<BadgeCounts>(() => {
-    const key = readBadgeUserKey();
+    const key = hasAuth ? authKey : readBadgeUserKey();
     return key && key === badgeStore.userKey ? badgeStore.counts : ZERO_BADGES;
   });
-  const { on } = useSocket();
+  const { on, onReconnect } = useSocket();
 
   useEffect(() => {
-    const userKey = readBadgeUserKey();
+    if (loggedOut) {
+      // Logout: a Nav continua montada; não pode mostrar o número do usuário anterior.
+      if (badgeStore.userKey !== null) syncBadgeUser(null);
+      setCounts(ZERO_BADGES);
+      return;
+    }
+    if (authPending) return;
+    const userKey = hasAuth ? authKey : readBadgeUserKey();
     if (!userKey) return;
     syncBadgeUser(userKey);
 
@@ -386,16 +439,19 @@ export const useBadgeCounts = () => {
 
     // Eventos que mudam alguma das contagens → re-busca (debounce compartilhado).
     const unsubs = BADGE_EVENTS.map((e) => on(e, scheduleBadgeRefetch));
+    // Socket voltou de uma queda → uma releitura para todas as instâncias (V16).
+    const unsubReconnect = onReconnect?.(refreshBadgesAfterReconnect);
 
     return () => {
       badgeStore.listeners.delete(listener);
       unsubs.forEach((u) => u());
+      unsubReconnect?.();
       if (badgeStore.listeners.size === 0 && badgeStore.timer) {
         clearTimeout(badgeStore.timer);
         badgeStore.timer = null;
       }
     };
-  }, [on]);
+  }, [on, onReconnect, hasAuth, authKey, authPending, loggedOut]);
 
   return counts;
 };
@@ -652,7 +708,7 @@ export const useDeliveryHistory = () => {
 export const useOrder = (orderId?: string) => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { on } = useSocket();
+  const { on, onReconnect } = useSocket();
 
   useEffect(() => {
     if (!orderId) {
@@ -719,13 +775,13 @@ export const useOrder = (orderId?: string) => {
     const unsub3 = on('order:accepted_by_store', handleOrderAcceptedByStore);
     const unsub4 = on('motoboy:assigned', handleMotoboyAssigned);
     const unsub5 = on('delivery:picked', handleDeliveryPicked);
+    // Socket voltou de uma queda: relê o pedido aberto (aceite/cancelamento podem ter chegado na queda).
+    const unsub6 = onReconnect?.(fetchOrder);
 
     return () => {
-      unsub1(); unsub2(); unsub3(); unsub4(); unsub5();
-
-
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6?.();
     };
-  }, [orderId, on]);
+  }, [orderId, on, onReconnect]);
 
   return { order, loading, setOrder };
 };
@@ -733,7 +789,7 @@ export const useOrder = (orderId?: string) => {
 export const useDelivery = (deliveryId?: string) => {
   const [delivery, setDelivery] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { on } = useSocket();
+  const { on, onReconnect } = useSocket();
 
   useEffect(() => {
     if (!deliveryId) {
@@ -806,14 +862,13 @@ export const useDelivery = (deliveryId?: string) => {
     const unsub4 = on('delivery:picked', handleDeliveryPicked);
     const unsub5 = on('delivery:pin_validated', handlePinValidated);
     const unsub6 = on('delivery:completed', handleDeliveryCompleted);
+    // Socket voltou de uma queda: relê a entrega aberta.
+    const unsub7 = onReconnect?.(fetchDelivery);
 
     return () => {
-      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6();
-
-
-
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7?.();
     };
-  }, [deliveryId, on]);
+  }, [deliveryId, on, onReconnect]);
 
   return { delivery, loading, setDelivery };
 };

@@ -4,6 +4,7 @@ import api from '../../../lib/api';
 import AuthContext from '../../../contexts/AuthContext';
 import { connectSocket } from '../../../lib/socket';
 import { useSocketListener } from '../../../hooks/useAutoRefetch';
+import SocketContext from '../../../contexts/SocketContext';
 import { ReturnRequest, mergeReturns, pendingReturnsFromOrders, sameId, upsertReturn } from './sellerPanelState';
 
 export type { ReturnRequest } from './sellerPanelState';
@@ -96,6 +97,14 @@ function SellerPanelRoot({ children }: { children: ReactNode }) {
     setLoading(true);
     load();
   }, [userKey, sessionPending, load]);
+
+  // Socket voltou de uma queda: relê o painel (pedido novo/devolução emitidos na queda). O
+  // SocketProvider limita a uma releitura a cada 30 s se o socket oscilar (V16).
+  const onReconnect = useContext(SocketContext)?.onReconnect; // opcional: sem provider, sem releitura
+  useEffect(() => {
+    if (!userKey || !onReconnect) return;
+    return onReconnect(() => { load(); });
+  }, [userKey, onReconnect, load]);
 
   // Sala da loja: entra ao saber o id e de novo a cada reconexão.
   const storeId: string | null = store?._id ? String(store._id) : null;

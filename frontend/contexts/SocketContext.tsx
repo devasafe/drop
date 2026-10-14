@@ -6,7 +6,16 @@ interface SocketContextType {
   isReconnecting: boolean;
   on: (event: string, handler: (...args: any[]) => void) => () => void; // retorna unsubscribe function
   emit: (event: string, ...args: any[]) => void;
+  /**
+   * Avisa quando o socket VOLTA depois de uma queda (nunca na 1ª conexão), para quem precisa reler
+   * o que pode ter perdido. Disparos espaçados por no mínimo RECONNECT_REFRESH_MIN_MS, compartilhado
+   * por todos os inscritos. Retorna a função de cancelar a inscrição.
+   */
+  onReconnect: (cb: () => void) => () => void;
 }
+
+/** Intervalo mínimo entre duas releituras por reconexão (socket oscilando não vira avalanche, V16). */
+export const RECONNECT_REFRESH_MIN_MS = 30_000;
 
 const SocketContext = createContext<SocketContextType | null>(null);
 
@@ -34,6 +43,31 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
     attachedRef.current = socket;
   };
 
+  // Releitura depois de reconectar: só num `connect` que vem depois de um `disconnect`, no máximo
+  // uma a cada RECONNECT_REFRESH_MIN_MS. Se a última foi há menos tempo, agenda uma para quando
+  // completar o intervalo (não descarta: o que caiu na 2ª queda também precisa ser relido).
+  const reconnectSubsRef = useRef(new Set<() => void>());
+  const everConnectedRef = useRef(false);
+  const droppedRef = useRef(false);
+  const lastReconnectRefreshRef = useRef(0);
+  const reconnectRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fireReconnect = () => {
+    lastReconnectRefreshRef.current = Date.now();
+    reconnectSubsRef.current.forEach((cb) => {
+      try { cb(); } catch { /* um inscrito com erro não impede os outros */ }
+    });
+  };
+  const signalReconnect = () => {
+    if (reconnectRefreshTimerRef.current) return; // já há uma agendada
+    const last = lastReconnectRefreshRef.current;
+    const wait = last ? last + RECONNECT_REFRESH_MIN_MS - Date.now() : 0;
+    if (wait <= 0) { fireReconnect(); return; }
+    reconnectRefreshTimerRef.current = setTimeout(() => {
+      reconnectRefreshTimerRef.current = null;
+      fireReconnect();
+    }, wait);
+  };
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -41,28 +75,35 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
     socketRef.current = socket;
     attachAll(socket);
 
-    socket.on('connect', () => {
+    const onConnect = () => {
       console.log('✅ [Socket] Conectado ao servidor');
       setIsConnected(true);
       setIsReconnecting(false);
       reconnectAttemptsRef.current = 0;
-    });
+      if (everConnectedRef.current && droppedRef.current) signalReconnect();
+      everConnectedRef.current = true;
+      droppedRef.current = false;
+    };
+    socket.on('connect', onConnect);
 
-    socket.on('disconnect', (reason: string) => {
+    const onDisconnect = (reason: string) => {
       console.warn(`⚠️ [Socket] Desconectado: ${reason}`);
       setIsConnected(false);
+      droppedRef.current = true;
       
       // Reconectar automaticamente se for desconexão anormal
       if (!['io client namespace disconnect', 'io server namespace disconnect', 'nsp namespace disconnect', 'io server namespace disconnect'].includes(reason)) {
         setIsReconnecting(true);
         scheduleReconnect(socket);
       }
-    });
+    };
+    socket.on('disconnect', onDisconnect);
 
-    socket.on('connect_error', (err) => {
+    const onConnectError = (err: any) => {
       console.error('🔴 [Socket] Erro de conexão:', err);
       setIsReconnecting(true);
-    });
+    };
+    socket.on('connect_error', onConnectError);
 
     // Ao voltar pro app (fechou o Waze/Google Maps, desbloqueou a tela), o socket
     // pode ter caído e o backoff estar agendado pra daqui a até 30s. Reconecta JÁ,
@@ -82,7 +123,15 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (reconnectRefreshTimerRef.current) {
+        clearTimeout(reconnectRefreshTimerRef.current);
+        reconnectRefreshTimerRef.current = null;
+      }
       document.removeEventListener('visibilitychange', onVisible);
+      // sem isso, cada alternância de `enabled` (logout → login) duplicava os handlers no socket único
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
     };
   }, [enabled]);
 
@@ -115,8 +164,13 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
     socket.emit(event, ...args);
   }, []);
 
+  const onReconnect = useCallback((cb: () => void) => {
+    reconnectSubsRef.current.add(cb);
+    return () => { reconnectSubsRef.current.delete(cb); };
+  }, []);
+
   return (
-    <SocketContext.Provider value={{ isConnected, isReconnecting, on, emit }}>
+    <SocketContext.Provider value={{ isConnected, isReconnecting, on, emit, onReconnect }}>
       {children}
     </SocketContext.Provider>
   );

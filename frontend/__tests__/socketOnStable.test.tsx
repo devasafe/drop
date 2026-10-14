@@ -103,7 +103,7 @@ afterEach(() => {
 });
 
 describe('SocketContext · on estável entre conexões (V16)', () => {
-  it('quedas e voltas do socket não refazem /badges nem /notifications', async () => {
+  it('quedas e voltas do socket não refazem /badges nem /notifications por troca de `on`', async () => {
     render(
       <SocketProvider enabled>
         <Probe />
@@ -113,9 +113,10 @@ describe('SocketContext · on estável entre conexões (V16)', () => {
     flapSocket(2); // connect, disconnect, connect, disconnect, connect
     await act(async () => {});
 
-    // 1: as 3 instâncias de useBadgeCounts dividem a mesma leitura (era 3 antes do cache em módulo)
-    expect(calls('/badges')).toBe(1);
-    expect(calls('/notifications')).toBe(1);
+    // montagem: 1 (as 3 instâncias de useBadgeCounts dividem a leitura) + 1 releitura pela 1ª volta
+    // do socket (fix 1). A 2ª volta, < 30 s depois, só agenda (socketReconnectRefresh.v16 cobre o resto).
+    expect(calls('/badges')).toBe(2);
+    expect(calls('/notifications')).toBe(2);
   });
 
   it('quem se inscreveu antes de o socket existir recebe os eventos depois da conexão', async () => {

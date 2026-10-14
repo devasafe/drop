@@ -22,6 +22,8 @@ jest.mock('../../lib/api', () => ({ __esModule: true, default: { get: (url: stri
 
 // eslint-disable-next-line import/first
 import { useBadgeCounts, resetBadgeCountsCache } from '../useSync';
+// eslint-disable-next-line import/first
+import AuthContext from '../../contexts/AuthContext';
 
 const badgeCalls = () => mockGet.mock.calls.filter(([u]) => u === '/badges').length;
 const Badge = ({ id }: { id: string }) => {
@@ -106,5 +108,47 @@ describe('useBadgeCounts · leitura compartilhada (V16)', () => {
     render(<Trio />);
     await act(async () => {});
     expect(badgeCalls()).toBe(0);
+  });
+
+  it('trocar o papel ativo (switchRole) não mostra o número do papel anterior', async () => {
+    const withUser = (u: any) => (
+      <AuthContext.Provider value={{ user: u, loading: false } as any}>
+        <Badge id="a" />
+      </AuthContext.Provider>
+    );
+    const { rerender } = render(withUser({ _id: 'u1', role: 'lojista', activeRole: 'lojista' }));
+    await act(async () => {});
+    expect(screen.getByTestId('a').textContent).toBe('2');
+    mockStoreOrders = 0;
+    rerender(withUser({ _id: 'u1', role: 'lojista', activeRole: 'cliente' }));
+    expect(screen.getByTestId('a').textContent).toBe('0');
+    await act(async () => {});
+    expect(badgeCalls()).toBe(2); // relê para o papel novo mesmo com o número de < 15 s
+  });
+
+  it('logout zera o número na Nav que continua montada', async () => {
+    const withUser = (u: any) => (
+      <AuthContext.Provider value={{ user: u, loading: false } as any}>
+        <Badge id="a" />
+      </AuthContext.Provider>
+    );
+    const { rerender } = render(withUser({ _id: 'u1', role: 'lojista', activeRole: 'lojista' }));
+    await act(async () => {});
+    expect(screen.getByTestId('a').textContent).toBe('2');
+    localStorage.clear();
+    rerender(withUser(null));
+    await act(async () => {});
+    expect(screen.getByTestId('a').textContent).toBe('0');
+    // outro usuário que entra logo depois não herda o número
+    mockStoreOrders = 9;
+    rerender(
+      <AuthContext.Provider value={{ user: { _id: 'u2', role: 'lojista', activeRole: 'lojista' }, loading: false } as any}>
+        <Badge id="a" />
+        <Badge id="b" />
+      </AuthContext.Provider>,
+    );
+    expect(screen.getByTestId('b').textContent).toBe('0');
+    await act(async () => {});
+    expect(screen.getByTestId('b').textContent).toBe('9');
   });
 });
