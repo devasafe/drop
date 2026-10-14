@@ -8,6 +8,6 @@ export const HELP_FAQ: { q: string; a: string }[] = [
 /** Dúvidas do lojista: só apontam para onde o painel já mostra a informação. */
 export const SELLER_HELP_FAQ: { q: string; a: string }[] = [
   { q: 'Onde vejo o que tenho a receber?', a: 'Na aba Dinheiro. O valor de cada pedido aparece como a receber e é liberado depois da entrega.' },
-  { q: 'O cliente pediu devolução. E agora?', a: 'Abra a aba Pedidos e entre em Devoluções. Lá você vê o motivo e responde ao pedido.' },
+  { q: 'O motoboy não conseguiu entregar. E agora?', a: 'O pedido aparece na aba Pedidos, em Devoluções, enquanto o motoboy volta com o produto. Quando ele chegar, confira o pacote e digite o PIN que ele mostrar para confirmar o recebimento.' },
   { q: 'Como troco de plano ou de comissão?', a: 'Na aba Loja, em Plano e comissão. Você compara as opções e pede a troca por lá.' },
 ];
