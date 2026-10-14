@@ -1,0 +1,83 @@
+/* Aba Corridas (protótipo: Cockpit offline, Online com oferta, Procurando corridas, Oferta perdida, Em análise). */
+.screen { display: flex; flex-direction: column; gap: var(--space-3); }
+.bell, .power {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.bell:focus-visible, .power:focus-visible, .goOnline:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
+.power:disabled { color: var(--color-text-disabled); cursor: not-allowed; }
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: var(--color-on-action);
+  font: var(--text-caption);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.offline { align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-5) var(--space-4); }
+/* "Ficar online": 64 px, pill, na zona do polegar (protótipo). */
+.goOnline {
+  width: 100%;
+  height: 64px;
+  border: 0;
+  border-radius: 32px;
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  font: var(--text-body-lg);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.goOnline:hover { background: var(--color-action-primary-hover); }
+.goOnline:disabled { background: var(--color-action-disabled); cursor: not-allowed; }
+.offerWrap { display: flex; flex-direction: column; gap: var(--space-3); }
+.mapTall { border-radius: var(--radius-lg); overflow: hidden; }
+.offer { gap: var(--space-3); box-shadow: var(--elevation-3); }
+.value { display: flex; align-items: baseline; gap: var(--space-2); }
+.legs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-3); }
+.legs > li { display: flex; align-items: flex-start; gap: var(--space-3); }
+.legDot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: var(--radius-pill); border: 2px solid var(--color-action-primary); background: var(--color-surface-default); }
+.legDone .legDot { background: var(--color-action-primary); }
+.offerButtons { display: grid; grid-template-columns: 92px 1fr; gap: var(--space-2); }
+.centerText { text-align: center; }
+.lost { gap: var(--space-2); }
+.lostTitle { font: var(--text-title); color: var(--color-text-primary); }
+.searching { align-items: center; text-align: center; gap: var(--space-2); }
+.searchingTitle { font: var(--text-title); color: var(--color-text-primary); }
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-info-subtle);
+  color: var(--color-info-text);
+  font: var(--text-meta);
+}
+.hint b { display: block; font: var(--text-label); }
+.hintClose { margin-left: auto; border: 0; background: none; color: inherit; cursor: pointer; min-width: var(--touch-min); min-height: var(--touch-min); }
+.timeline { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-3); }
+.timeline > li { display: flex; align-items: flex-start; gap: var(--space-3); font: var(--text-body); color: var(--color-text-secondary); }
+.timeline time { margin-left: auto; font: var(--text-caption); color: var(--color-text-muted); }
+.tlDone .legDot { background: var(--color-success); border-color: var(--color-success); }
+.tlNow .legDot { border-color: var(--color-action-primary); background: var(--color-action-primary); }
+.tlNext { color: var(--color-text-muted); }
