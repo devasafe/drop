@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Bell, Search, Store as StoreIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -56,7 +56,14 @@ export default function Inicio() {
   const { showToast } = useToast();
   // "De novo": o pedido antigo só diz QUAL produto; preço, nome e foto são os de agora (o preço do
   // pedido é histórico — o lojista pode ter editado o produto). Avisa quando o preço mudou.
+  // Toque duplo enquanto a consulta está no ar não põe 2 unidades.
+  const adding = useRef(new Set<string>());
   const addAgain = async (r: RepeatItem) => {
+    if (adding.current.has(r.productId)) return;
+    adding.current.add(r.productId);
+    try { await addCurrent(r); } finally { adding.current.delete(r.productId); }
+  };
+  const addCurrent = async (r: RepeatItem) => {
     const res = await fetchCurrentProduct(r.productId);
     if (res.status === 'gone') return showToast('Este produto não está mais disponível.', 'error');
     if (res.status === 'soldout') return showToast(`${res.name} esgotou.`, 'error');

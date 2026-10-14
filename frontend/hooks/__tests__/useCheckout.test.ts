@@ -106,7 +106,7 @@ test('placeOrder envia payload com idempotentKey e abre pix', async () => {
   const payload = mockedApi.post.mock.calls.find(c => c[0] === '/orders')?.[1] as Record<string, unknown> | undefined;
   expect(payload?.storeId).toBe('s1');
   expect(payload?.idempotentKey).toBeTruthy();
-  expect(payload?.products).toEqual([{ productId: 'p1', quantity: 2, price: 50 }]);
+  expect(payload?.products).toEqual([{ productId: 'p1', quantity: 2, price: 50, expectedPrice: 50 }]);
   expect(result.current.pixData?.orderId).toBe('o1');
 });
 

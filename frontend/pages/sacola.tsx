@@ -48,6 +48,8 @@ const PAUSE_MESSAGES: Record<string, string> = {
 const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
 const STORE_GONE_MSG = 'Esta loja não está mais disponível';
 const STORE_LOOKUP_FAILED_MSG = 'Não deu para carregar a loja';
+const PRICES_CHECKING_MSG = 'Conferindo os preços…';
+const PRICES_FAILED_MSG = 'Não conferimos os preços agora';
 
 export default function SacolaPage() {
   const router = useRouter();
@@ -55,7 +57,10 @@ export default function SacolaPage() {
   const cart = useCart() || ({} as any);
   const c = useCheckout();
   // Preço, nome e estoque dos itens conferidos com o servidor: o total da tela é o que será cobrado.
-  useCartRevalidation();
+  // Fail closed: sem a conferência voltar com sucesso, não se paga.
+  const prices = useCartRevalidation();
+  // O servidor recusou o pedido com 409 PRICE_CHANGED (preço mudou entre a conferência e o toque).
+  const [priceRejected, setPriceRejected] = useState(false);
   const { settlementMode, directCardEnabled } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
@@ -131,6 +136,8 @@ export default function SacolaPage() {
   const hint = storePaused ? 'A loja não está recebendo pedidos agora'
     : storeGone?.reason === 'gone' ? STORE_GONE_MSG
     : c.storeLookupFailed ? STORE_LOOKUP_FAILED_MSG
+    : prices.status === 'checking' ? PRICES_CHECKING_MSG
+    : prices.status === 'failed' ? PRICES_FAILED_MSG
     : !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
     : c.storeOpen === false ? 'A loja está fechada agora'
     : c.outOfArea ? 'Esta loja não entrega nesse endereço'
@@ -167,6 +174,7 @@ export default function SacolaPage() {
     const r = await c.placeOrder();
     if (!r.ok && r.code && STORE_UNAVAILABLE_CODES.includes(r.code)) { setUnavailable(true); return; }
     if (!r.ok && r.code && PAUSE_MESSAGES[r.code]) { showToast(PAUSE_MESSAGES[r.code], 'error'); return; }
+    if (!r.ok && r.code === 'PRICE_CHANGED') setPriceRejected(true);
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
 
@@ -218,6 +226,14 @@ export default function SacolaPage() {
               <Alert tone="error" title={STORE_LOOKUP_FAILED_MSG} action={{ label: 'Tentar de novo', onClick: c.retryStoreLookup }}>
                 Sem os dados da loja não dá para calcular a entrega.
               </Alert>
+            )}
+            {prices.status === 'failed' && (
+              <Alert tone="error" title={PRICES_FAILED_MSG} action={{ label: 'Tentar de novo', onClick: prices.retry }}>
+                Sem conferir os preços com a loja, não dá para pagar.
+              </Alert>
+            )}
+            {(prices.notice || priceRejected) && (
+              <Alert tone="warning" title="Os preços mudaram">{prices.notice || 'Confira os valores novos da sacola antes de pagar.'}</Alert>
             )}
             <div aria-live="polite">
               {items.map((i) => (

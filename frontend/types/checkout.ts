@@ -61,6 +61,8 @@ export interface OrderProduct {
   productId: string;
   quantity: number;
   price?: number;
+  /** Preço que o app MOSTROU. Se o do servidor for outro, ele recusa com 409 PRICE_CHANGED antes de cobrar. */
+  expectedPrice?: number;
 }
 
 // Cartão à vista (Fase 1) — POST /orders com paymentMethod:'credit_card' exige

@@ -71,3 +71,14 @@ test('erro de rede: não põe preço velho na sacola, pede para tentar de novo',
   await waitFor(() => expect(showToast).toHaveBeenCalledWith('Não conseguimos adicionar agora. Tente de novo.', 'error'));
   expect(add).not.toHaveBeenCalled();
 });
+
+test('toque duplo durante a consulta: põe 1 unidade só', async () => {
+  render(<Inicio />);
+  const btn = screen.getByRole('button', { name: 'De novo: RedBull' });
+  fireEvent.click(btn);
+  fireEvent.click(btn);
+  await waitFor(() => expect(add).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 0));
+  expect(add).toHaveBeenCalledTimes(1);
+  expect(get.mock.calls.filter(([u]) => u === '/products/p1')).toHaveLength(1);
+});

@@ -5,14 +5,16 @@ const push = jest.fn();
 const back = jest.fn();
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 jest.mock('next/router', () => ({ useRouter: () => ({ push, back }) }));
-jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
+const showToast = jest.fn();
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast }) }));
 jest.mock('../contexts/CartContext', () => ({ useCart: () => ({ cart: [], add: jest.fn() }) }));
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: 'custodia', directCardEnabled: false, loading: false }) }));
 jest.mock('../hooks/useCheckout', () => ({ useCheckout: jest.fn() }));
 jest.mock('../components/drop/checkout/PixPaymentSheet', () => ({ PixPaymentSheet: () => null }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(() => new Promise(() => {})), post: jest.fn(() => Promise.resolve({ data: { data: [] } })) } }));
-const revalidate = jest.fn();
-jest.mock('../hooks/useCartRevalidation', () => ({ useCartRevalidation: () => revalidate() }));
+const retry = jest.fn();
+let prices: { status: 'checking' | 'ok' | 'failed'; notice: string | null; retry: () => void } = { status: 'ok', notice: null, retry };
+jest.mock('../hooks/useCartRevalidation', () => ({ useCartRevalidation: () => prices }));
 
 import SacolaPage from '../pages/sacola';
 import { useCheckout } from '../hooks/useCheckout';
@@ -41,9 +43,49 @@ function hook(over: Record<string, unknown> = {}) {
 }
 beforeEach(() => { push.mockClear(); back.mockClear(); setPaymentMethod.mockClear(); });
 
+const payButton = () => screen.getByRole('button', { name: /^Pagar/ });
+const hintOf = (btn: HTMLElement) => document.getElementById(btn.getAttribute('aria-describedby') as string);
+beforeEach(() => { prices = { status: 'ok', notice: null, retry }; retry.mockClear(); showToast.mockClear(); });
 
-test('a Sacola confere preço, nome e estoque atuais dos itens com o servidor', () => {
+test('conferindo os preços: pagar fica desabilitado e diz por quê', () => {
+  prices = { ...prices, status: 'checking' };
   mocked.mockReturnValue(hook());
   render(<SacolaPage />);
-  expect(revalidate).toHaveBeenCalled();
+  expect(payButton()).toBeDisabled();
+  expect(hintOf(payButton())).toHaveTextContent('Conferindo os preços…');
+});
+
+test('conferência falhou: Alert com "Tentar de novo" e pagar continua bloqueado (fail closed)', () => {
+  prices = { ...prices, status: 'failed' };
+  mocked.mockReturnValue(hook());
+  render(<SacolaPage />);
+  expect(screen.getByRole('alert')).toHaveTextContent('Não conferimos os preços agora');
+  expect(payButton()).toBeDisabled();
+  expect(hintOf(payButton())).toHaveTextContent('Não conferimos os preços agora');
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  expect(retry).toHaveBeenCalled();
+});
+
+test('preços conferidos: pagar liberado', () => {
+  mocked.mockReturnValue(hook());
+  render(<SacolaPage />);
+  expect(payButton()).toBeEnabled();
+});
+
+test('preço mudou na conferência: aviso fixo "Os preços mudaram"', () => {
+  prices = { ...prices, notice: 'O preço de RedBull mudou: agora R$ 19,00.' };
+  mocked.mockReturnValue(hook());
+  render(<SacolaPage />);
+  expect(screen.getByText('Os preços mudaram')).toBeInTheDocument();
+  expect(screen.getByText('O preço de RedBull mudou: agora R$ 19,00.')).toBeInTheDocument();
+});
+
+test('servidor recusou com PRICE_CHANGED: avisa "Os preços mudaram" e pede para conferir antes de pagar de novo', async () => {
+  const placeOrder = jest.fn(async () => ({ ok: false, code: 'PRICE_CHANGED', error: 'Os preços mudaram. Confira a sacola.' }));
+  mocked.mockReturnValue(hook({ placeOrder }));
+  render(<SacolaPage />);
+  fireEvent.click(payButton());
+  expect(await screen.findByText('Os preços mudaram')).toBeInTheDocument();
+  expect(screen.getByText('Confira os valores novos da sacola antes de pagar.')).toBeInTheDocument();
+  expect(showToast).toHaveBeenCalledWith('Os preços mudaram. Confira a sacola.', 'error');
 });

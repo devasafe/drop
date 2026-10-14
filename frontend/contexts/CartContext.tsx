@@ -78,10 +78,10 @@ export const CartProvider = ({ children }: any) => {
 
   /**
    * Aplica o estado ATUAL dos produtos (servidor) aos itens da sacola: preço, nome e foto passam a ser
-   * os de agora; `null` tira o item (removido, pausado ou esgotado). Funcional sobre o estado mais
+   * os de agora (só os campos enviados); `null` tira o item (removido, pausado ou esgotado). Funcional sobre o estado mais
    * recente, para não perder uma mudança de quantidade feita enquanto a consulta estava no ar.
    */
-  const syncItems = (fresh: Record<string, { name: string; price: number; image?: string | null } | null>) => {
+  const syncItems = (fresh: Record<string, { name?: string; price?: number; image?: string | null } | null>) => {
     setCart((prev) => {
       const next = prev
         .filter((x) => fresh[x.productId] !== null)

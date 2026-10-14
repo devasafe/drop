@@ -77,7 +77,7 @@ interface UserProfileResponse {
 
 export function useCheckout() {
   const router = useRouter();
-  const { cart, clear, updateQuantity, removeItem } = useCart();
+  const { cart, clear, updateQuantity, removeItem, syncItems } = useCart();
   const { user } = useAuth();
   const { stores, loading: storesLoading } = useStores();
   const address = useCheckoutAddress();
@@ -341,7 +341,7 @@ export function useCheckout() {
       const addrStr = `${sel.street}, ${sel.number} - ${sel.neighborhood}, ${sel.city} - ${sel.state}, ${sel.cep}`;
       const payload: PlaceOrderPayload = {
         storeId,
-        products: cart.map((c: { productId: string; quantity: number; price?: number }) => ({ productId: c.productId, quantity: c.quantity, price: c.price })),
+        products: cart.map((c: { productId: string; quantity: number; price?: number }) => ({ productId: c.productId, quantity: c.quantity, price: c.price, expectedPrice: c.price })),
         deliveryDistanceKm: isPlan1 ? 0 : Number(distanceKm),
         paymentMethod,
         address: addrStr,
@@ -383,6 +383,14 @@ export function useCheckout() {
       const raw = (err as { response?: { data?: { error?: string | { message?: string; code?: string }; detail?: string; code?: string } } })?.response?.data;
       const errMsg = typeof raw?.error === 'object' ? raw.error?.message : raw?.error;
       const d = raw ? { error: errMsg, detail: raw.detail, code: raw.code ?? (typeof raw.error === 'object' ? raw.error?.code : undefined) } : undefined;
+      if (d?.code === 'PRICE_CHANGED') {
+        // O servidor recusou antes de cobrar: a sacola passa a mostrar os preços dele e o cliente confirma de novo.
+        const changed = (raw as { items?: Array<{ productId: string; price: number }> } | undefined)?.items || [];
+        const fresh: Record<string, { price: number }> = {};
+        for (const it of changed) if (it?.productId && Number.isFinite(Number(it.price))) fresh[it.productId] = { price: Number(it.price) };
+        if (Object.keys(fresh).length && typeof syncItems === 'function') syncItems(fresh);
+        return { ok: false, code: 'PRICE_CHANGED', error: d.error || 'Os preços mudaram. Confira a sacola.' };
+      }
       if (d?.code === 'CPF_REQUIRED') {
         setCpfRequired(true);
         return { ok: false, error: cpfRequired ? 'CPF inválido. Confira os números.' : 'Informe seu CPF para pagar com Pix.' };
