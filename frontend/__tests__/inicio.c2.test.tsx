@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Inicio from '../pages/inicio';
 import { ROUTES } from '../lib/routes';
 
@@ -22,7 +22,10 @@ jest.mock('../hooks/useActiveOrders', () => ({
     loading: false,
   }),
 }));
-jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(() => Promise.resolve({ data: { data: [] } })), post: jest.fn(() => Promise.resolve({ data: { data: [] } })) } }));
+// "De novo" busca o produto atual (GET /products/:id) antes de pôr na sacola.
+jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn((url: string) => Promise.resolve(url === '/products/p1'
+  ? { data: { _id: 'p1', name: 'Ração Golden', price: 89.9, quantity: 3, isActive: true, storeId: 's9' } }
+  : { data: { data: [] } })), post: jest.fn(() => Promise.resolve({ data: { data: [] } })) } }));
 
 beforeEach(() => { push.mockClear(); add.mockClear(); });
 
@@ -32,9 +35,10 @@ test('sino com o número de não lidas leva às notificações', () => {
   expect(push).toHaveBeenCalledWith(ROUTES.notificacoes);
 });
 
-test('"Pra você repetir": linha de apoio e "De novo" põe na sacola', () => {
+test('"Pra você repetir": linha de apoio e "De novo" põe na sacola', async () => {
   render(<Inicio />);
   expect(screen.getByText('Último pedido hoje · Pet&Cia')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'De novo: Ração Golden' }));
+  await waitFor(() => expect(add).toHaveBeenCalled());
   expect(add).toHaveBeenCalledWith(expect.objectContaining({ productId: 'p1', quantity: 1, storeId: 's9' }), expect.anything());
 });

@@ -11,7 +11,10 @@ import { useOffers, useNearbyStores } from '../hooks/useCatalogHome';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { imageUrl } from '../lib/config';
 import { mapStore } from '../lib/mapStore';
-import { repeatItems } from '../lib/repeatItems';
+import { repeatItems, type RepeatItem } from '../lib/repeatItems';
+import { fetchCurrentProduct, priceDiffers } from '../lib/currentProduct';
+import { formatMoney } from '../lib/money';
+import { useToast } from '../components/ui/Toast';
 import { productCardData } from '../lib/catalogCards';
 import { deliveryStates } from '../lib/deliveryView';
 import { ROUTES, buscarHref, lojaHref, produtoHref, pedidoHref } from '../lib/routes';
@@ -50,6 +53,20 @@ export default function Inicio() {
   ], [banners, featured]);
 
   const repeat = useMemo(() => (user ? repeatItems(orders) : []), [orders, user]);
+  const { showToast } = useToast();
+  // "De novo": o pedido antigo só diz QUAL produto; preço, nome e foto são os de agora (o preço do
+  // pedido é histórico — o lojista pode ter editado o produto). Avisa quando o preço mudou.
+  const addAgain = async (r: RepeatItem) => {
+    const res = await fetchCurrentProduct(r.productId);
+    if (res.status === 'gone') return showToast('Este produto não está mais disponível.', 'error');
+    if (res.status === 'soldout') return showToast(`${res.name} esgotou.`, 'error');
+    if (res.status === 'error') return showToast('Não conseguimos adicionar agora. Tente de novo.', 'error');
+    const p = res.product;
+    addToCart(
+      { productId: p.productId, quantity: 1, name: p.name, price: p.price, storeId: p.storeId || r.storeId, storeName: r.storeName, image: p.image },
+      priceDiffers(p.price, r.price) ? { note: `O preço mudou: agora ${formatMoney(p.price)}.` } : undefined,
+    );
+  };
 
   const storeList = address.point ? nearby.stores : allStores.slice(0, 8);
   const noAddress = deliveryStates({ hasPoint: !!address.point, address: address.label, onSetAddress: picker.request, onChangeAddress: picker.request });
@@ -89,7 +106,7 @@ export default function Inicio() {
           <div className={styles.card}>
             {repeat.map((r) => (
               <RepeatRow key={r.productId} meta={r.meta} product={{ name: r.name, store: r.storeName, imageUrl: imageUrl(r.image) || undefined, price: r.price }}
-                onAdd={() => addToCart({ productId: r.productId, quantity: 1, name: r.name, price: r.price, storeId: r.storeId, storeName: r.storeName, image: r.image })} />
+                onAdd={() => { void addAgain(r); }} />
             ))}
           </div>
         </section>

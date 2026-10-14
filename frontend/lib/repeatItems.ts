@@ -1,4 +1,9 @@
-export interface RepeatItem { productId: string; storeId: string; storeName: string; name: string; image?: string; price: number; meta: string }
+export interface RepeatItem {
+  productId: string; storeId: string; storeName: string; name: string; image?: string;
+  /** Preço PAGO no pedido (snapshot, histórico). Nunca vai para a sacola: só serve para avisar que o preço mudou. */
+  price: number;
+  meta: string;
+}
 
 const DAY = 86_400_000;
 

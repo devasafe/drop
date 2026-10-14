@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { ShieldCheck, ShoppingBag, XCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useCheckout } from '../hooks/useCheckout';
+import { useCartRevalidation } from '../hooks/useCartRevalidation';
 import { useSaasConfig } from '../hooks/useSaasConfig';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../components/ui/Toast';
@@ -53,6 +54,8 @@ export default function SacolaPage() {
   const { showToast } = useToast();
   const cart = useCart() || ({} as any);
   const c = useCheckout();
+  // Preço, nome e estoque dos itens conferidos com o servidor: o total da tela é o que será cobrado.
+  useCartRevalidation();
   const { settlementMode, directCardEnabled } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];

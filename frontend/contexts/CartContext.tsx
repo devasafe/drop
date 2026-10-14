@@ -22,14 +22,18 @@ export const CartProvider = ({ children }: any) => {
     if (raw) setCart(JSON.parse(raw));
   }, []);
 
-  const save = (c: any[]) => {
-    setCart(c);
+  const persist = (c: any[]) => {
     try {
       localStorage.setItem('cart', JSON.stringify(c));
     } catch (err) {
       // Modo privado / storage cheio: a sacola em memória continua valendo.
       console.warn('[cart] não foi possível persistir a sacola:', err);
     }
+  };
+
+  const save = (c: any[]) => {
+    setCart(c);
+    persist(c);
   };
 
   const add = (item: CartAddItem, opts?: { onAdded?: () => void }): AddResult => {
@@ -72,6 +76,21 @@ export const CartProvider = ({ children }: any) => {
     save(items.map((i) => ({ ...i, storeId })));
   };
 
+  /**
+   * Aplica o estado ATUAL dos produtos (servidor) aos itens da sacola: preço, nome e foto passam a ser
+   * os de agora; `null` tira o item (removido, pausado ou esgotado). Funcional sobre o estado mais
+   * recente, para não perder uma mudança de quantidade feita enquanto a consulta estava no ar.
+   */
+  const syncItems = (fresh: Record<string, { name: string; price: number; image?: string | null } | null>) => {
+    setCart((prev) => {
+      const next = prev
+        .filter((x) => fresh[x.productId] !== null)
+        .map((x) => (fresh[x.productId] ? { ...x, ...fresh[x.productId] } : x));
+      persist(next);
+      return next;
+    });
+  };
+
   const confirmSwap = () => {
     if (!pendingSwap) return;
     save([pendingSwap.item]);
@@ -88,7 +107,7 @@ export const CartProvider = ({ children }: any) => {
   const itemsWord = count === 1 ? 'item' : 'itens';
 
   return (
-    <CartContext.Provider value={{ cart, add, clear, updateQuantity, removeItem, replaceCart }}>
+    <CartContext.Provider value={{ cart, add, clear, updateQuantity, removeItem, replaceCart, syncItems }}>
       {children}
       <Sheet open={pendingSwap !== null} onClose={cancelSwap} title="Trocar de loja?" presentation="center">
         <p>
