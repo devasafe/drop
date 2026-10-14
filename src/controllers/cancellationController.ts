@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { motoboyCancellationCompensationSafe } from '../services/motoboyCompensation';
 import { Prisma } from '@prisma/client';
 import { generatePin } from '../services/pinGuard';
 import { AuthenticatedRequest } from '../types';
@@ -571,7 +572,7 @@ export const cancelOrderByCustomer = async (req: AuthenticatedRequest, res: Resp
         delivery.status = 'cancelled';
         delivery.cancelledAt = new Date();
         await persistDelivery(delivery);
-        emitDeliveryCancelled(delivery, cancellation);
+        emitDeliveryCancelled(delivery, cancellation, await motoboyCancellationCompensationSafe(String(delivery._id), delivery.motoboyId));
       }
     }
 
@@ -1068,7 +1069,7 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
       deliveryApi.pinDevolucao = pinDevolucao;
       deliveryApi.pendingReturnAction = null;
       await persistDelivery(deliveryApi);
-      emitDeliveryCancelled(deliveryApi, cancellation);
+      emitDeliveryCancelled(deliveryApi, cancellation, await motoboyCancellationCompensationSafe(String(deliveryApi._id), deliveryApi.motoboyId));
 
       emitToRoom(`store:${order.storeId}`, 'delivery:return_requested', {
         deliveryId: deliveryApi._id,
@@ -1252,7 +1253,7 @@ export async function cancelOrderWithFullRefund(
       delivery.pinDevolucao = null;
       delivery.pendingReturnAction = null;
       await persistDelivery(delivery);
-      emitDeliveryCancelled(delivery, cancellation);
+      emitDeliveryCancelled(delivery, cancellation, await motoboyCancellationCompensationSafe(String(delivery._id), delivery.motoboyId));
     }
   }
 
@@ -1969,7 +1970,7 @@ export const rejectOrderByStore = async (req: AuthenticatedRequest, res: Respons
         deliveryDoc.status = 'cancelled';
         deliveryDoc.cancelledAt = new Date();
         await persistDelivery(deliveryDoc);
-        emitDeliveryCancelled(deliveryDoc, cancellation);
+        emitDeliveryCancelled(deliveryDoc, cancellation, await motoboyCancellationCompensationSafe(String(deliveryDoc._id), deliveryDoc.motoboyId));
       }
     }
 

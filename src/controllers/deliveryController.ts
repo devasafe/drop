@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { motoboyCancellationCompensation } from '../services/motoboyCompensation';
 import { AuthenticatedRequest } from '../types';
 import { recordCashboxEntry } from '../repositories/appCashbox.repository';
 
@@ -696,6 +697,11 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     // Cronômetro do "cliente ausente" na tela da corrida: a tela não adivinha a espera.
     const absentWaitMin = customerAbsentWaitMinutes(await getPlatformConfig());
     const absentAvailableAt = customerAbsentAvailableAt(delivery, absentWaitMin);
+    // Compensação do cancelamento: só para o motoboy desta corrida. Uma falha aqui vira 500
+    // (fail closed: nunca um null que pareceria "sem compensação").
+    const cancellationCompensation = delivery.status === 'cancelled' && isMotoboy
+      ? await motoboyCancellationCompensation(String(delivery._id), delivery.motoboyId)
+      : null;
 
     // Monta objeto de resposta com campos de texto e coordenadas para retirada e entrega
     const response = {
@@ -721,6 +727,7 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
       motoboyObj,
       customerAbsentWaitMin: absentWaitMin,
       customerAbsentAvailableAt: absentAvailableAt ? absentAvailableAt.toISOString() : null,
+      cancellationCompensation,
       // Campos para frontend
       pickupAddress: storeObj ? `${storeObj.name || ''} - ${storeObj.address || ''}` : '-',
       pickupLat: storeObj?.latitude ? parseFloat(storeObj.latitude) : null,

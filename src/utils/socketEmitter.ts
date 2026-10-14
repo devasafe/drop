@@ -390,16 +390,20 @@ export const emitOrderCancelled = (order: any, cancellation: any) => {
   // Sem broadcast global (cliente e loja já foram avisados nas salas acima).
 };
 
-export const emitDeliveryCancelled = (delivery: any, cancellation: any) => {
-  // Notifica motoboy
+/**
+ * Corrida cancelada. O motoboy recebe o motivo e a compensação do cancelamento (spec D2 5.1,
+ * item 4; null = sem compensação). O aviso geral da sala `motoboys` não leva dinheiro.
+ */
+export const emitDeliveryCancelled = (delivery: any, cancellation: any, cancellationCompensation: number | null = null) => {
   if (delivery.motoboyId) {
     emitToRoom(`user:${delivery.motoboyId}`, 'delivery:cancelled', {
       deliveryId: delivery._id,
       status: 'cancelled',
       reason: cancellation.reason,
+      cancellationCompensation,
     });
   }
-  // Notifica loja
+  // Tira a corrida do pool de quem está online.
   emitToRoom('motoboys', 'delivery:cancelled', {
     deliveryId: delivery._id,
     status: 'cancelled',
