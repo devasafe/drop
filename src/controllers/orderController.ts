@@ -197,6 +197,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // estoque, criar pedido ou cobrar, e devolve os preços atuais para o app atualizar a sacola.
     // Opcional: app antigo (sem expectedPrice) segue como sempre, cobrando o preço do banco.
     const expected = products.filter((p: any) => typeof p?.expectedPrice === 'number');
+    // Guardado para a 2ª conferência, no laço de estoque: entre aqui e lá rodam a rota e as
+    // prechecagens, e o lojista pode editar o preço nessa janela.
+    const expectedCentsById = new Map<string, number>(expected.map((p: any) => [String(p.productId), Math.round(Number(p.expectedPrice) * 100)]));
+    const priceChangedBody = (items: Array<{ productId: string; price: number }>) =>
+      ({ error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items });
     if (expected.length > 0) {
       const current = await prisma.product.findMany({
         where: { id: { in: [...new Set(expected.map((p: any) => String(p.productId)))] as string[] } },
@@ -212,7 +217,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         if (Math.round(now * 100) !== Math.round(Number(p.expectedPrice) * 100)) { changed.push({ productId: id, price: now }); seen.add(id); }
       }
       if (changed.length > 0) {
-        return res.status(409).json({ error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items: changed });
+        return res.status(409).json(priceChangedBody(changed));
       }
     }
 
@@ -341,6 +346,13 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       if (productPrice <= 0) {
         await restoreStock(items); // itens anteriores deste pedido já baixaram estoque
         return res.status(400).json({ error: `Produto ${prod.name} com preço inválido` });
+      }
+      // 2ª conferência do preço mostrado, com o preço que de fato vai ser cobrado (a 1ª, lá em cima,
+      // pode ter ficado velha durante a rota/prechecagens). Antes de baixar o estoque deste item.
+      const expectedCents = expectedCentsById.get(String(p.productId));
+      if (expectedCents !== undefined && Math.round(productPrice * 100) !== expectedCents) {
+        await restoreStock(items);
+        return res.status(409).json(priceChangedBody([{ productId: prod.id, price: productPrice }]));
       }
 
       // Decremento atômico com verificação de estoque.

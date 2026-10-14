@@ -15,7 +15,13 @@ jest.mock('../services/asaas/payment', () => ({
   createCardCharge: jest.fn(),
 }));
 
+jest.mock('../services/routeService', () => {
+  const actual = jest.requireActual('../services/routeService');
+  return { __esModule: true, ...actual, getRoute: jest.fn() };
+});
+
 import app from '../app';
+import { getRoute } from '../services/routeService';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { ownerIdForStore } from './helpers/storeOwner';
@@ -133,6 +139,29 @@ describe('B — POST /orders com expectedPrice', () => {
     expect(res.body).toEqual({ error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items: [{ productId: p1.id, price: 19 }] });
     expect(createPixCharge).not.toHaveBeenCalled();
     expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect((await prisma.product.findUnique({ where: { id: p1.id } }))?.quantity).toBe(10);
+  });
+
+  it('corrida: o lojista muda o preço DEPOIS da checagem (durante a rota) → 409 no laço, estoque intacto, nada criado nem cobrado', async () => {
+    env.PAYMENT_GATEWAY = 'asaas';
+    const { token } = await buyer();
+    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore(DOMAIN), name: 'Loja corrida', isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20' } as any });
+    const outro = await produto(store.id, { name: 'Água', price: 3 });
+    const p1 = await produto(store.id, { name: 'RedBull', price: 19 });
+    (getRoute as jest.Mock).mockImplementationOnce(async () => {
+      await prisma.product.update({ where: { id: p1.id }, data: { price: 25 } });
+      return { distanceKm: 3, durationSeconds: 600, source: 'route' };
+    });
+    const res = await post(token, pedido(store.id, [
+      { productId: outro.id, quantity: 1, expectedPrice: 3 },
+      { productId: p1.id, quantity: 2, expectedPrice: 19 },
+    ], { latitude: -22.91, longitude: -43.21 }));
+    expect(getRoute).toHaveBeenCalled();
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items: [{ productId: p1.id, price: 25 }] });
+    expect(createPixCharge).not.toHaveBeenCalled();
+    expect(await prisma.order.count({ where: { storeId: store.id } })).toBe(0);
+    expect((await prisma.product.findUnique({ where: { id: outro.id } }))?.quantity).toBe(10);
     expect((await prisma.product.findUnique({ where: { id: p1.id } }))?.quantity).toBe(10);
   });
 
