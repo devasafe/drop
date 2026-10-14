@@ -8,6 +8,8 @@ export const PIN_LENGTH = 5;
 export type FinalizeStatus = 'idle' | 'sending' | 'wrong' | 'locked' | 'error' | 'done';
 export type FinalizeOutcome =
   | 'ok'
+  /** 409 "Already delivered": o servidor já tinha concluído (ex.: resposta perdida na rede). É sucesso. */
+  | 'already'
   | 'wrong'
   | 'locked'
   | 'conflict'
@@ -33,6 +35,8 @@ export interface UseFinalizeRideOptions {
  * - um pedido em voo bloqueia qualquer outro (toque duplo = 1 POST);
  * - um PIN completo vai uma vez só: depois do envio, o mesmo PIN só vai de novo quando o
  *   servidor não deu veredito sobre ele (429 da trava, 409, rede, outro erro);
+ * - 409 "Already delivered" é sucesso: a entrega já foi concluída no servidor (relê a corrida);
+ * - resposta de uma corrida que já não está na tela é ignorada (não grava nada na nova);
  * - "PIN inválido" (400) guarda o PIN recusado até o motoboy digitar outro;
  * - o PIN nunca vai para log.
  */
@@ -41,7 +45,10 @@ export function useFinalizeRide(rideId: string | undefined | null, { onConflict 
   const [status, setStatus] = useState<FinalizeStatus>('idle');
   const [message, setMessage] = useState('');
   const [refusedPin, setRefusedPin] = useState<string | null>(null);
-  const inFlight = useRef(false);
+  /** Token do envio em voo (null = livre). Só o dono do token o libera. */
+  const inFlight = useRef<object | null>(null);
+  const currentRide = useRef(rideId);
+  currentRide.current = rideId;
   const lastSentRef = useRef<string | null>(null);
   const conflictRef = useRef(onConflict);
   conflictRef.current = onConflict;
@@ -50,6 +57,7 @@ export function useFinalizeRide(rideId: string | undefined | null, { onConflict 
 
   // Outra corrida: nada do PIN da anterior vale.
   useEffect(() => {
+    inFlight.current = null;
     lastSentRef.current = null;
     setRefusedPin(null);
     setStatus('idle');
@@ -74,16 +82,29 @@ export function useFinalizeRide(rideId: string | undefined | null, { onConflict 
       return { ok: false, outcome: 'offline', error: 'Sem conexão: finalize quando a internet voltar.' };
     }
 
-    inFlight.current = true;
+    const token = {};
+    const sentFor = rideId;
+    inFlight.current = token;
     lastSentRef.current = pin;
     setStatus('sending');
     setMessage('');
+    // A corrida da tela mudou durante o envio: a resposta antiga não grava nada na nova.
+    const stale = () => currentRide.current !== sentFor;
+    const staleResult: FinalizeResult = { ok: false, outcome: 'error', error: 'Esta corrida não está mais na tela.' };
     try {
-      await api.post(`/deliveries/${rideId}/finalizar`, { pin });
+      await api.post(`/deliveries/${sentFor}/finalizar`, { pin });
+      if (stale()) return staleResult;
       setStatus('done');
       return { ok: true, outcome: 'ok' };
     } catch (err) {
+      if (stale()) return staleResult;
       const e = apiError(err);
+      if (e.status === 409 && (e.code === 'ALREADY_DELIVERED' || /already delivered/i.test(e.message || ''))) {
+        // O servidor já concluiu esta entrega (ex.: o 200 anterior se perdeu na rede): é sucesso.
+        setStatus('done');
+        conflictRef.current?.();
+        return { ok: true, outcome: 'already' };
+      }
       if (e.status === 400 && /pin/i.test(e.message || '')) {
         const msg = e.message || 'O código não confere.';
         setRefusedPin(pin);
@@ -112,7 +133,7 @@ export function useFinalizeRide(rideId: string | undefined | null, { onConflict 
       setMessage(msg);
       return { ok: false, outcome: 'error', error: msg };
     } finally {
-      inFlight.current = false;
+      if (inFlight.current === token) inFlight.current = null;
     }
   }, [rideId]);
 

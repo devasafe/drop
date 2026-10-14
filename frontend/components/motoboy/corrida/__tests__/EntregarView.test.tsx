@@ -120,6 +120,17 @@ test('409 relê a corrida', async () => {
   expect(x.onFinished).not.toHaveBeenCalled();
 });
 
+test('409 "Already delivered" (resposta anterior perdida): conclui e relê, sem erro', async () => {
+  const x = h();
+  post.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Already delivered' } } });
+  render(<EntregarView ride={ride} self={null} {...x} />);
+  type('44444');
+  fireEvent.click(finish());
+  await waitFor(() => expect(x.onFinished).toHaveBeenCalledTimes(1));
+  expect(x.onReload).toHaveBeenCalled();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
 test('falha de rede: mensagem e o mesmo PIN pode ir de novo', async () => {
   post.mockRejectedValueOnce(new Error('Network Error'));
   render(<EntregarView ride={ride} self={null} {...h()} />);

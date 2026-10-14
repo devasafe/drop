@@ -91,15 +91,69 @@ test('429 (trava): mensagem do servidor com o tempo e o mesmo PIN pode ir de nov
   expect(post).toHaveBeenCalledTimes(2);
 });
 
-test('409 chama onConflict (relê a corrida) e libera reenviar', async () => {
+test('409 ORDER_CLOSED: conflito com a mensagem do servidor, chama onConflict (relê) e libera reenviar', async () => {
+  const onConflict = jest.fn();
+  post.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Pedido cancelado; a entrega não pode ser finalizada', code: 'ORDER_CLOSED' } } });
+  const { result } = renderHook(() => useFinalizeRide('d1', { onConflict }));
+  let r: any;
+  await act(async () => { r = await result.current.finalize('44444'); });
+  expect(r).toMatchObject({ ok: false, outcome: 'conflict', error: 'Pedido cancelado; a entrega não pode ser finalizada' });
+  expect(onConflict).toHaveBeenCalledTimes(1);
+  expect(result.current.status).toBe('error');
+  expect(result.current.isRefused('44444')).toBe(false);
+});
+
+test('409 "Already delivered" é sucesso: ok, sem mensagem, e relê a corrida', async () => {
   const onConflict = jest.fn();
   post.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Already delivered' } } });
   const { result } = renderHook(() => useFinalizeRide('d1', { onConflict }));
   let r: any;
   await act(async () => { r = await result.current.finalize('44444'); });
-  expect(r).toMatchObject({ ok: false, outcome: 'conflict', error: 'Already delivered' });
+  expect(r).toEqual({ ok: true, outcome: 'already' });
+  expect(result.current.status).toBe('done');
+  expect(result.current.message).toBe('');
   expect(onConflict).toHaveBeenCalledTimes(1);
-  expect(result.current.isRefused('44444')).toBe(false);
+});
+
+test('troca de corrida com POST em voo: a resposta antiga não grava nada na nova', async () => {
+  const d = deferred<any>();
+  const onConflict = jest.fn();
+  post.mockReturnValueOnce(d.promise).mockResolvedValueOnce({ data: { success: true } });
+  const { result, rerender } = renderHook(({ id }) => useFinalizeRide(id, { onConflict }), { initialProps: { id: 'd1' } });
+  let old!: Promise<any>;
+  act(() => { old = result.current.finalize('11111'); });
+  expect(result.current.status).toBe('sending');
+  rerender({ id: 'd2' });
+  await waitFor(() => expect(result.current.status).toBe('idle'));
+  // A corrida nova não fica presa no envio da antiga.
+  let r: any;
+  await act(async () => { r = await result.current.finalize('22222'); });
+  expect(r.ok).toBe(true);
+  expect(post).toHaveBeenLastCalledWith('/deliveries/d2/finalizar', { pin: '22222' });
+  await act(async () => { d.reject(wrong); await old; });
+  await expect(old).resolves.toMatchObject({ ok: false });
+  expect(result.current.status).toBe('done');
+  expect(result.current.message).toBe('');
+  expect(result.current.isRefused('11111')).toBe(false);
+  expect(onConflict).not.toHaveBeenCalled();
+});
+
+test('troca de corrida com POST em voo: um envio novo na corrida nova não é liberado pela resposta antiga', async () => {
+  const oldReq = deferred<any>();
+  const newReq = deferred<any>();
+  post.mockReturnValueOnce(oldReq.promise).mockReturnValueOnce(newReq.promise);
+  const { result, rerender } = renderHook(({ id }) => useFinalizeRide(id), { initialProps: { id: 'd1' } });
+  let old!: Promise<any>;
+  act(() => { old = result.current.finalize('11111'); });
+  rerender({ id: 'd2' });
+  let cur!: Promise<any>;
+  act(() => { cur = result.current.finalize('22222'); });
+  await act(async () => { oldReq.resolve({ data: { success: true } }); await old; });
+  let r: any;
+  await act(async () => { r = await result.current.finalize('33333'); });
+  expect(r.outcome).toBe('busy');
+  await act(async () => { newReq.resolve({ data: { success: true } }); await cur; });
+  expect(post).toHaveBeenCalledTimes(2);
 });
 
 test('falha de rede libera reenviar o mesmo PIN', async () => {
