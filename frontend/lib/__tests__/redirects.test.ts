@@ -180,4 +180,9 @@ describe('D2 — painel do motoboy', () => {
   });
 
   // P3–P5: cada task de tela nova acrescenta aqui o `it` das rotas antigas dela (modelo na Task P2.7 do plano).
+
+  it('P3.13: /motoboy/delivery/:id vira /motoboy/corrida/:id, com a query (?nav=1 abre a navegação, C1)', () => {
+    expect(resolveRedirect(rules, '/motoboy/delivery/abc')).toEqual({ location: '/motoboy/corrida/abc', permanent: true });
+    expect(resolveRedirect(rules, '/motoboy/delivery/abc?nav=1')?.location).toBe('/motoboy/corrida/abc?nav=1');
+  });
 });

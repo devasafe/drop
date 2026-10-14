@@ -86,9 +86,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
 
   // Não mostrar chat em páginas específicas. Nos painéis a conversa é por pedido/corrida (OrderChatSheet, RideChatSheet).
   const isChatPage = router.pathname.includes('/chat');
-  // A corrida antiga do motoboy ainda abre a conversa pelo widget; a P3 troca a tela pela sheet e tira esta exceção.
-  const legacyMotoboyChat = router.pathname === '/motoboy/delivery/[id]';
-  const shouldShowChat = !isChatPage && (!panelFrame || legacyMotoboyChat);
+  const shouldShowChat = !isChatPage && !panelFrame;
 
   // Não mostrar footer em painéis internos
   const isDashboard =

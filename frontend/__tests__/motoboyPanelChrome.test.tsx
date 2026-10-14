@@ -119,11 +119,12 @@ describe('moldura do painel do motoboy (D2)', () => {
     expect(mainDe(container).className).toContain('panelContentOffsetMotoboy');
   });
 
-  it('corrida antiga (/motoboy/delivery/[id]): o chat do widget continua até a P3 trocar a tela; o resto da moldura sai', () => {
-    renderApp('/motoboy/delivery/[id]');
-    expect(screen.getByTestId('chat-fab')).toBeInTheDocument();
+  it('corrida (/motoboy/corrida/[id]): sem o chat do widget (a conversa é a sheet da corrida) e sem barra (C12)', () => {
+    renderApp('/motoboy/corrida/[id]');
+    expect(screen.queryByTestId('chat-fab')).toBeNull();
     expect(screen.queryByTestId('verification-banner')).toBeNull();
     expect(navSoNoDesktop()).toBe(true);
+    expect(barra()).toBeNull();
   });
 
   it('a loja não ganha nada da moldura do motoboy', () => {

@@ -53,4 +53,5 @@ module.exports = [
   // commit (o Next não convive bem com página e redirect no mesmo caminho) e acrescenta o teste em
   // lib/__tests__/redirects.test.ts. Regra com `has` vem antes da regra sem `has` da mesma origem.
   // /notifications e /register são compartilhadas: o motoboy é redirecionado na página, por papel.
+  { source: '/motoboy/delivery/:id', destination: '/motoboy/corrida/:id', permanent: true },
 ];

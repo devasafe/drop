@@ -47,6 +47,7 @@ test('entrega: abre a conversa motoboy↔cliente pelo id do cliente', async () =
   render(<RideChatSheet {...props} kind="motoboy_cliente" otherParticipantId="c1" otherName="Ana" />);
   await waitFor(() => expect(post).toHaveBeenCalledWith('/chat/conversations', { type: 'motoboy_cliente', otherParticipantId: 'c1', orderId: 'o1', deliveryId: 'd1' }));
   expect(screen.getByRole('button', { name: QUICK_REPLIES.motoboyCliente[0] })).toBeInTheDocument();
+  await screen.findByText('Já está separado'); // deixa a leitura do fio terminar dentro do act
 });
 
 test('resposta pronta envia na hora e aparece no fio', async () => {
@@ -63,6 +64,7 @@ test('composer envia o texto digitado', async () => {
   fireEvent.change(screen.getByPlaceholderText('Sua mensagem...'), { target: { value: 'Estou no portão' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
   await waitFor(() => expect(post).toHaveBeenCalledWith('/chat/conversations/cv1/messages', { text: 'Estou no portão' }));
+  await screen.findByText('Estou no portão', { selector: 'p' }); // deixa o envio terminar dentro do act
 });
 
 test('mensagem de outra conversa não entra no fio', async () => {
@@ -100,6 +102,7 @@ test('aviso do código de entrega só na conversa com o cliente', async () => {
   unmount();
   render(<RideChatSheet {...props} kind="motoboy_cliente" otherParticipantId="c1" otherName="Ana" />);
   expect(screen.getByText(/não peça por mensagem/)).toBeInTheDocument();
+  await screen.findByText('Já está separado'); // deixa a leitura do fio terminar dentro do act
 });
 
 test('falha ao abrir mostra "Tentar de novo" e tenta de novo', async () => {
