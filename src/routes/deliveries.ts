@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, getMotoboySummary, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -66,6 +66,9 @@ router.get('/ongoing', authenticate, authorizeRoles('motoboy'), listOngoingDeliv
 
 // list history deliveries for motoboy
 router.get('/history', authenticate, authorizeRoles('motoboy'), listHistoryDeliveries);
+
+// resumo do dia e da semana do motoboy (antes de '/:id', senão 'summary' vira id)
+router.get('/summary', authenticate, authorizeRoles('motoboy'), getMotoboySummary);
 
 // ========== DETAILS ==========
 // get delivery

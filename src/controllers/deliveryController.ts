@@ -31,6 +31,7 @@ import { isDirectOrder } from '../utils/settlement';
 import { createTransferForDelivery, notifyTransferCreated } from '../services/asaasLoja/motoboyTransfer';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
+import { motoboySummary } from '../services/motoboySummary';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
 
 // Freio de custo: pontos viram benefício resgatável. Desligado (default) ou erro → sem pontos.
@@ -140,6 +141,16 @@ export const listHistoryDeliveries = async (req: AuthenticatedRequest, res: Resp
   } catch (err) {
     console.error('[listHistoryDeliveries] error:', err);
     return res.status(500).json({ error: 'Failed to list history deliveries' });
+  }
+};
+// GET /deliveries/summary — ganhos e corridas entregues de hoje e da semana (seg–dom), fuso de São Paulo.
+export const getMotoboySummary = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    return res.json(await motoboySummary(String(req.user.id)));
+  } catch (err) {
+    logger.error('[getMotoboySummary] falha ao calcular o resumo do motoboy', err as Error, { motoboyId: req.user?.id });
+    return res.status(500).json({ error: 'Não foi possível calcular o resumo' });
   }
 };
 // Listar avaliações recebidas pelo motoboy
