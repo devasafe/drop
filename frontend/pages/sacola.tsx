@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -61,6 +61,12 @@ export default function SacolaPage() {
   const prices = useCartRevalidation();
   // O servidor recusou o pedido com 409 PRICE_CHANGED (preço mudou entre a conferência e o toque).
   const [priceRejected, setPriceRejected] = useState(false);
+  // O aviso do 409 vale até a conferência nova terminar ok: daí em diante quem fala é ela (prices.notice).
+  const prevPriceStatus = useRef(prices.status);
+  useEffect(() => {
+    if (prevPriceStatus.current === 'checking' && prices.status === 'ok') setPriceRejected(false);
+    prevPriceStatus.current = prices.status;
+  }, [prices.status]);
   const { settlementMode, directCardEnabled } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const directMethods: ('pix' | 'credit_card')[] = directCardEnabled ? ['pix', 'credit_card'] : ['pix'];
@@ -174,7 +180,7 @@ export default function SacolaPage() {
     const r = await c.placeOrder();
     if (!r.ok && r.code && STORE_UNAVAILABLE_CODES.includes(r.code)) { setUnavailable(true); return; }
     if (!r.ok && r.code && PAUSE_MESSAGES[r.code]) { showToast(PAUSE_MESSAGES[r.code], 'error'); return; }
-    if (!r.ok && r.code === 'PRICE_CHANGED') setPriceRejected(true);
+    if (!r.ok && r.code === 'PRICE_CHANGED') { setPriceRejected(true); prices.retry(); }
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
 

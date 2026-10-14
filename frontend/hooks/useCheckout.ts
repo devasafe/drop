@@ -77,7 +77,7 @@ interface UserProfileResponse {
 
 export function useCheckout() {
   const router = useRouter();
-  const { cart, clear, updateQuantity, removeItem, syncItems } = useCart();
+  const { cart, clear, updateQuantity, removeItem } = useCart();
   const { user } = useAuth();
   const { stores, loading: storesLoading } = useStores();
   const address = useCheckoutAddress();
@@ -384,11 +384,8 @@ export function useCheckout() {
       const errMsg = typeof raw?.error === 'object' ? raw.error?.message : raw?.error;
       const d = raw ? { error: errMsg, detail: raw.detail, code: raw.code ?? (typeof raw.error === 'object' ? raw.error?.code : undefined) } : undefined;
       if (d?.code === 'PRICE_CHANGED') {
-        // O servidor recusou antes de cobrar: a sacola passa a mostrar os preços dele e o cliente confirma de novo.
-        const changed = (raw as { items?: Array<{ productId: string; price: number }> } | undefined)?.items || [];
-        const fresh: Record<string, { price: number }> = {};
-        for (const it of changed) if (it?.productId && Number.isFinite(Number(it.price))) fresh[it.productId] = { price: Number(it.price) };
-        if (Object.keys(fresh).length && typeof syncItems === 'function') syncItems(fresh);
+        // O servidor recusou antes de cobrar. A Sacola força uma conferência nova (GET em lote), que
+        // traz os preços atuais para a sacola e mostra o que mudou — com `items` válidos ou não.
         return { ok: false, code: 'PRICE_CHANGED', error: d.error || 'Os preços mudaram. Confira a sacola.' };
       }
       if (d?.code === 'CPF_REQUIRED') {

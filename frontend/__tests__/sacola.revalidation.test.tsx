@@ -80,12 +80,31 @@ test('preço mudou na conferência: aviso fixo "Os preços mudaram"', () => {
   expect(screen.getByText('O preço de RedBull mudou: agora R$ 19,00.')).toBeInTheDocument();
 });
 
-test('servidor recusou com PRICE_CHANGED: avisa "Os preços mudaram" e pede para conferir antes de pagar de novo', async () => {
+test('servidor recusou com PRICE_CHANGED: força conferência nova e avisa até ela terminar', async () => {
   const placeOrder = jest.fn(async () => ({ ok: false, code: 'PRICE_CHANGED', error: 'Os preços mudaram. Confira a sacola.' }));
   mocked.mockReturnValue(hook({ placeOrder }));
-  render(<SacolaPage />);
+  const { rerender } = render(<SacolaPage />);
   fireEvent.click(payButton());
   expect(await screen.findByText('Os preços mudaram')).toBeInTheDocument();
   expect(screen.getByText('Confira os valores novos da sacola antes de pagar.')).toBeInTheDocument();
   expect(showToast).toHaveBeenCalledWith('Os preços mudaram. Confira a sacola.', 'error');
+  expect(retry).toHaveBeenCalledTimes(1);
+  // A conferência nova roda (pagar bloqueado) e termina ok trazendo o que mudou.
+  prices = { ...prices, status: 'checking' };
+  rerender(<SacolaPage />);
+  expect(payButton()).toBeDisabled();
+  prices = { ...prices, status: 'ok', notice: 'O preço de RedBull mudou: agora R$ 25,00.' };
+  rerender(<SacolaPage />);
+  expect(screen.queryByText('Confira os valores novos da sacola antes de pagar.')).not.toBeInTheDocument();
+  expect(screen.getByText('O preço de RedBull mudou: agora R$ 25,00.')).toBeInTheDocument();
+  expect(payButton()).toBeEnabled();
+});
+
+test('PRICE_CHANGED sem itens (ou malformado): também força conferência nova', async () => {
+  const placeOrder = jest.fn(async () => ({ ok: false, code: 'PRICE_CHANGED', error: 'Os preços mudaram. Confira a sacola.' }));
+  mocked.mockReturnValue(hook({ placeOrder }));
+  render(<SacolaPage />);
+  fireEvent.click(payButton());
+  await screen.findByText('Os preços mudaram');
+  expect(retry).toHaveBeenCalledTimes(1);
 });

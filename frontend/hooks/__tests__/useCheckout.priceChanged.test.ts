@@ -3,7 +3,8 @@ import type { AxiosResponse } from 'axios';
 import api from '../../lib/api';
 
 // O app manda o preço que MOSTROU (expectedPrice) de cada item; se o servidor tiver outro preço,
-// responde 409 PRICE_CHANGED antes de cobrar e a sacola passa a mostrar os preços dele.
+// responde 409 PRICE_CHANGED antes de cobrar; a Sacola força uma conferência nova, que traz os
+// preços atuais para a sacola e mostra o que mudou.
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn() }) }));
 jest.mock('../../lib/api');
 const addr = { _id: 'a1', isDefault: true, cep: '20000-000', street: 'Rua X', number: '10', neighborhood: 'Centro', city: 'Rio', state: 'RJ', latitude: '-22.91', longitude: '-43.21' };
@@ -47,12 +48,12 @@ test('o pedido leva o preço mostrado de cada item (expectedPrice)', async () =>
   ]);
 });
 
-test('409 PRICE_CHANGED: a sacola recebe os preços do servidor, nada é limpo e o pedido não segue', async () => {
+test('409 PRICE_CHANGED: devolve o código, nada é limpo e o pedido não segue (a conferência nova atualiza a sacola)', async () => {
   orderReply = () => Promise.reject({ response: { status: 409, data: { error: 'Os preços mudaram. Confira a sacola.', code: 'PRICE_CHANGED', items: [{ productId: 'p1', price: 25 }] } } });
   const { result } = await mount();
   let r: any;
   await act(async () => { r = await result.current.placeOrder(); });
   expect(r).toEqual({ ok: false, code: 'PRICE_CHANGED', error: 'Os preços mudaram. Confira a sacola.' });
-  expect(syncItems).toHaveBeenCalledWith({ p1: { price: 25 } });
+  expect(syncItems).not.toHaveBeenCalled();
   expect(clear).not.toHaveBeenCalled();
 });

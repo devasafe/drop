@@ -138,3 +138,17 @@ test('servidor que ignora ?ids= (devolve outros produtos): falha, sem tirar nada
   await waitFor(() => expect(status()).toBe('failed'));
   expect(cart().map((i: any) => i.productId)).toEqual(['p1']);
 });
+
+test('retry depois de uma conferência ok e recente (409 PRICE_CHANGED): volta a "checking" e consulta de novo', async () => {
+  seed([{ productId: 'p1', quantity: 1, name: 'RedBull', price: 19, storeId: 's1' }]);
+  get.mockReturnValue(list(product()));
+  mount();
+  await waitFor(() => expect(status()).toBe('ok'));
+  get.mockReturnValue(list(product({ price: 25 })));
+  act(() => { last.retry(); });
+  expect(status()).toBe('checking');
+  await waitFor(() => expect(cart()[0].price).toBe(25));
+  await waitFor(() => expect(status()).toBe('ok'));
+  expect(notice()).toBe(`O preço de RedBull mudou: agora ${formatMoney(25)}.`);
+  expect(get).toHaveBeenCalledTimes(2);
+});
