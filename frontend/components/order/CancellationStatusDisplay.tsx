@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Icon, { IconName } from '../Icon';
 import useCancellation from '@/hooks/useCancellation';
+import { formatMoney } from '@/lib/money';
 
 interface CancellationStatusDisplayProps {
   orderId: string;
@@ -82,7 +83,8 @@ interface Cancellation {
   cancelledBy: 'customer' | 'motoboy' | 'store' | 'admin';
   reason: string;
   reasonCode: string;
-  refundAmount?: number;
+  /** O Prisma serializa Decimal como string ("50.00"); sem reembolso vem null. */
+  refundAmount?: number | string | null;
   refundStatus?: 'pending' | 'processed' | 'failed';
   createdAt: string;
   updatedAt: string;
@@ -129,6 +131,13 @@ export function CancellationStatusDisplay({
     REASON_CODE_LABELS[cancellation.reasonCode] ||
     REASON_CODE_LABELS.other;
 
+  // Decimal do Prisma chega como string e o vazio como null: só mostra o reembolso com número de verdade.
+  const refundValue =
+    cancellation.refundAmount === null || cancellation.refundAmount === undefined || cancellation.refundAmount === ''
+      ? null
+      : Number(cancellation.refundAmount);
+  const hasRefund = refundValue !== null && Number.isFinite(refundValue);
+
   const refundStatusLabel: Record<string, string> = {
     pending: 'Pendente',
     processed: 'Processado',
@@ -169,12 +178,12 @@ export function CancellationStatusDisplay({
         </div>
       </div>
 
-      {cancellation.refundAmount !== undefined && (
+      {hasRefund && (
         <div className="mt-3 pt-3 border-t border-current border-opacity-20">
           <div className="flex justify-between items-center text-sm">
             <span className="opacity-75">Reembolso:</span>
             <span className="font-semibold">
-              R$ {cancellation.refundAmount.toFixed(2)}
+              {formatMoney(refundValue as number)}
             </span>
           </div>
           {cancellation.refundStatus && (

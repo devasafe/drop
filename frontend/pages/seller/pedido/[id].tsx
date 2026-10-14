@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { MessageCircle, CheckCircle2, Bike } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import SellerShell from '../../../components/seller/panel/SellerShell';
+import { ScreenErrorBoundary, ScreenErrorFallback } from '../../../components/seller/panel/ScreenErrorBoundary';
 import { useSellerPanel } from '../../../components/seller/panel/SellerPanelProvider';
 import { useOrder } from '../../../hooks/useSync';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -75,9 +76,34 @@ function timelineSteps(o: any): TimelineStep[] {
 
 type RejectMode = 'recusar' | 'cancelar';
 
+/**
+ * Exceção no render da tela (pedido antigo com dado faltando, formato inesperado) não deixa a
+ * página em branco: mostra o erro do DS v2 dentro da casca, e "Tentar de novo" remonta a tela
+ * (o pedido é lido de novo). Erros dos blocos filhos já param no limite do SellerShell.
+ */
 export default function SellerPedidoPage() {
   const router = useRouter();
   const id = typeof router.query.id === 'string' ? router.query.id : undefined;
+  const title = id ? `Pedido #${shortOrderCode(id)}` : 'Pedido';
+  return (
+    <ScreenErrorBoundary
+      resetKey={id}
+      renderFallback={(retry) => (
+        <ProtectedRoute required_role="lojista">
+          <SellerShell title={title} back={SELLER_ROUTES.pedidos()}>
+            <div className={styles.page}>
+              <ScreenErrorFallback onRetry={retry} />
+            </div>
+          </SellerShell>
+        </ProtectedRoute>
+      )}
+    >
+      <SellerPedidoScreen id={id} />
+    </ScreenErrorBoundary>
+  );
+}
+
+function SellerPedidoScreen({ id }: { id: string | undefined }) {
   const { order: base, loading, setOrder } = useOrder(id) as { order: any; loading: boolean; setOrder?: (o: any) => void };
   const panel = useSellerPanel();
   const { user } = useAuth() || ({} as any);

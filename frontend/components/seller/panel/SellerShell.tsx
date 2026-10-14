@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { ScreenHeader } from '../../drop/ScreenHeader';
 import { sellerShowsTabBar } from '../../../lib/sellerRoutes';
+import { ScreenErrorBoundary } from './ScreenErrorBoundary';
 import styles from './SellerShell.module.css';
 
 export interface SellerShellProps {
@@ -29,7 +30,10 @@ export function SellerShell({ title, back, actions, lead, children }: SellerShel
       <div className={back ? styles.topWhite : styles.top} data-shell-top={back ? 'secundaria' : 'aba'}>
         <ScreenHeader title={title} onBack={back ? () => router.push(back) : undefined} end={actions} start={lead} />
       </div>
-      <div className={styles.body}>{children}</div>
+      <div className={styles.body}>
+        {/* Exceção de render no conteúdo: erro com "Tentar de novo" e o topo continua (nunca tela branca). */}
+        <ScreenErrorBoundary resetKey={router?.asPath}>{children}</ScreenErrorBoundary>
+      </div>
     </div>
   );
 }
