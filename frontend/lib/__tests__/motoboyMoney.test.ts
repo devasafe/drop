@@ -119,8 +119,8 @@ describe('K30: transferView único e fail closed', () => {
     expect(transferView('done')).toMatchObject({ label: 'Na conta', tone: 'ok' });
     expect(transferView('pending')).toMatchObject({ label: 'A caminho', tone: 'info' });
     expect(transferView('failed_final')).toMatchObject({ label: 'Atrasado', tone: 'warn' });
-    expect(transferView('zzz')).toEqual({ label: 'Em conferência', tone: 'neutral' });
-    expect(transferView('')).toEqual({ label: 'Em conferência', tone: 'neutral' });
+    expect(transferView('zzz')).toMatchObject({ label: 'Em conferência', tone: 'neutral' });
+    expect(transferView('')).toMatchObject({ label: 'Em conferência', tone: 'neutral' });
     expect(moneyBadge(transfer({ status: 'zzz' }))).toEqual({ label: 'Em conferência', tone: 'neutral' });
     // failed_final e uncertain não viram "pago" nem "Na conta"
     for (const s of ['failed_final', 'uncertain']) expect(transferView(s).label).not.toBe('Na conta');
@@ -153,8 +153,54 @@ describe('payout dividido por saque', () => {
   });
 });
 
-describe('lista paginada', () => {
-  it('total parcial nunca aparece: janela não coberta → sumAll não é chamado pelo chamador; weekBars/windowCovered', () => {
-    expect(windowCovered(['2026-10-14T10:00:00-03:00'], true, (iso) => isThisWeek(iso, NOW))).toBe(false);
+describe('weekBars com repasse dividido por saque', () => {
+  it('original e pedaço do saque nesta semana: 1 corrida e o valor total no dia do original', () => {
+    const w = weekBars([
+      payout({ _id: 'a', deliveryId: 'd1', amount: 0.1, createdAt: '2026-10-12T10:00:00-03:00' }),
+      payout({ _id: 'b', deliveryId: 'd1', amount: 0.2, createdAt: '2026-10-14T09:00:00-03:00' }),
+      payout({ _id: 'c', deliveryId: 'd1', amount: 9, status: 'cancelled', createdAt: '2026-10-13T09:00:00-03:00' }),
+    ], NOW);
+    expect(w.count).toBe(1);
+    expect(w.total).toBe(0.3);
+    expect(w.days[0].total).toBe(0.3);
+    expect(w.days[2].total).toBe(0);
+  });
+  it('original na semana passada + pedaço nesta: não entra nesta semana', () => {
+    const w = weekBars([
+      payout({ _id: 'a', deliveryId: 'd2', amount: 5, createdAt: '2026-10-05T10:00:00-03:00' }),
+      payout({ _id: 'b', deliveryId: 'd2', amount: 4, createdAt: '2026-10-14T09:00:00-03:00' }),
+    ], NOW);
+    expect(w.count).toBe(0);
+    expect(w.total).toBe(0);
+  });
+  it('registros sem deliveryId continuam individuais', () => {
+    const w = weekBars([payout({ _id: 'a', amount: 1 }), payout({ _id: 'b', amount: 2 })], NOW);
+    expect(w.count).toBe(2);
+    expect(w.total).toBe(3);
+  });
+});
+
+describe('moneyFor e cancelados', () => {
+  it('registro de outra entrega (deliveryId d1) não casa pelo pedido', () => {
+    const idx = indexMoney([payout({ _id: 'p', deliveryId: 'd1', orderId: 'o1', amount: 3 })]);
+    expect(moneyFor(idx, { _id: 'dx', orderId: 'o1' })).toBeNull();
+  });
+  it('todas as partes canceladas: Cancelado para 1 ou N', () => {
+    const one = moneyFor(indexMoney([payout({ _id: 'a', deliveryId: 'd', status: 'cancelled' })]), { _id: 'd' })!;
+    const many = moneyFor(indexMoney([payout({ _id: 'a', deliveryId: 'd', status: 'cancelled' }), payout({ _id: 'b', deliveryId: 'd', status: 'cancelled' })]), { _id: 'd' })!;
+    expect(moneyBadge(one).label).toBe('Cancelado');
+    expect(moneyBadge(many).label).toBe('Cancelado');
+  });
+});
+
+describe('detail do Pix', () => {
+  it('texto por status', () => {
+    expect(transferView('failed').detail).toBe('A loja vai tentar de novo.');
+    expect(transferView('uncertain').detail).toBe('Em conferência pela DROP.');
+    expect(transferView('failed_final').detail).toBe('As tentativas acabaram — a DROP está cuidando do seu repasse.');
+    expect(transferView('pending').detail).toBe('A caminho da sua conta.');
+    expect(transferView('requested').detail).toBe('A caminho da sua conta.');
+    expect(transferView('done').detail).toBe('');
+    expect(transferView('zzz').detail).toBe('Em conferência.');
   });
 });

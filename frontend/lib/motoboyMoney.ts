@@ -64,28 +64,31 @@ export function transferToMoney(t: any): MoneyInfo | null {
   };
 }
 
-/** Pix que não saiu: a loja tenta de novo (failed), está com a DROP (failed_final) ou em conferência (uncertain). */
-export const isLateTransfer = (m: MoneyInfo): boolean =>
-  m.kind === 'transfer' && (m.status === 'failed' || m.status === 'failed_final' || m.status === 'uncertain');
-
 /**
  * Rótulo e tom do Pix da loja (modo direto), um só para a conclusão, a lista e o sheet de atraso.
  * Status desconhecido nunca é otimista: fica "Em conferência", neutro.
  */
-export function transferView(status: string): { label: string; tone: MoneyTone } {
+export function transferView(status: string): { label: string; tone: MoneyTone; detail: string } {
   switch (status) {
-    case 'done': return { label: 'Na conta', tone: 'ok' };
+    case 'done': return { label: 'Na conta', tone: 'ok', detail: '' };
     case 'pending':
-    case 'requested': return { label: 'A caminho', tone: 'info' };
-    case 'failed':
-    case 'failed_final':
-    case 'uncertain': return { label: 'Atrasado', tone: 'warn' };
-    default: return { label: 'Em conferência', tone: 'neutral' };
+    case 'requested': return { label: 'A caminho', tone: 'info', detail: 'A caminho da sua conta.' };
+    case 'failed': return { label: 'Atrasado', tone: 'warn', detail: 'A loja vai tentar de novo.' };
+    case 'uncertain': return { label: 'Atrasado', tone: 'warn', detail: 'Em conferência pela DROP.' };
+    case 'failed_final': return { label: 'Atrasado', tone: 'warn', detail: 'As tentativas acabaram — a DROP está cuidando do seu repasse.' };
+    default: return { label: 'Em conferência', tone: 'neutral', detail: 'Em conferência.' };
   }
 }
 
+/** Pix que não saiu: mesmo conjunto que transferView mostra como "Atrasado". */
+export const isLateTransfer = (m: MoneyInfo): boolean =>
+  m.kind === 'transfer' && transferView(m.status).label === 'Atrasado';
+
 export function moneyBadge(m: MoneyInfo): { label: string; tone: MoneyTone } {
-  if (m.kind === 'transfer') return transferView(m.status);
+  if (m.kind === 'transfer') {
+    const { label, tone } = transferView(m.status);
+    return { label, tone };
+  }
   if (m.blocked && m.status !== 'paid' && m.status !== 'cancelled') return { label: 'Bloqueado', tone: 'err' };
   switch (m.status) {
     case 'pending': return { label: 'A liberar', tone: 'warn' };
@@ -134,7 +137,7 @@ function combine(parts: MoneyInfo[]): MoneyInfo | null {
   if (parts.length === 1) return parts[0];
   if (parts.some((p) => p.kind !== 'payout')) return null;
   const sum = sumPayoutParts(parts);
-  if (!sum) return null;
+  if (!sum) return parts.every((p) => p.status === 'cancelled') ? parts[0] : null;
   const active = parts.filter((p) => p.status !== 'cancelled');
   return {
     ...active[0],
@@ -243,25 +246,33 @@ export function isThisWeek(iso: string | null | undefined, now: Date): boolean {
 
 export interface WeekBars { days: Array<{ label: string; total: number; best: boolean }>; total: number; count: number; bestDay: string | null }
 
-/** Repasses da semana por dia de criação; cancelados ficam de fora. */
+/**
+ * Repasses da semana por dia. Repasse dividido por saque (mesmo deliveryId) é UMA corrida: soma
+ * em centavos sem cancelados e vale no dia da parte mais antiga (a original, não a do saque).
+ */
 export function weekBars(list: MoneyInfo[], now: Date): WeekBars {
   const keys = weekKeys(now);
-  const totals = keys.map(() => 0);
+  const groups = new Map<string, MoneyInfo[]>();
+  list.forEach((m, n) => {
+    if (m.status === 'cancelled') return;
+    const g = m.deliveryId ? `d:${m.deliveryId}` : `i:${n}`;
+    groups.set(g, [...(groups.get(g) ?? []), m]);
+  });
+  const cents = keys.map(() => 0);
   let count = 0;
-  for (const m of list) {
-    if (m.status === 'cancelled') continue;
-    const k = formatFullDate(m.createdAt);
-    const i = k ? keys.indexOf(k) : -1;
+  for (const parts of groups.values()) {
+    const times = parts.map((p) => (p.createdAt ? new Date(p.createdAt).getTime() : NaN)).filter((t) => !Number.isNaN(t));
+    if (times.length === 0) continue;
+    const i = keys.indexOf(formatFullDate(new Date(Math.min(...times))) as string);
     if (i < 0) continue;
-    totals[i] += m.amount;
+    cents[i] += parts.reduce((s, p) => s + Math.round(p.amount * 100), 0);
     count += 1;
   }
-  const rounded = totals.map(round2);
-  const max = Math.max(...rounded);
-  const bestIdx = max > 0 ? rounded.indexOf(max) : -1;
+  const max = Math.max(...cents);
+  const bestIdx = max > 0 ? cents.indexOf(max) : -1;
   return {
-    days: rounded.map((total, i) => ({ label: WEEK_LABELS[i], total, best: i === bestIdx })),
-    total: round2(rounded.reduce((s, t) => s + t, 0)),
+    days: cents.map((c, i) => ({ label: WEEK_LABELS[i], total: c / 100, best: i === bestIdx })),
+    total: cents.reduce((s, t) => s + t, 0) / 100,
     count,
     bestDay: bestIdx >= 0 ? WEEK_NAMES[bestIdx] : null,
   };

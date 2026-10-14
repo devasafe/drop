@@ -106,9 +106,11 @@ export function customerPoint(r: any): LatLng | null {
   return parseCoords(r?.deliveryLat, r?.deliveryLng) || parseCoords(r?.customerLatitude, r?.customerLongitude);
 }
 
-export type { MoneyTone } from '../../../lib/motoboyMoney';
+import type { MoneyTone } from '../../../lib/motoboyMoney';
+export type { MoneyTone };
 
 /** Status reais de MotoboyTransfer (modo direto): um único rótulo, em lib/motoboyMoney (K30). */
-export function transferStatusLabel(status: string): ReturnType<typeof transferView> {
-  return transferView(status);
+export function transferStatusLabel(status: string): { label: string; tone: MoneyTone } {
+  const { label, tone } = transferView(status);
+  return { label, tone };
 }
