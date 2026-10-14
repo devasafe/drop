@@ -47,4 +47,10 @@ module.exports = [
   { source: '/store/plan-selection', destination: '/seller/select-plan', permanent: true },
   // V13 — o nome em português da aba Produtos leva à rota real (o /produtos do cliente segue para a busca).
   { source: '/seller/produtos', destination: '/seller/products', permanent: true },
+
+  // D2 — painel do motoboy (spec D2 3.2; contrato do plano, "Regra de redirects"). Tudo permanent:true.
+  // Cada task de tela nova (P3–P5) acrescenta aqui as rotas antigas dela, apaga a página antiga no MESMO
+  // commit (o Next não convive bem com página e redirect no mesmo caminho) e acrescenta o teste em
+  // lib/__tests__/redirects.test.ts. Regra com `has` vem antes da regra sem `has` da mesma origem.
+  // /notifications e /register são compartilhadas: o motoboy é redirecionado na página, por papel.
 ];

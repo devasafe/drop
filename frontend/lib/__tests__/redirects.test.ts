@@ -129,3 +129,55 @@ describe('V13 — /seller/produtos (pt) leva à aba Produtos', () => {
     expect(resolveRedirect(rules, '/seller/products')).toBeNull();
   });
 });
+
+describe('D2 — painel do motoboy', () => {
+  // Tabela do contrato do plano D2 ("Regra de redirects"). Só estas regras podem existir para o motoboy.
+  type Planned = { source: string; has?: RedirectRule['has']; destination: string };
+  const PLANNED: Planned[] = [
+    { source: '/motoboy/ongoing', has: [{ type: 'query', key: 'tab', value: 'history' }], destination: '/motoboy/entregas?seg=concluidas' },
+    { source: '/motoboy/ongoing', destination: '/motoboy/entregas?seg=andamento' },
+    { source: '/motoboy/history', destination: '/motoboy/entregas?seg=concluidas' },
+    { source: '/motoboy/delivery/:id', destination: '/motoboy/corrida/:id' },
+    { source: '/motoboy/wallet', destination: '/motoboy/ganhos' },
+    { source: '/motoboy/request-withdrawal', destination: '/motoboy/ganhos' },
+    { source: '/motoboy/transfer-wallet', destination: '/motoboy/ganhos' },
+    { source: '/motoboy/ajuda-ganhos', destination: '/motoboy/ganhos/como-calculamos' },
+    { source: '/motoboy/gamification', destination: '/motoboy/nivel' },
+    { source: '/motoboy/beneficios', destination: '/motoboy/nivel' },
+    { source: '/motoboy/profile', destination: '/motoboy/perfil' },
+    { source: '/verificacao-motoboy', destination: '/motoboy/cadastro' },
+  ];
+  const same = (r: RedirectRule, p: Planned) =>
+    r.source === p.source && r.destination === p.destination && JSON.stringify(r.has ?? null) === JSON.stringify(p.has ?? null);
+  const d2 = rules.filter((r) => r.source.startsWith('/motoboy') || r.source === '/verificacao-motoboy');
+  const PAGES = path.join(__dirname, '..', '..', 'pages');
+  const pageExists = (route: string) => {
+    const p = route.split('?')[0].replace(/:(\w+)/g, '[$1]');
+    return fs.existsSync(path.join(PAGES, `${p}.tsx`)) || fs.existsSync(path.join(PAGES, p, 'index.tsx'));
+  };
+
+  it('só regras do contrato, todas permanentes', () => {
+    expect(d2.filter((r) => !PLANNED.some((p) => same(r, p)))).toEqual([]);
+    expect(d2.filter((r) => r.permanent !== true)).toEqual([]);
+  });
+
+  it('destino é página que existe e a página antiga foi apagada no mesmo commit', () => {
+    expect(d2.filter((r) => !pageExists(r.destination)).map((r) => r.destination)).toEqual([]);
+    expect(d2.filter((r) => pageExists(r.source)).map((r) => r.source)).toEqual([]);
+  });
+
+  it('regra com has vem antes da regra sem has da mesma origem', () => {
+    const fora = d2.filter((r, i) => !r.has && d2.slice(i + 1).some((o) => o.source === r.source && o.has));
+    expect(fora).toEqual([]);
+  });
+
+  it('as rotas novas, o perfil público e as compartilhadas não redirecionam aqui', () => {
+    for (const u of [
+      '/motoboy', '/motoboy/entregas', '/motoboy/entregas/abc', '/motoboy/corrida/abc', '/motoboy/ganhos',
+      '/motoboy/ganhos/como-calculamos', '/motoboy/nivel', '/motoboy/ranking', '/motoboy/perfil', '/motoboy/notificacoes',
+      '/motoboy/cadastro', '/motoboy/abc123', '/notifications', '/register', '/dados-recebimento',
+    ]) expect(resolveRedirect(rules, u)).toBeNull();
+  });
+
+  // P3–P5: cada task de tela nova acrescenta aqui o `it` das rotas antigas dela (modelo na Task P2.7 do plano).
+});
