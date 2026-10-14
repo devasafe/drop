@@ -913,6 +913,10 @@ export const setMotoboyAvailability = async (req: AuthenticatedRequest, res: Res
 };
 
 // motoboy claims a delivery (first-claim-wins) — atomic update
+// 409 do aceite: corrida já levada por outro motoboy (ou que não existe mais). A mensagem é a de
+// sempre (o app antigo lê `error`); o `code` deixa a tela nova dizer "Outro entregador aceitou".
+const ALREADY_CLAIMED_BODY = { error: 'Already claimed or not available', code: 'ALREADY_CLAIMED' } as const;
+
 export const claimDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -943,7 +947,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // de travas da recusa/cancelamento (pedido → entrega) — e pedido cancelado/rejeitado
     // desfaz o aceite (409 ORDER_CLOSED). Quem cancela depois enxerga o motoboy (compensa).
     const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true } });
-    if (!target) return res.status(409).json({ error: 'Already claimed or not available' });
+    if (!target) return res.status(409).json(ALREADY_CLAIMED_BODY);
     const ORDER_CLOSED = 'ORDER_CLOSED';
     const ORDER_MISSING = 'ORDER_MISSING';
     let claimedCount: number;
@@ -970,7 +974,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       }
       throw err;
     }
-    if (claimedCount === 0) return res.status(409).json({ error: 'Already claimed or not available' });
+    if (claimedCount === 0) return res.status(409).json(ALREADY_CLAIMED_BODY);
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id } }));
 
     // Buscar order para notificações
