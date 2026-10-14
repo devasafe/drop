@@ -287,8 +287,8 @@ describe('V6 · Conta e plano (sem a Nav global)', () => {
     const { getByRole } = require('@testing-library/react').within(contaGroup());
     fireEvent.click(getByRole('button', { name: /Meu perfil/ }));
     fireEvent.click(getByRole('button', { name: /Ajuda/ }));
-    expect(mockPush).toHaveBeenCalledWith('/user-profile');
-    expect(mockPush).toHaveBeenCalledWith('/suporte');
+    expect(mockPush).toHaveBeenCalledWith('/seller/perfil');
+    expect(mockPush).toHaveBeenCalledWith('/seller/ajuda');
   });
 
   test.each([

@@ -4,3 +4,10 @@ export const HELP_FAQ: { q: string; a: string }[] = [
   { q: 'Como funciona o código de entrega?', a: 'É um código de 5 números que aparece no seu pedido. Compartilhe com o motoboy quando receber o pacote: ele só conclui a entrega com o código.' },
   { q: 'Por que paguei taxa de cancelamento?', a: 'Cancelar é grátis até o motoboy retirar o pedido. Depois disso, o valor da entrega fica com o motoboy, que já fez a viagem, e o resto volta para você.' },
 ];
+
+/** Dúvidas do lojista: só apontam para onde o painel já mostra a informação. */
+export const SELLER_HELP_FAQ: { q: string; a: string }[] = [
+  { q: 'Onde vejo o que tenho a receber?', a: 'Na aba Dinheiro. O valor de cada pedido aparece como a receber e é liberado depois da entrega.' },
+  { q: 'O cliente pediu devolução. E agora?', a: 'Abra a aba Pedidos e entre em Devoluções. Lá você vê o motivo e responde ao pedido.' },
+  { q: 'Como troco de plano ou de comissão?', a: 'Na aba Loja, em Plano e comissão. Você compara as opções e pede a troca por lá.' },
+];

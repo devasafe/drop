@@ -18,7 +18,7 @@
 }
 
 .banner {
-  background: var(--brand-glow, rgba(108, 43, 217, 0.15));
+  background: var(--color-action-primary-subtle);
   border: 1px solid var(--brand);
   border-radius: var(--r-md);
   padding: 10px 14px;
@@ -29,7 +29,7 @@
 
 .bannerError {
   border-color: var(--danger);
-  background: rgba(255, 90, 95, 0.12);
+  background: var(--color-error-subtle);
 }
 
 .link { color: var(--brand-2); }

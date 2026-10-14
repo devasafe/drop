@@ -23,6 +23,6 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.badgeDone { color: var(--success); background: rgba(61, 220, 132, 0.12); }
-.badgePending { color: var(--rating); background: rgba(255, 176, 32, 0.12); }
-.badgeTodo { color: var(--danger); background: rgba(255, 90, 95, 0.12); }
+.badgeDone { color: var(--color-success-text); background: var(--color-success-subtle); }
+.badgePending { color: var(--color-warning-text); background: var(--color-warning-subtle); }
+.badgeTodo { color: var(--color-error-text); background: var(--color-error-subtle); }

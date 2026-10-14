@@ -23,6 +23,7 @@ import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
 import { storeAnalytics, type StoreOverview } from '../../lib/analyticsApi';
+import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import { ROLE_AREAS, ROLE_HOME } from '../../lib/navConfig';
 import { openStatus } from '../../lib/storeHours';
 import { summarizeHours } from '../../lib/sellerHours';
@@ -315,8 +316,8 @@ export default function SellerLoja() {
               ) : (
                 <NavRow icon={<Wallet size={20} />} label="Plano e comissão" sub="Compare e peça troca" onClick={go('/seller/plano')} />
               ))}
-              <NavRow icon={<UserRound size={20} />} label="Meu perfil" sub="Seus dados, senha e segurança" onClick={go('/user-profile')} />
-              <NavRow icon={<Headphones size={20} />} label="Ajuda" sub="Fale com o suporte do DROP" onClick={go('/suporte')} />
+              <NavRow icon={<UserRound size={20} />} label="Meu perfil" sub="Seus dados, senha e segurança" onClick={go(SELLER_ROUTES.perfil)} />
+              <NavRow icon={<Headphones size={20} />} label="Ajuda" sub="Fale com o suporte do DROP" onClick={go(SELLER_ROUTES.ajuda)} />
             </ul>
           </section>
 

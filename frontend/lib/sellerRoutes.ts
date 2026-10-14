@@ -28,6 +28,8 @@ export const SELLER_ROUTES = {
   notificacoes: '/seller/notificacoes',
   contaAsaas: '/seller/conta-asaas',
   abrir: '/seller/abrir',
+  perfil: '/seller/perfil',
+  ajuda: '/seller/ajuda',
 } as const;
 
 /** As 5 abas, na ordem da barra (padrões do router.pathname). */

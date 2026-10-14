@@ -1,0 +1,31 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-6);
+}
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.name {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+.email {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.cap {
+  margin: 0 0 var(--space-2);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.card {
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}

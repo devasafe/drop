@@ -12,7 +12,7 @@ import styles from './MeusDadosForm.module.css';
  * Formulário "Meus dados" (nome, e-mail, CPF, RG) + editor da loja (lojista).
  * Reutilizável — embutido em /user-profile, /motoboy/profile e /editar-conta.
  */
-export default function MeusDadosForm() {
+export default function MeusDadosForm({ showStore = true }: { showStore?: boolean } = {}) {
   const { user } = useAuth() || {};
   const isLojista = (user?.activeRole || user?.role) === 'lojista';
   const [name, setName] = useState('');
@@ -42,13 +42,13 @@ export default function MeusDadosForm() {
   }, []);
 
   useEffect(() => {
-    if (!isLojista) { setStore(null); return; }
+    if (!showStore || !isLojista) { setStore(null); return; }
     let cancelled = false;
     api.get('/stores/dashboard')
       .then(({ data }) => { if (!cancelled) setStore(data.store); })
       .catch(() => { if (!cancelled) setStore(null); });
     return () => { cancelled = true; };
-  }, [isLojista]);
+  }, [isLojista, showStore]);
 
   const salvar = async () => {
     setMsg(''); setErr(''); setCpfErr('');
@@ -104,7 +104,7 @@ export default function MeusDadosForm() {
         <Button variant="primary" onClick={salvar}>Salvar alterações</Button>
       </div>
 
-      {isLojista && store && (
+      {showStore && isLojista && store && (
         <StoreSettingsEditor store={store} onSaved={(u: any) => setStore((prev: any) => ({ ...prev, ...u }))} />
       )}
     </div>
