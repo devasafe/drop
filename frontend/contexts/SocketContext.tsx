@@ -16,12 +16,30 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<any>(null);
+  // `on`/`emit` têm referência FIXA (não mudam a cada connect/disconnect). Antes, `on` dependia de
+  // isConnected: cada queda/volta do socket refazia os GETs de todos os hooks inscritos por `on`
+  // (avalanche de 429 no painel da loja, V16). As inscrições ficam guardadas aqui e são ligadas na
+  // instância do socket assim que ela existe — cobre quem se inscreve antes de o socket nascer
+  // (o efeito do filho roda antes do do provider). Os listeners do socket.io ficam na instância e
+  // sobrevivem às reconexões, então não há o que refazer ao reconectar.
+  const subsRef = useRef(new Set<{ event: string; handler: (...args: any[]) => void }>());
+  const attachedRef = useRef<any>(null);
+  const attachAll = (socket: any) => {
+    if (!socket || attachedRef.current === socket) return;
+    const prev = attachedRef.current;
+    subsRef.current.forEach((sub) => {
+      prev?.off(sub.event, sub.handler);
+      socket.on(sub.event, sub.handler);
+    });
+    attachedRef.current = socket;
+  };
 
   useEffect(() => {
     if (!enabled) return;
 
     const socket = connectSocket();
     socketRef.current = socket;
+    attachAll(socket);
 
     socket.on('connect', () => {
       console.log('✅ [Socket] Conectado ao servidor');
@@ -81,18 +99,21 @@ export const SocketProvider = ({ children, enabled }: { children: ReactNode; ena
   };
 
   const on = useCallback((event: string, handler: (...args: any[]) => void) => {
-    const socket = socketRef.current || getSocket();
-    if (!socket) return () => {};
-    const wrappedHandler = (...args: any[]) => handler(...args);
-    socket.on(event, wrappedHandler);
-    return () => socket.off(event, wrappedHandler);
-  }, [isConnected]); // isConnected nas deps: quando o socket conecta, a referência muda e consumers re-registram seus listeners (fix de race condition de ordem de efeitos React)
+    const sub = { event, handler: (...args: any[]) => handler(...args) };
+    subsRef.current.add(sub);
+    if (attachedRef.current) attachedRef.current.on(event, sub.handler);
+    else attachAll(socketRef.current || getSocket()); // liga esta e as pendentes, se o socket já existe
+    return () => {
+      subsRef.current.delete(sub);
+      attachedRef.current?.off(event, sub.handler);
+    };
+  }, []);
 
   const emit = useCallback((event: string, ...args: any[]) => {
     const socket = socketRef.current || getSocket();
     if (!socket?.connected) return;
     socket.emit(event, ...args);
-  }, [isConnected]);
+  }, []);
 
   return (
     <SocketContext.Provider value={{ isConnected, isReconnecting, on, emit }}>
