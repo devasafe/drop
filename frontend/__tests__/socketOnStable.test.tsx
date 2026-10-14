@@ -48,7 +48,7 @@ jest.mock('../lib/api', () => ({ __esModule: true, default: { get: (url: string)
 // eslint-disable-next-line import/first
 import { SocketProvider, useSocket } from '../contexts/SocketContext';
 // eslint-disable-next-line import/first
-import { useBadgeCounts, useNotifications } from '../hooks/useSync';
+import { useBadgeCounts, useNotifications, resetBadgeCountsCache } from '../hooks/useSync';
 
 const calls = (url: string) => mockGet.mock.calls.filter(([u]) => u === url).length;
 
@@ -89,6 +89,7 @@ const flapSocket = (times: number) => {
 beforeEach(() => {
   jest.useFakeTimers();
   mockSocket = null;
+  resetBadgeCountsCache();
   mockGet.mockClear();
   localStorage.setItem('user', JSON.stringify({ _id: 'u1', role: 'lojista' }));
   jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -112,7 +113,8 @@ describe('SocketContext · on estável entre conexões (V16)', () => {
     flapSocket(2); // connect, disconnect, connect, disconnect, connect
     await act(async () => {});
 
-    expect(calls('/badges')).toBe(3);
+    // 1: as 3 instâncias de useBadgeCounts dividem a mesma leitura (era 3 antes do cache em módulo)
+    expect(calls('/badges')).toBe(1);
     expect(calls('/notifications')).toBe(1);
   });
 

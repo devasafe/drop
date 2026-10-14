@@ -261,41 +261,140 @@ export const useNotifications = () => {
   return { notifications, unreadCount, loading, setNotifications };
 };
 
+type BadgeCounts = { verifications: number; storeOrders: number; deliveries: number };
+const ZERO_BADGES: BadgeCounts = { verifications: 0, storeOrders: 0, deliveries: 0 };
+/** Número lido há menos que isso é reaproveitado por quem monta depois (troca de tela). */
+const BADGE_FRESH_MS = 15_000;
+const BADGE_DEBOUNCE_MS = 400;
+const BADGE_EVENTS = [
+  'notification:received',
+  'new_order', 'order:created', 'order:status_changed', 'order_update',
+  'delivery:created', 'delivery:available', 'delivery:status_changed',
+];
+
+/**
+ * Leitura de /badges compartilhada entre as instâncias de useBadgeCounts (Nav, AppSidebar e
+ * PanelBottomNav montam o hook juntas): um pedido em voo por vez, um debounce só para os
+ * eventos e o último número guardado por usuário. Antes, cada instância lia o seu (V16, 429).
+ */
+const badgeStore = {
+  userKey: null as string | null,
+  counts: ZERO_BADGES,
+  loadedAt: 0,
+  inFlight: null as Promise<void> | null,
+  again: false,
+  timer: null as ReturnType<typeof setTimeout> | null,
+  listeners: new Set<(c: BadgeCounts) => void>(),
+};
+
+/** Só para testes: zera o cache do módulo. */
+export const resetBadgeCountsCache = () => {
+  if (badgeStore.timer) clearTimeout(badgeStore.timer);
+  badgeStore.userKey = null;
+  badgeStore.counts = ZERO_BADGES;
+  badgeStore.loadedAt = 0;
+  badgeStore.inFlight = null;
+  badgeStore.again = false;
+  badgeStore.timer = null;
+  badgeStore.listeners.clear();
+};
+
+const readBadgeUserKey = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('user');
+  if (!raw) return null;
+  try {
+    const u = JSON.parse(raw);
+    return String(u?._id ?? u?.id ?? raw);
+  } catch {
+    return raw;
+  }
+};
+
+/** Troca de usuário: descarta o número do anterior. */
+const syncBadgeUser = (userKey: string) => {
+  if (badgeStore.userKey === userKey) return;
+  badgeStore.userKey = userKey;
+  badgeStore.counts = ZERO_BADGES;
+  badgeStore.loadedAt = 0;
+  badgeStore.again = false;
+  badgeStore.inFlight = null; // resposta do usuário anterior é ignorada (checa userKey)
+};
+
+const fetchBadgeCounts = (): Promise<void> => {
+  if (badgeStore.inFlight) {
+    badgeStore.again = true; // algo mudou durante a leitura: lê de novo ao terminar
+    return badgeStore.inFlight;
+  }
+  const userKey = badgeStore.userKey;
+  const req = (async () => {
+    try {
+      const res = await api.get('/badges');
+      if (badgeStore.userKey !== userKey) return;
+      badgeStore.loadedAt = Date.now();
+      if (res.data) {
+        badgeStore.counts = res.data;
+        badgeStore.listeners.forEach((l) => l(badgeStore.counts));
+      }
+    } catch {
+      /* silencioso: badge é cosmético */
+    } finally {
+      if (badgeStore.inFlight === req) {
+        badgeStore.inFlight = null;
+        if (badgeStore.again) {
+          badgeStore.again = false;
+          void fetchBadgeCounts();
+        }
+      }
+    }
+  })();
+  badgeStore.inFlight = req;
+  return req;
+};
+
+const scheduleBadgeRefetch = () => {
+  if (badgeStore.timer) clearTimeout(badgeStore.timer);
+  badgeStore.timer = setTimeout(() => {
+    badgeStore.timer = null;
+    if (badgeStore.listeners.size > 0) void fetchBadgeCounts();
+  }, BADGE_DEBOUNCE_MS);
+};
+
 /**
  * Contagens de "trabalho a fazer" para os badges do menu:
  *  verifications (admin) / storeOrders (lojista) / deliveries (motoboy).
  * Atualiza em tempo real pelos eventos socket já existentes.
  */
 export const useBadgeCounts = () => {
-  const [counts, setCounts] = useState({ verifications: 0, storeOrders: 0, deliveries: 0 });
+  const [counts, setCounts] = useState<BadgeCounts>(() => {
+    const key = readBadgeUserKey();
+    return key && key === badgeStore.userKey ? badgeStore.counts : ZERO_BADGES;
+  });
   const { on } = useSocket();
 
   useEffect(() => {
-    const hasUser = typeof window !== 'undefined' && !!localStorage.getItem('user');
-    if (!hasUser) return;
+    const userKey = readBadgeUserKey();
+    if (!userKey) return;
+    syncBadgeUser(userKey);
 
-    let active = true;
-    const fetchCounts = async () => {
-      try {
-        const res = await api.get('/badges');
-        if (active && res.data) setCounts(res.data);
-      } catch {
-        /* silencioso: badge é cosmético */
+    const listener = (c: BadgeCounts) => setCounts(c);
+    badgeStore.listeners.add(listener);
+    setCounts(badgeStore.counts);
+
+    const fresh = badgeStore.loadedAt > 0 && Date.now() - badgeStore.loadedAt < BADGE_FRESH_MS;
+    if (!fresh && !badgeStore.inFlight) void fetchBadgeCounts();
+
+    // Eventos que mudam alguma das contagens → re-busca (debounce compartilhado).
+    const unsubs = BADGE_EVENTS.map((e) => on(e, scheduleBadgeRefetch));
+
+    return () => {
+      badgeStore.listeners.delete(listener);
+      unsubs.forEach((u) => u());
+      if (badgeStore.listeners.size === 0 && badgeStore.timer) {
+        clearTimeout(badgeStore.timer);
+        badgeStore.timer = null;
       }
     };
-    fetchCounts();
-
-    // Eventos que mudam alguma das contagens → re-busca (debounce simples).
-    let t: any = null;
-    const refetch = () => { if (t) clearTimeout(t); t = setTimeout(fetchCounts, 400); };
-    const events = [
-      'notification:received',
-      'new_order', 'order:created', 'order:status_changed', 'order_update',
-      'delivery:created', 'delivery:available', 'delivery:status_changed',
-    ];
-    const unsubs = events.map((e) => on(e, refetch));
-
-    return () => { active = false; if (t) clearTimeout(t); unsubs.forEach((u) => u()); };
   }, [on]);
 
   return counts;
