@@ -103,6 +103,11 @@ img.initials {
   margin: 0;
   font: var(--text-body);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .meta {

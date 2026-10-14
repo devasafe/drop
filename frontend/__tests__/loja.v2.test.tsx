@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StorePage from '../pages/loja/[id]';
 import api from '../lib/api';
@@ -94,4 +96,16 @@ test('logo da loja aparece na página pública; falha volta às iniciais; frase 
   imgs.forEach((i) => fireEvent.error(i));
   expect(screen.queryByAltText('Logo de Eletro Center')).toBeNull();
   expect(screen.getAllByText('EC').length).toBeGreaterThan(0);
+});
+
+test('frase da loja tem limite visual (2 linhas, quebra palavra longa) e texto completo no title', async () => {
+  const long = 'x'.repeat(120);
+  mockStores = [{ _id: 's1', name: 'Eletro Center', isOpen: true, plan: 2, tagline: long }];
+  render(<StorePage />);
+  expect(await screen.findByTitle(long)).toHaveTextContent(long);
+  const css = fs.readFileSync(path.join(__dirname, '../pages/loja/Loja.module.css'), 'utf8');
+  const rule = css.match(/\.tagline\s*\{[^}]*\}/)![0];
+  expect(rule).toMatch(/-webkit-line-clamp:\s*2/);
+  expect(rule).toMatch(/overflow:\s*hidden/);
+  expect(rule).toMatch(/overflow-wrap:\s*anywhere/);
 });

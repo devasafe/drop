@@ -275,7 +275,7 @@ export default function StorePage() {
         <div className={styles.head}>
           <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} />
           <h1 className={styles.title}>{store.name}</h1>
-          {store.tagline && <p className={styles.tagline}>{store.tagline}</p>}
+          {store.tagline && <p className={styles.tagline} title={store.tagline}>{store.tagline}</p>}
           <p className={styles.meta}>{[store.neighborhood || store.city, quote?.distanceKm != null ? `${String(quote.distanceKm).replace('.', ',')} km` : null].filter(Boolean).join(' · ')}</p>
           <div className={styles.facts} aria-live="polite">
             {typeof store.ratingAverage === 'number' && <span className={styles.rating}>{`★ ${formatRating(store.ratingAverage)} (${store.ratingCount})`}</span>}
