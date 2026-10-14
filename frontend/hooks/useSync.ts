@@ -140,19 +140,22 @@ export const useOrders = () => {
 export const useDeliveries = () => {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { on, isConnected } = useSocket();
+  // null = ainda não leu ou a leitura falhou; true só quando o servidor manda requiresVerification: true
+  const [requiresVerification, setRequiresVerification] = useState<boolean | null>(null);
+  const { on, onReconnect } = useSocket();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const prevConnectedRef = useRef(false);
 
   const fetchDeliveries = useCallback(async () => {
     try {
       const res = await api.get('/deliveries/available');
       const deliveriesData = res.data?.deliveries || res.data || [];
       setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
+      setRequiresVerification(res.data?.requiresVerification === true);
       setLoading(false);
     } catch (err) {
       console.error('Erro ao buscar entregas:', err);
       setDeliveries([]);
+      setRequiresVerification(null);
       setLoading(false);
     }
   }, []);
@@ -163,14 +166,6 @@ export const useDeliveries = () => {
       fetchDeliveries();
     }, 300);
   }, [fetchDeliveries]);
-
-  // Refetch automático quando socket reconecta
-  useEffect(() => {
-    if (isConnected && !prevConnectedRef.current) {
-      fetchDeliveries();
-    }
-    prevConnectedRef.current = isConnected;
-  }, [isConnected, fetchDeliveries]);
 
   useEffect(() => {
     fetchDeliveries();
@@ -191,13 +186,17 @@ export const useDeliveries = () => {
       })
     );
 
+    // Socket voltou de uma queda (V16): relê uma vez, pelo sinal compartilhado.
+    const offReconnect = onReconnect?.(fetchDeliveries);
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       unsubscribers.forEach(u => u());
+      offReconnect?.();
     };
-  }, [on, fetchDeliveries, refetch]);
+  }, [on, onReconnect, fetchDeliveries, refetch]);
 
-  return { deliveries, loading, setDeliveries, refetch };
+  return { deliveries, loading, requiresVerification, setDeliveries, refetch };
 };
 
 /**
@@ -584,9 +583,8 @@ export const useAddresses = () => {
 export const useOngoingDeliveries = () => {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { on, isConnected } = useSocket();
+  const { on, onReconnect } = useSocket();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const prevConnectedRef = useRef(false);
 
   const fetchDeliveries = useCallback(async () => {
     try {
@@ -607,14 +605,6 @@ export const useOngoingDeliveries = () => {
       fetchDeliveries();
     }, 300);
   }, [fetchDeliveries]);
-
-  // Refetch automático quando socket reconecta
-  useEffect(() => {
-    if (isConnected && !prevConnectedRef.current) {
-      fetchDeliveries();
-    }
-    prevConnectedRef.current = isConnected;
-  }, [isConnected, fetchDeliveries]);
 
   useEffect(() => {
     fetchDeliveries();
@@ -639,11 +629,15 @@ export const useOngoingDeliveries = () => {
       })
     );
 
+    // Socket voltou de uma queda (V16): relê uma vez, pelo sinal compartilhado.
+    const offReconnect = onReconnect?.(fetchDeliveries);
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       unsubscribers.forEach(u => u());
+      offReconnect?.();
     };
-  }, [on, fetchDeliveries, refetch]);
+  }, [on, onReconnect, fetchDeliveries, refetch]);
 
   return { deliveries, loading, setDeliveries, refetch };
 };
