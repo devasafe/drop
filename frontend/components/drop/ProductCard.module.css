@@ -38,13 +38,15 @@
 }
 
 .addOnImage button,
-.priceRow button {
+.priceRow button,
+.action button {
   min-width: var(--touch-min);
   min-height: var(--touch-min);
 }
 
 .addOnImage button:focus-visible,
-.priceRow button:focus-visible {
+.priceRow button:focus-visible,
+.action button:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
@@ -181,4 +183,46 @@
 
 .carrinho {
   grid-template-columns: 52px 1fr auto;
+}
+
+/* ---- loja: nome > preço > entrega empilhados; ação sozinha à direita.
+ * O nome nunca é espremido pelo preço (2 linhas, quebra em qualquer ponto);
+ * a linha de preço quebra para baixo quando não cabe. */
+.loja {
+  align-items: start;
+}
+
+.loja .textBlock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.loja .name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.loja .priceLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.loja .action {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* preço e selo nunca partem no meio; quem não cabe vai inteiro para a linha de baixo */
+.loja .priceLine > * {
+  white-space: nowrap;
 }

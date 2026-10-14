@@ -59,6 +59,8 @@ interface VariantConfig {
   showPromo: boolean;
   addOnImage: boolean;
   priceSize: PriceTagSize;
+  /** Preço dentro da coluna do texto (nome > preço > entrega) e ação sozinha à direita. */
+  stacked?: boolean;
 }
 
 /**
@@ -81,7 +83,7 @@ const VARIANT_CONFIG: Record<ProductCardVariant, VariantConfig> = {
     priceSize: 'sm',
   },
   busca: { layout: 'line', showStore: true, showPromo: true, addOnImage: false, priceSize: 'sm' },
-  loja: { layout: 'line', showStore: false, showPromo: true, addOnImage: false, priceSize: 'md' },
+  loja: { layout: 'line', showStore: false, showPromo: true, addOnImage: false, priceSize: 'md', stacked: true },
   carrinho: {
     layout: 'line',
     showStore: true,
@@ -151,6 +153,14 @@ export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = fa
     />
   );
 
+  const priceLine = (
+    <div className={config.stacked ? styles.priceLine : styles.priceRow}>
+      <PriceTag price={product.price} oldPrice={oldPrice} size={config.priceSize} />
+      {!isTile && below.length > 0 && below.map(renderBadge)}
+      {!config.addOnImage && !config.stacked && addButton}
+    </div>
+  );
+
   return (
     <div className={[styles.product, styles[config.layout], styles[variant]].join(' ')}>
       <div className={styles.media}>
@@ -173,6 +183,7 @@ export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = fa
       <div className={styles.info}>
         <div className={styles.textBlock}>
           <div className={styles.name}>{product.name}</div>
+          {config.stacked && priceLine}
           {config.showStore && product.store && <div className={styles.store}>{product.store}</div>}
           {product.outOfArea ? (
             <div className={styles.deliveryOff}>Não entrega aqui</div>
@@ -183,11 +194,8 @@ export function ProductCard({ variant, product, onAdd, soldOut: soldOutProp = fa
             </div>
           ) : null}
         </div>
-        <div className={styles.priceRow}>
-          <PriceTag price={product.price} oldPrice={oldPrice} size={config.priceSize} />
-          {!isTile && below.length > 0 && below.map(renderBadge)}
-          {!config.addOnImage && addButton}
-        </div>
+        {!config.stacked && priceLine}
+        {config.stacked && <div className={styles.action}>{addButton}</div>}
         {isTile && below.length > 0 && <div className={styles.badgeRow}>{below.map(renderBadge)}</div>}
       </div>
     </div>
