@@ -64,7 +64,7 @@ test('modo direto: "Entregue!", Pix a caminho com o status real', async () => {
   expect(screen.getByText('Entregue!')).toBeInTheDocument();
   expect(await screen.findByText('R$ 12,00')).toBeInTheDocument();
   expect(screen.getByText('Pix a caminho da sua chave')).toBeInTheDocument();
-  expect(screen.getByText('Enviando')).toBeInTheDocument();
+  expect(screen.getByText('A caminho')).toBeInTheDocument();
   expect(get).not.toHaveBeenCalledWith('/payouts/my', expect.anything());
 });
 

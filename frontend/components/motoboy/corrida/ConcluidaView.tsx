@@ -18,7 +18,7 @@ type Money =
   | { kind: 'direto'; amount: number; status: string }
   | { kind: 'unknown' };
 
-const TAG = { ok: blocks.tagOk, warn: blocks.tagWarn, err: blocks.tagErr, info: blocks.tagInfo } as const;
+const TAG = { ok: blocks.tagOk, warn: blocks.tagWarn, err: blocks.tagErr, info: blocks.tagInfo, neutral: '' } as const;
 
 export interface ConcluidaViewProps {
   ride: any;

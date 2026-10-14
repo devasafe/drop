@@ -1,5 +1,6 @@
 // Regras puras da tela da corrida (/motoboy/corrida/[id]). Nada aqui lê rede nem relógio sozinho.
 import { shortOrderCode } from '../../../lib/customerOrder';
+import { transferView } from '../../../lib/motoboyMoney';
 import { parseCoords, type LatLng } from '../../../lib/geo';
 
 export type RideStage = 'retirar' | 'entregar' | 'devolver' | 'cancelada' | 'concluida' | 'outra';
@@ -105,15 +106,9 @@ export function customerPoint(r: any): LatLng | null {
   return parseCoords(r?.deliveryLat, r?.deliveryLng) || parseCoords(r?.customerLatitude, r?.customerLongitude);
 }
 
-export type MoneyTone = 'ok' | 'warn' | 'err' | 'info';
+export type { MoneyTone } from '../../../lib/motoboyMoney';
 
-/** Status reais de MotoboyTransfer (modo direto): quem envia o Pix é a loja. */
-export function transferStatusLabel(status: string): { label: string; tone: MoneyTone } {
-  switch (status) {
-    case 'done': return { label: 'Na conta', tone: 'ok' };
-    case 'failed': return { label: 'Atrasado · a loja vai tentar de novo', tone: 'warn' };
-    case 'uncertain': return { label: 'Em conferência pela DROP', tone: 'warn' };
-    case 'failed_final': return { label: 'Com a DROP', tone: 'err' };
-    default: return { label: 'Enviando', tone: 'info' };
-  }
+/** Status reais de MotoboyTransfer (modo direto): um único rótulo, em lib/motoboyMoney (K30). */
+export function transferStatusLabel(status: string): ReturnType<typeof transferView> {
+  return transferView(status);
 }

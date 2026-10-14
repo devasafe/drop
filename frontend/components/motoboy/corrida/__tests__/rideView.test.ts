@@ -99,10 +99,10 @@ describe('links e textos', () => {
   });
   it('status do Pix do modo direto (MotoboyTransfer)', () => {
     expect(transferStatusLabel('done')).toEqual({ label: 'Na conta', tone: 'ok' });
-    expect(transferStatusLabel('failed')).toEqual({ label: 'Atrasado · a loja vai tentar de novo', tone: 'warn' });
-    expect(transferStatusLabel('uncertain')).toEqual({ label: 'Em conferência pela DROP', tone: 'warn' });
-    expect(transferStatusLabel('failed_final')).toEqual({ label: 'Com a DROP', tone: 'err' });
-    expect(transferStatusLabel('pending')).toEqual({ label: 'Enviando', tone: 'info' });
-    expect(transferStatusLabel('requested')).toEqual({ label: 'Enviando', tone: 'info' });
+    expect(transferStatusLabel('failed')).toEqual({ label: 'Atrasado', tone: 'warn' });
+    expect(transferStatusLabel('uncertain')).toEqual({ label: 'Atrasado', tone: 'warn' });
+    expect(transferStatusLabel('failed_final')).toEqual({ label: 'Atrasado', tone: 'warn' });
+    expect(transferStatusLabel('pending')).toEqual({ label: 'A caminho', tone: 'info' });
+    expect(transferStatusLabel('requested')).toEqual({ label: 'A caminho', tone: 'info' });
   });
 });
