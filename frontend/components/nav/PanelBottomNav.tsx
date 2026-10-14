@@ -32,7 +32,10 @@ export default function PanelBottomNav() {
     b === 'storeOrders' ? badges.storeOrders : b === 'deliveries' ? badges.deliveries : b === 'verifications' ? badges.verifications : 0;
 
   return (
-    <nav className={`${styles.bar}${role === 'lojista' ? ` ${styles.seller}` : ''}`} aria-label="Navegação do painel">
+    <nav
+      className={`${styles.bar}${role === 'lojista' ? ` ${styles.seller}` : ''}${role === 'motoboy' ? ` ${styles.motoboy}` : ''}`}
+      aria-label="Navegação do painel"
+    >
       {bottom.map((it) => {
         const active = isItemActive(it, router.pathname, router.query);
         const c = count(it.badge);

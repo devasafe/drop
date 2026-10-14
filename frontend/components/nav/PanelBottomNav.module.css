@@ -20,3 +20,8 @@
 @media (min-width: 900px) {
   .seller { display: none; }
 }
+
+/* Motoboy (D2): igual à loja — a barra some a partir de 900px e o menu lateral assume. */
+@media (min-width: 900px) {
+  .motoboy { display: none; }
+}

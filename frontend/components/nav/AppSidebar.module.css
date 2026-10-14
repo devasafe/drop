@@ -130,3 +130,8 @@
 @media (min-width: 900px) {
   .seller { transform: none; }
 }
+
+/* Motoboy (D2): o menu lateral fica fixo a partir de 900px, igual à loja. */
+@media (min-width: 900px) {
+  .motoboy { transform: none; }
+}

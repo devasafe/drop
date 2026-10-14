@@ -5,11 +5,11 @@ const labels = (role: any, mode: string, isCeo = false) =>
   getNavItems(role, allow, isCeo, { settlementMode: mode }).map((i) => i.label);
 
 describe('navConfig — modo de liquidação', () => {
-  it('direto: some Carteira / Financeiro da loja / Ganhos e saques / Plano e comissão', () => {
+  it('direto: some Carteira / Financeiro da loja / Plano e comissão; o motoboy mantém as 4 abas', () => {
     expect(labels('cliente', 'direto')).not.toContain('Carteira');
     expect(labels('lojista', 'direto')).not.toContain('Financeiro da loja');
     expect(labels('lojista', 'direto')).not.toContain('Plano e comissão');
-    expect(labels('motoboy', 'direto')).not.toContain('Ganhos e saques');
+    expect(labels('motoboy', 'direto')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
   });
 
   it('direto: admin esconde carteiras, saques, payouts, caixa e planos', () => {
@@ -21,7 +21,7 @@ describe('navConfig — modo de liquidação', () => {
   it('custódia: os itens aparecem', () => {
     expect(labels('cliente', 'custodia')).toContain('Carteira');
     expect(labels('lojista', 'custodia')).toEqual(expect.arrayContaining(['Dinheiro', 'Plano e comissão']));
-    expect(labels('motoboy', 'custodia')).toContain('Ganhos e saques');
+    expect(labels('motoboy', 'custodia')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
     expect(labels('ceo', 'custodia', true)).toEqual(expect.arrayContaining(['Carteiras', 'Saques', 'Payouts', 'Caixa', 'Planos']));
   });
 

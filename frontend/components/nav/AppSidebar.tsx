@@ -48,6 +48,9 @@ export default function AppSidebar() {
   const items = getNavItems(effRole, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen }).filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
   const isSeller = effRole === 'lojista';
+  const isMotoboy = effRole === 'motoboy';
+  // Painéis do DS v2 (loja D1, motoboy D2): menu fixo a partir de 900px e a marca só na Nav do computador (V13).
+  const isPanelV2 = isSeller || isMotoboy;
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>
     b === 'storeOrders' ? badges.storeOrders : b === 'deliveries' ? badges.deliveries : b === 'verifications' ? badges.verifications : 0;
@@ -55,11 +58,11 @@ export default function AppSidebar() {
   return (
     <>
       <aside
-        className={`${styles.sidebar}${isSeller ? ` ${styles.seller}` : ''} ${open ? styles.sidebarOpen : ''}`}
+        className={`${styles.sidebar}${isSeller ? ` ${styles.seller}` : ''}${isMotoboy ? ` ${styles.motoboy}` : ''} ${open ? styles.sidebarOpen : ''}`}
         aria-label={meta.subtitle}
       >
-        {/* Painel da loja (V13): a marca fica só na Nav do computador (DROP, que leva à Home), como no app do cliente. */}
-        {!isSeller && (
+        {/* Painéis da loja (V13) e do motoboy (D2): a marca fica só na Nav do computador (DROP, que leva à Home). */}
+        {!isPanelV2 && (
           <div className={styles.sidebarHeader}>
             <div className={styles.sidebarLogoRow}>
               <div className={styles.sidebarLogoIcon}><Icon name={meta.icon} size={16} /></div>

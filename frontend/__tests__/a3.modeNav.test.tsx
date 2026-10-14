@@ -37,13 +37,10 @@ beforeEach(() => {
 
 describe('navConfig motoboy', () => {
   const labels = (mode: string) => getNavItems('motoboy', () => true, false, { settlementMode: mode }).map((i) => i.label);
-  test('direto tem "Repasses recebidos" e não "Ganhos e saques"', () => {
-    expect(labels('direto')).toContain('Repasses recebidos');
-    expect(labels('direto')).not.toContain('Ganhos e saques');
-  });
-  test('custódia não tem "Repasses recebidos"', () => {
-    expect(labels('custodia')).not.toContain('Repasses recebidos');
-    expect(labels('custodia')).toContain('Ganhos e saques');
+  // D2 (spec 6.1): a aba continua "Ganhos" nos dois modos; "Repasses recebidos" é o conteúdo da tela no direto.
+  test('direto e custódia: as mesmas 4 abas, com "Ganhos"', () => {
+    expect(labels('direto')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
+    expect(labels('custodia')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
   });
 });
 

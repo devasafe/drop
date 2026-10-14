@@ -40,7 +40,7 @@ describe('chrome do painel da loja no breakpoint do cliente', () => {
       .toMatch(new RegExp(`@media \\(min-width: ${clientBreakpoint}px\\) \\{\\s*\\.panelContentOffsetSeller \\{ margin-left: 256px; \\}`));
   });
 
-  it('só o lojista ganha a classe da loja; o motoboy fica como está', () => {
+  it('só o lojista ganha a classe da loja; o motoboy ganha a dele (D2)', () => {
     const a = render(<PanelBottomNav />);
     expect(a.container.querySelector('nav')!.className).toContain('seller');
     const b = render(<AppSidebar />);
@@ -50,7 +50,9 @@ describe('chrome do painel da loja no breakpoint do cliente', () => {
     mockRole = 'motoboy';
     const c = render(<PanelBottomNav />);
     expect(c.container.querySelector('nav')!.className).not.toContain('seller');
+    expect(c.container.querySelector('nav')!.className).toContain('motoboy');
     const d = render(<AppSidebar />);
     expect(d.container.querySelector('aside')!.className).not.toContain('seller');
+    expect(d.container.querySelector('aside')!.className).toContain('motoboy');
   });
 });

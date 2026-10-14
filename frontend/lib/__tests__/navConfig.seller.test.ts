@@ -48,15 +48,14 @@ describe('lojista: 5 abas (spec D1 §3.1)', () => {
     expect(tabs().filter((i) => isItemActive(i, '/seller/conta-asaas', { onboarding: '1' })).map((i) => i.label)).toEqual(['Loja']);
   });
 
-  it('lojista: 5 abas e sem "Mais"; motoboy e admin seguem com 4 + "Mais"', () => {
+  it('lojista: 5 abas e sem "Mais"; motoboy: 4 sem "Mais"; admin segue com 4 + "Mais"', () => {
     expect(bottomNavLayout('lojista')).toEqual({ max: 5, more: false });
-    expect(bottomNavLayout('motoboy')).toEqual({ max: 4, more: true });
+    expect(bottomNavLayout('motoboy')).toEqual({ max: 4, more: false });
     expect(bottomNavLayout('ceo')).toEqual({ max: 4, more: true });
   });
 
-  it('motoboy continua respeitando ?tab= (pathOnly é só da loja)', () => {
-    const entregas = getNavItems('motoboy', allow, false).find((i) => i.label === 'Entregas')!;
-    expect(isItemActive(entregas, '/motoboy/ongoing', { tab: 'x' })).toBe(false);
-    expect(isItemActive(entregas, '/motoboy/ongoing', {})).toBe(true);
+  it('motoboy também ignora o ?tab= dos redirects antigos (pathOnly, D2)', () => {
+    const corridas = getNavItems('motoboy', allow, false).find((i) => i.label === 'Corridas')!;
+    expect(isItemActive(corridas, '/motoboy/entregas', { tab: 'history', seg: 'concluidas' })).toBe(true);
   });
 });

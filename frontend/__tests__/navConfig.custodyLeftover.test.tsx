@@ -20,16 +20,16 @@ const labels = (role: any, settlementMode: string, custodyLeftover?: boolean) =>
   getNavItems(role, allow, false, { settlementMode, custodyLeftover }).map((i) => i.label);
 
 describe('navConfig — Saldo do modo anterior', () => {
-  it.each(['cliente', 'lojista', 'motoboy'])('%s: direto + saldo → aparece', (role) => {
+  it.each(['cliente', 'lojista'])('%s: direto + saldo → aparece', (role) => {
     expect(labels(role, 'direto', true)).toContain(LABEL);
   });
 
-  it.each(['cliente', 'lojista', 'motoboy'])('%s: direto sem saldo → não aparece', (role) => {
+  it.each(['cliente', 'lojista'])('%s: direto sem saldo → não aparece', (role) => {
     expect(labels(role, 'direto', false)).not.toContain(LABEL);
     expect(labels(role, 'direto')).not.toContain(LABEL);
   });
 
-  it.each(['cliente', 'lojista', 'motoboy'])('%s: custódia (mesmo com flag) → não aparece', (role) => {
+  it.each(['cliente', 'lojista'])('%s: custódia (mesmo com flag) → não aparece', (role) => {
     expect(labels(role, 'custodia', true)).not.toContain(LABEL);
     expect(getNavItems(role as any, allow, false).map((i) => i.label)).not.toContain(LABEL);
   });
@@ -38,7 +38,14 @@ describe('navConfig — Saldo do modo anterior', () => {
     const route = (role: any) => getNavItems(role, allow, false, { settlementMode: 'direto', custodyLeftover: true }).find((i) => i.label === LABEL)!.route;
     expect(route('cliente')).toBe('/conta/carteira');
     expect(route('lojista')).toBe('/seller/wallet');
-    expect(route('motoboy')).toBe('/motoboy/wallet');
+  });
+
+  // D2 (K22): o motoboy deixou de ter o item de menu. O saldo do modo anterior é parte da aba Ganhos;
+  // a garantia "só aparece com sobra da custódia" será portada para o teste da tela Ganhos (P4).
+  it('motoboy: nunca tem o item "Saldo do modo anterior" no menu (vive dentro de Ganhos)', () => {
+    expect(labels('motoboy', 'direto', true)).not.toContain(LABEL);
+    expect(labels('motoboy', 'direto', true)).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
+    expect(labels('motoboy', 'custodia', true)).not.toContain(LABEL);
   });
 });
 

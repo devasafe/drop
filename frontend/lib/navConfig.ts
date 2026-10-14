@@ -1,6 +1,7 @@
 import { IconName } from '../components/Icon';
 import { visibleAdminMenu } from './adminMenu';
 import { SELLER_ROUTES } from './sellerRoutes';
+import { MOTOBOY_ROUTES } from './motoboyRoutes';
 
 export type Role = 'cliente' | 'lojista' | 'motoboy' | 'ceo';
 export type Placement = 'sidebar' | 'bottomNav' | 'drawer' | 'account';
@@ -111,14 +112,16 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
     { label: 'Saldo do modo anterior', icon: 'wallet', route: '/seller/wallet', placement: ['sidebar'], group: 'Dinheiro', pathOnly: true, custodyLeftoverOnly: true },
   ],
   motoboy: [
-    { label: 'Visão geral',      icon: 'chart-bar', route: '/motoboy',             placement: ['sidebar', 'bottomNav'], group: 'Visão geral', exact: true },
-    { label: 'Entregas',         icon: 'truck',     route: '/motoboy/ongoing',     placement: ['sidebar', 'bottomNav'], group: 'Trabalho', badge: 'deliveries' },
-    { label: 'Ganhos e saques',  icon: 'wallet',    route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', custodyOnly: true },
-    { label: 'Repasses recebidos', icon: 'wallet',   route: '/motoboy/wallet',      placement: ['sidebar', 'bottomNav'], group: 'Financeiro', directOnly: true },
-    { label: 'Saldo do modo anterior', icon: 'wallet', route: '/motoboy/wallet',  placement: ['sidebar', 'drawer'],   group: 'Financeiro', custodyLeftoverOnly: true },
-    { label: 'Desempenho',       icon: 'trophy',    route: '/motoboy/gamification', placement: ['sidebar', 'bottomNav'], group: 'Desempenho' },
-    { label: 'Benefícios',       icon: 'gift',      route: '/motoboy/beneficios',  placement: ['sidebar', 'drawer'],   group: 'Desempenho' },
-    { label: 'Perfil e documentos', icon: 'clipboard', route: '/motoboy/profile',  placement: ['sidebar', 'drawer'],   group: 'Conta profissional' },
+    // 4 abas (spec D2 §3.1), iguais nos dois modos: o conteúdo de cada modo é decidido dentro da tela
+    // (Ganhos mostra "Repasses recebidos" no direto e o saldo do modo anterior quando houver).
+    // pathOnly: os redirects das rotas antigas chegam com ?tab= e não podem apagar a aba.
+    { label: 'Corridas', icon: 'motorcycle', route: MOTOBOY_ROUTES.corridas, placement: ['sidebar', 'bottomNav'], exact: true, pathOnly: true, badge: 'deliveries',
+      activeMatch: [MOTOBOY_ROUTES.corridas, '/motoboy/entregas', '/motoboy/entregas/[id]', '/motoboy/corrida/[id]'] },
+    { label: 'Ganhos',   icon: 'wallet',     route: MOTOBOY_ROUTES.ganhos(),  placement: ['sidebar', 'bottomNav'], pathOnly: true },
+    { label: 'Nível',    icon: 'trophy',     route: MOTOBOY_ROUTES.nivel,     placement: ['sidebar', 'bottomNav'], pathOnly: true,
+      activeMatch: [MOTOBOY_ROUTES.nivel, MOTOBOY_ROUTES.ranking] },
+    { label: 'Perfil',   icon: 'user',       route: MOTOBOY_ROUTES.perfil,    placement: ['sidebar', 'bottomNav'], pathOnly: true,
+      activeMatch: [MOTOBOY_ROUTES.perfil, MOTOBOY_ROUTES.notificacoes] },
   ],
 };
 
@@ -203,8 +206,10 @@ export function isItemActive(
   return curTab === null;                    // no-tab item = overview: active only when no tab selected
 }
 
-/** Barra de baixo de cada painel: o lojista tem 5 abas fixas e nenhum "Mais" (spec D1 §3.1);
- * motoboy e admin seguem com 4 itens + "Mais" (abre o menu lateral). */
+/** Barra de baixo de cada painel: o lojista tem 5 abas e o motoboy 4, os dois sem "Mais" (specs D1 §3.1 e D2 §3.1);
+ * o admin segue com 4 itens + "Mais" (abre o menu lateral). */
 export function bottomNavLayout(role: Role): { max: number; more: boolean } {
-  return role === 'lojista' ? { max: 5, more: false } : { max: 4, more: true };
+  if (role === 'lojista') return { max: 5, more: false };
+  if (role === 'motoboy') return { max: 4, more: false };
+  return { max: 4, more: true };
 }

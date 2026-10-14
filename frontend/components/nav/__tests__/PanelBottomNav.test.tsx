@@ -47,11 +47,12 @@ describe('PanelBottomNav (lojista)', () => {
 });
 
 describe('PanelBottomNav (motoboy)', () => {
-  it('botão Mais abre a sidebar lateral (panelSidebar)', () => {
+  it('4 abas e nenhum botão Mais (D2)', () => {
     mockRole = 'motoboy'; mockRoles = ['motoboy']; mockPathname = '/motoboy';
     render(<PanelBottomNav />);
-    fireEvent.click(screen.getByText('Mais'));
-    expect(toggle).toHaveBeenCalledWith('panelSidebar');
+    for (const l of ['Corridas', 'Ganhos', 'Nível', 'Perfil']) expect(screen.getByText(l)).toBeInTheDocument();
+    expect(screen.queryByText('Mais')).toBeNull();
+    expect(toggle).not.toHaveBeenCalled();
   });
 });
 

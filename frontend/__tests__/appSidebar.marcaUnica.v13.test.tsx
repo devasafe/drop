@@ -1,6 +1,6 @@
 /**
  * V13 · no computador, a marca aparece uma vez só no painel da loja: a da Nav (DROP, que leva à Home).
- * O menu lateral do lojista não repete "DROP SELLER". Motoboy e admin seguem como estão.
+ * O menu lateral do lojista não repete "DROP SELLER". O motoboy segue o mesmo padrão desde a D2; o admin segue como está.
  */
 import { render, screen } from '@testing-library/react';
 
@@ -25,8 +25,10 @@ test('lojista: o menu lateral não repete a marca, mas segue nomeado para leitor
   expect(screen.getByRole('link', { name: 'Agora' })).toBeInTheDocument();
 });
 
-test('motoboy: o cabeçalho do menu lateral continua', () => {
+test('motoboy (D2): o menu lateral também não repete a marca e segue nomeado', () => {
   mockRole = 'motoboy';
-  render(<AppSidebar />);
-  expect(screen.getByText('DROP MOTOBOY')).toBeInTheDocument();
+  const { container } = render(<AppSidebar />);
+  expect(screen.queryByText('DROP MOTOBOY')).toBeNull();
+  expect(container.querySelector('aside')).toHaveAttribute('aria-label', 'Painel do motoboy');
+  expect(screen.getByRole('link', { name: 'Corridas' })).toBeInTheDocument();
 });

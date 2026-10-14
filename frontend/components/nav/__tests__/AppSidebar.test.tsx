@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import AppSidebar from '../AppSidebar';
 
-let mockPathname = '/motoboy/wallet';
+let mockPathname = '/motoboy/ganhos';
 let mockQuery: Record<string, string> = {};
 let mockRole = 'motoboy';
 let mockRoles = ['motoboy'];
@@ -26,25 +26,23 @@ jest.mock('../../../contexts/AuthContext', () => ({
 }));
 
 beforeEach(() => {
-  mockPathname = '/motoboy/wallet';
+  mockPathname = '/motoboy/ganhos';
   mockQuery = {};
   mockRole = 'motoboy';
   mockRoles = ['motoboy'];
 });
 
 describe('AppSidebar (motoboy)', () => {
-  it('renderiza os itens de sidebar da role e marca o ativo por rota', () => {
+  it('renderiza as 4 abas no menu lateral e marca o ativo por rota', () => {
     render(<AppSidebar />);
-    expect(screen.getByText('Ganhos e saques')).toBeInTheDocument();
-    expect(screen.getByText('Entregas')).toBeInTheDocument();
-    const ativo = screen.getByText('Ganhos e saques').closest('a');
-    expect(ativo?.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Corridas')).toBeInTheDocument();
+    expect(screen.getByText('Ganhos').closest('a')?.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Corridas').closest('a')?.getAttribute('aria-current')).toBeNull();
   });
 
-  it('mostra o badge de deliveries em Entregas', () => {
+  it('mostra o badge de deliveries em Corridas', () => {
     render(<AppSidebar />);
-    // 3 entregas pendentes vira pill numérico
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Corridas').closest('a')?.textContent).toContain('3');
   });
 });
 

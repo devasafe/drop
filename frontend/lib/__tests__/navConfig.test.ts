@@ -26,10 +26,9 @@ describe('navConfig', () => {
     expect(labels).not.toContain('Solicitar saque');
   });
 
-  it('motoboy usa "Ganhos e saques" e rotas reais', () => {
+  it('motoboy: a aba de dinheiro é "Ganhos" em /motoboy/ganhos', () => {
     const items = getNavItems('motoboy', allow, false);
-    const ganhos = items.find((i) => i.label === 'Ganhos e saques');
-    expect(ganhos?.route).toBe('/motoboy/wallet');
+    expect(items.find((i) => i.label === 'Ganhos')?.route).toBe('/motoboy/ganhos');
   });
 
   it('ceo deriva itens do ADMIN_MENU com grupos e respeita permissão', () => {
@@ -77,17 +76,14 @@ describe('navConfig', () => {
     expect(isItemActive(items.find((i) => i.label === 'Início')!, '/')).toBe(false);
   });
 
-  it('motoboy: "Visão geral" fica ativa só em /motoboy, nunca junto de uma subtela', () => {
+  it('motoboy: "Corridas" fica ativa só nas rotas dela, nunca junto de outra aba', () => {
     const items = getNavItems('motoboy', () => true, false);
     const active = (pathname: string) =>
       items.filter((i) => isItemActive(i, pathname)).map((i) => i.label);
-
-    // Na home, só a Visão geral
-    expect(active('/motoboy')).toEqual(['Visão geral']);
-    // Em subtelas, só o item da subtela — Visão geral NÃO acompanha
-    expect(active('/motoboy/ongoing')).toEqual(['Entregas']);
-    expect(active('/motoboy/wallet')).toEqual(['Ganhos e saques']);
-    expect(active('/motoboy/gamification')).toEqual(['Desempenho']);
+    expect(active('/motoboy')).toEqual(['Corridas']);
+    expect(active('/motoboy/ganhos')).toEqual(['Ganhos']);
+    expect(active('/motoboy/nivel')).toEqual(['Nível']);
+    expect(active('/motoboy/perfil')).toEqual(['Perfil']);
   });
 
   it('Conta fica ativo em /user-profile e /editar-conta (não só /minha-conta)', () => {
