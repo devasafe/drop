@@ -80,7 +80,9 @@ const sources = (list: string[]) => JSON.stringify(list.map((p) => patternToRege
  * Roda no <head> antes da pintura: evita o tema piscar na primeira carga. Mesma regra de resolvedThemeForPath
  * (o teste routeTheme.night compara os dois com relógio fixo e preferência ligada/desligada).
  */
-export const THEME_BOOT_SCRIPT = `(function(){var d=document.documentElement;try{var p=location.pathname;var m=function(r){for(var i=0;i<r.length;i++){if(new RegExp(r[i]).test(p))return true;}return false;};var t='dark';if(m(${sources(MOTOBOY_NIGHT_ROUTES)})){var on=true;try{on=localStorage.getItem(${JSON.stringify(NIGHT_PREF_KEY)})!=='0';}catch(e){}var h=new Date().getHours();t=on&&(h>=${NIGHT_START_HOUR}||h<${NIGHT_END_HOUR})?'dark':'light';}else if(m(${sources(LIGHT_ROUTES)})){t='light';}d.setAttribute('data-theme',t);}catch(e){d.setAttribute('data-theme','dark');}})();`;
+export const buildBootScript = (nightRoutes: string[], lightRoutes: string[]): string => `(function(){var d=document.documentElement;try{var p=location.pathname;var m=function(r){for(var i=0;i<r.length;i++){if(new RegExp(r[i]).test(p))return true;}return false;};var t='dark';if(m(${sources(nightRoutes)})){var on=true;try{on=localStorage.getItem(${JSON.stringify(NIGHT_PREF_KEY)})!=='0';}catch(e){}var h=new Date().getHours();t=on&&(h>=${NIGHT_START_HOUR}||h<${NIGHT_END_HOUR})?'dark':'light';}else if(m(${sources(lightRoutes)})){t='light';}d.setAttribute('data-theme',t);}catch(e){d.setAttribute('data-theme','dark');}})();`;
+
+export const THEME_BOOT_SCRIPT = buildBootScript(MOTOBOY_NIGHT_ROUTES, LIGHT_ROUTES);
 
 /** Layout effect no browser (antes da pintura e dos efeitos dos filhos); effect comum no SSR. */
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -101,14 +103,19 @@ export function useRouteTheme(): void {
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
+      if (timer) clearTimeout(timer);
       timer = setTimeout(() => { apply(); schedule(); }, msUntilNextBoundary(new Date()));
     };
     schedule();
     const onStorage = (e: StorageEvent) => { if (e.key === NIGHT_PREF_KEY) apply(); };
+    // O timer não sobrevive à suspensão do aparelho: ao voltar a ficar visível, relê a hora e reagenda.
+    const onVisible = () => { if (document.visibilityState === 'visible') { apply(); schedule(); } };
+    document.addEventListener('visibilitychange', onVisible);
     window.addEventListener(NIGHT_PREF_EVENT, apply);
     window.addEventListener('storage', onStorage);
     return () => {
       if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener(NIGHT_PREF_EVENT, apply);
       window.removeEventListener('storage', onStorage);
     };

@@ -1,5 +1,5 @@
 import { act, render } from '@testing-library/react';
-import { useRouteTheme, resolvedThemeForPath, themeForPath, THEME_BOOT_SCRIPT, LIGHT_ROUTES } from '../routeTheme';
+import { useRouteTheme, resolvedThemeForPath, themeForPath, THEME_BOOT_SCRIPT, LIGHT_ROUTES, buildBootScript } from '../routeTheme';
 import { NIGHT_PREF_KEY, writeNightPref } from '../nightTheme';
 
 let mockPathname = '/motoboy';
@@ -24,14 +24,32 @@ describe('tema noturno automático do motoboy (spec 3.4)', () => {
     try {
       expect(themeForPath('/motoboy/ranking')).toBe('night-auto');
       expect(themeForPath('/motoboy/x1')).toBe('light');
-      jest.setSystemTime(at(20, 0));
-      localStorage.setItem(NIGHT_PREF_KEY, '1');
-      document.documentElement.removeAttribute('data-theme');
-      new Function('location', THEME_BOOT_SCRIPT)({ pathname: '/motoboy/ranking' });
-      expect(theme()).toBe('dark');
     } finally {
       LIGHT_ROUTES.pop();
     }
+  });
+
+  it('o script do <head> checa a noturna antes da clara (executa o script gerado com as listas trocadas)', () => {
+    jest.setSystemTime(at(19, 0));
+    const script = buildBootScript(['/motoboy/ranking'], ['/motoboy/[id]']);
+    const roda = (pathname: string) => {
+      const attrs: Record<string, string> = {};
+      const doc = { documentElement: { setAttribute: (k: string, v: string) => { attrs[k] = v; } } };
+      const ls = { getItem: () => '1' };
+      new Function('document', 'location', 'localStorage', script)(doc, { pathname }, ls);
+      return attrs['data-theme'];
+    };
+    expect(roda('/motoboy/ranking')).toBe('dark');
+    expect(roda('/motoboy/x1')).toBe('light');
+  });
+
+  it('ao voltar a ficar visível (aparelho suspenso), o tema é relido', () => {
+    jest.setSystemTime(at(17, 30));
+    render(<Probe />);
+    expect(theme()).toBe('light');
+    jest.setSystemTime(at(19, 0)); // relógio andou sem o timer disparar
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    expect(theme()).toBe('dark');
   });
 
   it.each([

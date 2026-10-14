@@ -1,3 +1,4 @@
+import { NIGHT_PREF_KEY } from '../nightTheme';
 import { themeForPath, resolvedThemeForPath, LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '../routeTheme';
 
 describe('routeTheme', () => {
@@ -22,7 +23,7 @@ describe('routeTheme', () => {
       for (const [h, prefOn] of [[12, true], [20, true], [20, false]] as const) {
         const now = new Date(2026, 9, 14, h, 0, 0, 0);
         jest.setSystemTime(now);
-        localStorage.setItem('drop.motoboy.nightMode', prefOn ? '1' : '0');
+        localStorage.setItem(NIGHT_PREF_KEY, prefOn ? '1' : '0');
         for (const path of ['/_styleguide', '/inicio', '/admin/freios', '/motoboy', '/motoboy/delivery/abc', '/dados-recebimento']) {
           document.documentElement.removeAttribute('data-theme');
           new Function('location', THEME_BOOT_SCRIPT)({ pathname: path });
