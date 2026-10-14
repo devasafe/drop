@@ -74,3 +74,57 @@ test('erro ao ler o modo: não lê dinheiro e manda para Ganhos', async () => {
   expect(await screen.findByText('Veja em Ganhos')).toBeInTheDocument();
   await waitFor(() => expect(get).not.toHaveBeenCalledWith('/payouts/my', expect.anything()));
 });
+
+test('payout dividido por saque: soma os pedaços da entrega e ignora cancelado', async () => {
+  get.mockImplementation(routes({ '/payouts/my': { data: { payouts: [
+    { _id: 'p1', deliveryId: 'd1', orderId: 'ord0000004821', amount: 3.6, status: 'pending' },
+    { _id: 'p2', deliveryId: 'd1', orderId: 'ord0000004821', amount: 6, status: 'pending' },
+    { _id: 'p3', deliveryId: 'd1', orderId: 'ord0000004821', amount: 5, status: 'cancelled' },
+  ], total: 3 } } }));
+  render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  expect(await screen.findByText('R$ 9,60')).toBeInTheDocument();
+  expect(screen.getByText('a liberar')).toBeInTheDocument();
+});
+
+test('pedaços com status diferentes: soma sem nota de status', async () => {
+  get.mockImplementation(routes({ '/payouts/my': { data: { payouts: [
+    { _id: 'p1', deliveryId: 'd1', amount: 3.6, status: 'pending' },
+    { _id: 'p2', deliveryId: 'd1', amount: 6, status: 'released' },
+  ], total: 2 } } }));
+  render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  expect(await screen.findByText('R$ 9,60')).toBeInTheDocument();
+  expect(screen.queryByText('a liberar')).not.toBeInTheDocument();
+  expect(screen.queryByText('disponível para saque')).not.toBeInTheDocument();
+});
+
+test('trocar a corrida não mostra o valor da anterior', async () => {
+  const { rerender } = render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  await screen.findByText('R$ 9,60');
+  get.mockImplementation((url: string) => (url === '/payouts/my' ? new Promise(() => undefined) : routes()(url)));
+  rerender(<ConcluidaView ride={{ ...ride, _id: 'd2', orderId: 'ord0000009999' }} points={null} onNext={jest.fn()} />);
+  expect(screen.queryByText('R$ 9,60')).not.toBeInTheDocument();
+});
+
+test('GET /payouts/my rejeitado: Veja em Ganhos sem número', async () => {
+  get.mockImplementation(routes({ '/payouts/my': new Error('boom') }));
+  render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  expect(await screen.findByText('Veja em Ganhos')).toBeInTheDocument();
+  expect(screen.queryByText(/R\$/)).not.toBeInTheDocument();
+});
+
+test('direto sem transfer da corrida: Veja em Ganhos', async () => {
+  mockMode = { settlementMode: 'direto', loading: false, error: false };
+  get.mockImplementation(routes({ '/motoboy/transfers': { data: { success: true, data: [{ id: 't9', orderId: 'outra', amount: 5, status: 'done', reason: 'delivery' }] } } }));
+  render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  expect(await screen.findByText('Veja em Ganhos')).toBeInTheDocument();
+  expect(screen.queryByText(/R\$/)).not.toBeInTheDocument();
+});
+
+test('modo com erro não chama payouts nem transfers', async () => {
+  mockMode = { settlementMode: 'direto', loading: false, error: true };
+  render(<ConcluidaView ride={ride} points={null} onNext={jest.fn()} />);
+  await screen.findByText('Veja em Ganhos');
+  expect(get).not.toHaveBeenCalledWith('/payouts/my', expect.anything());
+  expect(get).not.toHaveBeenCalledWith('/motoboy/transfers');
+  expect(get).not.toHaveBeenCalledWith('/motoboy/transfers', expect.anything());
+});

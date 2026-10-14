@@ -40,6 +40,7 @@ export function ConcluidaView({ ride, points, onNext }: ConcluidaViewProps) {
     if (mode.loading) return undefined;
     if (mode.error) { setMoney({ kind: 'unknown' }); return undefined; }
     let alive = true;
+    setMoney({ kind: 'loading' });
     const id = String(ride?._id ?? '');
     const orderId = String(ride?.orderId ?? '');
     const req = direct
@@ -49,9 +50,13 @@ export function ConcluidaView({ ride, points, onNext }: ConcluidaViewProps) {
           return t && Number.isFinite(Number(t.amount)) ? ({ kind: 'direto', amount: Number(t.amount), status: String(t.status) } as Money) : ({ kind: 'unknown' } as Money);
         })
       : api.get('/payouts/my', { params: { limit: 20 } }).then((r: any) => {
-          const list: any[] = r?.data?.payouts || [];
-          const p = list.find((x) => String(x.deliveryId) === id) || list.find((x) => String(x.orderId) === orderId && !x.deliveryId);
-          return p && Number.isFinite(Number(p.amount)) ? ({ kind: 'custodia', amount: Number(p.amount), status: String(p.status) } as Money) : ({ kind: 'unknown' } as Money);
+          const list: any[] = (Array.isArray(r?.data?.payouts) ? r.data.payouts : []).filter((x: any) => x?.status !== 'cancelled');
+          let parts = list.filter((x) => String(x.deliveryId) === id);
+          if (parts.length === 0) parts = list.filter((x) => String(x.orderId) === orderId && !x.deliveryId);
+          if (parts.length === 0 || parts.some((x) => !Number.isFinite(Number(x.amount)))) return { kind: 'unknown' } as Money;
+          const cents = parts.reduce((sum, x) => sum + Math.round(Number(x.amount) * 100), 0);
+          const statuses = new Set(parts.map((x) => String(x.status)));
+          return { kind: 'custodia', amount: cents / 100, status: statuses.size === 1 ? [...statuses][0] : '' } as Money;
         });
     req.then((m) => { if (alive) setMoney(m); }).catch(() => { if (alive) setMoney({ kind: 'unknown' }); });
     return () => { alive = false; };
