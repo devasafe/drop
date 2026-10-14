@@ -7,7 +7,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import ModeGate from '../../components/ModeGate';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { PlanoStep } from '../../components/seller/abrir/PlanoStep';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 function EscolherPlano() {
   const router = useRouter();

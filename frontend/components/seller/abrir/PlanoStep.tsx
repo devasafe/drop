@@ -11,7 +11,7 @@ import { Skeleton } from '../../ui/Skeleton';
 import api from '../../../lib/api';
 import { formatMoney } from '../../../lib/money';
 import { payload, apiErrorMessage } from '../../../lib/sellerApi';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './Etapas.module.css';
 
 const PLANS = [

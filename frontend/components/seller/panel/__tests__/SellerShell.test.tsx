@@ -48,7 +48,8 @@ test('D7: o código do Shell não depende de provider nem cita verificação', (
 });
 
 test('CSS só com tokens do DS v2 (sem cor fixa, token antigo ou gradiente)', () => {
-  const css = fs.readFileSync(path.join(__dirname, '..', 'SellerShell.module.css'), 'utf8');
+  // O CSS da casca mudou de pasta na D2 (components/panel/PanelShell.module.css); as regras são as mesmas.
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'panel', 'PanelShell.module.css'), 'utf8');
   expect(cssViolations(css)).toEqual([]);
 });
 

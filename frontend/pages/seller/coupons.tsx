@@ -14,7 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { payload, apiErrorCode, apiErrorMessage, apiStatus, parseMoneyInput, formatDayMonth, todayISO } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerCupons.module.css';
 
 export interface Coupon {

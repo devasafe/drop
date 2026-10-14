@@ -1,7 +1,7 @@
 // Ícone e texto de cada etapa do cadastro da loja (Abrir a loja e Agora "em análise").
 import { Check, Clock, HelpCircle, TriangleAlert } from 'lucide-react';
 import type { StepState } from '../../../lib/storeOnboarding';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 
 export const STEP_ICON_CLASS: Record<StepState, string> = { done: blocks.icoOk, review: blocks.icoInfo, rejected: blocks.icoErr, todo: '', unknown: '' };
 

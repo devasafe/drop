@@ -10,7 +10,7 @@ import { maskCEP, maskCNPJ, onlyDigits } from '../../../lib/masks';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
 import { Alert } from '../../ui/Alert';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './Etapas.module.css';
 
 const MapPicker = dynamic(() => import('../../MapPicker'), { ssr: false });

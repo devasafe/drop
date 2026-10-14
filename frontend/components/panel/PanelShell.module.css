@@ -1,4 +1,4 @@
-/* Casca das telas do painel da loja (D1): aba = topo no fundo gelo; secundária = header branco com voltar. */
+/* Casca das telas de painel (loja D1, motoboy D2): aba = topo no fundo gelo; secundária = header branco com voltar. */
 .page {
   display: flex;
   flex-direction: column;

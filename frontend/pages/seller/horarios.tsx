@@ -11,7 +11,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { openStatus } from '../../lib/storeHours';
 import { apiErrorMessage } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 export default function SellerHorarios() {
   const { store, orders, refresh } = useSellerPanel();

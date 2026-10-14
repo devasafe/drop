@@ -17,7 +17,7 @@ import { Chip } from '../../components/ui/Chip';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Switch } from '../../components/ui/Switch';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 type Filter = 'tudo' | 'pedidos' | 'dinheiro' | 'drop';
 const FILTERS: Array<{ id: Filter; label: string }> = [

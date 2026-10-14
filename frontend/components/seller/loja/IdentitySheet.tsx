@@ -6,7 +6,7 @@ import { useToast } from '../../ui/Toast';
 import api from '../../../lib/api';
 import { imageUrl } from '../../../lib/config';
 import { apiErrorMessage, payload } from '../../../lib/sellerApi';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const TAGLINE_MAX = 80;

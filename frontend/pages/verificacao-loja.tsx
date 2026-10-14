@@ -9,7 +9,7 @@ import SellerShell from '../components/seller/panel/SellerShell';
 import { DocumentosStep } from '../components/seller/abrir/DocumentosStep';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Skeleton } from '../components/ui/Skeleton';
-import blocks from '../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../components/panel/PanelBlocks.module.css';
 
 function VerificacaoLojaPageInner() {
   const router = useRouter();

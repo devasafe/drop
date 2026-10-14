@@ -22,7 +22,7 @@ import { DadosLojaStep } from '../../components/seller/abrir/DadosLojaStep';
 import { DocumentosStep } from '../../components/seller/abrir/DocumentosStep';
 import { PlanoStep } from '../../components/seller/abrir/PlanoStep';
 import { RecebimentoForm } from '../../components/onboarding/RecebimentoForm';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 const ICON_CLASS = STEP_ICON_CLASS;
 const stateIcon = stepStateIcon;

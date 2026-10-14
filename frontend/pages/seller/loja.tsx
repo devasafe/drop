@@ -28,7 +28,7 @@ import { ROLE_AREAS, ROLE_HOME } from '../../lib/navConfig';
 import { openStatus } from '../../lib/storeHours';
 import { summarizeHours } from '../../lib/sellerHours';
 import { payload, apiErrorMessage } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerLoja.module.css';
 
 const PLAN_NAME: Record<number, string> = { 1: 'Vitrine', 2: 'Pool de motoboys', 3: 'Premium' };

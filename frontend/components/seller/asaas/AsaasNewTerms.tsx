@@ -10,7 +10,7 @@ import { Skeleton } from '../../ui/Skeleton';
 import { useToast } from '../../ui/Toast';
 import { TERMS_OUTDATED_MSG, fmtDateTime, isTermsOutdated, type AsaasStatus } from './asaasShared';
 import type { AsaasTerms } from './useAsaasTerms';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './ContaAsaas.module.css';
 
 interface Props {

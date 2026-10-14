@@ -9,7 +9,7 @@ import SellerShell from '../../components/seller/panel/SellerShell';
 import { apiErrorMessage } from '../../lib/sellerApi';
 import { KeyRound, FileText, Upload, AlertTriangle } from 'lucide-react';
 import { NavRow } from '../../components/seller/ui/NavRow';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './Integrations.module.css';
 
 interface ApiKey { id: string; name: string; prefix: string; scopes?: string[]; lastUsedAt?: string; revokedAt?: string; createdAt: string }

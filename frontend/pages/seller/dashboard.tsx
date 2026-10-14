@@ -20,7 +20,7 @@ import { SaasPausedCard, type BillingStatus } from '../../components/seller/agor
 import { NotificationBell, StoreAvatar } from '../../components/seller/agora/AgoraTop';
 import { AgoraAnalise, analiseTag } from '../../components/seller/agora/AgoraAnalise';
 import { loadStoreOnboarding, type StoreOnboarding } from '../../lib/storeOnboarding';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import { StageTag } from '../../components/seller/StageTag';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useMyStore } from '../../hooks/useMyStore';

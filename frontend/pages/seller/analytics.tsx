@@ -11,7 +11,7 @@ import { useMyStore } from '../../hooks/useMyStore';
 import { storeAnalytics, type PaymentMethodRow, type PeakHourCell, type StoreOverview, type TopProduct } from '../../lib/analyticsApi';
 import { formatMoney } from '../../lib/money';
 import { imageUrl } from '../../lib/config';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './Analytics.module.css';
 
 type Period = '7d' | '30d' | '90d';

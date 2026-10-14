@@ -7,7 +7,7 @@ import { NavRow } from '../ui/NavRow';
 import { STEP_ICON_CLASS, stepStateIcon, stepSubText } from '../abrir/stepView';
 import { summarizeHours } from '../../../lib/sellerHours';
 import type { StoreOnboarding } from '../../../lib/storeOnboarding';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 
 export const ABRIR_ROUTE = '/seller/abrir';
 

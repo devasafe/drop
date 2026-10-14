@@ -13,7 +13,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import api from '../../lib/api';
 import { payload, apiErrorMessage, formatDayMonth } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerAvaliacoes.module.css';
 
 export interface StoreReview {

@@ -13,7 +13,7 @@ import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvide
 import {
   formatBRL, saasStatusLabel, saasTrialDaysLeft, saasTrialLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
 } from '../../lib/saasBilling';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerAssinatura.module.css';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];

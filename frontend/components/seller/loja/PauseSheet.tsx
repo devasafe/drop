@@ -4,7 +4,7 @@ import { Button } from '../../ui/Button';
 import { useToast } from '../../ui/Toast';
 import api from '../../../lib/api';
 import { payload, apiErrorMessage, formatHour, formatDayMonth, formatFullDate } from '../../../lib/sellerApi';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 
 export type PauseChoice = { minutes: 30 | 60 | 120 } | { untilTomorrow: true };
 

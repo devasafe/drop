@@ -13,7 +13,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Skeleton } from '../ui/Skeleton';
-import blocks from '../seller/ui/SellerBlocks.module.css';
+import blocks from '../panel/PanelBlocks.module.css';
 
 // Aplica máscara na chave PIX conforme o tipo escolhido.
 function maskPix(value: string, type: string): string {

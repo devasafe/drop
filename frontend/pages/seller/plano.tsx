@@ -18,7 +18,7 @@ import { imageUrl } from '../../lib/config';
 import { formatMoney } from '../../lib/money';
 import { storeAnalytics } from '../../lib/analyticsApi';
 import { payload, apiErrorMessage } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerPlano.module.css';
 
 const PLANS = [

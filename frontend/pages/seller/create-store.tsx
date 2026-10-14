@@ -11,7 +11,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Store } from 'lucide-react';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 type State = 'loading' | 'new' | 'exists' | 'error';
 

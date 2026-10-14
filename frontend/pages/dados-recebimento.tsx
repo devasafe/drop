@@ -9,7 +9,7 @@ import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
 import SellerShell from '../components/seller/panel/SellerShell';
 import { RecebimentoForm } from '../components/onboarding/RecebimentoForm';
-import blocks from '../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../components/panel/PanelBlocks.module.css';
 import styles from './DadosRecebimento.module.css';
 
 export default function DadosRecebimento() {

@@ -8,7 +8,7 @@ import { Button } from '../../ui/Button';
 import { Sheet } from '../../ui/Sheet';
 import { useToast } from '../../ui/Toast';
 import { authWebhookUrl, fmtDateTime, type AsaasStatus } from './asaasShared';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './ContaAsaas.module.css';
 
 interface Props {

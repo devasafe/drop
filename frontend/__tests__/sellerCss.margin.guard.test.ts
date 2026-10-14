@@ -14,7 +14,7 @@ const FILES = [
   'pages/seller/ProdutoPagina.module.css',
   'pages/seller/pedido/PedidoLoja.module.css',
   'pages/seller/Integrations.module.css',
-  'components/seller/ui/SellerBlocks.module.css',
+  'components/panel/PanelBlocks.module.css',
 ];
 const SELECTORS = new Set(['.page', '.body', '.container']);
 

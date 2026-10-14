@@ -10,7 +10,7 @@ import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
 import { Skeleton } from '../../ui/Skeleton';
-import blocks from '../ui/SellerBlocks.module.css';
+import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './Etapas.module.css';
 
 type St = 'none' | 'pending' | 'approved' | 'rejected';

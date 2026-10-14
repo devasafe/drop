@@ -16,7 +16,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import api from '../../lib/api';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { apiErrorMessage } from '../../lib/sellerApi';
-import blocks from '../../components/seller/ui/SellerBlocks.module.css';
+import blocks from '../../components/panel/PanelBlocks.module.css';
 
 function KeyCard({ status, onSwap }: { status: AsaasStatus; onSwap: () => void }) {
   const ok = status.status === 'valid';
