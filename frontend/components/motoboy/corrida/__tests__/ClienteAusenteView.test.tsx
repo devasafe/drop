@@ -34,26 +34,44 @@ test('contato: ligar e mensagem', () => {
   expect(screen.getByText('O que acontece se encerrar')).toBeInTheDocument();
 });
 
-test('espera cumprida: encerra e devolve a compensação do servidor', async () => {
+test('espera cumprida: um envio só (em voo e depois do sucesso) e devolve compensação e PIN', async () => {
   const x = h();
-  post.mockResolvedValue({ data: { success: true, pinDevolucao: '631500', motoboyCompensation: 9.6 } });
+  let resolve!: (v: any) => void;
+  post.mockReturnValue(new Promise((r) => { resolve = r; }));
   render(<ClienteAusenteView ride={ride} now={T0 + 15 * 60_000} {...x} />);
   const btn = screen.getByRole('button', { name: 'Encerrar como ausente' });
   fireEvent.click(btn);
   fireEvent.click(btn);
-  await waitFor(() => expect(x.onClosed).toHaveBeenCalledWith({ compensation: 9.6, pinDevolucao: '631500' }));
   expect(post).toHaveBeenCalledTimes(1);
+  resolve({ data: { success: true, pinDevolucao: '631500', motoboyCompensation: 9.6 } });
+  await waitFor(() => expect(x.onClosed).toHaveBeenCalledWith({ compensation: 9.6, pinDevolucao: '631500' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Encerrar como ausente' }));
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(x.onClosed).toHaveBeenCalledTimes(1);
   expect(post).toHaveBeenCalledWith('/deliveries/d1/cliente-ausente', {});
+});
+
+test('erro genérico: mensagem de reserva e botão reabilitado', async () => {
+  const x = h();
+  post.mockRejectedValue({ response: { status: 500, data: {} } });
+  render(<ClienteAusenteView ride={ride} now={T0 + 15 * 60_000} {...x} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Encerrar como ausente' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para encerrar agora');
+  expect(screen.getByRole('button', { name: 'Encerrar como ausente' })).toBeEnabled();
+  expect(x.onClosed).not.toHaveBeenCalled();
 });
 
 test('400 de espera: usa o remainingMs do servidor e trava de novo', async () => {
   post.mockRejectedValue({ response: { status: 400, data: { error: 'Espera mínima de 15 min ainda não cumprida', waitMinutesRequired: 15, remainingMs: 60_000 } } });
   const now = T0 + 15 * 60_000;
   const spy = jest.spyOn(Date, 'now').mockReturnValue(now);
-  const { rerender } = render(<ClienteAusenteView ride={ride} now={now} {...h()} />);
+  const x = h();
+  const { rerender } = render(<ClienteAusenteView ride={ride} now={now} {...x} />);
   fireEvent.click(screen.getByRole('button', { name: 'Encerrar como ausente' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Ainda faltam 1:00 de espera.');
-  rerender(<ClienteAusenteView ride={ride} now={now} {...h()} />);
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(x.onClosed).not.toHaveBeenCalled();
+  rerender(<ClienteAusenteView ride={ride} now={now} {...x} />);
   expect(screen.getByRole('button', { name: 'Encerrar como ausente · em 1:00' })).toBeDisabled();
   spy.mockRestore();
 });

@@ -46,6 +46,7 @@ export function ClienteAusenteView({ ride, now, onChat, onClosed, onReload }: Cl
       const c = Number(r?.data?.motoboyCompensation);
       const pin = r?.data?.pinDevolucao;
       onClosed({ compensation: Number.isFinite(c) ? c : null, pinDevolucao: typeof pin === 'string' && pin ? pin : null });
+      return; // sucesso: continua travado até a página trocar de tela
     } catch (err) {
       const e = apiError(err);
       const rem = Number((err as any)?.response?.data?.remainingMs);
@@ -58,10 +59,9 @@ export function ClienteAusenteView({ ride, now, onChat, onClosed, onReload }: Cl
       } else {
         setMessage(e.message || 'Não deu para encerrar agora. Confira a conexão e tente de novo.');
       }
-    } finally {
-      inFlight.current = false;
-      setSending(false);
     }
+    inFlight.current = false;
+    setSending(false);
   };
 
   return (
