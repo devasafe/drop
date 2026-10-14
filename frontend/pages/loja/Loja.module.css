@@ -258,6 +258,8 @@ img.initials {
 }
 
 .clickable {
+  flex: 1;
+  min-width: 0;
   cursor: pointer;
 }
 
@@ -307,23 +309,23 @@ img.initials {
 }
 
 .productRow {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .ownerBadge {
-  position: absolute;
-  top: var(--space-1);
-  right: 0;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  min-height: var(--touch-min);
-  padding: 0 var(--space-2);
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--color-action-primary-subtle);
   color: var(--color-action-primary-subtle-text);
-  font: var(--text-caption);
   cursor: pointer;
 }
 

@@ -420,13 +420,14 @@ export default function StorePage() {
                     <button
                       type="button"
                       className={styles.ownerBadge}
+                      aria-label={`Editar ${product.name}`}
+                      title="Editar"
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/seller/edit-product?edit=${product._id}`);
                       }}
                     >
-                      <Pencil size={11} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-                      Editar
+                      <Pencil size={18} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
                     </button>
                   )}
                 </div>
