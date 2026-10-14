@@ -119,7 +119,7 @@ export function StoreCard({ variant, store, onClick }: StoreCardProps) {
   const tail = store.freeDelivery ? 'Frete grátis' : store.fee !== undefined ? formatMoney(store.fee) : km(store.distanceKm);
   return (
     <div className={[styles.row, closed && styles.dim].filter(Boolean).join(' ')} {...interactiveProps}>
-      <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} width={96} />
+      <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} fallbackSrc={store.imageUrl} width={96} />
       <div className={styles.meta}>
         <div className={styles.rowName}>{store.name}</div>
         <div className={[styles.sub, store.outOfArea && styles.off].filter(Boolean).join(' ')}>{subLine(store)}</div>
