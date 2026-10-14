@@ -29,6 +29,35 @@ describe('mergeRide', () => {
     expect(mergeRide({ status: 'picked' }, { status: 'cancelled' })).toEqual({ status: 'cancelled' });
     expect(mergeRide(null, { status: 'assigned' })).toEqual({ status: 'assigned' });
   });
+  it('leitura atrasada preserva status, horas, compensação e motivo já conhecidos (sem sobrescrever com null)', () => {
+    const prev = {
+      status: 'picked', assignedAt: '2026-10-14T14:00:00Z', pickedAt: '2026-10-14T14:10:00Z', deliveredAt: null,
+      cancelledAt: null, customerAbsentAvailableAt: '2026-10-14T14:40:00Z', cancellationCompensation: null, reason: 'x',
+    };
+    const late = {
+      status: 'assigned', assignedAt: '2026-10-14T14:00:00Z', pickedAt: null, deliveredAt: null, cancelledAt: null,
+      customerAbsentAvailableAt: null, cancellationCompensation: null, reason: null, pinRetirada: '48213',
+    };
+    expect(mergeRide(prev, late)).toEqual({ ...late, status: 'picked', pickedAt: '2026-10-14T14:10:00Z', customerAbsentAvailableAt: '2026-10-14T14:40:00Z', reason: 'x' });
+    const cancelled = { status: 'cancelled', cancelledAt: '2026-10-14T14:20:00Z', cancellationCompensation: 2.84, pickedAt: '2026-10-14T14:10:00Z' };
+    expect(mergeRide(cancelled, { status: 'picked', cancelledAt: null, cancellationCompensation: null, pickedAt: null }))
+      .toEqual(cancelled);
+  });
+  it('status desconhecido não sobrescreve um conhecido', () => {
+    expect(mergeRide({ status: 'picked', pickedAt: 't' }, { status: 'pending', pickedAt: null })).toEqual({ status: 'picked', pickedAt: 't' });
+    expect(mergeRide({ status: 'picked' }, { foo: 1 })).toEqual({ foo: 1, status: 'picked' });
+    // conhecido depois de desconhecido passa
+    expect(mergeRide({ status: 'pending' }, { status: 'assigned' })).toEqual({ status: 'assigned' });
+  });
+  it('um terminal não é trocado por outro terminal', () => {
+    expect(mergeRide({ status: 'delivered', deliveredAt: 't' }, { status: 'cancelled', deliveredAt: null })).toEqual({ status: 'delivered', deliveredAt: 't' });
+    expect(mergeRide({ status: 'cancelled', cancellationCompensation: 2 }, { status: 'delivered', cancellationCompensation: null }))
+      .toEqual({ status: 'cancelled', cancellationCompensation: 2 });
+  });
+  it('mesma etapa ou avanço: os campos vêm da leitura nova', () => {
+    expect(mergeRide({ status: 'picked', customerAbsentAvailableAt: 'a' }, { status: 'picked', customerAbsentAvailableAt: 'b' }))
+      .toEqual({ status: 'picked', customerAbsentAvailableAt: 'b' });
+  });
 });
 
 describe('tempos', () => {

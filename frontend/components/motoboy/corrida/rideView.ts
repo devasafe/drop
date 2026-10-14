@@ -18,17 +18,36 @@ export function rideStage(r: any): RideStage {
 }
 
 const RANK: Record<string, number> = { assigned: 1, picked: 2, delivered: 3, cancelled: 3 };
+const TERMINAL = new Set(['delivered', 'cancelled']);
+
+/** Campos que uma leitura atrasada não pode apagar: horas das etapas, compensação e motivo. */
+const STICKY_FIELDS = [
+  'assignedAt', 'pickedAt', 'deliveredAt', 'cancelledAt', 'customerAbsentAvailableAt',
+  'cancellationCompensation', 'reason', 'cancelReason',
+];
 
 /**
  * Junta a leitura nova com a atual. Uma leitura atrasada (GET em voo quando o socket já disse
- * "retirado") nunca volta a corrida de etapa. Os outros campos vêm sempre da leitura nova.
+ * "retirado") nunca volta a corrida de etapa nem apaga o que já se sabia: fica o status atual e
+ * os campos de STICKY_FIELDS não nulos do atual. É atrasada a leitura com etapa menor, com status
+ * desconhecido (fora do RANK) quando o atual é conhecido, ou com outro terminal quando o atual já
+ * é terminal. Fora disso, tudo vem da leitura nova.
  */
 export function mergeRide(prev: any, next: any): any {
   if (!prev || !next) return next;
   const p = RANK[prev.status] ?? 0;
   const n = RANK[next.status] ?? 0;
-  if (p > 0 && n > 0 && n < p) return { ...next, status: prev.status };
-  return next;
+  const stale = p > 0 && (
+    n === 0
+    || n < p
+    || (TERMINAL.has(prev.status) && TERMINAL.has(next.status) && prev.status !== next.status)
+  );
+  if (!stale) return next;
+  const out = { ...next, status: prev.status };
+  for (const k of STICKY_FIELDS) {
+    if (prev[k] !== null && prev[k] !== undefined) out[k] = prev[k];
+  }
+  return out;
 }
 
 export const PICKUP_LATE_MIN = 10;
