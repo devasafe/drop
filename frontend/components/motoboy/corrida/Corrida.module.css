@@ -1,0 +1,58 @@
+/* Telas da corrida (protótipo: Indo retirar, Entregando, Retirada atrasada, Cliente não atende,
+   Devolver na loja, Corrida cancelada, Entrega concluída). Blocos vêm de PanelBlocks. */
+.screen { display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-4); }
+.map { border-radius: var(--radius-lg); overflow: hidden; }
+.center { align-items: center; text-align: center; }
+.place { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.pin {
+  font: var(--text-display);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 30px;
+  letter-spacing: 0.3em;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.actions { display: flex; gap: var(--space-2); }
+.action {
+  flex: 1;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-label);
+  text-decoration: none;
+  cursor: pointer;
+}
+.actionIcon { flex: 0 0 48px; padding: 0; }
+.action:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
+.bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  background: var(--color-bg-primary);
+}
+.bar > small { text-align: center; font: var(--text-meta); color: var(--color-text-muted); }
+.clock { font: var(--text-display); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.clockOf { font: var(--text-body); color: var(--color-text-muted); }
+.bullets { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-1); font: var(--text-meta); color: var(--color-text-secondary); }
+.done { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; padding: var(--space-6) var(--space-2) var(--space-2); }
+.doneIcon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--radius-pill); }
+.doneIconLg { width: 72px; height: 72px; }
+.doneOk { background: var(--color-success-subtle); color: var(--color-success-text); }
+.doneWarn { background: var(--color-warning-subtle); color: var(--color-warning-text); }
+.doneTitle { margin: 0; font: var(--text-title-lg); color: var(--color-text-primary); }
+.doneText { margin: 0; font: var(--text-body); color: var(--color-text-secondary); }
+.sum { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.sumRow { display: flex; justify-content: space-between; gap: var(--space-3); font: var(--text-body); color: var(--color-text-secondary); }
+.sumRow dd { margin: 0; color: var(--color-text-primary); text-align: right; }
+.sumTotal { font: var(--text-label); }
+.sumTotal dd { color: var(--color-success-text); }
