@@ -18,6 +18,7 @@ import {
 import { ICON_STROKE_WIDTH } from '../../ui/Icon';
 import { Alert } from '../../ui/Alert';
 import { formatBRL } from '../../ui/PriceTag';
+import { neverCharged } from '../../../lib/cancellationRefund';
 import styles from './CancellationStatus.module.css';
 
 export interface CancellationInfo {
@@ -132,7 +133,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
   const processed = cancellation.refundStatus === 'processed';
   const held = cancellation.refundStatus === 'pending';
   // Pedido cancelado antes de pagar: o cancelamento grava refundAmount = total, mas nada foi cobrado.
-  const unpaid = paymentStatus === 'pending' || paymentStatus === 'failed';
+  const unpaid = neverCharged(paymentStatus);
   const walletBack = unpaid && (walletApplied ?? 0) > 0 ? (walletApplied as number) : 0;
 
   const custodySteps: Step[] = [

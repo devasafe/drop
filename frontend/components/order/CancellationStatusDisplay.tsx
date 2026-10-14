@@ -2,9 +2,15 @@ import React, { useEffect, useState } from 'react';
 import Icon, { IconName } from '../Icon';
 import useCancellation from '@/hooks/useCancellation';
 import { formatMoney } from '@/lib/money';
+import { showsCancellationRefund } from '@/lib/cancellationRefund';
 
 interface CancellationStatusDisplayProps {
   orderId: string;
+  /**
+   * O pedido (paymentStatus, paymentMethod, directRefund/customerRefund): decide se a linha
+   * de reembolso vale. Sem ele, a linha não aparece.
+   */
+  order?: any;
   className?: string;
 }
 
@@ -92,6 +98,7 @@ interface Cancellation {
 
 export function CancellationStatusDisplay({
   orderId,
+  order,
   className = '',
 }: CancellationStatusDisplayProps) {
   const [cancellation, setCancellation] = useState<Cancellation | null>(null);
@@ -136,7 +143,9 @@ export function CancellationStatusDisplay({
     cancellation.refundAmount === null || cancellation.refundAmount === undefined || cancellation.refundAmount === ''
       ? null
       : Number(cancellation.refundAmount);
-  const hasRefund = refundValue !== null && Number.isFinite(refundValue);
+  // O backend grava refundAmount = total também quando nada foi cobrado (não pago, dinheiro na
+  // entrega) e o pedido direto tem o seu próprio card de estorno: nesses casos não há linha.
+  const hasRefund = refundValue !== null && Number.isFinite(refundValue) && showsCancellationRefund(order);
 
   const refundStatusLabel: Record<string, string> = {
     pending: 'Pendente',
@@ -195,7 +204,7 @@ export function CancellationStatusDisplay({
         </div>
       )}
 
-      {cancellation.refundStatus === 'failed' && (
+      {hasRefund && cancellation.refundStatus === 'failed' && (
         <div className="mt-3 p-2 bg-red-100 bg-opacity-50 rounded text-xs">
           <Icon name="alert-triangle" size={14} /> Houve um erro ao processar o reembolso. Entre em contato com o suporte.
         </div>

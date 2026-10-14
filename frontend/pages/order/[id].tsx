@@ -391,7 +391,7 @@ export default function OrderDetailPage() {
         {/* Cancellation status */}
         {(order.status === 'cancelado' || order.status === 'rejeitado') && (
           <div className={styles.cancellationBox}>
-            <CancellationStatusDisplay orderId={order._id} />
+            <CancellationStatusDisplay orderId={order._id} order={order} />
           </div>
         )}
 

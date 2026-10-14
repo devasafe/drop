@@ -1,6 +1,7 @@
 // Bug de produção: em Pedidos → Concluídos, o pedido abria e logo ficava em branco.
 // Pedidos concluídos (entregues, cancelados, devolvidos), inclusive antigos com campos
 // ausentes, precisam abrir sem exceção; se algo quebrar, a tela mostra o erro do DS v2.
+import { useEffect } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import api from '../lib/api';
 import { useOrder } from '../hooks/useSync';
@@ -38,6 +39,7 @@ jest.mock('../lib/sellerOrders', () => {
 });
 
 import SellerPedidoPage from '../pages/seller/pedido/[id]';
+import SellerShell from '../components/seller/panel/SellerShell';
 
 const get = api.get as jest.Mock;
 
@@ -62,9 +64,12 @@ beforeEach(() => {
     if (url === '/orders/o1/cancellations') return { data: { success: true, count: 0, history: [] } };
     return { data: { ...old } };
   });
-  errSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  // Sem silenciar: os casos que devem abrir limpos conferem que nada foi para o console.error.
+  errSpy = jest.spyOn(console, 'error');
 });
 afterEach(() => errSpy.mockRestore());
+/** Só nos testes do ErrorBoundary o erro é esperado (o React também o registra). */
+const expectRenderError = () => errSpy.mockImplementation(() => undefined);
 
 /** Cancelamento como o Prisma serializa: Decimal vira string; campo opcional vazio vem null. */
 const cancellation = (extra: any) => ({
@@ -85,6 +90,7 @@ test('entregue antigo sem horários, sem motoboy e sem repasse abre inteiro', as
   expect(screen.getByText('Retirado')).toBeInTheDocument();
   expect(screen.queryByText('Você recebe')).not.toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Andamento' })).toBeInTheDocument());
+  expect(errSpy).not.toHaveBeenCalled();
 });
 
 test('entregue com a entrega apagada (delivery null) abre inteiro', async () => {
@@ -92,54 +98,117 @@ test('entregue com a entrega apagada (delivery null) abre inteiro', async () => 
   render(<SellerPedidoPage />);
   expect(screen.getByRole('heading', { name: 'Itens' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Andamento' })).toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
 });
 
-test('cancelado com reembolso (Decimal em string) abre e mostra o valor', async () => {
+test('cancelado pago com Pix e reembolso (Decimal em string): abre e mostra a linha com o valor', async () => {
   withCancellations([cancellation({ refundAmount: '50.00', refundStatus: 'processed' })]);
-  mockOrder({ status: 'cancelado', cancelledAt: '2025-03-02T15:10:00.000Z', delivery: null });
+  mockOrder({ status: 'cancelado', paymentMethod: 'pix', cancelledAt: '2025-03-02T15:10:00.000Z', delivery: null });
   render(<SellerPedidoPage />);
   expect(await screen.findByText('R$ 50,00')).toBeInTheDocument();
+  expect(screen.getByText('Reembolso:')).toBeInTheDocument();
   expect(screen.getByText('Loja cheia')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Itens' })).toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
+});
+
+test('cancelado pago com cartão: linha de reembolso com o valor', async () => {
+  withCancellations([cancellation({ refundAmount: '50.00', refundStatus: 'pending' })]);
+  mockOrder({ status: 'cancelado', paymentMethod: 'credit_card', delivery: null });
+  render(<SellerPedidoPage />);
+  expect(await screen.findByText('R$ 50,00')).toBeInTheDocument();
+  expect(screen.getByText('Reembolso:')).toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
 });
 
 test('cancelado sem reembolso (refundAmount null) abre sem a linha de reembolso', async () => {
   withCancellations([cancellation({ refundAmount: null })]);
-  mockOrder({ status: 'cancelado', delivery: null });
+  mockOrder({ status: 'cancelado', paymentMethod: 'pix', delivery: null });
   render(<SellerPedidoPage />);
   expect(await screen.findByText('Loja cheia')).toBeInTheDocument();
   expect(screen.queryByText(/Reembolso/)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Itens' })).toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
 });
 
-test('devolvido (cancelado após retirada, devolução confirmada, estorno direto) abre inteiro', async () => {
+test('cancelado sem pagamento: o backend grava refundAmount = total, mas não há linha de reembolso', async () => {
+  withCancellations([cancellation({ refundAmount: '50.00', refundStatus: 'processed' })]);
+  mockOrder({ status: 'cancelado', paymentMethod: 'pix', paymentStatus: 'pending', delivery: null });
+  render(<SellerPedidoPage />);
+  expect(await screen.findByText('Loja cheia')).toBeInTheDocument();
+  expect(screen.queryByText(/Reembolso/)).not.toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
+});
+
+test('dinheiro na entrega: nada foi cobrado pelo app, sem linha de reembolso', async () => {
+  withCancellations([cancellation({ refundAmount: '50.00', refundStatus: 'processed' })]);
+  mockOrder({ status: 'cancelado', paymentMethod: 'cash_on_delivery', delivery: null });
+  render(<SellerPedidoPage />);
+  expect(await screen.findByText('Loja cheia')).toBeInTheDocument();
+  expect(screen.queryByText(/Reembolso/)).not.toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
+});
+
+test('devolvido (cancelado após retirada, devolução confirmada, estorno direto): só o card Estorno, sem linha duplicada', async () => {
   withCancellations([cancellation({ cancelledBy: 'motoboy', reasonCode: 'delivery_failed', reason: 'Cliente ausente', refundAmount: '43.00', refundStatus: 'processed' })]);
   mockOrder({
-    status: 'cancelado', paymentProvider: 'asaas_loja', acceptedAt: '2025-03-02T15:02:00.000Z',
+    status: 'cancelado', paymentMethod: 'pix', paymentProvider: 'asaas_loja', acceptedAt: '2025-03-02T15:02:00.000Z',
     directRefund: { status: 'done', amount: 43, lastError: null, attempts: 1 },
     delivery: { _id: 'd1', status: 'cancelled', motoboyId: 'm1', pickedAt: '2025-03-02T15:20:00.000Z', statusDevolucao: 'confirmado' },
   });
   render(<SellerPedidoPage />);
   expect(await screen.findByText('Cliente ausente')).toBeInTheDocument();
   expect(screen.getByText('Estorno')).toBeInTheDocument();
+  expect(screen.queryByText(/Reembolso/)).not.toBeInTheDocument();
+  expect(screen.getByText('Estornado — R$ 43,00')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Andamento' })).toBeInTheDocument();
+  expect(errSpy).not.toHaveBeenCalled();
 });
 
-test('exceção no render vira a tela de erro com "Tentar de novo", e tentar de novo volta a tela', async () => {
+test('exceção num bloco vira a tela de erro; "Tentar de novo" relê o pedido e monta a tela de novo', async () => {
+  expectRenderError();
   mockTimelineBomb = true;
   mockOrder({ status: 'entregue', delivery: null });
   render(<SellerPedidoPage />);
   expect(screen.getByText('Não deu para abrir esta tela')).toBeInTheDocument();
-  expect(logger.error).toHaveBeenCalledWith('Tela da loja quebrou no render', 'boom', expect.anything());
+  // O Error inteiro (com a pilha) vai para o log.
+  expect(logger.error).toHaveBeenCalledWith(
+    'Tela da loja quebrou no render',
+    expect.objectContaining({ message: 'boom', stack: expect.any(String) }),
+    expect.anything(),
+  );
   // O topo (título e voltar) continua, a tela não fica branca.
   expect(screen.getByRole('heading', { name: 'Pedido #O1' })).toBeInTheDocument();
   mockTimelineBomb = false;
+  get.mockClear();
   fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
   expect(await screen.findByRole('heading', { name: 'Andamento' })).toBeInTheDocument();
   expect(screen.queryByText('Não deu para abrir esta tela')).not.toBeInTheDocument();
+  await waitFor(() => expect(get).toHaveBeenCalledWith('/orders/o1'));
+});
+
+test('SellerShell: "Tentar de novo" chama o onRetry da tela e monta o conteúdo do zero', async () => {
+  expectRenderError();
+  let mounts = 0;
+  let bomb = true;
+  const Content = () => {
+    useEffect(() => { mounts += 1; }, []);
+    if (bomb) throw new Error('boom');
+    return <p>conteúdo</p>;
+  };
+  const onRetry = jest.fn();
+  render(<SellerShell title="Tela" back="/seller/pedidos" onRetry={onRetry}><Content /></SellerShell>);
+  expect(screen.getByText('Não deu para abrir esta tela')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Tela' })).toBeInTheDocument();
+  bomb = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  expect(await screen.findByText('conteúdo')).toBeInTheDocument();
+  expect(onRetry).toHaveBeenCalledTimes(1);
+  expect(mounts).toBe(1);
 });
 
 test('exceção no render da própria página também vira a tela de erro, com o topo e o voltar', async () => {
+  expectRenderError();
   mockStageBomb = true;
   mockOrder({ status: 'entregue', delivery: null });
   render(<SellerPedidoPage />);

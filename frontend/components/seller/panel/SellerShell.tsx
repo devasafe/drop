@@ -13,6 +13,8 @@ export interface SellerShellProps {
   actions?: ReactNode;
   /** Antes do título (ex.: avatar com as iniciais da loja no topo do Agora). */
   lead?: ReactNode;
+  /** "Tentar de novo" da tela de erro do corpo: relê os dados antes de remontar (ex.: o pedido). */
+  onRetry?: () => void;
   children: ReactNode;
 }
 
@@ -21,7 +23,7 @@ export interface SellerShellProps {
  * Decisão D7: não usa o provider do painel nem toast e não mostra aviso nem link de conferência de cadastro;
  * testes de telas legadas montam o Shell sem providers.
  */
-export function SellerShell({ title, back, actions, lead, children }: SellerShellProps) {
+export function SellerShell({ title, back, actions, lead, onRetry, children }: SellerShellProps) {
   const router = useRouter();
   // Sem a barra de 5 abas (telas secundárias), o fundo não reserva o espaço dela.
   const noBar = !sellerShowsTabBar(router?.pathname ?? '');
@@ -32,7 +34,7 @@ export function SellerShell({ title, back, actions, lead, children }: SellerShel
       </div>
       <div className={styles.body}>
         {/* Exceção de render no conteúdo: erro com "Tentar de novo" e o topo continua (nunca tela branca). */}
-        <ScreenErrorBoundary resetKey={router?.asPath}>{children}</ScreenErrorBoundary>
+        <ScreenErrorBoundary resetKey={router?.asPath} onRetry={onRetry}>{children}</ScreenErrorBoundary>
       </div>
     </div>
   );

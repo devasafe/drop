@@ -79,7 +79,8 @@ type RejectMode = 'recusar' | 'cancelar';
 /**
  * Exceção no render da tela (pedido antigo com dado faltando, formato inesperado) não deixa a
  * página em branco: mostra o erro do DS v2 dentro da casca, e "Tentar de novo" remonta a tela
- * (o pedido é lido de novo). Erros dos blocos filhos já param no limite do SellerShell.
+ * (o pedido é lido de novo). Erros dos blocos filhos param no limite do SellerShell, cujo
+ * "Tentar de novo" relê o pedido (onRetry) e remonta os blocos.
  */
 export default function SellerPedidoPage() {
   const router = useRouter();
@@ -279,7 +280,7 @@ function SellerPedidoScreen({ id }: { id: string | undefined }) {
 
   return (
     <ProtectedRoute required_role="lojista">
-      <SellerShell title={title} back={SELLER_ROUTES.pedidos()} actions={<StageTag label={stage.label} tone={stage.tone} />}>
+      <SellerShell title={title} back={SELLER_ROUTES.pedidos()} actions={<StageTag label={stage.label} tone={stage.tone} />} onRetry={() => { reload(); }}>
         <div className={styles.page}>
           {notice && <p role="status" className={styles.notice}>{notice}</p>}
           <div className={styles.grid}>
@@ -309,7 +310,7 @@ function SellerPedidoScreen({ id }: { id: string | undefined }) {
                 </section>
               )}
 
-              {cancelled && <CancellationStatusDisplay orderId={order._id} />}
+              {cancelled && <CancellationStatusDisplay orderId={order._id} order={order} />}
               {order.directRefund && <DirectRefundCard orderId={order._id} refund={order.directRefund} onChange={() => { reload(); }} />}
 
               {hasPendingReturn(order) && d?._id && (

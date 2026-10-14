@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, Fragment, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { EmptyState } from '../../ui/EmptyState';
 import logger from '../../../lib/logger';
@@ -24,33 +24,40 @@ interface Props {
   resetKey?: unknown;
   /** Fallback próprio (ex.: com a casca da tela em volta). Padrão: `ScreenErrorFallback`. */
   renderFallback?: (retry: () => void) => ReactNode;
+  /** Chamado no "Tentar de novo", antes de remontar (ex.: reler o pedido). */
+  onRetry?: () => void;
 }
 
-interface State { failed: boolean }
+interface State { failed: boolean; attempt: number }
 
 /**
  * Exceção de render numa tela da loja vira a tela de erro do DS v2, em vez de a página
  * inteira ficar em branco (o Next em produção desmonta tudo numa exceção não tratada).
  */
 export class ScreenErrorBoundary extends Component<Props, State> {
-  state: State = { failed: false };
+  state: State = { failed: false, attempt: 0 };
 
-  static getDerivedStateFromError(): State {
+  static getDerivedStateFromError(): Partial<State> {
     return { failed: true };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    logger.error('Tela da loja quebrou no render', error?.message, info?.componentStack);
+    // O Error inteiro (tipo e pilha) e a pilha de componentes.
+    logger.error('Tela da loja quebrou no render', error, info?.componentStack);
   }
 
   componentDidUpdate(prev: Props) {
-    if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState({ failed: false });
+    if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState((s) => ({ failed: false, attempt: s.attempt + 1 }));
   }
 
-  retry = () => this.setState({ failed: false });
+  /** Chave nova: a tela é montada do zero (estado e efeitos de carga rodam de novo). */
+  retry = () => {
+    this.props.onRetry?.();
+    this.setState((s) => ({ failed: false, attempt: s.attempt + 1 }));
+  };
 
   render() {
-    if (!this.state.failed) return this.props.children;
+    if (!this.state.failed) return <Fragment key={this.state.attempt}>{this.props.children}</Fragment>;
     return this.props.renderFallback ? this.props.renderFallback(this.retry) : <ScreenErrorFallback onRetry={this.retry} />;
   }
 }
