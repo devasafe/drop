@@ -4,7 +4,7 @@ import { Sheet } from '../../ui/Sheet';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { formatMoney } from '../../../lib/money';
-import { parseMoneyInput } from '../../../lib/sellerApi';
+import { checkWithdraw, toWithdrawInput, withdrawPayload } from '../../wallet/withdrawRule';
 import styles from './SellerWithdrawSheet.module.css';
 
 interface Props {
@@ -32,18 +32,15 @@ export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabe
   // Envio único: a ref trava o duplo clique antes de o pai renderizar `submitting`.
   const sending = useRef(false);
 
-  useEffect(() => { if (open) setRaw(available > 0 ? toInput(available) : ''); }, [open, available]);
+  useEffect(() => { if (open) setRaw(available > 0 ? toWithdrawInput(available) : ''); }, [open, available]);
   useEffect(() => { sending.current = false; }, [open, submitting, error]);
 
-  const value = parseMoneyInput(raw);
-  const typed = raw.trim() !== '';
-  // parseMoneyInput falha fechado (NaN em '1.000'): valor ambíguo é erro na tela, nunca é enviado.
-  const invalid = typed && !Number.isFinite(value);
+  const c = checkWithdraw(raw, available, minimum);
+  const { value, invalid, overAvailable, belowMinimum: belowMin } = c;
+  // checkWithdraw falha fechado (NaN em '1.000'): valor ambíguo é erro na tela, nunca é enviado.
   const has = Number.isFinite(value) && value > 0;
-  const overAvailable = has && value > available + 0.005;
-  const belowMin = has && minimum !== null && value < minimum - 0.005;
-  const valid = has && !overAvailable && !belowMin && !submitting;
-  const isAll = valid && value >= available - 0.005;
+  const valid = c.valid && !submitting;
+  const isAll = c.isAll && !submitting;
 
   const chips = [500, 1000].filter((v) => v < available);
 
@@ -67,9 +64,9 @@ export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabe
             </div>
             <div className={styles.chips}>
               {chips.map((v) => (
-                <button key={v} type="button" className={styles.chip} onClick={() => setRaw(toInput(v))}>{formatMoney(v)}</button>
+                <button key={v} type="button" className={styles.chip} onClick={() => setRaw(toWithdrawInput(v))}>{formatMoney(v)}</button>
               ))}
-              <button type="button" className={styles.chip} onClick={() => setRaw(toInput(available))}>Tudo</button>
+              <button type="button" className={styles.chip} onClick={() => setRaw(toWithdrawInput(available))}>Tudo</button>
             </div>
             {pixLabel && <p className={styles.dest}>{`Para a chave ${pixLabel}`}</p>}
             {note && <p className={styles.note}>{note}</p>}
@@ -77,7 +74,7 @@ export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabe
             <Button onClick={() => {
               if (!valid || sending.current) return;
               sending.current = true;
-              onConfirm(isAll ? 'all' : Math.round(value * 100) / 100);
+              onConfirm(withdrawPayload(c));
             }} disabled={!valid} loading={submitting}>
               {`Sacar ${formatMoney(has ? value : 0)}`}
             </Button>
