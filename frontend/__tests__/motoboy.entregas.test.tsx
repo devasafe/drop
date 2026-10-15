@@ -19,7 +19,15 @@ jest.mock('../components/motoboy/panel/MotoboyShell', () => {
   const Shell = ({ title, actions, children }: any) => <div><h1>{title}</h1>{actions}{children}</div>;
   return { __esModule: true, default: Shell, MotoboyShell: Shell };
 });
-jest.mock('../hooks/useAutoRefetch', () => ({ useAutoRefetch: () => undefined }));
+// Assinaturas por callback (load e money.reload têm identidade estável).
+const mockSubs = new Map<() => void, string[]>();
+jest.mock('../hooks/useAutoRefetch', () => ({
+  useAutoRefetch: (events: string | string[], cb: () => void) => {
+    const list = typeof events === 'string' ? [events] : events;
+    mockSubs.set(cb, list);
+  },
+}));
+const fire = (event: string) => { [...mockSubs.entries()].filter(([, ev]) => ev.includes(event)).forEach(([cb]) => cb()); };
 let mockReconnects: Array<() => void> = [];
 const mockSocket = {
   on: () => () => undefined,
@@ -77,6 +85,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockQuery = {};
   mockReconnects = [];
+  mockSubs.clear();
   mockSaas = { settlementMode: 'custodia', loading: false, error: false, retry: jest.fn() };
   mockLeftover = { hasLeftover: false, loading: false };
   mockApi();
@@ -211,6 +220,59 @@ test('reconexão relê as duas listas uma vez (sem laço de GET)', async () => {
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   expect(calls('/deliveries/history')).toHaveLength(2);
   expect(calls('/payouts/my')).toHaveLength(2);
+});
+
+test.each(['delivery:rejected', 'delivery:assigned_to_me', 'delivery:assigned_to_you', 'delivery:updated', 'delivery:picked'])(
+  '%s (sala user:) relê as listas e não relê o dinheiro',
+  async (event) => {
+    render(<EntregasScreen now={NOW} />);
+    await screen.findByRole('button', { name: /#004821/ });
+    await waitFor(() => expect(calls('/payouts/my')).toHaveLength(1));
+    await act(async () => { fire(event); });
+    await waitFor(() => expect(calls('/deliveries/ongoing')).toHaveLength(2));
+    expect(calls('/deliveries/history')).toHaveLength(2);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(calls('/payouts/my')).toHaveLength(1);
+  },
+);
+
+test.each(['delivery:completed', 'delivery:cancelled', 'delivery:return_confirmed'])(
+  '%s (mexe no dinheiro) relê as listas e o dinheiro',
+  async (event) => {
+    render(<EntregasScreen now={NOW} />);
+    await screen.findByRole('button', { name: /#004821/ });
+    await waitFor(() => expect(calls('/payouts/my')).toHaveLength(1));
+    await act(async () => { fire(event); });
+    await waitFor(() => expect(calls('/deliveries/history')).toHaveLength(2));
+    await waitFor(() => expect(calls('/payouts/my')).toHaveLength(2));
+  },
+);
+
+test('releitura com erro e lista já na tela: aviso leve com Tentar de novo, sem apagar a lista', async () => {
+  render(<EntregasScreen now={NOW} />);
+  await screen.findByRole('button', { name: /#004821/ });
+  mockApi({ ongoing: new Error('rede'), history: new Error('rede') });
+  await act(async () => { mockReconnects.forEach((cb) => cb()); });
+  expect(await screen.findByText('Não deu para atualizar agora')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /#004821/ })).toBeInTheDocument();
+  expect(screen.queryByText('Não carregamos suas entregas')).not.toBeInTheDocument();
+  mockApi();
+  const before = calls('/deliveries/history').length;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Tentar de novo' })[0]);
+  await waitFor(() => expect(calls('/deliveries/history').length).toBe(before + 1));
+  await waitFor(() => expect(screen.queryByText('Não deu para atualizar agora')).not.toBeInTheDocument());
+});
+
+test('fuso de SP: entregue às 23:00 de 30/09 (02:00 UTC de 01/10) fica fora de outubro e no grupo 30/09', async () => {
+  const late = { _id: 'h6', orderId: 'ord0004699', status: 'delivered', distance: 1, createdAt: '2026-10-01T01:30:00Z', deliveredAt: '2026-10-01T02:00:00Z' };
+  mockApi({ history: [...HIST.slice(0, 4), late, HIST[4]] });
+  render(<EntregasScreen now={NOW} />);
+  const kpis = await screen.findByRole('region', { name: 'Resumo do mês' });
+  expect(within(kpis).getByText('3')).toBeInTheDocument(); // continua 3 entregues em outubro
+  expect(within(kpis).getByText('25%')).toBeInTheDocument(); // e 1 de 4 canceladas
+  const set30 = screen.getByRole('region', { name: '30/09' });
+  expect(within(set30).getByRole('button', { name: /#004699/ })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: '01/10' })).not.toBeInTheDocument();
 });
 
 test('as duas listas com erro: erro com Tentar de novo, nunca "vazio"', async () => {

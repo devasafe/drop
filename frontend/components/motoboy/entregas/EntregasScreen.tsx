@@ -23,7 +23,13 @@ import styles from './Entregas.module.css';
 
 type Filter = 'all' | 'delivered' | 'cancelled';
 const asSeg = (v: unknown): EntregasSeg | null => (v === 'andamento' || v === 'concluidas' ? v : null);
-const EVENTS = ['delivery:assigned_to_you', 'delivery:updated', 'delivery:picked', 'delivery:completed', 'delivery:cancelled', 'delivery:return_confirmed'];
+/** Eventos da sala user:<motoboy> que mudam as listas (os mesmos que a página antiga ouvia, menos os da sala `motoboys`). */
+const LIST_EVENTS = [
+  'delivery:assigned_to_you', 'delivery:assigned_to_me', 'delivery:updated', 'delivery:picked', 'delivery:rejected',
+  'delivery:completed', 'delivery:cancelled', 'delivery:return_confirmed',
+];
+/** Só estes criam ou mudam dinheiro: os outros não releem repasses nem Pix. */
+const MONEY_EVENTS = ['delivery:completed', 'delivery:cancelled', 'delivery:return_confirmed'];
 const pctText = (n: number) => `${String(n).replace('.', ',')}%`;
 
 /**
@@ -69,7 +75,7 @@ export function EntregasScreen({ now = new Date() }: { now?: Date }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefetch(EVENTS, load);
+  useAutoRefetch(LIST_EVENTS, load);
   // Socket voltou de uma queda (V16): relê uma vez, pelo sinal compartilhado.
   useEffect(() => onReconnect(load), [onReconnect, load]);
 
@@ -89,6 +95,8 @@ export function EntregasScreen({ now = new Date() }: { now?: Date }) {
       </div>
     );
   }
+  // releitura falhou com dado antigo na tela: avisa sem apagar a lista
+  const stale = seg === 'andamento' ? errOngoing && ongoing !== null : errHistory && history !== null;
   const setSeg = (s: string) => router.replace(MOTOBOY_ROUTES.entregas(s as EntregasSeg), undefined, { shallow: true });
 
   return (
@@ -104,6 +112,11 @@ export function EntregasScreen({ now = new Date() }: { now?: Date }) {
         ]}
       />
       <div {...tabPanelProps(seg, 'entregas')} className={styles.stack}>
+        {stale && (
+          <Alert tone="warning" title="Não deu para atualizar agora" action={{ label: 'Tentar de novo', onClick: load }}>
+            Mostrando o que já tinha carregado.
+          </Alert>
+        )}
         {seg === 'andamento' ? renderOngoing() : renderHistory()}
       </div>
     </div>
@@ -171,7 +184,7 @@ function ConcluidasList({ history, now, onOpen }: { history: any[]; now: Date; o
   const [filter, setFilter] = useState<Filter>('all');
   const since = useMemo(() => oldestCreatedAt(history), [history]);
   const money = useMotoboyMoney({ since });
-  useAutoRefetch(EVENTS, money.reload);
+  useAutoRefetch(MONEY_EVENTS, money.reload);
 
   const month = history.filter((d) => inMonth(deliveryDate(d), now));
   const stats = historyStats(month);
