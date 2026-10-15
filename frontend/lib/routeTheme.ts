@@ -43,9 +43,9 @@ export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/l
 export const MOTOBOY_NIGHT_ROUTES: string[] = [
   '/motoboy',
   // Telas novas do DS v2 (P3–P5):
-  '/motoboy/corrida/[id]', '/motoboy/entregas', '/motoboy/entregas/[id]',
+  '/motoboy/corrida/[id]', '/motoboy/entregas', '/motoboy/entregas/[id]', '/motoboy/ganhos',
   // Telas antigas, até a tela nova substituir (P3–P5):
-  '/motoboy/wallet', '/motoboy/request-withdrawal', '/motoboy/transfer-wallet', '/motoboy/ajuda-ganhos',
+  '/motoboy/ajuda-ganhos',
   '/motoboy/gamification', '/motoboy/beneficios', '/motoboy/ranking', '/motoboy/profile',
 ];
 

@@ -196,4 +196,10 @@ describe('D2 — painel do motoboy', () => {
     // outra aba antiga continua no andamento
     expect(resolveRedirect(rules, '/motoboy/ongoing?tab=ongoing')?.location).toMatch(/^\/motoboy\/entregas\?seg=andamento/);
   });
+
+  it('P4.11: carteira, pedido de saque e transferência viram Ganhos', () => {
+    for (const old of ['/motoboy/wallet', '/motoboy/request-withdrawal', '/motoboy/transfer-wallet']) {
+      expect(resolveRedirect(rules, old)).toEqual({ location: '/motoboy/ganhos', permanent: true });
+    }
+  });
 });

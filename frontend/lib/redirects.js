@@ -58,4 +58,8 @@ module.exports = [
   { source: '/motoboy/ongoing', has: [{ type: 'query', key: 'tab', value: 'history' }], destination: '/motoboy/entregas?seg=concluidas', permanent: true },
   { source: '/motoboy/ongoing', destination: '/motoboy/entregas?seg=andamento', permanent: true },
   { source: '/motoboy/history', destination: '/motoboy/entregas?seg=concluidas', permanent: true },
+  // P4.11 — Ganhos (carteira antiga, pedido de saque e transferência)
+  { source: '/motoboy/wallet', destination: '/motoboy/ganhos', permanent: true },
+  { source: '/motoboy/request-withdrawal', destination: '/motoboy/ganhos', permanent: true },
+  { source: '/motoboy/transfer-wallet', destination: '/motoboy/ganhos', permanent: true },
 ];

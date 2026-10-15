@@ -1,11 +1,10 @@
 /**
  * A3: motoboy no modo direto vê "Repasses recebidos" (e não "Ganhos e saques");
- * /motoboy/wallet no direto mostra só os Pix da loja e não chama carteira/payout/saque;
+ * (/motoboy/wallet no direto: portado para __tests__/motoboy.ganhos.portados.test.tsx na D2 · P4.11);
  * dashboard do admin esconde cards custodyOnly no direto.
  */
 import { render, screen, waitFor } from '@testing-library/react';
 import { getNavItems } from '../lib/navConfig';
-import MotoboyWalletPage from '../pages/motoboy/wallet';
 import AdminDashboard from '../pages/admin/dashboard';
 import api from '../lib/api';
 
@@ -41,37 +40,6 @@ describe('navConfig motoboy', () => {
   test('direto e custódia: as mesmas 4 abas, com "Ganhos"', () => {
     expect(labels('direto')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
     expect(labels('custodia')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
-  });
-});
-
-describe('motoboy/wallet no modo direto', () => {
-  test('só Pix recebidos: sem botão de saque e sem rotas de carteira/payout/saque', async () => {
-    mockRole = 'motoboy';
-    (api.get as jest.Mock).mockImplementation((u: string) => {
-      if (u === '/motoboy/transfers') {
-        return Promise.resolve({ data: { data: [{ id: 't1', orderId: 'ord123456', amount: 9, status: 'done', createdAt: '2026-10-08T10:00:00Z' }], nextCursor: null } });
-      }
-      return Promise.reject({ response: { status: 404 } });
-    });
-    render(<MotoboyWalletPage />);
-    await waitFor(() => expect(screen.getByText('Recebido')).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: 'Repasses recebidos' })).toBeInTheDocument();
-    expect(screen.queryByText(/Sacar para meu PIX/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Disponível para saque/i)).not.toBeInTheDocument();
-    const urls = (api.get as jest.Mock).mock.calls.map((c) => c[0] as string);
-    expect(urls.some((u) => u.startsWith('/wallets') || u.startsWith('/payouts') || u.startsWith('/withdrawals'))).toBe(false);
-    expect(urls).toContain('/motoboy/transfers');
-  });
-
-  test('custódia: página como sempre (saldo e saque)', async () => {
-    mockMode = 'custodia';
-    (api.get as jest.Mock).mockImplementation((u: string) => {
-      if (u.startsWith('/wallets/motoboy')) return Promise.resolve({ data: { balance: 0, availableBalance: 30 } });
-      return Promise.reject({ response: { status: 404 } });
-    });
-    render(<MotoboyWalletPage />);
-    await waitFor(() => expect(screen.getByText(/Sacar para meu PIX/i)).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: 'Ganhos e saques' })).toBeInTheDocument();
   });
 });
 

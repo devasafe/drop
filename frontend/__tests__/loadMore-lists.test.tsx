@@ -6,7 +6,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminTransfers from '../pages/admin/transfers';
 import AdminEstornos from '../pages/admin/estornos';
 import MotoboyTransfersCard from '../components/drop/asaas/MotoboyTransfersCard';
-import MotoboyWalletPage from '../pages/motoboy/wallet';
 import api from '../lib/api';
 
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/' }) }));
@@ -76,16 +75,5 @@ test('loja: pagamentos a motoboys com "Carregar mais"', async () => {
   fireEvent.click(screen.getByText('Carregar mais'));
   expect(await screen.findByText(/Ana/)).toBeInTheDocument();
   expect(api.get).toHaveBeenLastCalledWith('/stores/s1/transfers', { params: { cursor: 'c1' } });
-  await waitFor(() => expect(screen.queryByText('Carregar mais')).not.toBeInTheDocument());
-});
-
-test('motoboy/wallet: "Carregar mais" traz mais pagamentos diretos', async () => {
-  const t = (id: string, orderId: string) => ({ id, orderId, amount: 8, status: 'done', createdAt: '2026-10-08T10:00:00Z' });
-  paged('/motoboy/transfers', [t('a', 'ordAAAAAA')], [t('b', 'ordBBBBBB')]);
-  render(<MotoboyWalletPage />);
-  expect(await screen.findByText('Entrega #AAAAAA')).toBeInTheDocument();
-  fireEvent.click(screen.getByText('Carregar mais'));
-  expect(await screen.findByText('Entrega #BBBBBB')).toBeInTheDocument();
-  expect(api.get).toHaveBeenLastCalledWith('/motoboy/transfers', { params: { cursor: 'c1' } });
   await waitFor(() => expect(screen.queryByText('Carregar mais')).not.toBeInTheDocument());
 });

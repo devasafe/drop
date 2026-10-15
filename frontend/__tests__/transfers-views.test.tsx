@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminTransfers from '../pages/admin/transfers';
 import MotoboyTransfersCard from '../components/drop/asaas/MotoboyTransfersCard';
-import MotoboyWalletPage from '../pages/motoboy/wallet';
 import { visibleAdminMenu } from '../lib/adminMenu';
 import { humanizeTransferError } from '../lib/transferErrors';
 import api from '../lib/api';
@@ -94,27 +93,5 @@ describe('seller: pagamentos a motoboys', () => {
     render(<MotoboyTransfersCard storeId="s1" />);
     expect(await screen.findByText('Pagamentos a motoboys')).toBeInTheDocument();
     expect(await screen.findByText('Não foi possível carregar os pagamentos.')).toBeInTheDocument();
-  });
-});
-
-describe('motoboy/wallet: pedido direto', () => {
-  test('"Recebido" para done e "Pagamento pendente da loja" para o resto, sem códigos internos', async () => {
-    (api.get as jest.Mock).mockImplementation((url: string) => {
-      if (url === '/motoboy/transfers') {
-        return Promise.resolve({ data: { success: true, data: [
-          { id: 'a', orderId: 'ordAAAAAA', amount: 8, status: 'done', createdAt: '2026-10-08T10:00:00Z' },
-          { id: 'b', orderId: 'ordBBBBBB', amount: 6, status: 'uncertain', createdAt: '2026-10-08T11:00:00Z' },
-          { id: 'c', orderId: 'ordCCCCCC', amount: 5, status: 'failed_final', createdAt: '2026-10-08T12:00:00Z' },
-        ] } });
-      }
-      if (url.startsWith('/wallets/motoboy')) return Promise.resolve({ data: { balance: 0, availableBalance: 0 } });
-      return Promise.reject(new Error('n/a'));
-    });
-    render(<MotoboyWalletPage />);
-    expect(await screen.findByText('Recebido')).toBeInTheDocument();
-    expect(screen.getAllByText('Pagamento pendente da loja')).toHaveLength(2);
-    const html = document.body.innerHTML;
-    expect(html).not.toContain('UNCERTAIN');
-    expect(html).not.toContain('failed_final');
   });
 });

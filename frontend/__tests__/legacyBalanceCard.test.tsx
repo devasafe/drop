@@ -5,7 +5,6 @@
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SellerWalletPage from '../pages/seller/wallet';
-import MotoboyWalletPage from '../pages/motoboy/wallet';
 import api from '../lib/api';
 import { useCustodyLeftover } from '../hooks/useCustodyLeftover';
 
@@ -72,30 +71,6 @@ describe('carteira da loja', () => {
     const confirm = Array.from(dialog.querySelectorAll('button')).find((b) => /sacar|confirmar/i.test(b.textContent || '') && !/fechar/i.test(b.getAttribute('aria-label') || ''));
     fireEvent.click(confirm!);
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/withdrawals/request', expect.objectContaining({ storeId: 's1' })));
-    expect((api.post as jest.Mock).mock.calls.some(([u]) => String(u).includes('transfer-to-owner'))).toBe(false);
-  });
-});
-
-describe('carteira do motoboy', () => {
-  beforeEach(() => { mockAuth = { user: { _id: 'm1', id: 'm1', activeRole: 'motoboy', role: 'motoboy', name: 'M' }, can: () => true, loading: false, permissionsLoading: false }; });
-
-  it('custódia: sem cartão', async () => {
-    leftover.mockReturnValue(false);
-    mockWallet('/wallets/motoboy/m1', [payout('p1', 12.5, 'released')]);
-    render(<MotoboyWalletPage />);
-    await screen.findByText('Disponível para saque');
-    expect(screen.queryByRole('region', { name: 'Saldo do modo anterior' })).not.toBeInTheDocument();
-  });
-
-  it('direto com saldo antigo: o botão abre o saque por payouts (/withdrawals/request), sem transfer-to-owner', async () => {
-    leftover.mockReturnValue(true);
-    mockWallet('/wallets/motoboy/m1', [payout('p1', 12.5, 'released')]);
-    render(<MotoboyWalletPage />);
-    fireEvent.click(await screen.findByText('Sacar para minha chave Pix'));
-    const dialog = await screen.findByRole('dialog');
-    const confirm = Array.from(dialog.querySelectorAll('button')).find((b) => /sacar|confirmar/i.test(b.textContent || '') && !/fechar/i.test(b.getAttribute('aria-label') || ''));
-    fireEvent.click(confirm!);
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/withdrawals/request', expect.anything()));
     expect((api.post as jest.Mock).mock.calls.some(([u]) => String(u).includes('transfer-to-owner'))).toBe(false);
   });
 });
