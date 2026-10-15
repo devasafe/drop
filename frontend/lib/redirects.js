@@ -62,4 +62,6 @@ module.exports = [
   { source: '/motoboy/wallet', destination: '/motoboy/ganhos', permanent: true },
   { source: '/motoboy/request-withdrawal', destination: '/motoboy/ganhos', permanent: true },
   { source: '/motoboy/transfer-wallet', destination: '/motoboy/ganhos', permanent: true },
+  // P4.12 — Como calculamos
+  { source: '/motoboy/ajuda-ganhos', destination: '/motoboy/ganhos/como-calculamos', permanent: true },
 ];

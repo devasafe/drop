@@ -1,0 +1,23 @@
+/* frontend/components/motoboy/ganhos/ComoCalculamos.module.css — D2 · P4 (protótipo "Como calculamos"). Só tokens. */
+.stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.total { font-weight: 700; }
+.total > span { color: var(--color-text-primary); }
+.tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); counter-reset: passo; }
+.tl > li { position: relative; display: flex; flex-direction: column; gap: 2px; padding-left: var(--space-6); counter-increment: passo; }
+.tl > li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+  font: var(--text-caption);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tl > li > b { font: var(--text-label); color: var(--color-text-primary); }
+.tl > li > small { font: var(--text-meta); color: var(--color-text-muted); }

@@ -202,4 +202,8 @@ describe('D2 — painel do motoboy', () => {
       expect(resolveRedirect(rules, old)).toEqual({ location: '/motoboy/ganhos', permanent: true });
     }
   });
+
+  it('P4.12: ajuda-ganhos vira Como calculamos', () => {
+    expect(resolveRedirect(rules, '/motoboy/ajuda-ganhos')).toEqual({ location: '/motoboy/ganhos/como-calculamos', permanent: true });
+  });
 });
