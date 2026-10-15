@@ -28,8 +28,8 @@ it('tema claro (painel da loja): marca do DS em texto, sem a imagem para fundo e
   expect(link).toHaveTextContent('DROP');
 });
 
-it('tema escuro (admin): continua a arte para fundo escuro', () => {
-  mockPath = '/admin/dashboard';
+it('tema escuro (rota ainda escura; o admin ficou claro na D3a): continua a arte para fundo escuro', () => {
+  mockPath = '/notifications';
   render(<Nav />);
   expect(screen.getByAltText('DROP').getAttribute('src')).toMatch(/logog_png/);
 });

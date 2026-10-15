@@ -30,8 +30,21 @@ export const SELLER_LIGHT_ROUTES: string[] = [
   '/seller/perfil', '/seller/ajuda',
 ];
 
-// D2: perfil público do motoboy, visto pelo cliente: sempre claro (/motoboy/[id] em LIGHT_ROUTES)
-export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES];
+/**
+ * Painel do admin (fase D3a): só claro (decisão do usuário). Toda página de /admin entra aqui
+ * (__tests__/adminTheme.test.ts cobra); a task que apaga uma página tira a linha dela no mesmo commit
+ * (lib/__tests__/routeTheme.pages.test.ts cobra).
+ */
+export const ADMIN_LIGHT_ROUTES: string[] = [
+  '/admin/analytics', '/admin/app-cashbox', '/admin/avisos', '/admin/broadcasts', '/admin/conversas',
+  '/admin/coupons', '/admin/dashboard', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas',
+  '/admin/payouts', '/admin/permissoes', '/admin/plan-approvals', '/admin/pricing-config',
+  '/admin/ranking-config', '/admin/seasonal-theme', '/admin/settings', '/admin/suporte',
+  '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
+];
+
+// D2: perfil público do motoboy, visto pelo cliente: sempre claro (/motoboy/[id] em LIGHT_ROUTES). D3a: admin claro.
+export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES, ...ADMIN_LIGHT_ROUTES];
 
 /**
  * Painel do motoboy (fase D2): claro de dia, escuro das 18:00 às 05:59 com a preferência "Tela escura à noite".

@@ -1,5 +1,5 @@
 import { NIGHT_PREF_KEY } from '../nightTheme';
-import { themeForPath, resolvedThemeForPath, LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '../routeTheme';
+import { themeForPath, resolvedThemeForPath, LIGHT_ROUTES, ADMIN_LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '../routeTheme';
 
 describe('routeTheme', () => {
   it('rota fora da lista é escura (padrão até a fase C)', () => {
@@ -11,6 +11,11 @@ describe('routeTheme', () => {
   it('styleguide é clara', () => {
     expect(LIGHT_ROUTES).toContain('/_styleguide');
     expect(themeForPath('/_styleguide')).toBe('light');
+  });
+  it('o painel do admin é claro (D3a)', () => {
+    expect(LIGHT_ROUTES).toEqual(expect.arrayContaining(ADMIN_LIGHT_ROUTES));
+    expect(themeForPath('/admin/freios')).toBe('light');
+    expect(themeForPath('/admin/payouts')).toBe('light');
   });
   it('padrão dinâmico casa com a URL real (o boot script recebe location.pathname, não o pattern)', () => {
     const re = patternToRegex('/stores/[id]');

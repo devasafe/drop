@@ -29,8 +29,8 @@ describe('tema do painel da loja (D1)', () => {
     expect(themeForPath('/seller/pedido/abc123')).toBe('light');
   });
 
-  it('rotas compartilhadas com outros papéis e os outros painéis continuam escuros', () => {
-    for (const r of ['/verificacao', '/notifications', '/admin/dashboard']) {
+  it('rotas compartilhadas com outros papéis continuam escuras (o admin ficou claro na D3a)', () => {
+    for (const r of ['/verificacao', '/notifications']) {
       expect(themeForPath(r)).toBe('dark');
     }
   });

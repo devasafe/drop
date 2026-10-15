@@ -23,9 +23,9 @@ describe('tema do painel do motoboy (D2)', () => {
     expect(dinamicas.filter((r) => themeForPath(sampleUrl(r)) !== 'night-auto')).toEqual([]);
   });
 
-  it('/dados-recebimento continua clara (V7) e o admin continua escuro', () => {
+  it('/dados-recebimento continua clara (V7) e o admin é claro, nunca noturno (D3a)', () => {
     expect(themeForPath('/dados-recebimento')).toBe('light');
-    expect(themeForPath('/admin/dashboard')).toBe('dark');
+    expect(themeForPath('/admin/dashboard')).toBe('light');
   });
 
   it('a lista noturna não se mistura com a clara', () => {

@@ -30,4 +30,7 @@ describe('tema por rota × páginas reais', () => {
   it('toda entrada das listas clara e noturna é uma página que existe (página apagada sai da lista no mesmo commit)', () => {
     expect([...LIGHT_ROUTES, ...MOTOBOY_NIGHT_ROUTES].filter((r) => !routes.includes(r))).toEqual([]);
   });
+  it('toda página de /admin é clara (D3a)', () => {
+    expect(routes.filter((p) => p.startsWith('/admin') && themeForPath(p) !== 'light')).toEqual([]);
+  });
 });
