@@ -1,0 +1,36 @@
+/* Abas de área do admin (DS v2, D3a; protótipo .u-seg): sublinhado roxo na ativa; rola na horizontal no celular. */
+.tabs {
+  display: flex;
+  gap: var(--space-5);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 var(--space-4);
+  background: var(--color-surface-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: var(--text-label);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.tab:hover { color: var(--color-text-primary); }
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+.on {
+  color: var(--color-text-primary);
+  box-shadow: inset 0 -2px 0 var(--color-action-primary);
+}
+
+@media (min-width: 1024px) {
+  .tabs { padding: 0 var(--space-6); }
+}

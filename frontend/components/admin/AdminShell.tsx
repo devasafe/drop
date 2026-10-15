@@ -2,6 +2,8 @@ import { ReactNode, useEffect, useId, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Menu } from 'lucide-react';
 import { AdminSidebar } from './AdminSidebar';
+import { AdminTabs } from './AdminTabs';
+import type { AdminAreaKey } from '../../lib/adminNav';
 import { ScreenErrorBoundary } from '../seller/panel/ScreenErrorBoundary';
 import AccountMenuButton from '../nav/AccountMenuButton';
 import { useAdminNav } from '../../hooks/useAdminNav';
@@ -33,6 +35,8 @@ export interface AdminShellProps {
   title: string;
   /** Ações da tela, à direita do título (no celular, numa linha abaixo). */
   actions?: ReactNode;
+  /** Área do menu cujas abas aparecem abaixo do cabeçalho (spec 3.4). */
+  tabs?: AdminAreaKey;
   children: ReactNode;
 }
 
@@ -40,7 +44,7 @@ export interface AdminShellProps {
  * Casca das telas do admin (DS v2, D3a; spec 3.1): menu lateral (gaveta no celular), cabeçalho com título,
  * data e hora, ações e conta, e o corpo com fundo gelo dentro de um ScreenErrorBoundary.
  */
-export function AdminShell({ title, actions, children }: AdminShellProps) {
+export function AdminShell({ title, actions, tabs, children }: AdminShellProps) {
   const router = useRouter();
   const nav = useAdminNav();
   const sideId = useId();
@@ -88,6 +92,7 @@ export function AdminShell({ title, actions, children }: AdminShellProps) {
           <div className={styles.account}><AccountMenuButton /></div>
           {actions && <div className={styles.actions}>{actions}</div>}
         </header>
+        {tabs && <AdminTabs area={tabs} />}
         <div className={styles.body}>
           {/* Exceção de render no conteúdo: erro com "Tentar de novo"; menu e cabeçalho continuam. */}
           <ScreenErrorBoundary resetKey={asPath}>{children}</ScreenErrorBoundary>
