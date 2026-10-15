@@ -1,4 +1,3 @@
-// frontend/pages/motoboy/ranking.tsx (substitui o arquivo inteiro)
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { RankingScreen } from '../../components/motoboy/nivel/RankingScreen';
 

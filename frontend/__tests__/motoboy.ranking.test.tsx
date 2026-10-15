@@ -73,6 +73,7 @@ test('prêmios ligados mas a leitura falhou: sem valor presumido', async () => {
   get.mockRejectedValue(new Error('rede'));
   render(<RankingScreen now={NOW} />);
   await new Promise((r) => setTimeout(r, 0));
+  expect(get).toHaveBeenCalledWith('/ranking-prizes');
   expect(screen.queryByText(/R\$/)).toBeNull();
 });
 
@@ -109,4 +110,19 @@ test('falha ao ler o ranking aparece como erro, nao como vazio, com Tentar de no
   expect(screen.queryByText('Ninguém pontuou ainda')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
   expect(mockReload).toHaveBeenCalledTimes(1);
+});
+
+test('12 pessoas e você em 11º: top 10 mais a sua linha', () => {
+  mockRanking = Array.from({ length: 12 }, (_, i) => ({
+    user_id: i === 10 ? 'm1' : `u${i}`,
+    name: i === 10 ? 'Carlos Lima' : `Pessoa${i} Sobrenome`,
+    pontosMes: 1000 - i,
+    level: 'Prata',
+  }));
+  render(<RankingScreen now={NOW} />);
+  expect(screen.getAllByRole('listitem')).toHaveLength(11);
+  expect(screen.getByText('10º · Pessoa9 S.')).toBeInTheDocument();
+  expect(screen.getByText('11º · Você')).toBeInTheDocument();
+  expect(screen.queryByText('12º · Pessoa11 S.')).toBeNull();
+  expect(screen.queryByText('Top 10')).toBeNull();
 });
