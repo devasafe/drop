@@ -1,0 +1,10 @@
+/* frontend/components/motoboy/ganhos/Ganhos.module.css — D2 · P4 (protótipos "Ganhos", "Repasses recebidos"). Só tokens. */
+.stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.price { font: var(--text-price-sm); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.debit { color: var(--color-text-secondary); }
+.note { font: var(--text-meta); color: var(--color-error-text); }
+.bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: end; gap: var(--space-2); height: 88px; }
+.bar,
+.barOn { display: block; min-height: 4px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--color-action-primary-subtle); }
+.barOn { background: var(--color-action-primary); }
+.barsX { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2); text-align: center; font: var(--text-caption); color: var(--color-text-muted); }
