@@ -18,21 +18,17 @@ import { MOTOBOY_ROUTES, type GanhosSeg } from '../../../lib/motoboyRoutes';
 import { isThisWeek, moneyBadge, payoutToMoney, weekBars, windowCovered, type MoneyInfo, type WeekBars } from '../../../lib/motoboyMoney';
 import { formatMoney } from '../../../lib/money';
 import { shortOrderCode } from '../../../lib/customerOrder';
-import { apiError, formatDateTime, unwrap } from '../../../lib/sellerApi';
+import { apiError, formatDateTime } from '../../../lib/sellerApi';
+import { weekFromResponse, type Week } from './weekSummary';
 import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './Ganhos.module.css';
 
 interface Summary { pending: number; available: number; requested: number; paid: number }
-interface Week { earnings: number; count: number }
 const UNCERTAIN_TEXT = 'Não peça de novo: estamos conferindo com o banco e avisamos aqui.';
 
 const toSummary = (d: any): Summary | null => {
   const s = { pending: Number(d?.pending), available: Number(d?.available), requested: Number(d?.requested), paid: Number(d?.paid) };
   return Object.values(s).every(Number.isFinite) ? s : null;
-};
-const toWeek = (d: any): Week | null => {
-  const w = d?.week;
-  return w && Number.isFinite(w.earnings) && Number.isFinite(w.count) ? { earnings: w.earnings, count: w.count } : null;
 };
 const toList = (d: any): any[] => (Array.isArray(d) ? d : Array.isArray(d?.withdrawals) ? d.withdrawals : []);
 const ms = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);
@@ -112,7 +108,7 @@ export function CustodyEarnings({ motoboyId, seg, onSeg, now = new Date() }: Cus
     }
     if (inv.status === 'fulfilled') setInvoices(Array.isArray(inv.value?.data?.invoices) ? inv.value.data.invoices : []);
     else setInvoices(null);
-    const wk = sm.status === 'fulfilled' ? toWeek(unwrap<any>(sm.value)) : null;
+    const wk = sm.status === 'fulfilled' ? weekFromResponse(sm.value) : null;
     setWeek(wk);
     setWeekFailed(!wk);
   }, [motoboyId]);
