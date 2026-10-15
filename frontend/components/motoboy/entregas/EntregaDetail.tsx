@@ -235,8 +235,7 @@ function EntregaLoaded({ delivery }: { delivery: any }) {
               onClick={() => router.push(`/invoice/${encodeURIComponent(String(invoice.id ?? invoice._id))}`)}
             />
           )}
-          {/* C7: /suporte até a P5.5 trocar para MOTOBOY_ROUTES.perfilAjuda. */}
-          <NavRow icon={<LifeBuoy size={18} />} label="Algo errado com esta corrida?" sub="Falar com o suporte" onClick={() => router.push('/suporte')} />
+          <NavRow icon={<LifeBuoy size={18} />} label="Algo errado com esta corrida?" sub="Falar com o suporte" onClick={() => router.push(MOTOBOY_ROUTES.perfilAjuda)} />
         </ul>
       </div>
     </MotoboyShell>

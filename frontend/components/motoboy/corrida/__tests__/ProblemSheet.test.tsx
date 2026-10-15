@@ -92,3 +92,8 @@ test('códigos são só os que o backend já recebe hoje', () => {
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'ProblemSheet.module.css'), 'utf8'))).toEqual([]);
 });
+
+test('"Falar com o suporte" leva para Ajuda e suporte do motoboy', () => {
+  render(<ProblemSheet {...base} stage="retirar" />);
+  expect(screen.getByRole('link', { name: 'Falar com o suporte' })).toHaveAttribute('href', '/motoboy/perfil/ajuda');
+});

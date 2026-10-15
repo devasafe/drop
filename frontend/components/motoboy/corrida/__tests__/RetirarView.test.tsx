@@ -55,7 +55,7 @@ test('retirada atrasada (10 min ou mais): alerta, relógio e Devolver corrida', 
   expect(screen.getByTestId('pin-retirada')).toHaveTextContent('48213');
   expect(screen.queryByTestId('mapa')).not.toBeInTheDocument();
   expect(screen.getByText('Se não der para esperar')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Suporte' })).toHaveAttribute('href', '/suporte');
+  expect(screen.getByRole('link', { name: 'Suporte' })).toHaveAttribute('href', '/motoboy/perfil/ajuda');
   fireEvent.click(screen.getByRole('button', { name: 'Devolver corrida' }));
   expect(h.onReturn).toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: 'Tive um problema na retirada' })).not.toBeInTheDocument();

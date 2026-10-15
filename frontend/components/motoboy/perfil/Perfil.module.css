@@ -1,0 +1,10 @@
+.form { gap: var(--space-3); }
+
+/* Cabeçalho do Perfil (protótipo 25): avatar, nome, nota e "Ver como o cliente vê". */
+.who { flex-direction: row; align-items: center; gap: var(--space-3); }
+.whoTx { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.whoTx > b { font: var(--text-title); color: var(--color-text-primary); }
+.whoTx > span { font: var(--text-meta); color: var(--color-text-secondary); }
+
+/* Interruptor dentro da lista (o Switch já traz o próprio alinhamento). */
+.switchRow { padding: var(--space-2) var(--space-4); }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 import { Store } from 'lucide-react';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
@@ -84,7 +85,7 @@ export function RetirarView({ ride, now, self, onChat, onProblem, onReturn, onOp
           <div className={blocks.head}><b className={blocks.headTitle}>Se não der para esperar</b></div>
           <p className={blocks.sub}>Você pode devolver a corrida antes de retirar, sem taxa. Ela volta para outros entregadores.</p>
           <div className={styles.actions}>
-            <Link href="/suporte" className={styles.action}>Suporte</Link>
+            <Link href={MOTOBOY_ROUTES.perfilAjuda} className={styles.action}>Suporte</Link>
             <Button variant="danger" onClick={onReturn}>Devolver corrida</Button>
           </div>
         </section>

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 import { ChevronRight } from 'lucide-react';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
@@ -115,7 +116,7 @@ export function ProblemSheet({ open, onClose, deliveryId, orderCode, stage, init
               </li>
             ))}
           </ul>
-          <Link href="/suporte" className={blocks.link}>Falar com o suporte</Link>
+          <Link href={MOTOBOY_ROUTES.perfilAjuda} className={blocks.link}>Falar com o suporte</Link>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
         </div>
       ) : (

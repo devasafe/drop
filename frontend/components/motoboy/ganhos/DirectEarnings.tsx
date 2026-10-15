@@ -298,7 +298,7 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
         transfer={late}
         blockHours={rules?.transferBlockHours ?? null}
         onClose={() => setLate(null)}
-        onSupport={() => router.push('/suporte')}
+        onSupport={() => router.push(MOTOBOY_ROUTES.perfilAjuda)}
       />
       {hasLeftover && (
         <WithdrawPixSheet

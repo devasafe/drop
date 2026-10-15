@@ -87,7 +87,7 @@ test('Pix atrasado: aviso e sheet só informativa, sem nenhuma chamada de envio'
   expect(within(dialog).queryByRole('button', { name: /tentar|reenviar/i })).not.toBeInTheDocument();
   expect(post).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Falar com o suporte' }));
-  expect(mockPush).toHaveBeenCalledWith('/suporte');
+  expect(mockPush).toHaveBeenCalledWith('/motoboy/perfil/ajuda');
 });
 
 test('a linha atrasada também abre a sheet; a linha que caiu não é botão', async () => {

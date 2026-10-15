@@ -173,7 +173,7 @@ test('nota fiscal e suporte', async () => {
   fireEvent.click(await screen.findByRole('button', { name: /Nota fiscal da corrida/ }));
   expect(mockPush).toHaveBeenCalledWith('/invoice/inv1');
   fireEvent.click(screen.getByRole('button', { name: /Algo errado com esta corrida/ }));
-  expect(mockPush).toHaveBeenCalledWith('/suporte');
+  expect(mockPush).toHaveBeenCalledWith('/motoboy/perfil/ajuda');
 });
 
 test('avaliação do cliente: nota e comentário da própria corrida', async () => {
