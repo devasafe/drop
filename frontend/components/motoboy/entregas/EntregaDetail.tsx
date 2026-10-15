@@ -99,25 +99,32 @@ function EntregaLoaded({ delivery }: { delivery: any }) {
   const [invoiceAttempt, setInvoiceAttempt] = useState(0);
 
   const orderId = delivery.orderId ? String(delivery.orderId) : null;
+  const deliveryId = String(delivery._id ?? delivery.id ?? '');
+  // Só a corrida entregue tem nota; a cancelada mostra a compensação do servidor (sem GET de 404 esperado).
+  const wantsInvoice = delivery.status === 'delivered' && !!orderId;
   useEffect(() => {
-    if (!orderId) { setInvoiceState('none'); return undefined; }
+    if (!wantsInvoice || !orderId) { setInvoice(null); setInvoiceState('none'); return undefined; }
     let off = false;
     setInvoiceState('loading');
     Promise.resolve()
       .then(() => api.get(`/invoices/by-order/${encodeURIComponent(orderId)}`))
       .then((r: any) => {
         if (off) return;
-        const inv = r?.data ?? null;
+        const raw = r?.data ?? null;
+        // A nota é buscada pelo pedido (findFirst): a de outra entrega do mesmo pedido não é desta corrida.
+        const inv = raw && (raw.deliveryId === undefined || raw.deliveryId === null || String(raw.deliveryId) === deliveryId) ? raw : null;
         setInvoice(inv);
         setInvoiceState(!inv ? 'none' : inv.status === 'cancelled' ? 'cancelled' : 'ready');
       })
       .catch((err) => {
         if (off) return;
         setInvoice(null);
-        setInvoiceState(apiError(err).status === 404 ? 'none' : 'error');
+        // 404 (sem nota) e 403 (nota que não é sua): não há conta; repetir não muda nada.
+        const st = apiError(err).status;
+        setInvoiceState(st === 404 || st === 403 ? 'none' : 'error');
       });
     return () => { off = true; };
-  }, [orderId, invoiceAttempt]);
+  }, [wantsInvoice, orderId, deliveryId, invoiceAttempt]);
 
   const delivered = delivery.status === 'delivered';
   const n = Number(delivery.distance);
@@ -196,9 +203,10 @@ function EntregaLoaded({ delivery }: { delivery: any }) {
             <p className={blocks.meta}>A nota desta corrida foi cancelada.</p>
           ) : delivered ? (
             <p className={blocks.meta}>A conta aparece quando a nota da corrida for emitida.</p>
-          ) : comp === null ? (
+          ) : (
+            // cancelada sem compensação > 0 (null, 0 ou valor estranho): nunca seção vazia nem R$ 0,00
             <p className={blocks.meta}>Corrida cancelada sem compensação.</p>
-          ) : null}
+          )}
           {badge && <span className={[moneyTagClass(badge.tone), styles.badge].join(' ')}>{badge.label}</span>}
         </section>
 

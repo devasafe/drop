@@ -126,6 +126,28 @@ test('sem nota (404): sem conta inventada', async () => {
   expect(screen.queryByText('Nota fiscal da corrida')).not.toBeInTheDocument();
 });
 
+test('nota de outra entrega do mesmo pedido (deliveryId diferente): sem conta e sem link', async () => {
+  mockApi({ invoice: { ...INVOICE, deliveryId: 'outra-entrega' } });
+  render(<EntregaDetail id="d1" />);
+  expect(await screen.findByText('A conta aparece quando a nota da corrida for emitida.')).toBeInTheDocument();
+  expect(screen.queryByText('Você recebe')).not.toBeInTheDocument();
+  expect(screen.queryByText('Nota fiscal da corrida')).not.toBeInTheDocument();
+});
+
+test('nota com o deliveryId desta entrega: mostra a conta', async () => {
+  mockApi({ invoice: { ...INVOICE, deliveryId: 'd1' } });
+  render(<EntregaDetail id="d1" />);
+  expect(await screen.findByText('Você recebe')).toBeInTheDocument();
+});
+
+test('nota sem permissão (403): sem conta, sem erro de rede nem Tentar de novo', async () => {
+  mockApi({ invoice: { response: { status: 403, data: { error: 'Sem permissao para ver esta nota' } } } });
+  render(<EntregaDetail id="d1" />);
+  expect(await screen.findByText('A conta aparece quando a nota da corrida for emitida.')).toBeInTheDocument();
+  expect(screen.queryByText('Não carregamos a conta desta corrida.')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Tentar de novo' })).not.toBeInTheDocument();
+});
+
 test('nota cancelada: não mostra a conta nem o link da nota', async () => {
   mockApi({ invoice: { ...INVOICE, status: 'cancelled' } });
   render(<EntregaDetail id="d1" />);
@@ -197,6 +219,23 @@ test('cancelada sem compensação: sem linha de valor', async () => {
   expect(await screen.findByText('Corrida cancelada sem compensação.')).toBeInTheDocument();
   expect(screen.queryByText('Compensação do cancelamento')).not.toBeInTheDocument();
   expect(screen.queryByText(/R\$ 0,00/)).not.toBeInTheDocument();
+});
+
+test('cancelada com compensação 0: "sem compensação", nunca seção vazia', async () => {
+  mockApi({ delivery: { ...DELIVERED, status: 'cancelled', deliveredAt: null, cancelledAt: '2026-10-14T12:55:00-03:00', cancellationCompensation: 0 }, invoice: NOT_FOUND });
+  render(<EntregaDetail id="d1" />);
+  const conta = await screen.findByRole('region', { name: 'Seu ganho' });
+  await waitFor(() => expect(conta).toHaveTextContent('Corrida cancelada sem compensação.'));
+  expect(conta).not.toHaveTextContent('R$ 0,00');
+});
+
+test('cancelada não busca a nota fiscal', async () => {
+  mockApi({ delivery: { ...DELIVERED, status: 'cancelled', deliveredAt: null, cancelledAt: '2026-10-14T12:55:00-03:00', cancellationCompensation: 2.84 } });
+  render(<EntregaDetail id="d1" />);
+  const conta = await screen.findByRole('region', { name: 'Seu ganho' });
+  await waitFor(() => expect(conta).toHaveTextContent('Compensação do cancelamento'));
+  expect(calls('/invoices/by-order/ord0004815')).toBe(0);
+  expect(screen.queryByText('Nota fiscal da corrida')).not.toBeInTheDocument();
 });
 
 test('corrida ainda ativa vai para a tela da corrida', async () => {
