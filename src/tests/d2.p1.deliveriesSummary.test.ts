@@ -24,11 +24,13 @@ afterEach(async () => {
 async function corrida(m: TestUser, status: 'delivered' | 'cancelled', deliveredAt: Date | null) {
   return prisma.delivery.create({ data: { orderId: rid(), motoboyId: m.userId, status, fee: 10, distance: 3, deliveredAt } as any });
 }
-const payout = (m: TestUser, deliveryId: string, amount: number, status = 'released') =>
-  prisma.payout.create({ data: { recipientType: 'motoboy', recipientId: m.userId, orderId: rid(), deliveryId, amount, status } as any });
-const transfer = (m: TestUser, deliveryId: string, amount: number, reason = 'delivery') =>
+const payout = (m: TestUser, deliveryId: string, amount: number, status = 'released', createdAt?: Date) =>
+  prisma.payout.create({
+    data: { recipientType: 'motoboy', recipientId: m.userId, orderId: rid(), deliveryId, amount, status, ...(createdAt ? { createdAt } : {}) } as any,
+  });
+const transfer = (m: TestUser, deliveryId: string, amount: number, reason = 'delivery', createdAt?: Date) =>
   prisma.motoboyTransfer.create({
-    data: { deliveryId, orderId: rid(), storeId: rid(), motoboyId: m.userId, reason, amount, pixKeyEncrypted: 'x', pixKeyType: 'CPF' } as any,
+    data: { deliveryId, orderId: rid(), storeId: rid(), motoboyId: m.userId, reason, amount, pixKeyEncrypted: 'x', pixKeyType: 'CPF', ...(createdAt ? { createdAt } : {}) } as any,
   });
 
 describe('saoPauloDayAndWeekStart', () => {
@@ -62,8 +64,8 @@ describe('motoboySummary (agora = quarta 2026-10-14 12:00 em SP)', () => {
     await payout(motoboy, d3.id, 7);
     const d4 = await corrida(motoboy, 'delivered', new Date('2026-10-14T14:00:00.000Z')); // hoje, repasse cancelado
     await payout(motoboy, d4.id, 8, 'cancelled');
-    const d5 = await corrida(motoboy, 'cancelled', null); // cancelada com compensação: não é corrida entregue
-    await payout(motoboy, d5.id, 5);
+    const d5 = await corrida(motoboy, 'cancelled', null); // cancelada hoje com compensação: soma o dinheiro, não a corrida
+    await payout(motoboy, d5.id, 5, 'released', new Date('2026-10-14T13:10:00.000Z'));
     const d6 = await corrida(outro, 'delivered', new Date('2026-10-14T13:30:00.000Z')); // de outro motoboy
     await payout(outro, d6.id, 8);
     const d7 = await corrida(motoboy, 'delivered', new Date('2026-10-14T12:00:00.000Z')); // hoje, repasse fracionado num saque
@@ -71,12 +73,62 @@ describe('motoboySummary (agora = quarta 2026-10-14 12:00 em SP)', () => {
     await payout(motoboy, d7.id, 2, 'released');
 
     const r = await motoboySummary(motoboy.userId, NOW);
-    expect(r.today).toEqual({ count: 3, earnings: 13 });
-    expect(r.week).toEqual({ count: 4, earnings: 22.6 });
+    expect(r.today).toEqual({ count: 3, earnings: 18 });
+    expect(r.week).toEqual({ count: 4, earnings: 27.6 });
   });
 
   it('sem corridas: zeros', async () => {
     expect(await motoboySummary(motoboy.userId, NOW)).toEqual({ today: { count: 0, earnings: 0 }, week: { count: 0, earnings: 0 } });
+  });
+});
+
+describe('motoboySummary: compensação de cancelamento entra no dinheiro (decisão de 15/10)', () => {
+  const NOW = new Date('2026-10-14T15:00:00.000Z'); // quarta 12:00 em SP
+
+  it('custódia: entrega de R$ 10 + compensação de R$ 5 na semana → 15, com 1 corrida', async () => {
+    const d = await corrida(motoboy, 'delivered', new Date('2026-10-13T15:00:00.000Z')); // terça
+    await payout(motoboy, d.id, 10);
+    const c = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, c.id, 5, 'released', new Date('2026-10-13T16:00:00.000Z')); // terça
+    const r = await motoboySummary(motoboy.userId, NOW);
+    expect(r.week).toEqual({ count: 1, earnings: 15 });
+    expect(r.today).toEqual({ count: 0, earnings: 0 });
+  });
+
+  it('compensação de hoje entra em hoje; da semana passada e cancelada ficam fora', async () => {
+    const hoje = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, hoje.id, 4, 'released', new Date('2026-10-14T13:00:00.000Z'));
+    const passada = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, passada.id, 6, 'released', new Date('2026-10-11T15:00:00.000Z')); // sábado anterior
+    const estornada = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, estornada.id, 7, 'cancelled', new Date('2026-10-14T13:00:00.000Z'));
+    const r = await motoboySummary(motoboy.userId, NOW);
+    expect(r.today).toEqual({ count: 0, earnings: 4 });
+    expect(r.week).toEqual({ count: 0, earnings: 4 });
+  });
+
+  it('compensação fracionada por saque conta uma vez, pela data do primeiro pedaço', async () => {
+    const c = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, c.id, 3, 'released', new Date('2026-10-11T15:00:00.000Z')); // semana passada
+    await payout(motoboy, c.id, 2, 'requested', new Date('2026-10-14T13:00:00.000Z')); // pedaço novo do saque
+    const d = await corrida(motoboy, 'cancelled', null);
+    await payout(motoboy, d.id, 3, 'released', new Date('2026-10-13T15:00:00.000Z'));
+    await payout(motoboy, d.id, 1, 'requested', new Date('2026-10-14T13:00:00.000Z'));
+    const r = await motoboySummary(motoboy.userId, NOW);
+    expect(r.week).toEqual({ count: 0, earnings: 4 });
+    expect(r.today).toEqual({ count: 0, earnings: 0 });
+  });
+
+  it('direto: só a transfer de compensação entra; de outro motoboy não', async () => {
+    const c = await corrida(motoboy, 'cancelled', null);
+    await transfer(motoboy, c.id, 5, 'cancellation_compensation', new Date('2026-10-14T13:00:00.000Z'));
+    const sem = await corrida(motoboy, 'cancelled', null);
+    await transfer(motoboy, sem.id, 9, 'delivery', new Date('2026-10-14T13:00:00.000Z'));
+    const alheia = await corrida(outro, 'cancelled', null);
+    await transfer(outro, alheia.id, 8, 'cancellation_compensation', new Date('2026-10-14T13:00:00.000Z'));
+    const r = await motoboySummary(motoboy.userId, NOW);
+    expect(r.today).toEqual({ count: 0, earnings: 5 });
+    expect(r.week).toEqual({ count: 0, earnings: 5 });
   });
 });
 

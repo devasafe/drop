@@ -18,9 +18,53 @@ export function saoPauloDayAndWeekStart(now: Date = new Date()): { dayStart: Dat
 }
 
 /**
+ * Compensações de cancelamento (cliente cancelou depois do aceite, ou cliente ausente) gravadas no
+ * período, em centavos e datadas pelo primeiro registro — a mesma data que as barras da semana usam.
+ * Mesma regra de services/motoboyCompensation: numa corrida não entregue, o único repasse ao
+ * motoboy é a compensação (Payouts não cancelados na custódia; MotoboyTransfer
+ * 'cancellation_compensation' no direto). Só lê o que foi gravado.
+ */
+async function compensationsSince(motoboyId: string, since: Date, now: Date): Promise<{ at: Date; cents: number }[]> {
+  const [recent, transfers] = await Promise.all([
+    prisma.payout.findMany({
+      where: { recipientType: 'motoboy', recipientId: motoboyId, status: { not: 'cancelled' }, deliveryId: { not: null }, createdAt: { gte: since, lte: now } },
+      select: { deliveryId: true },
+    }),
+    prisma.motoboyTransfer.findMany({
+      where: { motoboyId, reason: 'cancellation_compensation', createdAt: { gte: since, lte: now } },
+      select: { createdAt: true, amount: true },
+    }),
+  ]);
+  const out = transfers.map((t) => ({ at: t.createdAt, cents: Math.round(Number(t.amount) * 100) }));
+  const candidates = Array.from(new Set(recent.map((p) => String(p.deliveryId))));
+  if (candidates.length === 0) return out;
+  const notDelivered = await prisma.delivery.findMany({
+    where: { id: { in: candidates }, status: { not: 'delivered' } },
+    select: { id: true },
+  });
+  if (notDelivered.length === 0) return out;
+  // Todos os pedaços da compensação (um saque pode tê-la fracionado), datados pelo primeiro.
+  const parts = await prisma.payout.findMany({
+    where: { recipientType: 'motoboy', recipientId: motoboyId, status: { not: 'cancelled' }, deliveryId: { in: notDelivered.map((d) => d.id) } },
+    select: { deliveryId: true, amount: true, createdAt: true },
+  });
+  const byRide = new Map<string, { at: Date; cents: number }>();
+  for (const p of parts) {
+    const key = String(p.deliveryId);
+    const cur = byRide.get(key);
+    const cents = Math.round(Number(p.amount) * 100);
+    byRide.set(key, cur ? { at: p.createdAt < cur.at ? p.createdAt : cur.at, cents: cur.cents + cents } : { at: p.createdAt, cents });
+  }
+  for (const c of byRide.values()) if (c.at >= since && c.at <= now) out.push(c);
+  return out;
+}
+
+/**
  * Resumo do motoboy (spec D2 5.1, item 5): corridas ENTREGUES no período (por deliveredAt) e o
  * que foi gravado para ele nelas — Payouts não cancelados (custódia, inclusive os fracionados
- * por saque) e a MotoboyTransfer de entrega (direto). Nada é recalculado a partir da taxa.
+ * por saque) e a MotoboyTransfer de entrega (direto) —, mais as compensações de cancelamento do
+ * período (decisão do produto, 15/10: o total da semana bate com as barras). `count` são só as
+ * corridas entregues. Nada é recalculado a partir da taxa.
  */
 export async function motoboySummary(motoboyId: string, now: Date = new Date()): Promise<MotoboySummary> {
   const { dayStart, weekStart } = saoPauloDayAndWeekStart(now);
@@ -46,12 +90,14 @@ export async function motoboySummary(motoboyId: string, now: Date = new Date()):
       cents.set(id, (cents.get(id) ?? 0) + Math.round(Number(row.amount) * 100));
     }
   }
-  const sum = (list: typeof rides): PeriodSummary => ({
+  const comps = await compensationsSince(motoboyId, weekStart, now);
+  const sum = (list: typeof rides, from: Date): PeriodSummary => ({
     count: list.length,
-    earnings: list.reduce((s, r) => s + (cents.get(r.id) ?? 0), 0) / 100,
+    earnings: (list.reduce((s, r) => s + (cents.get(r.id) ?? 0), 0)
+      + comps.filter((c) => c.at >= from).reduce((s, c) => s + c.cents, 0)) / 100,
   });
   return {
-    today: sum(rides.filter((r) => r.deliveredAt !== null && r.deliveredAt >= dayStart)),
-    week: sum(rides),
+    today: sum(rides.filter((r) => r.deliveredAt !== null && r.deliveredAt >= dayStart), dayStart),
+    week: sum(rides, weekStart),
   };
 }
