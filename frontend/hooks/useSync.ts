@@ -649,63 +649,6 @@ export const useOngoingDeliveries = () => {
   return { deliveries, loading, setDeliveries, refetch };
 };
 
-export const useDeliveryHistory = () => {
-  const [deliveries, setDeliveries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { on } = useSocket();
-
-  useEffect(() => {
-    const fetchDeliveries = async () => {
-      try {
-        const res = await api.get('/deliveries/history');
-        setDeliveries(res.data || []);
-        setLoading(false);
-      } catch (err) {
-        console.error('Erro ao buscar histórico de entregas:', err);
-        setLoading(false);
-      }
-    };
-
-    fetchDeliveries();
-
-    const handleDeliveryStatusChanged = (data: any) => {
-      // 🎯 Quando delivery é completada ou cancelada, adiciona ao histórico
-      if (data.status === 'delivered' || data.status === 'cancelled') {
-        setDeliveries(prev => {
-          // Evita duplicatas
-          if (prev.some(d => d._id === data._id)) {
-            return prev.map(d => (d._id === data._id ? data : d));
-          }
-          return [data, ...prev];
-        });
-      }
-    };
-
-    const handleDeliveryCompleted = (data: any) => {
-      // 🎯 Quando delivery é completada, adiciona ao histórico
-      console.log(`📚 [useDeliveryHistory] Delivery completed, adding to history:`, data.deliveryId);
-      setDeliveries(prev => {
-        // Evita duplicatas
-        if (prev.some(d => d._id === data.deliveryId)) {
-          return prev.map(d => (d._id === data.deliveryId ? { ...d, status: 'delivered' } : d));
-        }
-        return [{ _id: data.deliveryId, status: 'delivered', ...data }, ...prev];
-      });
-    };
-
-    // 📡 Register socket listeners
-    const unsubscribe1 = on('delivery:status_changed', handleDeliveryStatusChanged);
-    const unsubscribe2 = on('delivery:completed', handleDeliveryCompleted);
-
-    return () => {
-      unsubscribe1();
-      unsubscribe2();
-    };
-  }, [on]);
-
-  return { deliveries, loading, setDeliveries };
-};
-
 export const useOrder = (orderId?: string) => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);

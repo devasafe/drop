@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOverlay } from '../../contexts/OverlayContext';
 import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
@@ -12,7 +11,6 @@ import styles from './PanelBottomNav.module.css';
 export default function PanelBottomNav() {
   const { user, can } = useAuth();
   const router = useRouter();
-  const overlay = useOverlay();
   const badges = useBadgeCounts();
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
@@ -25,9 +23,9 @@ export default function PanelBottomNav() {
   const all = getNavItems(role, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen });
   const layout = bottomNavLayout(role);
   const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, layout.max);
-  if (bottom.length === 0) return null; // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer)
-  // "Mais" abre a sidebar lateral completa (o mesmo menu do antigo hambúrguer do topo).
-  const menuOpen = overlay.isOpen('panelSidebar');
+  // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer). Por isso o
+  // `more` do layout (só o ceo tem) nunca chega a desenhar um botão "Mais" aqui.
+  if (bottom.length === 0) return null;
   const count = (b?: NavItem['badge']) =>
     b === 'storeOrders' ? badges.storeOrders : b === 'deliveries' ? badges.deliveries : b === 'verifications' ? badges.verifications : 0;
 
@@ -48,13 +46,6 @@ export default function PanelBottomNav() {
           </button>
         );
       })}
-      {layout.more && (
-        <button type="button" className={`${styles.item} ${menuOpen ? styles.on : ''}`}
-          aria-current={menuOpen ? 'page' : undefined} onClick={() => overlay.toggle('panelSidebar')}>
-          <Icon name="menu" size={20} />
-          <span>Mais</span>
-        </button>
-      )}
     </nav>
   );
 }

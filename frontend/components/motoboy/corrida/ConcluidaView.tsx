@@ -9,6 +9,7 @@ import { formatMoney } from '../../../lib/money';
 import { formatHour, unwrap } from '../../../lib/sellerApi';
 import { formatPoints } from '../../../lib/motoboyLevel';
 import blocks from '../../panel/PanelBlocks.module.css';
+import { moneyTagClass } from '../moneyTag';
 import { rideCode, transferStatusLabel } from './rideView';
 import styles from './Corrida.module.css';
 
@@ -17,8 +18,6 @@ type Money =
   | { kind: 'custodia'; amount: number; status: string }
   | { kind: 'direto'; amount: number; status: string }
   | { kind: 'unknown' };
-
-const TAG = { ok: blocks.tagOk, warn: blocks.tagWarn, err: blocks.tagErr, info: blocks.tagInfo, neutral: '' } as const;
 
 export interface ConcluidaViewProps {
   ride: any;
@@ -94,7 +93,7 @@ export function ConcluidaView({ ride, points, onNext }: ConcluidaViewProps) {
             <span className={blocks.meta}>Pix a caminho da sua chave</span>
             <span className={blocks.big}>{formatMoney(money.amount)}</span>
             <span className={blocks.sub}>Quem paga é a loja, direto na sua chave Pix.</span>
-            <span className={`${blocks.tag} ${TAG[transferStatusLabel(money.status).tone]}`}>{transferStatusLabel(money.status).label}</span>
+            <span className={moneyTagClass(transferStatusLabel(money.status).tone)}>{transferStatusLabel(money.status).label}</span>
           </section>
         ) : money.kind === 'loading' ? null : (
           <section className={`${blocks.blk} ${styles.center}`}><b>Veja em Ganhos</b><span className={blocks.meta}>O Pix desta entrega aparece lá.</span></section>

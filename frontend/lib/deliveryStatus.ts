@@ -1,7 +1,4 @@
 // Helpers puros das telas de entregas do motoboy (em andamento + histórico).
-// O motoboy recebe 80% da taxa (mesma regra do cockpit / motoboyOverview).
-
-const MOTOBOY_SHARE = 0.8;
 
 export type OngoingTone = 'waiting' | 'transit' | 'near';
 
@@ -15,32 +12,16 @@ export function ongoingStatusView(status: string): { label: string; tone: Ongoin
   }
 }
 
-/** Estatísticas lifetime do histórico: total de entregas, ganhos (80% da taxa)
- * e média das notas recebidas (null se nenhuma). */
-export function historyStats(history: any[]): { total: number; earnings: number; avgRating: number | null } {
+/** Estatísticas do histórico: total de entregas e média das notas recebidas (null se nenhuma). */
+export function historyStats(history: any[]): { total: number; avgRating: number | null } {
   const list = history || [];
-  const earnings = list.reduce((s, d) => s + (d?.fee || 0) * MOTOBOY_SHARE, 0);
   const rated = list.filter((d) => typeof d?.rating === 'number' && d.rating > 0);
   const avgRating = rated.length ? rated.reduce((s, d) => s + d.rating, 0) / rated.length : null;
-  return { total: list.length, earnings, avgRating };
+  return { total: list.length, avgRating };
 }
 
 /** Filtra o histórico por status (all = tudo). */
 export function filterHistory(history: any[], filter: 'all' | 'delivered' | 'cancelled'): any[] {
   const list = history || [];
   return filter === 'all' ? list : list.filter((d) => d?.status === filter);
-}
-
-export type PayoutTone = 'pending' | 'available' | 'requested' | 'paid' | 'cancelled';
-
-/** Rótulo + tom visual de um repasse (payout) do motoboy. */
-export function payoutStatusView(status: string): { label: string; tone: PayoutTone } {
-  switch (status) {
-    case 'pending': return { label: 'Pendente', tone: 'pending' };
-    case 'released': return { label: 'Disponível', tone: 'available' };
-    case 'requested': return { label: 'Saque solicitado', tone: 'requested' };
-    case 'paid': return { label: 'Pago', tone: 'paid' };
-    case 'cancelled': return { label: 'Cancelado', tone: 'cancelled' };
-    default: return { label: status || 'Pendente', tone: 'pending' };
-  }
 }
