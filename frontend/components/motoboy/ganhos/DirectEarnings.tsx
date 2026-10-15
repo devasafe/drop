@@ -115,18 +115,21 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
     return () => { off = true; };
   }, [weekAttempt]);
 
-  // Saldo do modo anterior: soma dos `released` (regra da carteira antiga e da DirectMoney da D1).
+  // Saldo do modo anterior: o agregado do servidor de TODOS os `released` (GET /payouts/my/summary →
+  // available). Nunca a soma de uma página da lista: o saque vai como 'all' e o servidor saca tudo,
+  // então o valor mostrado em "Sacar R$ X" tem de ser o total real.
   useEffect(() => {
     if (!hasLeftover) { setLegacy(null); return undefined; }
     let off = false;
     setLegacy(null);
     Promise.resolve()
-      .then(() => api.get('/payouts/my', { params: { status: 'released', limit: 200 } }))
+      .then(() => api.get('/payouts/my/summary'))
       .then((r: any) => {
         if (off) return;
-        const list: any[] = Array.isArray(r?.data?.payouts) ? r.data.payouts : [];
-        const cents = list.filter((p) => p?.status === 'released').reduce((s, p) => s + Math.round((Number(p.amount) || 0) * 100), 0);
-        setLegacy(cents / 100);
+        const raw = r?.data?.available;
+        const v = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+        // Formato estranho conta como erro (K29), nunca vira R$ 0,00.
+        setLegacy(Number.isFinite(v) ? Math.round(v * 100) / 100 : 'error');
       })
       // K29: fail closed. Nunca 0 (o card sumiria calado) nem custódia presumida: erro com retry.
       .catch(() => { if (!off) setLegacy('error'); });

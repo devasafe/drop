@@ -36,7 +36,8 @@ function mockApi(over: Record<string, any> = {}) {
     '/motoboy/transfers': { data: { success: true, data: TRANSFERS, nextCursor: null } },
     '/onboarding/status': { data: { hasPixKey: true, pixKey: '***.412.***-07' } },
     '/settings/platform-config': { data: CFG },
-    '/payouts/my': { data: { payouts: [] } },
+    // Saldo do modo anterior: agregado do servidor dos `released` (summary.available), nunca a soma de uma página.
+    '/payouts/my/summary': { data: { pending: 5, available: 0, requested: 0, paid: 0 } },
     // K35: "Esta semana" só do servidor. O resumo soma o Pix de toda entrega da semana (o atrasado
     // também), então difere de propósito da soma dos Pix que caíram (R$ 23,70 · 3).
     '/deliveries/summary': { data: { today: { earnings: 25.7, count: 3 }, week: { earnings: 35.7, count: 4 } } },
@@ -168,9 +169,7 @@ test('garantia de modo: sem saldo antigo, nada da custódia', async () => {
 });
 
 test('saldo do modo anterior: card, sheet com o mínimo e saque por /withdrawals/request', async () => {
-  mockApi({ '/payouts/my': { data: { payouts: [
-    { _id: 'a', amount: 30, status: 'released' }, { _id: 'b', amount: 22.5, status: 'released' }, { _id: 'c', amount: 5, status: 'pending' },
-  ] } } });
+  mockApi({ '/payouts/my/summary': { data: { pending: 5, available: 52.5, requested: 0, paid: 0 } } });
   post.mockResolvedValue({ data: { withdrawal: { amount: 52.5 } } });
   render(<DirectEarnings hasLeftover now={NOW} />);
   expect(await screen.findByText('Saldo do modo anterior — saque para sua chave Pix')).toBeInTheDocument();
@@ -178,18 +177,18 @@ test('saldo do modo anterior: card, sheet com o mínimo e saque por /withdrawals
   fireEvent.click(screen.getByText('Sacar para minha chave Pix'));
   const dialog = await screen.findByRole('dialog');
   await waitFor(() => expect(within(dialog).getByText('Saque mínimo de R$ 50,00')).toBeInTheDocument());
-  expect(calls('/payouts/my')).toBe(1);
+  expect(calls('/payouts/my/summary')).toBe(1);
   fireEvent.click(within(dialog).getByRole('button', { name: 'Sacar R$ 52,50' }));
   await waitFor(() => expect(post).toHaveBeenCalledWith('/withdrawals/request', { amount: 'all' }));
   expect(post.mock.calls.some(([u]) => String(u).includes('transfer-to-owner'))).toBe(false);
   // K27: o Alert "Pix atrasado" também é role=status; a confirmação é achada pelo texto.
   expect(await screen.findByText('Saque de R$ 52,50 a caminho da sua chave Pix.')).toBeInTheDocument();
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  await waitFor(() => expect(calls('/payouts/my')).toBe(2)); // relê o saldo depois do saque
+  await waitFor(() => expect(calls('/payouts/my/summary')).toBe(2)); // relê o saldo depois do saque
 });
 
 test('saque do saldo antigo com erro: sheet aberta com o erro, sem confirmação', async () => {
-  mockApi({ '/payouts/my': { data: { payouts: [{ _id: 'a', amount: 60, status: 'released' }] } } });
+  mockApi({ '/payouts/my/summary': { data: { pending: 5, available: 60, requested: 0, paid: 0 } } });
   post.mockRejectedValue({ response: { status: 400, data: { error: 'O saque mínimo é R$ 80,00', code: 'BELOW_MINIMUM_WITHDRAW', minimum: 80 } } });
   render(<DirectEarnings hasLeftover now={NOW} />);
   fireEvent.click(await screen.findByText('Sacar para minha chave Pix'));
@@ -199,11 +198,11 @@ test('saque do saldo antigo com erro: sheet aberta com o erro, sem confirmação
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('O saque mínimo é R$ 80,00');
   expect(within(dialog).getByText('Saque mínimo de R$ 80,00')).toBeInTheDocument();
   expect(screen.queryByText(/a caminho da sua chave Pix\./)).not.toBeInTheDocument();
-  expect(calls('/payouts/my')).toBe(1);
+  expect(calls('/payouts/my/summary')).toBe(1);
 });
 
 test('saldo antigo abaixo do mínimo: fica para a equipe resolver, sem envio', async () => {
-  mockApi({ '/payouts/my': { data: { payouts: [{ _id: 'a', amount: 8, status: 'released' }] } } });
+  mockApi({ '/payouts/my/summary': { data: { pending: 5, available: 8, requested: 0, paid: 0 } } });
   render(<DirectEarnings hasLeftover now={NOW} />);
   fireEvent.click(await screen.findByText('Sacar para minha chave Pix'));
   const dialog = await screen.findByRole('dialog');
@@ -214,14 +213,14 @@ test('saldo antigo abaixo do mínimo: fica para a equipe resolver, sem envio', a
 });
 
 test('saldo antigo aparece mesmo com a lista de Pix em erro', async () => {
-  mockApi({ '/motoboy/transfers': FAIL, '/payouts/my': { data: { payouts: [{ _id: 'a', amount: 60, status: 'released' }] } } });
+  mockApi({ '/motoboy/transfers': FAIL, '/payouts/my/summary': { data: { pending: 5, available: 60, requested: 0, paid: 0 } } });
   render(<DirectEarnings hasLeftover now={NOW} />);
   expect(await screen.findByText('Saldo do modo anterior — saque para sua chave Pix')).toBeInTheDocument();
   expect(await screen.findByText('Não carregamos seus repasses')).toBeInTheDocument();
 });
 
 test('K29: saldo antigo com erro → erro com Tentar de novo que relê; nunca some calado nem vira R$ 0,00', async () => {
-  mockApi({ '/payouts/my': FAIL });
+  mockApi({ '/payouts/my/summary': FAIL });
   render(<DirectEarnings hasLeftover now={NOW} />);
   const box = await screen.findByRole('region', { name: 'Saldo do modo anterior' });
   expect(within(box).getByText('Não carregamos o saldo do modo anterior')).toBeInTheDocument();
@@ -229,9 +228,33 @@ test('K29: saldo antigo com erro → erro com Tentar de novo que relê; nunca so
   expect(screen.queryByText('Sacar para minha chave Pix')).not.toBeInTheDocument();
   expect(screen.queryByText(/Sacar no Pix|Disponível para saque/)).not.toBeInTheDocument(); // nunca presume custódia
   await screen.findByText('Entrega #004819'); // o resto da tela segue
-  mockApi({ '/payouts/my': { data: { payouts: [{ _id: 'a', amount: 60, status: 'released' }] } } });
+  mockApi({ '/payouts/my/summary': { data: { pending: 5, available: 60, requested: 0, paid: 0 } } });
   fireEvent.click(within(box).getByRole('button', { name: 'Tentar de novo' }));
   expect(await screen.findByText('Saldo do modo anterior — saque para sua chave Pix')).toBeInTheDocument();
   expect(screen.queryByText('Não carregamos o saldo do modo anterior')).not.toBeInTheDocument();
-  expect(calls('/payouts/my')).toBe(2);
+  expect(calls('/payouts/my/summary')).toBe(2);
+});
+
+test('saldo do modo anterior vem do agregado do servidor (summary.available), nunca da soma de uma página da lista', async () => {
+  // A lista paginada traria só uma parte; o servidor soma todos os `released`.
+  mockApi({
+    '/payouts/my': { data: { payouts: [{ _id: 'a', amount: 30, status: 'released' }], total: 450 } },
+    '/payouts/my/summary': { data: { pending: 0, available: 4123.4, requested: 0, paid: 0 } },
+  });
+  render(<DirectEarnings hasLeftover now={NOW} />);
+  expect(await screen.findByText('Saldo do modo anterior — saque para sua chave Pix')).toBeInTheDocument();
+  expect(screen.getByText('R$ 4123,40')).toBeInTheDocument(); // formatBRL do LegacyBalanceCard
+  expect(screen.queryByText('R$ 30,00')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Sacar para minha chave Pix'));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByRole('button', { name: 'Sacar R$ 4.123,40' })).toBeInTheDocument();
+  expect(calls('/payouts/my')).toBe(0); // a lista não é mais lida nesta tela
+});
+
+test('summary sem available numérico: erro com Tentar de novo, nunca R$ 0,00', async () => {
+  mockApi({ '/payouts/my/summary': { data: { pending: 1 } } });
+  render(<DirectEarnings hasLeftover now={NOW} />);
+  const box = await screen.findByRole('region', { name: 'Saldo do modo anterior' });
+  expect(within(box).getByText('Não carregamos o saldo do modo anterior')).toBeInTheDocument();
+  expect(screen.queryByText('Sacar para minha chave Pix')).not.toBeInTheDocument();
 });
