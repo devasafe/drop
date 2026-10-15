@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { levelProgress, formatPoints, LEVELS } from '../motoboyLevel';
+import { levelProgress, formatPoints, LEVELS, BADGES, unlockedBadges, shortName, rankingMonth, monthYear } from '../motoboyLevel';
 
 describe('levelProgress (espelho de getLevelThresholds do backend)', () => {
   it('limites iguais aos lidos do código do backend', () => {
@@ -34,4 +34,40 @@ describe('levelProgress (espelho de getLevelThresholds do backend)', () => {
     expect(formatPoints(1840)).toBe('1.840');
     expect(formatPoints(12)).toBe('12');
   });
+});
+
+const BACKEND = fs.readFileSync(path.join(__dirname, '../../../src/controllers/gamificationController.ts'), 'utf8');
+
+describe('espelho do backend (P5.1)', () => {
+  it('as faixas de nível são as de getLevel()', () => {
+    const pairs = Array.from(BACKEND.matchAll(/if \(totalPoints >= (\d+)\) return '([^']+)'/g)).map((m) => ({ level: m[2], min: Number(m[1]) }));
+    const backend = [{ level: 'Bronze', min: 0 }, ...pairs.reverse()];
+    expect(backend).toHaveLength(6);
+    expect(LEVELS.map((l) => ({ level: l.level, min: l.min }))).toEqual(backend);
+  });
+  it('as conquistas são as de ALL_BADGES (mesmos ids)', () => {
+    const start = BACKEND.indexOf('export const ALL_BADGES');
+    const block = BACKEND.slice(start, BACKEND.indexOf('];', start));
+    const ids = Array.from(block.matchAll(/id: '([^']+)'/g)).map((m) => m[1]).sort();
+    expect(ids.length).toBeGreaterThan(20);
+    expect(BADGES.map((b) => b.id).sort()).toEqual(ids);
+  });
+});
+
+it('unlockedBadges ignora id desconhecido e mantém a ordem da lista', () => {
+  expect(unlockedBadges(['Noturno', 'xx', 'Centurião']).map((b) => b.label)).toEqual(['Centurião', 'Noturno']);
+  expect(unlockedBadges(undefined)).toEqual([]);
+});
+
+it('shortName e monthYear', () => {
+  expect(shortName('Rafael Martins Souza')).toBe('Rafael S.');
+  expect(shortName('Bruno')).toBe('Bruno');
+  expect(shortName('')).toBe('Entregador');
+  expect(monthYear('2026-07-03T15:00:00Z')).toBe('jul/2026');
+  expect(monthYear('lixo')).toBeNull();
+});
+
+it('rankingMonth: nome do mês e dias que faltam', () => {
+  expect(rankingMonth(new Date(2026, 9, 8, 12))).toEqual({ name: 'outubro', daysLeft: 23 });
+  expect(rankingMonth(new Date(2026, 1, 28, 9))).toEqual({ name: 'fevereiro', daysLeft: 0 });
 });
