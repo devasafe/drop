@@ -2,16 +2,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import api from '../lib/api';
 
 const push = jest.fn();
+const replace = jest.fn();
 let mockQuery: Record<string, string> = {};
 const login = jest.fn(async () => ({}));
-jest.mock('next/router', () => ({ useRouter: () => ({ push, back: jest.fn(), query: mockQuery }) }));
+jest.mock('next/router', () => ({ useRouter: () => ({ push, replace, back: jest.fn(), query: mockQuery }) }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ login }) }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { post: jest.fn() } }));
 const post = api.post as jest.Mock;
 
 import RegisterPage from '../pages/register';
 
-beforeEach(() => { push.mockClear(); login.mockClear(); post.mockReset(); mockQuery = {}; });
+beforeEach(() => { push.mockClear(); replace.mockClear(); login.mockClear(); post.mockReset(); mockQuery = {}; });
 
 function preencher() {
   fireEvent.change(screen.getByLabelText('Nome completo'), { target: { value: 'Ana Souza' } });
@@ -58,14 +59,22 @@ test('e-mail já usado: oferece entrar levando o next, e os campos ficam', async
   expect((screen.getByLabelText('Nome completo') as HTMLInputElement).value).toBe('Ana Souza');
 });
 
-test('?papel=motoboy: entrada própria, manda o papel e segue o onboarding de hoje', async () => {
+test('?papel=motoboy: vai para o cadastro do entregador, sem formulário aqui', () => {
   mockQuery = { papel: 'motoboy' };
-  post.mockResolvedValue({ data: { id: 'u2' } });
   render(<RegisterPage />);
-  expect(screen.getByRole('heading', { name: 'Entregue com a DROP' })).toBeInTheDocument();
+  expect(replace).toHaveBeenCalledWith('/motoboy/cadastro');
+  expect(screen.queryByRole('button', { name: 'Criar conta' })).toBeNull();
+  expect(post).not.toHaveBeenCalled();
+});
+
+test('?papel=lojista continua aqui, com o papel no corpo', async () => {
+  mockQuery = { papel: 'lojista' };
+  post.mockResolvedValue({ data: { id: 'u3' } });
+  render(<RegisterPage />);
+  expect(replace).not.toHaveBeenCalled();
+  expect(screen.getByRole('heading', { name: 'Venda na DROP' })).toBeInTheDocument();
   preencher();
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/verificacao?onboarding=1'));
-  expect(post.mock.calls[0][1]).toMatchObject({ role: 'motoboy' });
+  await waitFor(() => expect(post.mock.calls[0][1]).toMatchObject({ role: 'lojista' }));
 });

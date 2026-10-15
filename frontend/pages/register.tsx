@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { MOTOBOY_ROUTES } from '../lib/motoboyRoutes';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { LEGAL_VERSIONS } from '../lib/legalDocs';
@@ -32,6 +33,10 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ title: string; body?: string; exists?: boolean } | null>(null);
   const strength = passwordStrength(password);
+  // D2: o entregador tem cadastro próprio (/motoboy/cadastro). O papel continua fixado pelo servidor lá.
+  useEffect(() => {
+    if (papel === 'motoboy') router.replace(MOTOBOY_ROUTES.cadastro);
+  }, [papel, router]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +61,8 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  if (papel === 'motoboy') return null;
 
   return (
     <main className={styles.page}>
