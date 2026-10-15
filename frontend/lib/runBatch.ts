@@ -24,6 +24,15 @@ export interface BatchOptions<K extends string> {
   signal?: AbortSignal;
 }
 
+/** Callbacks da tela nunca derrubam o lote: um que lança é ignorado. */
+function safeProgress<K extends string>(fn: ((r: BatchResult<K>) => void) | undefined, r: BatchResult<K>): void {
+  try { fn?.(r); } catch { /* ignorado de propósito */ }
+}
+
+function safeAlreadyDone(fn: ((err: unknown) => boolean) | undefined, err: unknown): boolean {
+  try { return fn?.(err) === true; } catch { return false; }
+}
+
 export async function runBatch<K extends string>(
   keys: K[],
   send: (key: K) => Promise<void>,
@@ -45,19 +54,19 @@ export async function runBatch<K extends string>(
   for (const k of order) {
     if (opts.signal?.aborted) break;
     states[k] = 'sending';
-    opts.onProgress?.(snapshot());
+    safeProgress(opts.onProgress, snapshot());
     try {
       await send(k);
       states[k] = 'done';
     } catch (err) {
-      if (opts.isAlreadyDone?.(err)) {
+      if (safeAlreadyDone(opts.isAlreadyDone, err)) {
         states[k] = 'done';
       } else {
         states[k] = 'failed';
         errors[k] = adminErrorMessage(err);
       }
     }
-    opts.onProgress?.(snapshot());
+    safeProgress(opts.onProgress, snapshot());
   }
   return snapshot();
 }
@@ -88,7 +97,7 @@ export async function retryFailed<K extends string>(
   const onProgress = opts.onProgress;
   const again = await runBatch(prev.failed, send, {
     ...opts,
-    onProgress: onProgress ? (r) => onProgress(merge(prev, r)) : undefined,
+    onProgress: onProgress ? (r) => safeProgress(onProgress, merge(prev, r)) : undefined,
   });
   return merge(prev, again);
 }

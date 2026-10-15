@@ -1,7 +1,9 @@
 import { runBatch, retryFailed, batchSummaryText, type BatchResult } from '../runBatch';
-import { isAlreadyDoneConflict } from '../adminErrors';
+import { isConflictWithCode } from '../adminErrors';
 
-const http = (status: number, error?: string) => ({ response: { status, data: error ? { error } : {} } });
+const isAlreadyDoneConflict = (e: unknown) => isConflictWithCode(e, 'ALREADY_DONE');
+
+const http = (status: number, error?: string, code?: string) => ({ response: { status, data: { ...(error ? { error } : {}), ...(code ? { code } : {}) } } });
 
 describe('runBatch (spec 6.2)', () => {
   it('sucesso: todos feitos, um por vez e na ordem', async () => {
@@ -36,7 +38,7 @@ describe('runBatch (spec 6.2)', () => {
   });
 
   it('409 "já feito" conta como feito, não como erro, e nunca é reenviado', async () => {
-    const send = jest.fn(async (k: string) => { if (k === 'b') throw http(409, 'Repasse já liberado'); });
+    const send = jest.fn(async (k: string) => { if (k === 'b') throw http(409, 'Repasse já liberado', 'ALREADY_DONE'); });
     const r = await runBatch(['a', 'b'], send, { isAlreadyDone: isAlreadyDoneConflict });
     expect(r.done).toEqual(['a', 'b']);
     expect(r.failed).toEqual([]);
@@ -44,6 +46,38 @@ describe('runBatch (spec 6.2)', () => {
     const again = await retryFailed(r, send, { isAlreadyDone: isAlreadyDoneConflict });
     expect(send).toHaveBeenCalledTimes(2);
     expect(again.done).toEqual(['a', 'b']);
+  });
+
+  it('409 com outro código não é "já feito"', async () => {
+    const r = await runBatch(['a'], async () => { throw http(409, 'Saque não pode ser resolvido', 'WITHDRAWAL_NOT_RESOLVABLE'); }, { isAlreadyDone: isAlreadyDoneConflict });
+    expect(r.failed).toEqual(['a']);
+  });
+
+  it('onProgress que lança não interrompe o lote nem perde o resultado', async () => {
+    const send = jest.fn(async () => undefined);
+    let n = 0;
+    const r = await runBatch(['a', 'b'], send, { onProgress: () => { n += 1; if (n === 2) throw new Error('boom'); } });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(r.done).toEqual(['a', 'b']);
+  });
+
+  it('isAlreadyDone que lança: o item vira falho, o lote segue e retryFailed não reenvia os feitos', async () => {
+    const send = jest.fn(async (k: string) => { if (k === 'a') throw http(409, 'x'); });
+    const r = await runBatch(['a', 'b'], send, { isAlreadyDone: () => { throw new Error('boom'); } });
+    expect(r.failed).toEqual(['a']);
+    expect(r.done).toEqual(['b']);
+    send.mockClear();
+    await retryFailed(r, async (k) => { await send(k); });
+    expect(send.mock.calls.map((c) => c[0])).toEqual(['a']);
+  });
+
+  it('retryFailed com onProgress que lança: resolve com o resultado mesclado', async () => {
+    const first: BatchResult = { states: { a: 'done', b: 'failed', c: 'failed' }, errors: { b: 'e', c: 'e' }, done: ['a'], failed: ['b', 'c'], aborted: false };
+    const send = jest.fn(async () => undefined);
+    const r = await retryFailed(first, send, { onProgress: () => { throw new Error('boom'); } });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(r.done).toEqual(['a', 'b', 'c']);
+    expect(r.failed).toEqual([]);
   });
 
   it('sem isAlreadyDone, um 409 é erro (nada vira feito por acaso)', async () => {

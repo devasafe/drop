@@ -1,4 +1,4 @@
-import { adminErrorMessage, isHttpStatus, isAlreadyDoneConflict } from '../adminErrors';
+import { adminErrorMessage, isHttpStatus, isConflictWithCode } from '../adminErrors';
 
 const http = (status: number, data?: unknown) => ({ response: { status, data } });
 
@@ -20,12 +20,17 @@ describe('adminErrorMessage (spec 6.1)', () => {
   });
 });
 
-describe('isHttpStatus / isAlreadyDoneConflict', () => {
+describe('isHttpStatus / isConflictWithCode', () => {
   it('lê o status da resposta', () => {
     expect(isHttpStatus(http(409), 409)).toBe(true);
     expect(isHttpStatus(http(400), 409)).toBe(false);
     expect(isHttpStatus(new Error('x'), 409)).toBe(false);
-    expect(isAlreadyDoneConflict(http(409))).toBe(true);
-    expect(isAlreadyDoneConflict(http(500))).toBe(false);
+  });
+  it('isConflictWithCode: só 409 com o código exato', () => {
+    expect(isConflictWithCode(http(409, { code: 'WITHDRAWAL_NOT_PENDING' }), 'WITHDRAWAL_NOT_PENDING')).toBe(true);
+    expect(isConflictWithCode(http(409, { code: 'WITHDRAWAL_NOT_RESOLVABLE' }), 'WITHDRAWAL_NOT_PENDING')).toBe(false);
+    expect(isConflictWithCode(http(409), 'WITHDRAWAL_NOT_PENDING')).toBe(false);
+    expect(isConflictWithCode(http(400, { code: 'WITHDRAWAL_NOT_PENDING' }), 'WITHDRAWAL_NOT_PENDING')).toBe(false);
+    expect(isConflictWithCode(new Error('x'), 'X')).toBe(false);
   });
 });

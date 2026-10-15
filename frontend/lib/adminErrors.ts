@@ -20,7 +20,8 @@ export function isHttpStatus(err: unknown, status: number): boolean {
   return ((err ?? {}) as HttpLike).response?.status === status;
 }
 
-/** Para rotas em que o 409 quer dizer "esse item já foi feito" (a tela decide se é o caso). */
-export function isAlreadyDoneConflict(err: unknown): boolean {
-  return isHttpStatus(err, 409);
+/** 409 com o código exato do servidor (ex.: "já feito"). Um 409 de outro código nunca conta. */
+export function isConflictWithCode(err: unknown, code: string): boolean {
+  const e = (err ?? {}) as HttpLike & { response?: { data?: { code?: unknown } } };
+  return e.response?.status === 409 && e.response?.data?.code === code;
 }
