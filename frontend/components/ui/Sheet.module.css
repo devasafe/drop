@@ -1,6 +1,7 @@
-/* Sheet — modal em portal no body. Duas apresentações:
+/* Sheet — modal em portal no body. Três apresentações:
  *  .bottom (opt-in): sobe do rodapé, --radius-xl só nos cantos de cima.
  *  .center (padrão): dialog centralizado, --radius-xl em todos os cantos.
+ *  .side (admin): como .bottom no celular; painel lateral à direita a partir de 1024 px.
  * Fecha no backdrop ou Esc. Rola por dentro se for alto.
  *
  * z-index: 1000 — ACIMA da TabBar do cliente (CustomerAppChrome: 30) e da
@@ -23,6 +24,10 @@
 .wrapper.center {
   align-items: center;
   padding: var(--space-4);
+}
+
+.wrapper.side {
+  align-items: flex-end;
 }
 
 .backdrop {
@@ -52,6 +57,25 @@
 .sheet.center {
   border-radius: var(--radius-xl);
   animation: dialog-in var(--motion-slow) var(--ease-in);
+}
+
+.sheet.side {
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  animation: sheet-up var(--motion-slow) var(--ease-in);
+}
+
+@media (min-width: 1024px) {
+  .wrapper.side {
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+  .sheet.side {
+    max-width: 440px;
+    height: 100%;
+    max-height: none;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    animation: side-in var(--motion-slow) var(--ease-in);
+  }
 }
 
 .header {
@@ -107,6 +131,11 @@
   to { opacity: 1; transform: none; }
 }
 
+@keyframes side-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+
 @keyframes backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -115,7 +144,8 @@
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
   .sheet.bottom,
-  .sheet.center {
+  .sheet.center,
+  .sheet.side {
     animation: none;
   }
 }

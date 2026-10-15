@@ -9,8 +9,11 @@ export interface SheetProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  /** `center` (padrão, visual atual): dialog centralizado. `bottom` (opt-in): sobe do rodapé, cantos arredondados só no topo. */
-  presentation?: 'bottom' | 'center';
+  /**
+   * `center` (padrão, visual atual): dialog centralizado. `bottom` (opt-in): sobe do rodapé, cantos arredondados só no topo.
+   * `side` (admin, D3a): sobe do rodapé no celular e vira painel lateral à direita a partir de 1024 px.
+   */
+  presentation?: 'bottom' | 'center' | 'side';
 }
 
 /** Pilha dos sheets abertos: Esc só fecha o do topo (o último a abrir). */

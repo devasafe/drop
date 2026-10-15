@@ -1,0 +1,67 @@
+/* Blocos das telas do admin (DS v2, D3a; protótipo .u-blk/.u-cols/.u-kpis): branco sobre o gelo, cor só por token. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+.blockTight { padding: 0; gap: 0; overflow: hidden; }
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.blockTitle { margin: 0; font: var(--text-title); color: var(--color-text-primary); }
+
+.grid2,
+.grid3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-md);
+}
+.kpiLabel {
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpiValue {
+  font: var(--text-title-lg);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kpiHint { font: var(--text-caption); font-style: normal; color: var(--color-text-secondary); }
+
+.muted { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.money { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.errText { margin: 0; font: var(--text-meta); color: var(--color-error-text); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+@media (min-width: 1024px) {
+  .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
