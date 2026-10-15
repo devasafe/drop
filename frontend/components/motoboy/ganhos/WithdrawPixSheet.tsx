@@ -16,8 +16,11 @@ export interface WithdrawPixSheetProps {
   minimum: number | null;
   pixLabel: string | null;
   onChangeKey: () => void;
-  /** "Não entra neste saque": a liberar e bloqueado, números do servidor. */
-  outside?: { pending: number; blocked: number } | null;
+  /**
+   * "Não entra neste saque": a liberar e bloqueado, números do servidor.
+   * pending null = não carregamos o a liberar (K29): sem total, nunca R$ 0,00 presumido.
+   */
+  outside?: { pending: number | null; blocked: number } | null;
   /** Saque em conferência (uncertain): texto do motivo; sem botão de sacar. */
   blocked?: string | null;
   error?: string | null;
@@ -46,7 +49,9 @@ export function WithdrawPixSheet({
   const hasValue = Number.isFinite(c.value) && c.value > 0;
   const balanceBelowMin = minimum !== null && available > 0 && available < minimum - 0.005;
   const chips = QUICK.filter((v) => v < available && (minimum === null || v >= minimum));
-  const outsideTotal = outside ? Math.round((outside.pending + outside.blocked) * 100) / 100 : 0;
+  const pendingUnknown = !!outside && outside.pending === null;
+  const outsidePending = outside?.pending ?? 0;
+  const outsideTotal = outside ? Math.round((outsidePending + outside.blocked) * 100) / 100 : 0;
 
   const submit = () => {
     if (!c.valid || submitting || sending.current) return;
@@ -98,10 +103,12 @@ export function WithdrawPixSheet({
                 <button type="button" className={blocks.link} onClick={onChangeKey}>{pixLabel ? 'Trocar' : 'Cadastrar'}</button>
               </li>
             </ul>
-            {outside && outsideTotal > 0 && (
+            {outside && (pendingUnknown || outsideTotal > 0) && (
               <div className={blocks.sum}>
-                <div><span>Não entra neste saque</span><span>{formatMoney(outsideTotal)}</span></div>
-                {outside.pending > 0 && <div><span className={styles.indent}>· a liberar</span><span>{formatMoney(outside.pending)}</span></div>}
+                {/* Sem o a liberar, o total seria menor do que o real: só o título, sem valor. */}
+                <div><span>Não entra neste saque</span>{!pendingUnknown && <span>{formatMoney(outsideTotal)}</span>}</div>
+                {pendingUnknown && <div><span className={styles.indent}>· a liberar</span><span>Não carregamos</span></div>}
+                {outsidePending > 0 && <div><span className={styles.indent}>· a liberar</span><span>{formatMoney(outsidePending)}</span></div>}
                 {outside.blocked > 0 && <div><span className={styles.indent}>· bloqueado</span><span>{formatMoney(outside.blocked)}</span></div>}
               </div>
             )}

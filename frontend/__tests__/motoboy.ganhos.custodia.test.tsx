@@ -238,6 +238,31 @@ test('K29: repasses com erro → erro com Tentar de novo que relê; nunca o vazi
   expect(screen.queryByText(/Não carregamos suas corridas/)).not.toBeInTheDocument();
 });
 
+test('K29: a liberar (/payouts/my/summary) com erro → linha de erro com Tentar de novo; nunca some nem vira R$ 0,00', async () => {
+  mockApi({ '/payouts/my/summary': FAIL });
+  renderIt();
+  const hero = await screen.findByRole('region', { name: 'Disponível para saque' });
+  expect(await screen.findByText(/Não carregamos o valor a liberar/)).toBeInTheDocument();
+  expect(screen.queryByText(/a liberar$/)).not.toBeInTheDocument();
+  // a sheet não recebe um "a liberar" falso: sem o valor, o total "fora do saque" não é afirmado
+  await waitFor(() => expect(within(hero).getByRole('button', { name: 'Sacar no Pix' })).toBeEnabled());
+  fireEvent.click(within(hero).getByRole('button', { name: 'Sacar no Pix' }));
+  const dialog = await screen.findByRole('dialog');
+  // só a linha do bloqueado: R$ 12,00 nunca aparece como o total do que fica fora
+  expect(within(dialog).getAllByText('R$ 12,00')).toHaveLength(1);
+  expect(within(dialog).queryByText('R$ 0,00')).not.toBeInTheDocument();
+  expect(within(dialog).getByText('Não carregamos')).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: /Fechar/ }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  // Tentar de novo relê o resumo
+  const before = calls('/payouts/my/summary');
+  mockApi();
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  expect(await screen.findByText('R$ 47,20 a liberar')).toBeInTheDocument();
+  expect(calls('/payouts/my/summary')).toBeGreaterThan(before);
+  expect(screen.queryByText(/Não carregamos o valor a liberar/)).not.toBeInTheDocument();
+});
+
 test('Saques: status e o motivo da recusa', async () => {
   mockApi({ '/withdrawals/my-withdrawals': { data: [{ _id: 'w2', amount: 50, status: 'rejected', rejectionReason: 'Chave inválida', requestedAt: '2026-10-13T10:00:00-03:00' }] } });
   renderIt('saques');

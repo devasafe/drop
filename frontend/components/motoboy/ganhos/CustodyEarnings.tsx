@@ -49,6 +49,8 @@ export function CustodyEarnings({ motoboyId, seg, onSeg, now = new Date() }: Cus
   const [available, setAvailable] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
+  // K29: sem o resumo, o "a liberar" é desconhecido (nunca R$ 0,00 nem a linha sumindo calada).
+  const [summaryFailed, setSummaryFailed] = useState(false);
   const [week, setWeek] = useState<Week | null>(null);
   const [weekFailed, setWeekFailed] = useState(false);
   const [payouts, setPayouts] = useState<MoneyInfo[]>([]);
@@ -100,7 +102,9 @@ export function CustodyEarnings({ motoboyId, seg, onSeg, now = new Date() }: Cus
       setPayoutsMore(true);
       setPayoutsFailed(true);
     }
-    setSummary(s.status === 'fulfilled' ? toSummary(s.value?.data) : null);
+    const sum = s.status === 'fulfilled' ? toSummary(s.value?.data) : null;
+    setSummary(sum);
+    setSummaryFailed(!sum);
     setWithdrawals(wd.status === 'fulfilled' ? toList(wd.value?.data) : null);
     if (ob.status === 'fulfilled') {
       const d = ob.value?.data || {};
@@ -132,7 +136,8 @@ export function CustodyEarnings({ motoboyId, seg, onSeg, now = new Date() }: Cus
   const belowMin = minimum !== null && available > 0 && available < minimum - 0.005;
   const noPix = pix !== null && !pix.has;
   const canWithdraw = available > 0 && !belowMin && !uncertain && !withdrawalsUnknown && !noPix;
-  const pending = summary?.pending ?? 0;
+  // null = não sabemos o a liberar (resumo com erro): a tela mostra o erro e a sheet não soma.
+  const pending: number | null = summaryFailed ? null : summary?.pending ?? 0;
   const blockedList = payouts.filter((m) => m.blocked && m.status !== 'paid' && m.status !== 'cancelled');
   const blockedTotal = blockedList.reduce((s, m) => s + Math.round(m.amount * 100), 0) / 100;
   const showBlocked = !payoutsFailed && !payoutsMore && blockedTotal > 0;
@@ -207,9 +212,18 @@ export function CustodyEarnings({ motoboyId, seg, onSeg, now = new Date() }: Cus
         </Alert>
       )}
 
-      {(pending > 0 || showBlocked) && (
+      {(pending === null || pending > 0 || showBlocked) && (
         <ul className={blocks.list}>
-          {pending > 0 && (
+          {pending === null && (
+            <li className={blocks.row}>
+              <span className={[blocks.ico, blocks.icoWarn].join(' ')} aria-hidden="true"><Lock size={18} /></span>
+              <p className={blocks.errText}>
+                Não carregamos o valor a liberar.{' '}
+                <button type="button" className={blocks.link} onClick={retry}>Tentar de novo</button>
+              </p>
+            </li>
+          )}
+          {pending !== null && pending > 0 && (
             <li className={blocks.row}>
               <span className={[blocks.ico, blocks.icoWarn].join(' ')} aria-hidden="true"><Lock size={18} /></span>
               <span className={blocks.tx}>
