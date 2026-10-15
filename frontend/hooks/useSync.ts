@@ -920,6 +920,8 @@ export const useCategories = (storeId?: string) => {
 export const useRanking = () => {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const { on } = useSocket();
 
   useEffect(() => {
@@ -927,10 +929,12 @@ export const useRanking = () => {
       try {
         const res = await api.get('/gamification/ranking-mensal');
         setRanking(res.data || []);
+        setError(false);
         setLoading(false);
       } catch (err) {
         console.error('Erro ao buscar ranking:', err);
         setRanking([]);
+        setError(true);
         setLoading(false);
       }
     };
@@ -950,9 +954,11 @@ export const useRanking = () => {
     const unsub = on('ranking:updated', handleRankingUpdated);
 
     return () => { unsub(); };
-  }, [on]);
+  }, [on, attempt]);
 
-  return { ranking, loading, setRanking };
+  const reload = () => { setLoading(true); setAttempt((n) => n + 1); };
+
+  return { ranking, loading, error, reload, setRanking };
 };
 
 export const useProduct = (productId?: string) => {
