@@ -30,7 +30,7 @@ export function ComoCalculamos() {
     ? [
       { t: 'Você entrega', s: 'o cliente confirma com o código' },
       { t: 'A loja envia o Pix', s: 'pela conta dela, logo depois da entrega' },
-      { t: 'Na sua chave', s: 'costuma cair em segundos' },
+      { t: 'Na sua chave', s: 'o Pix vem direto da loja para você' },
     ]
     : [
       { t: 'Você entrega', s: 'o valor entra como “a liberar”' },
@@ -38,7 +38,7 @@ export function ComoCalculamos() {
         ? { t: 'Libera logo depois da entrega', s: 'pode ficar bloqueado se houver reclamação' }
         : { t: 'A equipe libera', s: 'pode ficar bloqueado se houver reclamação' },
       { t: 'Disponível', s: rules ? `a partir de ${formatMoney(rules.minimumWithdraw)} você saca` : 'você saca o que estiver disponível' },
-      { t: 'Pix na sua chave', s: rules?.autoApproveWithdrawals ? 'cai em minutos' : 'cai depois da aprovação do saque' },
+      { t: 'Pix na sua chave', s: rules?.autoApproveWithdrawals ? 'sai sem esperar aprovação' : 'cai depois da aprovação do saque' },
     ];
 
   return (

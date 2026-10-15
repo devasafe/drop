@@ -93,7 +93,7 @@ test('acima do limite diário: abre com R$ 8.000 e oferece o atalho', () => {
 
 test('quando cai: na hora ou depois da aprovação', () => {
   const { rerender } = render(<WithdrawPixSheet {...props({ instant: true })} />);
-  expect(screen.getByText('Cai em minutos na sua chave Pix')).toBeInTheDocument();
+  expect(screen.getByText('Vai para a sua chave Pix sem esperar aprovação')).toBeInTheDocument();
   rerender(<WithdrawPixSheet {...props({ instant: false })} />);
   expect(screen.getByText('Cai na sua chave Pix depois da aprovação da equipe')).toBeInTheDocument();
 });

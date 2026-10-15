@@ -25,7 +25,7 @@ export interface WithdrawPixSheetProps {
   blocked?: string | null;
   error?: string | null;
   submitting?: boolean;
-  /** autoApproveWithdrawals: true = cai em minutos; false = depois da aprovação; null = não sabemos. */
+  /** autoApproveWithdrawals: true = sai sem esperar aprovação; false = depois da aprovação; null = não sabemos. */
   instant?: boolean | null;
   title?: string;
   onConfirm: (amount: number | 'all') => void;
@@ -64,7 +64,7 @@ export function WithdrawPixSheet({
   return (
     <Sheet open={open} onClose={onClose} presentation="bottom" title={title}>
       <div className={styles.body}>
-        {instant === true && <p className={blocks.meta}>Cai em minutos na sua chave Pix</p>}
+        {instant === true && <p className={blocks.meta}>Vai para a sua chave Pix sem esperar aprovação</p>}
         {instant === false && <p className={blocks.meta}>Cai na sua chave Pix depois da aprovação da equipe</p>}
         {blocked ? (
           <Alert tone="warning" title="Saque em conferência">{blocked}</Alert>
