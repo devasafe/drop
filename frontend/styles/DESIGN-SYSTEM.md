@@ -193,7 +193,7 @@ OrderTracker · OrderStatusBadge · Logo.
 - O `next` passa por `safeNext`/`authHref`: só caminho interno.
 
 ### Rotas compartilhadas
-- `/notifications`, `/suporte`, `/verificacao`, `/verify-email`, `/upload` e `/foto-perfil` são páginas de todos os papéis. `useClienteRedirect(destino)` leva só o papel `cliente` à tela nova; lojista, motoboy e admin ficam na antiga (escura).
+- `/notifications`, `/suporte`, `/verificacao`, `/verify-email`, `/upload` e `/foto-perfil` são páginas de todos os papéis. `useClienteRedirect`, `useLojistaRedirect` e `useMotoboyRedirect` levam cada papel à tela nova dele quando ela existe (cliente: /conta/*; lojista: /seller/*; motoboy: /motoboy/notificacoes); o admin fica na antiga (escura).
 - Helpers que mudaram de destino: `ROUTES.notificacoes` (`/conta/notificacoes`), `ROUTES.ajuda` (`/conta/ajuda`), `ROUTES.privacidadeConta` (`/conta/privacidade`).
 - Guardas: toda rota do cliente é clara (`clientRoutesTheme.test`), nenhuma tela navega para rota antiga (`clientRoutesGuard.test`) e todo CSS de página do cliente passa pela guarda de tokens (`dsV2Guard.test`).
 
