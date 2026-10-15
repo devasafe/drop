@@ -1,0 +1,5 @@
+/* frontend/components/motoboy/entregas/Entregas.module.css — D2 · P4 (protótipo "Entregas"). Só tokens. */
+.stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.group { display: flex; flex-direction: column; gap: var(--space-2); }
+.kpis3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.amount { font: var(--text-price-sm); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }

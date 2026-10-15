@@ -185,4 +185,15 @@ describe('D2 — painel do motoboy', () => {
     expect(resolveRedirect(rules, '/motoboy/delivery/abc')).toEqual({ location: '/motoboy/corrida/abc', permanent: true });
     expect(resolveRedirect(rules, '/motoboy/delivery/abc?nav=1')?.location).toBe('/motoboy/corrida/abc?nav=1');
   });
+
+  it('P4.4: ongoing e history viram Entregas, preservando o segmento', () => {
+    expect(resolveRedirect(rules, '/motoboy/ongoing')).toEqual({ location: '/motoboy/entregas?seg=andamento', permanent: true });
+    expect(resolveRedirect(rules, '/motoboy/history')).toEqual({ location: '/motoboy/entregas?seg=concluidas', permanent: true });
+  });
+
+  it('P4.4: /motoboy/ongoing?tab=history cai em Concluídas (a regra com has vence a sem has)', () => {
+    expect(resolveRedirect(rules, '/motoboy/ongoing?tab=history')).toEqual({ location: '/motoboy/entregas?seg=concluidas&tab=history', permanent: true });
+    // outra aba antiga continua no andamento
+    expect(resolveRedirect(rules, '/motoboy/ongoing?tab=ongoing')?.location).toMatch(/^\/motoboy\/entregas\?seg=andamento/);
+  });
 });

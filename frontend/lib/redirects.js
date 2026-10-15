@@ -54,4 +54,8 @@ module.exports = [
   // lib/__tests__/redirects.test.ts. Regra com `has` vem antes da regra sem `has` da mesma origem.
   // /notifications e /register são compartilhadas: o motoboy é redirecionado na página, por papel.
   { source: '/motoboy/delivery/:id', destination: '/motoboy/corrida/:id', permanent: true },
+  // P4.4 — Entregas (a regra com has antes da regra sem has da mesma origem)
+  { source: '/motoboy/ongoing', has: [{ type: 'query', key: 'tab', value: 'history' }], destination: '/motoboy/entregas?seg=concluidas', permanent: true },
+  { source: '/motoboy/ongoing', destination: '/motoboy/entregas?seg=andamento', permanent: true },
+  { source: '/motoboy/history', destination: '/motoboy/entregas?seg=concluidas', permanent: true },
 ];
