@@ -1,0 +1,93 @@
+/* Tema sazonal (D3a, tela 25). A cor de cada tema vem de --color-action-primary dentro de .seasonal-preview.theme-* (globals.css). */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.options { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.status { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.status strong { color: var(--color-text-primary); }
+.fieldset { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.legend { margin-bottom: var(--space-2); padding: 0; font: var(--text-caption); color: var(--color-text-secondary); text-transform: uppercase; }
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+.optionOn { border: 2px solid var(--color-action-primary); }
+.radio { width: 18px; height: 18px; accent-color: var(--color-action-primary); }
+.swatch { width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm); background: var(--color-action-primary); }
+.optionText { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.optionName { font: var(--text-label); color: var(--color-text-primary); }
+.optionHint { font: var(--text-meta); color: var(--color-text-secondary); }
+.activeTag {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+  font: var(--text-caption);
+}
+.actions button { min-height: 44px; }
+
+.previewCol { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.previewCap { align-self: flex-start; margin: 0; font: var(--text-caption); color: var(--color-text-secondary); text-transform: uppercase; }
+.phone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 300px;
+  max-width: 100%;
+  min-height: 420px;
+  padding: var(--space-4);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elevation-2);
+}
+.search {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-action-primary) 12%, var(--color-surface-default));
+}
+.bannerTitle { font: var(--text-title); color: var(--color-action-primary); }
+.bannerSub { font: var(--text-meta); color: var(--color-text-secondary); }
+.chips { display: flex; gap: var(--space-2); }
+.chip,
+.chipOn { padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); font: var(--text-caption); }
+.chip { border: 1px solid var(--color-border-default); color: var(--color-text-primary); background: var(--color-surface-default); }
+.chipOn { border: 1px solid var(--color-action-primary); background: var(--color-action-primary); color: var(--color-on-action); }
+.product { display: flex; flex-direction: column; gap: var(--space-1); width: 50%; }
+.photo { aspect-ratio: 1; border-radius: var(--radius-md); background: var(--color-surface-sunken); }
+.productName { font: var(--text-meta); color: var(--color-text-primary); }
+.price { font: var(--text-label); color: var(--color-price); }
+.cart {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  font: var(--text-label);
+}
+
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 340px; }
+}

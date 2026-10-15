@@ -1,104 +1,130 @@
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import AdminShell from '../../components/admin/AdminShell';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { useToast } from '../../components/ui/Toast';
 import { useSeasonalTheme } from '../../contexts/SeasonalThemeContext';
-import styles from './SeasonalTheme.module.css';
-import Icon, { IconName } from '../../components/Icon';
+import { adminErrorMessage } from '../../lib/adminErrors';
+import { formatMoney } from '../../lib/money';
+import styles from '../../components/admin/tema/SeasonalTheme.module.css';
 
+/**
+ * Tema sazonal (D3a, tela 25). Escolhe, vê a prévia e aplica: PUT /settings/platform-config { seasonalTheme }.
+ * A cor da amostra e da prévia vem do próprio tema (globals.css: .seasonal-preview.theme-*), sem cor na tela.
+ */
 type ThemeId = 'none' | 'natal' | 'pascoa' | 'junina' | 'halloween';
 
-const THEMES: { id: ThemeId; name: string; icon: IconName; description: string; primary: string; secondary: string }[] = [
-  { id: 'none',      name: 'Nenhum',        icon: 'palette',  description: 'Tema padrão DROP',               primary: '#6C2BD9', secondary: '#8B5CF6' },
-  { id: 'natal',     name: 'Natal',         icon: 'tree',     description: 'Dezembro — cores de fim de ano', primary: '#B91C1C', secondary: '#EF4444' },
-  { id: 'pascoa',    name: 'Páscoa',        icon: 'egg',      description: 'Março/Abril — tons pastéis',     primary: '#7C3AED', secondary: '#A78BFA' },
-  { id: 'junina',    name: 'Festa Junina',  icon: 'tent',     description: 'Junho — cores quentes do arraial', primary: '#B45309', secondary: '#F59E0B' },
-  { id: 'halloween', name: 'Halloween',     icon: 'pumpkin',  description: 'Outubro — laranja e escuro',      primary: '#C2410C', secondary: '#FB923C' },
+const THEMES: { id: ThemeId; name: string; hint: string; banner: string }[] = [
+  { id: 'none', name: 'Nenhum', hint: 'Roxo padrão do DROP', banner: 'Ofertas de hoje' },
+  { id: 'natal', name: 'Natal', hint: 'Dezembro', banner: 'Natal no DROP' },
+  { id: 'pascoa', name: 'Páscoa', hint: 'Março e abril', banner: 'Páscoa no DROP' },
+  { id: 'junina', name: 'Festa junina', hint: 'Junho', banner: 'Arraiá no DROP' },
+  { id: 'halloween', name: 'Halloween', hint: 'Outubro', banner: 'Halloween no DROP' },
 ];
 
+const themeOf = (id: ThemeId) => THEMES.find((t) => t.id === id) ?? THEMES[0];
+
 export default function SeasonalThemePage() {
+  return (
+    <ProtectedRoute required_permission="theme:edit">
+      <AdminShell title="Tema sazonal">
+        <TemaBody />
+      </AdminShell>
+    </ProtectedRoute>
+  );
+}
+
+function TemaBody() {
   const { theme: activeTheme, setTheme } = useSeasonalTheme();
+  const { showToast } = useToast();
   const [selected, setSelected] = useState<ThemeId>(activeTheme);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setSelected(activeTheme);
   }, [activeTheme]);
 
-  const handleSave = async () => {
+  const apply = async () => {
     setSaving(true);
-    setError('');
-    setSaved(false);
+    setError(null);
     try {
       await api.put('/settings/platform-config', { seasonalTheme: selected });
       setTheme(selected);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Erro ao salvar tema');
+      showToast(selected === 'none' ? 'O app voltou ao tema padrão' : `Tema ${themeOf(selected).name} aplicado`, 'success');
+    } catch (err) {
+      setError(adminErrorMessage(err, 'Erro ao salvar tema'));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
+  const chosen = themeOf(selected);
+  const label = selected === 'none'
+    ? (activeTheme === 'none' ? 'Aplicar agora' : 'Voltar ao padrão')
+    : `Aplicar ${chosen.name} agora`;
+
   return (
-    <ProtectedRoute required_permission="theme:edit">
-      <div className={styles.page}>
-        <div className={styles.container}>
+    <div className={styles.layout}>
+      <div className={styles.options}>
+        <p className={styles.status}>Atual: <strong>{themeOf(activeTheme).name}</strong></p>
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>Tema do app do cliente</legend>
+          {THEMES.map((t) => (
+            <label key={t.id} className={[styles.option, selected === t.id && styles.optionOn].filter(Boolean).join(' ')}>
+              <input
+                type="radio"
+                name="tema-sazonal"
+                value={t.id}
+                checked={selected === t.id}
+                onChange={() => setSelected(t.id)}
+                className={styles.radio}
+              />
+              <span className={`${styles.swatch} seasonal-preview theme-${t.id}`} aria-hidden="true" />
+              <span className={styles.optionText}>
+                <span className={styles.optionName}>{t.name}</span>
+                <span className={styles.optionHint}>{t.hint}</span>
+              </span>
+              {activeTheme === t.id && <span className={styles.activeTag}>Ativo</span>}
+            </label>
+          ))}
+        </fieldset>
 
-          <div className={styles.header}>
-            <h1 className={styles.title}><Icon name="palette" size={24} /> Tema Sazonal</h1>
-            <p className={styles.subtitle}>
-              Ative um tema visual para datas comemorativas. As cores de destaque do site serão alteradas automaticamente para todos os usuários.
-            </p>
-          </div>
+        <Alert tone="info" title="Muda só a cor de ação e os destaques">
+          Status, preço e alertas continuam nas cores de sempre, para não confundir.
+        </Alert>
+        {error && <Alert tone="error" title="O tema não foi aplicado">{error}</Alert>}
 
-          <div className={styles.grid}>
-            {THEMES.map(theme => (
-              <button
-                key={theme.id}
-                onClick={() => setSelected(theme.id)}
-                className={`${styles.card} ${selected === theme.id ? styles.cardActive : ''}`}
-              >
-                {/* Prévia de cor */}
-                <div
-                  className={styles.colorPreview}
-                  style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}
-                >
-                  <span className={styles.previewEmoji}><Icon name={theme.icon} size={32} color="#fff" /></span>
-                </div>
-
-                <div className={styles.cardBody}>
-                  <div className={styles.cardName}>{theme.name}</div>
-                  <div className={styles.cardDesc}>{theme.description}</div>
-                  <div className={styles.colorDots}>
-                    <span className={styles.colorDot} style={{ background: theme.primary }} />
-                    <span className={styles.colorDot} style={{ background: theme.secondary }} />
-                  </div>
-                </div>
-
-                {selected === theme.id && (
-                  <div className={styles.checkmark}>✓</div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.actions}>
-            {error && <div className={styles.errorMsg}>{error}</div>}
-            {saved && <div className={styles.successMsg}>✓ Tema aplicado com sucesso!</div>}
-            <button
-              onClick={handleSave}
-              disabled={saving || selected === activeTheme}
-              className={styles.btnSave}
-            >
-              {saving ? 'Salvando...' : 'Aplicar Tema'}
-            </button>
-          </div>
-
+        <div className={styles.actions}>
+          <Button onClick={apply} loading={saving} disabled={selected === activeTheme}>{label}</Button>
         </div>
       </div>
-    </ProtectedRoute>
+
+      <section className={styles.previewCol} aria-label={`Prévia · ${chosen.name}`}>
+        <p className={styles.previewCap}>Prévia · {chosen.name}</p>
+        <div className={`${styles.phone} seasonal-preview theme-${selected}`} data-testid="seasonal-preview">
+          <div className={styles.search}>Buscar produtos e lojas</div>
+          <div className={styles.banner}>
+            <strong className={styles.bannerTitle}>{chosen.banner}</strong>
+            <span className={styles.bannerSub}>Presentes que chegam hoje</span>
+          </div>
+          <div className={styles.chips}>
+            <span className={styles.chipOn}>Ofertas</span>
+            <span className={styles.chip}>Até {formatMoney(50)}</span>
+          </div>
+          <div className={styles.product}>
+            <div className={styles.photo} aria-hidden="true" />
+            <span className={styles.productName}>Kit presente papelaria</span>
+            <span className={styles.price}>{formatMoney(59.9)}</span>
+          </div>
+          <div className={styles.cart}>
+            <span>Ver sacola · 1 item</span>
+            <span>{formatMoney(59.9)}</span>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
