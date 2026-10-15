@@ -32,6 +32,8 @@ export interface WithdrawPixSheetProps {
 }
 
 const QUICK = [50, 100, 200];
+/** Texto do saque em conferência (uncertain), igual na custódia e no saldo do modo anterior. */
+export const UNCERTAIN_WITHDRAW_TEXT = 'Não peça de novo: estamos conferindo com o banco e avisamos aqui.';
 
 /** Sheet "Sacar no Pix" (protótipo "Sacar"). A regra do valor é a do WithdrawSheet (withdrawRule). */
 export function WithdrawPixSheet({

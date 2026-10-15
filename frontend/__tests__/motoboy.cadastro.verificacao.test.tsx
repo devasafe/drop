@@ -114,3 +114,35 @@ test('leitura falhou: erro com "Tentar de novo" e nenhum formulário', async () 
   expect(await screen.findByText('Não carregamos sua verificação')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Enviar/ })).toBeNull();
 });
+
+test('envio aceito zera a foto escolhida: recusada de novo, não reenvia a selfie antiga', async () => {
+  render(<VerificacaoStep onChanged={jest.fn()} />);
+  await screen.findByRole('button', { name: 'Enviar selfie' });
+  fireEvent.change(screen.getByLabelText('Selfie'), { target: { files: [img('eu.jpg')] } });
+  expect(screen.getByText(/eu\.jpg/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar selfie' }));
+  expect(await screen.findByText('Selfie enviada para análise.')).toBeInTheDocument();
+  // a releitura volta com a selfie recusada de novo: o item reabre sem a foto antiga
+  const send = await screen.findByRole('button', { name: 'Enviar selfie' });
+  expect(screen.queryByText(/eu\.jpg/)).not.toBeInTheDocument();
+  expect(send).toBeDisabled();
+  fireEvent.click(send);
+  expect(post).toHaveBeenCalledTimes(1);
+});
+
+test('envio aceito de CNH e placa zera as fotos: o reenvio pede fotos novas', async () => {
+  mb = { verified: false, facial: { status: 'approved' }, courier: { status: 'none' } };
+  render(<VerificacaoStep onChanged={jest.fn()} />);
+  await screen.findByRole('button', { name: 'Enviar CNH e placa' });
+  fireEvent.change(screen.getByLabelText('Número de registro da CNH'), { target: { value: '04738821905' } });
+  fireEvent.change(screen.getByLabelText('Placa da moto'), { target: { value: 'FKR2D19' } });
+  fireEvent.change(screen.getByLabelText('Foto da CNH'), { target: { files: [img('cnh.jpg')] } });
+  fireEvent.change(screen.getByLabelText('Foto da placa'), { target: { files: [img('placa.jpg')] } });
+  // a releitura volta com o 1º envio ainda "none" (o servidor recusou e limpou): exige fotos novas
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar CNH e placa' }));
+  expect(await screen.findByText('CNH e placa enviadas para análise.')).toBeInTheDocument();
+  const send = await screen.findByRole('button', { name: 'Enviar CNH e placa' });
+  expect(screen.queryByText(/cnh\.jpg|placa\.jpg/)).not.toBeInTheDocument();
+  expect(screen.getByText('Falta a foto da CNH')).toBeInTheDocument();
+  expect(send).toBeDisabled();
+});

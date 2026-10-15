@@ -8,7 +8,7 @@ import { Button } from '../../ui/Button';
 import { EmptyState } from '../../ui/EmptyState';
 import { Skeleton } from '../../ui/Skeleton';
 import { Tabs, tabPanelProps } from '../../ui/Tabs';
-import { WithdrawPixSheet } from './WithdrawPixSheet';
+import { UNCERTAIN_WITHDRAW_TEXT as UNCERTAIN_TEXT, WithdrawPixSheet } from './WithdrawPixSheet';
 import { moneyTagClass, stageTagClass } from '../moneyTag';
 import { isUncertainWithdrawal, withdrawalView } from '../../seller/dinheiro/moneyLabels';
 import { useMotoboyRules } from '../../../hooks/useMotoboyRules';
@@ -24,7 +24,6 @@ import blocks from '../../panel/PanelBlocks.module.css';
 import styles from './Ganhos.module.css';
 
 interface Summary { pending: number; available: number; requested: number; paid: number }
-const UNCERTAIN_TEXT = 'Não peça de novo: estamos conferindo com o banco e avisamos aqui.';
 
 const toSummary = (d: any): Summary | null => {
   const s = { pending: Number(d?.pending), available: Number(d?.available), requested: Number(d?.requested), paid: Number(d?.paid) };

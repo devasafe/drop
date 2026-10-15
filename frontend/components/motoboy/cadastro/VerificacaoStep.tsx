@@ -102,6 +102,12 @@ export function VerificacaoStep({ onChanged }: { onChanged: () => void }) {
       await fn();
       setMsg({ tone: 'success', text: ok });
       setOpen(null); // a próxima pendência abre sozinha na releitura
+      // Envio aceito: as fotos já foram. Se o item for recusado de novo, pede foto nova (nunca reenvia a antiga).
+      setFront(null);
+      setBack(null);
+      setSelfie(null);
+      setCnhPhoto(null);
+      setPlatePhoto(null);
       load();
       onChanged();
     } catch (e: any) {

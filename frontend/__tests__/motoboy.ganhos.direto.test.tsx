@@ -38,6 +38,8 @@ function mockApi(over: Record<string, any> = {}) {
     '/settings/platform-config': { data: CFG },
     // Saldo do modo anterior: agregado do servidor dos `released` (summary.available), nunca a soma de uma página.
     '/payouts/my/summary': { data: { pending: 5, available: 0, requested: 0, paid: 0 } },
+    // Saques (só com saldo antigo): o saque em conferência (uncertain) trava a sheet, como na custódia.
+    '/withdrawals/my-withdrawals': { data: [] },
     // K35: "Esta semana" só do servidor. O resumo soma o Pix de toda entrega da semana (o atrasado
     // também), então difere de propósito da soma dos Pix que caíram (R$ 23,70 · 3).
     '/deliveries/summary': { data: { today: { earnings: 25.7, count: 3 }, week: { earnings: 35.7, count: 4 } } },
@@ -257,4 +259,48 @@ test('summary sem available numérico: erro com Tentar de novo, nunca R$ 0,00', 
   const box = await screen.findByRole('region', { name: 'Saldo do modo anterior' });
   expect(within(box).getByText('Não carregamos o saldo do modo anterior')).toBeInTheDocument();
   expect(screen.queryByText('Sacar para minha chave Pix')).not.toBeInTheDocument();
+});
+
+test('com mais páginas, o aviso não afirma quantos Pix estão atrasados (só a parte carregada)', async () => {
+  mockApi({ '/motoboy/transfers': { data: { success: true, data: TRANSFERS.slice(0, 3), nextCursor: 'c1' } } });
+  render(<DirectEarnings hasLeftover={false} now={NOW} />);
+  expect(await screen.findByText('Há Pix atrasados')).toBeInTheDocument();
+  expect(screen.queryByText(/^\d+ Pix atrasados?$/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }));
+  expect(await screen.findByRole('dialog')).toBeInTheDocument();
+});
+
+const UNCERTAIN = { _id: 'w1', amount: 60, status: 'approved', uncertainAt: '2026-10-14T10:00:00-03:00', requestedAt: '2026-10-14T09:00:00-03:00' };
+
+test('saldo antigo com saque em conferência (uncertain): sheet travada, sem botão de sacar, como na custódia', async () => {
+  mockApi({
+    '/payouts/my/summary': { data: { pending: 0, available: 60, requested: 0, paid: 0 } },
+    '/withdrawals/my-withdrawals': { data: [UNCERTAIN] },
+  });
+  render(<DirectEarnings hasLeftover now={NOW} />);
+  fireEvent.click(await screen.findByText('Sacar para minha chave Pix'));
+  const dialog = await screen.findByRole('dialog');
+  expect(await within(dialog).findByText('Saque em conferência')).toBeInTheDocument();
+  expect(within(dialog).getByText('Não peça de novo: estamos conferindo com o banco e avisamos aqui.')).toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: /^Sacar R\$/ })).not.toBeInTheDocument();
+  expect(post).not.toHaveBeenCalled();
+});
+
+test('saldo antigo sem conferir os saques: não abre o saque (fail closed) e Tentar de novo relê', async () => {
+  mockApi({
+    '/payouts/my/summary': { data: { pending: 0, available: 60, requested: 0, paid: 0 } },
+    '/withdrawals/my-withdrawals': FAIL,
+  });
+  render(<DirectEarnings hasLeftover now={NOW} />);
+  expect(await screen.findByText(/Não conferimos seus saques agora/)).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Sacar para minha chave Pix'));
+  expect(screen.queryByRole('button', { name: /^Sacar R\$/ })).not.toBeInTheDocument();
+  const before = calls('/withdrawals/my-withdrawals');
+  mockApi({ '/payouts/my/summary': { data: { pending: 0, available: 60, requested: 0, paid: 0 } } });
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  const card = await screen.findByText('Sacar para minha chave Pix');
+  await waitFor(() => expect(screen.queryByText(/Não conferimos seus saques agora/)).not.toBeInTheDocument());
+  expect(calls('/withdrawals/my-withdrawals')).toBeGreaterThan(before);
+  fireEvent.click(card);
+  expect(await screen.findByRole('button', { name: 'Sacar R$ 60,00' })).toBeInTheDocument();
 });

@@ -48,6 +48,8 @@ describe('portado de legacyBalanceCard.test.tsx — carteira do motoboy', () => 
       if (u === walletUrl) return Promise.resolve({ data: { balance: 0, availableBalance: 30 } });
       if (u.startsWith('/payouts/my') && !u.includes('summary')) return Promise.resolve({ data: { payouts } });
       if (u === '/payouts/my/summary') return Promise.resolve({ data: { pending: 0, available: released, requested: 0, paid: 0 } });
+      // O saque do saldo antigo confere os saques (uncertain trava), como na custódia.
+      if (u === '/withdrawals/my-withdrawals') return Promise.resolve({ data: [] });
       return Promise.reject(new Error('n/a'));
     });
     (api.post as jest.Mock).mockResolvedValue({ data: { withdrawal: { amount: 30 } } });

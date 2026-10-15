@@ -8,9 +8,10 @@ import { Button } from '../../ui/Button';
 import { EmptyState } from '../../ui/EmptyState';
 import { Skeleton } from '../../ui/Skeleton';
 import LegacyBalanceCard from '../../wallet/LegacyBalanceCard';
-import { WithdrawPixSheet } from './WithdrawPixSheet';
+import { UNCERTAIN_WITHDRAW_TEXT, WithdrawPixSheet } from './WithdrawPixSheet';
 import { PixAtrasadoSheet } from './PixAtrasadoSheet';
 import { moneyTagClass } from '../moneyTag';
+import { isUncertainWithdrawal } from '../../seller/dinheiro/moneyLabels';
 import { useMotoboyRules } from '../../../hooks/useMotoboyRules';
 import { useSocket } from '../../../contexts/SocketContext';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
@@ -25,6 +26,7 @@ import styles from './Ganhos.module.css';
 const sumCents = (list: MoneyInfo[]) => list.reduce((s, m) => s + Math.round(m.amount * 100), 0) / 100;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const lateText = (n: number) => `${n} Pix ${n === 1 ? 'atrasado' : 'atrasados'}`;
+const toList = (d: any): any[] => (Array.isArray(d) ? d : Array.isArray(d?.withdrawals) ? d.withdrawals : []);
 const toMoneyList = (raw: any): MoneyInfo[] => (Array.isArray(raw) ? raw : []).map(transferToMoney).filter(Boolean) as MoneyInfo[];
 const nextCursorOf = (d: any): string | null => (typeof d?.nextCursor === 'string' && d.nextCursor ? d.nextCursor : null);
 const ms = (iso: string | null) => (iso ? Date.parse(iso) || 0 : 0);
@@ -66,6 +68,8 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
   const [legacyError, setLegacyError] = useState<string | null>(null);
   const [legacyMin, setLegacyMin] = useState<number | null>(null);
   const [legacyDone, setLegacyDone] = useState<string | null>(null);
+  // Saques (só com saldo antigo): null = não conferimos; com saque uncertain a sheet trava (como na custódia).
+  const [withdrawals, setWithdrawals] = useState<any[] | null>(null);
 
   useEffect(() => {
     const my = ++gen.current;
@@ -133,6 +137,11 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
       })
       // K29: fail closed. Nunca 0 (o card sumiria calado) nem custódia presumida: erro com retry.
       .catch(() => { if (!off) setLegacy('error'); });
+    // Mesma regra da custódia: saque em conferência trava o saque; sem conferir, não deixa sacar.
+    Promise.resolve()
+      .then(() => api.get('/withdrawals/my-withdrawals'))
+      .then((r: any) => { if (!off) setWithdrawals(toList(r?.data)); })
+      .catch(() => { if (!off) setWithdrawals(null); });
     return () => { off = true; };
   }, [hasLeftover, legacyAttempt]);
 
@@ -167,6 +176,8 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
   useEffect(() => { setLoadingMore(false); }, [attempt]);
 
   const legacyAmount = typeof legacy === 'number' ? legacy : 0;
+  const withdrawalsUnknown = withdrawals === null;
+  const uncertain = withdrawals !== null && withdrawals.some(isUncertainWithdrawal);
 
   const withdrawLegacy = async (amount: number | 'all') => {
     if (legacyAmount <= 0) return;
@@ -196,6 +207,8 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
   const today = sorted.filter((m) => m.status === 'done' && isToday(m.createdAt, now));
   const onTheWay = sorted.filter((m) => m.status !== 'done');
   const lateList = sorted.filter(isLateTransfer);
+  // Com mais páginas, a contagem seria só da parte carregada: o aviso não afirma o número (como "A caminho").
+  const lateTitle = hasMore ? 'Há Pix atrasados' : lateText(lateList.length);
 
   return (
     <div className={styles.stack}>
@@ -211,9 +224,18 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
         ) : legacy === null ? (
           <div aria-busy="true"><Skeleton height={120} /></div>
         ) : (
-          <LegacyBalanceCard amount={legacy} onWithdraw={() => { setLegacyError(null); setLegacyOpen(true); }} />
+          <>
+            <LegacyBalanceCard amount={legacy} onWithdraw={() => { if (withdrawalsUnknown) return; setLegacyError(null); setLegacyOpen(true); }} />
+            {legacy > 0 && withdrawalsUnknown && (
+              <p className={blocks.errText}>
+                Não conferimos seus saques agora.{' '}
+                <button type="button" className={blocks.link} onClick={() => setLegacyAttempt((n) => n + 1)}>Tentar de novo</button>
+              </p>
+            )}
+          </>
         )
       )}
+      {hasLeftover && uncertain && <Alert tone="warning" title="Saque em conferência">{UNCERTAIN_WITHDRAW_TEXT}</Alert>}
       {legacyDone && <p role="status" className={blocks.meta}>{legacyDone}</p>}
 
       {items === null ? (
@@ -255,7 +277,7 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
             </section>
           )}
           {lateList.length > 0 && (
-            <Alert tone="warning" title={lateText(lateList.length)} action={{ label: 'Ver detalhes', onClick: () => setLate(lateList[0]) }}>
+            <Alert tone="warning" title={lateTitle} action={{ label: 'Ver detalhes', onClick: () => setLate(lateList[0]) }}>
               Quem envia o Pix é a loja. Você não precisa fazer nada: veja em que pé está.
             </Alert>
           )}
@@ -302,7 +324,7 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
       />
       {hasLeftover && (
         <WithdrawPixSheet
-          open={legacyOpen && legacyAmount > 0}
+          open={legacyOpen && legacyAmount > 0 && !withdrawalsUnknown}
           onClose={() => setLegacyOpen(false)}
           title="Sacar saldo do modo anterior"
           available={legacyAmount}
@@ -310,6 +332,7 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
           pixLabel={pix}
           onChangeKey={() => router.push(MOTOBOY_ROUTES.recebimento)}
           outside={null}
+          blocked={uncertain ? UNCERTAIN_WITHDRAW_TEXT : null}
           error={legacyError}
           submitting={legacyBusy}
           instant={rules ? rules.autoApproveWithdrawals : null}
