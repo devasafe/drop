@@ -1,0 +1,27 @@
+/* frontend/components/motoboy/cadastro/Cadastro.module.css */
+.mid { font: var(--text-title); color: var(--color-text-primary); }
+
+.accept { display: flex; align-items: flex-start; gap: var(--space-2); font: var(--text-meta); color: var(--color-text-secondary); }
+.accept input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--color-action-primary); }
+.accept a { color: var(--color-text-link); }
+
+/* Upload de foto (protótipo .u-upload). */
+.upload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+.upload > span:first-child { flex: 1; min-width: 0; }
+
+/* Linha do tempo do "Em análise" (protótipo .u-tl). */
+.timeline { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.timeline > li { display: flex; align-items: flex-start; gap: var(--space-3); font: var(--text-body); color: var(--color-text-primary); }
+.timeline > li > i { width: 12px; height: 12px; margin-top: 4px; flex-shrink: 0; border-radius: var(--radius-pill); background: var(--color-border-strong); }
+.timeline small { display: block; font: var(--text-meta); color: var(--color-text-muted); }
+.done > i { background: var(--color-success); }
+.current > i { background: var(--color-action-primary); }
+.todo { color: var(--color-text-muted); }
