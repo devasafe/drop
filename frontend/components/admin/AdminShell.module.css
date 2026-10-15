@@ -1,0 +1,100 @@
+/* Casca do admin (DS v2, D3a; protótipo .u-main/.u-top/.u-body): fundo gelo, cabeçalho branco, corpo até 1200 px. */
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.menuBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(var(--space-2) * -1);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.menuBtn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: var(--text-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.now {
+  display: none;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.account { display: flex; align-items: center; }
+/* No celular as ações vão para uma linha própria, abaixo do título. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex-basis: 100%;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--app-max);
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 899;
+  background: var(--color-scrim);
+}
+
+@media (min-width: 1024px) {
+  .top {
+    flex-wrap: nowrap;
+    min-height: 64px;
+    padding: var(--space-4) var(--space-6);
+  }
+  .menuBtn { display: none; }
+  .title { flex: 0 1 auto; font: var(--text-title-lg); }
+  .now { display: inline; flex: 1; }
+  .actions { flex-basis: auto; order: 0; }
+  .account { order: 1; }
+  .body { padding: var(--space-5) var(--space-6) var(--space-6); }
+  .scrim { display: none; }
+}

@@ -30,6 +30,9 @@ import { useState, useEffect, useRef } from 'react';
 import { ROLE_HOME } from '../lib/navConfig';
 import { isSellerPanelRoute, sellerShowsTabBar, SELLER_ONBOARDING_ROUTES } from '../lib/sellerRoutes';
 import { isMotoboyPanelRoute, motoboyShowsTabBar } from '../lib/motoboyRoutes';
+import AdminShell from '../components/admin/AdminShell';
+import { isAdminPanelRoute } from '../lib/adminNav';
+import { adminLegacyShellTitle } from '../lib/adminLegacyShell';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
 import { useRouteTheme } from '../lib/routeTheme';
@@ -82,7 +85,13 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   const isMotoboyPanel = isMotoboyPanelRoute(router.pathname)
     || (isMotoboyRole && router.pathname === '/motoboy/[id]');
   const motoboyFrame = isMotoboyPanel || (isMotoboyRole && router.pathname === '/dados-recebimento');
-  const panelFrame = sellerFrame || motoboyFrame;
+  // Painel do admin (D3a): a casca é o AdminShell (menu, cabeçalho, gaveta). Nada da moldura antiga:
+  // sem Nav global, AppSidebar, barra do painel, aviso de verificação, chat flutuante, deslocamento de 256 px
+  // nem PageTransition (o transform dela prende o position: fixed da gaveta e da BatchBar).
+  const adminFrame = isAdminPanelRoute(router.pathname);
+  const panelFrame = sellerFrame || motoboyFrame || adminFrame;
+  // Páginas do admin que ainda não montam o AdminShell (P2–P5 tiram cada uma da lista): o _app embrulha.
+  const legacyAdminTitle = user && adminFrame ? adminLegacyShellTitle(router.pathname) : null;
 
   // Não mostrar chat em páginas específicas. Nos painéis a conversa é por pedido/corrida (OrderChatSheet, RideChatSheet).
   const isChatPage = router.pathname.includes('/chat');
@@ -133,28 +142,38 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <SellerPanelGate pathname={router.pathname} enabled={!!user || authLoading === true}>
         {/* Dentro do Gate: no painel, a loja do notificador vem do painel, sem outro GET (V12). */}
         {user && <RealtimeNotifier />}
-        {!navDesktopOnly && <Nav />}
+        {!adminFrame && !navDesktopOnly && <Nav />}
         {/* Páginas com header próprio no mobile (produto/loja e o painel da loja) ainda
             mostram a Nav global no DESKTOP — a bottom bar é escondida no desktop, então
             sem isso elas ficariam sem navegação em telas grandes. */}
-        {navDesktopOnly && (
+        {!adminFrame && navDesktopOnly && (
           <div className="navDesktopOnly">
             <Nav />
           </div>
         )}
-        {user && isDashboard && <AppSidebar />}
-        {user && showPanelBottomNav && <PanelBottomNav />}
+        {user && isDashboard && !adminFrame && <AppSidebar />}
+        {user && showPanelBottomNav && !adminFrame && <PanelBottomNav />}
         {CUSTOMER_ROUTES.includes(router.pathname) && <OfflineBanner />}
-        {/* Nos painéis o aviso vira estado da tela: o Agora da loja (T5) e o Corridas/Perfil do motoboy (D2). */}
+        {/* Nos painéis o aviso vira estado da tela: o Agora da loja (T5), o Corridas/Perfil do motoboy (D2) e as Verificações do admin (D3a). */}
         {!panelFrame && <VerificationBanner />}
         {shouldShowFooter && <SeasonalBanner />}
         <main
-          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}${user && isMotoboyPanel ? ' panelContentOffsetMotoboy' : ''}`}
+          className={`${spaceGrotesk.variable} ${inter.variable}${user && isDashboard && !adminFrame ? ' panelContentOffset' : ''}${user && isSellerPanel ? ' panelContentOffsetSeller' : ''}${user && isMotoboyPanel ? ' panelContentOffsetMotoboy' : ''}`}
           style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
         >
-          <PageTransition>
-            <Component {...pageProps} />
-          </PageTransition>
+          {adminFrame ? (
+            legacyAdminTitle !== null ? (
+              <AdminShell title={legacyAdminTitle}>
+                <Component {...pageProps} />
+              </AdminShell>
+            ) : (
+              <Component {...pageProps} />
+            )
+          ) : (
+            <PageTransition>
+              <Component {...pageProps} />
+            </PageTransition>
+          )}
         </main>
 
         {/* Chrome do app do cliente (TabBar + StickyCart) — fixo na viewport.

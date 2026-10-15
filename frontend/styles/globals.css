@@ -996,7 +996,7 @@ body.theme-halloween {
 
 /* ── Panel content offset ──────────────────────────────────
    Compensa a AppSidebar fixa (256px) nas rotas de painel
-   (lojista/motoboy/admin) no desktop. Aplicada globalmente ao
+   (lojista e motoboy; o admin tem o AdminShell, D3a) no desktop. Aplicada globalmente ao
    <main> em _app.tsx quando a AppSidebar está montada — assim
    TODAS as páginas de painel (não só as duas "home") ficam sem
    sobreposição, com um único mecanismo de offset. */

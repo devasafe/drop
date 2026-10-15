@@ -83,11 +83,10 @@ describe('moldura do painel da loja (V7)', () => {
     },
   );
 
-  it('fora dos painéis novos, o aviso e o chat continuam (admin)', () => {
-    renderApp('/admin/dashboard', 'ceo');
+  it('fora dos painéis, o aviso e o chat continuam (cliente)', () => {
+    renderApp('/notifications', 'cliente');
     expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
     expect(screen.getByTestId('chat-fab')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Navegação do painel' })).toBeInTheDocument();
   });
 
   it.each(['/verificacao-loja', '/dados-recebimento'])('%s (cadastro da loja) sem o rodapé de marketing', (path) => {
