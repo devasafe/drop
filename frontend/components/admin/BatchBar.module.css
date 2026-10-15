@@ -1,0 +1,44 @@
+/* Barra de lote do admin (DS v2, D3a): fixa no rodapé, ao lado do menu no computador. */
+.spacer { height: 96px; }
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 800;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--color-surface-default);
+  border-top: 1px solid var(--color-border-default);
+  box-shadow: var(--elevation-3);
+}
+.text {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.buttons {
+  display: flex;
+  flex: 1 1 260px;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.touch { min-height: 44px; }
+
+@media (max-width: 1023px) {
+  .buttons > * { flex: 1; }
+}
+
+@media (min-width: 1024px) {
+  .bar {
+    left: 220px;
+    padding: var(--space-3) var(--space-6);
+  }
+}
