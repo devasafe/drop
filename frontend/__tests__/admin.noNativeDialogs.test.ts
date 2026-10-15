@@ -15,7 +15,6 @@ const NATIVE_DIALOG_EXCEPTIONS: string[] = [
   'pages/admin/broadcasts.tsx',
   'pages/admin/coupons.tsx',
   'pages/admin/payouts.tsx',
-  'pages/admin/permissoes.tsx',
   'pages/admin/pricing-config.tsx',
   'pages/admin/ranking-config.tsx',
   'pages/admin/suporte.tsx',

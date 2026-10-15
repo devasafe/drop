@@ -1,223 +1,347 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../lib/api';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import styles from './Permissoes.module.css';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { useToast } from '../../components/ui/Toast';
+import { ADMIN_DESKTOP_MIN, useMinWidth } from '../../hooks/useMinWidth';
+import { adminRoleLabel } from '../../lib/adminNav';
+import { adminErrorMessage } from '../../lib/adminErrors';
+import { batchSummaryText, runBatch } from '../../lib/runBatch';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import styles from '../../components/admin/permissoes/Permissoes.module.css';
 
-interface PermissionDef {
-  key: string;
-  label: string;
-  category: string;
-}
+/**
+ * Permissões (D3a, tela 24; só o CEO). Matriz papéis × permissões sobre os endpoints de sempre:
+ * GET /role-permissions, PUT /role-permissions/:role (um por papel alterado, em sequência) e
+ * DELETE /role-permissions/:role (restaurar padrão). Nada novo no servidor.
+ */
 
-interface RoleData {
-  role: string;
-  permissions: string[];
-  notificationTargets: string[];
-  isCustom: boolean;
-}
+interface PermissionDef { key: string; label: string; category: string }
+interface RoleData { role: string; permissions: string[]; notificationTargets: string[]; isCustom: boolean }
+interface ListResponse { roles: RoleData[]; allPermissions: PermissionDef[]; allRoles: string[] }
+interface RoleDraft { permissions: string[]; notificationTargets: string[] }
 
-const ROLE_LABELS: Record<string, string> = {
-  ceo: 'CEO',
-  marketing: 'Marketing',
-  gerente_geral: 'Gerente Geral',
-  gerente_clientes: 'Gerente de Clientes',
-  gerente_lojistas: 'Gerente de Lojistas',
-  gerente_motoboys: 'Gerente de Motoboys',
-  lojista: 'Lojista',
-  cliente: 'Cliente',
-  motoboy: 'Motoboy',
-};
+/** Não delegável: o servidor recusa no PUT (rolePermissionsController, CEO_ONLY_PERMISSIONS). */
+const CEO_ONLY = ['wallet:credit'];
+/** Quem tem uma destas pode escolher para quem envia avisos (mesma regra da tela antiga). */
+const NOTIFY_PERMS = ['notification:create', 'broadcast:send'];
+const EXTRA_LABELS: Record<string, string> = { lojista: 'Lojista', cliente: 'Cliente', motoboy: 'Motoboy' };
+const roleLabel = (role: string) => EXTRA_LABELS[role] ?? adminRoleLabel(role);
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 export default function AdminPermissoes() {
   useRequireAuth(['ceo']);
-  const router = useRouter();
-
-  const [allRoles, setAllRoles] = useState<string[]>([]);
-  const [allPermissions, setAllPermissions] = useState<PermissionDef[]>([]);
-  const [rolesData, setRolesData] = useState<RoleData[]>([]);
-  const [selectedRole, setSelectedRole] = useState<string>('marketing');
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [notifTargets, setNotifTargets] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [resetting, setResetting] = useState(false);
-
-  useEffect(() => {
-    api.get('/role-permissions').then(res => {
-      setAllRoles(res.data.allRoles);
-      setAllPermissions(res.data.allPermissions);
-      setRolesData(res.data.roles);
-      // carrega o role selecionado inicial
-      const initial = res.data.roles.find((r: RoleData) => r.role === selectedRole);
-      if (initial) {
-        setPermissions(initial.permissions);
-        setNotifTargets(initial.notificationTargets);
-      }
-    });
-  }, []);
-
-  const loadRole = (role: string) => {
-    setSelectedRole(role);
-    const data = rolesData.find(r => r.role === role);
-    if (data) {
-      setPermissions(data.permissions);
-      setNotifTargets(data.notificationTargets);
-    }
-    setSaved(false);
-  };
-
-  const togglePerm = (key: string) => {
-    setPermissions(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]);
-  };
-
-  const toggleTarget = (role: string) => {
-    setNotifTargets(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await api.put(`/role-permissions/${selectedRole}`, { permissions, notificationTargets: notifTargets });
-      setSaved(true);
-      // Atualiza o cache local
-      setRolesData(prev => prev.map(r => r.role === selectedRole ? { ...r, permissions, notificationTargets: notifTargets, isCustom: true } : r));
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao salvar');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    if (!confirm(`Restaurar permissões padrão para ${ROLE_LABELS[selectedRole]}?`)) return;
-    setResetting(true);
-    try {
-      await api.delete(`/role-permissions/${selectedRole}`);
-      // Recarrega
-      const res = await api.get('/role-permissions');
-      setRolesData(res.data.roles);
-      const updated = res.data.roles.find((r: RoleData) => r.role === selectedRole);
-      if (updated) { setPermissions(updated.permissions); setNotifTargets(updated.notificationTargets); }
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao restaurar');
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  // Agrupa permissões por categoria
-  const categories = Array.from(new Set(allPermissions.map(p => p.category)));
-
-  const isCEO = selectedRole === 'ceo';
-
   return (
     <ProtectedRoute required_role="ceo">
-      <div className={styles.page}>
-        <div className={styles.container}>
-
-          {/* Header */}
-          <div className={styles.header}>
-            <button onClick={() => router.push('/admin/dashboard')} className={styles.backBtn}>
-              ← Dashboard
-            </button>
-            <h1 className={styles.title}>Gerenciar Permissões</h1>
-            <p className={styles.subtitle}>Controle o que cada cargo pode fazer no sistema</p>
-          </div>
-
-          <div className={styles.layout}>
-            {/* Sidebar — lista de roles */}
-            <aside className={styles.sidebar}>
-              {allRoles.map(role => {
-                const data = rolesData.find(r => r.role === role);
-                return (
-                  <button
-                    key={role}
-                    onClick={() => loadRole(role)}
-                    className={`${styles.roleBtn} ${selectedRole === role ? styles.roleBtnActive : ''}`}
-                  >
-                    <span className={styles.roleLabel}>{ROLE_LABELS[role] || role}</span>
-                    {data?.isCustom && <span className={styles.customBadge}>Customizado</span>}
-                  </button>
-                );
-              })}
-            </aside>
-
-            {/* Painel de permissões */}
-            <main className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <h2 className={styles.panelTitle}>{ROLE_LABELS[selectedRole] || selectedRole}</h2>
-                  {isCEO && <p className={styles.panelNote}>O CEO tem acesso total e não pode ser editado.</p>}
-                </div>
-                {!isCEO && (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    {saved && <span className={styles.savedMsg}>Salvo!</span>}
-                    <button onClick={handleReset} disabled={resetting} className={styles.btnReset}>
-                      {resetting ? '...' : 'Restaurar padrão'}
-                    </button>
-                    <button onClick={handleSave} disabled={saving || isCEO} className={styles.btnSave}>
-                      {saving ? 'Salvando...' : 'Salvar'}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {isCEO ? (
-                <div className={styles.ceoBanner}>
-                  O CEO possui acesso irrestrito a todas as funções do sistema. Suas permissões não podem ser alteradas.
-                </div>
-              ) : (
-                <>
-                  {/* Permissões por categoria */}
-                  {categories.map(cat => (
-                    <div key={cat} className={styles.categoryBlock}>
-                      <h3 className={styles.categoryTitle}>{cat}</h3>
-                      <div className={styles.permGrid}>
-                        {allPermissions.filter(p => p.category === cat).map(perm => (
-                          <label key={perm.key} className={styles.permItem}>
-                            <input
-                              type="checkbox"
-                              checked={permissions.includes(perm.key)}
-                              onChange={() => togglePerm(perm.key)}
-                              className={styles.permCheck}
-                            />
-                            <span className={styles.permLabel}>{perm.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Targets de notificação */}
-                  {(permissions.includes('notification:create') || permissions.includes('broadcast:send')) && (
-                    <div className={styles.categoryBlock}>
-                      <h3 className={styles.categoryTitle}>Pode enviar notificações para</h3>
-                      <p className={styles.categoryNote}>Selecione quais grupos este cargo pode notificar</p>
-                      <div className={styles.permGrid}>
-                        {allRoles.filter(r => r !== 'ceo').map(role => (
-                          <label key={role} className={styles.permItem}>
-                            <input
-                              type="checkbox"
-                              checked={notifTargets.includes(role)}
-                              onChange={() => toggleTarget(role)}
-                              className={styles.permCheck}
-                            />
-                            <span className={styles.permLabel}>{ROLE_LABELS[role] || role}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </main>
-          </div>
-        </div>
-      </div>
+      <AdminShell title="Permissões">
+        <PermissoesBody />
+      </AdminShell>
     </ProtectedRoute>
+  );
+}
+
+function PermCheck({ label, text, checked, changed, disabled, onToggle }: {
+  label: string; text?: string; checked: boolean; changed: boolean; disabled?: boolean; onToggle: () => void;
+}) {
+  return (
+    <label className={[styles.check, changed && styles.changed, disabled && styles.locked].filter(Boolean).join(' ')}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={onToggle} aria-label={label} />
+      {text && <span className={styles.checkText}>{text}</span>}
+      {changed && <span className={styles.changedTag}>alterado</span>}
+    </label>
+  );
+}
+
+function PermissoesBody() {
+  const { showToast } = useToast();
+  const desktop = useMinWidth(ADMIN_DESKTOP_MIN);
+  const [data, setData] = useState<ListResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, RoleDraft>>({});
+  const [saving, setSaving] = useState(false);
+  const [failures, setFailures] = useState<Record<string, string>>({});
+  const [resetRole, setResetRole] = useState<string | null>(null);
+  const [mobileRole, setMobileRole] = useState('marketing');
+  const alive = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await api.get('/role-permissions');
+      if (alive.current) setData(res.data);
+    } catch (err) {
+      if (alive.current) setLoadError(adminErrorMessage(err, 'Não deu para ler as permissões.'));
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!data) {
+    return loadError ? (
+      <div className={blocks.block}>
+        <p className={blocks.errText} role="alert">{loadError}</p>
+        <div><Button variant="secondary" onClick={load}>Tentar de novo</Button></div>
+      </div>
+    ) : (
+      <div className={blocks.block} aria-busy="true" aria-label="Carregando">
+        <Skeleton height={20} />
+        <Skeleton height={20} />
+        <Skeleton height={20} />
+      </div>
+    );
+  }
+
+  const roles = data.allRoles.filter((r) => r !== 'ceo');
+  const saved = (role: string): RoleDraft => {
+    const r = data.roles.find((x) => x.role === role);
+    return { permissions: r?.permissions ?? [], notificationTargets: r?.notificationTargets ?? [] };
+  };
+  const current = (role: string): RoleDraft => draft[role] ?? saved(role);
+  const isDirty = (role: string) => {
+    const d = draft[role];
+    if (!d) return false;
+    const s = saved(role);
+    return !sameSet(d.permissions, s.permissions) || !sameSet(d.notificationTargets, s.notificationTargets);
+  };
+  const dirtyRoles = roles.filter(isDirty);
+  const categories = Array.from(new Set(data.allPermissions.map((p) => p.category)));
+  const canNotify = (role: string) => current(role).permissions.some((p) => NOTIFY_PERMS.includes(p));
+  const permChanged = (role: string, key: string) => saved(role).permissions.includes(key) !== current(role).permissions.includes(key);
+  const targetChanged = (role: string, t: string) =>
+    saved(role).notificationTargets.includes(t) !== current(role).notificationTargets.includes(t);
+  const mRole = roles.includes(mobileRole) ? mobileRole : roles[0];
+
+  const togglePerm = (role: string, key: string) => {
+    const base = current(role);
+    const permissions = base.permissions.includes(key)
+      ? base.permissions.filter((p) => p !== key)
+      : [...base.permissions, key];
+    setDraft((prev) => ({ ...prev, [role]: { ...base, permissions } }));
+  };
+
+  const toggleTarget = (role: string, target: string) => {
+    const base = current(role);
+    const notificationTargets = base.notificationTargets.includes(target)
+      ? base.notificationTargets.filter((t) => t !== target)
+      : [...base.notificationTargets, target];
+    setDraft((prev) => ({ ...prev, [role]: { ...base, notificationTargets } }));
+  };
+
+  const save = async () => {
+    const list = dirtyRoles;
+    const snapshot: Record<string, RoleDraft> = Object.fromEntries(list.map((r) => [r, current(r)]));
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setSaving(true);
+    setFailures({});
+    const result = await runBatch(
+      list,
+      async (r) => { await api.put(`/role-permissions/${r}`, snapshot[r]); },
+      { isAlreadyDone: () => false, signal: ctrl.signal },
+    );
+    if (!alive.current) return;
+    setData((prev) => prev && {
+      ...prev,
+      roles: prev.roles.map((rd) => (result.done.includes(rd.role) ? { ...rd, ...snapshot[rd.role], isCustom: true } : rd)),
+    });
+    setDraft((prev) => {
+      const next = { ...prev };
+      result.done.forEach((r) => { delete next[r]; });
+      return next;
+    });
+    setFailures(result.errors);
+    setSaving(false);
+    showToast(batchSummaryText(result, { one: 'papel salvo', many: 'papéis salvos' }), result.failed.length ? 'error' : 'success');
+    await load();
+  };
+
+  const confirmReset = async () => {
+    if (!resetRole) return;
+    const r = resetRole;
+    await api.delete(`/role-permissions/${r}`);
+    setDraft((prev) => { const next = { ...prev }; delete next[r]; return next; });
+    setFailures((prev) => { const next = { ...prev }; delete next[r]; return next; });
+    setResetRole(null);
+    showToast(`Padrão restaurado: ${roleLabel(r)}`, 'success');
+    await load();
+  };
+
+  const n = dirtyRoles.length;
+  const failed = Object.keys(failures);
+
+  const resetButton = (r: string) => (
+    <button type="button" className={styles.resetBtn} aria-label={`Restaurar o padrão de ${roleLabel(r)}`} onClick={() => setResetRole(r)} disabled={saving}>
+      Restaurar padrão
+    </button>
+  );
+
+  return (
+    <div className={styles.page}>
+      <Alert tone="info" title="O CEO pode tudo e não aparece aqui">
+        Cada marca vale para todas as pessoas daquele papel. “Creditar carteira” é só do CEO e não pode ser delegada.
+      </Alert>
+
+      {failed.length > 0 && (
+        <Alert tone="error" title="Algumas mudanças não foram salvas">
+          <ul className={styles.failList}>
+            {failed.map((r) => <li key={r}>{roleLabel(r)}: {failures[r]}</li>)}
+          </ul>
+        </Alert>
+      )}
+      {loadError && <p className={blocks.errText}>{loadError}</p>}
+
+      {desktop ? (
+        <div className={styles.matrixWrap}>
+          <table className={styles.matrix}>
+            <caption className={styles.caption}>Permissões por papel</caption>
+            <thead>
+              <tr>
+                <th scope="col" className={styles.permCol}>Pode…</th>
+                {roles.map((r) => (
+                  <th scope="col" key={r} className={styles.roleCol}>
+                    <span className={styles.roleName}>{roleLabel(r)}</span>
+                    {data.roles.find((x) => x.role === r)?.isCustom && <span className={styles.customTag}>Customizado</span>}
+                    {resetButton(r)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((cat) => (
+                <Fragment key={cat}>
+                  <tr className={styles.catRow}><th scope="colgroup" colSpan={roles.length + 1}>{cat}</th></tr>
+                  {data.allPermissions.filter((p) => p.category === cat).map((p) => (
+                    <tr key={p.key}>
+                      <th scope="row" className={styles.permCell}>
+                        <span className={styles.permLabel}>{p.label}</span>
+                      </th>
+                      {roles.map((r) => (
+                        <td key={r} className={styles.cell}>
+                          <PermCheck
+                            label={`${p.label} · ${roleLabel(r)}`}
+                            checked={current(r).permissions.includes(p.key)}
+                            changed={permChanged(r, p.key)}
+                            disabled={CEO_ONLY.includes(p.key) || saving}
+                            onToggle={() => togglePerm(r, p.key)}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={`${blocks.block} ${styles.mobileList}`}>
+          <div className={styles.mobileHead}>
+            <Select label="Papel" value={mRole} onChange={setMobileRole} options={roles.map((r) => ({ value: r, label: roleLabel(r) }))} />
+            {resetButton(mRole)}
+          </div>
+          {categories.map((cat) => (
+            <section key={cat} className={styles.mobileCat}>
+              <h3 className={styles.catTitle}>{cat}</h3>
+              {data.allPermissions.filter((p) => p.category === cat).map((p) => (
+                <PermCheck
+                  key={p.key}
+                  text={p.label}
+                  label={`${p.label} · ${roleLabel(mRole)}`}
+                  checked={current(mRole).permissions.includes(p.key)}
+                  changed={permChanged(mRole, p.key)}
+                  disabled={CEO_ONLY.includes(p.key) || saving}
+                  onToggle={() => togglePerm(mRole, p.key)}
+                />
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
+
+      <section className={blocks.block} aria-labelledby="perm-notify-title">
+        <h2 id="perm-notify-title" className={blocks.blockTitle}>Pode enviar avisos para</h2>
+        <p className={blocks.muted}>Vale para o papel que tem “Criar notificação” ou “Enviar broadcast”.</p>
+        {desktop ? (
+          <div className={styles.matrixWrap}>
+            <table className={styles.matrix}>
+              <caption className={styles.caption}>Avisos por papel</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={styles.permCol}>Avisar…</th>
+                  {roles.map((r) => <th scope="col" key={r} className={styles.roleCol}><span className={styles.roleName}>{roleLabel(r)}</span></th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {roles.map((t) => (
+                  <tr key={t}>
+                    <th scope="row" className={styles.permCell}><span className={styles.permLabel}>{roleLabel(t)}</span></th>
+                    {roles.map((r) => (
+                      <td key={r} className={styles.cell}>
+                        <PermCheck
+                          label={`Avisar ${roleLabel(t)} · ${roleLabel(r)}`}
+                          checked={current(r).notificationTargets.includes(t)}
+                          changed={targetChanged(r, t)}
+                          disabled={!canNotify(r) || saving}
+                          onToggle={() => toggleTarget(r, t)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.mobileCat}>
+            {roles.map((t) => (
+              <PermCheck
+                key={t}
+                text={roleLabel(t)}
+                label={`Avisar ${roleLabel(t)} · ${roleLabel(mRole)}`}
+                checked={current(mRole).notificationTargets.includes(t)}
+                changed={targetChanged(mRole, t)}
+                disabled={!canNotify(mRole) || saving}
+                onToggle={() => toggleTarget(mRole, t)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className={styles.saveBar}>
+        <span className={blocks.muted}>{n === 0 ? 'Nenhuma mudança' : `${n} ${n === 1 ? 'papel alterado' : 'papéis alterados'}`}</span>
+        <Button variant="secondary" onClick={() => setDraft({})} disabled={n === 0 || saving}>Descartar</Button>
+        <Button onClick={save} loading={saving} disabled={n === 0}>
+          {n === 0 ? 'Salvar' : `Salvar ${n} ${n === 1 ? 'papel' : 'papéis'}`}
+        </Button>
+      </div>
+
+      <AdminSheet
+        open={resetRole !== null}
+        title={resetRole ? `Restaurar o padrão de ${roleLabel(resetRole)}?` : 'Restaurar padrão'}
+        onClose={() => setResetRole(null)}
+        primary={{ label: 'Restaurar padrão', onClick: confirmReset }}
+      >
+        <p className={blocks.muted}>
+          As permissões e os avisos deste papel voltam ao padrão do sistema. Mudanças não salvas deste papel são descartadas;
+          as dos outros papéis continuam.
+        </p>
+      </AdminSheet>
+    </div>
   );
 }
