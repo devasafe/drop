@@ -22,22 +22,3 @@
   font: var(--text-body);
   color: var(--color-text-secondary);
 }
-
-.pageTitle {
-  margin: 0;
-  font: var(--text-title);
-  color: var(--color-text-primary);
-}
-
-.pageSubtitle {
-  margin: var(--space-2) 0 0;
-  font: var(--text-body);
-  color: var(--color-text-secondary);
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
