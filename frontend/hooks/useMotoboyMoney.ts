@@ -4,7 +4,7 @@ import { useSaasConfig } from './useSaasConfig';
 import { useCustodyLeftoverState } from './useCustodyLeftoverState';
 import { useSocket } from '../contexts/SocketContext';
 import {
-  deliveryDate, indexMoney, moneyFor, payoutToMoney, transferToMoney, windowCovered,
+  indexMoney, moneyFor, payoutToMoney, transferToMoney, windowCovered,
   type MoneyIndex, type MoneyInfo,
 } from '../lib/motoboyMoney';
 
@@ -14,10 +14,14 @@ export interface MotoboyMoney {
   index: MoneyIndex;
   /**
    * Fronteira do que foi lido (ISO): todo registro criado depois dela está no índice. null = as
-   * listas vieram inteiras. Só fica diferente de null quando o teto de páginas foi atingido.
+   * listas vieram inteiras. Fica diferente de null sempre que a leitura parou com páginas sobrando:
+   * ao cobrir a janela (`since`) ou ao bater o teto de páginas.
    */
   coveredFrom: string | null;
-  /** Dinheiro da corrida, ou null quando não há dado OU a corrida é mais antiga que a cobertura. */
+  /**
+   * Dinheiro da corrida, ou null quando não há dado OU, com `coveredFrom` não nulo, quando o
+   * createdAt da corrida não é posterior a `coveredFrom` (ou falta).
+   */
   moneyOf: (d: any) => MoneyInfo | null;
   reload: () => void;
 }
@@ -25,11 +29,6 @@ export interface MotoboyMoney {
 const LIMIT = 200;
 /** Teto de páginas por lista em cada leitura (a lista nunca vira laço de GET). */
 export const MONEY_MAX_PAGES = 10;
-/**
- * Folga entre a hora da corrida e a do registro de dinheiro (o repasse e o Pix nascem na
- * conclusão, segundos depois de deliveredAt/cancelledAt).
- */
-const MARGIN_MS = 15 * 60 * 1000;
 const EMPTY = indexMoney([]);
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -74,8 +73,11 @@ async function readPages(
  * (GET /payouts/my); direto lê os Pix das lojas (GET /motoboy/transfers) e, com saldo antigo,
  * também os repasses. Modo com erro → 'error' (nunca presume custódia).
  *
- * As listas são paginadas: lê páginas até cobrir a janela que a tela mostra (`since`, a data da
- * corrida mais antiga exibida; sem `since`, a lista inteira), no máximo MONEY_MAX_PAGES por lista.
+ * As listas são paginadas: lê páginas até cobrir a janela que a tela mostra, no máximo
+ * MONEY_MAX_PAGES por lista. `since` = o MENOR createdAt das corridas exibidas (sem `since`, a lista
+ * inteira). A chave é o createdAt da própria Delivery porque o dinheiro de uma corrida nunca nasce
+ * antes da linha da entrega (mesmo relógio do Postgres); a hora final (deliveredAt/cancelledAt)
+ * não serve: no cliente ausente a compensação nasce na marcação e o cancelledAt só na devolução.
  * Um repasse dividido por saque tem o pedaço novo na 1ª página e o original talvez numa página
  * depois: até a janela estar coberta o status fica 'loading' e o índice vazio (nunca total
  * parcial). Batendo o teto sem cobrir, `moneyOf` devolve null para as corridas fora da cobertura.
@@ -103,31 +105,34 @@ export function useMotoboyMoney(opts?: { since?: string | null }): MotoboyMoney 
 
   useEffect(() => {
     const my = ++gen.current;
-    const alive = () => my === gen.current;
+    // `stopped`: uma lista falhou → a outra para de pedir páginas
+    let stopped = false;
+    const alive = () => my === gen.current && !stopped;
+    const stopOnFail = <T,>(pr: Promise<T>): Promise<T> => pr.catch((e) => { stopped = true; throw e; });
     const fail = () => { setIndex(EMPTY); setCoveredFrom(null); };
     if (saas.error) { fail(); setStatus('error'); return; }
     fail();
     setStatus('loading');
     if (waiting) return;
-    const inWindow = sinceKey === null ? () => true : (iso: string) => !(time(iso) < sinceKey - MARGIN_MS);
+    const inWindow = sinceKey === null ? () => true : (iso: string) => !(time(iso) < sinceKey);
     const wantPayouts = !direto || leftover.hasLeftover;
     const none: Promise<Listed | null> = Promise.resolve({ items: [], boundary: null });
     Promise.all([
       wantPayouts
-        ? readPages(async (n) => {
+        ? stopOnFail(readPages(async (n) => {
           const r: any = await api.get('/payouts/my', { params: n === 1 ? { limit: LIMIT } : { limit: LIMIT, page: n } });
           const raw: any[] = Array.isArray(r?.data?.payouts) ? r.data.payouts : [];
           const total = Number(r?.data?.total);
           return { raw, hasMore: Number.isFinite(total) && n * LIMIT < total, cursor: null };
-        }, payoutToMoney, inWindow, alive)
+        }, payoutToMoney, inWindow, alive))
         : none,
       direto
-        ? readPages(async (_n, cursor) => {
+        ? stopOnFail(readPages(async (_n, cursor) => {
           const r: any = await api.get('/motoboy/transfers', { params: cursor ? { limit: LIMIT, cursor } : { limit: LIMIT } });
           const raw: any[] = Array.isArray(r?.data?.data) ? r.data.data : [];
           const next = typeof r?.data?.nextCursor === 'string' && r.data.nextCursor ? r.data.nextCursor : null;
           return { raw, hasMore: next !== null, cursor: next };
-        }, transferToMoney, inWindow, alive)
+        }, transferToMoney, inWindow, alive))
         : none,
     ])
       .then(([p, t]) => {
@@ -140,7 +145,7 @@ export function useMotoboyMoney(opts?: { since?: string | null }): MotoboyMoney 
         setStatus('ready');
       })
       .catch(() => {
-        if (!alive()) return;
+        if (my !== gen.current) return;
         fail();
         setStatus('error');
       });
@@ -158,8 +163,8 @@ export function useMotoboyMoney(opts?: { since?: string | null }): MotoboyMoney 
   const moneyOf = useCallback((d: any): MoneyInfo | null => {
     if (status !== 'ready') return null;
     if (coveredFrom !== null) {
-      const t = time(deliveryDate(d));
-      if (Number.isNaN(t) || !(t - MARGIN_MS > time(coveredFrom))) return null;
+      const t = time(d?.createdAt ? String(d.createdAt) : null);
+      if (Number.isNaN(t) || !(t > time(coveredFrom))) return null;
     }
     return moneyFor(index, d);
   }, [status, index, coveredFrom]);
