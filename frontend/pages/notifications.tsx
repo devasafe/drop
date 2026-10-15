@@ -4,6 +4,8 @@ import { Package, MessageSquare, Megaphone, Bell, BellOff, X } from 'lucide-reac
 import { useAuth } from '../contexts/AuthContext';
 import { useClienteRedirect } from '../hooks/useClienteRedirect';
 import { useLojistaRedirect } from '../hooks/useLojistaRedirect';
+import { useMotoboyRedirect } from '../hooks/useMotoboyRedirect';
+import { MOTOBOY_ROUTES } from '../lib/motoboyRoutes';
 import { ROUTES } from '../lib/routes';
 import { SELLER_ROUTES } from '../lib/sellerRoutes';
 import api from '../lib/api';
@@ -43,6 +45,7 @@ export default function Notifications() {
   const router = useRouter();
   useClienteRedirect(ROUTES.notificacoes);
   useLojistaRedirect(SELLER_ROUTES.notificacoes);
+  useMotoboyRedirect(MOTOBOY_ROUTES.notificacoes);
   const { notifications: rawNotifications, loading: notifLoading } = useNotifications();
   const notifications: Notification[] = (rawNotifications ?? []).filter(
     (n): n is Notification => typeof n?._id === 'string',
@@ -50,9 +53,9 @@ export default function Notifications() {
 
   useEffect(() => {
     if (!loading && !user) { router.push('/login'); return; }
-    // cliente e lojista vão para as telas novas, que deixam "Marcar lidas" nas mãos deles
+    // cliente, lojista e motoboy vão para as telas novas, que deixam "Marcar lidas" nas mãos deles
     const role = user && (user.activeRole || user.role);
-    if (user && role !== 'cliente' && role !== 'lojista') api.patch('/notifications/read-all').catch(() => {});
+    if (user && role !== 'cliente' && role !== 'lojista' && role !== 'motoboy') api.patch('/notifications/read-all').catch(() => {});
   }, [user, loading, router]);
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());

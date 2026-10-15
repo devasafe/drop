@@ -224,6 +224,10 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  // A leitura falhou: quem mostra a lista decide entre "erro" e "vazio" (a lista fica [] nos dois casos).
+  const [error, setError] = useState(false);
+  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
+  const reload = useCallback(() => reloadRef.current(), []);
   const { on, onReconnect } = useSocket();
 
   useEffect(() => {
@@ -243,15 +247,18 @@ export const useNotifications = () => {
         setNotifications(notificationsData);
         const unread = (notificationsData || []).filter((n: any) => !n.read).length;
         setUnreadCount(unread);
+        setError(false);
         setLoading(false);
       } catch (err) {
         console.error('Erro ao buscar notificações:', err);
+        setError(true);
         setNotifications([]); // ✅ Fallback: definir array vazio em caso de erro
         setUnreadCount(0);
         setLoading(false);
       }
     };
 
+    reloadRef.current = fetchNotifications;
     fetchNotifications();
 
     const handleNotificationReceived = (data: any) => {
@@ -278,7 +285,7 @@ export const useNotifications = () => {
     };
   }, [on, onReconnect]);
 
-  return { notifications, unreadCount, loading, setNotifications };
+  return { notifications, unreadCount, loading, error, reload, setNotifications };
 };
 
 /** Contexto vazio para quando AuthContext não existe (mocks de teste sem export default). */

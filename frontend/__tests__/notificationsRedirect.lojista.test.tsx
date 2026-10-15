@@ -18,8 +18,15 @@ test('lojista em /notifications vai para /seller/notificacoes sem marcar tudo co
   expect(mockPatch).not.toHaveBeenCalledWith('/notifications/read-all');
 });
 
-test('motoboy continua na tela e com o read-all de hoje', () => {
+test('motoboy em /notifications vai para /motoboy/notificacoes sem marcar tudo como lido', () => {
   mockRole = 'motoboy';
+  render(<NotificationsPage />);
+  expect(mockReplace).toHaveBeenCalledWith('/motoboy/notificacoes');
+  expect(mockPatch).not.toHaveBeenCalledWith('/notifications/read-all');
+});
+
+test('admin continua na tela antiga, com o read-all de hoje', () => {
+  mockRole = 'ceo';
   render(<NotificationsPage />);
   expect(mockReplace).not.toHaveBeenCalled();
   expect(mockPatch).toHaveBeenCalledWith('/notifications/read-all');
