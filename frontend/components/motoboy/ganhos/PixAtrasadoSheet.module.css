@@ -1,0 +1,13 @@
+/* frontend/components/motoboy/ganhos/PixAtrasadoSheet.module.css — D2 · P4 (protótipo "Pix atrasado"). Só tokens. */
+.body { display: flex; flex-direction: column; gap: var(--space-3); }
+.tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.tl > li { position: relative; display: flex; justify-content: space-between; gap: var(--space-3); padding-left: var(--space-5); font: var(--text-label); color: var(--color-text-primary); }
+.tl > li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tl > li small { font: var(--text-meta); color: var(--color-text-muted); }
+.tl > li time { font: var(--text-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.tl > li::before { content: ''; position: absolute; left: 0; top: 6px; width: 10px; height: 10px; border-radius: var(--radius-pill); }
+.done::before { background: var(--color-success-text); }
+.current::before { background: var(--color-warning-text); }
+.todo { color: var(--color-text-muted); }
+.todo::before { border: 2px solid var(--color-border-default); }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
