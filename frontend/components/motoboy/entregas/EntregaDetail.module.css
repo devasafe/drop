@@ -1,0 +1,30 @@
+/* frontend/components/motoboy/entregas/EntregaDetail.module.css — D2 · P4.5 (protótipo "Detalhe da entrega"). Só tokens. */
+.tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.step,
+.stepCancel {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+}
+.step::before,
+.stepCancel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+}
+.stepCancel::before { background: var(--color-warning); }
+.stepText { display: flex; flex-direction: column; gap: 2px; font: var(--text-label); color: var(--color-text-primary); min-width: 0; }
+.stepText > small { font: var(--text-meta); color: var(--color-text-muted); }
+.total { font-weight: 700; }
+.total > span { color: var(--color-text-primary); }
+.badge { align-self: flex-start; }
+.stars { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-primary); }
+.star { color: var(--color-rating); fill: currentColor; }
