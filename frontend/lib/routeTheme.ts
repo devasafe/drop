@@ -30,7 +30,8 @@ export const SELLER_LIGHT_ROUTES: string[] = [
   '/seller/perfil', '/seller/ajuda',
 ];
 
-export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', ...SELLER_LIGHT_ROUTES];
+// D2: perfil público do motoboy, visto pelo cliente: sempre claro (/motoboy/[id] em LIGHT_ROUTES)
+export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES];
 
 /**
  * Painel do motoboy (fase D2): claro de dia, escuro das 18:00 às 05:59 com a preferência "Tela escura à noite".
