@@ -3,7 +3,7 @@ import MotoboyShell from '../../../components/motoboy/panel/MotoboyShell';
 import { EntregasScreen } from '../../../components/motoboy/entregas/EntregasScreen';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 
-/** /motoboy/entregas — substitui /motoboy/ongoing e /motoboy/history (redirects em lib/redirects.js). */
+/** /motoboy/entregas — Em andamento e Concluídas; as URLs antigas chegam por lib/redirects.js. */
 export default function MotoboyEntregasPage() {
   return (
     <ProtectedRoute required_role="motoboy">

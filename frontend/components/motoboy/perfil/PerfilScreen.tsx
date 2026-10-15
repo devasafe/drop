@@ -27,7 +27,7 @@ const COURIER_SUB: Record<KycItem['state'], string> = {
   todo: 'Falta enviar',
 };
 
-/** Aba Perfil (protótipo 25). Substitui /motoboy/profile: o conteúdo antigo virou menu. */
+/** Aba Perfil (protótipo 25). O conteúdo do perfil antigo virou menu. */
 export function PerfilScreen() {
   const router = useRouter();
   const { user, logout } = useAuth() || ({} as any);

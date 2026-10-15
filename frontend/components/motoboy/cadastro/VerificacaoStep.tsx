@@ -51,7 +51,7 @@ function FileField({ id, label, hint, file, onPick, capture }: {
   );
 }
 
-/** Etapa 2 do cadastro (protótipo 10). Porte de pages/verificacao-motoboy.tsx: mesmas rotas, mesmos campos. */
+/** Etapa 2 do cadastro (protótipo 10). Porte da antiga página de verificação do motoboy: mesmas rotas de API, mesmos campos. */
 export function VerificacaoStep({ onChanged }: { onChanged: () => void }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState(false);

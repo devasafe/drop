@@ -18,8 +18,8 @@ import styles from '../../../components/motoboy/ganhos/Ganhos.module.css';
 const asSeg = (v: unknown): GanhosSeg => (v === 'saques' || v === 'notas' ? v : 'corridas');
 
 /**
- * Aba Ganhos do motoboy nos dois modos (substitui /motoboy/wallet, request-withdrawal e
- * transfer-wallet). Garantia de modo: o conteúdo só aparece depois que o modo carregou; com
+ * Aba Ganhos do motoboy nos dois modos (carteira, saque e transferência antigos chegam aqui
+ * por lib/redirects.js). Garantia de modo: o conteúdo só aparece depois que o modo carregou; com
  * erro ao ler o modo, erro e "Tentar de novo" — nunca a custódia por padrão.
  * O saldo do modo anterior (K22) mora aqui: só no direto e só com sobra da custódia.
  */

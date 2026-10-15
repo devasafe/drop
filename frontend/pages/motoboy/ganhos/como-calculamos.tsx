@@ -3,7 +3,7 @@ import MotoboyShell from '../../../components/motoboy/panel/MotoboyShell';
 import { ComoCalculamos } from '../../../components/motoboy/ganhos/ComoCalculamos';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 
-/** Substitui /motoboy/ajuda-ganhos (redirect em lib/redirects.js). */
+/** Como calculamos os ganhos; a URL antiga chega por lib/redirects.js. */
 export default function ComoCalculamosPage() {
   return (
     <ProtectedRoute required_role="motoboy">
