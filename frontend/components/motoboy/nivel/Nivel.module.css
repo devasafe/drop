@@ -1,0 +1,46 @@
+/* Bloco escuro do nível (protótipo .u-blk.dk): invertido por token, então à noite vira claro sobre fundo escuro. */
+.level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-text-primary);
+  color: var(--color-bg-primary);
+}
+.levelHead { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.levelIco {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+}
+.levelTx { display: flex; flex-direction: column; min-width: 0; }
+.levelTx > b { font: var(--text-title); }
+.levelTx > span,
+.levelNext,
+.levelSub { font: var(--text-meta); color: inherit; }
+.levelNext { margin-left: auto; white-space: nowrap; }
+.levelSub { margin: 0; }
+
+/* Posição no ranking (protótipo .u-av com "7º"). Reaproveitado pela tela Ranking. */
+.pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+.posMe { background: var(--color-action-primary); color: var(--color-on-action); }
+.prize { font: var(--text-label); color: var(--color-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }

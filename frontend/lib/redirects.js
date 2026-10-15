@@ -64,4 +64,7 @@ module.exports = [
   { source: '/motoboy/transfer-wallet', destination: '/motoboy/ganhos', permanent: true },
   // P4.12 — Como calculamos
   { source: '/motoboy/ajuda-ganhos', destination: '/motoboy/ganhos/como-calculamos', permanent: true },
+  // P5.2 — Nível (Desempenho e Benefícios)
+  { source: '/motoboy/gamification', destination: '/motoboy/nivel', permanent: true },
+  { source: '/motoboy/beneficios', destination: '/motoboy/nivel', permanent: true },
 ];

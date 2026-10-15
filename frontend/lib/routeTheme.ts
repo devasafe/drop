@@ -44,9 +44,9 @@ export const MOTOBOY_NIGHT_ROUTES: string[] = [
   '/motoboy',
   // Telas novas do DS v2 (P3–P5):
   '/motoboy/corrida/[id]', '/motoboy/entregas', '/motoboy/entregas/[id]', '/motoboy/ganhos',
-  '/motoboy/ganhos/como-calculamos',
+  '/motoboy/ganhos/como-calculamos', '/motoboy/nivel',
   // Telas antigas, até a tela nova substituir (P3–P5):
-  '/motoboy/gamification', '/motoboy/beneficios', '/motoboy/ranking', '/motoboy/profile',
+  '/motoboy/ranking', '/motoboy/profile',
 ];
 
 export function patternToRegex(pattern: string): RegExp {

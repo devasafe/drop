@@ -206,4 +206,9 @@ describe('D2 — painel do motoboy', () => {
   it('P4.12: ajuda-ganhos vira Como calculamos', () => {
     expect(resolveRedirect(rules, '/motoboy/ajuda-ganhos')).toEqual({ location: '/motoboy/ganhos/como-calculamos', permanent: true });
   });
+  it('P5.2: Desempenho e Benefícios viram Nível', () => {
+    for (const old of ['/motoboy/gamification', '/motoboy/beneficios']) {
+      expect(resolveRedirect(rules, old)).toEqual({ location: '/motoboy/nivel', permanent: true });
+    }
+  });
 });
