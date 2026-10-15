@@ -62,7 +62,7 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
-    if (!loading && user && (user.activeRole || user.role) === 'motoboy') router.replace('/motoboy/profile');
+    if (!loading && user && (user.activeRole || user.role) === 'motoboy') router.replace('/motoboy/perfil');
   }, [user, loading, router]);
 
   // Desktop começa com uma seção aberta; mobile começa no menu (drill-in).

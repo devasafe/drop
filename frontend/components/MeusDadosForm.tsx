@@ -10,7 +10,7 @@ import styles from './MeusDadosForm.module.css';
 
 /**
  * Formulário "Meus dados" (nome, e-mail, CPF, RG) + editor da loja (lojista).
- * Reutilizável — embutido em /user-profile, /motoboy/profile e /editar-conta.
+ * Reutilizável — embutido em /user-profile, /motoboy/perfil/dados e /editar-conta.
  */
 export default function MeusDadosForm({ showStore = true }: { showStore?: boolean } = {}) {
   const { user } = useAuth() || {};

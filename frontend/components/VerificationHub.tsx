@@ -29,7 +29,7 @@ const badge = (step: Step) => {
 /**
  * Hub de verificações: mostra, num lugar só, o status de cada etapa do papel
  * ativo (identidade, documentos do papel, recebimento) com link pro fluxo existente.
- * Reutilizável — embutido em /user-profile e /motoboy/profile.
+ * Reutilizável — embutido em /user-profile.
  */
 export default function VerificationHub() {
   const router = useRouter();

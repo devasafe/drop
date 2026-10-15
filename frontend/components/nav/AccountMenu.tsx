@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROLE_AREAS, ROLE_HOME, Role } from '../../lib/navConfig';
 import { ROUTES } from '../../lib/routes';
+import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
 import { imageUrl } from '../../lib/config';
 import Icon from '../Icon';
 import styles from './AccountMenu.module.css';
@@ -78,7 +79,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
 
       <div className={styles.section}>
         <div className={styles.sectionLabel}>Conta</div>
-        <button type="button" className={styles.item} onClick={() => go(activeRole === 'motoboy' ? '/motoboy/profile' : activeRole === 'cliente' ? ROUTES.conta : '/user-profile')}>
+        <button type="button" className={styles.item} onClick={() => go(activeRole === 'motoboy' ? MOTOBOY_ROUTES.perfil : activeRole === 'cliente' ? ROUTES.conta : '/user-profile')}>
           <span className={styles.itemIcon}><Icon name="user" size={14} /></span> Conta e segurança
         </button>
         <button type="button" className={styles.item} onClick={() => go('/notifications')}>
