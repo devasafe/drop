@@ -83,6 +83,24 @@ test('direto sem saldo antigo: DirectEarnings recebe hasLeftover=false', () => {
   expect(screen.getByText('direto:false')).toBeInTheDocument();
 });
 
+// K29 (fix 1): a leitura do saldo antigo falhou → aviso com Tentar de novo, nunca some calado.
+test('direto com erro no saldo antigo: Alert com Tentar de novo acima do DirectEarnings', () => {
+  mockSaas = { ...mockSaas, settlementMode: 'direto' };
+  mockLeftover = { hasLeftover: false, loading: false, error: true, retry: jest.fn() };
+  render(<MotoboyGanhosPage />);
+  expect(screen.getByText('Não carregamos o saldo do modo anterior.')).toBeInTheDocument();
+  expect(screen.getByText('direto:false')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  expect(mockLeftover.retry).toHaveBeenCalled();
+});
+
+test('custódia ignora erro do saldo antigo (só existe no direto)', () => {
+  mockLeftover = { hasLeftover: false, loading: false, error: true, retry: jest.fn() };
+  render(<MotoboyGanhosPage />);
+  expect(screen.queryByText('Não carregamos o saldo do modo anterior.')).not.toBeInTheDocument();
+  expect(screen.getByText('custodia:corridas')).toBeInTheDocument();
+});
+
 test('título Ganhos e "?" leva a Como calculamos', () => {
   render(<MotoboyGanhosPage />);
   expect(screen.getByRole('heading', { name: 'Ganhos' })).toBeInTheDocument();

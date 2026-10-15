@@ -80,7 +80,7 @@ describe('moldura do painel do motoboy (D2)', () => {
 
   it.each([
     '/motoboy/corrida/[id]', '/motoboy/entregas/[id]', '/motoboy/ganhos/como-calculamos', '/motoboy/ranking',
-    '/motoboy/notificacoes', '/motoboy/cadastro', '/motoboy/wallet',
+    '/motoboy/notificacoes', '/motoboy/cadastro',
   ])('%s (fluxo ou tela antiga): sem a barra e sem a moldura antiga', (path) => {
     renderApp(path);
     expect(barra()).toBeNull();

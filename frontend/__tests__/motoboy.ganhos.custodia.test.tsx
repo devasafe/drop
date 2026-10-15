@@ -171,6 +171,22 @@ test('abaixo do mínimo: botão desligado com quanto falta', async () => {
   expect(screen.getByRole('button', { name: 'Sacar no Pix' })).toBeDisabled();
 });
 
+test('abaixo do mínimo: tentar sacar não envia (0 POST)', async () => {
+  mockApi({ '/wallets/motoboy/m1': { data: { balance: 0, availableBalance: 30 } } });
+  renderIt();
+  await screen.findByText('Faltam R$ 20,00 para o saque mínimo de R$ 50,00');
+  const hero = screen.getByRole('region', { name: 'Disponível para saque' });
+  fireEvent.click(within(hero).getByRole('button', { name: 'Sacar no Pix' }));
+  const dialog = screen.queryByRole('dialog');
+  if (dialog) {
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Tudo' }));
+    const send = within(dialog).queryByRole('button', { name: /^Sacar R\$/ });
+    if (send) fireEvent.click(send);
+  }
+  await new Promise((r) => setTimeout(r, 50));
+  expect(post).not.toHaveBeenCalled();
+});
+
 test('sem chave Pix: aviso com cadastro e botão desligado', async () => {
   mockApi({ '/onboarding/status': { data: { hasPixKey: false, pixKey: null } } });
   renderIt();

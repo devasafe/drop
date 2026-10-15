@@ -5,6 +5,7 @@ import ProtectedRoute from '../../../components/ProtectedRoute';
 import MotoboyShell from '../../../components/motoboy/panel/MotoboyShell';
 import { CustodyEarnings } from '../../../components/motoboy/ganhos/CustodyEarnings';
 import { DirectEarnings } from '../../../components/motoboy/ganhos/DirectEarnings';
+import { Alert } from '../../../components/ui/Alert';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { IconButton } from '../../../components/ui/IconButton';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -12,6 +13,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useSaasConfig } from '../../../hooks/useSaasConfig';
 import { useCustodyLeftoverState } from '../../../hooks/useCustodyLeftoverState';
 import { MOTOBOY_ROUTES, type GanhosSeg } from '../../../lib/motoboyRoutes';
+import styles from '../../../components/motoboy/ganhos/Ganhos.module.css';
 
 const asSeg = (v: unknown): GanhosSeg => (v === 'saques' || v === 'notas' ? v : 'corridas');
 
@@ -48,7 +50,17 @@ export default function MotoboyGanhosPage() {
       </div>
     );
   } else if (direto) {
-    content = <DirectEarnings hasLeftover={leftover.hasLeftover} />;
+    content = leftover.error ? (
+      // K29: a leitura do saldo antigo falhou. Esta tela é a única porta para ele: avisa, nunca some calado.
+      <div className={styles.stack}>
+        <Alert tone="warning" title="Não carregamos o saldo do modo anterior." action={{ label: 'Tentar de novo', onClick: () => leftover.retry?.() }}>
+          Se sobrou dinheiro do modo anterior, ele continua guardado. Tente de novo para ver e sacar.
+        </Alert>
+        <DirectEarnings hasLeftover={false} />
+      </div>
+    ) : (
+      <DirectEarnings hasLeftover={leftover.hasLeftover} />
+    );
   } else {
     content = (
       <CustodyEarnings
