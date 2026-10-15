@@ -110,3 +110,24 @@ describe('AdminTable · estados (fail closed)', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 });
+
+describe('AdminTable · seleção só das linhas visíveis', () => {
+  beforeEach(() => setViewportWidth(1280));
+  afterEach(() => resetViewport());
+
+  it('id fantasma em selected nunca volta em onSelectedChange', () => {
+    const onSel = jest.fn();
+    render(<AdminTable {...base} rows={ROWS} selectable selected={new Set(['velho', 'p1'])} onSelectedChange={onSel} />);
+    fireEvent.click(screen.getByLabelText('Selecionar Carlos Lima'));
+    expect(Array.from(onSel.mock.calls[0][0] as Set<string>).sort()).toEqual(['p1', 'p2']);
+    fireEvent.click(screen.getByLabelText('Selecionar todos'));
+    expect(Array.from(onSel.mock.calls[1][0] as Set<string>).sort()).toEqual(['p1', 'p2']);
+  });
+
+  it('desmarcar todas com id fantasma devolve vazio', () => {
+    const onSel = jest.fn();
+    render(<AdminTable {...base} rows={ROWS} selectable selected={new Set(['velho', 'p1', 'p2'])} onSelectedChange={onSel} />);
+    fireEvent.click(screen.getByLabelText('Selecionar todos'));
+    expect(Array.from(onSel.mock.calls[0][0] as Set<string>)).toEqual([]);
+  });
+});

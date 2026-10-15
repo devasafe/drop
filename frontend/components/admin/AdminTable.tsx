@@ -75,8 +75,10 @@ export function AdminTable<T>({
     );
   }
 
-  const sel = selected ?? new Set<string>();
   const keys = rows.map(rowKey);
+  const keySet = new Set(keys);
+  // Só conta o que está na tela: id velho em `selected` nunca volta em onSelectedChange.
+  const sel = new Set(Array.from(selected ?? []).filter((k) => keySet.has(k)));
   const allOn = keys.every((k) => sel.has(k));
   const toggle = (k: string) => {
     const next = new Set(sel);
