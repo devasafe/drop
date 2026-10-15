@@ -1,0 +1,33 @@
+/* frontend/components/motoboy/ganhos/WithdrawPixSheet.module.css — D2 · P4 (protótipo "Sacar"). Só tokens. */
+.body { display: flex; flex-direction: column; gap: var(--space-3); }
+.amount { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
+.label { font: var(--text-meta); color: var(--color-text-muted); }
+.field { display: flex; align-items: baseline; justify-content: center; gap: var(--space-1); font: var(--text-display); color: var(--color-text-primary); }
+.input {
+  width: 100%;
+  max-width: 220px;
+  border: 0;
+  border-bottom: 2px solid var(--color-border-default);
+  background: transparent;
+  font: var(--text-display);
+  color: var(--color-text-primary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.input:focus-visible { outline: none; border-bottom-color: var(--color-action-primary); }
+.ok { font: var(--text-meta); color: var(--color-text-muted); }
+.err { margin: 0; font: var(--text-meta); color: var(--color-error-text); }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.chip {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.chip:focus-visible { outline: 2px solid var(--color-action-primary); outline-offset: 2px; }
+.indent { padding-left: var(--space-3); }
+.foot { text-align: center; font: var(--text-meta); color: var(--color-text-muted); }

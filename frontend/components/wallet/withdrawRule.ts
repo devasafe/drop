@@ -35,3 +35,10 @@ export function checkWithdraw(raw: string, available: number, minimum: number | 
 
 /** 'all' quando o valor é o disponível; senão o número com 2 casas. */
 export const withdrawPayload = (c: WithdrawCheck): number | 'all' => (c.isAll ? 'all' : Math.round(c.value * 100) / 100);
+
+/** Limite diário que o Pix costuma ter; só sugestão de tela (o servidor decide). */
+export const SUGGESTED_DAILY_LIMIT = 8000;
+
+/** Valor com que a sheet abre: tudo o que está disponível, até o limite sugerido. Vazio sem saldo. */
+export const defaultWithdrawInput = (available: number): string =>
+  available > 0 ? toWithdrawInput(Math.min(available, SUGGESTED_DAILY_LIMIT)) : '';
