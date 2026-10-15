@@ -28,7 +28,6 @@ jest.mock('../components/onboarding/RecebimentoForm', () => ({ RecebimentoForm: 
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
 const get = api.get as jest.Mock;
 import MotoboyCadastro from '../pages/motoboy/cadastro';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const rules = require('../lib/redirects.js');
 
 const MOTOBOY = { id: 'm1', _id: 'm1', name: 'Carlos Lima', role: 'motoboy', activeRole: 'motoboy' };
@@ -199,7 +198,6 @@ test('rota: noturna, redirect da verificação antiga e página antiga apagada',
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/cadastro.tsx'))).toBe(true);
   expect(fs.existsSync(path.join(ROOT, 'pages/verificacao-motoboy.tsx'))).toBe(false);
   expect(fs.existsSync(path.join(ROOT, 'pages/VerificacaoMotoboy.module.css'))).toBe(false);
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getNextStep } = require('../lib/onboardingFlow');
   expect(getNextStep('motoboy', '/verificacao')?.path).toBe('/motoboy/cadastro');
 });

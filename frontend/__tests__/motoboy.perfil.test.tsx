@@ -18,7 +18,6 @@ jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'm1'
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
 const get = api.get as jest.Mock;
 import MotoboyPerfil from '../pages/motoboy/perfil';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const rules = require('../lib/redirects.js');
 
 let falhaMb = false;

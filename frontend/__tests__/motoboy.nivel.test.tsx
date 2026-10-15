@@ -29,7 +29,6 @@ jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), po
 const get = api.get as jest.Mock;
 const post = api.post as jest.Mock;
 import MotoboyNivel from '../pages/motoboy/nivel';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const rules = require('../lib/redirects.js');
 const ROOT = path.join(__dirname, '..');
 

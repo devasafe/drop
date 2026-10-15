@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /**
  * D2 · P1.8 — o motoboy vê a compensação do cancelamento: no GET da corrida e no evento
  * delivery:cancelled da sala dele (spec 5.1, item 4). Só leitura do que já foi gravado.

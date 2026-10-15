@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /** D2 · P1.5 — o 409 do aceite diz POR QUE a corrida foi perdida (spec 5.1, item 1). */
 jest.mock('../utils/socketEmitter', () => {
   const actual = jest.requireActual('../utils/socketEmitter');

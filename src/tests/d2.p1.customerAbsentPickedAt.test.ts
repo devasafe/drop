@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /** D2 · P1.7 — a espera do cliente ausente conta da retirada (pickedAt), não do updatedAt (spec 5.1, item 3). */
 jest.mock('../utils/socketEmitter', () => {
   const actual = jest.requireActual('../utils/socketEmitter');

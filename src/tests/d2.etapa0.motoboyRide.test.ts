@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /**
  * D2 · Etapa 0 — rede do backend para as ações do motoboy que o redesign vai religar:
  * aceite, finalizar com PIN (certo, errado, travado), cliente ausente (antes e depois da

@@ -23,7 +23,7 @@ export function CanceladaView({ ride, cancelInfo, onNext }: { ride: any; cancelI
       <section className={blocks.blk}>
         <dl className={styles.sum}>
           {reason && (
-            <div className={styles.sumRow}><dt>Motivo</dt><dd>"{reason}"</dd></div>
+            <div className={styles.sumRow}><dt>Motivo</dt><dd>&quot;{reason}&quot;</dd></div>
           )}
           <div className={styles.sumRow}><dt>Você estava</dt><dd>{picked ? 'com o pacote' : 'a caminho da loja'}</dd></div>
           {comp !== null && (

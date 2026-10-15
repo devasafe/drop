@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { resolveRedirect } from './helpers/nextRedirects';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const rules = require('../lib/redirects.js');
 const ROOT = path.join(__dirname, '..');
 

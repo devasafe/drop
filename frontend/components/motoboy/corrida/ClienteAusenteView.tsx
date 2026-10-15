@@ -78,7 +78,7 @@ export function ClienteAusenteView({ ride, now, onChat, onClosed, onReload }: Cl
             {totalMs !== null && <> <span className={styles.clockOf}>de {formatClock(totalMs)}</span></>}
           </span>
           {totalMs !== null && <ProgressBar value={elapsed ?? 0} max={totalMs} label="Espera no local" />}
-          {totalMs !== null && <span className={blocks.meta}>Depois de {waitMin} min você pode encerrar como "cliente ausente".</span>}
+          {totalMs !== null && <span className={blocks.meta}>Depois de {waitMin} min você pode encerrar como &quot;cliente ausente&quot;.</span>}
         </section>
       )}
 
@@ -98,7 +98,7 @@ export function ClienteAusenteView({ ride, now, onChat, onClosed, onReload }: Cl
         <li>
           <button type="button" className={`${blocks.row} ${blocks.rowButton}`} onClick={onChat}>
             <span className={blocks.ico} aria-hidden="true"><MessageCircle size={18} /></span>
-            <span className={blocks.tx}><b>Mandar mensagem</b><span>"Cheguei, estou na portaria"</span></span>
+            <span className={blocks.tx}><b>Mandar mensagem</b><span>&quot;Cheguei, estou na portaria&quot;</span></span>
           </button>
         </li>
       </ul>

@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /** D2 · P1.9 — resumo do dia e da semana do motoboy, no servidor e no fuso de São Paulo (spec 5.1, item 5). */
 import request from 'supertest';
 import app from '../app';

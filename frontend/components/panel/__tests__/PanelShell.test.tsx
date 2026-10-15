@@ -63,6 +63,5 @@ test('CSS da casca e dos blocos só com tokens do DS v2', () => {
 });
 
 test('NavRow: o caminho antigo da loja reexporta o mesmo componente', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   expect(require('../../seller/ui/NavRow').NavRow).toBe(require('../NavRow').NavRow);
 });

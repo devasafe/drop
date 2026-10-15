@@ -1,3 +1,4 @@
+/* eslint-env jest */
 /** D2 · P1.6 — a hora real de cada etapa aparece no detalhe e no histórico (spec 5.1, item 2). */
 jest.mock('../utils/socketEmitter', () => {
   const actual = jest.requireActual('../utils/socketEmitter');
