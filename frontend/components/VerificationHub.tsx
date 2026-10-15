@@ -64,7 +64,7 @@ export default function VerificationHub() {
       if (role === 'motoboy') {
         const mb = await api.get('/verification/motoboy/me').then((r) => r.data).catch(() => null);
         const mbStep: Step = mb?.verified ? 'done' : (mb?.courier?.status === 'pending' || mb?.facial?.status === 'pending') ? 'pending' : 'todo';
-        secs.push({ title: 'Documentos de motoboy', desc: 'CNH, placa e selfie (facial).', step: mbStep, href: '/verificacao-motoboy', cta: mbStep === 'done' ? 'Ver' : 'Enviar' });
+        secs.push({ title: 'Documentos de motoboy', desc: 'CNH, placa e selfie (facial).', step: mbStep, href: '/motoboy/cadastro?etapa=verificacao', cta: mbStep === 'done' ? 'Ver' : 'Enviar' });
         secs.push(await receivingSection());
       } else if (role === 'lojista' || role === 'seller') {
         let storeId = '';

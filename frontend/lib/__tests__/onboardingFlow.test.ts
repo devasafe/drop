@@ -11,8 +11,8 @@ describe('onboardingFlow', () => {
 
   test('motoboy começa pela verificação usual de conta', () => {
     expect(getFlow('motoboy')[0].path).toBe('/verificacao');
-    expect(getNextStep('motoboy', '/verificacao')?.path).toBe('/verificacao-motoboy');
-    expect(getNextStep('motoboy', '/verificacao-motoboy')?.path).toBe('/dados-recebimento');
+    expect(getNextStep('motoboy', '/verificacao')?.path).toBe('/motoboy/cadastro');
+    expect(getNextStep('motoboy', '/motoboy/cadastro')?.path).toBe('/dados-recebimento');
   });
 
   test('lojista começa pela criação da loja', () => {

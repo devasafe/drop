@@ -31,7 +31,7 @@ test('fora do painel: classe com token, sem style inline e sem emoji', async () 
   expect(link.getAttribute('style')).toBeNull();
   expect(box.className).not.toBe('');
   expect(box.textContent).not.toMatch(/⚠/);
-  expect(link).toHaveAttribute('href', '/verificacao-motoboy');
+  expect(link).toHaveAttribute('href', '/motoboy/cadastro?etapa=verificacao');
 });
 
 test('no painel da loja não busca nada e não aparece', async () => {

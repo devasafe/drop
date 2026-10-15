@@ -67,4 +67,6 @@ module.exports = [
   // P5.2 — Nível (Desempenho e Benefícios)
   { source: '/motoboy/gamification', destination: '/motoboy/nivel', permanent: true },
   { source: '/motoboy/beneficios', destination: '/motoboy/nivel', permanent: true },
+  // P5.9 — Cadastro (as 4 etapas numa rota; a verificação antiga vira a etapa Verificação)
+  { source: '/verificacao-motoboy', destination: '/motoboy/cadastro', permanent: true },
 ];

@@ -26,10 +26,10 @@ describe('OnboardingFooter', () => {
   });
 
   test('etapa intermediária: "Continuar" avança para a próxima com o param', async () => {
-    mockRouter.pathname = '/verificacao'; // motoboy: próxima = /verificacao-motoboy
+    mockRouter.pathname = '/verificacao'; // motoboy: próxima = /motoboy/cadastro
     render(<OnboardingFooter />);
     await userEvent.click(screen.getByText('Continuar →'));
-    expect(push).toHaveBeenCalledWith('/verificacao-motoboy?onboarding=1');
+    expect(push).toHaveBeenCalledWith('/motoboy/cadastro?onboarding=1');
   });
 
   test('etapa intermediária: "Pular por agora" vai ao destino final', async () => {

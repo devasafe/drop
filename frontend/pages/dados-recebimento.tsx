@@ -8,14 +8,14 @@ import { useSaasConfig } from '../hooks/useSaasConfig';
 import SellerShell from '../components/seller/panel/SellerShell';
 import MotoboyShell from '../components/motoboy/panel/MotoboyShell';
 import { MOTOBOY_ROUTES } from '../lib/motoboyRoutes';
-import { Alert } from '../components/ui/Alert';
 import { RecebimentoForm } from '../components/onboarding/RecebimentoForm';
+import { MotoboyRecebimento } from '../components/motoboy/recebimento/MotoboyRecebimento';
 import blocks from '../components/panel/PanelBlocks.module.css';
 import styles from './DadosRecebimento.module.css';
 
 export default function DadosRecebimento() {
   const router = useRouter();
-  const { settlementMode, error: saasError, retry: saasRetry } = useSaasConfig();
+  const { settlementMode } = useSaasConfig();
   const direct = settlementMode === 'direto';
   const { user, loading: authLoading } = useAuth() || ({} as any);
   const role = user?.activeRole || user?.role;
@@ -57,22 +57,12 @@ export default function DadosRecebimento() {
   }
 
   // Motoboy: sem o modo de pagamento não há como saber a regra; nunca presume custódia nem direto (K29).
+  // O mesmo bloco da etapa Recebimento do cadastro (MotoboyRecebimento).
   const fromOnboarding = router.query?.onboarding === '1';
   return (
     <MotoboyShell title="Onde você recebe" back={fromOnboarding ? MOTOBOY_ROUTES.cadastro : MOTOBOY_ROUTES.perfil}>
       <div className={blocks.body}>
-        {saasError ? (
-          <Alert tone="error" title="Não carregamos o modo de pagamento." action={{ label: 'Tentar de novo', onClick: () => saasRetry?.() }}>
-            Confira sua conexão.
-          </Alert>
-        ) : (
-          <>
-            <p className={blocks.sub}>
-              {direct ? 'Na entrega, a loja manda o Pix direto para esta chave.' : 'Seus saques caem nesta chave Pix.'}
-            </p>
-            <RecebimentoForm direct={direct} store={false} />
-          </>
-        )}
+        <MotoboyRecebimento />
       </div>
     </MotoboyShell>
   );

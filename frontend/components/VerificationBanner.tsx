@@ -39,7 +39,7 @@ export default function VerificationBanner() {
         if (role === 'motoboy') {
           const { data } = await api.get('/verification/motoboy/me');
           const m: string[] = data.missing || [];
-          if (mounted) { setMissing(m); setScope('Sua conta de motoboy'); setLink(m.includes('email') || m.includes('document') ? '/verificacao' : '/verificacao-motoboy'); }
+          if (mounted) { setMissing(m); setScope('Sua conta de motoboy'); setLink('/motoboy/cadastro?etapa=verificacao'); }
         } else if (role === 'lojista') {
           const dash = await api.get('/stores/dashboard').catch(() => null);
           const storeId = dash?.data?.store?._id || dash?.data?._id || dash?.data?.storeId;

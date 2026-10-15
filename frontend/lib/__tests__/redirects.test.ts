@@ -211,4 +211,8 @@ describe('D2 — painel do motoboy', () => {
       expect(resolveRedirect(rules, old)).toEqual({ location: '/motoboy/nivel', permanent: true });
     }
   });
+  it('P5.9: /verificacao-motoboy vira o Cadastro, com a query', () => {
+    expect(resolveRedirect(rules, '/verificacao-motoboy')).toEqual({ location: '/motoboy/cadastro', permanent: true });
+    expect(resolveRedirect(rules, '/verificacao-motoboy?onboarding=1')?.location).toBe('/motoboy/cadastro?onboarding=1');
+  });
 });
