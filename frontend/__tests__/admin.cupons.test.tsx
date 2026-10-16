@@ -122,3 +122,53 @@ it('celular: a lista vira cartões e a ação continua', async () => {
   expect(screen.queryByRole('table')).toBeNull();
   expect(screen.getByRole('button', { name: 'Pausar SEMANATECH' })).toBeInTheDocument();
 });
+
+describe('validação do formulário antes de enviar', () => {
+  const preencher = (campos: Record<string, string>) => {
+    for (const [label, value] of Object.entries(campos)) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  };
+  const enviar = async (campos: Record<string, string>) => {
+    renderAdminPage(<AdminCoupons />);
+    await screen.findByRole('table', { name: 'Cupons' });
+    preencher({ Código: 'novo5', ...campos });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar cupom' }));
+  };
+
+  it('desconto fixo com valor 0 não envia', async () => {
+    await enviar({ 'Tipo de desconto': 'fixed', 'Valor do desconto': '0' });
+    expect(screen.getByRole('alert')).toHaveTextContent('O valor do desconto precisa ser maior que zero.');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('valor negativo não envia', async () => {
+    await enviar({ 'Tipo de desconto': 'fixed', 'Valor do desconto': '-5' });
+    expect(screen.getByRole('alert')).toHaveTextContent('O valor do desconto precisa ser maior que zero.');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('percentual acima de 100 não envia', async () => {
+    await enviar({ 'Valor do desconto': '150' });
+    expect(screen.getByRole('alert')).toHaveTextContent('O desconto percentual não pode passar de 100%.');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('data final antes da inicial não envia', async () => {
+    await enviar({ 'Vale de': '2026-12-10', 'Vale até': '2026-12-01' });
+    expect(screen.getByRole('alert')).toHaveTextContent('A data final não pode ser antes da inicial.');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('datas vazias não enviam', async () => {
+    await enviar({ 'Vale até': '' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Preencha as datas de início e fim.');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('desconto fixo válido envia o corpo completo', async () => {
+    await enviar({ 'Tipo de desconto': 'fixed', 'Valor do desconto': '12.5', 'Pedido mínimo (R$)': '40', 'Limite de usos': '20', 'Vale de': '2026-12-01', 'Vale até': '2026-12-31' });
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/coupons', {
+      code: 'NOVO5', type: 'global', discountType: 'fixed', discountValue: 12.5,
+      minOrderValue: 40, maxUses: 20, validFrom: '2026-12-01', validUntil: '2026-12-31',
+    }));
+  });
+});

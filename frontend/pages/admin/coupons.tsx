@@ -106,6 +106,23 @@ function CuponsBody() {
       setFormError('Preencha o código do cupom.');
       return;
     }
+    const value = Number(discountValue);
+    if (discountValue.trim() === '' || !Number.isFinite(value) || value <= 0) {
+      setFormError('O valor do desconto precisa ser maior que zero.');
+      return;
+    }
+    if (discountType === 'percent' && value > 100) {
+      setFormError('O desconto percentual não pode passar de 100%.');
+      return;
+    }
+    if (!validFrom || !validUntil) {
+      setFormError('Preencha as datas de início e fim.');
+      return;
+    }
+    if (validUntil < validFrom) {
+      setFormError('A data final não pode ser antes da inicial.');
+      return;
+    }
     setFormError(null);
     setSaving(true);
     try {
