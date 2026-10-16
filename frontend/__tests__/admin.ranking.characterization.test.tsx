@@ -6,7 +6,6 @@ import type { ComponentType } from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { confirmIfAsked, renderAdminPage, stubNativeDialogs } from './helpers/adminPage';
 import api from '../lib/api';
-import OldRankingConfig from '../pages/admin/ranking-config';
 import AdminSettings from '../pages/admin/settings';
 
 let mockQuery: Record<string, string> = {};
@@ -29,7 +28,6 @@ const CURRENT = { month: 10, year: 2026, prizes: PRIZES, distributed: false };
 const HISTORY = [{ month: 9, year: 2026, prizes: PRIZES, distributedAt: '2026-10-01T12:00:00.000Z', distributedBy: { name: 'Asafe' } }];
 
 const PAGES: Array<[string, ComponentType]> = [
-  ['ranking-config (antiga)', OldRankingConfig],
   ['settings?aba=ranking (nova)', AdminSettings],
 ];
 

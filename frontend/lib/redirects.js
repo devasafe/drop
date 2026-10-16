@@ -71,4 +71,12 @@ module.exports = [
   { source: '/motoboy/profile', destination: '/motoboy/perfil', permanent: true },
   // P5.9 — Cadastro (as 4 etapas numa rota; a verificação antiga vira a etapa Verificação)
   { source: '/verificacao-motoboy', destination: '/motoboy/cadastro', permanent: true },
+
+  // D3a — painel do admin (spec D3a 5.6). Páginas fundidas em outras telas (as antigas saem no mesmo commit):
+  // analytics → Números do negócio; conversas → filtro do Suporte; ranking-config → aba de Regras e taxas.
+  // pricing-config era órfã (a rota /api/admin/pricing-plans do backend continua e está anotada para a D3b).
+  { source: '/admin/analytics', destination: '/admin/dashboard', permanent: true },
+  { source: '/admin/conversas', destination: '/admin/suporte?filtro=conversas', permanent: true },
+  { source: '/admin/ranking-config', destination: '/admin/settings?aba=ranking', permanent: true },
+  { source: '/admin/pricing-config', destination: '/admin/settings', permanent: true },
 ];

@@ -130,13 +130,6 @@ export const ADMIN_AREAS: AdminArea[] = [
   },
 ];
 
-/** Títulos de páginas que existem mas ficam fora do menu (órfãs até o redirect da P5). */
-const OFF_MENU_TITLES: Record<string, string> = {
-  '/admin/pricing-config': 'Planos de preço',
-  '/admin/ranking-config': 'Regras e taxas · Ranking',
-  '/admin/conversas': 'Suporte · Conversas entre usuários',
-};
-
 const pathOf = (href: string) => href.split('?')[0];
 const abaOf = (href: string) => new URLSearchParams(href.split('?')[1] ?? '').get('aba');
 
@@ -199,7 +192,6 @@ export function activeAdminTabKey(
 
 /** Título do cabeçalho: "Dinheiro · Repasses"; área de uma aba só usa o nome da área. */
 export function adminScreenTitle(pathname: string): string {
-  if (OFF_MENU_TITLES[pathname]) return OFF_MENU_TITLES[pathname];
   const area = ADMIN_AREAS.find((a) => a.tabs.some((t) => pathOf(t.href) === pathname));
   if (!area) return 'Administração';
   const tab = area.tabs.find((t) => pathOf(t.href) === pathname && abaOf(t.href) === null)

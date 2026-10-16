@@ -6,11 +6,7 @@ import { adminScreenTitle } from './adminNav';
  * Regra: a task de cada tela (P2–P5) tira a sua rota daqui no mesmo commit em que a página passa a montar
  * o AdminShell; página apagada sai junto. lib/__tests__/adminLegacyShell.test.ts cobra os dois lados.
  */
-export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
-  '/admin/analytics', '/admin/conversas',
-  '/admin/pricing-config',
-  '/admin/ranking-config',
-];
+export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [];
 
 /** Título da casca genérica (o mesmo do menu), ou null quando a rota não está na lista. */
 export function adminLegacyShellTitle(pathname: string): string | null {

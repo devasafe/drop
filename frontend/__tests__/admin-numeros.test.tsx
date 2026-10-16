@@ -103,7 +103,6 @@ const EXPECTED = (period: string) => [
   ['/analytics/platform/retention', { period }],
 ];
 const PAGES: Record<string, () => React.ComponentType> = {
-  'analytics (antiga; sai na P5.2)': () => require('../pages/admin/analytics').default,
   'dashboard (Números do negócio)': () => require('../pages/admin/dashboard').default,
 };
 const Numeros = () => {

@@ -216,3 +216,36 @@ describe('D2 — painel do motoboy', () => {
     expect(resolveRedirect(rules, '/verificacao-motoboy?onboarding=1')?.location).toBe('/motoboy/cadastro?onboarding=1');
   });
 });
+
+describe('D3a — painel do admin (spec 5.6)', () => {
+  const ROOT = path.join(__dirname, '..', '..');
+  const D3A: Array<[string, string]> = [
+    ['/admin/analytics', '/admin/dashboard'],
+    ['/admin/conversas', '/admin/suporte?filtro=conversas'],
+    ['/admin/ranking-config', '/admin/settings?aba=ranking'],
+    ['/admin/pricing-config', '/admin/settings'],
+  ];
+
+  it.each(D3A)('%s redireciona (308) para %s', (from, to) => {
+    expect(resolveRedirect(rules, from)).toEqual({ location: to, permanent: true });
+  });
+
+  it('a query da URL antiga vai junto', () => {
+    expect(resolveRedirect(rules, '/admin/conversas?id=c1')?.location).toBe('/admin/suporte?filtro=conversas&id=c1');
+  });
+
+  it('as páginas antigas saíram (redirect e página não convivem)', () => {
+    for (const p of ['analytics', 'conversas', 'ranking-config', 'pricing-config']) {
+      expect(fs.existsSync(path.join(ROOT, 'pages', 'admin', `${p}.tsx`))).toBe(false);
+    }
+  });
+
+  it('todo destino do admin é uma página que existe', () => {
+    const admin = rules.filter((r) => r.source.startsWith('/admin/'));
+    expect(admin.length).toBeGreaterThanOrEqual(4);
+    const missing = admin
+      .map((r) => r.destination.split('?')[0])
+      .filter((p) => !fs.existsSync(path.join(ROOT, 'pages', `${p}.tsx`)));
+    expect(missing).toEqual([]);
+  });
+});

@@ -36,10 +36,10 @@ export const SELLER_LIGHT_ROUTES: string[] = [
  * (lib/__tests__/routeTheme.pages.test.ts cobra).
  */
 export const ADMIN_LIGHT_ROUTES: string[] = [
-  '/admin/analytics', '/admin/app-cashbox', '/admin/avisos', '/admin/broadcasts', '/admin/conversas',
+  '/admin/app-cashbox', '/admin/avisos', '/admin/broadcasts',
   '/admin/coupons', '/admin/dashboard', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas',
-  '/admin/payouts', '/admin/permissoes', '/admin/plan-approvals', '/admin/pricing-config',
-  '/admin/ranking-config', '/admin/seasonal-theme', '/admin/settings', '/admin/suporte',
+  '/admin/payouts', '/admin/permissoes', '/admin/plan-approvals',
+  '/admin/seasonal-theme', '/admin/settings', '/admin/suporte',
   '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
 ];
 

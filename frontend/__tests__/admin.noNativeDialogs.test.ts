@@ -10,8 +10,6 @@ import path from 'path';
 import { ADMIN_LEGACY_SHELL_ROUTES } from '../lib/adminLegacyShell';
 
 const NATIVE_DIALOG_EXCEPTIONS: string[] = [
-  'pages/admin/pricing-config.tsx',
-  'pages/admin/ranking-config.tsx',
 ];
 
 const NATIVE_DIALOG_RE = /(?:\b(?:window|globalThis|self)\.|(?<![\w.$]))(?:prompt|confirm|alert)\s*\(/;

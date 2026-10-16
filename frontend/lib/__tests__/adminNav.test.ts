@@ -244,10 +244,10 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminScreenTitle('/admin/lojas-asaas')).toBe('Lojas · Asaas e mensalidades');
     expect(adminScreenTitle('/admin/freios')).toBe('Freios');
     expect(adminScreenTitle('/admin/verificacoes')).toBe('Verificações');
-    expect(adminScreenTitle('/admin/pricing-config')).toBe('Planos de preço');
-    expect(adminScreenTitle('/admin/ranking-config')).toBe('Regras e taxas · Ranking');
+    expect(adminScreenTitle('/admin/pricing-config')).toBe('Administração'); // virou redirect (P5.2)
+    expect(adminScreenTitle('/admin/ranking-config')).toBe('Administração'); // virou redirect (P5.2)
     expect(adminScreenTitle('/admin/suporte')).toBe('Suporte');
-    expect(adminScreenTitle('/admin/conversas')).toBe('Suporte · Conversas entre usuários');
+    expect(adminScreenTitle('/admin/conversas')).toBe('Administração'); // virou redirect (P5.2)
     expect(adminScreenTitle('/admin/dashboard')).toBe('Números do negócio');
     expect(adminScreenTitle('/admin/qualquer')).toBe('Administração');
   });

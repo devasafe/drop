@@ -8,7 +8,6 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { confirmIfAsked, renderAdminPage, stubNativeDialogs } from './helpers/adminPage';
 import api from '../lib/api';
 import AdminSuporte from '../pages/admin/suporte';
-import OldConversas from '../pages/admin/conversas';
 
 let mockQuery: Record<string, string> = {};
 const mockRouter = { pathname: '/admin/suporte', asPath: '/admin/suporte', push: jest.fn(), replace: jest.fn() };
@@ -115,7 +114,6 @@ describe('chamados (/admin/suporte)', () => {
 });
 
 const CONVERSAS_PAGES: Array<[string, ComponentType, Record<string, string>]> = [
-  ['conversas (antiga)', OldConversas, {}],
   ['suporte?filtro=conversas (nova)', AdminSuporte, { filtro: 'conversas' }],
 ];
 
