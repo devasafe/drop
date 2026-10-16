@@ -4,7 +4,7 @@
  * Tela nova: leitura que falha mostra erro (nunca zero ou lista vazia), "Adicionar saldo" só do CEO numa
  * AdminSheet com aviso de saldo sem pagamento, pedido de acesso na AdminSheet, celular em cartões.
  */
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import api from '../lib/api';
 import AdminWalletsPage from '../pages/admin/wallets';
 import { resetViewport, setViewportWidth } from './helpers/viewport';
@@ -157,6 +157,32 @@ describe('tela nova', () => {
     expect(await screen.findByText('Depósito via Pix')).toBeInTheDocument();
     expect(screen.getByText('Repasse #4790')).toBeInTheDocument();
     expect(screen.getByText('+R$ 9,92')).toBeInTheDocument();
+  });
+
+  it('duas aberturas rápidas com respostas fora de ordem: o extrato fica o da carteira aberta por último', async () => {
+    const BIA = { ...WALLETS[0], _id: 'w3', owner: 'u3', userId: 'u3', userName: 'Bia Rocha', userEmail: 'bia@x.com' };
+    const pend: Record<string, (v: unknown) => void> = {};
+    const later = (key: string) => () => new Promise((r) => { pend[key] = r; });
+    mockServer({
+      '/admin/wallets': () => Promise.resolve({ data: [WALLETS[0], BIA] }),
+      '/admin/wallets/w1/transactions': later('w1'),
+      '/admin/wallets/w3/transactions': later('w3'),
+    });
+    render(<AdminWalletsPage />);
+    await screen.findByText('Bia Rocha');
+    const [verCarlos, verBia] = screen.getAllByRole('button', { name: /^(Ver|Ver extrato)$/ });
+    fireEvent.click(verCarlos);
+    fireEvent.click(verBia);
+    await waitFor(() => expect(pend.w1 && pend.w3).toBeTruthy());
+    await act(async () => {
+      pend.w3({ data: [{ ...TXS[0], _id: 't3', reason: 'Extrato da Bia' }] });
+    });
+    await act(async () => {
+      pend.w1({ data: [{ ...TXS[0], _id: 't1', reason: 'Extrato do Carlos' }] });
+    });
+    const carteira = screen.getByRole('region', { name: 'Carteira de Bia Rocha' });
+    expect(within(carteira).getByText('Extrato da Bia')).toBeInTheDocument();
+    expect(screen.queryByText('Extrato do Carlos')).toBeNull();
   });
 
   it('extrato com 403: "Acesso expirado", relê os pedidos e não mostra extrato vazio', async () => {

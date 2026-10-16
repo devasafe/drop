@@ -5,7 +5,7 @@
  * POST /wallet-access/request { targetUserId, reason } · POST /admin/wallets/:id/add-balance { amount, reason }.
  * "Adicionar saldo" é só do CEO (wallet:credit não é delegável) e sempre avisa que cria saldo sem pagamento.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
 import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
@@ -124,13 +124,18 @@ export default function AdminWalletsPage() {
     return [...mine].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   };
 
+  // Só a última leitura vale: abrir outra carteira antes da resposta descarta a anterior (nunca o extrato de outra pessoa).
+  const txRequest = useRef(0);
   const loadTransactions = async (w: WalletRow) => {
+    const id = ++txRequest.current;
     setTxs(null);
     setTxError(null);
     try {
       const res = await api.get(`/admin/wallets/${w._id}/transactions`);
+      if (id !== txRequest.current) return;
       setTxs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
+      if (id !== txRequest.current) return;
       if ((err as { response?: { status?: number } })?.response?.status === 403) {
         setTxError('Acesso expirado. Peça acesso de novo.');
         await loadOutgoing();
