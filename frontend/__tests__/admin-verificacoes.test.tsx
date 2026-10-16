@@ -5,7 +5,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdminVerificacoesPage from '../pages/admin/verificacoes';
 import api from '../lib/api';
-import { FULL, queuesGet } from './helpers/verificacoesFixtures';
+import { FULL, LOJA, queuesGet } from './helpers/verificacoesFixtures';
 import { resetViewport, setViewportWidth } from './helpers/viewport';
 
 const mockToast = jest.fn();
@@ -122,6 +122,66 @@ describe('Verificações · "Aprovar tudo" (runBatch)', () => {
     unmount();
     await act(async () => { release(); });
     expect(api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('o resultado do lote é da pessoa dele: trocar de pessoa no meio não leva o resultado nem o "Tentar de novo" para outra', async () => {
+    let release!: () => void;
+    (api.post as jest.Mock).mockImplementation((url: string) => {
+      if (url === '/verification/admin/l2/approve') return new Promise((r) => { release = () => r({ data: {} }); });
+      if (url === '/verification/admin/store/s1/cnpj/approve') {
+        return Promise.reject({ response: { status: 500, data: { error: 'Erro interno do servidor' } } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+    render(<AdminVerificacoesPage />);
+    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Aprovar tudo' }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+
+    // No meio do lote: a lista e as abas não trocam a pessoa aberta.
+    const list = screen.getByRole('list', { name: 'Pessoas aguardando' });
+    expect(within(list).getByRole('button', { name: /Carlos Lima/ })).toBeDisabled();
+    fireEvent.click(within(list).getByRole('button', { name: /Carlos Lima/ }));
+    fireEvent.click(within(screen.getByRole('tablist', { name: 'Filtrar por perfil' })).getByRole('tab', { name: /Motoboys/ }));
+    expect(screen.queryByRole('region', { name: 'Carlos Lima' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Paulo Henrique' })).toBeInTheDocument();
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('3 concluídos, 1 com erro', 'error'));
+    expect(api.post).toHaveBeenCalledTimes(4);
+
+    // Depois do lote, outra pessoa não herda o resultado de Paulo.
+    fireEvent.click(within(screen.getByRole('list', { name: 'Pessoas aguardando' })).getByRole('button', { name: /Carlos Lima/ }));
+    const carlos = screen.getByRole('region', { name: 'Carlos Lima' });
+    expect(within(carlos).queryByRole('button', { name: 'Tentar de novo os que falharam' })).toBeNull();
+    expect(within(carlos).queryByText('Erro interno do servidor')).toBeNull();
+
+    // De volta a Paulo, o "Tentar de novo" reenvia de verdade o que falhou (nunca "concluído" sem POST).
+    fireEvent.click(within(screen.getByRole('list', { name: 'Pessoas aguardando' })).getByRole('button', { name: /Paulo Henrique/ }));
+    const paulo = screen.getByRole('region', { name: 'Paulo Henrique' });
+    fireEvent.click(within(paulo).getByRole('button', { name: 'Tentar de novo os que falharam' }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(5));
+    expect((api.post as jest.Mock).mock.calls[4]).toEqual(['/verification/admin/store/s1/cnpj/approve']);
+  });
+
+  it('"Tentar de novo" de um item que saiu da fila: falha com aviso, sem POST, nunca "concluído"', async () => {
+    (api.post as jest.Mock).mockImplementation((url: string) =>
+      url === '/verification/admin/store/s1/cnpj/approve'
+        ? Promise.reject({ response: { status: 500, data: { error: 'Erro interno do servidor' } } })
+        : Promise.resolve({ data: {} }));
+    render(<AdminVerificacoesPage />);
+    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
+    // A releitura do fim do lote já não traz o CNPJ (decidido por outra pessoa), mas Paulo segue com o endereço.
+    const semCnpj = { ...LOJA, verification: { address: LOJA.verification.address } };
+    (api.get as jest.Mock).mockImplementation(queuesGet({ ...FULL, stores: [semCnpj] }));
+    fireEvent.click(within(detail).getByRole('button', { name: 'Aprovar tudo' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('3 concluídos, 1 com erro', 'error'));
+    expect(api.post).toHaveBeenCalledTimes(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo os que falharam' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(2));
+    expect(mockToast).toHaveBeenLastCalledWith('3 concluídos, 1 com erro', 'error');
+    expect(api.post).toHaveBeenCalledTimes(4);
   });
 });
 

@@ -35,6 +35,10 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'cliente', label: 'Clientes' },
 ];
 
+/** O item saiu da fila desde a leitura: erro com a mensagem, nunca "feito". */
+const MISSING_ITEM = 'Esse item não está mais na fila. Atualize a lista.';
+const missingItemError = () => Object.assign(new Error(MISSING_ITEM), { response: { data: { error: MISSING_ITEM } } });
+
 const itemsWord = (n: number) => (n === 1 ? '1 item' : `${n} itens`);
 const domId = (key: string) => `verif-${key.replace(/[^a-z0-9]/gi, '-')}`;
 
@@ -62,7 +66,8 @@ function VerificacoesScreen() {
   const [filter, setFilter] = useState<Filter>('todos');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [batch, setBatch] = useState<BatchResult | null>(null);
+  // O resultado do lote fica preso à pessoa dele: nunca aparece nem é reenviado com outra pessoa aberta.
+  const [batch, setBatch] = useState<{ personId: string; result: BatchResult } | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [busyItem, setBusyItem] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -101,10 +106,7 @@ function VerificacoesScreen() {
   const all = people ?? [];
   const visible = all.filter((p) => filter === 'todos' || p.kind === filter);
   const selected = visible.find((p) => p.id === selectedId) ?? visible[0] ?? null;
-  const selectedKey = selected?.id ?? null;
-
-  // O resultado do lote é da pessoa aberta.
-  useEffect(() => { setBatch(null); }, [selectedKey]);
+  const personBatch = batch && selected && batch.personId === selected.id ? batch.result : null;
 
   const decidable = (p: VerificationPerson) => p.items.filter((i) => can(i.permission));
 
@@ -122,9 +124,11 @@ function VerificacoesScreen() {
     }
   };
 
+  // Chave que não é da pessoa nunca conta como feita (falha com aviso, sem POST).
   const sendApprove = (p: VerificationPerson) => async (key: string) => {
     const item = p.items.find((i) => i.key === key);
-    if (item) await api.post(item.approveUrl);
+    if (!item) throw missingItemError();
+    await api.post(item.approveUrl);
   };
 
   // O lote começa no clique (nunca num efeito).
@@ -137,14 +141,14 @@ function VerificacoesScreen() {
     try {
       const opts: BatchOptions<string> = {
         isAlreadyDone: isVerificationAlreadyDecided,
-        onProgress: (r) => { if (!ctrl.signal.aborted) setBatch(r); },
+        onProgress: (r) => { if (!ctrl.signal.aborted) setBatch({ personId: p.id, result: r }); },
         signal: ctrl.signal,
       };
       const r = previous
         ? await retryFailed(previous, sendApprove(p), opts)
         : await runBatch(decidable(p).map((i) => i.key), sendApprove(p), opts);
       if (ctrl.signal.aborted) return;
-      setBatch(r);
+      setBatch({ personId: p.id, result: r });
       setBatchBusy(false);
       // K6: "concluídos", nunca "aprovados" (o 400 "não está pendente" conta como feito, mas pode ter sido recusa).
       showToast(batchSummaryText(r, { one: 'concluído', many: 'concluídos' }), r.failed.length > 0 ? 'error' : 'success');
@@ -200,8 +204,8 @@ function VerificacoesScreen() {
 
   const itemCard = (item: VerificationItem) => {
     const titleId = domId(item.key);
-    const state = batch?.states[item.key];
-    const error = state === 'failed' ? batch?.errors[item.key] : undefined;
+    const state = personBatch?.states[item.key];
+    const error = state === 'failed' ? personBatch?.errors[item.key] : undefined;
     return (
       <article key={item.key} className={styles.doc} aria-labelledby={titleId}>
         <h3 id={titleId} className={styles.docTitle}>{item.label}</h3>
@@ -246,6 +250,7 @@ function VerificacoesScreen() {
               type="button"
               className={on ? `${styles.person} ${styles.personOn}` : styles.person}
               aria-current={on ? 'true' : undefined}
+              disabled={batchBusy}
               onClick={() => { setSelectedId(p.id); setShowDetail(true); }}
             >
               <span className={styles.personName}>{p.name}</span>
@@ -271,8 +276,8 @@ function VerificacoesScreen() {
       <div className={styles.docs}>{selected.items.map(itemCard)}</div>
       {decidable(selected).length > 0 && (
         <div className={styles.footer}>
-          {batch && batch.failed.length > 0 && !batchBusy && (
-            <Button variant="secondary" className={form.touch} onClick={() => void approveAll(selected, batch)}>
+          {personBatch && personBatch.failed.length > 0 && !batchBusy && (
+            <Button variant="secondary" className={form.touch} onClick={() => void approveAll(selected, personBatch)}>
               Tentar de novo os que falharam
             </Button>
           )}
@@ -306,7 +311,11 @@ function VerificacoesScreen() {
               label="Filtrar por perfil"
               items={FILTERS.map((f) => ({ id: f.id, label: f.label, count: countOf(f.id) }))}
               value={filter}
-              onChange={(id) => { setFilter(id as Filter); setShowDetail(false); }}
+              onChange={(id) => {
+                if (batchBusy) return; // a pessoa aberta não muda no meio do lote
+                setFilter(id as Filter);
+                setShowDetail(false);
+              }}
               idPrefix="verificacoes"
             />
           </div>
