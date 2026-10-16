@@ -164,6 +164,26 @@ describe('validação do formulário antes de enviar', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it.each(['0', '-1', '1.5'])('limite de usos %s não envia', async (maxUses) => {
+    await enviar({ 'Limite de usos': maxUses });
+    expect(screen.getByRole('alert')).toHaveTextContent('O limite de usos tem que ser um número inteiro, 1 ou mais (vazio = ilimitado).');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('pedido mínimo negativo não envia', async () => {
+    await enviar({ 'Pedido mínimo (R$)': '-5' });
+    expect(screen.getByRole('alert')).toHaveTextContent('O pedido mínimo tem que ser um valor em reais, 0 ou mais (ex.: 25,50).');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('limite e mínimo vazios enviam sem limite e sem mínimo', async () => {
+    await enviar({ 'Vale de': '2026-12-01', 'Vale até': '2026-12-31' });
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/coupons', {
+      code: 'NOVO5', type: 'global', discountType: 'percent', discountValue: 10,
+      minOrderValue: undefined, maxUses: undefined, validFrom: '2026-12-01', validUntil: '2026-12-31',
+    }));
+  });
+
   it('desconto fixo válido envia o corpo completo', async () => {
     await enviar({ 'Tipo de desconto': 'fixed', 'Valor do desconto': '12.5', 'Pedido mínimo (R$)': '40', 'Limite de usos': '20', 'Vale de': '2026-12-01', 'Vale até': '2026-12-31' });
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/coupons', {

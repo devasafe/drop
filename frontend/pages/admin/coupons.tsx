@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { adminErrorMessage } from '../../lib/adminErrors';
 import { couponCostText, couponMaxCost } from '../../lib/couponCost';
 import { formatMoney } from '../../lib/money';
+import { parseAmount } from '../../lib/adminAmount';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import styles from '../../components/admin/comunicacao/Cupons.module.css';
 
@@ -115,6 +116,17 @@ function CuponsBody() {
       setFormError('O desconto percentual não pode passar de 100%.');
       return;
     }
+    const maxUsesRaw = maxUses.trim();
+    if (maxUsesRaw !== '' && (!/^\d+$/.test(maxUsesRaw) || Number(maxUsesRaw) < 1)) {
+      setFormError('O limite de usos tem que ser um número inteiro, 1 ou mais (vazio = ilimitado).');
+      return;
+    }
+    const minOrderRaw = minOrderValue.trim();
+    const minOrder = minOrderRaw === '' ? undefined : parseAmount(minOrderRaw);
+    if (minOrder === null) {
+      setFormError('O pedido mínimo tem que ser um valor em reais, 0 ou mais (ex.: 25,50).');
+      return;
+    }
     if (!validFrom || !validUntil) {
       setFormError('Preencha as datas de início e fim.');
       return;
@@ -131,8 +143,8 @@ function CuponsBody() {
         type: 'global',
         discountType,
         discountValue: Number(discountValue),
-        minOrderValue: minOrderValue ? Number(minOrderValue) : undefined,
-        maxUses: maxUses ? Number(maxUses) : undefined,
+        minOrderValue: minOrder,
+        maxUses: maxUsesRaw ? Number(maxUsesRaw) : undefined,
         validFrom,
         validUntil,
       });
