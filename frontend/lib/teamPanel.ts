@@ -1,23 +1,34 @@
 /**
- * "Painel da equipe" (correção V1 da D3a): quem é da equipe (marketing e gerentes) e trocou para outra área
- * (ex.: Cliente) volta ao painel pelo seletor de área (AccountMenu e tela Conta). O CEO segue com "Administração".
+ * Papéis de equipe como áreas (correções V1/V2 da D3a): cada papel de equipe que a conta tem (marketing e gerentes)
+ * é uma área própria no seletor de área (AccountMenu e tela Conta), ao lado de Cliente/Lojista/Motoboy/Administração.
+ * O CEO segue com "Administração" (ROLE_AREAS).
  */
 import type { IconName } from '../components/Icon';
-import { adminHomeHref } from './adminNav';
+import { adminHomeHref, adminRoleLabel } from './adminNav';
 
-/** Papéis de equipe, na ordem de preferência quando a conta tem mais de um. */
-export const TEAM_ROLES = ['gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'marketing'] as const;
+export interface TeamArea {
+  role: string;
+  label: string;
+  description: string;
+  icon: IconName;
+}
 
-export const TEAM_AREA: { label: string; description: string; icon: IconName } = {
-  label: 'Painel da equipe',
-  description: 'Painel administrativo da equipe.',
-  icon: 'shield',
+const TEAM_DESCRIPTIONS: Record<string, string> = {
+  marketing: 'Avisos, broadcasts e tema do app.',
+  gerente_geral: 'Operação e equipe no painel administrativo.',
+  gerente_clientes: 'Clientes, verificações e suporte.',
+  gerente_lojistas: 'Lojas, planos e repasses.',
+  gerente_motoboys: 'Motoboys, verificações e Pix.',
 };
 
-/** O papel de equipe a oferecer, ou null quando a conta não tem nenhum ou já está num papel de equipe. */
-export function teamRoleToOffer(roles: string[], activeRole: string): string | null {
-  if ((TEAM_ROLES as readonly string[]).includes(activeRole)) return null;
-  return TEAM_ROLES.find((r) => roles.includes(r)) ?? null;
+/** Áreas de equipe na ordem do seletor; o rótulo é o mesmo do painel (adminRoleLabel). */
+export const TEAM_AREAS: TeamArea[] = Object.entries(TEAM_DESCRIPTIONS).map(([role, description]) => ({
+  role, label: adminRoleLabel(role), description, icon: 'shield',
+}));
+
+/** As áreas de equipe que a conta tem em `roles`. */
+export function teamAreasOf(roles: string[]): TeamArea[] {
+  return TEAM_AREAS.filter((a) => roles.includes(a.role));
 }
 
 /**

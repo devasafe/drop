@@ -5,8 +5,8 @@ import { ROLE_AREAS, ROLE_HOME, Role } from '../../lib/navConfig';
 import { ROUTES } from '../../lib/routes';
 import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
 import { imageUrl } from '../../lib/config';
-import { TEAM_AREA, teamRoleToOffer, enterTeamPanel } from '../../lib/teamPanel';
-import Icon from '../Icon';
+import { teamAreasOf, enterTeamPanel } from '../../lib/teamPanel';
+import Icon, { type IconName } from '../Icon';
 import styles from './AccountMenu.module.css';
 
 export default function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
@@ -16,9 +16,13 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
 
   const activeRole = (user.activeRole || user.role || 'cliente') as Role;
   const roles = (user.roles || (user.role ? [user.role] : [])) as string[];
-  const myAreas = ROLE_AREAS.filter((a) => roles.includes(a.role));
-  // Equipe (marketing/gerentes) fora do papel de equipe: caminho de volta ao painel.
-  const teamRole = teamRoleToOffer(roles, activeRole);
+  const roleAreas = ROLE_AREAS.filter((a) => roles.includes(a.role));
+  // Cada papel de equipe (marketing/gerentes) é uma área própria; entra pela primeira página do painel que abre.
+  const teamAreas = teamAreasOf(roles);
+  const myAreas: { role: string; label: string; description: string; icon: IconName; team: boolean }[] = [
+    ...roleAreas.map((a) => ({ ...a, team: false })),
+    ...teamAreas.map((a) => ({ ...a, team: true })),
+  ];
 
   const go = (href: string) => { onNavigate?.(); router.push(href); };
 
@@ -34,6 +38,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
   };
 
   const openTeamPanel = async (role: string) => {
+    if (role === activeRole) return;
     let href: string | null;
     try {
       href = await enterTeamPanel(role, switchRole);
@@ -45,7 +50,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
     router.push(href);
   };
 
-  const activeArea = ROLE_AREAS.find((a) => a.role === activeRole);
+  const activeArea = myAreas.find((a) => a.role === activeRole);
   const initial = user.name.charAt(0).toUpperCase();
 
   return (
@@ -67,7 +72,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
         </div>
       </div>
 
-      {(myAreas.length > 0 || teamRole) && (
+      {myAreas.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionLabel}>Suas áreas</div>
           {myAreas.map((a) => {
@@ -78,7 +83,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
                 type="button"
                 className={styles.areaCard}
                 data-active={isActive}
-                onClick={() => selectArea(a.role)}
+                onClick={() => (a.team ? openTeamPanel(a.role) : selectArea(a.role as Role))}
               >
                 <span className={styles.areaIcon}><Icon name={a.icon} size={16} /></span>
                 <span className={styles.areaText}>
@@ -89,15 +94,6 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
               </button>
             );
           })}
-          {teamRole && (
-            <button type="button" className={styles.areaCard} data-active={false} onClick={() => openTeamPanel(teamRole)}>
-              <span className={styles.areaIcon}><Icon name={TEAM_AREA.icon} size={16} /></span>
-              <span className={styles.areaText}>
-                <span className={styles.areaLabel}>{TEAM_AREA.label}</span>
-                <span className={styles.areaDesc}>{TEAM_AREA.description}</span>
-              </span>
-            </button>
-          )}
         </div>
       )}
 
