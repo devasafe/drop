@@ -1,11 +1,29 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/router';
-import api from '../../lib/api';
+/**
+ * Dinheiro · Estornos (DS v2, D3a, tela 15). Só modo direto (menu directOnly).
+ * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.estornos.test.tsx):
+ * GET /admin/direct-refunds { params: { status?, cursor? } } · POST /orders/:orderId/refund-direct ·
+ * POST /admin/direct-refunds/:id/resolve { note }. Ações só com payout:release, como a rota.
+ * A trava anti-duplo-estorno é do servidor (409 REFUND_ALREADY_DONE/IN_PROGRESS/UNCERTAIN); a tela mostra
+ * o erro na folha e relê a lista, nunca reenvia sozinha. Um ref impede dois POSTs no mesmo clique duplo.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { useAuth } from '../../contexts/AuthContext';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import { StatusTag, type StatusTone } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
+import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
+import { flattenServerError } from '../../components/admin/dinheiro/serverError';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../lib/api';
+import { isHttpStatus } from '../../lib/adminErrors';
+import { formatMoney } from '../../lib/money';
 import { humanizeRefundError, REFUND_STATUS_LABEL } from '../../lib/refundErrors';
-import styles from '../seller/Integrations.module.css';
 
 interface Row {
   id: string;
@@ -26,33 +44,45 @@ const FILTERS = [
   { value: 'done', label: 'Concluídos' },
 ];
 
-export default function AdminEstornos() {
-  const router = useRouter();
-  const { can } = useAuth() as any;
-  const [status, setStatus] = useState('');
-  const [rows, setRows] = useState<Row[]>([]);
-  // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [note, setNote] = useState('');
+const TONE: Record<string, StatusTone> = {
+  pending: 'neutral', requested: 'info', done: 'ok', failed: 'warn', failed_final: 'bad', uncertain: 'bad',
+};
+const REFUNDABLE = ['pending', 'failed', 'failed_final'];
+
+const refundLabel = (r: Row) =>
+  `${r.status === 'failed_final' ? 'Reabrir e devolver' : 'Devolver'} ${formatMoney(Number(r.amount))}`;
+
+export default function AdminEstornosPage() {
+  const { can } = useAuth();
+  const { showToast } = useToast();
   const canAct = typeof can === 'function' ? can('payout:release') : false;
 
-  // Geração da consulta: cada carga da 1ª página (troca de filtro, recarga) invalida as
-  // respostas em voo — um "Carregar mais" disparado antes não anexa linhas da lista antiga.
+  const [status, setStatus] = useState('');
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState<Row | null>(null);
+  const [resolving, setResolving] = useState<Row | null>(null);
+  const [note, setNote] = useState('');
+
+  // Mesma geração de consulta da página antiga: resposta de uma lista velha nunca é anexada.
   const queryGen = useRef(0);
+  // Trava síncrona contra clique duplo: vale antes de qualquer setState, ao contrário do `busy` da folha.
+  const refundInFlight = useRef(false);
+  const resolveInFlight = useRef(false);
 
   const load = useCallback(async () => {
     const gen = ++queryGen.current;
     setNextCursor(null);
+    setMoreError(null);
     try {
       const r = await api.get('/admin/direct-refunds', { params: status ? { status } : {} });
       if (gen !== queryGen.current) return;
       setRows(r.data?.data ?? []);
       setNextCursor(r.data?.nextCursor ?? null);
-      setError('');
+      setError(null);
     } catch {
       if (gen === queryGen.current) setError('Não foi possível carregar os estornos.');
     }
@@ -64,101 +94,154 @@ export default function AdminEstornos() {
     if (!nextCursor || loadingMore) return;
     const gen = queryGen.current;
     setLoadingMore(true);
+    setMoreError(null);
     try {
-      const r = await api.get('/admin/direct-refunds', { params: status ? { status, cursor: nextCursor } : { cursor: nextCursor } });
+      const r = await api.get('/admin/direct-refunds', {
+        params: status ? { status, cursor: nextCursor } : { cursor: nextCursor },
+      });
       if (gen !== queryGen.current) return; // filtro mudou: resposta da lista antiga
       const more: Row[] = r.data?.data ?? [];
-      setRows((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
+      setRows((prev) => {
+        const base = prev ?? [];
+        return [...base, ...more.filter((m) => !base.some((p) => p.id === m.id))];
+      });
       setNextCursor(r.data?.nextCursor ?? null);
     } catch {
-      if (gen === queryGen.current) setError('Não foi possível carregar os estornos.');
+      if (gen === queryGen.current) setMoreError('Não deu para carregar mais. Tente de novo.');
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const act = async (id: string, fn: () => Promise<unknown>) => {
-    setBusy(id);
-    setError('');
+  const refund = async () => {
+    if (!refunding || refundInFlight.current) return;
+    refundInFlight.current = true;
     try {
-      await fn();
-      setResolving(null);
-      setNote('');
-      await load();
-    } catch (e: any) {
-      setError(e?.response?.data?.error?.message || e?.response?.data?.error || 'Ação não concluída.');
+      await api.post(`/orders/${refunding.orderId}/refund-direct`);
+    } catch (err) {
+      // 409 = a trava do servidor viu outro estado (concluído, em andamento, incerto): relê a lista.
+      if (isHttpStatus(err, 409)) void load();
+      throw flattenServerError(err, 'Ação não concluída.');
     } finally {
-      setBusy(null);
+      refundInFlight.current = false;
     }
+    setRefunding(null);
+    showToast('Devolução pedida ao Asaas.', 'success');
+    await load();
+  };
+
+  const resolve = async () => {
+    if (!resolving || resolveInFlight.current) return;
+    resolveInFlight.current = true;
+    try {
+      await api.post(`/admin/direct-refunds/${resolving.id}/resolve`, { note: note.trim() });
+    } catch (err) {
+      throw flattenServerError(err, 'Ação não concluída.');
+    } finally {
+      resolveInFlight.current = false;
+    }
+    setResolving(null);
+    setNote('');
+    showToast('Estorno marcado como resolvido.', 'success');
+    await load();
+  };
+
+  const columns: AdminColumn<Row>[] = [
+    { key: 'loja', header: 'Loja', primary: true, render: (r) => r.storeName ?? 'Loja' },
+    { key: 'pedido', header: 'Pedido', render: (r) => <span className={ui.mono}>{`#${String(r.orderId).slice(-6)}`}</span> },
+    {
+      key: 'situacao', header: 'Situação',
+      render: (r) => (
+        <span>
+          <StatusTag tone={TONE[r.status] ?? 'neutral'}>{REFUND_STATUS_LABEL[r.status] ?? r.status}</StatusTag>
+          <span className={ui.sub}>{`${r.attempts} tentativa(s)`}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'motivo', header: 'Por quê',
+      render: (r) => {
+        const msg = r.lastError && r.status !== 'done' ? humanizeRefundError(r.lastError) : null;
+        return msg ? <span className={ui.errLine}>{msg}</span> : '—';
+      },
+    },
+    { key: 'valor', header: 'Valor', align: 'right', render: (r) => formatMoney(Number(r.amount)) },
+  ];
+
+  const rowAction = (r: Row) => {
+    if (!canAct || r.status === 'done' || r.status === 'requested') return null;
+    return (
+      <div className={ui.rowActions}>
+        {REFUNDABLE.includes(r.status) && (
+          <Button size="sm" className={ui.touch} onClick={() => setRefunding(r)}>{refundLabel(r)}</Button>
+        )}
+        <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setResolving(r); setNote(''); }}>
+          Resolver com nota
+        </Button>
+      </div>
+    );
   };
 
   return (
     <ProtectedRoute required_permission="payout:view">
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <button className={styles.docsLink} onClick={() => router.push('/admin/dashboard')}>← Dashboard</button>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Estornos</h1>
-            <p className={styles.subtitle}>Estornos de pedidos no modo direto. Confira no Asaas antes de marcar como resolvido.</p>
-          </header>
-          <label className={styles.subtitle}>
-            Filtrar por status{' '}
-            <select aria-label="Filtrar por status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </label>
-          {error && <p role="alert" className={styles.subtitle}>{error}</p>}
-          {rows.length === 0 && !error && <p className={styles.subtitle}>Nenhum estorno encontrado.</p>}
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {rows.map((r) => (
-              <li key={r.id} style={{ padding: 'var(--space-3)', border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', background: 'var(--surface)' }}>
-                <div style={{ color: 'var(--text)' }}>
-                  {r.storeName ?? 'Loja'} — pedido {r.orderId} — R$ {Number(r.amount).toFixed(2).replace('.', ',')}
-                </div>
-                <div style={{ color: 'var(--text-muted)' }}>
-                  {REFUND_STATUS_LABEL[r.status] ?? r.status} · {r.attempts} tentativa(s)
-                </div>
-                {r.lastError && r.status !== 'done' && <div style={{ color: 'var(--danger)' }}>{humanizeRefundError(r.lastError)}</div>}
-                {canAct && r.status !== 'done' && r.status !== 'requested' && (
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
-                    {(r.status === 'pending' || r.status === 'failed' || r.status === 'failed_final') && (
-                      <Button size="sm" loading={busy === r.id} onClick={() => act(r.id, () => api.post(`/orders/${r.orderId}/refund-direct`))}>
-                        {r.status === 'failed_final' ? 'Reabrir e estornar' : 'Estornar'}
-                      </Button>
-                    )}
-                    <Button size="sm" variant="tertiary" onClick={() => { setResolving(resolving === r.id ? null : r.id); setNote(''); }}>
-                      Marcar como resolvido
-                    </Button>
-                  </div>
-                )}
-                {resolving === r.id && (
-                  <div style={{ marginTop: 'var(--space-2)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <textarea
-                      aria-label="Nota da conferência"
-                      placeholder="Ex.: conferido no painel do Asaas, estorno concluído"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={note.trim().length < 10}
-                      loading={busy === r.id}
-                      onClick={() => act(r.id, () => api.post(`/admin/direct-refunds/${r.id}/resolve`, { note: note.trim() }))}
-                    >
-                      Confirmar resolução
-                    </Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-          {nextCursor && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
-              <Button variant="tertiary" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+      <AdminShell title="Dinheiro · Estornos" tabs="dinheiro">
+        <div className={ui.stack}>
+          <p className={blocks.muted}>
+            Estornos de pedidos no modo direto. Em resultado incerto, confira no Asaas antes de qualquer ação: devolver de
+            novo pode pagar o cliente duas vezes.
+          </p>
+          <section className={blocks.block} aria-label="Estornos">
+            <div className={ui.toolbar}>
+              <Select label="Filtrar por status" value={status} onChange={setStatus} options={FILTERS} />
             </div>
-          )}
+            <AdminTable
+              columns={columns}
+              rows={rows}
+              rowKey={(r) => r.id}
+              rowLabel={(r) => r.storeName ?? 'estorno'}
+              error={error}
+              onRetry={load}
+              empty="Nenhum estorno encontrado"
+              rowAction={rowAction}
+            />
+            {moreError && <p role="alert" className={ui.formError}>{moreError}</p>}
+            {nextCursor && rows && !error && (
+              <div className={ui.loadMore}>
+                <Button variant="tertiary" className={ui.touch} loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+              </div>
+            )}
+          </section>
         </div>
-      </div>
+
+        <AdminSheet
+          open={!!refunding}
+          title={refunding ? `Devolver ${formatMoney(Number(refunding.amount))} ao cliente` : ''}
+          onClose={() => setRefunding(null)}
+          primary={{ label: 'Confirmar devolução', onClick: refund }}
+        >
+          {refunding && (
+            <p className={blocks.muted}>
+              {`O estorno do pedido #${String(refunding.orderId).slice(-6)} sai da conta de ${refunding.storeName ?? 'a loja'} no Asaas para o cliente.`}
+              {refunding.status === 'failed_final' ? ' As tentativas tinham acabado: isto reabre o estorno.' : ''}
+            </p>
+          )}
+        </AdminSheet>
+
+        <AdminSheet
+          open={!!resolving}
+          title="Resolver estorno"
+          onClose={() => setResolving(null)}
+          primary={{ label: 'Confirmar resolução', disabled: note.trim().length < 10, onClick: resolve }}
+        >
+          <TextAreaField
+            label="Nota da conferência"
+            value={note}
+            onChange={setNote}
+            placeholder="Ex.: conferido no painel do Asaas, estorno concluído"
+            hint="Mínimo de 10 caracteres. Fica no histórico do estorno."
+          />
+        </AdminSheet>
+      </AdminShell>
     </ProtectedRoute>
   );
 }

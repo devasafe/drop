@@ -13,6 +13,8 @@ jest.mock('../lib/api', () => ({
   __esModule: true,
   default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(), post: jest.fn() },
 }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
 const rows = [
   { id: 'r1', orderId: 'o1', storeName: 'Loja Um', status: 'failed', amount: 50, attempts: 2, lastError: 'Saldo insuficiente' },
@@ -30,8 +32,8 @@ test('lista com erro legivel e botoes conforme o status', async () => {
   render(<AdminEstornos />);
   expect(await screen.findByText('A loja não tem saldo no Asaas para este estorno')).toBeInTheDocument();
   expect(screen.getByText('Resultado incerto no Asaas — aguardando conferência do admin')).toBeInTheDocument();
-  expect(screen.getAllByText('Estornar')).toHaveLength(1);
-  expect(screen.getAllByText('Marcar como resolvido')).toHaveLength(2);
+  expect(screen.getAllByRole('button', { name: /^Devolver R\$/ })).toHaveLength(1);
+  expect(screen.getAllByText('Resolver com nota')).toHaveLength(2);
 });
 
 test('filtro de status vai na query', async () => {
@@ -44,7 +46,7 @@ test('filtro de status vai na query', async () => {
 test('resolver exige nota de 10+ caracteres e chama o endpoint', async () => {
   render(<AdminEstornos />);
   await screen.findByText(/Loja Dois/);
-  fireEvent.click(screen.getAllByText('Marcar como resolvido')[1]);
+  fireEvent.click(screen.getAllByText('Resolver com nota')[1]);
   const confirm = screen.getByText('Confirmar resolução');
   fireEvent.change(screen.getByLabelText('Nota da conferência'), { target: { value: 'curta' } });
   expect(confirm.closest('button')).toBeDisabled();
