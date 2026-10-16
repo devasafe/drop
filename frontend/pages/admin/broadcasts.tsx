@@ -1,20 +1,34 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { FormEvent, useCallback, useEffect, useId, useState } from 'react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { Input } from '../../components/ui/Input';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { adminErrorMessage } from '../../lib/adminErrors';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import styles from '../../components/admin/comunicacao/Broadcasts.module.css';
 
+/**
+ * Avisos e broadcasts · Broadcasts (D3a, tela 20). GET /broadcasts, POST /broadcasts { title, body, targetRoles }
+ * e DELETE /broadcasts/:id (o botão só aparece para o CEO, como hoje). Envio imediato; agendar é D3b.
+ */
 const ALL_ROLES = [
-  { key: 'cliente',           label: 'Clientes' },
-  { key: 'lojista',           label: 'Lojistas' },
-  { key: 'motoboy',           label: 'Motoboys' },
-  { key: 'gerente_clientes',  label: 'Gerentes de Clientes' },
-  { key: 'gerente_lojistas',  label: 'Gerentes de Lojistas' },
-  { key: 'gerente_motoboys',  label: 'Gerentes de Motoboys' },
-  { key: 'gerente_geral',     label: 'Gerentes Gerais' },
-  { key: 'marketing',         label: 'Marketing' },
+  { key: 'cliente', label: 'Clientes' },
+  { key: 'lojista', label: 'Lojistas' },
+  { key: 'motoboy', label: 'Motoboys' },
+  { key: 'gerente_clientes', label: 'Gerentes de Clientes' },
+  { key: 'gerente_lojistas', label: 'Gerentes de Lojistas' },
+  { key: 'gerente_motoboys', label: 'Gerentes de Motoboys' },
+  { key: 'gerente_geral', label: 'Gerentes Gerais' },
+  { key: 'marketing', label: 'Marketing' },
 ];
+const roleName = (k: string) => ALL_ROLES.find((r) => r.key === k)?.label ?? k;
 
 interface Broadcast {
   _id: string;
@@ -26,200 +40,202 @@ interface Broadcast {
   createdBy?: { name: string };
 }
 
+const fmtSent = (iso: string) =>
+  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
 export default function AdminBroadcasts() {
-  const router = useRouter();
-  const { user } = useAuth() || {};
-  const isCeo = (user?.activeRole || user?.role) === 'ceo';
-
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [targetRoles, setTargetRoles] = useState<string[]>([]);
-  const [sending, setSending] = useState(false);
-  const [sentMsg, setSentMsg] = useState('');
-
-  const [history, setHistory] = useState<Broadcast[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-
-  const handleDelete = async (id: string, deliveryCount: number) => {
-    if (!confirm(`Apagar este anúncio e remover as notificações de ${deliveryCount} usuários?`)) return;
-    try {
-      await api.delete(`/broadcasts/${id}`);
-      setHistory(prev => prev.filter(b => b._id !== id));
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao apagar');
-    }
-  };
-
-  const fetchHistory = async () => {
-    try {
-      const res = await api.get('/broadcasts');
-      setHistory(res.data.broadcasts);
-    } catch {
-      /* silencioso */
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  useEffect(() => { fetchHistory(); }, []);
-
-  const toggleRole = (role: string) => {
-    setTargetRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
-  };
-
-  const selectAll = () => setTargetRoles(ALL_ROLES.map(r => r.key));
-  const clearAll = () => setTargetRoles([]);
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !body.trim() || targetRoles.length === 0) {
-      return alert('Preencha título, mensagem e selecione pelo menos um grupo.');
-    }
-    if (!confirm(`Enviar para ${targetRoles.length} grupos?`)) return;
-
-    setSending(true);
-    setSentMsg('');
-    try {
-      const res = await api.post('/broadcasts', { title, body, targetRoles });
-      setSentMsg(`Enviado para ${res.data.deliveryCount} usuários!`);
-      setTitle(''); setBody(''); setTargetRoles([]);
-      await fetchHistory();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao enviar');
-    } finally {
-      setSending(false);
-    }
-  };
-
   return (
     <ProtectedRoute required_permission="broadcast:send">
-      <div style={{ minHeight: '100vh', background: 'var(--drop-bg)', padding: '32px 20px' }}>
-        <div className="drop-fade-in" style={{ maxWidth: 760, margin: '0 auto' }}>
-
-          <div style={{ marginBottom: 28 }}>
-            <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
-              ← Dashboard
-            </button>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--drop-text)', margin: '0 0 4px' }}>
-              Enviar Anúncio
-            </h1>
-            <p style={{ fontSize: 14, color: 'var(--drop-text-muted)', margin: 0 }}>
-              Publique comunicados para grupos específicos do app
-            </p>
-          </div>
-
-          {/* Composer */}
-          <form onSubmit={handleSend} style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border-md)', borderRadius: 16, padding: 24, marginBottom: 32 }}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Título</label>
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Ex: Promoção de Verão 🔥"
-                style={inputStyle}
-                maxLength={200}
-                required
-              />
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>Mensagem</label>
-              <textarea
-                value={body}
-                onChange={e => setBody(e.target.value)}
-                placeholder="Escreva aqui o conteúdo do anúncio..."
-                rows={5}
-                maxLength={2000}
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 120 }}
-                required
-              />
-              <div style={{ fontSize: 11, color: 'var(--drop-text-dim)', marginTop: 4, textAlign: 'right' }}>{body.length}/2000</div>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <label style={labelStyle}>Enviar para</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={selectAll} style={miniBtn}>Todos</button>
-                  <button type="button" onClick={clearAll} style={miniBtn}>Limpar</button>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {ALL_ROLES.map(r => (
-                  <label key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: targetRoles.includes(r.key) ? 'var(--drop-purple-bg)' : 'var(--drop-bg-2)', border: `1px solid ${targetRoles.includes(r.key) ? 'var(--drop-purple)' : 'var(--drop-border)'}`, borderRadius: 8, cursor: 'pointer', fontSize: 13, color: targetRoles.includes(r.key) ? 'var(--drop-purple-2)' : 'var(--drop-text-muted)' }}>
-                    <input type="checkbox" checked={targetRoles.includes(r.key)} onChange={() => toggleRole(r.key)} style={{ accentColor: 'var(--drop-purple)', width: 14, height: 14 }} />
-                    {r.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {sentMsg && <p style={{ fontSize: 13, color: 'var(--drop-success)', fontWeight: 600, marginBottom: 12 }}>{sentMsg}</p>}
-
-            <button type="submit" disabled={sending} style={{ width: '100%', padding: '12px', background: 'var(--drop-purple)', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', opacity: sending ? 0.6 : 1 }}>
-              {sending ? 'Enviando...' : 'Publicar Anúncio'}
-            </button>
-          </form>
-
-          {/* Histórico */}
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--drop-text)', margin: '0 0 16px' }}>
-            Histórico
-          </h2>
-
-          {loadingHistory ? (
-            <LoadingSkeleton variant="list" count={3} />
-          ) : history.length === 0 ? (
-            <p style={{ color: 'var(--drop-text-muted)', fontSize: 13 }}>Nenhum anúncio enviado ainda.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {history.map(b => (
-                <div key={b._id} style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border)', borderRadius: 12, padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--drop-text)' }}>{b.title}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                      <span style={{ fontSize: 12, color: 'var(--drop-text-dim)', whiteSpace: 'nowrap' }}>
-                        {new Date(b.sentAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {isCeo && (
-                        <button
-                          onClick={() => handleDelete(b._id, b.deliveryCount)}
-                          title="Apagar para todos"
-                          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#f87171', fontSize: 12, padding: '3px 8px', cursor: 'pointer' }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 13, color: 'var(--drop-text-muted)', margin: '0 0 10px', lineHeight: 1.6 }}>{b.body}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--drop-text-dim)' }}>
-                    <span>Por: {b.createdBy?.name || 'Sistema'}</span>
-                    <span>·</span>
-                    <span>{b.deliveryCount} usuários</span>
-                    <span>·</span>
-                    <span>{b.targetRoles.join(', ')}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <AdminShell title="Avisos e broadcasts · Broadcasts" tabs="comunicacao">
+        <BroadcastsBody />
+      </AdminShell>
     </ProtectedRoute>
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: 'var(--drop-bg-2)', border: '1px solid var(--drop-border-md)',
-  borderRadius: 8, color: 'var(--drop-text)', padding: '10px 14px', fontSize: 14,
-  fontFamily: 'inherit', outline: 'none',
-};
+function BroadcastsBody() {
+  const { user } = useAuth();
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  const { showToast } = useToast();
+  const formId = useId();
+  const sentId = useId();
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [targetRoles, setTargetRoles] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [history, setHistory] = useState<Broadcast[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<Broadcast | null>(null);
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 13, color: 'var(--drop-text-muted)', display: 'block', marginBottom: 6, fontWeight: 500,
-};
+  const fetchHistory = useCallback(async () => {
+    setHistoryError(null);
+    try {
+      const res = await api.get('/broadcasts');
+      setHistory(Array.isArray(res.data?.broadcasts) ? res.data.broadcasts : []);
+    } catch (err) {
+      setHistoryError(adminErrorMessage(err, 'Não deu para ler os enviados.'));
+    }
+  }, []);
 
-const miniBtn: React.CSSProperties = {
-  padding: '4px 10px', borderRadius: 6, border: '1px solid var(--drop-border-md)',
-  background: 'transparent', color: 'var(--drop-text-muted)', fontSize: 12, cursor: 'pointer',
-};
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const toggleRole = (role: string) => {
+    setTargetRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  };
+
+  const askSend = (e: FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !body.trim() || targetRoles.length === 0) {
+      setFormError('Preencha título, mensagem e selecione pelo menos um grupo.');
+      return;
+    }
+    setFormError(null);
+    setConfirmOpen(true);
+  };
+
+  const send = async () => {
+    const res = await api.post('/broadcasts', { title, body, targetRoles });
+    setConfirmOpen(false);
+    showToast(`Enviado para ${res.data?.deliveryCount ?? 0} usuários!`, 'success');
+    setTitle('');
+    setBody('');
+    setTargetRoles([]);
+    await fetchHistory();
+  };
+
+  const remove = async () => {
+    if (!toDelete) return;
+    const id = toDelete._id;
+    await api.delete(`/broadcasts/${id}`);
+    setHistory((prev) => (prev ? prev.filter((b) => b._id !== id) : prev));
+    setToDelete(null);
+    showToast('Broadcast apagado', 'success');
+  };
+
+  const groups = targetRoles.length;
+
+  return (
+    <div className={styles.layout}>
+      <form className={blocks.block} onSubmit={askSend} aria-labelledby={formId} noValidate>
+        <div className={blocks.blockHead}>
+          <h2 id={formId} className={blocks.blockTitle}>Novo broadcast</h2>
+          <span className={blocks.muted}>push + notificação no app</span>
+        </div>
+
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>Para quem</legend>
+          <div className={styles.roleGrid}>
+            {ALL_ROLES.map((r) => (
+              <Checkbox key={r.key} label={r.label} checked={targetRoles.includes(r.key)} onChange={() => toggleRole(r.key)} />
+            ))}
+          </div>
+          <div className={blocks.actions}>
+            <Button variant="tertiary" size="sm" onClick={() => setTargetRoles(ALL_ROLES.map((r) => r.key))}>Todos</Button>
+            <Button variant="tertiary" size="sm" onClick={() => setTargetRoles([])}>Limpar</Button>
+          </div>
+        </fieldset>
+
+        <Input
+          label="Título"
+          value={title}
+          onChange={setTitle}
+          placeholder="Ex: Promoção de Verão"
+          maxLength={200}
+          hint={`${title.length} de 200 caracteres`}
+        />
+        <div className={styles.field}>
+          <label htmlFor={`${formId}-body`} className={styles.label}>Mensagem</label>
+          <textarea
+            id={`${formId}-body`}
+            className={styles.textarea}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Escreva aqui o conteúdo do anúncio..."
+            rows={5}
+            maxLength={2000}
+          />
+          <span className={styles.counter}>{body.length}/2000</span>
+        </div>
+
+        {formError && <Alert tone="error">{formError}</Alert>}
+        <div className={styles.submit}><Button type="submit">Enviar agora</Button></div>
+      </form>
+
+      <div className={styles.side}>
+        <section className={blocks.block} aria-label="Prévia no celular">
+          <p className={styles.cap}>Prévia no celular</p>
+          <div className={styles.phone}>
+            <div className={styles.push}>
+              <span className={styles.pushIcon} aria-hidden="true" />
+              <div className={styles.pushText}>
+                <span className={styles.pushTitle}>DROP · {title.trim() || 'Título do aviso'}</span>
+                <span className={styles.pushBody}>{body.trim() || 'A mensagem aparece aqui.'}</span>
+              </div>
+            </div>
+          </div>
+          <p className={blocks.muted}>
+            {groups === 0 ? 'Escolha para quem.' : `Vai para: ${targetRoles.map(roleName).join(', ')}`}
+          </p>
+        </section>
+
+        <section className={blocks.block} aria-labelledby={sentId}>
+          <h2 id={sentId} className={blocks.blockTitle}>Enviados</h2>
+          {historyError ? (
+            <>
+              <p className={blocks.errText} role="alert">{historyError}</p>
+              <div><Button variant="secondary" size="sm" onClick={fetchHistory}>Tentar de novo</Button></div>
+            </>
+          ) : history === null ? (
+            <div aria-busy="true" aria-label="Carregando"><Skeleton height={56} /><Skeleton height={56} /></div>
+          ) : history.length === 0 ? (
+            <p className={blocks.muted}>Nenhum anúncio enviado ainda.</p>
+          ) : (
+            <ul className={styles.sentList}>
+              {history.map((b) => (
+                <li key={b._id} className={styles.sentItem}>
+                  <div className={styles.sentHead}>
+                    <span className={styles.sentTitle}>{b.title}</span>
+                    {isCeo && (
+                      <Button variant="tertiary" size="sm" aria-label={`Apagar ${b.title}`} onClick={() => setToDelete(b)}>Apagar</Button>
+                    )}
+                  </div>
+                  <p className={styles.sentBody}>{b.body}</p>
+                  <span className={styles.sentMeta}>
+                    {b.targetRoles.map(roleName).join(', ')} · {b.deliveryCount} usuários · {fmtSent(b.sentAt)} · por {b.createdBy?.name || 'Sistema'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <AdminSheet
+        open={confirmOpen}
+        title={`Enviar para ${groups} ${groups === 1 ? 'grupo' : 'grupos'}?`}
+        onClose={() => setConfirmOpen(false)}
+        primary={{ label: 'Enviar agora', onClick: send }}
+      >
+        <dl className={styles.summary}>
+          <dt className={blocks.muted}>Título</dt>
+          <dd>{title}</dd>
+          <dt className={blocks.muted}>Grupos</dt>
+          <dd>{targetRoles.map(roleName).join(', ')}</dd>
+        </dl>
+        <p className={blocks.muted}>O envio é na hora e não dá para desfazer.</p>
+      </AdminSheet>
+
+      <AdminSheet
+        open={toDelete !== null}
+        title="Apagar este broadcast?"
+        onClose={() => setToDelete(null)}
+        primary={{ label: 'Apagar', tone: 'danger', onClick: remove }}
+      >
+        <p className={blocks.muted}>
+          Remove as notificações de {toDelete?.deliveryCount ?? 0} usuários. Não dá para desfazer.
+        </p>
+      </AdminSheet>
+    </div>
+  );
+}
