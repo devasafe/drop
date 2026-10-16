@@ -22,8 +22,11 @@ export interface AdminTab {
   label: string;
   /** URL da página (a mesma de hoje). `?aba=` só quando duas abas moram na mesma página. */
   href: string;
-  /** Permissão da página (a mesma do ProtectedRoute dela). */
-  permission?: string;
+  /**
+   * Permissão da página (a mesma do ProtectedRoute dela). Lista = QUALQUER UMA basta: página fundida (D1),
+   * cujo ProtectedRoute aceita as permissões das páginas que juntou. Leia sempre por tabPermissions().
+   */
+  permission?: string | string[];
   /** Só o CEO (não delegável por permissão). */
   ceoOnly?: boolean;
   /** Some no modo 'direto' (custódia/repasse desligados). */
@@ -109,8 +112,8 @@ export const ADMIN_AREAS: AdminArea[] = [
     key: 'regras', group: 'Configuração', label: 'Regras e taxas', icon: 'percent',
     tabs: [
       { key: 'taxas', label: 'Taxas e tempos', href: '/admin/settings', permission: 'settings:manage' },
-      // A P2.5 leva o Ranking para /admin/settings?aba=ranking.
-      { key: 'ranking', label: 'Ranking', href: '/admin/ranking-config', permission: 'ranking:manage' },
+      // D1: ranking-config virou a aba Ranking de /admin/settings (redirect na P5).
+      { key: 'ranking', label: 'Ranking', href: '/admin/settings?aba=ranking', permission: 'ranking:manage' },
       // D4: a troca de modo sai de Freios; só o CEO (o servidor também confere: CEO_ONLY).
       { key: 'modo', label: 'Modo da plataforma', href: '/admin/settings?aba=modo', ceoOnly: true },
     ],
@@ -132,15 +135,23 @@ export const ADMIN_AREAS: AdminArea[] = [
 /** Títulos de páginas que existem mas ficam fora do menu (órfãs até o redirect da P5). */
 const OFF_MENU_TITLES: Record<string, string> = {
   '/admin/pricing-config': 'Planos de preço',
+  '/admin/ranking-config': 'Regras e taxas · Ranking',
 };
 
 const pathOf = (href: string) => href.split('?')[0];
 const abaOf = (href: string) => new URLSearchParams(href.split('?')[1] ?? '').get('aba');
 
+/** Permissões da aba como lista (vazia = ninguém além do CEO). Usada por P2 e P5; não ler `tab.permission` direto. */
+export function tabPermissions(tab: Pick<AdminTab, 'permission'>): string[] {
+  const p = tab.permission;
+  if (!p) return [];
+  return Array.isArray(p) ? [...p] : [p];
+}
+
 function roleAllows(tab: AdminTab, ctx: AdminNavContext): boolean {
   if (ctx.isCeo) return true;
   if (tab.ceoOnly) return false;
-  return tab.permission ? ctx.can(tab.permission) : false;
+  return tabPermissions(tab).some((p) => ctx.can(p));
 }
 
 function modeAllows(tab: AdminTab, ctx: AdminNavContext): boolean {

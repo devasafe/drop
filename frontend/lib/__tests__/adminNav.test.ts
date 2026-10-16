@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import {
   ADMIN_AREAS, visibleAdminAreas, adminAreaForPath, adminAreaHref, activeAdminTabKey,
-  adminScreenTitle, adminRoleLabel, isAdminPanelRoute,
-  type AdminArea, type AdminNavContext,
+  adminScreenTitle, adminRoleLabel, isAdminPanelRoute, isAdminTabVisible, tabPermissions,
+  type AdminArea, type AdminNavContext, type AdminTab,
 } from '../adminNav';
 
 /** Permissões padrão de cada papel: iguais a `rolePermissions` do backend (o 1º describe confere). */
@@ -202,7 +202,8 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminAreaForPath('/admin/withdrawals')).toBe('dinheiro');
     expect(adminAreaForPath('/admin/plan-approvals')).toBe('lojas');
     expect(adminAreaForPath('/admin/conversas')).toBe('suporte');
-    expect(adminAreaForPath('/admin/ranking-config')).toBe('regras');
+    expect(adminAreaForPath('/admin/ranking-config')).toBeNull(); // virou /admin/settings?aba=ranking (redirect na P5)
+    expect(adminAreaForPath('/admin/settings')).toBe('regras');
     expect(adminAreaForPath('/admin/pricing-config')).toBeNull();
     expect(adminAreaForPath('/seller/dashboard')).toBeNull();
   });
@@ -229,6 +230,7 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminScreenTitle('/admin/freios')).toBe('Freios');
     expect(adminScreenTitle('/admin/verificacoes')).toBe('Verificações');
     expect(adminScreenTitle('/admin/pricing-config')).toBe('Planos de preço');
+    expect(adminScreenTitle('/admin/ranking-config')).toBe('Regras e taxas · Ranking');
     expect(adminScreenTitle('/admin/qualquer')).toBe('Administração');
   });
 
@@ -247,5 +249,38 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminRoleLabel('gerente_lojistas')).toBe('Gerente de lojistas');
     expect(adminRoleLabel('gerente_motoboys')).toBe('Gerente de motoboys');
     expect(adminRoleLabel(undefined)).toBe('Equipe');
+  });
+});
+
+describe('tabPermissions e aba com mais de uma permissão (D1, fusões)', () => {
+  const ctx = (perms: string[], isCeo = false): AdminNavContext => ({
+    can: (p) => perms.includes(p), isCeo, settlementMode: 'custodia', custodyOpen: false,
+  });
+
+  it('normaliza a permissão da aba numa lista', () => {
+    expect(tabPermissions({})).toEqual([]);
+    expect(tabPermissions({ permission: 'a:b' })).toEqual(['a:b']);
+    const list = ['a:b', 'c:d'];
+    const out = tabPermissions({ permission: list });
+    expect(out).toEqual(['a:b', 'c:d']);
+    expect(out).not.toBe(list);
+  });
+
+  it('lista: qualquer uma basta; lista vazia ninguém (só o CEO); ceoOnly continua só do CEO', () => {
+    const tab: AdminTab = { key: 'x', label: 'X', href: '/admin/x', permission: ['a:b', 'c:d'] };
+    expect(isAdminTabVisible(tab, ctx(['c:d']))).toBe(true);
+    expect(isAdminTabVisible(tab, ctx(['e:f']))).toBe(false);
+    expect(isAdminTabVisible({ ...tab, permission: [] }, ctx(['a:b']))).toBe(false);
+    expect(isAdminTabVisible({ ...tab, permission: [] }, ctx([], true))).toBe(true);
+    expect(isAdminTabVisible({ ...tab, ceoOnly: true }, ctx(['a:b']))).toBe(false);
+  });
+
+  it('Ranking mora em /admin/settings?aba=ranking, com a mesma permissão', () => {
+    const regras = ADMIN_AREAS.find((a) => a.key === 'regras')!;
+    const ranking = regras.tabs.find((t) => t.key === 'ranking')!;
+    expect(ranking.href).toBe('/admin/settings?aba=ranking');
+    expect(tabPermissions(ranking)).toEqual(['ranking:manage']);
+    expect(activeAdminTabKey(regras, '/admin/settings', { aba: 'ranking' })).toBe('ranking');
+    expect(adminAreaHref(visibleAdminAreas(ctx(['ranking:manage'])).find((a) => a.key === 'regras')!)).toBe('/admin/settings?aba=ranking');
   });
 });
