@@ -52,6 +52,8 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   await purgeStoreConsentsForTests(storeIds);
   await prisma.store.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
+  // D3b-3: linhas do registro de ações de dinheiro feitas pelos usuários da suíte (actorId é String, sem FK).
+  await prisma.adminMoneyAction.deleteMany({ where: { actorId: { in: ids } } });
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
 }
 

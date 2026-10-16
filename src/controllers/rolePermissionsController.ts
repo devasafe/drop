@@ -107,6 +107,8 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'order:manage_payment',        label: 'Alterar status de pagamento de pedidos', category: 'Pedidos' },
   // Analytics
   { key: 'analytics:view_platform',     label: 'Ver analytics da plataforma', category: 'Analytics' },
+  // Financeiro — Visão geral (D3b-3): padrão só CEO (via '*'); concedível em Permissões.
+  { key: 'money:overview',              label: 'Ver a visão geral do dinheiro e o histórico de ações', category: 'Financeiro — Visão geral' },
 ];
 
 // Permissões que movem dinheiro sem lastro: exclusivas do CEO (via '*'), nunca
