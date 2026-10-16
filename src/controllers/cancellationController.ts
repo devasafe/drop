@@ -42,6 +42,7 @@ import {
   directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation, CancellationClaimLostError,
 } from '../services/asaasLoja/directCancellation';
 import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
+import { staffRolesOf } from './rolePermissionsController';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Pedido encerrado: nada de reembolso/reentrega/reatribuição depois disso. */
@@ -2015,7 +2016,8 @@ export const getCancellationHistory = async (req: AuthenticatedRequest, res: Res
       const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;
       isStoreOwner = !!store && String(store.ownerId) === String(userId);
     }
-    const isAdmin = ['ceo', 'gerente_geral'].includes(role);
+    // CEO pelo papel ativo; gerente_geral também como papel de equipe da conta (acréscimo).
+    const isAdmin = role === 'ceo' || staffRolesOf(req.user as any).includes('gerente_geral');
     if (!isCustomer && !isStoreOwner && !isAdmin) {
       return res.status(403).json({ error: 'Sem permissão para ver este histórico' });
     }

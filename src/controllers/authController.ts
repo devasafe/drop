@@ -14,6 +14,7 @@ import env from '../config/env';
 import { recordConsent } from '../services/consent.service';
 import logger from '../config/logger';
 import { attemptsLeftOf } from '../middleware/authLimiter';
+import { isTeamRole } from './rolePermissionsController';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -96,8 +97,6 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
 
 /** Abre a sessão: JWT em cookie httpOnly + cookie `user`. Devolve o corpo de resposta do login. */
 async function issueSession(res: Response, user: any) {
-  // Usar activeRole se existir, senão usar role antigo por compatibilidade
-  const activeRole = user.activeRole || user.role || 'cliente';
   // Garantir múltiplos roles: motoboy e lojista também podem ser cliente
   let allRoles = user.roles || [user.role || 'cliente'];
   if (!Array.isArray(allRoles)) allRoles = [allRoles];
@@ -107,6 +106,15 @@ async function issueSession(res: Response, user: any) {
     user.roles = allRoles;
     await userRepository.update(user.id, { roles: allRoles });
     if (process.env.NODE_ENV === 'development') logger.debug('✅ Updated user roles in login. Now has:', allRoles);
+  }
+  // Usar activeRole se existir, senão usar role antigo por compatibilidade
+  let activeRole = user.activeRole || user.role || 'cliente';
+  // Papel de equipe não é área ativa (é acréscimo): conta presa nele volta para cliente
+  // (ou para o papel base, se não for de equipe) e isso fica gravado.
+  if (isTeamRole(activeRole)) {
+    activeRole = allRoles.includes('cliente') || isTeamRole(user.role) ? 'cliente' : user.role;
+    user.activeRole = activeRole;
+    await userRepository.update(user.id, { activeRole: activeRole as Role });
   }
   const token = jwt.sign(
     { id: user.id, role: activeRole, activeRole, roles: allRoles },
@@ -300,6 +308,14 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
 
     if (!['cliente', 'lojista', 'motoboy', 'ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(newRole)) {
       return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Papel de equipe é acréscimo às permissões da conta, não uma área para a qual se troca.
+    if (isTeamRole(newRole)) {
+      return res.status(400).json({
+        error: 'TEAM_ROLE_NOT_SWITCHABLE',
+        message: 'Papel de equipe não é uma área: o painel da equipe abre pela sua conta.',
+      });
     }
 
     const user = await userRepository.findByIdWithAddresses(userId);

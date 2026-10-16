@@ -3,6 +3,7 @@ import walletService from '../services/wallet.prisma.service';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
+import { isTeamRole } from '../controllers/rolePermissionsController';
 import { catchAsync } from '../middleware/errorHandler';
 import { deleteStoreRatingReply } from '../controllers/storeRatingReplyController';
 import { prisma } from '../lib/prisma';
@@ -95,10 +96,14 @@ router.put('/users/:id/role', authenticate, authorizePermission('user:manage_rol
     // Mantém os papéis-base (cliente/lojista/motoboy); só o papel administrativo
     // anterior é substituído. Antes, `roles: [role]` apagava os demais papéis.
     const roles = Array.from(new Set([...(current.roles || []).filter((r) => !ADMIN_ROLES.includes(r)), role]));
+    // Papel de equipe é acréscimo, não área ativa: a pessoa segue como cliente.
+    const teamRole = isTeamRole(role);
+    if (teamRole && !roles.includes('cliente')) roles.push('cliente');
+    const activeRole = teamRole ? 'cliente' : role;
 
     const user = await prisma.user.update({
       where: { id },
-      data: { role, activeRole: role, roles },
+      data: { role, activeRole, roles },
       select: SAFE_USER_SELECT,
     }).catch(() => null);
 

@@ -12,7 +12,7 @@ import { insertNotifications, deleteNotificationsByBroadcast } from '../reposito
 import { prisma } from '../lib/prisma';
 import { emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
-import { getEffectivePermissions } from './rolePermissionsController';
+import { getAccountNotificationTargets } from './rolePermissionsController';
 
 const VALID_ROLES = ['cliente', 'lojista', 'motoboy', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'gerente_geral', 'marketing', 'ceo'];
 
@@ -37,12 +37,12 @@ export const createBroadcast = async (req: AuthenticatedRequest, res: Response) 
       return res.status(400).json({ error: `Grupos inválidos: ${invalidRoles.join(', ')}` });
     }
 
-    // CEO pode enviar para todos; outros roles verificam notificationTargets
+    // CEO pode enviar para todos; os demais usam a união dos notificationTargets do papel
+    // ativo e dos papéis de equipe da conta (equipe é acréscimo, não área).
     let allowedTargets: string[] = VALID_ROLES;
     if (activeRole !== 'ceo') {
       try {
-        const { notificationTargets } = await getEffectivePermissions(activeRole);
-        allowedTargets = notificationTargets;
+        allowedTargets = await getAccountNotificationTargets(req.user as any);
       } catch {
         allowedTargets = [];
       }

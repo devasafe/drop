@@ -129,13 +129,58 @@ export async function getEffectivePermissions(role: string): Promise<{ permissio
   return { permissions: stripCeoOnly(rolePermissions[role] || []), notificationTargets: [] };
 }
 
+// Papéis de equipe: não são uma área para a qual se troca — são um ACRÉSCIMO à conta.
+// A pessoa continua no papel ativo dela (em geral cliente) e ganha as permissões desses papéis.
+export const TEAM_ROLES: AppRole[] = ['marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
+
+export const isTeamRole = (role: unknown): boolean => TEAM_ROLES.includes(String(role) as AppRole);
+
+type AccountUser = { activeRole?: string; role?: string; roles?: string[] } | undefined | null;
+
+/** Papel ativo do usuário autenticado (activeRole > role > cliente). */
+export const activeRoleOf = (user: AccountUser): string => user?.activeRole || user?.role || 'cliente';
+
+/**
+ * Papéis de equipe da conta. `req.user.roles` vem do BANCO (middleware authenticate),
+ * não do token: remover o papel derruba o acesso na requisição seguinte.
+ */
+export const teamRolesOf = (user: AccountUser): AppRole[] => {
+  const roles = Array.isArray(user?.roles) ? user!.roles.map(String) : [];
+  return TEAM_ROLES.filter((r) => roles.includes(r));
+};
+
+/** Papel ativo + papéis de equipe, sem repetição — o que conta para decisões de equipe por nome de papel. */
+export const staffRolesOf = (user: AccountUser): string[] =>
+  Array.from(new Set([activeRoleOf(user), ...teamRolesOf(user)]));
+
+/**
+ * Permissões da conta: CEO ativo → ['*']; senão a UNIÃO das permissões do papel ativo com as
+ * de cada papel de equipe da conta. `getEffectivePermissions` já descarta as exclusivas do CEO
+ * por papel, então `wallet:credit` nunca entra pela união.
+ */
+export async function getAccountPermissions(user: AccountUser): Promise<string[]> {
+  const active = activeRoleOf(user);
+  if (active === 'ceo') return ['*'];
+  const roles = staffRolesOf(user);
+  const all = await Promise.all(roles.map((r) => getEffectivePermissions(r)));
+  return Array.from(new Set(all.flatMap((e) => e.permissions)));
+}
+
+/** Grupos para os quais a conta pode enviar aviso: união dos `notificationTargets` dos mesmos papéis. */
+export async function getAccountNotificationTargets(user: AccountUser): Promise<string[]> {
+  const active = activeRoleOf(user);
+  if (active === 'ceo') return [...ALL_ROLES];
+  const all = await Promise.all(staffRolesOf(user).map((r) => getEffectivePermissions(r)));
+  return Array.from(new Set(all.flatMap((e) => e.notificationTargets.map(String))));
+}
+
 // GET /role-permissions/me — permissões efetivas do usuário logado (para o frontend
 // decidir o que mostrar). Qualquer autenticado pode ler as PRÓPRIAS permissões.
 export const getMyPermissions = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const role = (req.user as any)?.activeRole || req.user?.role || 'cliente';
-    const { permissions } = await getEffectivePermissions(role);
-    return res.json({ role, permissions });
+    const role = activeRoleOf(req.user as any);
+    const permissions = await getAccountPermissions(req.user as any);
+    return res.json({ role, permissions, teamRoles: teamRolesOf(req.user as any) });
   } catch (err) {
     logger.error('Erro ao buscar permissões do usuário', err as Error);
     return res.status(500).json({ error: 'Erro interno' });

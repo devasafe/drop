@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { hasPermission } from '../utils/walletCalculations';
 
 
-import { getEffectivePermissions } from '../controllers/rolePermissionsController';
+import {
+  getAccountPermissions,
+  staffRolesOf,
+  activeRoleOf,
+  CEO_ONLY_PERMISSIONS,
+} from '../controllers/rolePermissionsController';
 import { hasValidWalletAccess } from '../controllers/walletAccessController';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
@@ -21,13 +26,12 @@ export function authorizePermission(requiredPermission: string) {
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const userRole = user.activeRole || user.role || 'cliente';
-
     // CEO tem tudo
-    if (userRole === 'ceo') return next();
+    if (activeRoleOf(user) === 'ceo') return next();
 
+    // Papel ativo + papéis de equipe da conta (união): equipe é acréscimo, não área.
     try {
-      const { permissions } = await getEffectivePermissions(userRole);
+      const permissions = await getAccountPermissions(user);
       const granted = permissions.includes('*') || permissions.includes(requiredPermission);
       if (!granted) {
         return res.status(403).json({
@@ -36,18 +40,18 @@ export function authorizePermission(requiredPermission: string) {
       }
       return next();
     } catch (err) {
-      // Falha ao consultar permissões customizadas do DB.
-      // Verificar se existia um registro customizado — se sim, negar por segurança.
-      // Se não há customização, fazer fallback para a matriz estática.
-      const isStaticPermission = hasPermission(userRole, requiredPermission);
+      // Falha ao consultar permissões customizadas do DB: fallback para a matriz estática,
+      // checando a MESMA união de papéis. Permissão exclusiva do CEO nunca passa por aqui.
+      const isStaticPermission =
+        !CEO_ONLY_PERMISSIONS.includes(requiredPermission) &&
+        staffRolesOf(user).some((r) => hasPermission(r, requiredPermission));
       if (!isStaticPermission) {
         return res.status(403).json({
           error: `Permissão negada. Você precisa de: ${requiredPermission}`
         });
       }
       // Só usa o fallback estático quando o DB falha E a permissão existe na matriz padrão.
-      // Loga o erro para visibilidade no Sentry.
-      console.error('[authorize] Falha ao consultar permissões do DB, usando fallback estático:', err);
+      logger.error('[authorize] Falha ao consultar permissões do DB, usando fallback estático', err as Error);
       return next();
     }
   };
@@ -82,8 +86,9 @@ export function authorizeNotificationApprover(req: Request, res: Response, next:
     return res.status(401).json({ error: 'Não autenticado' });
   }
 
-  const userRole = user.activeRole || user.role;
-  const canApprove = ['ceo', 'gerente_geral'].includes(userRole);
+  // CEO só pelo papel ativo; gerente_geral vale como acréscimo (papel de equipe da conta).
+  const roles = staffRolesOf(user);
+  const canApprove = activeRoleOf(user) === 'ceo' || roles.includes('gerente_geral');
 
   if (!canApprove) {
     return res.status(403).json({
@@ -129,7 +134,7 @@ export async function authorizeWalletOwner(req: Request, res: Response, next: Ne
 
   // Admin precisa ter permissão wallet:request_access E acesso aprovado vigente
   try {
-    const { permissions } = await getEffectivePermissions(userRole);
+    const permissions = await getAccountPermissions(user);
     const canRequest = permissions.includes('*') || permissions.includes('wallet:request_access');
     if (!canRequest) {
       return res.status(403).json({ error: 'Acesso negado à carteira' });
@@ -189,14 +194,15 @@ export function authorizeManager(area: 'clientes' | 'lojistas' | 'motoboys') {
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    const userRole = user.activeRole || user.role;
+    const roles = staffRolesOf(user);
     const managerRoles: { [key: string]: string } = {
       clientes: 'gerente_clientes',
       lojistas: 'gerente_lojistas',
       motoboys: 'gerente_motoboys'
     };
 
-    if (userRole !== 'ceo' && userRole !== managerRoles[area] && userRole !== 'gerente_geral') {
+    const allowed = activeRoleOf(user) === 'ceo' || roles.includes(managerRoles[area]) || roles.includes('gerente_geral');
+    if (!allowed) {
       return res.status(403).json({
         error: `Apenas CEO, Gerente Geral ou Gerente ${area} tem acesso`
       });

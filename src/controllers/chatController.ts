@@ -25,6 +25,10 @@ import notifier from '../services/notifier';
 import logger from '../config/logger';
 import { prisma } from '../lib/prisma';
 import { unreadForUser } from '../utils/chatUnread';
+import { staffRolesOf } from './rolePermissionsController';
+
+// Quem atende conversa de suporte: CEO (ativo) e gerentes (como papel de equipe da conta).
+const SUPPORT_STAFF_ROLES = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
 
 /**
  * Normalizar role para match com schema enum
@@ -233,8 +237,8 @@ export const getMessages = async (
       String(conversation.participant1.userId) === userId ||
       String(conversation.participant2.userId) === userId;
 
-    const activeRole = (req.user as any)?.activeRole || req.user?.role;
-    const isAdminRole = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(activeRole);
+    // Papel ativo + papéis de equipe da conta (equipe é acréscimo, não área).
+    const isAdminRole = staffRolesOf(req.user as any).some((r) => SUPPORT_STAFF_ROLES.includes(r));
     const isSupportConversation = (conversation as any).type === 'suporte';
 
     if (!isParticipant && !(isAdminRole && isSupportConversation)) {
@@ -452,8 +456,7 @@ export const sendMessage = async (
       String(conversation.participant1.userId) === userId ||
       String(conversation.participant2.userId) === userId;
 
-    const senderActiveRole = (req.user as any)?.activeRole || req.user?.role;
-    const isSenderAdmin = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(senderActiveRole);
+    const isSenderAdmin = staffRolesOf(req.user as any).some((r) => SUPPORT_STAFF_ROLES.includes(r));
     const isSupportConv = (conversation as any).type === 'suporte';
 
     logger.debug('👤 [SEND MESSAGE] Verificação de participante:', {

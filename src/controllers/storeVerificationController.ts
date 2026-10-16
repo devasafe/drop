@@ -15,6 +15,7 @@ import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
+import { staffRolesOf } from './rolePermissionsController';
 
 const ensureUserVerification = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -140,7 +141,8 @@ export const getStoreVerification = async (req: AuthenticatedRequest, res: Respo
 
     const role = (req.user as any)?.activeRole || (req.user as any)?.role;
     const isOwner = String(store.ownerId) === String(req.user?.id);
-    const isAdmin = ['ceo', 'gerente_geral', 'gerente_lojistas'].includes(role);
+    // CEO pelo papel ativo; gerentes também como papel de equipe da conta (acréscimo).
+    const isAdmin = role === 'ceo' || staffRolesOf(req.user as any).some((r) => ['gerente_geral', 'gerente_lojistas'].includes(r));
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Sem permissão' });
 
     const { settlementMode } = await getSaasConfig();
