@@ -4,6 +4,7 @@
  * 2) Sem style={{ em components/admin/**.
  * 3) Toda página de /admin (todas migradas desde o fim da D3a): sem style={{ e os ./*.module.css que ela
  *    importa também estritos.
+ * 4) Toda página de /admin importa components/admin/AdminShell (a casca genérica antiga saiu na Task 29).
  */
 import fs from 'fs';
 import path from 'path';
@@ -56,6 +57,12 @@ it('CSS de components/admin segue o DS v2 (só tokens)', () => {
 
 it('sem style={{ em components/admin', () => {
   expect(inlineStyle(walk('components/admin', /\.tsx$/))).toEqual([]);
+});
+
+it('toda página de /admin monta a casca AdminShell', () => {
+  expect(migratedPages.length).toBeGreaterThan(0);
+  const semCasca = migratedPages.filter((f) => !/from\s+'(\.\.\/)+components\/admin\/AdminShell'/.test(read(f)));
+  expect(semCasca).toEqual([]);
 });
 
 it('páginas de /admin já migradas: sem style={{ e CSS importado estrito', () => {
