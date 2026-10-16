@@ -1,5 +1,4 @@
 import { IconName } from '../components/Icon';
-import { visibleAdminMenu } from './adminMenu';
 import { SELLER_ROUTES } from './sellerRoutes';
 import { MOTOBOY_ROUTES } from './motoboyRoutes';
 
@@ -69,7 +68,7 @@ export const GUEST_BOTTOM_NAV: { key: 'inicio' | 'buscar' | 'entrar'; label: str
   { key: 'entrar', label: 'Entrar', route: '/login' },
 ];
 
-// --- Config por role (cliente/lojista/motoboy). CEO deriva do ADMIN_MENU. ---
+// --- Config por role (cliente/lojista/motoboy). O admin navega pelo AdminShell (lib/adminNav, D3a). ---
 const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   cliente: [
     { label: 'Início',  icon: 'home',    route: '/inicio',  placement: ['bottomNav'] },
@@ -125,55 +124,20 @@ const NAV: Record<'cliente' | 'lojista' | 'motoboy', NavItem[]> = {
   ],
 };
 
-/** Grupo de sidebar de cada rota do painel admin (brief). */
-const ADMIN_GROUP: Record<string, string> = {
-  '/admin/dashboard': 'Visão geral',
-  '/admin/analytics': 'Visão geral',
-  '/admin/users': 'Operação',
-  '/admin/verificacoes': 'Operação',
-  '/admin/conversas': 'Operação',
-  '/admin/suporte': 'Operação',
-  '/admin/wallets': 'Financeiro',
-  '/admin/withdrawals': 'Financeiro',
-  '/admin/payouts': 'Financeiro',
-  '/admin/app-cashbox': 'Financeiro',
-  '/admin/plan-approvals': 'Financeiro',
-  '/admin/broadcasts': 'Crescimento',
-  '/admin/ranking-config': 'Crescimento',
-  '/admin/coupons': 'Crescimento',
-  '/admin/settings': 'Plataforma',
-  '/admin/freios': 'Plataforma',
-  '/admin/seasonal-theme': 'Plataforma',
-  '/admin/permissoes': 'Plataforma',
-  '/admin/lojas-asaas': 'Financeiro',
-};
-
 /**
- * Itens de navegação visíveis para uma role, já filtrados por permissão.
- * CEO deriva do ADMIN_MENU (respeitando `visibleAdminMenu`); as demais roles
- * filtram seus itens declarados por `can(permission)`.
+ * Itens de navegação visíveis para uma role (cliente, lojista, motoboy), já filtrados por permissão e modo.
+ * O admin não passa por aqui: o menu dele é lib/adminNav (AdminShell, D3a).
+ * `isCeo` fica na assinatura para não mexer nos chamadores da loja, do motoboy e do cliente.
  */
 export function getNavItems(
   role: Role,
   can: (permission: string) => boolean,
   isCeo: boolean,
-  opts?: { settlementMode?: string; custodyLeftover?: boolean; adminCustodyOpen?: boolean },
+  opts?: { settlementMode?: string; custodyLeftover?: boolean },
 ): NavItem[] {
   const direct = opts?.settlementMode === 'direto';
   const showLeftover = direct && opts?.custodyLeftover === true;
-  if (role === 'ceo') {
-    // I5: Payouts/Saques seguem no modo direto enquanto houver custódia em aberto.
-    const hiddenInDirect = (m: { custodyOnly?: boolean; whileCustodyOpen?: boolean }) =>
-      !!m.custodyOnly && !(m.whileCustodyOpen && opts?.adminCustodyOpen === true);
-    return visibleAdminMenu(can, isCeo).filter((m) => !(direct && hiddenInDirect(m)) && !(m.directOnly && !direct)).map((m) => ({
-      label: m.label,
-      icon: m.icon,
-      route: m.href,
-      placement: ['sidebar', 'drawer'] as Placement[],
-      group: ADMIN_GROUP[m.href],
-      badge: m.href === '/admin/verificacoes' ? ('verifications' as BadgeKey) : undefined,
-    }));
-  }
+  if (role === 'ceo') return [];
   const items = NAV[role] || [];
   return items.filter((it) =>
     (!it.permission || can(it.permission))

@@ -31,11 +31,8 @@ describe('navConfig', () => {
     expect(items.find((i) => i.label === 'Ganhos')?.route).toBe('/motoboy/ganhos');
   });
 
-  it('ceo deriva itens do ADMIN_MENU com grupos e respeita permissão', () => {
-    const ceo = getNavItems('ceo', deny, true);
-    expect(ceo.length).toBeGreaterThan(0);
-    expect(ceo.find((i) => i.route === '/admin/dashboard')?.group).toBe('Visão geral');
-    // não-CEO sem permissões não vê itens delegáveis
+  it('ceo: o admin navega pelo AdminShell (lib/adminNav); getNavItems não tem itens dele', () => {
+    expect(getNavItems('ceo', allow, true)).toEqual([]);
     expect(getNavItems('ceo', deny, false)).toEqual([]);
   });
 

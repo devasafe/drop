@@ -163,26 +163,6 @@
   transform: scale(0.96);
 }
 
-/* ── Hamburger button ──────────────────────────────────── */
-.hamburger {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  padding: 8px;
-  border-radius: 8px;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s cubic-bezier(0.4, 0, 0, 1),
-              background 0.2s cubic-bezier(0.4, 0, 0, 1);
-}
-
-.hamburger:hover {
-  color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-}
-
 /* ── Tablet / Mobile ───────────────────────────────────── */
 @media (max-width: 1024px) {
   .centerLinks {
@@ -190,9 +170,6 @@
   }
   .triggerName {
     display: none;
-  }
-  .hamburger {
-    display: flex;
   }
 
   .mobileOverlay {

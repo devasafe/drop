@@ -1,5 +1,6 @@
 /**
- * Erros do servidor nas telas de Dinheiro (D3a). As rotas antigas respondem `{ error: 'texto' }`
+ * Erros do servidor nas telas de Dinheiro (D3a; também Lojas · Asaas, K18).
+ * As rotas antigas respondem `{ error: 'texto' }`
  * (às vezes com `code` no topo); as do modo direto (AppError) respondem `{ success: false, error: { message, code } }`.
  * `adminErrorMessage` (P1.6) só lê o texto; aqui os dois formatos são lidos sem perder a mensagem nem o código.
  */

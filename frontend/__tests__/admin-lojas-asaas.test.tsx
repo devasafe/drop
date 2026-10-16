@@ -2,8 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ToastProvider } from '../components/ui/Toast';
 import AdminLojasAsaas from '../pages/admin/lojas-asaas';
 import { AsaasConnectCard } from '../components/drop/asaas/AsaasConnectCard';
-import { getNavItems } from '../lib/navConfig';
-import { visibleAdminMenu } from '../lib/adminMenu';
+import { visibleAdminAreas } from '../lib/adminNav';
 import api from '../lib/api';
 
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/admin/lojas-asaas' }) }));
@@ -61,12 +60,14 @@ test('admin vê "Desconectar" e chama DELETE; lojista (sem allowDisconnect) não
   expect(screen.queryByText('Desconectar')).not.toBeInTheDocument();
 });
 
-describe('menu admin: Contas Asaas', () => {
+describe('menu admin: Asaas e mensalidades', () => {
   const allow = () => true;
-  const has = (items: any[]) => items.some((i) => i.route === '/admin/lojas-asaas' || i.href === '/admin/lojas-asaas');
+  const has = (mode: 'custodia' | 'direto', isCeo: boolean) =>
+    visibleAdminAreas({ can: allow, isCeo, settlementMode: mode, custodyOpen: false })
+      .some((a) => a.tabs.some((t) => t.href === '/admin/lojas-asaas'));
   test('só no modo direto e só para CEO', () => {
-    expect(has(getNavItems('ceo', allow, true, { settlementMode: 'direto' }))).toBe(true);
-    expect(has(getNavItems('ceo', allow, true, { settlementMode: 'custodia' }))).toBe(false);
-    expect(has(visibleAdminMenu(allow, false))).toBe(false);
+    expect(has('direto', true)).toBe(true);
+    expect(has('custodia', true)).toBe(false);
+    expect(has('direto', false)).toBe(false);
   });
 });

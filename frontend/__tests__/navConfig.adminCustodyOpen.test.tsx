@@ -1,9 +1,9 @@
 /**
- * Revisão final I5 — no modo direto, Payouts e Saques continuam no menu do admin enquanto
+ * Revisão final I5 — no modo direto, Repasses e Saques continuam no menu do admin (lib/adminNav desde a D3a) enquanto
  * houver repasse de custódia ou saque em aberto (GET /admin/custody-open).
  */
 import { renderHook, waitFor } from '@testing-library/react';
-import { getNavItems } from '../lib/navConfig';
+import { visibleAdminAreas } from '../lib/adminNav';
 
 const mockGet = jest.fn();
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: (...a: any[]) => mockGet(...a) } }));
@@ -14,28 +14,25 @@ jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => mockSaas() }))
 
 import { useAdminCustodyOpen, __resetAdminCustodyOpenCache } from '../hooks/useAdminCustodyOpen';
 
-const allow = () => true;
-const adminLabels = (settlementMode: string, adminCustodyOpen?: boolean) =>
-  getNavItems('ceo', allow, true, { settlementMode, adminCustodyOpen }).map((i) => i.label);
+const tabLabels = (settlementMode: 'custodia' | 'direto', custodyOpen: boolean, can: (p: string) => boolean = () => true, isCeo = true) =>
+  visibleAdminAreas({ can, isCeo, settlementMode, custodyOpen }).flatMap((a) => a.tabs.map((t) => t.label));
 
-describe('navConfig — admin no modo direto com custódia em aberto', () => {
-  it('direto + custódia em aberto: Payouts e Saques aparecem; Carteiras/Caixa/Planos continuam fora', () => {
-    const l = adminLabels('direto', true);
-    expect(l).toEqual(expect.arrayContaining(['Payouts', 'Saques']));
+describe('menu do admin (lib/adminNav) — modo direto com custódia em aberto', () => {
+  it('direto + custódia em aberto: Repasses e Saques aparecem; Carteiras/Caixa/Planos continuam fora', () => {
+    const l = tabLabels('direto', true);
+    expect(l).toEqual(expect.arrayContaining(['Repasses', 'Saques']));
     for (const x of ['Carteiras', 'Caixa', 'Planos']) expect(l).not.toContain(x);
   });
 
-  it('direto sem custódia em aberto: Payouts e Saques somem', () => {
-    for (const l of [adminLabels('direto', false), adminLabels('direto')]) {
-      expect(l).not.toContain('Payouts');
-      expect(l).not.toContain('Saques');
-    }
+  it('direto sem custódia em aberto: Repasses e Saques somem', () => {
+    const l = tabLabels('direto', false);
+    expect(l).not.toContain('Repasses');
+    expect(l).not.toContain('Saques');
   });
 
-  it('respeita a permissão de cada item', () => {
-    const can = (p: string) => p === 'payout:view';
-    const l = getNavItems('ceo', can, false, { settlementMode: 'direto', adminCustodyOpen: true }).map((i) => i.label);
-    expect(l).toContain('Payouts');
+  it('respeita a permissão de cada aba', () => {
+    const l = tabLabels('direto', true, (p) => p === 'payout:view', false);
+    expect(l).toContain('Repasses');
     expect(l).not.toContain('Saques');
   });
 });

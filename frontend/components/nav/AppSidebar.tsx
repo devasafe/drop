@@ -4,15 +4,13 @@ import { useOverlay } from '../../contexts/OverlayContext';
 import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
-import { useAdminCustodyOpen } from '../../hooks/useAdminCustodyOpen';
 import { getNavItems, isItemActive, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './AppSidebar.module.css';
 
-const PANEL_META: Record<string, { title: string; subtitle: string; icon: any }> = {
-  lojista: { title: 'DROP SELLER',  subtitle: 'Painel do lojista',  icon: 'store' },
-  motoboy: { title: 'DROP MOTOBOY', subtitle: 'Painel do motoboy',  icon: 'motorcycle' },
-  ceo:     { title: 'DROP ADMIN',   subtitle: 'Administração',      icon: 'shield' },
+const PANEL_META: Record<string, { subtitle: string }> = {
+  lojista: { subtitle: 'Painel do lojista' },
+  motoboy: { subtitle: 'Painel do motoboy' },
 };
 
 function groupItems(items: NavItem[]): Array<{ group?: string; items: NavItem[] }> {
@@ -33,24 +31,17 @@ export default function AppSidebar() {
   const badges = useBadgeCounts();
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
-  const adminCustodyOpen = useAdminCustodyOpen();
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
-  // Roles administrativas delegadas (marketing, gerente_*) acessam /admin/* com
-  // permissões parciais, mas não são a role literal 'ceo'. Sem isso, PANEL_META
-  // não teria entrada pra elas e a sidebar (e o gutter/hambúrguer) sumiriam.
-  const isAdminRole = role === 'ceo' || getNavItems('ceo', can, false, { settlementMode }).length > 0;
-  const effRole = isAdminRole ? 'ceo' : role;
-  const meta = PANEL_META[effRole];
-  if (!meta) return null; // cliente (ou role sem painel) não tem sidebar
+  // Só loja e motoboy têm este menu. O admin (CEO e equipe) usa o AdminSidebar do AdminShell (D3a).
+  const meta = PANEL_META[role];
+  if (!meta) return null;
 
-  const items = getNavItems(effRole, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen }).filter((i) => i.placement.includes('sidebar'));
+  const items = getNavItems(role, can, false, { settlementMode, custodyLeftover }).filter((i) => i.placement.includes('sidebar'));
   const groups = groupItems(items);
-  const isSeller = effRole === 'lojista';
-  const isMotoboy = effRole === 'motoboy';
-  // Painéis do DS v2 (loja D1, motoboy D2): menu fixo a partir de 900px e a marca só na Nav do computador (V13).
-  const isPanelV2 = isSeller || isMotoboy;
+  const isSeller = role === 'lojista';
+  const isMotoboy = role === 'motoboy';
   const open = overlay.isOpen('panelSidebar');
   const badgeCount = (b?: NavItem['badge']) =>
     b === 'storeOrders' ? badges.storeOrders : b === 'deliveries' ? badges.deliveries : b === 'verifications' ? badges.verifications : 0;
@@ -62,16 +53,6 @@ export default function AppSidebar() {
         aria-label={meta.subtitle}
       >
         {/* Painéis da loja (V13) e do motoboy (D2): a marca fica só na Nav do computador (DROP, que leva à Home). */}
-        {!isPanelV2 && (
-          <div className={styles.sidebarHeader}>
-            <div className={styles.sidebarLogoRow}>
-              <div className={styles.sidebarLogoIcon}><Icon name={meta.icon} size={16} /></div>
-              <span className={styles.sidebarLogo}>{meta.title}</span>
-            </div>
-            <p className={styles.sidebarSubtitle}>{meta.subtitle}</p>
-          </div>
-        )}
-
         <nav className={styles.sidebarNav}>
           {groups.map(({ group, items: gItems }) => (
             <div key={group || 'root'}>

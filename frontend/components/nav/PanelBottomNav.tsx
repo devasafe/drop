@@ -3,7 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBadgeCounts } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCustodyLeftover } from '../../hooks/useCustodyLeftover';
-import { useAdminCustodyOpen } from '../../hooks/useAdminCustodyOpen';
 import { getNavItems, isItemActive, bottomNavLayout, Role, NavItem } from '../../lib/navConfig';
 import Icon from '../Icon';
 import styles from './PanelBottomNav.module.css';
@@ -14,16 +13,15 @@ export default function PanelBottomNav() {
   const badges = useBadgeCounts();
   const { settlementMode } = useSaasConfig();
   const custodyLeftover = useCustodyLeftover();
-  const adminCustodyOpen = useAdminCustodyOpen();
   if (!user) return null;
 
   const role = (user.activeRole || user.role || 'cliente') as Role;
   if (role === 'cliente') return null; // cliente usa CustomerAppChrome
 
-  const all = getNavItems(role, can, role === 'ceo', { settlementMode, custodyLeftover, adminCustodyOpen });
+  const all = getNavItems(role, can, false, { settlementMode, custodyLeftover });
   const layout = bottomNavLayout(role);
   const bottom = all.filter((i) => i.placement.includes('bottomNav')).slice(0, layout.max);
-  // admin/ceo: sem bottom-nav dedicada → usa o drawer da sidebar (via hambúrguer). Por isso o
+  // admin: não monta no painel (AdminShell, D3a); o ramo do CEO em getNavItems é vazio. Por isso o
   // `more` do layout (só o ceo tem) nunca chega a desenhar um botão "Mais" aqui.
   if (bottom.length === 0) return null;
   const count = (b?: NavItem['badge']) =>

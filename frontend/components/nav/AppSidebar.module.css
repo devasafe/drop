@@ -13,47 +13,6 @@
   transition: transform 0.3s cubic-bezier(0.4, 0, 0, 1);
 }
 
-.sidebarHeader {
-  padding: 28px 24px 20px;
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.sidebarLogoRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.sidebarLogoIcon {
-  width: 32px;
-  height: 32px;
-  background: var(--color-action-primary);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-on-action);
-  flex-shrink: 0;
-}
-
-.sidebarLogo {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 18px;
-  color: var(--color-text-primary);
-  text-transform: uppercase;
-  letter-spacing: -0.02em;
-}
-
-.sidebarSubtitle {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  margin: 0;
-}
-
 .sidebarNav {
   padding: 12px 0;
 }

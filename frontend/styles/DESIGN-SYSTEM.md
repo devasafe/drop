@@ -25,6 +25,7 @@ Tema        :root / [data-theme="light"]  ·  [data-theme="dark"]  ·  body.them
 
 - `lib/routeTheme.ts` define `LIGHT_ROUTES` (padrões de `router.pathname`, ex.: `/_styleguide`, `/stores/[id]`).
   Rota listada fica **clara**; o resto fica **escura**. A fase C adiciona a tela aqui quando ela é migrada.
+- O painel do admin é **só claro**: toda página de `/admin` está em `ADMIN_LIGHT_ROUTES` (D3a; `__tests__/adminTheme.test.ts` cobra).
 - O `_document` aplica o tema num script inline antes da pintura (sem piscar) e o `_app` troca em `routeChangeComplete`.
 - **Ponte clara:** tokens antigos (`--bg`, `--surface`, `--text`, `--brand`…) seguem o tema claro, para tela ainda
   não migrada não quebrar. Hex fixo em CSS não é coberto: é dívida da fase C.
@@ -205,3 +206,27 @@ OrderTracker · OrderStatusBadge · Logo.
 
 ### Erros sem beco
 - `ErrorScreen` sempre tem um botão primário e diz o que houve e o próximo passo; o secundário é opcional.
+
+## 10. Painel do admin (fase D3a)
+
+### Casca
+- Toda página de `/admin/*` monta `AdminShell` (`components/admin/AdminShell.tsx`): menu lateral de 220 px (`AdminSidebar`) no computador e gaveta abaixo de 1024 px, cabeçalho com título, data e hora e ações da tela, `AdminTabs` quando a área tem 2 abas ou mais e `ScreenErrorBoundary` em volta do corpo.
+- O `_app` não monta, no admin, a `Nav` global, a `AppSidebar`, a barra do painel, o aviso de verificação, o chat flutuante, o deslocamento de 256 px nem a `PageTransition` (o `transform` dela prende o `position: fixed` da gaveta e da `BatchBar`).
+- Breakpoint único do admin: **1024 px** (`ADMIN_DESKTOP_MIN`, `useMinWidth`).
+
+### Menu
+- Fonte única: `lib/adminNav.ts` (`ADMIN_AREAS`: área = item do menu; aba = página atual, com `permission`, `ceoOnly`, `custodyOnly`, `directOnly`, `whileCustodyOpen`). `permission` em lista = qualquer uma (página fundida).
+- Esconder, nunca cadeado. Modo de liquidação desconhecido (carregando ou erro) esconde toda aba presa a um modo.
+- A aba declara a mesma permissão do `ProtectedRoute` (ou `can()`) da página; `lib/__tests__/adminNav.test.ts` cobra.
+- Fora do painel, a `Nav` leva o CEO e a equipe ao admin por `adminHomeHref`.
+
+### Peças (`components/admin/*`)
+- `AdminTable`: tabela no computador, cartões no celular; precedência erro > carregando > vazio > linhas, com "Tentar de novo".
+- `runBatch` + `BatchBar`: lote um item por vez; o "já feito" de cada rota (predicado da tela) conta como feito e nunca é reenviado.
+- `AdminSheet`: confirmação e formulário curto (sobe de baixo no celular, painel lateral no computador). Substitui `prompt`, `confirm` e `alert`.
+- `Kpi` e `AdminBlocks.module.css` (`.block`, `.grid2`, `.grid3`, `.kpis`, `.money`…).
+
+### Guardas
+- `__tests__/admin.noNativeDialogs.test.ts`: sem `window.prompt`, `confirm(` ou `alert(` em `pages/admin` e `components/admin`; `NATIVE_DIALOG_EXCEPTIONS` está **vazia**.
+- `__tests__/adminCss.guard.test.ts`: CSS de `components/admin/**` só com token, sem `style={{` no admin.
+- `lib/__tests__/redirects.test.ts` ("D3a"): `/admin/analytics`, `/admin/conversas`, `/admin/ranking-config` e `/admin/pricing-config` redirecionam e as páginas não existem mais.

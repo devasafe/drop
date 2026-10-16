@@ -55,3 +55,30 @@ describe('Nav — logo leva à Home da role', () => {
     expect(logoHref()).toBe('/admin/dashboard');
   });
 });
+
+describe('Nav — fora do painel, o atalho para o admin (D3a)', () => {
+  beforeEach(() => { mockUser = { name: 'X', activeRole: 'cliente', roles: ['cliente'] }; mockCan = () => false; });
+  const atalho = () => screen.queryByRole('link', { name: 'Abrir o painel do admin' });
+
+  it('CEO: atalho para a primeira página do admin', () => {
+    mockUser = { name: 'X', activeRole: 'ceo', roles: ['ceo'] };
+    render(<Nav />);
+    expect(atalho()).toHaveAttribute('href', '/admin/dashboard');
+  });
+  it('gerente de clientes: atalho e logo levam às Verificações (a primeira página que ele abre)', () => {
+    mockUser = { name: 'X', activeRole: 'gerente_clientes', roles: ['gerente_clientes'] };
+    mockCan = (p) => p === 'verification:view_queue';
+    render(<Nav />);
+    expect(atalho()).toHaveAttribute('href', '/admin/verificacoes');
+    expect(logoHref()).toBe('/admin/verificacoes');
+  });
+  it('lojista e cliente: sem atalho', () => {
+    mockUser = { name: 'X', activeRole: 'lojista', roles: ['lojista'] };
+    const { unmount } = render(<Nav />);
+    expect(atalho()).toBeNull();
+    unmount();
+    mockUser = { name: 'X', activeRole: 'cliente', roles: ['cliente'] };
+    render(<Nav />);
+    expect(atalho()).toBeNull();
+  });
+});

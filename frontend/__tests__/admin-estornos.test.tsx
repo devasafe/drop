@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminEstornos from '../pages/admin/estornos';
 import { DirectRefundCard } from '../components/order/DirectRefundCard';
 import { humanizeRefundError } from '../lib/refundErrors';
-import { visibleAdminMenu } from '../lib/adminMenu';
+import { ADMIN_AREAS, visibleAdminAreas } from '../lib/adminNav';
 import api from '../lib/api';
 
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/admin/estornos' }) }));
@@ -80,10 +80,13 @@ test('humanizeRefundError: fallback mostra o texto cru', () => {
   expect(humanizeRefundError('STUCK_REQUESTED')).toMatch(/incerto/);
 });
 
-test('menu: item Estornos so com payout:view e marcado directOnly', () => {
-  const can = (p: string) => p === 'payout:view';
-  const item = visibleAdminMenu(can, false).find((m) => m.href === '/admin/estornos');
-  expect(item).toBeDefined();
-  expect(item!.directOnly).toBe(true);
-  expect(visibleAdminMenu(() => false, false).some((m) => m.href === '/admin/estornos')).toBe(false);
+test('menu: aba Estornos só com payout:view e marcada directOnly', () => {
+  const tab = ADMIN_AREAS.flatMap((a) => a.tabs).find((t) => t.href === '/admin/estornos');
+  expect(tab).toBeDefined();
+  expect(tab!.directOnly).toBe(true);
+  expect(tab!.permission).toBe('payout:view');
+  const seen = (can: (p: string) => boolean) => visibleAdminAreas({ can, isCeo: false, settlementMode: 'direto', custodyOpen: false })
+    .some((a) => a.tabs.some((t) => t.href === '/admin/estornos'));
+  expect(seen((p) => p === 'payout:view')).toBe(true);
+  expect(seen(() => false)).toBe(false);
 });

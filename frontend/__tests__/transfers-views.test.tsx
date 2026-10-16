@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminTransfers from '../pages/admin/transfers';
 import MotoboyTransfersCard from '../components/drop/asaas/MotoboyTransfersCard';
-import { visibleAdminMenu } from '../lib/adminMenu';
+import { ADMIN_AREAS, visibleAdminAreas } from '../lib/adminNav';
 import { humanizeTransferError } from '../lib/transferErrors';
 import api from '../lib/api';
 
@@ -67,11 +67,15 @@ describe('admin/transfers', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/transfers/t2/resolve', { note: 'conferido no painel do Asaas' }));
   });
 
-  test('menu: item Transferências com payout:view e marcado directOnly', () => {
-    const item = visibleAdminMenu((p) => p === 'payout:view', false).find((i) => i.href === '/admin/transfers');
-    expect(item).toBeDefined();
-    expect(item!.directOnly).toBe(true);
-    expect(visibleAdminMenu(() => false, false).find((i) => i.href === '/admin/transfers')).toBeUndefined();
+  test('menu: aba Pix aos motoboys com payout:view e marcada directOnly', () => {
+    const tab = ADMIN_AREAS.flatMap((a) => a.tabs).find((t) => t.href === '/admin/transfers');
+    expect(tab).toBeDefined();
+    expect(tab!.directOnly).toBe(true);
+    expect(tab!.permission).toBe('payout:view');
+    const seen = (can: (p: string) => boolean) => visibleAdminAreas({ can, isCeo: false, settlementMode: 'direto', custodyOpen: false })
+      .some((a) => a.tabs.some((t) => t.href === '/admin/transfers'));
+    expect(seen((p) => p === 'payout:view')).toBe(true);
+    expect(seen(() => false)).toBe(false);
   });
 });
 

@@ -2,15 +2,14 @@
  * D3a · sem diálogo nativo no admin (spec 1 e 7.2): window.prompt, confirm( e alert( não entram em
  * pages/admin nem em components/admin. Confirmação e formulário curto vão para a AdminSheet; aviso, para o toast.
  *
- * NATIVE_DIALOG_EXCEPTIONS: as páginas antigas que ainda têm diálogo (91a9597). Cada task de tela da P2–P5
- * tira a sua linha no commit que troca o diálogo (ou que apaga a página). A guarda falha com linha esquecida.
+ * NATIVE_DIALOG_EXCEPTIONS: as telas foram migradas uma a uma na D3a e cada uma tirou a sua linha; desde a P5.3
+ * a lista é vazia e um caso abaixo cobra isso (nenhuma página do admin pode voltar a ter diálogo nativo).
  */
 import fs from 'fs';
 import path from 'path';
-import { ADMIN_LEGACY_SHELL_ROUTES } from '../lib/adminLegacyShell';
 
-const NATIVE_DIALOG_EXCEPTIONS: string[] = [
-];
+/** Fim da D3a (P5.3): nenhuma página do admin tem diálogo nativo. A lista fica vazia e assim deve ficar. */
+const NATIVE_DIALOG_EXCEPTIONS: string[] = [];
 
 const NATIVE_DIALOG_RE = /(?:\b(?:window|globalThis|self)\.|(?<![\w.$]))(?:prompt|confirm|alert)\s*\(/;
 
@@ -59,8 +58,7 @@ describe('sem diálogo nativo no admin', () => {
     expect(stale).toEqual([]);
   });
 
-  it('página migrada (fora de ADMIN_LEGACY_SHELL_ROUTES) não pode ser exceção', () => {
-    const routeOf = (f: string) => `/${f.replace(/^pages\//, '').replace(/\.tsx$/, '')}`;
-    expect(NATIVE_DIALOG_EXCEPTIONS.filter((f) => !ADMIN_LEGACY_SHELL_ROUTES.includes(routeOf(f)))).toEqual([]);
+  it('a lista de exceções está vazia (fim da D3a)', () => {
+    expect(NATIVE_DIALOG_EXCEPTIONS).toEqual([]);
   });
 });

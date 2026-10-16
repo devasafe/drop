@@ -12,10 +12,7 @@ jest.mock('../../../contexts/OverlayContext', () => ({
   useOverlay: () => ({ active: null, open: jest.fn(), close: jest.fn(), toggle: jest.fn(), isOpen: () => false }),
 }));
 jest.mock('../../../contexts/AuthContext', () => ({
-  // can() é usado tanto p/ filtrar itens de NAV[role] quanto (via FIX 1) p/
-  // detectar "role admin delegada" checando se getNavItems('ceo', can, false)
-  // retorna algo. Precisa refletir a role atual — não pode ser sempre `true`,
-  // senão motoboy/lojista também "virariam" admin neste mock.
+  // can() reflete o papel: os papéis do admin têm tudo; motoboy e lojista, nada.
   useAuth: () => ({
     user: { name: 'X', activeRole: mockRole, roles: mockRoles },
     can: () =>
@@ -68,11 +65,11 @@ describe('AppSidebar (lojista)', () => {
   });
 });
 
-describe('AppSidebar (admin delegado)', () => {
-  it('renderiza a sidebar admin para role delegada (marketing) com permissões', () => {
-    mockRole = 'marketing'; mockRoles = ['marketing'];
+describe('AppSidebar (admin)', () => {
+  it.each(['ceo', 'marketing', 'gerente_geral'])('%s: não monta (o admin usa o AdminSidebar do AdminShell)', (role) => {
+    mockRole = role; mockRoles = [role];
     mockPathname = '/admin/dashboard'; mockQuery = {};
-    render(<AppSidebar />);
-    expect(screen.getByText('Dashboard')).toBeInTheDocument(); // item do ADMIN_MENU (permission-filtered; can()=>true no mock)
+    const { container } = render(<AppSidebar />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

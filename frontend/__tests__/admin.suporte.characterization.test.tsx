@@ -1,7 +1,8 @@
 /**
- * Caracterização do Suporte:
- * - chamados em /admin/suporte (passa na antiga e na nova);
- * - conversas entre usuários em /admin/conversas (antiga) e /admin/suporte?filtro=conversas (nova).
+ * Caracterização do Suporte em /admin/suporte (escrita contra as páginas antigas e mantida na nova):
+ * - chamados;
+ * - conversas entre usuários, no filtro ?filtro=conversas (a página antiga de conversas saiu na P5.2 e hoje é
+ *   um redirect para este filtro).
  */
 import type { ComponentType } from 'react';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
@@ -48,7 +49,7 @@ const CONVS = {
 };
 const MSGS = { messages: [{ _id: 'm1', senderId: 'p2', text: 'Já saiu para entrega', createdAt: '2026-10-14T12:05:00.000Z' }] };
 
-// F7: o jsdom não tem scrollIntoView (a página antiga conversas o chama).
+// F7: o jsdom não tem scrollIntoView (a página antiga de conversas o chamava; o stub fica por segurança).
 beforeAll(() => { Element.prototype.scrollIntoView = jest.fn(); });
 
 beforeEach(() => {

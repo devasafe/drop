@@ -1,7 +1,7 @@
 /**
  * D3a · moldura do admin no _app (spec 3.2): nas rotas /admin/* não há Nav global, AppSidebar antiga,
  * barra do painel, aviso de verificação, chat flutuante, deslocamento de 256 px nem PageTransition.
- * As páginas ainda não migradas recebem o AdminShell do _app. Loja, motoboy e cliente não mudam.
+ * Cada página monta o AdminShell dela (o _app não embrulha). Loja, motoboy e cliente não mudam.
  */
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -40,11 +40,6 @@ jest.mock('../components/admin/AdminShell', () => ({
   __esModule: true,
   default: ({ title, children }: { title: string; children?: ReactNode }) => <div data-testid="admin-shell" data-title={title}>{children}</div>,
 }));
-// A lista real de páginas não migradas encolhe a cada task de tela (P2–P5; lib/__tests__/adminLegacyShell.test.ts
-// cobra a lista). Aqui só a ligação do _app, com uma rota fixa que não sai da lista.
-jest.mock('../lib/adminLegacyShell', () => ({
-  adminLegacyShellTitle: (p: string) => (p === '/admin/pagina-antiga' ? 'Título da tela antiga' : null),
-}));
 jest.mock('../hooks/useLivePresence', () => ({ useLivePresence: () => undefined }));
 jest.mock('../lib/fonts', () => ({ spaceGrotesk: { variable: 'sg' }, inter: { variable: 'in' } }));
 jest.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}), { virtual: true });
@@ -75,14 +70,7 @@ describe('moldura do admin (D3a)', () => {
     expect(screen.queryByTestId('page-transition')).toBeNull();
   });
 
-  it('página ainda não migrada: o _app põe o AdminShell com o título da tela', () => {
-    renderApp('/admin/pagina-antiga', 'ceo');
-    const shell = screen.getByTestId('admin-shell');
-    expect(shell).toHaveAttribute('data-title', 'Título da tela antiga');
-    expect(shell).toContainElement(screen.getByTestId('pagina'));
-  });
-
-  it('rota do admin fora da lista: sem casca do _app (a página monta a dela)', () => {
+  it('o _app não embrulha a página do admin numa casca (a página monta a dela)', () => {
     renderApp('/admin/rota-nova', 'ceo');
     expect(screen.queryByTestId('admin-shell')).toBeNull();
     expect(screen.getByTestId('pagina')).toBeInTheDocument();

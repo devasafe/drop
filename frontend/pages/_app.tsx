@@ -30,9 +30,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ROLE_HOME } from '../lib/navConfig';
 import { isSellerPanelRoute, sellerShowsTabBar, SELLER_ONBOARDING_ROUTES } from '../lib/sellerRoutes';
 import { isMotoboyPanelRoute, motoboyShowsTabBar } from '../lib/motoboyRoutes';
-import AdminShell from '../components/admin/AdminShell';
 import { isAdminPanelRoute } from '../lib/adminNav';
-import { adminLegacyShellTitle } from '../lib/adminLegacyShell';
 import { useLivePresence } from '../hooks/useLivePresence';
 import { spaceGrotesk, inter } from '../lib/fonts';
 import { useRouteTheme } from '../lib/routeTheme';
@@ -90,8 +88,6 @@ function AppWrapper({ Component, pageProps }: AppProps) {
   // nem PageTransition (o transform dela prende o position: fixed da gaveta e da BatchBar).
   const adminFrame = isAdminPanelRoute(router.pathname);
   const panelFrame = sellerFrame || motoboyFrame || adminFrame;
-  // Páginas do admin que ainda não montam o AdminShell (P2–P5 tiram cada uma da lista): o _app embrulha.
-  const legacyAdminTitle = user && adminFrame ? adminLegacyShellTitle(router.pathname) : null;
 
   // Não mostrar chat em páginas específicas. Nos painéis a conversa é por pedido/corrida (OrderChatSheet, RideChatSheet).
   const isChatPage = router.pathname.includes('/chat');
@@ -162,13 +158,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
           style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--drop-bg)' }}
         >
           {adminFrame ? (
-            legacyAdminTitle !== null ? (
-              <AdminShell title={legacyAdminTitle}>
-                <Component {...pageProps} />
-              </AdminShell>
-            ) : (
-              <Component {...pageProps} />
-            )
+            <Component {...pageProps} />
           ) : (
             <PageTransition>
               <Component {...pageProps} />

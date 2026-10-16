@@ -2,13 +2,12 @@
  * D3a · CSS e estilo do admin no DS v2 (spec 3.6 e regras do plano).
  * 1) Todo *.module.css de components/admin/** é estrito: sem hex, rgba/hsla, token antigo, gradiente.
  * 2) Sem style={{ em components/admin/**.
- * 3) Página de /admin já migrada (fora de ADMIN_LEGACY_SHELL_ROUTES): sem style={{ e os ./*.module.css que ela
- *    importa também estritos. As páginas antigas entram aqui sozinhas quando saem da lista.
+ * 3) Toda página de /admin (todas migradas desde o fim da D3a): sem style={{ e os ./*.module.css que ela
+ *    importa também estritos.
  */
 import fs from 'fs';
 import path from 'path';
 import { cssViolations } from './helpers/dsTokens';
-import { ADMIN_LEGACY_SHELL_ROUTES } from '../lib/adminLegacyShell';
 
 const ROOT = path.join(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -44,7 +43,6 @@ const inlineStyle = (files: string[]) => files
 
 const migratedPages = fs.readdirSync(path.join(ROOT, 'pages', 'admin'))
   .filter((f) => /\.tsx$/.test(f))
-  .filter((f) => !ADMIN_LEGACY_SHELL_ROUTES.includes(`/admin/${f.replace(/\.tsx$/, '')}`))
   .map((f) => `pages/admin/${f}`);
 
 const importedCss = (page: string) =>

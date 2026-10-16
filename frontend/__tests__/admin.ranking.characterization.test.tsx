@@ -1,6 +1,7 @@
 /**
- * Caracterização do Ranking: roda em /admin/ranking-config (antiga) e em /admin/settings?aba=ranking (nova).
- * Mesmas leituras, mesmos corpos de salvar, distribuir e liga/desliga.
+ * Caracterização do Ranking na aba Ranking de /admin/settings (?aba=ranking). Escrita contra a página antiga
+ * (apagada na P5.2, hoje um redirect) e mantida na nova: mesmas leituras, mesmos corpos de salvar, distribuir
+ * e liga/desliga.
  */
 import type { ComponentType } from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';

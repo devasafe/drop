@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
+import { flattenServerError } from '../../components/admin/dinheiro/serverError';
 import { formatBRL, formatBillingDate, saasStatusLabel } from '../../lib/saasBilling';
 import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
@@ -44,16 +45,6 @@ const ENV_LABEL = { sandbox: 'sandbox', production: 'produção' } as const;
 
 const billingDateText = (b: BillingRow) =>
   b.status === 'trialing' ? `teste até ${formatBillingDate(b.trialEndsAt)}` : `pago até ${formatBillingDate(b.paidUntil)}`;
-
-/** As rotas Asaas da loja respondem { error: { message, code } }: achata para a AdminSheet mostrar o texto. */
-function flatAsaasError(err: unknown): unknown {
-  const e = err as { response?: { status?: number; data?: { error?: unknown } } };
-  const nested = e?.response?.data?.error;
-  if (nested && typeof nested === 'object' && typeof (nested as { message?: unknown }).message === 'string') {
-    return { response: { status: e.response?.status, data: { error: (nested as { message: string }).message } } };
-  }
-  return err;
-}
 
 /** Só o CEO: trocar a conta Asaas de uma loja redireciona o dinheiro dela (D3a, telas 27 e 28). */
 export default function AdminLojasAsaas() {
@@ -155,7 +146,8 @@ function LojasAsaasScreen() {
     try {
       await api.delete(`/admin/stores/${selected.storeId}/asaas`);
     } catch (err) {
-      throw flatAsaasError(err);
+      // As rotas Asaas da loja respondem { error: { message, code } }: achata para a AdminSheet mostrar o texto (K18).
+      throw flattenServerError(err);
     }
     showToast('Conta Asaas desconectada.', 'success');
     setCardVersion((v) => v + 1);

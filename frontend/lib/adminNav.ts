@@ -1,7 +1,7 @@
 /**
  * Menu do painel do admin (DS v2, fase D3a): fonte única das áreas, das abas, da permissão e do filtro de modo.
- * Cada aba é uma página que já existe e declara a MESMA permissão da proteção da página e o mesmo filtro de modo
- * do menu antigo (lib/adminMenu.ts, que sai na P5). lib/__tests__/adminNav.parity.test.ts cobra.
+ * Cada aba é uma página que já existe e declara a MESMA permissão da proteção da página (ProtectedRoute ou can())
+ * e o filtro de modo dela. lib/__tests__/adminNav.test.ts cobra ("página × aba: a mesma proteção").
  *
  * Regras (spec D3a 3.5):
  * - esconder, nunca cadeado: a aba some para quem não pode abri-la;
@@ -214,4 +214,24 @@ export const ADMIN_ROLE_LABELS: Record<string, string> = {
 
 export function adminRoleLabel(role?: string): string {
   return (role && ADMIN_ROLE_LABELS[role]) || 'Equipe';
+}
+
+/** Contexto sem modo: fora do painel o modo não é lido (o menu do painel decide o resto). */
+const noMode = (can: (p: string) => boolean, isCeo: boolean): AdminNavContext =>
+  ({ can, isCeo, settlementMode: null, custodyOpen: false });
+
+/** O papel abre alguma página do admin? (Nav fora do painel: link "Abrir o painel do admin".) */
+export function canOpenAdminPanel(can: (p: string) => boolean, isCeo: boolean): boolean {
+  return ADMIN_AREAS.some((a) => a.tabs.some((t) => roleAllows(t, noMode(can, isCeo))));
+}
+
+/**
+ * Primeira página do admin que o papel abre. Prefere uma aba sem modo (abre em qualquer modo); se o papel só
+ * tem abas presas a modo, usa a primeira delas (o AdminShell mostra o menu certo ao carregar o modo).
+ */
+export function adminHomeHref(can: (p: string) => boolean, isCeo: boolean): string | null {
+  const ctx = noMode(can, isCeo);
+  const allowed = ADMIN_AREAS.flatMap((a) => a.tabs).filter((t) => roleAllows(t, ctx));
+  const free = allowed.find((t) => !t.custodyOnly && !t.directOnly);
+  return (free ?? allowed[0])?.href ?? null;
 }

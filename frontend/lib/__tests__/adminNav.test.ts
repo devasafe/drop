@@ -3,6 +3,7 @@ import path from 'path';
 import {
   ADMIN_AREAS, visibleAdminAreas, adminAreaForPath, adminAreaHref, activeAdminTabKey,
   adminScreenTitle, adminRoleLabel, isAdminPanelRoute, isAdminTabVisible, tabPermissions,
+  canOpenAdminPanel, adminHomeHref,
   type AdminArea, type AdminNavContext, type AdminTab,
 } from '../adminNav';
 
@@ -311,5 +312,46 @@ describe('tabPermissions e aba com mais de uma permissão (D1, fusões)', () => 
       expect(area && adminAreaHref(area)).toBe('/admin/suporte');
     }
     expect(visibleAdminAreas(ctx(['theme:edit'])).find((a) => a.key === 'suporte')).toBeUndefined();
+  });
+});
+
+describe('página × aba: a mesma proteção (veio do adminNav.parity.test, que saiu com o menu antigo)', () => {
+  const PAGES = path.join(__dirname, '..', '..', 'pages');
+  const plain = ADMIN_AREAS.flatMap((a) => a.tabs).filter((t) => !t.href.includes('?'));
+  it.each(plain.map((t) => [t.href, t] as const))('%s', (href, t) => {
+    const file = path.join(PAGES, `${href}.tsx`);
+    expect(fs.existsSync(file)).toBe(true);
+    const src = fs.readFileSync(file, 'utf8');
+    if (t.ceoOnly) {
+      expect(src).toMatch(/required_role="ceo"/);
+    } else {
+      const perms = tabPermissions(t);
+      expect(perms.length).toBeGreaterThan(0);
+      for (const perm of perms) {
+        const p = perm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        expect(src).toMatch(new RegExp(`required_permission="${p}"|required_permission=\\{\\[[^\\]]*'${p}'[^\\]]*\\]\\}|can\\('${p}'\\)`));
+      }
+    }
+  });
+});
+
+describe('fora do painel (Nav): quem abre o admin e por onde entra', () => {
+  const canOf = (role: string, perms?: string[]) => ctxFor(role, 'custodia', false, perms).can;
+
+  it('CEO e os papéis da equipe abrem o painel; papel sem permissão de admin, não', () => {
+    expect(canOpenAdminPanel(() => true, true)).toBe(true);
+    for (const role of Object.keys(DEFAULT_PERMISSIONS)) expect(canOpenAdminPanel(canOf(role), false)).toBe(true);
+    expect(canOpenAdminPanel(() => false, false)).toBe(false);
+    expect(canOpenAdminPanel(canOf('gerente_lojistas', ['notification:create']), false)).toBe(false);
+  });
+
+  it('entra pela primeira página que o papel abre, sem depender do modo', () => {
+    expect(adminHomeHref(() => true, true)).toBe('/admin/dashboard');
+    expect(adminHomeHref(canOf('gerente_geral'), false)).toBe('/admin/dashboard');
+    expect(adminHomeHref(canOf('gerente_clientes'), false)).toBe('/admin/verificacoes');
+    expect(adminHomeHref(canOf('marketing'), false)).toBe('/admin/seasonal-theme');
+    // só abas presas a modo: a primeira delas (o modo é decidido dentro do painel)
+    expect(adminHomeHref(canOf('gerente_lojistas', ['payout:view']), false)).toBe('/admin/payouts');
+    expect(adminHomeHref(() => false, false)).toBeNull();
   });
 });
