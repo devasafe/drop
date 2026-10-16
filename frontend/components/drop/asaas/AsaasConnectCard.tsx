@@ -28,6 +28,16 @@ export interface AsaasConnectCardProps {
   egressIp?: string | null;
   /** Mostra "Desconectar" (só o admin; o lojista não desconecta). */
   allowDisconnect?: boolean;
+  /**
+   * Confirmação antes de regerar o token ou desconectar. Padrão: window.confirm (como sempre foi).
+   * O painel do admin passa uma AdminSheet (D3a: sem diálogo nativo no admin).
+   */
+  confirmAction?: (message: string) => Promise<boolean>;
+  /**
+   * Rótulo do aceite como "O lojista assinou este termo" (quem aceita é o admin, pela loja).
+   * Padrão: segue `allowDisconnect`, como sempre foi. O admin da D3a não passa `allowDisconnect`.
+   */
+  termsSignedByStore?: boolean;
 }
 
 const errMsg = (e: any, fallback: string) => e?.response?.data?.error?.message || fallback;
@@ -39,8 +49,10 @@ const isTermsOutdated = (e: any) => e?.response?.data?.error?.code === 'TERMS_VE
  * enquanto o usuário digita: é apagada assim que a conexão é aceita e nunca é
  * devolvida pelo backend (só o status e o final).
  */
-export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }: AsaasConnectCardProps) {
+export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect, confirmAction, termsSignedByStore }: AsaasConnectCardProps) {
   const { showToast } = useToast();
+  const ask = (message: string): Promise<boolean> =>
+    confirmAction ? confirmAction(message) : Promise.resolve(typeof window === 'undefined' || window.confirm(message));
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
   const [genBusy, setGenBusy] = useState(false);
@@ -134,8 +146,8 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
 
   const genToken = async () => {
     if (genBusy) return;
-    if ((authToken || status?.checklist?.authWebhookConfirmed) && typeof window !== 'undefined'
-      && !window.confirm('Gerar um novo token? O token atual, já colado no Asaas, deixa de valer e as transferências serão recusadas até você colar o novo token no Asaas.')) return;
+    if ((authToken || status?.checklist?.authWebhookConfirmed)
+      && !(await ask('Gerar um novo token? O token atual, já colado no Asaas, deixa de valer e as transferências serão recusadas até você colar o novo token no Asaas.'))) return;
     setGenBusy(true);
     try {
       const r = await api.post(`${apiBase}/auth-token`);
@@ -176,7 +188,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   };
 
   const disconnect = async () => {
-    if (typeof window !== 'undefined' && !window.confirm('Desconectar a conta Asaas desta loja? Os pagamentos dela deixam de funcionar.')) return;
+    if (!(await ask('Desconectar a conta Asaas desta loja? Os pagamentos dela deixam de funcionar.'))) return;
     setBusy(true);
     try {
       const r = await api.delete(apiBase);
@@ -195,7 +207,7 @@ export function AsaasConnectCard({ apiBase, storeId, egressIp, allowDisconnect }
   const urlShown = authUrl || `https://api.dropapp.com.br/webhooks/asaas/loja/${storeId}/autorizacao`;
   const needsConsent = status?.status === 'valid' && !status.consent;
   const outdatedConsent = status?.status === 'valid' && !!status.consent && !!status.termsVersion && status.consent.version !== status.termsVersion;
-  const acceptLabel = allowDisconnect ? 'O lojista assinou este termo' : 'Li e aceito o termo';
+  const acceptLabel = allowDisconnect || termsSignedByStore ? 'O lojista assinou este termo' : 'Li e aceito o termo';
   const mark = (v?: boolean) => <span className={`${styles.mark} ${v ? styles.ok : styles.bad}`}>{v ? '✓' : '○'}</span>;
 
   return (

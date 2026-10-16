@@ -136,8 +136,9 @@ describe('admin/lojas-asaas — valor especial', () => {
   test('CEO vê status e edita valor especial', async () => {
     mockRole = 'ceo';
     render(<ToastProvider><AdminLojasAsaas /></ToastProvider>);
-    expect(await screen.findByText(/Mensalidade: Atrasada/)).toBeInTheDocument();
+    expect(await screen.findByText('Atrasada')).toBeInTheDocument();
     expect(screen.getByText(/R\$ 49,90/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Loja Um' }));
     fireEvent.change(screen.getByLabelText('Valor especial de Loja Um'), { target: { value: '20' } });
     fireEvent.click(screen.getByText('Salvar valor'));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s1/saas-billing', { customFee: 20 }));
@@ -146,7 +147,8 @@ describe('admin/lojas-asaas — valor especial', () => {
     mockRole = 'ceo';
     (api.put as jest.Mock).mockRejectedValue({ response: { data: { error: 'Asaas recusou' } } });
     render(<ToastProvider><AdminLojasAsaas /></ToastProvider>);
-    fireEvent.change(await screen.findByLabelText('Valor especial de Loja Um'), { target: { value: '5' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Loja Um' }));
+    fireEvent.change(screen.getByLabelText('Valor especial de Loja Um'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Valor especial de Loja Um'), { target: { value: '' } });
     fireEvent.click(screen.getByText('Salvar valor'));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/stores/s1/saas-billing', { customFee: null }));
@@ -155,7 +157,8 @@ describe('admin/lojas-asaas — valor especial', () => {
   test('não-CEO não vê o campo', async () => {
     mockRole = 'admin';
     render(<ToastProvider><AdminLojasAsaas /></ToastProvider>);
-    await screen.findByText(/Mensalidade: Atrasada/);
+    await screen.findByText('Atrasada');
+    fireEvent.click(screen.getByRole('button', { name: 'Loja Um' }));
     expect(screen.queryByLabelText('Valor especial de Loja Um')).not.toBeInTheDocument();
   });
 });

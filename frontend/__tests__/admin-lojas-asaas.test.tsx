@@ -15,6 +15,7 @@ jest.mock('../lib/api', () => ({
   __esModule: true,
   default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
 
 const KEY = '$aact_hmlg_SEGREDO123456';
 const none = { status: 'none', environment: null, lastCheckedAt: null, apiKeyLast4: null, checklist: { apiKey: false, paymentWebhook: false, ipWhitelistConfirmed: false, authWebhookConfirmed: false } };
@@ -39,7 +40,7 @@ beforeEach(() => {
 
 test('lista as lojas e, ao selecionar, usa apiBase /admin/stores/<id>/asaas para conectar', async () => {
   render(<ToastProvider><AdminLojasAsaas /></ToastProvider>);
-  fireEvent.click(await screen.findByText(/Loja Dois — Não conectada/));
+  fireEvent.click(await screen.findByRole('button', { name: 'Loja Dois' }));
   const input = await screen.findByLabelText('Chave de API do Asaas');
   fireEvent.change(input, { target: { value: KEY } });
   fireEvent.click(screen.getByLabelText('O lojista assinou este termo'));

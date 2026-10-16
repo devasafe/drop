@@ -1,0 +1,25 @@
+/* Lojas → Asaas e mensalidades (DS v2, D3a; protótipo telas 27 e 28). Cor só por token. */
+.page { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+
+.cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.meta { font: var(--text-caption); color: var(--color-text-secondary); }
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  scroll-margin-top: var(--space-4);
+}
+.col { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.fee { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
+.feeInput { flex: 1 1 220px; }
+.impact {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font: var(--text-body);
+  color: var(--color-text-primary);
+}
