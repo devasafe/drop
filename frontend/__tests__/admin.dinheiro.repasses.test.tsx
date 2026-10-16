@@ -405,4 +405,27 @@ describe('dinheiro: nada liberado duas vezes', () => {
     await act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
     expect(put).toHaveBeenCalledTimes(1);
   });
+  it('fechar a tela durante a releitura do "Tentar de novo": nenhum POST novo depois', async () => {
+    payoutsNow = [P1, P3, P4];
+    let hang = false;
+    let releaseGet!: () => void;
+    mockServer({
+      '/payouts/admin?': () => (hang
+        ? new Promise((r) => { releaseGet = () => r({ data: { payouts: payoutsNow, total: payoutsNow.length } }); })
+        : Promise.resolve({ data: { payouts: payoutsNow, total: payoutsNow.length } })),
+    });
+    post.mockImplementation(() => Promise.reject({ response: { status: 502, data: { error: 'Transferência no Asaas não concluída: Recebedor sem subconta Asaas configurada' } } }));
+    const { unmount } = render(<AdminPayoutsPage />);
+    await screen.findByText('Eletro Center');
+    fireEvent.click(openBatchSheet(1));
+    await screen.findByText('Lote: 0 concluídos, 1 com erro');
+    expect(released()).toEqual(['p1']);
+    post.mockResolvedValue({ data: {} });
+    hang = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo os que falharam' }));
+    await waitFor(() => expect(releaseGet).toBeDefined());
+    unmount();
+    await act(async () => { releaseGet(); await new Promise((r) => setTimeout(r, 0)); });
+    expect(released()).toEqual(['p1']);
+  });
 });

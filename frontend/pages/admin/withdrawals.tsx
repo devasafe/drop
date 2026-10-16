@@ -97,6 +97,8 @@ export default function AdminWithdrawalsPage() {
   const [toggleTo, setToggleTo] = useState<boolean | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  // Tela fechada: nada mais é enviado (vale também durante a releitura do "Tentar de novo").
+  const unmountedRef = useRef(false);
   // Travas síncronas contra clique duplo: valem antes de qualquer setState (o `busy` da folha vem depois).
   const batchRunning = useRef(false);
   const rejectInFlight = useRef(false);
@@ -154,14 +156,20 @@ export default function AdminWithdrawalsPage() {
   }, [user, permissionsLoading]);
 
   // Fechar a tela no meio de um lote para o lote (o que já foi feito fica feito). abort() só aqui.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      abortRef.current?.abort();
+    };
+  }, []);
 
   /**
    * Roda o lote. Começa no clique (nunca num efeito). `names` é o que foi selecionado: só essas chaves são
    * enviadas; uma chave fora dela falha sem POST.
    */
   const runApprove = async (keys: string[], names: Record<string, string>, prev?: ApproveBatch) => {
-    if (batchRunning.current) return;
+    if (batchRunning.current || unmountedRef.current) return;
     batchRunning.current = true;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -216,6 +224,7 @@ export default function AdminWithdrawalsPage() {
     } finally {
       batchRunning.current = false;
     }
+    if (unmountedRef.current) return; // tela fechada durante a releitura: nada é enviado
     if (!fresh) return; // sem a lista do servidor, nada é reenviado
     const still = new Set(fresh.map((w) => w._id));
     const candidates = batch.result.failed.filter((k) => !batch.uncertain.includes(k) && !batch.skipped.includes(k));

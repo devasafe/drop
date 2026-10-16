@@ -429,4 +429,29 @@ describe('tela nova', () => {
     fireEvent.click(within(card).getByRole('checkbox', { name: 'Selecionar Zé' }));
     expect(screen.getByRole('region', { name: 'Itens selecionados' })).toHaveTextContent('1 selecionado · R$ 25,00');
   });
+  it('fechar a tela durante a releitura do "Tentar de novo": nenhum POST novo depois', async () => {
+    pendingNow = [W1];
+    let hang = false;
+    let releaseGet!: () => void;
+    mockServer({
+      '/withdrawals/pending': () => (hang
+        ? new Promise((r) => { releaseGet = () => r({ data: pendingNow }); })
+        : Promise.resolve({ data: pendingNow })),
+    });
+    post.mockImplementation((url: string) => (url === '/withdrawals/approve'
+      ? Promise.reject({ response: { status: 502, data: { error: 'Falha na transferência do saque' } } })
+      : Promise.resolve({ data: {} })));
+    const { unmount } = render(<AdminWithdrawalsPage />);
+    await screen.findByText('Zé');
+    await selectAllAndConfirm(1);
+    await screen.findByText('Lote: 0 concluídos, 1 com erro');
+    expect(approveIds()).toEqual(['w1']);
+    post.mockResolvedValue({ data: {} });
+    hang = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo os que falharam' }));
+    await waitFor(() => expect(releaseGet).toBeDefined());
+    unmount();
+    await act(async () => { releaseGet(); await new Promise((r) => setTimeout(r, 0)); });
+    expect(approveIds()).toEqual(['w1']);
+  });
 });
