@@ -80,7 +80,7 @@ describe('tabela do menu (spec 3.3)', () => {
 });
 
 const CEO_CUSTODIA = {
-  numeros: ['visao-geral', 'analises'],
+  numeros: ['visao-geral'],
   verificacoes: ['verificacoes'],
   usuarios: ['usuarios'],
   lojas: ['planos'],
@@ -195,6 +195,20 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     expect(menu('gerente_lojistas', 'custodia', false, ['settings:manage', 'ranking:manage']).regras).toEqual(['taxas', 'ranking']);
     expect(menu('marketing', 'direto', false, ['*']).regras).toEqual(['taxas', 'ranking']);
   });
+
+  it('Números do negócio abre com analytics:view_platform sozinha (página fundida, D1)', () => {
+    const m = menu('gerente_lojistas', 'custodia', false, ['analytics:view_platform']);
+    expect(m).toEqual({ numeros: ['visao-geral'] });
+    const areas = visibleAdminAreas(ctxFor('gerente_lojistas', 'custodia', false, ['analytics:view_platform']));
+    expect(adminAreaHref(areas[0])).toBe('/admin/dashboard');
+  });
+
+  it('tabPermissions: lista de qualquer uma; aba só do CEO não tem permissão', () => {
+    const numeros = ADMIN_AREAS.find((a) => a.key === 'numeros')!;
+    expect(tabPermissions(numeros.tabs[0])).toEqual(['dashboard:view_all', 'analytics:view_platform']);
+    const permissoes = ADMIN_AREAS.find((a) => a.key === 'permissoes')!;
+    expect(tabPermissions(permissoes.tabs[0])).toEqual([]);
+  });
 });
 
 describe('rotas, abas ativas e títulos', () => {
@@ -234,6 +248,7 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminScreenTitle('/admin/ranking-config')).toBe('Regras e taxas · Ranking');
     expect(adminScreenTitle('/admin/suporte')).toBe('Suporte');
     expect(adminScreenTitle('/admin/conversas')).toBe('Suporte · Conversas entre usuários');
+    expect(adminScreenTitle('/admin/dashboard')).toBe('Números do negócio');
     expect(adminScreenTitle('/admin/qualquer')).toBe('Administração');
   });
 

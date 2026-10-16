@@ -13,12 +13,15 @@ import { ADMIN_AREAS, tabPermissions, type AdminTab } from '../adminNav';
 const PARITY_MOVED: Record<string, string> = {
   '/admin/ranking-config': '/admin/settings?aba=ranking',
   '/admin/conversas': '/admin/suporte',
+  '/admin/analytics': '/admin/dashboard',
 };
 
 /** Permissões que a aba de uma página que ficou ganhou de propósito numa fusão (D1): href → permissões a mais. */
 const PARITY_MERGED: Record<string, string[]> = {
   // D1: /admin/conversas virou o filtro "Conversas entre usuários" de /admin/suporte.
   '/admin/suporte': ['conversations:view_all'],
+  // D1 (P5.1): /admin/analytics foi fundido em /admin/dashboard.
+  '/admin/dashboard': ['analytics:view_platform'],
 };
 
 const PAGES = path.join(__dirname, '..', '..', 'pages');

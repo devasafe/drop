@@ -61,9 +61,8 @@ export const ADMIN_AREAS: AdminArea[] = [
   {
     key: 'numeros', group: 'Operação', label: 'Números do negócio', icon: 'chart-bar',
     tabs: [
-      { key: 'visao-geral', label: 'Visão geral', href: '/admin/dashboard', permission: 'dashboard:view_all' },
-      // Transitória: a P5 funde Análises na Visão geral (redirect /admin/analytics → /admin/dashboard).
-      { key: 'analises', label: 'Análises', href: '/admin/analytics', permission: 'analytics:view_platform' },
+      // P5.1: o analytics foi fundido aqui (decisão D1): abre com qualquer uma das duas permissões.
+      { key: 'visao-geral', label: 'Visão geral', href: '/admin/dashboard', permission: ['dashboard:view_all', 'analytics:view_platform'] },
     ],
   },
   {

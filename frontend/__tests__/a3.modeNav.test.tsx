@@ -1,11 +1,9 @@
 /**
  * A3: motoboy no modo direto vê "Repasses recebidos" (e não "Ganhos e saques");
  * (/motoboy/wallet no direto: portado para __tests__/motoboy.ganhos.portados.test.tsx na D2 · P4.11);
- * dashboard do admin esconde cards custodyOnly no direto.
+ * os atalhos do admin no direto foram portados para __tests__/admin-numeros.test.tsx (D3a · P5.1).
  */
-import { render, screen, waitFor } from '@testing-library/react';
 import { getNavItems } from '../lib/navConfig';
-import AdminDashboard from '../pages/admin/dashboard';
 import api from '../lib/api';
 
 jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/' }) }));
@@ -40,17 +38,5 @@ describe('navConfig motoboy', () => {
   test('direto e custódia: as mesmas 4 abas, com "Ganhos"', () => {
     expect(labels('direto')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
     expect(labels('custodia')).toEqual(['Corridas', 'Ganhos', 'Nível', 'Perfil']);
-  });
-});
-
-describe('admin/dashboard no modo direto', () => {
-  test('não mostra cards custodyOnly (Carteiras, Caixa, Planos) mas mostra os directOnly', async () => {
-    mockRole = 'ceo';
-    (api.get as jest.Mock).mockResolvedValue({ data: { totalBalance: 0, totalIncome: 0, totalUsers: 0, totalStores: 0, totalMotoboys: 0, history: [] } });
-    render(<AdminDashboard />);
-    await waitFor(() => expect(screen.getByText('Estornos')).toBeInTheDocument());
-    for (const l of ['Carteiras', 'Caixa', 'Planos']) {
-      expect(screen.queryByText(l)).not.toBeInTheDocument();
-    }
   });
 });
