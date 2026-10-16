@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 
-/** Repasse de custódia que ainda não saiu: o dono pode ver e sacar. */
-const OPEN_PAYOUT_STATUSES = ['pending', 'released', 'requested'] as const;
+/** Repasse de custódia que ainda não saiu: o dono pode ver e sacar (releasing = transferência em voo, D3b-3). */
+const OPEN_PAYOUT_STATUSES = ['pending', 'releasing', 'released', 'requested'] as const;
 
 /**
  * O usuário ainda tem dinheiro da custódia (modo app) depois da troca para o SaaS?

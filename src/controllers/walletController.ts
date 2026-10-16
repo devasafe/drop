@@ -18,7 +18,7 @@ import logger from '../config/logger';
  * Payouts (fonte da verdade) e persiste no cache da Wallet. Substitui o
  * `Payout.aggregate` do Mongo.
  */
-async function reconcileFromPayouts(
+export async function reconcileFromPayouts(
   recipientType: 'store' | 'motoboy',
   recipientId: string,
   walletId: string,
@@ -31,7 +31,8 @@ async function reconcileFromPayouts(
   const sums: Record<string, number> = {};
   for (const g of grouped) sums[g.status] = g._sum.amount ? Number(g._sum.amount) : 0;
 
-  const pendingBalance = sums['pending'] || 0;
+  // releasing (D3b-3): transferência em voo — continua no pendente até a baixa.
+  const pendingBalance = (sums['pending'] || 0) + (sums['releasing'] || 0);
   const availableBalance = sums['released'] || 0;
   const paidTotal = sums['paid'] || 0;
   const requestedTotal = sums['requested'] || 0;

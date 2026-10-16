@@ -30,7 +30,7 @@ export interface SettlementPreview {
 }
 
 /** Repasse de custódia ainda não liquidado e saque em aberto (menu do admin no modo direto). */
-export const OPEN_PAYOUT_STATUSES = ['pending', 'released', 'requested'] as const;
+export const OPEN_PAYOUT_STATUSES = ['pending', 'releasing', 'released', 'requested'] as const;
 export const OPEN_WITHDRAWAL_STATUSES = ['pending', 'approved'] as const;
 
 export async function countOpenCustody(): Promise<{ openPayouts: number; openWithdrawals: number }> {

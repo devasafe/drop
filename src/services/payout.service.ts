@@ -73,7 +73,14 @@ class PayoutService {
         throw new Error(`Payout ${payoutId} está bloqueado: ${payout.blockReason || 'sem motivo'}`);
       }
 
-      await db.payout.update({ where: { id: payoutId }, data: { status: 'released', releasedAt: new Date() } });
+      // Condicional (D3b-3): nunca pisa num repasse reivindicado por outra liberação (releasing).
+      const { count } = await db.payout.updateMany({
+        where: { id: payoutId, status: 'pending', blocked: false },
+        data: { status: 'released', releasedAt: new Date() },
+      });
+      if (count !== 1) {
+        throw new Error(`Payout ${payoutId} não encontrado ou não está pending`);
+      }
 
       const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
       const amount = num(payout.amount);
@@ -95,7 +102,12 @@ class PayoutService {
         where: { orderId, status: 'pending', blocked: { not: true } },
       });
       for (const payout of payouts) {
-        await db.payout.update({ where: { id: payout.id }, data: { status: 'released', releasedAt: new Date() } });
+        // Condicional (D3b-3): o que já foi reivindicado por outra liberação é pulado sem mexer nos saldos.
+        const { count } = await db.payout.updateMany({
+          where: { id: payout.id, status: 'pending', blocked: false },
+          data: { status: 'released', releasedAt: new Date() },
+        });
+        if (count !== 1) continue;
         const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
         const amount = num(payout.amount);
         await bumpWalletBuckets(db, String(payout.recipientId), ownerType, {
@@ -113,15 +125,29 @@ class PayoutService {
   ): Promise<{ cancelled: number; errors: Array<{ payoutId: string; status: string }> }> {
     return withTx(tx, async (db) => {
       const payouts = await db.payout.findMany({
-        where: { orderId, status: { in: ['pending', 'released', 'requested', 'paid'] } },
+        where: { orderId, status: { in: ['pending', 'releasing', 'released', 'requested', 'paid'] } },
       });
 
       const errors: Array<{ payoutId: string; status: string }> = [];
       let cancelled = 0;
 
       for (const payout of payouts) {
-        if (payout.status === 'requested' || payout.status === 'paid') {
+        // releasing (D3b-3): a transferência no Asaas pode estar saindo agora — mesmo tratamento
+        // de requested/paid: o chamador não reembolsa às cegas e escala para revisão manual.
+        if (payout.status === 'requested' || payout.status === 'paid' || payout.status === 'releasing') {
           errors.push({ payoutId: String(payout.id), status: payout.status });
+          continue;
+        }
+
+        // Condicional ao status lido: se uma liberação reivindicou o repasse entre a leitura e
+        // aqui, não cancela por cima (vira erro → revisão manual).
+        const { count } = await db.payout.updateMany({
+          where: { id: payout.id, status: payout.status },
+          data: { status: 'cancelled', cancelledAt: new Date(), cancelReason: reason },
+        });
+        if (count !== 1) {
+          const now = await db.payout.findUnique({ where: { id: payout.id }, select: { status: true } });
+          errors.push({ payoutId: String(payout.id), status: now?.status ?? 'missing' });
           continue;
         }
 
@@ -133,11 +159,6 @@ class PayoutService {
         } else if (payout.status === 'released') {
           await bumpWalletBuckets(db, String(payout.recipientId), ownerType, { availableBalance: { decrement: amount } });
         }
-
-        await db.payout.update({
-          where: { id: payout.id },
-          data: { status: 'cancelled', cancelledAt: new Date(), cancelReason: reason },
-        });
         cancelled++;
       }
 
@@ -371,7 +392,8 @@ class PayoutService {
     const s: Record<string, number> = {};
     for (const g of grouped) s[g.status] = g._sum.amount ? num(g._sum.amount) : 0;
 
-    const pending = s['pending'] || 0;
+    // releasing (D3b-3): transferência em voo — o dinheiro ainda não chegou ao disponível.
+    const pending = (s['pending'] || 0) + (s['releasing'] || 0);
     const available = s['released'] || 0;
     const requested = s['requested'] || 0;
     const paid = s['paid'] || 0;
@@ -394,7 +416,7 @@ class PayoutService {
 
   async getPendingObligations(): Promise<number> {
     const result = await prisma.payout.aggregate({
-      where: { status: { in: ['pending', 'released', 'requested'] } },
+      where: { status: { in: ['pending', 'releasing', 'released', 'requested'] } },
       _sum: { amount: true },
     });
     return result._sum.amount ? num(result._sum.amount) : 0;
