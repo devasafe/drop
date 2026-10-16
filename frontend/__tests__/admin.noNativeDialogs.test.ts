@@ -11,7 +11,6 @@ import { ADMIN_LEGACY_SHELL_ROUTES } from '../lib/adminLegacyShell';
 
 const NATIVE_DIALOG_EXCEPTIONS: string[] = [
   'pages/admin/app-cashbox.tsx',
-  'pages/admin/coupons.tsx',
   'pages/admin/payouts.tsx',
   'pages/admin/pricing-config.tsx',
   'pages/admin/ranking-config.tsx',

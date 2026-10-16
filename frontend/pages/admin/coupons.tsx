@@ -1,11 +1,26 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { FormEvent, useCallback, useEffect, useId, useState } from 'react';
 import api from '../../lib/api';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { Kpi } from '../../components/admin/Kpi';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Chip } from '../../components/ui/Chip';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { useToast } from '../../components/ui/Toast';
+import { adminErrorMessage } from '../../lib/adminErrors';
+import { couponCostText, couponMaxCost } from '../../lib/couponCost';
+import { formatMoney } from '../../lib/money';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import styles from '../../components/admin/comunicacao/Cupons.module.css';
 
+/**
+ * Avisos e broadcasts · Cupons (D3a, tela 21; só o CEO, como hoje). GET /coupons { params },
+ * POST /coupons (cupom global), PUT /coupons/:id/toggle. Excluir virou pausar (spec 5.3): não há DELETE na tela.
+ */
 interface Coupon {
   _id: string;
   code: string;
@@ -20,225 +35,219 @@ interface Coupon {
   isActive: boolean;
 }
 
+type Filter = 'all' | 'global' | 'store';
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'Todos' },
+  { id: 'global', label: 'Globais' },
+  { id: 'store', label: 'Por loja' },
+];
+
 const today = () => new Date().toISOString().slice(0, 10);
 const nextMonth = () => {
   const d = new Date();
   d.setMonth(d.getMonth() + 1);
   return d.toISOString().slice(0, 10);
 };
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
+
+function situation(c: Coupon): { label: string; tone: 'on' | 'off' | 'warn' } {
+  if (!c.isActive) return { label: 'Pausado', tone: 'off' };
+  if (c.maxUses && c.usedCount >= c.maxUses) return { label: 'Esgotado', tone: 'warn' };
+  if (new Date(c.validUntil).getTime() < Date.now()) return { label: 'Vencido', tone: 'warn' };
+  return { label: 'Ativo', tone: 'on' };
+}
 
 export default function AdminCoupons() {
   useRequireAuth(['ceo']);
-  const router = useRouter();
+  return (
+    <ProtectedRoute required_role="ceo">
+      <AdminShell title="Avisos e broadcasts · Cupons" tabs="comunicacao">
+        <CuponsBody />
+      </AdminShell>
+    </ProtectedRoute>
+  );
+}
 
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [filterType, setFilterType] = useState<'all' | 'global' | 'store'>('all');
+function CuponsBody() {
+  const { showToast } = useToast();
+  const formId = useId();
+  const [filterType, setFilterType] = useState<Filter>('all');
+  const [coupons, setCoupons] = useState<Coupon[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
-  const [type, setType] = useState<'global' | 'store'>('global');
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState<number>(10);
+  const [discountValue, setDiscountValue] = useState('10');
   const [minOrderValue, setMinOrderValue] = useState('');
   const [maxUses, setMaxUses] = useState('');
   const [validFrom, setValidFrom] = useState(today());
   const [validUntil, setValidUntil] = useState(nextMonth());
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchCoupons = async () => {
+  const fetchCoupons = useCallback(async () => {
+    setLoadError(null);
+    setCoupons(null);
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (filterType !== 'all') params.type = filterType;
       const res = await api.get('/coupons', { params });
-      setCoupons(res.data);
-    } catch {
-      /* silencioso */
-    } finally {
-      setLoading(false);
+      setCoupons(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setLoadError(adminErrorMessage(err, 'Não deu para ler os cupons.'));
     }
-  };
+  }, [filterType]);
 
-  useEffect(() => { fetchCoupons(); }, [filterType]);
+  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
+    if (!code.trim()) {
+      setFormError('Preencha o código do cupom.');
+      return;
+    }
+    setFormError(null);
     setSaving(true);
     try {
       await api.post('/coupons', {
-        code, type, discountType, discountValue: Number(discountValue),
+        code,
+        type: 'global',
+        discountType,
+        discountValue: Number(discountValue),
         minOrderValue: minOrderValue ? Number(minOrderValue) : undefined,
         maxUses: maxUses ? Number(maxUses) : undefined,
-        validFrom, validUntil,
+        validFrom,
+        validUntil,
       });
-      setShowForm(false);
-      setCode(''); setDiscountValue(10); setMinOrderValue(''); setMaxUses('');
-      setValidFrom(today()); setValidUntil(nextMonth());
+      showToast(`Cupom ${code} criado`, 'success');
+      setCode('');
+      setDiscountValue('10');
+      setMinOrderValue('');
+      setMaxUses('');
+      setValidFrom(today());
+      setValidUntil(nextMonth());
       await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao criar cupom');
+    } catch (err) {
+      setFormError(adminErrorMessage(err, 'Erro ao criar cupom'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleToggle = async (id: string) => {
+  const handleToggle = async (c: Coupon) => {
     try {
-      await api.put(`/coupons/${id}/toggle`);
+      await api.put(`/coupons/${c._id}/toggle`);
       await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro');
+    } catch (err) {
+      showToast(adminErrorMessage(err, 'Não deu para mudar o cupom'), 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Deletar este cupom?')) return;
-    try {
-      await api.delete(`/coupons/${id}`);
-      await fetchCoupons();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro');
-    }
-  };
+  const cost = couponCostText(couponMaxCost({
+    discountType,
+    discountValue: Number(discountValue),
+    maxUses: maxUses ? Number(maxUses) : null,
+    minOrderValue: minOrderValue ? Number(minOrderValue) : null,
+  }));
+
+  const columns: AdminColumn<Coupon>[] = [
+    {
+      key: 'code',
+      header: 'Cupom',
+      primary: true,
+      render: (c) => (
+        <span>
+          <span className={styles.code}>{c.code}</span>
+          <span className={blocks.muted}>
+            {c.type === 'global' ? 'Global' : 'Loja'} · {c.minOrderValue ? `mín. ${formatMoney(c.minOrderValue)}` : 'sem mínimo'} · até {fmtDate(c.validUntil)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'discount',
+      header: 'Desconto',
+      render: (c) => (c.discountType === 'percent' ? `${c.discountValue}%` : formatMoney(c.discountValue)),
+    },
+    { key: 'uses', header: 'Usos', align: 'right', render: (c) => `${c.usedCount} / ${c.maxUses ?? '∞'}` },
+    {
+      key: 'status',
+      header: 'Situação',
+      render: (c) => {
+        const s = situation(c);
+        return <span className={s.tone === 'on' ? styles.badgeOn : s.tone === 'off' ? styles.badgeOff : styles.badgeWarn}>{s.label}</span>;
+      },
+    },
+  ];
+
+  const active = coupons?.filter((c) => c.isActive).length ?? 0;
+  const globals = coupons?.filter((c) => c.type === 'global').length ?? 0;
+  const uses = coupons?.reduce((sum, c) => sum + (c.usedCount || 0), 0) ?? 0;
 
   return (
-    <ProtectedRoute required_role="ceo">
-      <div style={{ minHeight: '100vh', background: 'var(--drop-bg)', padding: '32px 20px' }}>
-        <div className="drop-fade-in" style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div className={styles.page}>
+      {coupons && (
+        <div className={blocks.kpis}>
+          <Kpi label="Cupons ativos" value={active} />
+          <Kpi label="Globais" value={globals} hint="pagos pelo caixa do DROP" />
+          <Kpi label="Usos registrados" value={uses} hint="somando a lista" />
+          <Kpi label="Na lista" value={coupons.length} />
+        </div>
+      )}
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div>
-              <button onClick={() => router.push('/admin/dashboard')} style={{ background: 'none', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 14, marginBottom: 8 }}>
-                ← Dashboard
-              </button>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--drop-text)', margin: 0 }}>
-                Gerenciar Cupons
-              </h1>
-            </div>
-            <button
-              onClick={() => setShowForm(v => !v)}
-              style={{ padding: '10px 20px', background: 'var(--drop-purple)', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
-            >
-              {showForm ? 'Cancelar' : '+ Novo Cupom'}
-            </button>
-          </div>
-
-          {showForm && (
-            <form onSubmit={handleCreate} style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border-md)', borderRadius: 14, padding: 24, marginBottom: 24 }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--drop-text)', marginBottom: 16 }}>Criar Cupom</h3>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={labelStyle}>Código</label>
-                  <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} required placeholder="EX: DROPDESCONTO20" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Tipo de cupom</label>
-                  <select value={type} onChange={e => setType(e.target.value as any)} style={inputStyle}>
-                    <option value="global">Global (todo o app)</option>
-                    <option value="store">Loja específica</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Tipo de desconto</label>
-                  <select value={discountType} onChange={e => setDiscountType(e.target.value as any)} style={inputStyle}>
-                    <option value="percent">Percentual (%)</option>
-                    <option value="fixed">Fixo (R$)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Valor do desconto</label>
-                  <input type="number" min="1" max={discountType === 'percent' ? 100 : undefined} step="0.01" value={discountValue} onChange={e => setDiscountValue(Number(e.target.value))} required style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Pedido mínimo (R$) — opcional</label>
-                  <input type="number" min="0" step="0.01" value={minOrderValue} onChange={e => setMinOrderValue(e.target.value)} placeholder="Sem mínimo" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Limite de usos — opcional</label>
-                  <input type="number" min="1" value={maxUses} onChange={e => setMaxUses(e.target.value)} placeholder="Ilimitado" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Válido de</label>
-                  <input type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} required style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Válido até</label>
-                  <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} required style={inputStyle} />
-                </div>
-              </div>
-
-              {type === 'global' && (
-                <p style={{ fontSize: 12, color: 'var(--drop-warning)', marginBottom: 12 }}>
-                  <Icon name="alert-triangle" size={14} /> Cupons globais são descontados do caixa do app quando utilizados.
-                </p>
-              )}
-
-              <button type="submit" disabled={saving} style={{ padding: '10px 24px', background: 'var(--drop-purple)', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Salvando...' : 'Criar Cupom'}
-              </button>
-            </form>
-          )}
-
-          {/* Filtros */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {(['all', 'global', 'store'] as const).map(f => (
-              <button key={f} onClick={() => setFilterType(f)} style={{ padding: '6px 16px', borderRadius: 8, border: `1px solid ${filterType === f ? 'var(--drop-purple)' : 'var(--drop-border-md)'}`, background: filterType === f ? 'var(--drop-purple-bg)' : 'transparent', color: filterType === f ? 'var(--drop-purple-2)' : 'var(--drop-text-muted)', fontSize: 13, fontWeight: filterType === f ? 600 : 400, cursor: 'pointer' }}>
-                {f === 'all' ? 'Todos' : f === 'global' ? 'Globais' : 'Por loja'}
-              </button>
+      <div className={styles.layout}>
+        <div className={styles.listCol}>
+          <div className={styles.filters} role="group" aria-label="Filtrar cupons">
+            {FILTERS.map((f) => (
+              <Chip key={f.id} label={f.label} active={filterType === f.id} onClick={() => setFilterType(f.id)} />
             ))}
           </div>
-
-          {loading ? (
-            <LoadingSkeleton variant="list" count={4} />
-          ) : coupons.length === 0 ? (
-            <div style={{ background: 'var(--drop-surface)', border: '1px solid var(--drop-border)', borderRadius: 14, padding: 40, textAlign: 'center', color: 'var(--drop-text-muted)' }}>
-              Nenhum cupom encontrado.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {coupons.map(c => (
-                <div key={c._id} style={{ background: 'var(--drop-surface)', border: `1px solid ${c.isActive ? 'var(--drop-border-md)' : 'var(--drop-border)'}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16, opacity: c.isActive ? 1 : 0.55 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 15, color: 'var(--drop-purple-2)', letterSpacing: 1 }}>{c.code}</span>
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: c.type === 'global' ? 'rgba(108,43,217,0.2)' : 'rgba(56,189,248,0.15)', color: c.type === 'global' ? 'var(--drop-purple-2)' : 'var(--drop-info)', fontWeight: 600 }}>
-                        {c.type === 'global' ? 'Global' : 'Loja'}
-                      </span>
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: c.isActive ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)', color: c.isActive ? '#22C55E' : 'var(--drop-text-dim)', fontWeight: 600 }}>
-                        {c.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--drop-text-muted)' }}>
-                      {c.discountType === 'percent' ? `${c.discountValue}% de desconto` : `R$ ${c.discountValue.toFixed(2)} de desconto`}
-                      {c.minOrderValue ? ` • mín. R$ ${c.minOrderValue.toFixed(2)}` : ''}
-                      {' • '}
-                      {c.usedCount}/{c.maxUses ?? '∞'} usos
-                      {' • '}
-                      {new Date(c.validFrom).toLocaleDateString('pt-BR')} – {new Date(c.validUntil).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                  <button onClick={() => handleToggle(c._id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--drop-border-md)', background: 'transparent', color: 'var(--drop-text-muted)', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {c.isActive ? 'Desativar' : 'Ativar'}
-                  </button>
-                  <button onClick={() => handleDelete(c._id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)', color: '#EF4444', fontSize: 12, cursor: 'pointer' }}>
-                    Excluir
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <AdminTable
+            caption="Cupons"
+            columns={columns}
+            rows={coupons}
+            rowKey={(c) => c._id}
+            rowLabel={(c) => c.code}
+            error={loadError}
+            onRetry={fetchCoupons}
+            empty="Nenhum cupom ainda. Crie o primeiro ao lado."
+            rowAction={(c) => (
+              <Button
+                variant="secondary"
+                size="sm"
+                className={styles.rowBtn}
+                aria-label={`${c.isActive ? 'Pausar' : 'Ativar'} ${c.code}`}
+                onClick={() => handleToggle(c)}
+              >
+                {c.isActive ? 'Pausar' : 'Ativar'}
+              </Button>
+            )}
+          />
         </div>
+
+        <form className={blocks.block} onSubmit={handleCreate} aria-labelledby={formId} noValidate>
+          <h2 id={formId} className={blocks.blockTitle}>Novo cupom global</h2>
+          <Input label="Código" value={code} onChange={(v) => setCode(v.toUpperCase())} placeholder="EX: DROPDESCONTO20" />
+          <Select
+            label="Tipo de desconto"
+            value={discountType}
+            onChange={(v) => setDiscountType(v === 'fixed' ? 'fixed' : 'percent')}
+            options={[{ value: 'percent', label: 'Percentual (%)' }, { value: 'fixed', label: 'Valor fixo (R$)' }]}
+          />
+          <div className={styles.fields2}>
+            <Input label="Valor do desconto" type="number" value={discountValue} onChange={setDiscountValue} min={1} step="0.01" />
+            <Input label="Pedido mínimo (R$)" type="number" value={minOrderValue} onChange={setMinOrderValue} placeholder="Sem mínimo" min={0} step="0.01" />
+          </div>
+          <div className={styles.fields2}>
+            <Input label="Limite de usos" type="number" value={maxUses} onChange={setMaxUses} placeholder="Ilimitado" min={1} />
+            <Input label="Vale de" type="date" value={validFrom} onChange={setValidFrom} />
+          </div>
+          <Input label="Vale até" type="date" value={validUntil} onChange={setValidUntil} />
+          <Alert tone="info" title={cost.title}>{cost.detail} Cupom global sai do caixa do DROP quando é usado.</Alert>
+          {formError && <Alert tone="error">{formError}</Alert>}
+          <div className={styles.submit}><Button type="submit" loading={saving}>Criar cupom</Button></div>
+        </form>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: 'var(--drop-bg-2)', border: '1px solid var(--drop-border-md)',
-  borderRadius: 8, color: 'var(--drop-text)', padding: '9px 12px', fontSize: 14, fontFamily: 'inherit',
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 13, color: 'var(--drop-text-muted)', display: 'block', marginBottom: 4,
-};
