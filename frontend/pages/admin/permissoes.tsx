@@ -203,7 +203,11 @@ function PermissoesBody() {
           </ul>
         </Alert>
       )}
-      {loadError && <p className={blocks.errText}>{loadError}</p>}
+      {loadError && (
+        <Alert tone="error" action={{ label: 'Tentar de novo', onClick: () => { void load(); } }}>
+          {loadError}
+        </Alert>
+      )}
 
       {desktop ? (
         <div className={styles.matrixWrap}>

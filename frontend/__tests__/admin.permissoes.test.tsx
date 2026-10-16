@@ -190,6 +190,25 @@ describe('falha de leitura', () => {
   });
 });
 
+describe('falha ao reler com a matriz já na tela', () => {
+  it('mostra o erro com "Tentar de novo" e mantém a matriz', async () => {
+    renderAdminPage(<AdminPermissoes />);
+    await screen.findByRole('table', { name: 'Permissões por papel' });
+    (api.get as jest.Mock).mockRejectedValueOnce({ response: { status: 500, data: { error: 'Erro ao reler' } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Restaurar o padrão de Marketing' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Erro ao reler');
+    expect(screen.getByRole('table', { name: 'Permissões por papel' })).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Tentar de novo' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole('table', { name: 'Permissões por papel' })).toBeInTheDocument();
+  });
+});
+
 describe('celular (360 px)', () => {
   it('sem matriz: escolhe o papel e vê só a coluna dele', async () => {
     setViewportWidth(360);
