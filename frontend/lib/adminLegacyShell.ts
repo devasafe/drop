@@ -11,7 +11,7 @@ export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
   '/admin/dashboard', '/admin/estornos', '/admin/lojas-asaas',
   '/admin/payouts', '/admin/plan-approvals', '/admin/pricing-config',
   '/admin/ranking-config',
-  '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
+  '/admin/transfers', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
 ];
 
 /** Título da casca genérica (o mesmo do menu), ou null quando a rota não está na lista. */

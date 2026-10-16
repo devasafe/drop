@@ -1,0 +1,9 @@
+/* Estados de leitura das telas de Pessoas que não são tabela (cartões, listas). */
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}

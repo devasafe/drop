@@ -1,0 +1,23 @@
+/* Formulários curtos dentro da AdminSheet e botões de toque das telas de Pessoas (DS v2, D3a). */
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.fieldLabel { font: var(--text-label); color: var(--color-text-primary); }
+.lead { margin: 0; font: var(--text-label); color: var(--color-text-primary); }
+.textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-body);
+  resize: vertical;
+}
+.textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 1023px) {
+  .touch { min-height: 44px; }
+}
