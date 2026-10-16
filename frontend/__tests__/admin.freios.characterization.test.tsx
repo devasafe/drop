@@ -34,6 +34,7 @@ it('lê os freios uma vez', async () => {
   renderAdminPage(<FreiosPage />, adminAuth('gerente_geral', ['settings:manage']));
   await screen.findAllByRole('button', { name: 'Ativar' });
   expect(api.get).toHaveBeenCalledWith('/admin/switches');
+  expect((api.get as jest.Mock).mock.calls.filter(([u]) => u === '/admin/switches')).toHaveLength(1);
 });
 
 it('ativar o primeiro freio: PUT /admin/switches { rankingPrizesEnabled: true }', async () => {
