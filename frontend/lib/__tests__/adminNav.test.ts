@@ -85,7 +85,7 @@ const CEO_CUSTODIA = {
   usuarios: ['usuarios'],
   lojas: ['planos'],
   dinheiro: ['repasses', 'saques', 'carteiras', 'caixa'],
-  suporte: ['atendimento', 'conversas'],
+  suporte: ['atendimento'],
   comunicacao: ['broadcasts', 'avisos', 'cupons'],
   regras: ['taxas', 'ranking', 'modo'],
   freios: ['freios'],
@@ -201,7 +201,8 @@ describe('rotas, abas ativas e títulos', () => {
   it('adminAreaForPath: a página pertence à área da aba dela', () => {
     expect(adminAreaForPath('/admin/withdrawals')).toBe('dinheiro');
     expect(adminAreaForPath('/admin/plan-approvals')).toBe('lojas');
-    expect(adminAreaForPath('/admin/conversas')).toBe('suporte');
+    expect(adminAreaForPath('/admin/conversas')).toBeNull(); // virou filtro de /admin/suporte (redirect na P5)
+    expect(adminAreaForPath('/admin/suporte')).toBe('suporte');
     expect(adminAreaForPath('/admin/ranking-config')).toBeNull(); // virou /admin/settings?aba=ranking (redirect na P5)
     expect(adminAreaForPath('/admin/settings')).toBe('regras');
     expect(adminAreaForPath('/admin/pricing-config')).toBeNull();
@@ -231,6 +232,8 @@ describe('rotas, abas ativas e títulos', () => {
     expect(adminScreenTitle('/admin/verificacoes')).toBe('Verificações');
     expect(adminScreenTitle('/admin/pricing-config')).toBe('Planos de preço');
     expect(adminScreenTitle('/admin/ranking-config')).toBe('Regras e taxas · Ranking');
+    expect(adminScreenTitle('/admin/suporte')).toBe('Suporte');
+    expect(adminScreenTitle('/admin/conversas')).toBe('Suporte · Conversas entre usuários');
     expect(adminScreenTitle('/admin/qualquer')).toBe('Administração');
   });
 
@@ -282,5 +285,16 @@ describe('tabPermissions e aba com mais de uma permissão (D1, fusões)', () => 
     expect(tabPermissions(ranking)).toEqual(['ranking:manage']);
     expect(activeAdminTabKey(regras, '/admin/settings', { aba: 'ranking' })).toBe('ranking');
     expect(adminAreaHref(visibleAdminAreas(ctx(['ranking:manage'])).find((a) => a.key === 'regras')!)).toBe('/admin/settings?aba=ranking');
+  });
+
+  it('Suporte: uma aba que aceita support:attend OU conversations:view_all', () => {
+    const suporte = ADMIN_AREAS.find((a) => a.key === 'suporte')!;
+    expect(suporte.tabs.map((t) => t.key)).toEqual(['atendimento']);
+    expect(tabPermissions(suporte.tabs[0])).toEqual(['support:attend', 'conversations:view_all']);
+    for (const perms of [['support:attend'], ['conversations:view_all']]) {
+      const area = visibleAdminAreas(ctx(perms)).find((a) => a.key === 'suporte');
+      expect(area && adminAreaHref(area)).toBe('/admin/suporte');
+    }
+    expect(visibleAdminAreas(ctx(['theme:edit'])).find((a) => a.key === 'suporte')).toBeUndefined();
   });
 });

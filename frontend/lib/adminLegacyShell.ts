@@ -10,7 +10,7 @@ export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
   '/admin/analytics', '/admin/app-cashbox', '/admin/conversas',
   '/admin/dashboard', '/admin/estornos', '/admin/lojas-asaas',
   '/admin/payouts', '/admin/plan-approvals', '/admin/pricing-config',
-  '/admin/ranking-config', '/admin/suporte',
+  '/admin/ranking-config',
   '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
 ];
 

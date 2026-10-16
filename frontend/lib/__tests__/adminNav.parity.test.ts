@@ -12,10 +12,14 @@ import { ADMIN_AREAS, tabPermissions, type AdminTab } from '../adminNav';
 /** Aba que mudou de endereço de propósito (página fundida em outra): href antigo → href novo. */
 const PARITY_MOVED: Record<string, string> = {
   '/admin/ranking-config': '/admin/settings?aba=ranking',
+  '/admin/conversas': '/admin/suporte',
 };
 
 /** Permissões que a aba de uma página que ficou ganhou de propósito numa fusão (D1): href → permissões a mais. */
-const PARITY_MERGED: Record<string, string[]> = {};
+const PARITY_MERGED: Record<string, string[]> = {
+  // D1: /admin/conversas virou o filtro "Conversas entre usuários" de /admin/suporte.
+  '/admin/suporte': ['conversations:view_all'],
+};
 
 const PAGES = path.join(__dirname, '..', '..', 'pages');
 const tabs = ADMIN_AREAS.flatMap((a) => a.tabs);

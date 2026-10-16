@@ -95,9 +95,8 @@ export const ADMIN_AREAS: AdminArea[] = [
   {
     key: 'suporte', group: 'Comunicação', label: 'Suporte', icon: 'headphones',
     tabs: [
-      { key: 'atendimento', label: 'Atendimento', href: '/admin/suporte', permission: 'support:attend' },
-      // Transitória: a P2 (Suporte) funde como filtro "Conversas entre usuários"; a P5 faz o redirect.
-      { key: 'conversas', label: 'Conversas entre usuários', href: '/admin/conversas', permission: 'conversations:view_all' },
+      // D1: a página conversas virou o filtro "Conversas entre usuários" desta página (redirect na P5).
+      { key: 'atendimento', label: 'Atendimento', href: '/admin/suporte', permission: ['support:attend', 'conversations:view_all'] },
     ],
   },
   {
@@ -136,6 +135,7 @@ export const ADMIN_AREAS: AdminArea[] = [
 const OFF_MENU_TITLES: Record<string, string> = {
   '/admin/pricing-config': 'Planos de preço',
   '/admin/ranking-config': 'Regras e taxas · Ranking',
+  '/admin/conversas': 'Suporte · Conversas entre usuários',
 };
 
 const pathOf = (href: string) => href.split('?')[0];
