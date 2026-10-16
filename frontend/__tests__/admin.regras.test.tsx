@@ -92,6 +92,13 @@ describe('Taxas e tempos', () => {
     expect(screen.getByRole('button', { name: 'Salvar 1 mudança' })).toBeEnabled();
   });
 
+  it('comissão: avisa que vale para todas as lojas do plano (salvar sobrescreve a especial)', async () => {
+    renderAdminPage(<AdminSettings />, GERENTE);
+    await screen.findByLabelText('Plano 2 · com motoboys (%)');
+    expect(screen.getByText('Vale para todas as lojas do plano: salvar aplica esta comissão a todas, inclusive às que tinham uma especial.')).toBeInTheDocument();
+    expect(screen.queryByText(/cada loja pode ter a sua/)).toBeNull();
+  });
+
   it('a simulação muda com valor, distância e plano', async () => {
     renderAdminPage(<AdminSettings />, GERENTE);
     await screen.findByLabelText('Plano 2 · com motoboys (%)');

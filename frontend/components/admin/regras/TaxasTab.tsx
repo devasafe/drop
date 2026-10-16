@@ -41,7 +41,7 @@ const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits:
 const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
   {
     title: 'Comissão das lojas',
-    note: 'Padrão de cada plano; cada loja pode ter a sua',
+    note: 'Vale para todas as lojas do plano: salvar aplica esta comissão a todas, inclusive às que tinham uma especial.',
     fields: [
       { key: 'commissionPlan1', label: 'Plano 1 · vitrine (%)', short: 'Plano 1', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
       { key: 'commissionPlan2', label: 'Plano 2 · com motoboys (%)', short: 'Plano 2', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
