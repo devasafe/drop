@@ -77,6 +77,31 @@ describe('abas e permissão', () => {
   });
 });
 
+describe('Mensalidade SaaS: valor padrão em reais (parseAmount)', () => {
+  const preencher = async (value: string) => {
+    mockQuery = { aba: 'modo' };
+    (api.put as jest.Mock).mockResolvedValue({ data: SW });
+    renderAdminPage(<AdminSettings />);
+    fireEvent.change(await screen.findByLabelText('Valor padrão (R$)'), { target: { value } });
+  };
+
+  it.each(['1e3', '1.999', '10abc', '-5', ''])('"%s" não envia', async (value) => {
+    await preencher(value);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar mensalidade' }));
+    expect(api.put).not.toHaveBeenCalled();
+    expect(await screen.findByText('Valor padrão inválido: use só números, com até 2 casas (ex.: 49,90).')).toBeInTheDocument();
+  });
+
+  it.each([['49,90', 49.9], ['0', 0], ['59.9', 59.9]])('"%s" envia saasMonthlyFee %p', async (value, fee) => {
+    await preencher(value);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar mensalidade' }));
+    expect(await screen.findByText('Mensalidade salva.')).toBeInTheDocument();
+    expect(api.put).toHaveBeenCalledWith('/admin/switches', {
+      saasMonthlyFee: fee, saasTrialDays: 14, saasGraceDays: 5, directTransfersEnabled: false,
+    });
+  });
+});
+
 describe('Taxas e tempos', () => {
   it('mudança marcada, aviso de-para, contador e simulação com o antes', async () => {
     renderAdminPage(<AdminSettings />, GERENTE);

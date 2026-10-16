@@ -15,6 +15,7 @@ import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
 import { flattenServerError } from '../../components/admin/dinheiro/serverError';
 import { formatBRL, formatBillingDate, saasStatusLabel } from '../../lib/saasBilling';
+import { parseAmount } from '../../lib/adminAmount';
 import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
@@ -117,9 +118,10 @@ function LojasAsaasScreen() {
   // Valor especial (CEO): vazio = volta ao padrão; 0 = loja isenta. Mesmas regras de hoje.
   const saveFee = async (storeId: string) => {
     const raw = (feeInput[storeId] ?? '').trim();
-    const customFee = raw === '' ? null : Number(raw.replace(',', '.'));
-    if (customFee !== null && (!Number.isFinite(customFee) || customFee < 0)) {
-      setFeeMsg((m) => ({ ...m, [storeId]: 'Valor inválido.' }));
+    // parseAmount recusa "1e3", "1.999", sinal e letras; 0 continua valendo (loja isenta).
+    const customFee = raw === '' ? null : parseAmount(raw);
+    if (raw !== '' && customFee === null) {
+      setFeeMsg((m) => ({ ...m, [storeId]: 'Use só números, com até 2 casas (ex.: 25,50).' }));
       return;
     }
     setFeeBusy(storeId);

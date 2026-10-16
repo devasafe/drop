@@ -129,6 +129,29 @@ describe('Asaas e mensalidades · loja (tela 28)', () => {
     expect(within(detalhe).getByRole('button', { name: 'Desconectar conta Asaas' })).toBeInTheDocument();
   });
 
+  describe('valor especial: formato de reais (parseAmount)', () => {
+    const preencher = async (value: string) => {
+      (api.put as jest.Mock).mockResolvedValue({ data: { success: true, data: { storeId: 's1', customFee: null, fee: 49.9 } } });
+      render(<AdminLojasAsaas />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Loja Um' }));
+      fireEvent.change(screen.getByLabelText('Valor especial de Loja Um'), { target: { value } });
+    };
+
+    it.each(['1e3', '1.999', '10abc', '-5'])('"%s" não envia', async (value) => {
+      await preencher(value);
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar valor' }));
+      expect(api.put).not.toHaveBeenCalled();
+      expect(await screen.findByText('Use só números, com até 2 casas (ex.: 25,50).')).toBeInTheDocument();
+    });
+
+    it.each([['49,90', 49.9], ['0', 0], ['', null]])('"%s" envia customFee %p', async (value, customFee) => {
+      await preencher(value);
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar valor' }));
+      expect(await screen.findByText('Valor salvo.')).toBeInTheDocument();
+      expect(api.put).toHaveBeenCalledWith('/admin/stores/s1/saas-billing', { customFee });
+    });
+  });
+
   it('loja sem conta Asaas: sem "Desconectar"', async () => {
     render(<AdminLojasAsaas />);
     fireEvent.click(await screen.findByRole('button', { name: 'Loja Dois' }));

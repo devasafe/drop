@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import api from '../../../lib/api';
 import { adminErrorMessage } from '../../../lib/adminErrors';
+import { parseAmount } from '../../../lib/adminAmount';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { Checkbox } from '../../ui/Checkbox';
@@ -36,11 +37,12 @@ export function SaasFeeCard({ initial, onSaved }: { initial: SaasFeeValues; onSa
   }, [initial.saasMonthlyFee, initial.saasTrialDays, initial.saasGraceDays, initial.directTransfersEnabled]);
 
   const save = async () => {
-    const feeN = Number(fee.trim().replace(',', '.'));
+    // parseAmount: só dígitos com até 2 casas ("1e3", "1.999", sinal e vazio são recusados); 0 vale.
+    const feeN = parseAmount(fee.trim());
     const trialN = Number(trial);
     const graceN = Number(grace);
-    if (!Number.isFinite(feeN) || feeN < 0 || Math.abs(feeN * 100 - Math.round(feeN * 100)) > 1e-6) {
-      setMsg({ tone: 'error', text: 'Valor padrão inválido (use no máximo 2 casas decimais).' });
+    if (feeN === null) {
+      setMsg({ tone: 'error', text: 'Valor padrão inválido: use só números, com até 2 casas (ex.: 49,90).' });
       return;
     }
     if (!Number.isInteger(trialN) || trialN < 0 || trialN > 365) {
