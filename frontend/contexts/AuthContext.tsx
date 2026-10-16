@@ -20,6 +20,8 @@ interface AuthContextType {
   loading: boolean;
   activeRole?: string;
   permissions: string[];
+  /** Papéis de equipe da conta (marketing/gerentes): acréscimo, não área ativa. */
+  teamRoles: string[];
   permissionsLoading: boolean;
   can: (permission: string) => boolean;
   login: (email: string, password: string) => Promise<any>;
@@ -35,6 +37,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [teamRoles, setTeamRoles] = useState<string[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
@@ -48,20 +51,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(false);
   }, []);
 
-  // Carrega as permissões efetivas do usuário (definidas em /admin/permissoes).
-  // Re-busca quando o usuário ou o papel ativo muda (ex: switchRole).
+  // Carrega as permissões efetivas do usuário: a UNIÃO do papel ativo com os papéis de equipe
+  // da conta (equipe é acréscimo), e quais são esses papéis. Re-busca quando o usuário ou o papel
+  // ativo muda (ex: switchRole) e quando a tela volta ao foco (papel concedido com a pessoa logada).
   useEffect(() => {
     let cancelled = false;
     if (!user) {
       setPermissions([]);
+      setTeamRoles([]);
       return;
     }
-    setPermissionsLoading(true);
-    api.get('/role-permissions/me')
-      .then((res) => { if (!cancelled) setPermissions(res.data?.permissions || []); })
-      .catch(() => { if (!cancelled) setPermissions([]); })
-      .finally(() => { if (!cancelled) setPermissionsLoading(false); });
-    return () => { cancelled = true; };
+    const load = (initial: boolean) => {
+      if (initial) setPermissionsLoading(true);
+      api.get('/role-permissions/me')
+        .then((res) => {
+          if (cancelled) return;
+          setPermissions(res.data?.permissions || []);
+          setTeamRoles(Array.isArray(res.data?.teamRoles) ? res.data.teamRoles : []);
+        })
+        .catch(() => {
+          // Na releitura por foco, um erro passageiro não derruba o que já foi lido.
+          if (!cancelled && initial) { setPermissions([]); setTeamRoles([]); }
+        })
+        .finally(() => { if (!cancelled && initial) setPermissionsLoading(false); });
+    };
+    load(true);
+    const onFocus = () => load(false);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(false); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user?.id, user?.activeRole]);
 
   // CEO tem acesso total SEMPRE (via papel), independente da API de permissões ter
@@ -104,7 +127,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, permissions, permissionsLoading, can, setUser, acceptSession }}>
+    <AuthContext.Provider value={{ user, token: null, login, logout, switchRole, loading, permissions, teamRoles, permissionsLoading, can, setUser, acceptSession }}>
       {children}
     </AuthContext.Provider>
   );
