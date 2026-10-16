@@ -13,7 +13,6 @@ const NATIVE_DIALOG_EXCEPTIONS: string[] = [
   'pages/admin/payouts.tsx',
   'pages/admin/pricing-config.tsx',
   'pages/admin/ranking-config.tsx',
-  'pages/admin/withdrawals.tsx',
 ];
 
 const NATIVE_DIALOG_RE = /(?:\b(?:window|globalThis|self)\.|(?<![\w.$]))(?:prompt|confirm|alert)\s*\(/;

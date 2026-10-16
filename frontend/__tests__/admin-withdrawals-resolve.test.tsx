@@ -13,6 +13,8 @@ jest.mock('../lib/api', () => ({
   __esModule: true,
   default: { defaults: { baseURL: 'http://x/api' }, get: jest.fn(), post: jest.fn(), put: jest.fn() },
 }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
 const base = { motoboyName: 'Zé', amount: 25, requestedAt: '2026-10-08T10:00:00Z' };
 const incerto = { ...base, _id: 'w1', status: 'approved', uncertainAt: '2026-10-08T10:01:00Z', approvedAt: new Date().toISOString() };

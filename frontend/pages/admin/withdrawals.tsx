@@ -1,537 +1,552 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * Dinheiro · Saques (DS v2, D3a, telas 16 e 29). Só custódia (menu custodyOnly + whileCustodyOpen).
+ * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.saques.test.tsx):
+ * GET /withdrawals/pending · /withdrawals/all · /withdrawals/ceo-wallet · /withdrawals/admin/config ·
+ * POST /withdrawals/approve { withdrawalId } · POST /withdrawals/reject { withdrawalId, reason } ·
+ * PUT /withdrawals/admin/config { enabled } · GET /admin/asaas/balance ·
+ * POST /admin/asaas/fund-subaccount · POST /admin/asaas/fund-for-withdrawal { withdrawalId } ·
+ * POST /withdrawals/:id/resolve-uncertain.
+ * "Aprovar e pagar N" = runBatch, um saque por vez (o servidor reivindica cada saque antes do gateway).
+ * K11: só o 409 WITHDRAWAL_NOT_PENDING conta como "já feito"; o resumo diz "concluídos", nunca "pagos".
+ * O lote guarda o que foi selecionado: saque fora dessa lista (ou que saiu da fila) falha, nunca conta como feito.
+ */
 import { useRouter } from 'next/router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { BatchBar } from '../../components/admin/BatchBar';
+import { Kpi } from '../../components/admin/Kpi';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import { EmptyNote, LoadError, LoadSkeleton } from '../../components/admin/LoadState';
+import { StatusTag } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
+import { AsaasTools, useAsaasBalance } from '../../components/admin/dinheiro/AsaasTools';
+import { ResolveUncertainSheet, type ResolveOutcome } from '../../components/admin/dinheiro/ResolveUncertainSheet';
+import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
+import { flattenServerError } from '../../components/admin/dinheiro/serverError';
+import {
+  bankSummary, isResolvable, isWithdrawalAlreadyHandled, isWithdrawalUncertain, withdrawalStatus, type Withdrawal,
+} from '../../components/admin/dinheiro/withdrawalRules';
+import { Button } from '../../components/ui/Button';
+import { Switch } from '../../components/ui/Switch';
+import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
+import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import { Sheet } from '../../components/ui/Sheet';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import styles from './AdminWithdrawals.module.css';
+import { isConflictWithCode } from '../../lib/adminErrors';
+import { formatMoney } from '../../lib/money';
+import { batchSummaryText, retryFailed, runBatch, type BatchOptions, type BatchResult } from '../../lib/runBatch';
 
-/** Saque em `approved` sem marca de incerteza só é resolvível depois disso (processo caiu). */
-const STALE_IN_FLIGHT_MS = 10 * 60 * 1000;
-
-/** Saque incerto (resposta incerta do gateway) ou travado em processamento há mais de 10 min. */
-export function isResolvable(w: any, now = Date.now()): boolean {
-  if (w?.status !== 'approved') return false;
-  if (w.uncertainAt) return true;
-  const at = w.approvedAt ? new Date(w.approvedAt).getTime() : NaN;
-  return Number.isFinite(at) && now - at > STALE_IN_FLIGHT_MS;
+interface CeoWallet {
+  balance?: number;
+  transactions?: Array<{ description?: string; timestamp: string; amount: number }>;
 }
 
-export default function WithdrawalApprovals() {
+interface Loaded {
+  pending: Withdrawal[];
+  all: Withdrawal[];
+  ceoWallet: CeoWallet | null;
+}
+
+/** O lote e o que foi selecionado para ele (nome de cada saque no momento da confirmação). */
+interface ApproveBatch {
+  names: Record<string, string>;
+  result: BatchResult<string>;
+  /** 502 WITHDRAWAL_UNCERTAIN: o Pix pode ter saído; nunca reenviado. */
+  uncertain: string[];
+  /** Falharam e, ao tentar de novo, já não estavam pendentes: não reenviados (continuam como erro). */
+  skipped: string[];
+}
+
+type TabId = 'pedidos' | 'historico' | 'carteira';
+
+const WORDS = { one: 'concluído', many: 'concluídos' };
+const UNCERTAIN_MSG = 'resultado incerto no Asaas. Confira no painel e use "Resolver saque incerto" no Histórico.';
+const SKIPPED_MSG = 'já não estava pendente; não foi reenviado.';
+const AUTO_ON = 'Ligada: saques pedidos são aprovados e pagos na hora.';
+const AUTO_OFF = 'Desligada: cada saque precisa ser aprovado aqui.';
+
+/** Saque que não está na lista do lote: erro com a mensagem, nunca "feito". */
+const MISSING_ITEM = 'Esse saque não está mais na lista. Atualize a lista.';
+const missingItemError = () => Object.assign(new Error(MISSING_ITEM), { response: { data: { error: MISSING_ITEM } } });
+
+const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
+const nameOf = (w: Withdrawal) => w.motoboyName || 'Recebedor';
+
+export default function AdminWithdrawalsPage() {
   const router = useRouter();
-  const { user, loading: authLoading, can, permissionsLoading } = useAuth() || ({} as any);
-  const [pending, setPending] = useState<any[]>([]);
-  const [all, setAll] = useState<any[]>([]);
-  const [ceoWallet, setCeoWallet] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<string>('');
-  const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
-  const [tab, setTab] = useState<'pending' | 'all' | 'wallet'>('pending');
-  const [autoApprove, setAutoApprove] = useState(false);
-  // R27: resolução de saque incerto (conferido no painel do Asaas).
-  const [resolving, setResolving] = useState<any | null>(null);
-  const [resolveOutcome, setResolveOutcome] = useState<'paid' | 'not_sent' | ''>('');
-  const [resolveTransferId, setResolveTransferId] = useState('');
-  const [resolveNote, setResolveNote] = useState('');
-  const [resolveError, setResolveError] = useState('');
-  const [resolveBusy, setResolveBusy] = useState(false);
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth();
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  const { showToast } = useToast();
+  const asaas = useAsaasBalance();
 
-  // Ferramentas Asaas (teste)
-  const [asaasBalance, setAsaasBalance] = useState<number | null>(null);
-  const [asaasApiUrl, setAsaasApiUrl] = useState<string>('');
-  const [fundType, setFundType] = useState<'store' | 'motoboy'>('motoboy');
-  const [fundId, setFundId] = useState('');
-  const [fundAmount, setFundAmount] = useState('');
-  const [fundBusy, setFundBusy] = useState(false);
+  const [data, setData] = useState<Loaded | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [autoApprove, setAutoApprove] = useState<boolean | null>(null);
+  const [configError, setConfigError] = useState(false);
+  const [tab, setTab] = useState<TabId>('pedidos');
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [approveKeys, setApproveKeys] = useState<string[] | null>(null);
+  const [batch, setBatch] = useState<ApproveBatch | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [rejecting, setRejecting] = useState<Withdrawal | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [funding, setFunding] = useState<Withdrawal | null>(null);
+  const [resolving, setResolving] = useState<Withdrawal | null>(null);
+  const [toggleTo, setToggleTo] = useState<boolean | null>(null);
 
-  const loadAsaasBalance = async () => {
-    try {
-      const r = await api.get('/admin/asaas/balance');
-      setAsaasBalance(Number(r.data?.balance ?? 0));
-      setAsaasApiUrl(r.data?.apiUrl || '');
-    } catch (err: any) {
-      setAsaasBalance(null);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao consultar saldo Asaas' });
-    }
-  };
+  const abortRef = useRef<AbortController | null>(null);
+  // Travas síncronas contra clique duplo: valem antes de qualquer setState (o `busy` da folha vem depois).
+  const batchRunning = useRef(false);
+  const rejectInFlight = useRef(false);
+  const fundInFlight = useRef(false);
+  const toggleInFlight = useRef(false);
 
-  const handleFundForWithdrawal = async (withdrawalId: string) => {
-    setFundBusy(true);
-    try {
-      const r = await api.post('/admin/asaas/fund-for-withdrawal', { withdrawalId });
-      setMessage({ type: 'success', text: r.data?.message || 'Subconta abastecida!' });
-      loadAsaasBalance();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao abastecer subconta' });
-    } finally {
-      setFundBusy(false);
-    }
-  };
+  const allowed = can('withdrawal:view');
+  const canApprove = can('withdrawal:approve');
+  const canConfig = can('withdrawal:config');
+  const canSeeBalance = can('cashbox:view');
 
-  const handleFund = async () => {
-    const amount = Number(String(fundAmount).replace(',', '.'));
-    if (!fundId.trim() || !Number.isFinite(amount) || amount <= 0) {
-      setMessage({ type: 'error', text: 'Informe o ID do recebedor e um valor válido.' });
-      return;
-    }
-    setFundBusy(true);
-    try {
-      const r = await api.post('/admin/asaas/fund-subaccount', { recipientType: fundType, recipientId: fundId.trim(), amount });
-      setMessage({ type: 'success', text: r.data?.message || 'Subconta abastecida!' });
-      setFundAmount('');
-      loadAsaasBalance();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Falha ao abastecer subconta' });
-    } finally {
-      setFundBusy(false);
-    }
-  };
-
-  // Verificar permissão
   useEffect(() => {
     if (!authLoading && !permissionsLoading && user && !can('withdrawal:view')) {
       router.push('/access-denied');
     }
   }, [user, authLoading, permissionsLoading, can, router]);
 
-  // Carregar dados
-  useEffect(() => {
-    if (!permissionsLoading && can('withdrawal:view')) {
-      loadData();
-      loadConfig();
-    }
-  }, [user, permissionsLoading]);
-
-  const loadConfig = async () => {
+  const loadData = useCallback(async (): Promise<Withdrawal[] | null> => {
     try {
-      const res = await api.get('/withdrawals/admin/config');
-      setAutoApprove(!!res.data.autoApproveWithdrawals);
-    } catch { /* ignore */ }
-  };
-
-  const handleToggleAutoApprove = async () => {
-    const next = !autoApprove;
-    const msg = next
-      ? 'Ativar aprovação automática? Novos saques serão aprovados e processados imediatamente ao serem solicitados.'
-      : 'Desativar aprovação automática? Novos saques ficarão pendentes até aprovação manual.';
-    if (!confirm(msg)) return;
-    try {
-      await api.put('/withdrawals/admin/config', { enabled: next });
-      setAutoApprove(next);
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao alterar configuração' });
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
       const [pendRes, allRes, walletRes] = await Promise.all([
         api.get('/withdrawals/pending'),
         api.get('/withdrawals/all'),
         api.get('/withdrawals/ceo-wallet'),
       ]);
-      setPending(pendRes.data);
-      setAll(allRes.data.withdrawals || []);
-      setCeoWallet(walletRes.data);
-      setMessage(null);
-    } catch (err: any) {
-      console.error('Erro:', err);
-      setMessage({ type: 'error', text: 'Erro ao carregar dados' });
-    } finally {
-      setLoading(false);
+      if (!Array.isArray(pendRes.data)) throw new Error('lista de pendentes inválida');
+      const pending: Withdrawal[] = pendRes.data;
+      setData({ pending, all: allRes.data?.withdrawals ?? [], ceoWallet: walletRes.data ?? null });
+      setSelected((prev) => new Set(Array.from(prev).filter((k) => pending.some((w) => w._id === k))));
+      setLoadError(null);
+      return pending;
+    } catch {
+      setLoadError('Não deu para carregar os saques.');
+      return null;
     }
-  };
+  }, []);
 
-  const handleApprove = async (withdrawalId: string) => {
-    setProcessing(withdrawalId);
+  const loadConfig = useCallback(async () => {
     try {
-      const res = await api.post('/withdrawals/approve', { withdrawalId });
-      setPending(pending.filter((p) => p._id !== withdrawalId));
-      setAll(all.map((a) => (a._id === withdrawalId ? res.data.withdrawal : a)));
-      setCeoWallet(res.data.ceoWallet);
-      setMessage({ type: 'success', text: 'Saque aprovado e transferido!' });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      console.error('Erro:', err);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao aprovar' });
-    } finally {
-      setProcessing(null);
+      const res = await api.get('/withdrawals/admin/config');
+      setAutoApprove(!!res.data?.autoApproveWithdrawals);
+      setConfigError(false);
+    } catch {
+      setAutoApprove(null);
+      setConfigError(true);
     }
-  };
+  }, []);
 
-  const openResolve = (w: any) => {
-    setResolving(w);
-    setResolveOutcome('');
-    setResolveTransferId('');
-    setResolveNote('');
-    setResolveError('');
-  };
+  useEffect(() => {
+    if (!permissionsLoading && can('withdrawal:view')) {
+      loadData();
+      loadConfig();
+    }
+    // mesmas dependências da página antiga (l. 103-108)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, permissionsLoading]);
 
-  const handleResolve = async () => {
-    if (!resolving) return;
-    if (!resolveOutcome) { setResolveError('Escolha o que o painel do Asaas mostra.'); return; }
-    if (resolveNote.trim().length < 10) { setResolveError('Escreva uma nota com pelo menos 10 caracteres.'); return; }
-    setResolveBusy(true);
-    setResolveError('');
+  // Fechar a tela no meio de um lote para o lote (o que já foi feito fica feito). abort() só aqui.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  /**
+   * Roda o lote. Começa no clique (nunca num efeito). `names` é o que foi selecionado: só essas chaves são
+   * enviadas; uma chave fora dela falha sem POST.
+   */
+  const runApprove = async (keys: string[], names: Record<string, string>, prev?: ApproveBatch) => {
+    if (batchRunning.current) return;
+    batchRunning.current = true;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const uncertain = new Set(prev?.uncertain ?? []);
+    const skipped = prev?.skipped ?? [];
+    const send = async (id: string) => {
+      if (!Object.prototype.hasOwnProperty.call(names, id)) throw missingItemError();
+      try {
+        await api.post('/withdrawals/approve', { withdrawalId: id });
+      } catch (err) {
+        if (isWithdrawalUncertain(err)) uncertain.add(id);
+        throw err;
+      }
+    };
+    const pack = (result: BatchResult<string>): ApproveBatch => ({ names, result, uncertain: Array.from(uncertain), skipped });
+    setBatchBusy(true);
     try {
-      const body: any = { outcome: resolveOutcome, note: resolveNote.trim() };
-      if (resolveOutcome === 'paid' && resolveTransferId.trim()) body.asaasTransferId = resolveTransferId.trim();
-      await api.post(`/withdrawals/${resolving._id}/resolve-uncertain`, body);
-      setResolving(null);
-      setMessage({ type: 'success', text: resolveOutcome === 'paid' ? 'Saque concluído.' : 'Saque voltou para pendente.' });
+      const opts: BatchOptions<string> = {
+        isAlreadyDone: isWithdrawalAlreadyHandled,
+        onProgress: (r) => { if (!ctrl.signal.aborted) setBatch(pack(r)); },
+        signal: ctrl.signal,
+      };
+      const result = prev
+        ? await retryFailed({ ...prev.result, failed: keys }, send, opts)
+        : await runBatch(keys, send, opts);
+      if (ctrl.signal.aborted) return;
+      setBatch(pack(result));
+      setSelected(new Set(result.failed.filter((k) => !uncertain.has(k) && !skipped.includes(k))));
+      showToast(batchSummaryText(result, WORDS), result.failed.length ? 'error' : 'success');
       await loadData();
-    } catch (err: any) {
-      setResolveError(err?.response?.data?.error || 'Erro ao resolver o saque');
     } finally {
-      setResolveBusy(false);
+      batchRunning.current = false;
+      if (!ctrl.signal.aborted) setBatchBusy(false);
     }
   };
 
-  const handleReject = async (withdrawalId: string) => {
-    if (!rejectionReason.trim()) {
-      setMessage({ type: 'error', text: 'Informe o motivo da rejeição' });
-      return;
-    }
+  const confirmBatch = () => {
+    const keys = approveKeys ?? [];
+    const names: Record<string, string> = {};
+    for (const w of data?.pending ?? []) if (keys.includes(w._id)) names[w._id] = nameOf(w);
+    setApproveKeys(null);
+    void runApprove(keys, names);
+  };
 
-    setProcessing(withdrawalId);
+  /** Relê a lista e só reenvia o que falhou, não é incerto e ainda está pendente. */
+  const retryBatch = async () => {
+    if (!batch || batchRunning.current) return;
+    batchRunning.current = true;
+    let fresh: Withdrawal[] | null;
     try {
-      const res = await api.post('/withdrawals/reject', {
-        withdrawalId,
-        reason: rejectionReason,
-      });
-      setPending(pending.filter((p) => p._id !== withdrawalId));
-      setAll(all.map((a) => (a._id === withdrawalId ? res.data.withdrawal : a)));
-      setMessage({ type: 'success', text: 'Saque rejeitado!' });
-      setRejectionReason('');
-      setShowRejectForm(null);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      console.error('Erro:', err);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao rejeitar' });
+      fresh = await loadData();
     } finally {
-      setProcessing(null);
+      batchRunning.current = false;
     }
+    if (!fresh) return; // sem a lista do servidor, nada é reenviado
+    const still = new Set(fresh.map((w) => w._id));
+    const candidates = batch.result.failed.filter((k) => !batch.uncertain.includes(k) && !batch.skipped.includes(k));
+    const retryable = candidates.filter((k) => still.has(k));
+    const next: ApproveBatch = { ...batch, skipped: [...batch.skipped, ...candidates.filter((k) => !still.has(k))] };
+    setBatch(next);
+    if (retryable.length) await runApprove(retryable, batch.names, next);
   };
 
-  if (authLoading || loading) {
+  const submitReject = async () => {
+    if (!rejecting || rejectInFlight.current) return;
+    rejectInFlight.current = true;
+    try {
+      await api.post('/withdrawals/reject', { withdrawalId: rejecting._id, reason: rejectReason });
+    } catch (err) {
+      if (isConflictWithCode(err, 'WITHDRAWAL_NOT_PENDING')) void loadData();
+      throw flattenServerError(err, 'Erro ao recusar o saque');
+    } finally {
+      rejectInFlight.current = false;
+    }
+    setRejecting(null);
+    setRejectReason('');
+    showToast('Saque recusado.', 'success');
+    await loadData();
+  };
+
+  const submitFund = async () => {
+    if (!funding || fundInFlight.current) return;
+    fundInFlight.current = true;
+    let message = '';
+    try {
+      const r = await api.post('/admin/asaas/fund-for-withdrawal', { withdrawalId: funding._id });
+      message = r.data?.message || '';
+    } catch (err) {
+      throw flattenServerError(err, 'Falha ao abastecer a subconta');
+    } finally {
+      fundInFlight.current = false;
+    }
+    setFunding(null);
+    showToast(message || 'Subconta abastecida.', 'success');
+    if (canSeeBalance) void asaas.load();
+  };
+
+  const submitToggle = async () => {
+    if (toggleTo === null || toggleInFlight.current) return;
+    toggleInFlight.current = true;
+    try {
+      await api.put('/withdrawals/admin/config', { enabled: toggleTo });
+    } catch (err) {
+      throw flattenServerError(err, 'Erro ao alterar a configuração');
+    } finally {
+      toggleInFlight.current = false;
+    }
+    setAutoApprove(toggleTo);
+    showToast(toggleTo ? 'Aprovação automática ligada.' : 'Aprovação automática desligada.', 'success');
+    setToggleTo(null);
+  };
+
+  const onResolved = async (outcome: ResolveOutcome) => {
+    setResolving(null);
+    showToast(outcome === 'paid' ? 'Saque concluído.' : 'Saque voltou para pendente.', 'success');
+    await loadData();
+  };
+
+  if (!authLoading && !permissionsLoading && !allowed) return null;
+
+  const pending = data?.pending ?? [];
+  const selectedSum = pending.filter((w) => selected.has(w._id)).reduce((s, w) => s + Number(w.amount), 0);
+  const confirmItems = pending.filter((w) => approveKeys?.includes(w._id));
+  const confirmSum = confirmItems.reduce((s, w) => s + Number(w.amount), 0);
+  const n = approveKeys?.length ?? 0;
+
+  const result = batch?.result ?? null;
+  const retryable = batch && result
+    ? result.failed.filter((k) => !batch.uncertain.includes(k) && !batch.skipped.includes(k))
+    : [];
+  const sent = result ? Object.values(result.states).filter((s) => s === 'done' || s === 'failed').length : 0;
+  const total = result ? Object.keys(result.states).length : 0;
+  const failLine = (k: string) => {
+    if (!batch || !result) return '';
+    const why = batch.uncertain.includes(k) ? UNCERTAIN_MSG : batch.skipped.includes(k) ? SKIPPED_MSG : result.errors[k];
+    return `${batch.names[k] ?? 'Recebedor'}: ${why}`;
+  };
+
+  const pendingColumns: AdminColumn<Withdrawal>[] = [
+    {
+      key: 'quem', header: 'Quem', primary: true,
+      render: (w) => (
+        <span>
+          {nameOf(w)}
+          {w.motoboyEmail && <span className={ui.sub}>{w.motoboyEmail}</span>}
+        </span>
+      ),
+    },
+    { key: 'para', header: 'Para onde', render: (w) => bankSummary(w) ?? 'Pix cadastrado' },
+    { key: 'quando', header: 'Pedido em', render: (w) => day(w.requestedAt) },
+    { key: 'valor', header: 'Valor', align: 'right', render: (w) => formatMoney(Number(w.amount)) },
+  ];
+
+  const pendingAction = (w: Withdrawal) => {
+    if (!canApprove && !isCeo) return null;
     return (
-      <div className={styles.loadingScreen}>
-        <LoadingSkeleton variant="list" count={4} />
+      <div className={ui.rowActions}>
+        {canApprove && (
+          <Button size="sm" className={ui.touch} disabled={batchBusy} onClick={() => setApproveKeys([w._id])}>
+            Aprovar e pagar
+          </Button>
+        )}
+        {canApprove && (
+          <Button size="sm" variant="secondary" className={ui.touch} disabled={batchBusy} onClick={() => { setRejecting(w); setRejectReason(''); }}>
+            Recusar
+          </Button>
+        )}
+        {isCeo && (
+          <Button size="sm" variant="tertiary" className={ui.touch} onClick={() => setFunding(w)}>
+            Abastecer para este saque
+          </Button>
+        )}
       </div>
     );
-  }
+  };
 
-  if (!authLoading && !permissionsLoading && !can('withdrawal:view')) {
-    return null;
-  }
+  const historyColumns: AdminColumn<Withdrawal>[] = [
+    { key: 'quem', header: 'Quem', primary: true, render: (w) => nameOf(w) },
+    {
+      key: 'situacao', header: 'Situação',
+      render: (w) => {
+        const s = withdrawalStatus(w);
+        return <StatusTag tone={s.tone}>{s.label}</StatusTag>;
+      },
+    },
+    { key: 'quando', header: 'Pedido em', render: (w) => day(w.requestedAt) },
+    { key: 'valor', header: 'Valor', align: 'right', render: (w) => formatMoney(Number(w.amount)) },
+  ];
+
+  const historyAction = (w: Withdrawal) => (isResolvable(w) && canApprove
+    ? <Button size="sm" className={ui.touch} onClick={() => setResolving(w)}>Resolver saque incerto</Button>
+    : null);
+
+  const ceoTx = (data?.ceoWallet?.transactions ?? []).slice(-10).reverse();
 
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        <div className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}><Icon name="send" size={20} /> Gerenciar Saques e Repasses</h1>
-          <p className={styles.pageSubtitle}>
-            Aprovar/rejeitar saques de motoboys e gerenciar caixa da plataforma
-          </p>
-        </div>
-
-        {message && (
-          <div className={`${styles.messageBanner} ${message.type === 'success' ? styles.messageBannerSuccess : styles.messageBannerError}`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Ferramentas Asaas (teste) — abastecer subconta */}
-        <div className={styles.asaasTools}>
-          <div className={styles.asaasHead}>
-            <div>
-              <p className={styles.configTitle}><Icon name="wallet" size={14} /> Ferramentas Asaas (teste)</p>
-              <p className={styles.configDesc}>
-                Saldo da conta-mãe: {asaasBalance == null ? '—' : <strong>R$ {asaasBalance.toFixed(2)}</strong>}
-                {asaasApiUrl.includes('sandbox') && <span className={styles.sandboxTag}> sandbox</span>}
+    <AdminShell title="Dinheiro · Saques" tabs="dinheiro">
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => { loadData(); }} />
+      ) : !data ? (
+        <LoadSkeleton lines={6} />
+      ) : (
+        <div className={ui.stack}>
+          <section className={blocks.block} aria-label="Aprovação automática">
+            {configError ? (
+              <LoadError message="Não deu para ler a aprovação automática." onRetry={loadConfig} />
+            ) : autoApprove === null ? (
+              <LoadSkeleton lines={1} />
+            ) : canConfig ? (
+              <Switch
+                label="Aprovação automática de saques"
+                checked={autoApprove}
+                onChange={(next) => setToggleTo(next)}
+                description={autoApprove ? AUTO_ON : AUTO_OFF}
+              />
+            ) : (
+              <p className={blocks.muted}>
+                Aprovação automática de saques: <strong>{autoApprove ? 'ligada' : 'desligada'}</strong>
               </p>
-            </div>
-            <button className={styles.asaasRefresh} onClick={loadAsaasBalance}>Ver saldo</button>
-          </div>
-          <div className={styles.fundRow}>
-            <select className={styles.fundSelect} value={fundType} onChange={(e) => setFundType(e.target.value as any)}>
-              <option value="motoboy">Motoboy</option>
-              <option value="store">Loja</option>
-            </select>
-            <input className={styles.fundInput} placeholder="ID do recebedor" value={fundId} onChange={(e) => setFundId(e.target.value)} />
-            <input className={styles.fundInput} placeholder="Valor" inputMode="decimal" value={fundAmount} onChange={(e) => setFundAmount(e.target.value.replace(/[^\d.,]/g, ''))} />
-            <button className={styles.fundBtn} onClick={handleFund} disabled={fundBusy}>{fundBusy ? '...' : 'Abastecer subconta'}</button>
-          </div>
-          <p className={styles.fundHint}>Transfere da conta-mãe para a subconta do recebedor. Requer saldo na conta-mãe (credite no painel do sandbox).</p>
-        </div>
-
-        {/* Auto-approve Toggle */}
-        <div className={styles.configPanel}>
-          <div className={styles.configInfo}>
-            <p className={styles.configTitle}>Aprovação automática de saques</p>
-            <p className={styles.configDesc}>
-              {autoApprove
-                ? 'Ativada: saques solicitados são aprovados e processados automaticamente.'
-                : 'Desativada: cada saque precisa ser aprovado manualmente por você.'}
-            </p>
-          </div>
-          <label className={styles.toggle}>
-            <input type="checkbox" checked={autoApprove} onChange={handleToggleAutoApprove} />
-            <span className={styles.slider} />
-          </label>
-        </div>
-
-        {/* Tabs */}
-        <div className={styles.tabsRow}>
-          <button
-            onClick={() => setTab('pending')}
-            className={`${styles.tabBtn} ${tab === 'pending' ? styles.tabBtnActive : ''}`}
-          >
-            <Icon name="clock" size={14} /> Pendentes ({pending.length})
-          </button>
-          <button
-            onClick={() => setTab('wallet')}
-            className={`${styles.tabBtn} ${tab === 'wallet' ? styles.tabBtnActive : ''}`}
-          >
-            <Icon name="wallet" size={14} /> Carteira CEOWallet
-          </button>
-          <button
-            onClick={() => setTab('all')}
-            className={`${styles.tabBtn} ${tab === 'all' ? styles.tabBtnActive : ''}`}
-          >
-            <Icon name="clipboard" size={14} /> Histórico
-          </button>
-        </div>
-
-        {/* Tab: Pendentes */}
-        {tab === 'pending' && (
-          <div>
-            {pending.length === 0 ? (
-              <div className={styles.emptyState}>
-                <p>Nenhuma solicitação pendente</p>
-              </div>
-            ) : (
-              <div className={styles.pendingList}>
-                {pending.map((w) => (
-                  <div key={w._id} className={styles.pendingCard}>
-                    <div className={styles.pendingCardInner}>
-                      <div className={styles.pendingCardInfo}>
-                        <h3 className={styles.pendingName}><Icon name="motorcycle" size={16} /> {w.motoboyName}</h3>
-                        <p className={styles.pendingEmail}>
-                          Email: {w.motoboyEmail}
-                        </p>
-                        <p className={styles.pendingAmount}>
-                          R$ {w.amount.toFixed(2)}
-                        </p>
-                        <p className={styles.pendingDate}>
-                          Solicitado em: {new Date(w.requestedAt).toLocaleDateString('pt-BR')}
-                        </p>
-                        {w.bankAccount && (
-                          <div style={{ marginTop: 8, padding: 10, background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 12 }}>
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>Dados bancários</div>
-                            <div>{w.bankAccount.bankName} — {w.bankAccount.accountType === 'savings' ? 'Poupança' : 'Corrente'}</div>
-                            <div>Ag {w.bankAccount.routingNumber} · CC {w.bankAccount.accountNumber}</div>
-                            <div>Titular: {w.bankAccount.ownerName}</div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className={styles.pendingActions}>
-                        <button
-                          onClick={() => handleApprove(w._id)}
-                          disabled={processing === w._id}
-                          className={styles.btnApprove}
-                        >
-                          {processing === w._id ? <Icon name="hourglass" size={14} /> : <Icon name="check" size={14} />} Aprovar
-                        </button>
-
-                        <button
-                          onClick={() => setShowRejectForm(showRejectForm === w._id ? null : w._id)}
-                          className={styles.btnReject}
-                        >
-                          <Icon name="x" size={14} /> Rejeitar
-                        </button>
-
-                        <button
-                          onClick={() => handleFundForWithdrawal(w._id)}
-                          disabled={fundBusy}
-                          className={styles.asaasRefresh}
-                          title="Transfere da conta-mãe para a subconta deste motoboy (teste)"
-                        >
-                          <Icon name="wallet" size={13} /> Abastecer subconta
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Reject Form */}
-                    {showRejectForm === w._id && (
-                      <div className={styles.rejectForm}>
-                        <label className={styles.rejectLabel}>
-                          Motivo:
-                        </label>
-                        <textarea
-                          value={rejectionReason}
-                          onChange={(e) => setRejectionReason(e.target.value)}
-                          placeholder="Ex: Dados bancários incorretos"
-                          className={styles.rejectTextarea}
-                        />
-                        <div className={styles.rejectFormButtons}>
-                          <button
-                            onClick={() => handleReject(w._id)}
-                            disabled={processing === w._id}
-                            className={styles.btnConfirmReject}
-                          >
-                            <Icon name="check" size={14} /> Confirmar
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowRejectForm(null);
-                              setRejectionReason('');
-                            }}
-                            className={styles.btnCancelReject}
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
             )}
-          </div>
-        )}
+          </section>
 
-        {/* Tab: Carteira CEO */}
-        {tab === 'wallet' && ceoWallet && (
-          <div className={styles.walletCard}>
-            <div className={styles.walletBalance}>
-              <p className={styles.walletBalanceLabel}>Saldo Disponível</p>
-              <h2 className={styles.walletBalanceValue}>
-                R$ {(ceoWallet.balance || 0).toFixed(2)}
+          <AsaasTools
+            state={asaas}
+            canSeeBalance={canSeeBalance}
+            canFund={isCeo}
+            onFunded={() => { if (canSeeBalance) void asaas.load(); }}
+          />
+
+          {batch && result && (
+            <section className={`${blocks.block} ${ui.result}`} aria-label="Resultado do lote" aria-live="polite">
+              <h2 className={blocks.blockTitle}>
+                {batchBusy ? `Pagando… ${sent} de ${total}` : `Lote: ${batchSummaryText(result, WORDS)}`}
               </h2>
-            </div>
-
-            <div>
-              <h3 className={styles.walletTxTitle}>Últimas Transações</h3>
-              {ceoWallet.transactions && ceoWallet.transactions.length > 0 ? (
-                <div className={styles.txList}>
-                  {ceoWallet.transactions.slice(-10).reverse().map((tx: any, idx: number) => (
-                    <div key={idx} className={styles.txRow}>
-                      <div>
-                        <p className={styles.txDescription}>{tx.description}</p>
-                        <p className={styles.txTimestamp}>
-                          {new Date(tx.timestamp).toLocaleString('pt-BR')}
-                        </p>
-                      </div>
-                      <p className={tx.amount > 0 ? styles.txAmountPositive : styles.txAmountNegative}>
-                        {tx.amount > 0 ? '+' : ''} R$ {Math.abs(tx.amount).toFixed(2)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.noTx}>Nenhuma transação</p>
+              {result.failed.length > 0 && (
+                <ul className={ui.resultList}>
+                  {result.failed.map((k) => <li key={k}>{failLine(k)}</li>)}
+                </ul>
               )}
-            </div>
-          </div>
-        )}
+              {batch.skipped.length > 0 && (
+                <p className={blocks.muted}>
+                  {batch.skipped.length === 1
+                    ? '1 saque já não estava pendente e não foi reenviado.'
+                    : `${batch.skipped.length} saques já não estavam pendentes e não foram reenviados.`}
+                </p>
+              )}
+              {!batchBusy && retryable.length > 0 && (
+                <div>
+                  <Button className={ui.touch} onClick={() => { void retryBatch(); }}>Tentar de novo os que falharam</Button>
+                </div>
+              )}
+            </section>
+          )}
 
-        {/* Tab: Histórico */}
-        {tab === 'all' && (
-          <div>
-            {all.length === 0 ? (
-              <div className={styles.emptyState}>
-                <p>Nenhum saque registrado</p>
-              </div>
-            ) : (
-              <div className={styles.tableCard}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th className={styles.th}>Solicitante</th>
-                      <th className={styles.th}>Valor</th>
-                      <th className={styles.th}>Status</th>
-                      <th className={styles.th}>Data</th>
-                      <th className={styles.th}>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {all.map((w) => (
-                      <tr key={w._id} className={styles.tr}>
-                        <td className={styles.td}>{w.motoboyName}</td>
-                        <td className={`${styles.td} ${styles.tdAmount}`}>R$ {w.amount.toFixed(2)}</td>
-                        <td className={styles.td}>
-                          <span className={`${styles.statusBadge} ${
-                            w.status === 'pending' ? styles.statusPending :
-                            w.status === 'approved' ? styles.statusApproved :
-                            w.status === 'processed' ? styles.statusProcessed :
-                            styles.statusRejected
-                          }`}>
-                            {w.status === 'pending' ? 'Pendente' :
-                             w.status === 'approved' ? (w.uncertainAt ? 'Incerto — conferir no painel Asaas' : 'Em processamento') :
-                             w.status === 'processed' ? 'Pago' :
-                             'Rejeitado'}
-                          </span>
-                        </td>
-                        <td className={`${styles.td} ${styles.tdDate}`}>
-                          {new Date(w.requestedAt).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className={styles.td}>
-                          {isResolvable(w) && can('withdrawal:approve') && (
-                            <button
-                              onClick={() => openResolve(w)}
-                              className={styles.btnApprove}
-                              style={{ fontSize: 12, padding: '6px 12px' }}
-                            >
-                              Resolver saque incerto
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      <Sheet open={!!resolving} onClose={() => !resolveBusy && setResolving(null)} title="Resolver saque incerto">
-        {resolving && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-              {resolving.motoboyName} · R$ {Number(resolving.amount).toFixed(2)}. Confira a transferência no painel do Asaas antes de escolher.
-            </p>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="radio" name="resolve-outcome" checked={resolveOutcome === 'paid'} onChange={() => setResolveOutcome('paid')} />
-              O Pix saiu (concluir o saque)
-            </label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="radio" name="resolve-outcome" checked={resolveOutcome === 'not_sent'} onChange={() => setResolveOutcome('not_sent')} />
-              O Pix não saiu (voltar para pendente)
-            </label>
-            {resolveOutcome === 'paid' && (
-              <Input value={resolveTransferId} onChange={setResolveTransferId} aria-label="Id da transferência no Asaas" placeholder="Id da transferência no Asaas (opcional)" />
-            )}
-            <textarea
-              aria-label="Nota da conferência"
-              value={resolveNote}
-              onChange={(e) => setResolveNote(e.target.value)}
-              placeholder="O que você conferiu no painel do Asaas (mínimo 10 caracteres)"
-              rows={3}
+          <Tabs
+            label="Saques"
+            idPrefix="saques"
+            value={tab}
+            onChange={(id) => setTab(id as TabId)}
+            items={[
+              { id: 'pedidos', label: 'Pedidos', count: pending.length },
+              { id: 'historico', label: 'Histórico' },
+              { id: 'carteira', label: 'Carteira do CEO' },
+            ]}
+          />
+
+          {tab === 'pedidos' && (
+            <section className={blocks.block} {...tabPanelProps('pedidos', 'saques')}>
+              <AdminTable
+                columns={pendingColumns}
+                rows={pending}
+                rowKey={(w) => w._id}
+                rowLabel={(w) => w.motoboyName || 'saque'}
+                selectable={canApprove}
+                selected={selected}
+                onSelectedChange={setSelected}
+                rowAction={pendingAction}
+                empty="Nenhum saque pedido"
+              />
+            </section>
+          )}
+
+          {tab === 'historico' && (
+            <section className={blocks.block} {...tabPanelProps('historico', 'saques')}>
+              <AdminTable
+                columns={historyColumns}
+                rows={data.all}
+                rowKey={(w) => w._id}
+                rowAction={historyAction}
+                empty="Nenhum saque registrado"
+              />
+            </section>
+          )}
+
+          {tab === 'carteira' && (
+            <section className={blocks.block} {...tabPanelProps('carteira', 'saques')}>
+              <Kpi
+                label="Saldo disponível"
+                value={typeof data.ceoWallet?.balance === 'number' ? formatMoney(data.ceoWallet.balance) : '—'}
+              />
+              <h3 className={blocks.blockTitle}>Últimas transações</h3>
+              {ceoTx.length === 0 ? (
+                <EmptyNote text="Nenhuma transação" />
+              ) : (
+                <ul className={ui.resultList}>
+                  {ceoTx.map((tx, i) => (
+                    <li key={`${tx.timestamp}-${i}`}>
+                      {`${tx.description ?? 'Movimento'} · ${new Date(tx.timestamp).toLocaleString('pt-BR')} · `}
+                      {`${tx.amount > 0 ? '+' : '−'}${formatMoney(Math.abs(tx.amount))}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {canApprove && (
+            <BatchBar
+              count={selected.size}
+              summary={formatMoney(selectedSum)}
+              actionLabel={`Aprovar e pagar ${selected.size}`}
+              onAction={() => setApproveKeys(Array.from(selected))}
+              busy={batchBusy}
+              onClear={() => setSelected(new Set())}
             />
-            {resolveError && <p role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{resolveError}</p>}
-            <Button variant="primary" loading={resolveBusy} onClick={handleResolve}>Confirmar resolução</Button>
-          </div>
+          )}
+        </div>
+      )}
+
+      <AdminSheet
+        open={!!approveKeys}
+        title={`Aprovar e pagar ${n} ${n === 1 ? 'saque' : 'saques'}`}
+        onClose={() => setApproveKeys(null)}
+        primary={{ label: `Aprovar e pagar ${n}`, onClick: confirmBatch }}
+      >
+        <p className={blocks.muted}>
+          {`Total ${formatMoney(confirmSum)}. O Pix sai da subconta de cada pessoa na hora, um saque por vez. Se um falhar, os outros seguem.`}
+        </p>
+        <ul className={ui.resultList}>
+          {confirmItems.map((w) => <li key={w._id}>{`${nameOf(w)} · ${formatMoney(Number(w.amount))}`}</li>)}
+        </ul>
+      </AdminSheet>
+
+      <AdminSheet
+        open={!!rejecting}
+        title={rejecting ? `Recusar saque de ${rejecting.motoboyName || 'recebedor'}` : ''}
+        onClose={() => setRejecting(null)}
+        primary={{ label: 'Recusar saque', tone: 'danger', disabled: !rejectReason.trim(), onClick: submitReject }}
+      >
+        {rejecting && <p className={blocks.muted}>{`${formatMoney(Number(rejecting.amount))}. O valor volta para a pessoa e ela recebe o motivo.`}</p>}
+        <TextAreaField label="Motivo da recusa" value={rejectReason} onChange={setRejectReason} placeholder="Ex: Dados bancários incorretos" />
+      </AdminSheet>
+
+      <AdminSheet
+        open={!!funding}
+        title="Abastecer subconta"
+        onClose={() => setFunding(null)}
+        primary={{ label: 'Confirmar abastecimento', onClick: submitFund }}
+      >
+        {funding && (
+          <p className={blocks.muted}>
+            {`Transfere da conta-mãe para a subconta de ${funding.motoboyName || 'recebedor'} o necessário para este saque de ${formatMoney(Number(funding.amount))}.`}
+          </p>
         )}
-      </Sheet>
-    </div>
+      </AdminSheet>
+
+      <AdminSheet
+        open={toggleTo !== null}
+        title={toggleTo ? 'Ligar a aprovação automática?' : 'Desligar a aprovação automática?'}
+        onClose={() => setToggleTo(null)}
+        primary={{ label: toggleTo ? 'Ligar' : 'Desligar', tone: toggleTo ? 'danger' : 'default', onClick: submitToggle }}
+      >
+        <p className={blocks.muted}>
+          {toggleTo
+            ? 'Novos saques serão aprovados e pagos assim que forem pedidos.'
+            : 'Novos saques ficarão pendentes até alguém aprovar aqui.'}
+        </p>
+      </AdminSheet>
+
+      <ResolveUncertainSheet
+        withdrawal={resolving}
+        onClose={() => setResolving(null)}
+        onResolved={onResolved}
+        onStale={() => { void loadData(); }}
+      />
+    </AdminShell>
   );
 }
