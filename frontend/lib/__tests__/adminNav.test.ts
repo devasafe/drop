@@ -87,7 +87,7 @@ const CEO_CUSTODIA = {
   dinheiro: ['repasses', 'saques', 'carteiras', 'caixa'],
   suporte: ['atendimento', 'conversas'],
   comunicacao: ['broadcasts', 'avisos', 'cupons'],
-  regras: ['taxas', 'ranking'],
+  regras: ['taxas', 'ranking', 'modo'],
   freios: ['freios'],
   permissoes: ['permissoes'],
   tema: ['tema'],
@@ -186,6 +186,14 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     const ceoDireto = visibleAdminAreas(ctxFor('ceo', 'direto'));
     expect(adminAreaHref(ceoDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/estornos');
     expect(adminAreaHref(ceoDireto.find((a) => a.key === 'lojas')!)).toBe('/admin/lojas-asaas');
+  });
+
+  it('Modo da plataforma: só o CEO, em qualquer modo de liquidação (inclusive desconhecido)', () => {
+    expect(menu('ceo', 'custodia').regras).toContain('modo');
+    expect(menu('ceo', 'direto').regras).toContain('modo');
+    expect(menu('ceo', null).regras).toContain('modo');
+    expect(menu('gerente_lojistas', 'custodia', false, ['settings:manage', 'ranking:manage']).regras).toEqual(['taxas', 'ranking']);
+    expect(menu('marketing', 'direto', false, ['*']).regras).toEqual(['taxas', 'ranking']);
   });
 });
 

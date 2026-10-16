@@ -1,0 +1,41 @@
+/* Regras e taxas · Taxas e tempos (D3a, tela 22): campos em blocos e simulação ao lado. Só token. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.main { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.label { font: var(--text-label); color: var(--color-text-primary); }
+.input {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+.input:focus { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.fieldChanged .input { border: 2px solid var(--color-action-primary); }
+.hint { font: var(--text-caption); color: var(--color-text-secondary); }
+.changedHint { font: var(--text-caption); color: var(--color-text-brand); }
+.err { font: var(--text-caption); color: var(--color-error-text); }
+
+.side { display: flex; flex-direction: column; gap: var(--space-3); }
+.simInputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.planChips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.sum { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; }
+.sumRow { display: flex; justify-content: space-between; gap: var(--space-2); font: var(--text-meta); color: var(--color-text-secondary); }
+.sumRow dt { margin: 0; }
+.sumRow dd { margin: 0; color: var(--color-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sumTotal { padding-top: var(--space-2); border-top: 1px solid var(--color-border-default); }
+.sumTotal dt,
+.sumTotal dd { font: var(--text-label); color: var(--color-text-primary); }
+.changeList { margin: 0; padding-left: var(--space-5); }
+.saveRow { display: flex; gap: var(--space-2); }
+.saveRow button { flex: 1; min-height: 44px; }
+
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 360px; }
+  .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .side { position: sticky; top: var(--space-4); }
+}

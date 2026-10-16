@@ -2,14 +2,15 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ToastProvider } from '../components/ui/Toast';
 import SellerAssinatura from '../pages/seller/assinatura';
-import AdminFreios from '../pages/admin/freios';
+import AdminSettings from '../pages/admin/settings';
 import AdminLojasAsaas from '../pages/admin/lojas-asaas';
 import SaasBillingBanner from '../components/drop/SaasBillingBanner';
 import { getNavItems } from '../lib/navConfig';
 import api from '../lib/api';
 
 let mockRole = 'lojista';
-jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: {}, pathname: '/x' }) }));
+let mockQuery: Record<string, string> = {};
+jest.mock('next/router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn(), query: mockQuery, pathname: '/x' }) }));
 jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { activeRole: mockRole, role: mockRole, storeId: 's1' }, can: () => true, loading: false, permissionsLoading: false }),
 }));
@@ -92,15 +93,17 @@ describe('navConfig', () => {
   });
 });
 
-describe('admin/freios — Mensalidade SaaS', () => {
+describe('admin/settings?aba=modo — Mensalidade SaaS', () => {
   const sw = { rankingPrizesEnabled: false, benefitsRedeemEnabled: false, gamificationPointsEnabled: false, settlementMode: 'direto', saasMonthlyFee: 49.9, saasTrialDays: 14, saasGraceDays: 5, directTransfersEnabled: false };
   beforeEach(() => {
+    mockQuery = { aba: 'modo' };
     (api.get as jest.Mock).mockResolvedValue({ data: sw });
     (api.put as jest.Mock).mockResolvedValue({ data: { ...sw, saasMonthlyFee: 59.9, saasTrialDays: 7, saasGraceDays: 3, directTransfersEnabled: true } });
   });
+  afterEach(() => { mockQuery = {}; });
   test('CEO salva os 4 campos', async () => {
     mockRole = 'ceo';
-    render(<AdminFreios />);
+    render(<ToastProvider><AdminSettings /></ToastProvider>);
     fireEvent.change(await screen.findByLabelText('Valor padrão (R$)'), { target: { value: '59,90' } });
     fireEvent.change(screen.getByLabelText('Dias de teste'), { target: { value: '7' } });
     fireEvent.change(screen.getByLabelText('Dias de tolerância'), { target: { value: '3' } });
@@ -110,11 +113,11 @@ describe('admin/freios — Mensalidade SaaS', () => {
       saasMonthlyFee: 59.9, saasTrialDays: 7, saasGraceDays: 3, directTransfersEnabled: true,
     }));
   });
-  test('não-CEO não vê o card', async () => {
+  test('não-CEO não vê o card (cai em Taxas e tempos e não lê /admin/switches)', async () => {
     mockRole = 'admin';
-    render(<AdminFreios />);
-    await screen.findByRole('heading', { name: 'Freios' });
-    await waitFor(() => expect(api.get).toHaveBeenCalled());
+    render(<ToastProvider><AdminSettings /></ToastProvider>);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/settings/platform-config'));
+    expect(api.get).not.toHaveBeenCalledWith('/admin/switches');
     expect(screen.queryByText('Mensalidade SaaS')).not.toBeInTheDocument();
   });
 });

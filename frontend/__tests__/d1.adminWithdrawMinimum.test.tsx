@@ -9,6 +9,8 @@ jest.mock('../components/ProtectedRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), put: jest.fn(), post: jest.fn() } }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
+jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 
 import api from '../lib/api';
 import AdminSettings from '../pages/admin/settings';
@@ -37,7 +39,7 @@ test('mostra os dois mínimos e salva o da loja', async () => {
 
   fireEvent.change(field('Saque mínimo da loja (R$)'), { target: { value: '15' } });
   (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, storeMinimumWithdraw: 15 }, message: 'ok' } });
-  fireEvent.click(screen.getByRole('button', { name: /Salvar Configurações/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Salvar 1 mudança/ }));
 
   await waitFor(() =>
     expect(api.put).toHaveBeenCalledWith(
@@ -50,8 +52,10 @@ test('mostra os dois mínimos e salva o da loja', async () => {
 test('depois de salvar, os campos mantêm os valores salvos (não zeram)', async () => {
   render(<AdminSettings />);
   await screen.findByLabelText('Saque mínimo da loja (R$)');
+  fireEvent.change(field('Saque mínimo da loja (R$)'), { target: { value: '15' } });
   (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, storeMinimumWithdraw: 15 }, message: 'ok' } });
-  fireEvent.click(screen.getByRole('button', { name: /Salvar Configurações/ }));
-  await waitFor(() => expect(field('Saque mínimo da loja (R$)').value).toBe('15'));
+  fireEvent.click(screen.getByRole('button', { name: /Salvar 1 mudança/ }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Nenhuma mudança' })).toBeDisabled());
+  expect(field('Saque mínimo da loja (R$)').value).toBe('15');
   expect(field('Saque mínimo do motoboy (R$)').value).toBe('10');
 });

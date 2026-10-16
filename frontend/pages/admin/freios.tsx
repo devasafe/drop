@@ -2,13 +2,10 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
-import { SettlementModeCard } from '../../components/admin/regras/SettlementModeCard';
-import { SaasFeeCard } from '../../components/admin/regras/SaasFeeCard';
 import type { BrakeKey, SwitchesState } from '../../components/admin/regras/switches';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { useAuth } from '../../contexts/AuthContext';
 import { adminErrorMessage } from '../../lib/adminErrors';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import styles from '../../components/admin/freios/Freios.module.css';
@@ -103,8 +100,6 @@ function BrakeCard({ def, on, onSave }: { def: BrakeDef; on: boolean; onSave: (n
 }
 
 function FreiosBody() {
-  const { user } = useAuth();
-  const isCeo = (user?.activeRole || user?.role) === 'ceo';
   const [state, setState] = useState<SwitchesState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,25 +138,11 @@ function FreiosBody() {
           <Skeleton height={72} />
         </div>
       ) : (
-        <>
-          <div className={styles.list}>
-            {BRAKES.map((b) => (
-              <BrakeCard key={b.key} def={b} on={!!state[b.key]} onSave={(next) => saveBrake(b.key, next)} />
-            ))}
-          </div>
-
-          {isCeo && (
-            <div className={styles.ceo}>
-              {state.settlementMode && (
-                <SettlementModeCard
-                  mode={state.settlementMode}
-                  onChanged={(m) => setState((prev) => (prev ? { ...prev, settlementMode: m } : prev))}
-                />
-              )}
-              {state.saasMonthlyFee !== undefined && <SaasFeeCard initial={state} onSaved={setState} />}
-            </div>
-          )}
-        </>
+        <div className={styles.list}>
+          {BRAKES.map((b) => (
+            <BrakeCard key={b.key} def={b} on={!!state[b.key]} onSave={(next) => saveBrake(b.key, next)} />
+          ))}
+        </div>
       )}
 
       <p className={styles.foot}>

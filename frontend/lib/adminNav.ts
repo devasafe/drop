@@ -109,8 +109,10 @@ export const ADMIN_AREAS: AdminArea[] = [
     key: 'regras', group: 'Configuração', label: 'Regras e taxas', icon: 'percent',
     tabs: [
       { key: 'taxas', label: 'Taxas e tempos', href: '/admin/settings', permission: 'settings:manage' },
-      // A P2 leva o Ranking para /admin/settings?aba=ranking (e acrescenta a aba "Modo da plataforma", só CEO).
+      // A P2.5 leva o Ranking para /admin/settings?aba=ranking.
       { key: 'ranking', label: 'Ranking', href: '/admin/ranking-config', permission: 'ranking:manage' },
+      // D4: a troca de modo sai de Freios; só o CEO (o servidor também confere: CEO_ONLY).
+      { key: 'modo', label: 'Modo da plataforma', href: '/admin/settings?aba=modo', ceoOnly: true },
     ],
   },
   {

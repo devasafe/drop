@@ -83,10 +83,11 @@ it('quem não é CEO não vê o modo da plataforma nem a mensalidade', async () 
   expect(screen.queryByRole('region', { name: 'Mensalidade SaaS' })).toBeNull();
 });
 
-it('CEO vê o modo da plataforma e a mensalidade (até a P2.4 levá-los para Regras e taxas)', async () => {
+it('nem o CEO vê mais modo e mensalidade aqui: foram para Regras e taxas · Modo da plataforma', async () => {
   renderAdminPage(<FreiosPage />);
-  expect(await screen.findByRole('region', { name: 'Modo da plataforma' })).toBeInTheDocument();
-  expect(screen.getByRole('region', { name: 'Mensalidade SaaS' })).toBeInTheDocument();
+  await screen.findByRole('article', { name: 'Prêmios do ranking' });
+  expect(screen.queryByRole('region', { name: 'Modo da plataforma' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Mensalidade SaaS' })).toBeNull();
 });
 
 it('portão: sem settings:manage sai da tela e nada é lido', async () => {

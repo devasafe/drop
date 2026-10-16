@@ -34,7 +34,6 @@
 .confirmText { margin: 0; font: var(--text-meta); color: var(--color-text-primary); }
 .err { margin: 0; font: var(--text-meta); color: var(--color-error-text); }
 
-.ceo { display: flex; flex-direction: column; gap: var(--space-3); }
 .foot {
   margin: 0;
   padding: var(--space-3) var(--space-4);
