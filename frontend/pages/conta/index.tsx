@@ -15,6 +15,7 @@ import api from '../../lib/api';
 import { formatMoney } from '../../lib/money';
 import { getNavItems, ROLE_AREAS, ROLE_HOME } from '../../lib/navConfig';
 import Icon from '../../components/Icon';
+import { TEAM_AREA, teamRoleToOffer, enterTeamPanel } from '../../lib/teamPanel';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { useAddresses } from '../../hooks/useSync';
 import { ROUTES, safeNext, type ContaSecao } from '../../lib/routes';
@@ -66,6 +67,13 @@ export default function ContaPage() {
   const goToArea = async (role: string) => {
     try { await switchRole(role); } catch { return; }
     router.push(ROLE_HOME[role as keyof typeof ROLE_HOME]);
+  };
+  // Equipe (marketing/gerentes) como Cliente: "Painel da equipe" leva à primeira página do painel que o papel abre.
+  const teamRole = teamRoleToOffer(roles, activeRole);
+  const goToTeamPanel = async (role: string) => {
+    let href: string | null;
+    try { href = await enterTeamPanel(role, switchRole); } catch { return; }
+    if (href) router.push(href);
   };
 
   const row = (label: string, icon: JSX.Element, onClick: () => void, meta?: string, sub?: string) => (
@@ -120,12 +128,13 @@ export default function ContaPage() {
             {row('Dados pessoais', <User size={20} />, () => setSecao('dados'))}
             {row('Verificações e segurança', <ShieldCheck size={20} />, () => setSecao('verificacao'))}
           </section>
-          {otherAreas.length > 0 && (
+          {(otherAreas.length > 0 || teamRole) && (
             <section className={styles.group} aria-label="Suas áreas">
               <h2 className={styles.groupTitle}>Suas áreas</h2>
               {otherAreas.map((a) => (
                 <Fragment key={a.role}>{row(a.label, <Icon name={a.icon} size={20} />, () => goToArea(a.role), undefined, a.description)}</Fragment>
               ))}
+              {teamRole && row(TEAM_AREA.label, <Icon name={TEAM_AREA.icon} size={20} />, () => goToTeamPanel(teamRole), undefined, TEAM_AREA.description)}
             </section>
           )}
           <section className={styles.group} aria-label="App">

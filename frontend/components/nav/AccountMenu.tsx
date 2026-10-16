@@ -5,6 +5,7 @@ import { ROLE_AREAS, ROLE_HOME, Role } from '../../lib/navConfig';
 import { ROUTES } from '../../lib/routes';
 import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
 import { imageUrl } from '../../lib/config';
+import { TEAM_AREA, teamRoleToOffer, enterTeamPanel } from '../../lib/teamPanel';
 import Icon from '../Icon';
 import styles from './AccountMenu.module.css';
 
@@ -16,6 +17,8 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
   const activeRole = (user.activeRole || user.role || 'cliente') as Role;
   const roles = (user.roles || (user.role ? [user.role] : [])) as string[];
   const myAreas = ROLE_AREAS.filter((a) => roles.includes(a.role));
+  // Equipe (marketing/gerentes) fora do papel de equipe: caminho de volta ao painel.
+  const teamRole = teamRoleToOffer(roles, activeRole);
 
   const go = (href: string) => { onNavigate?.(); router.push(href); };
 
@@ -28,6 +31,18 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
     }
     onNavigate?.();
     router.push(ROLE_HOME[role]);
+  };
+
+  const openTeamPanel = async (role: string) => {
+    let href: string | null;
+    try {
+      href = await enterTeamPanel(role, switchRole);
+    } catch {
+      return; // troca falhou: não navega
+    }
+    if (!href) return;
+    onNavigate?.();
+    router.push(href);
   };
 
   const activeArea = ROLE_AREAS.find((a) => a.role === activeRole);
@@ -52,7 +67,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
         </div>
       </div>
 
-      {myAreas.length > 0 && (
+      {(myAreas.length > 0 || teamRole) && (
         <div className={styles.section}>
           <div className={styles.sectionLabel}>Suas áreas</div>
           {myAreas.map((a) => {
@@ -74,6 +89,15 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
               </button>
             );
           })}
+          {teamRole && (
+            <button type="button" className={styles.areaCard} data-active={false} onClick={() => openTeamPanel(teamRole)}>
+              <span className={styles.areaIcon}><Icon name={TEAM_AREA.icon} size={16} /></span>
+              <span className={styles.areaText}>
+                <span className={styles.areaLabel}>{TEAM_AREA.label}</span>
+                <span className={styles.areaDesc}>{TEAM_AREA.description}</span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 
