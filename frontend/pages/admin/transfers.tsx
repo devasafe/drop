@@ -1,11 +1,27 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/router';
-import api from '../../lib/api';
+/**
+ * Dinheiro · Pix aos motoboys (DS v2, D3a, tela 30). Só modo direto (menu directOnly; serviço do modo direto).
+ * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.pix.test.tsx):
+ * GET /admin/transfers { params: { status?, cursor? } } · POST /admin/transfers/:id/retry ·
+ * POST /admin/transfers/:id/resolve { note }. Ações só com payout:release, como a rota.
+ * Pix incerto nunca é reenviado: "Tentar agora" só existe em failed/failed_final.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { useAuth } from '../../contexts/AuthContext';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import { StatusTag, type StatusTone } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
+import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
+import { flattenServerError, serverErrorMessage } from '../../components/admin/dinheiro/serverError';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../lib/api';
+import { formatMoney } from '../../lib/money';
 import { humanizeTransferError, TRANSFER_STATUS_LABEL } from '../../lib/transferErrors';
-import styles from '../seller/Integrations.module.css';
 
 interface Row {
   id: string;
@@ -29,33 +45,43 @@ const FILTERS = [
   { value: 'done', label: 'Pagos' },
 ];
 
-export default function AdminTransfers() {
-  const router = useRouter();
-  const { can } = useAuth() as any;
-  const [status, setStatus] = useState('');
-  const [rows, setRows] = useState<Row[]>([]);
-  // Paginação por cursor: o backend devolve `nextCursor` (null = acabou).
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [note, setNote] = useState('');
+const TONE: Record<string, StatusTone> = {
+  pending: 'neutral', requested: 'info', done: 'ok', failed: 'warn', failed_final: 'bad', uncertain: 'bad',
+};
+const ACTIONABLE = ['failed', 'failed_final', 'uncertain'];
+const RETRYABLE = ['failed', 'failed_final'];
+
+const who = (r: Row) => `${r.storeName ?? 'Loja'} → ${r.motoboyName ?? 'Motoboy'}`;
+
+export default function AdminTransfersPage() {
+  const { can } = useAuth();
+  const { showToast } = useToast();
   const canAct = typeof can === 'function' ? can('payout:release') : false;
 
-  // Geração da consulta: cada carga da 1ª página (troca de filtro, recarga) invalida as
-  // respostas em voo — um "Carregar mais" disparado antes não anexa linhas da lista antiga.
+  const [status, setStatus] = useState('');
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<Row | null>(null);
+  const [note, setNote] = useState('');
+
+  // Geração da consulta: cada carga da 1ª página (troca de filtro, recarga) invalida as respostas em voo,
+  // e um "Carregar mais" disparado antes não anexa linhas da lista antiga (igual à página antiga).
   const queryGen = useRef(0);
 
   const load = useCallback(async () => {
     const gen = ++queryGen.current;
     setNextCursor(null);
+    setMoreError(null);
     try {
       const r = await api.get('/admin/transfers', { params: status ? { status } : {} });
       if (gen !== queryGen.current) return;
       setRows(r.data?.data ?? []);
       setNextCursor(r.data?.nextCursor ?? null);
-      setError('');
+      setError(null);
     } catch {
       if (gen === queryGen.current) setError('Não foi possível carregar as transferências.');
     }
@@ -67,104 +93,139 @@ export default function AdminTransfers() {
     if (!nextCursor || loadingMore) return;
     const gen = queryGen.current;
     setLoadingMore(true);
+    setMoreError(null);
     try {
-      const r = await api.get('/admin/transfers', { params: status ? { status, cursor: nextCursor } : { cursor: nextCursor } });
+      const r = await api.get('/admin/transfers', {
+        params: status ? { status, cursor: nextCursor } : { cursor: nextCursor },
+      });
       if (gen !== queryGen.current) return; // filtro mudou: resposta da lista antiga
       const more: Row[] = r.data?.data ?? [];
-      setRows((prev) => [...prev, ...more.filter((m) => !prev.some((p) => p.id === m.id))]);
+      setRows((prev) => {
+        const base = prev ?? [];
+        return [...base, ...more.filter((m) => !base.some((p) => p.id === m.id))];
+      });
       setNextCursor(r.data?.nextCursor ?? null);
     } catch {
-      if (gen === queryGen.current) setError('Não foi possível carregar as transferências.');
+      if (gen === queryGen.current) setMoreError('Não deu para carregar mais. Tente de novo.');
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const act = async (id: string, fn: () => Promise<unknown>) => {
-    setBusy(id);
-    setError('');
+  const retry = async (r: Row) => {
+    setBusy(r.id);
     try {
-      await fn();
-      setResolving(null);
-      setNote('');
+      await api.post(`/admin/transfers/${r.id}/retry`);
+      showToast('Nova tentativa enviada.', 'success');
       await load();
-    } catch (e: any) {
-      setError(e?.response?.data?.error?.message || 'Ação não concluída.');
+    } catch (err) {
+      showToast(serverErrorMessage(err, 'Ação não concluída.'), 'error');
     } finally {
       setBusy(null);
     }
   };
 
+  const resolve = async () => {
+    if (!resolving) return;
+    try {
+      await api.post(`/admin/transfers/${resolving.id}/resolve`, { note: note.trim() });
+    } catch (err) {
+      throw flattenServerError(err, 'Ação não concluída.');
+    }
+    setResolving(null);
+    setNote('');
+    showToast('Transferência marcada como resolvida.', 'success');
+    await load();
+  };
+
+  const columns: AdminColumn<Row>[] = [
+    { key: 'quem', header: 'Loja → motoboy', primary: true, render: who },
+    { key: 'pedido', header: 'Pedido', render: (r) => <span className={ui.mono}>{`#${String(r.orderId).slice(-6)}`}</span> },
+    {
+      key: 'situacao', header: 'Situação',
+      render: (r) => (
+        <span>
+          <StatusTag tone={TONE[r.status] ?? 'neutral'}>{TRANSFER_STATUS_LABEL[r.status] ?? r.status}</StatusTag>
+          <span className={ui.sub}>{`${r.attempts} tentativa(s)${r.pixKeyMasked ? ` · Pix ${r.pixKeyMasked}` : ''}`}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'motivo', header: 'Motivo',
+      render: (r) => {
+        const msg = r.lastError && r.status !== 'done' ? humanizeTransferError(r.lastError) : null;
+        return msg ? <span className={ui.errLine}>{msg}</span> : '—';
+      },
+    },
+    { key: 'valor', header: 'Valor', align: 'right', render: (r) => formatMoney(Number(r.amount)) },
+  ];
+
+  const rowAction = (r: Row) => {
+    if (!canAct || !ACTIONABLE.includes(r.status)) return null;
+    return (
+      <div className={ui.rowActions}>
+        {RETRYABLE.includes(r.status) && (
+          <Button size="sm" className={ui.touch} loading={busy === r.id} onClick={() => retry(r)}>Tentar agora</Button>
+        )}
+        <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setResolving(r); setNote(''); }}>
+          Resolver
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <ProtectedRoute required_permission="payout:view">
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <button className={styles.docsLink} onClick={() => router.push('/admin/dashboard')}>← Dashboard</button>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Transferências a motoboys</h1>
-            <p className={styles.subtitle}>
-              Pix da loja ao motoboy no modo direto. Em resultado incerto, confira no painel do Asaas antes de marcar como resolvido: nunca reenviamos uma transferência incerta.
-            </p>
-          </header>
-          <label className={styles.subtitle}>
-            Filtrar por status{' '}
-            <select aria-label="Filtrar por status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </label>
-          {error && <p role="alert" className={styles.subtitle}>{error}</p>}
-          {rows.length === 0 && !error && <p className={styles.subtitle}>Nenhuma transferência encontrada.</p>}
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {rows.map((r) => (
-              <li key={r.id} style={{ padding: 'var(--space-3)', border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', background: 'var(--surface)' }}>
-                <div style={{ color: 'var(--text)' }}>
-                  {r.storeName ?? 'Loja'} → {r.motoboyName ?? 'Motoboy'} — pedido {r.orderId} — R$ {Number(r.amount).toFixed(2).replace('.', ',')}
-                </div>
-                <div style={{ color: 'var(--text-muted)' }}>
-                  {TRANSFER_STATUS_LABEL[r.status] ?? r.status} · {r.attempts} tentativa(s)
-                  {r.pixKeyMasked ? ` · Pix ${r.pixKeyMasked}` : ''}
-                </div>
-                {r.lastError && r.status !== 'done' && <div style={{ color: 'var(--danger)' }}>{humanizeTransferError(r.lastError)}</div>}
-                {canAct && ['failed', 'failed_final', 'uncertain'].includes(r.status) && (
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
-                    {(r.status === 'failed' || r.status === 'failed_final') && (
-                      <Button size="sm" loading={busy === r.id} onClick={() => act(r.id, () => api.post(`/admin/transfers/${r.id}/retry`))}>
-                        Reenviar
-                      </Button>
-                    )}
-                    <Button size="sm" variant="tertiary" onClick={() => { setResolving(resolving === r.id ? null : r.id); setNote(''); }}>
-                      Marcar como resolvido
-                    </Button>
-                  </div>
-                )}
-                {resolving === r.id && (
-                  <div style={{ marginTop: 'var(--space-2)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <textarea
-                      aria-label="Nota da conferência"
-                      placeholder="Ex.: conferido no painel do Asaas, Pix concluído"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={note.trim().length < 10}
-                      loading={busy === r.id}
-                      onClick={() => act(r.id, () => api.post(`/admin/transfers/${r.id}/resolve`, { note: note.trim() }))}
-                    >
-                      Confirmar resolução
-                    </Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-          {nextCursor && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-3)' }}>
-              <Button variant="tertiary" loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+      <AdminShell title="Dinheiro · Pix aos motoboys" tabs="dinheiro">
+        <div className={ui.stack}>
+          <p className={blocks.muted}>
+            Pix da loja ao motoboy no modo direto. Em resultado incerto, confira no painel do Asaas antes de marcar como
+            resolvido: nunca reenviamos uma transferência incerta.
+          </p>
+          <section className={blocks.block} aria-label="Pix aos motoboys">
+            <div className={ui.toolbar}>
+              <Select label="Filtrar por status" value={status} onChange={setStatus} options={FILTERS} />
             </div>
-          )}
+            <AdminTable
+              columns={columns}
+              rows={rows}
+              rowKey={(r) => r.id}
+              rowLabel={who}
+              error={error}
+              onRetry={load}
+              empty="Nenhuma transferência encontrada"
+              rowAction={rowAction}
+            />
+            {moreError && <p role="alert" className={ui.formError}>{moreError}</p>}
+            {nextCursor && rows && !error && (
+              <div className={ui.loadMore}>
+                <Button variant="tertiary" className={ui.touch} loading={loadingMore} onClick={loadMore}>Carregar mais</Button>
+              </div>
+            )}
+          </section>
         </div>
-      </div>
+
+        <AdminSheet
+          open={!!resolving}
+          title="Resolver Pix"
+          onClose={() => setResolving(null)}
+          primary={{ label: 'Confirmar resolução', disabled: note.trim().length < 10, onClick: resolve }}
+        >
+          {resolving && (
+            <p className={blocks.muted}>
+              {`Pix de ${formatMoney(Number(resolving.amount))} para ${resolving.motoboyName ?? 'o motoboy'}.`} Confira no
+              painel do Asaas antes de resolver: se o Pix anterior já saiu, nunca reenvie.
+            </p>
+          )}
+          <TextAreaField
+            label="Nota da conferência"
+            value={note}
+            onChange={setNote}
+            placeholder="Ex.: conferido no painel do Asaas, Pix concluído"
+            hint="Mínimo de 10 caracteres. Fica no histórico da transferência."
+          />
+        </AdminSheet>
+      </AdminShell>
     </ProtectedRoute>
   );
 }

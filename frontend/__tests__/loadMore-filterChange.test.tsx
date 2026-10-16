@@ -18,6 +18,7 @@ jest.mock('../lib/api', () => ({
 }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
 
 const transfer = (id: string, storeName: string, motoboyName = 'Zé') => ({
   id, orderId: `ord${id}XXXXXX`, storeName, motoboyName, status: 'failed', amount: 8, attempts: 1, lastError: null, pixKeyMasked: '***4000',

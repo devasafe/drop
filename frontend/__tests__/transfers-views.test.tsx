@@ -15,6 +15,7 @@ jest.mock('../lib/api', () => ({
 }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
+jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
 
 const rows = [
   { id: 't1', orderId: 'ordAAAAAA', storeName: 'Loja Um', motoboyName: 'Zé', status: 'failed', amount: 8, attempts: 2, lastError: 'MOTOBOY_PIX_KEY_MISSING', pixKeyMasked: '***.***.***-12' },
@@ -36,8 +37,8 @@ describe('admin/transfers', () => {
     expect(screen.getByText('Resultado incerto no Asaas — confira no painel antes de qualquer ação')).toBeInTheDocument();
     expect(screen.getByText(/\*\*\*\.\*\*\*\.\*\*\*-12/)).toBeInTheDocument();
     // failed + failed_final podem reenviar; uncertain nunca; done nada.
-    expect(screen.getAllByText('Reenviar')).toHaveLength(2);
-    expect(screen.getAllByText('Marcar como resolvido')).toHaveLength(3);
+    expect(screen.getAllByText('Tentar agora')).toHaveLength(2);
+    expect(screen.getAllByText('Resolver')).toHaveLength(3);
   });
 
   test('filtro de status vai na query', async () => {
@@ -50,14 +51,14 @@ describe('admin/transfers', () => {
   test('reenviar chama o retry', async () => {
     render(<AdminTransfers />);
     await screen.findByText(/Loja Um/);
-    fireEvent.click(screen.getAllByText('Reenviar')[0]);
+    fireEvent.click(screen.getAllByText('Tentar agora')[0]);
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/transfers/t1/retry'));
   });
 
   test('resolver exige nota de 10+ caracteres', async () => {
     render(<AdminTransfers />);
     await screen.findByText(/Loja Dois/);
-    fireEvent.click(screen.getAllByText('Marcar como resolvido')[1]);
+    fireEvent.click(screen.getAllByText('Resolver')[1]);
     const confirm = screen.getByText('Confirmar resolução');
     fireEvent.change(screen.getByLabelText('Nota da conferência'), { target: { value: 'curta' } });
     expect(confirm.closest('button')).toBeDisabled();
