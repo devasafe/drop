@@ -1,0 +1,81 @@
+/* Pedidos de acesso à carteira (lado do cliente). DS v2: só tokens. */
+.fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: 96px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-on-action);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+}
+.fab:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: var(--color-on-action);
+  font: var(--text-caption);
+}
+.panel {
+  position: fixed;
+  right: var(--space-4);
+  bottom: 160px;
+  z-index: 901;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(360px, calc(100vw - 2 * var(--space-4)));
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  box-shadow: var(--elevation-3);
+}
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.title { margin: 0; font: var(--text-title); }
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.group { display: flex; flex-direction: column; gap: var(--space-2); }
+.groupLabel { margin: 0; font: var(--text-caption); color: var(--color-text-secondary); }
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+}
+.cardActive { border-color: var(--color-success); background: var(--color-success-subtle); }
+.who { margin: 0; font: var(--text-label); }
+.reason { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.row { display: flex; gap: var(--space-2); }
+.row > * { flex: 1; }

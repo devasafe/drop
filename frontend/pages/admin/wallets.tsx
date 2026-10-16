@@ -1,620 +1,371 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+/**
+ * Dinheiro · Carteiras (DS v2, D3a, tela 17). Consulta de carteiras; o extrato pede a aprovação da pessoa.
+ * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.carteiras.test.tsx):
+ * GET /admin/wallets · GET /wallet-access/outgoing · GET /admin/wallets/:id/transactions ·
+ * POST /wallet-access/request { targetUserId, reason } · POST /admin/wallets/:id/add-balance { amount, reason }.
+ * "Adicionar saldo" é só do CEO (wallet:credit não é delegável) e sempre avisa que cria saldo sem pagamento.
+ */
+import { useCallback, useEffect, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { Kpi } from '../../components/admin/Kpi';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import { LoadError } from '../../components/admin/LoadState';
+import { StatusTag } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
+import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
+import { flattenServerError } from '../../components/admin/dinheiro/serverError';
+import {
+  isCreditEntry, paymentMethodLabel, transactionLabel, transactionStatus, type WalletTransaction,
+} from '../../components/admin/dinheiro/walletLabels';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import styles from './AdminWallets.module.css';
+import { formatMoney } from '../../lib/money';
 
-interface WalletData {
+interface WalletRow {
   _id: string;
   owner: string;
   userId?: string;
   balance: number | null;
-  totalIncome?: number | null;
   totalSpent?: number | null;
   totalWithdrawn?: number | null;
   userName?: string;
   userEmail?: string;
   userRole?: string;
-  createdAt?: string;
   hasAccess?: boolean;
 }
 
 interface AccessRequest {
   _id: string;
-  targetUserId: any;
+  targetUserId: string | { _id?: string } | null;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
   reason: string;
   expiresAt: string | null;
   createdAt: string;
 }
 
-interface Transaction {
-  _id?: string;
-  type: 'credit' | 'debit' | 'withdrawal' | 'refund';
-  category?: 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'transfer';
-  amount: number;
-  description?: string;
-  reason?: string;
-  paymentMethod?: string;
-  status: 'completed' | 'pending' | 'failed';
-  createdAt: string;
-}
+const ROLE_OPTIONS = [
+  { value: 'all', label: 'Todos os papéis' },
+  { value: 'cliente', label: 'Clientes' },
+  { value: 'lojista', label: 'Lojistas' },
+  { value: 'motoboy', label: 'Motoboys' },
+  { value: 'ceo', label: 'CEOs' },
+];
+const ROLE_LABEL: Record<string, string> = { cliente: 'Cliente', lojista: 'Loja', motoboy: 'Motoboy', ceo: 'CEO' };
+const HIDDEN = '••••';
 
-export default function AdminWalletsPanel() {
-  const auth = useAuth();
-  const { user, token } = auth || {};
-  const [wallets, setWallets] = useState<WalletData[]>([]);
-  const [selectedWallet, setSelectedWallet] = useState<WalletData | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [txLoading, setTxLoading] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [filterRole, setFilterRole] = useState('all');
-  const [showAddBalance, setShowAddBalance] = useState(false);
-  const [addAmount, setAddAmount] = useState('');
-  const [addReason, setAddReason] = useState('');
-  const [addLoading, setAddLoading] = useState(false);
+const targetOf = (w: WalletRow) => String(w.userId || w.owner);
+const requestTarget = (r: AccessRequest) =>
+  String(typeof r.targetUserId === 'string' ? r.targetUserId : r.targetUserId?._id);
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const txKey = (t: WalletTransaction) => t._id ?? `${t.createdAt}|${t.amount}|${t.reason ?? ''}`;
+const parseAmount = (v: string) => parseFloat(v.replace(',', '.'));
+
+export default function AdminWalletsPage() {
+  const { user } = useAuth();
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  const { showToast } = useToast();
+
+  const [wallets, setWallets] = useState<WalletRow[] | null>(null);
+  const [walletsError, setWalletsError] = useState<string | null>(null);
   const [outgoing, setOutgoing] = useState<AccessRequest[]>([]);
-  const [requestModal, setRequestModal] = useState<WalletData | null>(null);
-  const [requestReason, setRequestReason] = useState('');
-  const [requestLoading, setRequestLoading] = useState(false);
+  const [outgoingError, setOutgoingError] = useState(false);
+  const [search, setSearch] = useState('');
+  const [role, setRole] = useState('all');
+  const [selected, setSelected] = useState<WalletRow | null>(null);
+  const [txs, setTxs] = useState<WalletTransaction[] | null>(null);
+  const [txError, setTxError] = useState<string | null>(null);
+  const [requestFor, setRequestFor] = useState<WalletRow | null>(null);
+  const [reason, setReason] = useState('');
+  const [creditOpen, setCreditOpen] = useState(false);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
 
-  const loadOutgoing = async () => {
+  const loadOutgoing = useCallback(async () => {
     try {
       const res = await api.get('/wallet-access/outgoing');
       setOutgoing(res.data?.requests || []);
+      setOutgoingError(false);
     } catch {
-      setOutgoing([]);
+      setOutgoingError(true);
     }
-  };
+  }, []);
+
+  const loadWallets = useCallback(async () => {
+    setWalletsError(null);
+    setWallets(null);
+    try {
+      const res = await api.get('/admin/wallets');
+      if (!Array.isArray(res.data)) throw new Error('lista de carteiras inválida');
+      setWallets(res.data);
+    } catch {
+      setWalletsError('Não deu para carregar as carteiras.');
+    }
+  }, []);
 
   useEffect(() => {
-    if (user) loadOutgoing();
-  }, [user]);
+    if (!user) return;
+    loadOutgoing();
+    loadWallets();
+  }, [user, loadOutgoing, loadWallets]);
 
-  const getRequestStatus = (targetUserId: string): AccessRequest | null => {
-    const rel = outgoing.filter(r => {
-      const tid = typeof r.targetUserId === 'string' ? r.targetUserId : r.targetUserId?._id;
-      return String(tid) === String(targetUserId);
-    });
-    if (!rel.length) return null;
-    return rel.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const lastRequest = (w: WalletRow): AccessRequest | null => {
+    const mine = outgoing.filter((r) => requestTarget(r) === targetOf(w));
+    if (!mine.length) return null;
+    return [...mine].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   };
 
-  const submitAccessRequest = async () => {
-    if (!requestModal || requestReason.trim().length < 5) {
-      alert('Justificativa obrigatória (mín. 5 caracteres)');
+  const loadTransactions = async (w: WalletRow) => {
+    setTxs(null);
+    setTxError(null);
+    try {
+      const res = await api.get(`/admin/wallets/${w._id}/transactions`);
+      setTxs(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      if ((err as { response?: { status?: number } })?.response?.status === 403) {
+        setTxError('Acesso expirado. Peça acesso de novo.');
+        await loadOutgoing();
+      } else {
+        setTxError('Não deu para carregar o extrato.');
+      }
+    }
+  };
+
+  const openWallet = (w: WalletRow) => {
+    if (!w.hasAccess) {
+      setRequestFor(w);
+      setReason('');
       return;
     }
-    setRequestLoading(true);
+    setSelected(w);
+    setCreditOpen(false);
+    void loadTransactions(w);
+  };
+
+  const submitRequest = async () => {
+    if (!requestFor) return;
     try {
       await api.post('/wallet-access/request', {
-        targetUserId: requestModal.userId || requestModal.owner,
-        reason: requestReason.trim(),
+        targetUserId: requestFor.userId || requestFor.owner,
+        reason: reason.trim(),
       });
-      alert('Solicitação enviada ao cliente');
-      setRequestModal(null);
-      setRequestReason('');
-      await loadOutgoing();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao enviar solicitação');
-    } finally {
-      setRequestLoading(false);
+    } catch (err) {
+      throw flattenServerError(err, 'Não deu para enviar o pedido.');
     }
+    setRequestFor(null);
+    setReason('');
+    showToast('Pedido enviado. A pessoa precisa aprovar.', 'success');
+    await loadOutgoing();
   };
 
-  // Carregar carteiras
-  useEffect(() => {
-    const loadWallets = async () => {
-      try {
-        const res = await api.get('/admin/wallets');
-        console.log('Carteiras carregadas:', res.data);
-        setWallets(res.data || []);
-      } catch (err) {
-        console.error('Erro ao carregar carteiras:', err);
-      } finally {
-        setPageLoading(false);
-      }
-    };
+  const creditValue = parseAmount(creditAmount);
+  const creditValid = Number.isFinite(creditValue) && creditValue > 0 && creditReason.trim().length >= 10;
 
-    if (user) {
-      loadWallets();
-    } else {
-      setPageLoading(false);
-    }
-  }, [user]);
-
-  // Carregar transações ao selecionar carteira
-  const handleSelectWallet = async (wallet: WalletData) => {
-    if (!wallet.hasAccess) {
-      setRequestModal(wallet);
-      return;
-    }
-    setSelectedWallet(wallet);
-    setTxLoading(true);
+  const submitCredit = async () => {
+    if (!selected) return;
+    const target = selected;
+    let newBalance: unknown;
     try {
-      const res = await api.get(`/admin/wallets/${wallet._id}/transactions`);
-      setTransactions(res.data || []);
-    } catch (err: any) {
-      if (err.response?.status === 403) {
-        alert('Acesso expirado. Solicite novamente.');
-        await loadOutgoing();
-      }
-      console.error('Erro ao carregar transações:', err);
-      setTransactions([]);
-    } finally {
-      setTxLoading(false);
+      const res = await api.post(`/admin/wallets/${target._id}/add-balance`, {
+        amount: creditValue,
+        reason: creditReason.trim(),
+      });
+      newBalance = res.data?.newBalance;
+    } catch (err) {
+      throw flattenServerError(err, 'Não deu para adicionar o saldo.');
     }
+    const balance = typeof newBalance === 'number' ? newBalance : (target.balance || 0) + creditValue;
+    const patch = (w: WalletRow) => (w._id === target._id ? { ...w, balance } : w);
+    setSelected(patch(target));
+    setWallets((ws) => (ws ? ws.map(patch) : ws));
+    setCreditOpen(false);
+    setCreditAmount('');
+    setCreditReason('');
+    showToast('Saldo adicionado.', 'success');
+    await loadTransactions(target);
   };
 
-  // Adicionar saldo
-  const handleAddBalance = async () => {
-    if (!selectedWallet || !addAmount) {
-      alert('Preencha o valor');
-      return;
-    }
-    if (addReason.trim().length < 10) {
-      alert('Informe o motivo do crédito (mínimo 10 caracteres). Ele fica registrado na auditoria.');
-      return;
-    }
-
-    setAddLoading(true);
-    try {
-      const res = await api.post(`/admin/wallets/${selectedWallet._id}/add-balance`, {
-        amount: parseFloat(addAmount),
-        reason: addReason.trim()
-      });
-
-      // Atualizar carteira
-      setSelectedWallet({
-        ...selectedWallet,
-        balance: (selectedWallet.balance || 0) + parseFloat(addAmount)
-      });
-
-      // Atualizar na lista
-      setWallets(wallets.map(w =>
-        w._id === selectedWallet._id
-          ? { ...w, balance: (w.balance || 0) + parseFloat(addAmount) }
-          : w
-      ));
-
-      alert('Saldo adicionado com sucesso!');
-      setAddAmount('');
-      setAddReason('');
-      setShowAddBalance(false);
-
-      // Recarregar transações
-      const txRes = await api.get(`/admin/wallets/${selectedWallet._id}/transactions`);
-      setTransactions(txRes.data || []);
-    } catch (err: any) {
-      alert('Erro: ' + (err.response?.data?.message || 'Falha ao adicionar saldo'));
-    } finally {
-      setAddLoading(false);
-    }
-  };
-
-  // Filtrar carteiras
-  const filtered = wallets.filter(w => {
-    const matchRole = filterRole === 'all' || w.userRole === filterRole;
-    const matchSearch = !searchText ||
-      w.userName?.toLowerCase().includes(searchText.toLowerCase()) ||
-      w.userEmail?.toLowerCase().includes(searchText.toLowerCase());
+  const term = search.trim().toLowerCase();
+  const visible = wallets === null ? null : wallets.filter((w) => {
+    const matchRole = role === 'all' || w.userRole === role;
+    const matchSearch = !term
+      || !!w.userName?.toLowerCase().includes(term)
+      || !!w.userEmail?.toLowerCase().includes(term);
     return matchRole && matchSearch;
   });
 
-  // Formatar moeda
-  const fmt = (val: number) => new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(val || 0);
+  const columns: AdminColumn<WalletRow>[] = [
+    {
+      key: 'pessoa', header: 'Pessoa', primary: true,
+      render: (w) => (
+        <span>
+          {w.userName || 'Sem nome'}
+          <span className={ui.sub}>{w.userEmail || 'Sem e-mail'}</span>
+        </span>
+      ),
+    },
+    { key: 'papel', header: 'Papel', render: (w) => ROLE_LABEL[w.userRole ?? ''] ?? w.userRole ?? '—' },
+    {
+      key: 'saldo', header: 'Saldo', align: 'right',
+      render: (w) => (w.hasAccess ? formatMoney(w.balance || 0) : <span aria-label="Saldo oculto">{HIDDEN}</span>),
+    },
+    {
+      key: 'gastos', header: 'Gastos', align: 'right',
+      render: (w) => (w.hasAccess ? formatMoney(w.totalSpent || 0) : <span aria-label="Gastos ocultos">{HIDDEN}</span>),
+    },
+  ];
 
-  // Helper para determinar categoria e label
-  const getTransactionLabel = (tx: Transaction) => {
-    const category = tx.category;
-    const reason = tx.reason || '';
-    const type = tx.type;
-
-    // Inferir categoria baseado em reason se não tiver category explícita
-    let inferredCategory = category;
-    if (!inferredCategory) {
-      if (reason.includes('Carregamento') || reason.includes('Depósito')) inferredCategory = 'deposit';
-      else if (reason.includes('Transferência para banco')) inferredCategory = 'withdrawal';
-      else if (reason.includes('Pedido') || reason.includes('Venda')) inferredCategory = 'payment';
-      else if (reason.includes('Reembolso')) inferredCategory = 'refund';
-      else if (reason.includes('Transferência') && !reason.includes('para banco')) inferredCategory = 'transfer';
+  const rowAction = (w: WalletRow) => {
+    const req = lastRequest(w);
+    if (w.hasAccess) {
+      const label = req?.status === 'approved' && req.expiresAt ? `Ver extrato · até ${hhmm(req.expiresAt)}` : 'Ver extrato';
+      return (
+        <Button size="sm" variant={selected?._id === w._id ? 'primary' : 'secondary'} className={ui.touch} onClick={() => openWallet(w)}>
+          {label}
+        </Button>
+      );
     }
-
-    // Ícone
-    let icon = '';
-    if (inferredCategory === 'deposit') icon = 'Dep.';
-    else if (inferredCategory === 'withdrawal') icon = 'Saq.';
-    else if (inferredCategory === 'payment') icon = 'Pag.';
-    else if (inferredCategory === 'refund' || type === 'refund') icon = 'Est.';
-    else if (inferredCategory === 'transfer') icon = 'Transf.';
-    else icon = type === 'credit' ? '+' : type === 'debit' ? '-' : 'Tx';
-
-    // Label
-    let label = '';
-    if (inferredCategory === 'deposit') label = 'Depósito';
-    else if (inferredCategory === 'withdrawal') label = 'Saque';
-    else if (inferredCategory === 'payment') label = 'Pagamento';
-    else if (inferredCategory === 'refund') label = 'Estorno';
-    else if (inferredCategory === 'transfer') label = 'Transferência';
-    else label = type === 'credit' ? 'Entrada' : type === 'debit' ? 'Retirada' : 'Transação';
-
-    return `${icon} ${label}`;
+    if (req?.status === 'pending') {
+      return <Button size="sm" variant="secondary" className={ui.touch} disabled>Aguardando resposta</Button>;
+    }
+    const label = req?.status === 'rejected'
+      ? 'Recusado · pedir de novo'
+      : req?.status === 'expired' || req?.status === 'revoked' ? 'Pedir de novo' : 'Pedir acesso';
+    return <Button size="sm" variant="secondary" className={ui.touch} onClick={() => openWallet(w)}>{label}</Button>;
   };
 
-  // Helper para determinar método de pagamento
-  const getPaymentMethod = (tx: Transaction) => {
-    if (!tx.paymentMethod) return '';
-
-    const methods: Record<string, string> = {
-      'credit_card': 'Cartão',
-      'pix': 'PIX',
-      'bank_transfer': 'Transferência Bancária',
-      'wallet': 'Carteira',
-      'wallet_transfer': 'Transferência de Carteira',
-      'refund': 'Reembolso'
-    };
-
-    return methods[tx.paymentMethod] || tx.paymentMethod;
-  };
-
-  if (pageLoading) {
-    return (
-      <ProtectedRoute required_permission="wallet:view_all">
-        <div className={styles.loadingScreen}>
-          <LoadingSkeleton variant="dashboard" />
-        </div>
-      </ProtectedRoute>
-    );
-  }
+  const txColumns: AdminColumn<WalletTransaction>[] = [
+    {
+      key: 'movimento', header: 'Movimento', primary: true,
+      render: (t) => `${transactionLabel(t)}${t.paymentMethod ? ` via ${paymentMethodLabel(t.paymentMethod)}` : ''}`,
+    },
+    { key: 'quando', header: 'Quando', render: (t) => when(t.createdAt) },
+    { key: 'origem', header: 'Origem', render: (t) => t.reason || '—' },
+    {
+      key: 'situacao', header: 'Situação',
+      render: (t) => {
+        const s = transactionStatus(t);
+        return <StatusTag tone={s.tone}>{s.label}</StatusTag>;
+      },
+    },
+    {
+      key: 'valor', header: 'Valor', align: 'right',
+      render: (t) => `${isCreditEntry(t) ? '+' : '−'}${formatMoney(t.amount)}`,
+    },
+  ];
 
   return (
     <ProtectedRoute required_permission="wallet:view_all">
-      <div className={styles.page}>
-        {/* HEADER */}
-        <div className={styles.header}>
-          <h1 className={styles.pageTitle}>
-            <Icon name="wallet" size={20} /> Gerenciar Carteiras
-          </h1>
-          <p className={styles.headerSub}>
-            Total: <strong>{wallets.length}</strong> carteira{wallets.length !== 1 ? 's' : ''} no sistema
+      <AdminShell title="Dinheiro · Carteiras" tabs="dinheiro">
+        <div className={ui.stack}>
+          <p className={blocks.muted}>
+            Página de consulta. No modo Asaas, o dinheiro de pedidos e repasses fica nas subcontas do gateway,
+            não nesta carteira. Ver o extrato de alguém pede a aprovação da pessoa.
           </p>
-          <div style={{
-            marginTop: 10, padding: '10px 14px', borderRadius: 10,
-            background: 'rgba(56,189,248,0.10)', border: '1px solid rgba(56,189,248,0.4)',
-            color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 1.5,
-          }}>
-            <Icon name="info" size={14} /> Página de <b>auditoria/consulta</b>. No modo Asaas, o
-            dinheiro de pedidos e repasses fica nas <b>subcontas do gateway</b> (não nesta carteira).
-            Adicionar valor aqui credita apenas <b>cashback/recarga</b> na carteira interna — não
-            transfere dinheiro real.
-          </div>
-        </div>
 
-        {/* CONTAINER 2 COLUNAS */}
-        <div className={selectedWallet ? styles.gridSplit : styles.grid}>
-
-          {/* COLUNA ESQUERDA - LISTA */}
-          <div>
-            {/* FILTROS */}
-            <div className={styles.filtersCard}>
-              <input
-                type="text"
-                placeholder="Buscar por nome ou email..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className={styles.filterInput}
-              />
-
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className={styles.filterSelect}
-              >
-                <option value="all">Todos os Papéis</option>
-                <option value="cliente">Clientes</option>
-                <option value="lojista">Lojistas</option>
-                <option value="motoboy">Motoboys</option>
-                <option value="ceo">CEOs</option>
-              </select>
-            </div>
-
-            {/* TABELA */}
-            <div className={styles.tableWrapper}>
-              {filtered.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}><Icon name="mail" size={24} /></div>
-                  <p className={styles.emptyText}>Nenhuma carteira encontrada</p>
-                </div>
-              ) : (
-                <table className={styles.table}>
-                  <thead className={styles.thead}>
-                    <tr>
-                      <th className={styles.th}>Usuário</th>
-                      <th className={styles.thRight}>Saldo</th>
-                      <th className={styles.thRight}>Gastos</th>
-                      <th className={styles.thCenter}>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((w) => {
-                      const targetId = String(w.userId || w.owner);
-                      const reqStatus = getRequestStatus(targetId);
-                      const hasAccess = w.hasAccess;
-                      let accessLabel = 'Solicitar acesso';
-                      if (hasAccess && reqStatus?.expiresAt) {
-                        accessLabel = `Até ${new Date(reqStatus.expiresAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-                      } else if (reqStatus?.status === 'pending') {
-                        accessLabel = 'Aguardando';
-                      } else if (reqStatus?.status === 'rejected') {
-                        accessLabel = 'Rejeitado';
-                      } else if (reqStatus?.status === 'expired' || reqStatus?.status === 'revoked') {
-                        accessLabel = 'Solicitar novamente';
-                      }
-                      return (
-                        <tr
-                          key={w._id}
-                          onClick={() => handleSelectWallet(w)}
-                          className={selectedWallet?._id === w._id ? styles.trActive : styles.tr}
-                        >
-                          <td className={styles.td}>
-                            <div className={styles.userName}>{w.userName || 'Sem nome'}</div>
-                            <div className={styles.userEmail}>{w.userEmail || 'N/A'}</div>
-                          </td>
-                          <td className={`${styles.tdRight} ${styles.balanceCell}`}>
-                            {hasAccess ? fmt(w.balance || 0) : '••••'}
-                          </td>
-                          <td className={styles.tdRight}>
-                            {hasAccess ? fmt(w.totalSpent || 0) : '••••'}
-                          </td>
-                          <td className={styles.tdCenter}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (hasAccess) handleSelectWallet(w);
-                                else setRequestModal(w);
-                              }}
-                              disabled={reqStatus?.status === 'pending'}
-                              className={selectedWallet?._id === w._id ? styles.btnViewActive : styles.btnView}
-                            >
-                              {hasAccess ? (selectedWallet?._id === w._id ? '✓' : 'Ver') : accessLabel}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          {/* COLUNA DIREITA - DETALHES */}
-          {selectedWallet && (
-            <div>
-              {/* CARD GRADIENT */}
-              <div className={styles.detailCard}>
-                <div>
-                  <p className={styles.detailUserLabel}>USUÁRIO</p>
-                  <h2 className={styles.detailUserName}>
-                    {selectedWallet.userName || 'Usuário'}
-                  </h2>
-                  <p className={styles.detailUserEmail}>
-                    {selectedWallet.userEmail || 'N/A'}
-                  </p>
-                </div>
-
-                <div className={styles.detailStatsRow}>
-                  <div>
-                    <p className={styles.detailStatLabel}>Saldo Atual</p>
-                    <p className={styles.detailStatValue}>
-                      {fmt(selectedWallet.balance || 0)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className={styles.detailStatLabel}>Gasto Total</p>
-                    <p className={styles.detailStatValue}>
-                      {fmt(selectedWallet.totalSpent || 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* BOTÃO ADICIONAR SALDO */}
-              <button
-                onClick={() => setShowAddBalance(!showAddBalance)}
-                className={styles.btnAddBalance}
-              >
-                {showAddBalance ? 'Cancelar' : <><Icon name="plus" size={14} /> Adicionar Cashback</>}
-              </button>
-
-              {/* FORMULÁRIO ADICIONAR CASHBACK/RECARGA (carteira interna, não Asaas) */}
-              {showAddBalance && (
-                <div className={styles.addBalanceForm}>
-                  <h3 className={styles.addBalanceTitle}>
-                    <Icon name="plus" size={14} /> Adicionar Cashback / Recarga
-                  </h3>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: '0 0 10px' }}>
-                    Crédito na carteira interna (cashback/recarga voluntária). Não movimenta
-                    dinheiro real do gateway.
-                  </p>
-
-                  <div className={styles.formField}>
-                    <label className={styles.formLabel}>
-                      Quanto deseja adicionar?
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={addAmount}
-                      onChange={(e) => setAddAmount(e.target.value)}
-                      min="0.01"
-                      step="0.01"
-                      className={styles.formInput}
-                    />
-                  </div>
-
-                  <div className={styles.formField}>
-                    <label className={styles.formLabel}>
-                      Motivo (obrigatório, fica na auditoria)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Descreva o motivo da adição"
-                      value={addReason}
-                      onChange={(e) => setAddReason(e.target.value)}
-                      className={styles.formInput}
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleAddBalance}
-                    disabled={addLoading || !addAmount || addReason.trim().length < 10}
-                    className={styles.btnConfirm}
-                  >
-                    {addLoading ? 'Processando...' : 'Confirmar Adição'}
-                  </button>
-                </div>
-              )}
-
-              {/* GRID STATS */}
-              <div className={styles.statsGrid}>
-                <div className={styles.statCard}>
-                  <p className={styles.statLabel}>Total Gasto</p>
-                  <p className={styles.statValueDanger}>
-                    {fmt(selectedWallet.totalSpent || 0)}
-                  </p>
-                </div>
-                <div className={styles.statCard}>
-                  <p className={styles.statLabel}>Saques</p>
-                  <p className={styles.statValueWarning}>
-                    {fmt(selectedWallet.totalWithdrawn || 0)}
-                  </p>
-                </div>
-              </div>
-
-              {/* TRANSAÇÕES */}
-              <div className={styles.txCard}>
-                <h3 className={styles.txTitle}>
-                  <Icon name="clipboard" size={16} /> Últimas Transações
-                </h3>
-
-                {txLoading ? (
-                  <div className={styles.txLoading}>
-                    <LoadingSkeleton variant="list" count={3} />
-                  </div>
-                ) : transactions.length === 0 ? (
-                  <div className={styles.txEmpty}>
-                    Nenhuma transação encontrada
-                  </div>
-                ) : (
-                  <div className={styles.txList}>
-                    {transactions.map((tx, idx) => (
-                      <div
-                        key={tx._id || idx}
-                        className={idx < transactions.length - 1 ? styles.txRow : styles.txRowLast}
-                      >
-                        <div className={styles.txInfo}>
-                          <p className={styles.txLabel}>
-                            {getTransactionLabel(tx)}
-                            {tx.paymentMethod && ` via ${getPaymentMethod(tx)}`}
-                          </p>
-                          <p className={styles.txMeta}>
-                            {tx.reason && <span>{tx.reason}</span>}
-                            {tx.reason && ' • '}
-                            {new Date(tx.createdAt).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <div className={styles.txAmountRight}>
-                          <p className={tx.type === 'credit' || tx.type === 'refund' ? styles.txAmountCredit : styles.txAmountDebit}>
-                            {tx.type === 'credit' || tx.type === 'refund' ? '+' : '-'}
-                            {fmt(tx.amount)}
-                          </p>
-                          <p className={styles.txStatus}>
-                            {tx.status === 'completed' ? 'OK' : tx.status === 'pending' ? 'Pendente' : 'Falhou'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+          {outgoingError && (
+            <LoadError
+              message="Não deu para ler os seus pedidos de acesso. A situação de cada pedido pode estar desatualizada."
+              onRetry={loadOutgoing}
+            />
           )}
+
+          <div className={ui.split}>
+            <section className={blocks.block} aria-label="Carteiras">
+              <div className={ui.toolbar}>
+                <Input label="Buscar" value={search} onChange={setSearch} placeholder="Nome ou e-mail" />
+                <Select label="Papel" value={role} onChange={setRole} options={ROLE_OPTIONS} />
+              </div>
+              <AdminTable
+                columns={columns}
+                rows={visible}
+                rowKey={(w) => w._id}
+                rowLabel={(w) => w.userName || 'carteira'}
+                error={walletsError}
+                onRetry={loadWallets}
+                empty="Nenhuma carteira encontrada"
+                rowAction={rowAction}
+                caption={wallets ? `${wallets.length} carteiras no sistema` : undefined}
+              />
+            </section>
+
+            {selected && (
+              <section className={blocks.block} aria-label={`Carteira de ${selected.userName || 'usuário'}`}>
+                <div className={blocks.blockHead}>
+                  <h2 className={blocks.blockTitle}>{selected.userName || 'Usuário'}</h2>
+                  {isCeo && (
+                    <Button size="sm" variant="secondary" className={ui.touch} onClick={() => setCreditOpen(true)}>
+                      Adicionar saldo
+                    </Button>
+                  )}
+                </div>
+                <p className={blocks.muted}>{selected.userEmail || 'Sem e-mail'}</p>
+                <div className={blocks.kpis}>
+                  <Kpi label="Saldo" value={formatMoney(selected.balance || 0)} />
+                  <Kpi label="Gasto total" value={formatMoney(selected.totalSpent || 0)} />
+                  <Kpi label="Saques" value={formatMoney(selected.totalWithdrawn || 0)} />
+                </div>
+                <h3 className={blocks.blockTitle}>Extrato</h3>
+                <AdminTable
+                  columns={txColumns}
+                  rows={txs}
+                  rowKey={txKey}
+                  error={txError}
+                  onRetry={() => loadTransactions(selected)}
+                  empty="Nenhuma movimentação ainda"
+                />
+              </section>
+            )}
+          </div>
         </div>
 
-        {/* MODAL: Solicitar acesso */}
-        {requestModal && (
-          <div
-            onClick={() => !requestLoading && setRequestModal(null)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16
-            }}
-          >
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: 'var(--drop-surface)', border: '1px solid var(--drop-border)',
-                borderRadius: 'var(--drop-radius-lg)', padding: 24, maxWidth: 440, width: '100%',
-                color: 'var(--drop-white)', fontFamily: 'var(--font-body)'
-              }}
-            >
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontFamily: 'var(--font-display)' }}>
-                <Icon name="lock" size={16} /> Solicitar acesso à carteira
-              </h3>
-              <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--drop-text-muted)' }}>
-                Cliente: <strong>{requestModal.userName}</strong>. O pedido será enviado com sua justificativa; o cliente precisa aprovar.
-              </p>
-              <label style={{ display: 'block', fontSize: 12, marginBottom: 6, color: 'var(--drop-text-muted)' }}>
-                Justificativa (obrigatório)
-              </label>
-              <textarea
-                value={requestReason}
-                onChange={e => setRequestReason(e.target.value)}
-                rows={4}
-                placeholder="Ex.: investigando reclamação #123 sobre débito indevido..."
-                style={{
-                  width: '100%', background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid var(--drop-border)', borderRadius: 'var(--drop-radius-sm)',
-                  color: 'var(--drop-white)', padding: 10, fontSize: 14, resize: 'vertical',
-                  fontFamily: 'var(--font-body)', boxSizing: 'border-box', outline: 'none'
-                }}
-              />
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => setRequestModal(null)}
-                  disabled={requestLoading}
-                  style={{
-                    padding: '10px 16px', background: 'transparent',
-                    border: '1px solid var(--drop-border)', borderRadius: 'var(--drop-radius-sm)',
-                    color: 'var(--drop-white)', cursor: 'pointer', fontSize: 14
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={submitAccessRequest}
-                  disabled={requestLoading || requestReason.trim().length < 5}
-                  style={{
-                    padding: '10px 16px', background: 'var(--drop-purple)',
-                    border: 'none', borderRadius: 'var(--drop-radius-sm)',
-                    color: 'var(--drop-white)', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                    opacity: (requestLoading || requestReason.trim().length < 5) ? 0.5 : 1
-                  }}
-                >
-                  {requestLoading ? 'Enviando...' : 'Enviar solicitação'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        <AdminSheet
+          open={!!requestFor}
+          title="Pedir acesso à carteira"
+          onClose={() => setRequestFor(null)}
+          primary={{ label: 'Enviar pedido', disabled: reason.trim().length < 5, onClick: submitRequest }}
+        >
+          <p className={blocks.muted}>
+            Pessoa: <strong>{requestFor?.userName || 'Sem nome'}</strong>. O pedido vai com a sua justificativa e a
+            pessoa precisa aprovar. O acesso aprovado vale por 24 horas.
+          </p>
+          <TextAreaField
+            label="Justificativa (mínimo 5 caracteres)"
+            value={reason}
+            onChange={setReason}
+            placeholder="Ex.: investigando reclamação #123 sobre débito indevido..."
+            rows={4}
+          />
+        </AdminSheet>
+
+        <AdminSheet
+          open={creditOpen && !!selected}
+          title="Adicionar saldo"
+          onClose={() => setCreditOpen(false)}
+          primary={{ label: 'Confirmar adição', tone: 'danger', disabled: !creditValid, onClick: submitCredit }}
+        >
+          <Alert tone="warning" title="Isto cria saldo sem pagamento">
+            O valor entra na carteira interna de {selected?.userName || 'usuário'} sem nenhum dinheiro entrar no DROP.
+            Use só para corrigir um erro (cashback ou recarga). O motivo fica registrado na auditoria.
+          </Alert>
+          <Input label="Valor (R$)" value={creditAmount} onChange={setCreditAmount} placeholder="0,00" inputMode="decimal" />
+          <TextAreaField
+            label="Motivo (mínimo 10 caracteres)"
+            value={creditReason}
+            onChange={setCreditReason}
+            placeholder="Descreva o motivo da adição"
+          />
+        </AdminSheet>
+      </AdminShell>
     </ProtectedRoute>
   );
 }
