@@ -1,753 +1,427 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Dinheiro · Caixa da plataforma (DS v2, D3a, tela 18). Só custódia: o servidor exige requireSettlement('custodia').
+ * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.caixa.test.tsx):
+ * GET /admin/app-cashbox · /admin/app-cashbox/statement · /admin/app-cashbox/withdrawals ·
+ * POST /admin/app-cashbox/withdrawal { amount, reason, bankInfo: { bank, account, holderName } } ·
+ * POST /admin/app-cashbox/deposit { amount, reason } · PUT /admin/app-cashbox/withdrawals/:id/approve ·
+ * PUT /admin/app-cashbox/withdrawals/:id/reject { rejectionReason }.
+ * Cada botão usa o can() da rota: cashbox:withdraw, cashbox:deposit, cashbox:approve_withdrawal.
+ * Valor digitado (retirada, depósito): exatamente o digitado (lib/adminAmount, a mesma regra de Carteiras),
+ * com prévia antes de confirmar; o corpo continua { amount: number, ... }.
+ */
+import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useAuth } from '../../contexts/AuthContext';
+import { useCallback, useEffect, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { Kpi } from '../../components/admin/Kpi';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import { LoadError, LoadSkeleton } from '../../components/admin/LoadState';
+import { StatusTag, type StatusTone } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
+import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
+import { flattenServerError } from '../../components/admin/dinheiro/serverError';
+import { Alert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import styles from './AdminAppCashbox.module.css';
+import { amountFieldError, parseAmount } from '../../lib/adminAmount';
+import { formatMoney } from '../../lib/money';
 
-interface AppCashboxData {
+interface CashboxData {
   _id: string;
   balance: number;
   totalIncome: number;
   totalExpenses: number;
-  pendingObligations: number;
-  platformNet: number;
+  pendingObligations?: number;
+  platformNet?: number;
   asaas?: { enabled: boolean; balance: number | null; error?: string };
-  history: Array<{
-    type: 'income' | 'expense' | 'withdrawal' | 'deposit';
-    source: string;
-    amount: number;
-    orderId?: string;
-    deliveryId?: string;
-    reason?: string;
-    date: string;
-  }>;
 }
 
-interface WithdrawalRequest {
+interface StatementItem {
+  _id?: string;
+  type: 'income' | 'expense' | 'withdrawal' | 'deposit';
+  source: string;
+  amount: number;
+  orderId?: string;
+  deliveryId?: string;
+  withdrawalId?: string;
+  reason?: string;
+  date: string;
+}
+
+interface CashWithdrawal {
   _id: string;
   amount: number;
   status: 'pending' | 'approved' | 'paid' | 'rejected';
-  bankInfo?: {
-    account: string;
-    bank: string;
-    holderName: string;
-  };
+  bankInfo?: { account: string; bank: string; holderName: string };
   requestedAt: string;
   rejectionReason?: string;
 }
 
-export default function AppCashbox() {
+interface Loaded {
+  cashbox: CashboxData;
+  statement: StatementItem[];
+  withdrawals: CashWithdrawal[];
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  product_commission: 'Comissão de produto',
+  delivery_commission: 'Comissão de entrega',
+  order_payment: 'Pagamento de pedido',
+  order_refund: 'Reembolso de pedido',
+  payout_paid: 'Repasse pago',
+  manual_deposit: 'Depósito manual',
+  manual_withdrawal: 'Retirada',
+  withdrawal_fee: 'Taxa de retirada',
+};
+const WITHDRAWAL_STATUS: Record<CashWithdrawal['status'], { label: string; tone: StatusTone }> = {
+  pending: { label: 'Aguardando aprovação', tone: 'warn' },
+  approved: { label: 'Aprovada', tone: 'info' },
+  paid: { label: 'Paga', tone: 'ok' },
+  rejected: { label: 'Recusada', tone: 'bad' },
+};
+const EMPTY_WITHDRAW = { amount: '', bank: '', account: '', holderName: '', reason: '' };
+
+const sourceLabel = (s: string) => SOURCE_LABEL[s] ?? s;
+const isIncome = (s: StatementItem) => s.type === 'income';
+const money = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? formatMoney(v) : '—');
+const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', {
+  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+const statementKey = (s: StatementItem) => s._id ?? `${s.date}|${s.source}|${s.amount}`;
+const bankTitle = (w: CashWithdrawal) =>
+  (w.bankInfo ? `${w.bankInfo.bank} · ${w.bankInfo.holderName}` : 'Sem dados bancários');
+
+export default function AdminCashboxPage() {
   const router = useRouter();
   const { user, loading: authLoading, can, permissionsLoading } = useAuth();
-  const [cashbox, setCashbox] = useState<AppCashboxData | null>(null);
-  const [statement, setStatement] = useState<any>(null);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); // overview | statement | withdraw
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { showToast } = useToast();
 
-  // Modals
-  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
-  const [withdrawalForm, setWithdrawalForm] = useState({
-    amount: '',
-    bank: '',
-    account: '',
-    holderName: '',
-    reason: '',
-  });
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [depositForm, setDepositForm] = useState({
-    amount: '',
-    reason: '',
-  });
-  const [detailItem, setDetailItem] = useState<any>(null);
+  const [data, setData] = useState<Loaded | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState(EMPTY_WITHDRAW);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [deposit, setDeposit] = useState({ amount: '', reason: '' });
+  const [approving, setApproving] = useState<CashWithdrawal | null>(null);
+  const [rejecting, setRejecting] = useState<CashWithdrawal | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [detail, setDetail] = useState<StatementItem | null>(null);
 
-  // Verificar permissão
   useEffect(() => {
     if (!authLoading && !permissionsLoading && user && !can('cashbox:view')) {
       router.push('/access-denied');
     }
   }, [user, authLoading, permissionsLoading, can, router]);
 
-  // Carregar dados
-  useEffect(() => {
-    if (!permissionsLoading && can('cashbox:view')) {
-      loadCashboxData();
-    }
-  }, [user, permissionsLoading]);
-
-  const loadCashboxData = async () => {
+  const load = useCallback(async () => {
+    setLoadError(null);
     try {
-      setLoading(true);
       const [cashboxRes, statementRes, withdrawalsRes] = await Promise.all([
         api.get('/admin/app-cashbox'),
         api.get('/admin/app-cashbox/statement'),
         api.get('/admin/app-cashbox/withdrawals'),
       ]);
-
-      setCashbox(cashboxRes.data);
-      setStatement(statementRes.data);
-      setWithdrawals(withdrawalsRes.data.withdrawals);
-      setMessage(null);
-    } catch (err: any) {
-      console.error('Erro ao carregar caixa:', err);
-      setMessage({ type: 'error', text: 'Erro ao carregar dados do caixa' });
-    } finally {
-      setLoading(false);
+      if (!cashboxRes.data || typeof cashboxRes.data.balance !== 'number') throw new Error('caixa inválido');
+      setData({
+        cashbox: cashboxRes.data,
+        statement: statementRes.data?.statement ?? [],
+        withdrawals: withdrawalsRes.data?.withdrawals ?? [],
+      });
+    } catch {
+      setData(null);
+      setLoadError('Não deu para carregar os dados do caixa.');
     }
-  };
+  }, []);
 
-  const handleRequestWithdrawal = async () => {
-    if (!withdrawalForm.amount || !withdrawalForm.bank) {
-      setMessage({ type: 'error', text: 'Preencha todos os campos' });
-      return;
-    }
+  useEffect(() => {
+    if (!permissionsLoading && can('cashbox:view')) load();
+    // mesmas dependências da página antiga (l. 76-80): recarrega quando o usuário ou as permissões mudam
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, permissionsLoading]);
 
+  const canWithdraw = can('cashbox:withdraw');
+  const canDeposit = can('cashbox:deposit');
+  const canApprove = can('cashbox:approve_withdrawal');
+
+  const withdrawAmount = parseAmount(withdrawForm.amount);
+  const withdrawValid = withdrawAmount !== null && withdrawAmount > 0 && withdrawForm.bank.trim().length > 0;
+  const depositAmount = parseAmount(deposit.amount);
+  const depositValid = depositAmount !== null && depositAmount > 0;
+
+  const submitWithdraw = async () => {
+    if (!withdrawValid || withdrawAmount === null) return;
     try {
       await api.post('/admin/app-cashbox/withdrawal', {
-        amount: parseFloat(withdrawalForm.amount),
-        reason: withdrawalForm.reason,
-        bankInfo: {
-          bank: withdrawalForm.bank,
-          account: withdrawalForm.account,
-          holderName: withdrawalForm.holderName,
-        },
+        amount: withdrawAmount,
+        reason: withdrawForm.reason,
+        bankInfo: { bank: withdrawForm.bank, account: withdrawForm.account, holderName: withdrawForm.holderName },
       });
-
-      setMessage({ type: 'success', text: 'Solicitação de saque criada!' });
-      setShowWithdrawalModal(false);
-      setWithdrawalForm({ amount: '', bank: '', account: '', holderName: '', reason: '' });
-      loadCashboxData();
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.error || 'Erro ao solicitar saque';
-      setMessage({ type: 'error', text: errorMsg });
+    } catch (err) {
+      throw flattenServerError(err, 'Erro ao pedir a retirada');
     }
+    setWithdrawOpen(false);
+    setWithdrawForm(EMPTY_WITHDRAW);
+    showToast('Retirada pedida. Ela aguarda aprovação.', 'success');
+    await load();
   };
 
-  const handleRegisterDeposit = async () => {
-    if (!depositForm.amount) {
-      setMessage({ type: 'error', text: 'Informe o valor do depósito' });
-      return;
-    }
-
+  const submitDeposit = async () => {
+    if (!depositValid || depositAmount === null) return;
     try {
-      await api.post('/admin/app-cashbox/deposit', {
-        amount: parseFloat(depositForm.amount),
-        reason: depositForm.reason,
-      });
-
-      setMessage({ type: 'success', text: 'Depósito registrado!' });
-      setShowDepositModal(false);
-      setDepositForm({ amount: '', reason: '' });
-      loadCashboxData();
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.error || 'Erro ao registrar depósito';
-      setMessage({ type: 'error', text: errorMsg });
+      await api.post('/admin/app-cashbox/deposit', { amount: depositAmount, reason: deposit.reason });
+    } catch (err) {
+      throw flattenServerError(err, 'Erro ao registrar o depósito');
     }
+    setDepositOpen(false);
+    setDeposit({ amount: '', reason: '' });
+    showToast('Depósito registrado.', 'success');
+    await load();
   };
 
-  const handleApproveWithdrawal = async (id: string) => {
+  const submitApprove = async () => {
+    if (!approving) return;
     try {
-      await api.put(`/admin/app-cashbox/withdrawals/${id}/approve`);
-      setMessage({ type: 'success', text: 'Saque aprovado!' });
-      loadCashboxData();
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.error || 'Erro ao aprovar saque';
-      setMessage({ type: 'error', text: errorMsg });
+      await api.put(`/admin/app-cashbox/withdrawals/${approving._id}/approve`);
+    } catch (err) {
+      throw flattenServerError(err, 'Erro ao aprovar a retirada');
     }
+    setApproving(null);
+    showToast('Retirada aprovada.', 'success');
+    await load();
   };
 
-  const handleRejectWithdrawal = async (id: string) => {
-    const reason = prompt('Motivo da rejeição:');
-    if (!reason) return;
-
+  const submitReject = async () => {
+    if (!rejecting) return;
     try {
-      await api.put(`/admin/app-cashbox/withdrawals/${id}/reject`, {
-        rejectionReason: reason,
-      });
-      setMessage({ type: 'success', text: 'Saque rejeitado!' });
-      loadCashboxData();
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.error || 'Erro ao rejeitar saque';
-      setMessage({ type: 'error', text: errorMsg });
+      await api.put(`/admin/app-cashbox/withdrawals/${rejecting._id}/reject`, { rejectionReason: rejectReason });
+    } catch (err) {
+      throw flattenServerError(err, 'Erro ao recusar a retirada');
     }
+    setRejecting(null);
+    setRejectReason('');
+    showToast('Retirada recusada.', 'success');
+    await load();
   };
 
-  if (authLoading || loading) {
+  const statementColumns: AdminColumn<StatementItem>[] = [
+    { key: 'origem', header: 'Origem', primary: true, render: (s) => sourceLabel(s.source) },
+    { key: 'quando', header: 'Quando', render: (s) => dateTime(s.date) },
+    {
+      key: 'tipo', header: 'Tipo',
+      render: (s) => <StatusTag tone={isIncome(s) ? 'ok' : 'neutral'}>{isIncome(s) ? 'Entrada' : 'Saída'}</StatusTag>,
+    },
+    { key: 'pedido', header: 'Pedido', render: (s) => (s.orderId ? `#${String(s.orderId).slice(-8)}` : '—') },
+    {
+      key: 'valor', header: 'Valor', align: 'right',
+      render: (s) => `${isIncome(s) ? '+' : '−'}${formatMoney(s.amount)}`,
+    },
+  ];
+
+  const withdrawalColumns: AdminColumn<CashWithdrawal>[] = [
+    {
+      key: 'para', header: 'Para', primary: true,
+      render: (w) => (
+        <span>
+          {bankTitle(w)}
+          {w.bankInfo?.account && <span className={ui.sub}>{w.bankInfo.account}</span>}
+        </span>
+      ),
+    },
+    { key: 'quando', header: 'Pedida em', render: (w) => dateTime(w.requestedAt) },
+    {
+      key: 'situacao', header: 'Situação',
+      render: (w) => (
+        <span>
+          <StatusTag tone={WITHDRAWAL_STATUS[w.status]?.tone ?? 'neutral'}>{WITHDRAWAL_STATUS[w.status]?.label ?? w.status}</StatusTag>
+          {w.rejectionReason && <span className={ui.sub}>{w.rejectionReason}</span>}
+        </span>
+      ),
+    },
+    { key: 'valor', header: 'Valor', align: 'right', render: (w) => formatMoney(w.amount) },
+  ];
+
+  const withdrawalAction = (w: CashWithdrawal) => {
+    if (w.status !== 'pending' || !canApprove) return null;
     return (
-      <ProtectedRoute required_permission="cashbox:view">
-        <div className={styles.loadingWrapper}>
-          <LoadingSkeleton variant="dashboard" />
-        </div>
-      </ProtectedRoute>
+      <div className={ui.rowActions}>
+        <Button size="sm" className={ui.touch} onClick={() => setApproving(w)}>Aprovar</Button>
+        <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setRejecting(w); setRejectReason(''); }}>
+          Recusar
+        </Button>
+      </div>
     );
-  }
-
-  const getSourceLabel = (source: string) => {
-    const labels: { [key: string]: string } = {
-      product_commission: 'Comissão de Produto',
-      delivery_commission: 'Comissão de Entrega',
-      order_payment: 'Pagamento de Pedido',
-      order_refund: 'Reembolso de Pedido',
-      payout_paid: 'Repasse Pago',
-      manual_deposit: 'Depósito Manual',
-      manual_withdrawal: 'Saque',
-      withdrawal_fee: 'Taxa de Saque',
-    };
-    return labels[source] || source;
   };
+
+  const actions = (canWithdraw || canDeposit) ? (
+    <div className={blocks.actions}>
+      {canWithdraw && <Button className={ui.touch} onClick={() => setWithdrawOpen(true)}>Pedir retirada</Button>}
+      {canDeposit && <Button variant="secondary" className={ui.touch} onClick={() => setDepositOpen(true)}>Registrar depósito</Button>}
+    </div>
+  ) : undefined;
+
+  const pendingCount = data ? data.withdrawals.filter((w) => w.status === 'pending').length : 0;
+  const orderedWithdrawals = data
+    ? [...data.withdrawals].sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending'))
+    : [];
+  const c = data?.cashbox;
 
   return (
     <ProtectedRoute required_permission="cashbox:view">
-      <div className={styles.page}>
-        <div className={styles.header}>
-          <div>
-            <h1 className={styles.headerTitle}><Icon name="bank" size={20} /> Caixa do App</h1>
-            <p className={styles.headerSubtitle}>Gerenciar saldo, saques e depósitos da plataforma</p>
-          </div>
-          <div className={styles.headerActions}>
-            <button
-              onClick={() => setShowDepositModal(true)}
-              className={styles.btnDeposit}
-            >
-              <Icon name="plus" size={14} /> Registrar Depósito
-            </button>
-            <button
-              onClick={() => setShowWithdrawalModal(true)}
-              className={styles.btnWithdraw}
-            >
-              <Icon name="send" size={14} /> Solicitar Saque
-            </button>
-          </div>
-        </div>
-
-        {message && (
-          <div className={message.type === 'success' ? styles.alertSuccess : styles.alertError}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className={styles.tabs}>
-          {['overview', 'statement', 'withdraw'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-            >
-              {tab === 'overview' && <><Icon name="chart-bar" size={14} /> Resumo</>}
-              {tab === 'statement' && <><Icon name="clipboard" size={14} /> Extrato</>}
-              {tab === 'withdraw' && <><Icon name="send" size={14} /> Saques</>}
-            </button>
-          ))}
-        </div>
-
-        {/* Overview Tab */}
-        {activeTab === 'overview' && cashbox && (
-          <div>
-            {/* Modo Asaas: o dinheiro real fica na conta-mãe do gateway, não no caixa legado */}
-            {cashbox.asaas?.enabled && (
-              <div
-                className={styles.statCard}
-                style={{ marginBottom: 16, borderColor: 'var(--drop-purple, #6C2BD9)' }}
-              >
-                <div className={styles.statLabel}>
-                  <Icon name="bank" size={14} /> Saldo real — conta-mãe Asaas (custódia)
-                </div>
-                <div className={styles.statValueGreen}>
-                  {cashbox.asaas.balance != null
-                    ? `R$ ${cashbox.asaas.balance.toFixed(2)}`
-                    : '— indisponível'}
-                </div>
-                <div className={styles.historyDate} style={{ marginTop: 6 }}>
-                  {cashbox.asaas.error
-                    ? `Não foi possível consultar o Asaas: ${cashbox.asaas.error}`
-                    : 'Neste modo, a custódia e os repasses ficam no Asaas. Os números abaixo (caixa legado) são apenas contábeis.'}
-                </div>
-              </div>
+      <AdminShell title="Dinheiro · Caixa" tabs="dinheiro" actions={actions}>
+        {loadError ? (
+          <LoadError message={loadError} onRetry={load} />
+        ) : !data || !c ? (
+          <LoadSkeleton lines={6} />
+        ) : (
+          <div className={ui.stack}>
+            {c.asaas?.enabled && (
+              <section className={blocks.block} aria-label="Conta-mãe Asaas">
+                <Kpi
+                  label="Saldo real · conta-mãe Asaas"
+                  value={c.asaas.balance != null ? formatMoney(c.asaas.balance) : 'Indisponível'}
+                  hint={c.asaas.error
+                    ? `Não deu para consultar o Asaas: ${c.asaas.error}`
+                    : 'Neste modo a custódia e os repasses ficam no Asaas; os números abaixo são contábeis.'}
+                />
+              </section>
             )}
 
-            <div className={styles.statsGrid}>
-              {/* Custodia Total */}
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Custodia Total</div>
-                <div className={styles.statValueGreen}>
-                  R$ {cashbox.balance.toFixed(2)}
-                </div>
-                <div className={styles.historyDate} style={{ marginTop: 4 }}>
-                  Dinheiro que entrou e será repassado às subcontas
-                </div>
-              </div>
-
-              {/* Lucro Liquido = só as comissões embolsadas */}
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Lucro Liquido da Plataforma</div>
-                <div className={styles.statValueBlue}>
-                  R$ {(cashbox.platformNet ?? 0).toFixed(2)}
-                </div>
-                <div className={styles.historyDate} style={{ marginTop: 4 }}>
-                  Só as comissões (produto + entrega) que a plataforma embolsa
-                </div>
-              </div>
-
-              {/* Obrigacoes Pendentes */}
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Obrigacoes Pendentes</div>
-                <div className={styles.statValueRed} style={{ color: '#f59e0b' }}>
-                  R$ {(cashbox.pendingObligations ?? 0).toFixed(2)}
-                </div>
-              </div>
-
-              {/* Renda Total */}
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Renda Total</div>
-                <div className={styles.statValueBlue}>
-                  R$ {cashbox.totalIncome.toFixed(2)}
-                </div>
-              </div>
-
-              {/* Saidas Totais */}
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Saidas Totais</div>
-                <div className={styles.statValueRed}>
-                  R$ {cashbox.totalExpenses.toFixed(2)}
-                </div>
-              </div>
+            <div className={blocks.kpis}>
+              <Kpi label="Lucro líquido do DROP" value={money(c.platformNet)} hint="Só as comissões que a plataforma recebe" />
+              <Kpi label="Obrigações pendentes" value={money(c.pendingObligations)} hint="Repasses e saques ainda a pagar" />
+              <Kpi label="Custódia total" value={money(c.balance)} hint="Entrou e será repassado" />
+              <Kpi label="Renda total" value={money(c.totalIncome)} />
+              <Kpi label="Saídas totais" value={money(c.totalExpenses)} />
             </div>
 
-            {/* Últimas transações */}
-            <div className={styles.historyCard}>
-              <h3 className={styles.historyTitle}><Icon name="list" size={16} /> Últimas Movimentações</h3>
-              <div className={styles.historyScroll}>
-                {cashbox.history.slice(0, 10).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`${styles.historyRow} ${idx >= 9 ? styles.historyRowLast : ''}`}
-                  >
-                    <div>
-                      <div className={styles.historySource}>
-                        {getSourceLabel(item.source)}
-                      </div>
-                      <div className={styles.historyDate}>
-                        {new Date(item.date).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-                    <div className={item.type === 'income' ? styles.amountIncome : styles.amountExpense}>
-                      {item.type === 'income' ? '+' : '-'} R$ {item.amount.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Statement Tab */}
-        {activeTab === 'statement' && statement && (
-          <>
-            {/* Tabela (desktop) */}
-            <div className={`${styles.tableCard} ${styles.statementDesktop}`}>
-              <div className={styles.tableScroll}>
-                <table className={styles.table}>
-                  <thead className={styles.tableHead}>
-                    <tr>
-                      <th>Tipo</th>
-                      <th>Origem</th>
-                      <th>Data</th>
-                      <th className={styles.thRight}>Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statement.statement?.map((item: any, idx: number) => (
-                      <tr
-                        key={idx}
-                        className={styles.tableRow}
-                        onClick={() => setDetailItem(item)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td>
-                          <span className={item.type === 'income' ? styles.badgeIncome : styles.badgeExpense}>
-                            {item.type === 'income' ? 'Entrada' : 'Saída'}
-                          </span>
-                        </td>
-                        <td>{getSourceLabel(item.source)}</td>
-                        <td>
-                          {new Date(item.date).toLocaleString('pt-BR')}
-                        </td>
-                        <td className={`${styles.tdRight} ${item.type === 'income' ? styles.tdAmountIncome : styles.tdAmountExpense}`}>
-                          {item.type === 'income' ? '+' : '-'} R$ {item.amount.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Lista de cards (mobile) */}
-            <div className={styles.statementMobile}>
-              {statement.statement?.map((item: any, idx: number) => (
-                <div
-                  key={idx}
-                  className={styles.statementCard}
-                  onClick={() => setDetailItem(item)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className={styles.statementCardHeader}>
-                    <span className={item.type === 'income' ? styles.badgeIncome : styles.badgeExpense}>
-                      {item.type === 'income' ? 'Entrada' : 'Saída'}
-                    </span>
-                    <span className={item.type === 'income' ? styles.tdAmountIncome : styles.tdAmountExpense}>
-                      {item.type === 'income' ? '+' : '-'} R$ {item.amount.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className={styles.statementCardSource}>{getSourceLabel(item.source)}</div>
-                  <div className={styles.statementCardDate}>
-                    {new Date(item.date).toLocaleString('pt-BR')}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Withdrawals Tab */}
-        {activeTab === 'withdraw' && (
-          <div>
-            {withdrawals.length > 0 ? (
-              <div className={styles.withdrawalsGrid}>
-                {withdrawals.map((w) => (
-                  <div key={w._id} className={styles.withdrawalCard}>
-                    <div className={styles.withdrawalHeader}>
-                      <div>
-                        <div className={styles.withdrawalAmount}>
-                          R$ {w.amount.toFixed(2)}
-                        </div>
-                        <div className={styles.withdrawalDate}>
-                          {new Date(w.requestedAt).toLocaleString('pt-BR')}
-                        </div>
-                      </div>
-                      <span className={
-                        w.status === 'pending' ? styles.badgePending :
-                        w.status === 'approved' ? styles.badgeApproved :
-                        w.status === 'paid' ? styles.badgePaid :
-                        styles.badgeRejected
-                      }>
-                        {w.status === 'pending' ? 'Pendente' : w.status === 'approved' ? 'Aprovado' : w.status === 'paid' ? 'Pago' : 'Rejeitado'}
-                      </span>
-                    </div>
-
-                    {w.bankInfo && (
-                      <div className={styles.bankInfoBox}>
-                        <div><Icon name="bank" size={13} /> {w.bankInfo.bank}</div>
-                        <div><Icon name="user" size={13} /> {w.bankInfo.holderName}</div>
-                        <div><Icon name="credit-card" size={13} /> {w.bankInfo.account}</div>
-                      </div>
-                    )}
-
-                    {w.rejectionReason && (
-                      <div className={styles.rejectionBox}>
-                        <Icon name="x-circle" size={13} /> {w.rejectionReason}
-                      </div>
-                    )}
-
-                    {w.status === 'pending' && (
-                      <div className={styles.withdrawalActions}>
-                        <button
-                          onClick={() => handleApproveWithdrawal(w._id)}
-                          className={styles.btnApprove}
-                        >
-                          <Icon name="check" size={14} /> Aprovar
-                        </button>
-                        <button
-                          onClick={() => handleRejectWithdrawal(w._id)}
-                          className={styles.btnReject}
-                        >
-                          <Icon name="x" size={14} /> Rejeitar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className={styles.withdrawalsEmpty}>
-                Nenhuma solicitação de saque
-              </div>
+            {pendingCount > 0 && (
+              <Alert tone="warning" title={pendingCount === 1 ? '1 retirada aguardando aprovação' : `${pendingCount} retiradas aguardando aprovação`}>
+                {canApprove ? 'Aprove ou recuse na lista de retiradas.' : 'Quem tem a permissão de aprovar retiradas decide.'}
+              </Alert>
             )}
+
+            <section className={blocks.block} aria-label="Retiradas">
+              <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Retiradas</h2></div>
+              <AdminTable
+                columns={withdrawalColumns}
+                rows={orderedWithdrawals}
+                rowKey={(w) => w._id}
+                rowLabel={(w) => bankTitle(w)}
+                rowAction={withdrawalAction}
+                empty="Nenhuma retirada pedida"
+              />
+            </section>
+
+            <section className={blocks.block} aria-label="Extrato do caixa">
+              <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Extrato do caixa</h2></div>
+              <AdminTable
+                columns={statementColumns}
+                rows={data.statement}
+                rowKey={statementKey}
+                onRowClick={(s) => setDetail(s)}
+                empty="Sem movimentos ainda"
+              />
+            </section>
           </div>
         )}
 
-        {/* Withdrawal Modal */}
-        {showWithdrawalModal && (
-          <div className={styles.modalOverlay}>
-            <div className={`${styles.modalBox} ${styles.modalBoxMd}`}>
-              <h2 className={styles.modalTitle}><Icon name="send" size={18} /> Solicitar Saque</h2>
+        <AdminSheet
+          open={withdrawOpen}
+          title="Pedir retirada"
+          onClose={() => setWithdrawOpen(false)}
+          primary={{ label: 'Pedir retirada', disabled: !withdrawValid, onClick: submitWithdraw }}
+        >
+          <p className={blocks.muted}>A retirada fica aguardando aprovação de quem pode aprovar retiradas.</p>
+          <Input
+            label="Valor (R$)"
+            value={withdrawForm.amount}
+            onChange={(v) => setWithdrawForm({ ...withdrawForm, amount: v })}
+            placeholder="0,00"
+            inputMode="decimal"
+            error={amountFieldError(withdrawForm.amount)}
+          />
+          {withdrawAmount !== null && withdrawAmount > 0 && (
+            <p className={blocks.muted}>{`Será retirado: ${formatMoney(withdrawAmount)}`}</p>
+          )}
+          <Input label="Banco" value={withdrawForm.bank} onChange={(v) => setWithdrawForm({ ...withdrawForm, bank: v })} placeholder="ex: Banco do Brasil" />
+          <Input label="Agência / conta" value={withdrawForm.account} onChange={(v) => setWithdrawForm({ ...withdrawForm, account: v })} placeholder="ex: 1234-5 / 123456789-0" />
+          <Input label="Titular da conta" value={withdrawForm.holderName} onChange={(v) => setWithdrawForm({ ...withdrawForm, holderName: v })} placeholder="Nome" />
+          <TextAreaField label="Motivo (opcional)" value={withdrawForm.reason} onChange={(v) => setWithdrawForm({ ...withdrawForm, reason: v })} placeholder="Motivo do saque..." />
+        </AdminSheet>
 
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  Valor (R$)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={withdrawalForm.amount}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })}
-                  className={styles.input}
-                  placeholder="0.00"
-                />
+        <AdminSheet
+          open={depositOpen}
+          title="Registrar depósito"
+          onClose={() => setDepositOpen(false)}
+          primary={{ label: 'Registrar depósito', disabled: !depositValid, onClick: submitDeposit }}
+        >
+          <Input
+            label="Valor (R$)"
+            value={deposit.amount}
+            onChange={(v) => setDeposit({ ...deposit, amount: v })}
+            placeholder="0,00"
+            inputMode="decimal"
+            error={amountFieldError(deposit.amount)}
+          />
+          {depositAmount !== null && depositAmount > 0 && (
+            <p className={blocks.muted}>{`Será registrado: ${formatMoney(depositAmount)}`}</p>
+          )}
+          <TextAreaField label="Motivo / descrição" value={deposit.reason} onChange={(v) => setDeposit({ ...deposit, reason: v })} placeholder="Descrição do depósito..." />
+        </AdminSheet>
+
+        <AdminSheet
+          open={!!approving}
+          title="Aprovar retirada"
+          onClose={() => setApproving(null)}
+          primary={{ label: 'Confirmar aprovação', onClick: submitApprove }}
+        >
+          {approving && (
+            <p className={blocks.muted}>
+              {formatMoney(approving.amount)} para {bankTitle(approving)}
+              {approving.bankInfo?.account ? ` (${approving.bankInfo.account})` : ''}. O valor sai do caixa da plataforma.
+            </p>
+          )}
+        </AdminSheet>
+
+        <AdminSheet
+          open={!!rejecting}
+          title="Recusar retirada"
+          onClose={() => setRejecting(null)}
+          primary={{ label: 'Recusar retirada', tone: 'danger', disabled: !rejectReason.trim(), onClick: submitReject }}
+        >
+          {rejecting && <p className={blocks.muted}>{formatMoney(rejecting.amount)} para {bankTitle(rejecting)}.</p>}
+          <TextAreaField label="Motivo da recusa" value={rejectReason} onChange={setRejectReason} placeholder="Ex.: conta de destino errada" />
+        </AdminSheet>
+
+        <AdminSheet open={!!detail} title={detail ? sourceLabel(detail.source) : ''} onClose={() => setDetail(null)} secondaryLabel="Fechar">
+          {detail && (
+            <dl className={ui.detail}>
+              <div><dt>Valor</dt><dd>{`${isIncome(detail) ? '+' : '−'}${formatMoney(Number(detail.amount || 0))}`}</dd></div>
+              <div><dt>Tipo</dt><dd>{isIncome(detail) ? 'Entrada' : 'Saída'}</dd></div>
+              <div>
+                <dt>Data e hora</dt>
+                <dd>{new Date(detail.date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</dd>
               </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  Banco
-                </label>
-                <input
-                  type="text"
-                  value={withdrawalForm.bank}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, bank: e.target.value })}
-                  className={styles.input}
-                  placeholder="ex: Banco do Brasil"
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  Agência / Conta
-                </label>
-                <input
-                  type="text"
-                  value={withdrawalForm.account}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, account: e.target.value })}
-                  className={styles.input}
-                  placeholder="ex: 1234-5 / 123456789-0"
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  Titular da Conta
-                </label>
-                <input
-                  type="text"
-                  value={withdrawalForm.holderName}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, holderName: e.target.value })}
-                  className={styles.input}
-                  placeholder="Nome"
-                />
-              </div>
-
-              <div className={styles.formGroupLast}>
-                <label className={styles.label}>
-                  Motivo (opcional)
-                </label>
-                <textarea
-                  value={withdrawalForm.reason}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, reason: e.target.value })}
-                  className={styles.textarea}
-                  placeholder="Motivo do saque..."
-                />
-              </div>
-
-              <div className={styles.modalActions}>
-                <button
-                  onClick={() => setShowWithdrawalModal(false)}
-                  className={styles.btnCancel}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRequestWithdrawal}
-                  className={styles.btnSubmitBlue}
-                >
-                  Solicitar Saque
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Deposit Modal */}
-        {showDepositModal && (
-          <div className={styles.modalOverlay}>
-            <div className={`${styles.modalBox} ${styles.modalBoxSm}`}>
-              <h2 className={styles.modalTitle}><Icon name="wallet" size={18} /> Registrar Depósito</h2>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>
-                  Valor (R$)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={depositForm.amount}
-                  onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
-                  className={styles.input}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div className={styles.formGroupLast}>
-                <label className={styles.label}>
-                  Motivo / Descrição
-                </label>
-                <textarea
-                  value={depositForm.reason}
-                  onChange={(e) => setDepositForm({ ...depositForm, reason: e.target.value })}
-                  className={styles.textarea}
-                  placeholder="Descrição do depósito..."
-                />
-              </div>
-
-              <div className={styles.modalActions}>
-                <button
-                  onClick={() => setShowDepositModal(false)}
-                  className={styles.btnCancel}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRegisterDeposit}
-                  className={styles.btnSubmitGreen}
-                >
-                  Registrar Depósito
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL: Detalhes da transação */}
-        {detailItem && (
-          <div
-            onClick={() => setDetailItem(null)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 1000, padding: 16
-            }}
-          >
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: 'var(--drop-surface)', border: '1px solid var(--drop-border)',
-                borderRadius: 'var(--drop-radius-lg)', padding: 24, maxWidth: 480, width: '100%',
-                color: 'var(--drop-white)', fontFamily: 'var(--font-body)',
-                maxHeight: '85vh', overflowY: 'auto'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              {detail.reason && <div><dt>Motivo / descrição</dt><dd>{detail.reason}</dd></div>}
+              {detail.orderId && (
                 <div>
-                  <span className={detailItem.type === 'income' ? styles.badgeIncome : styles.badgeExpense}>
-                    {detailItem.type === 'income' ? 'Entrada' : 'Saída'}
-                  </span>
-                  <h3 style={{ margin: '10px 0 0 0', fontSize: 18, fontFamily: 'var(--font-display)' }}>
-                    {getSourceLabel(detailItem.source)}
-                  </h3>
+                  <dt>Pedido</dt>
+                  <dd><Link href={`/order/${detail.orderId}`} className={ui.link}>{`#${String(detail.orderId).slice(-8)}`}</Link></dd>
                 </div>
-                <button
-                  onClick={() => setDetailItem(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--drop-text-muted)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}
-                  aria-label="Fechar"
-                >✕</button>
-              </div>
-
-              <div style={{
-                padding: '16px 0', borderTop: '1px solid var(--drop-border)',
-                borderBottom: '1px solid var(--drop-border)', marginBottom: 16
-              }}>
-                <div style={{ fontSize: 12, color: 'var(--drop-text-muted)', marginBottom: 4 }}>Valor</div>
-                <div
-                  className={detailItem.type === 'income' ? styles.tdAmountIncome : styles.tdAmountExpense}
-                  style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-display)' }}
-                >
-                  {detailItem.type === 'income' ? '+' : '-'} R$ {Number(detailItem.amount || 0).toFixed(2)}
-                </div>
-              </div>
-
-              <dl style={{ margin: 0, display: 'grid', gap: 12 }}>
-                <div>
-                  <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Tipo</dt>
-                  <dd style={{ margin: 0, fontSize: 14 }}>{detailItem.type}</dd>
-                </div>
-                <div>
-                  <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Origem</dt>
-                  <dd style={{ margin: 0, fontSize: 14 }}>{detailItem.source}</dd>
-                </div>
-                <div>
-                  <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Data e hora</dt>
-                  <dd style={{ margin: 0, fontSize: 14 }}>
-                    {new Date(detailItem.date).toLocaleString('pt-BR', {
-                      day: '2-digit', month: '2-digit', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit', second: '2-digit'
-                    })}
-                  </dd>
-                </div>
-                {detailItem.reason && (
-                  <div>
-                    <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Motivo / descrição</dt>
-                    <dd style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>{detailItem.reason}</dd>
-                  </div>
-                )}
-                {detailItem.orderId && (
-                  <div>
-                    <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Pedido</dt>
-                    <dd style={{ margin: 0, fontSize: 13 }}>
-                      <a
-                        href={`/admin/order/${detailItem.orderId}`}
-                        style={{ color: 'var(--drop-purple-2)', fontFamily: 'monospace', textDecoration: 'underline' }}
-                      >
-                        #{String(detailItem.orderId).slice(-8)}
-                      </a>
-                    </dd>
-                  </div>
-                )}
-                {detailItem.deliveryId && (
-                  <div>
-                    <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Entrega</dt>
-                    <dd style={{ margin: 0, fontSize: 13, fontFamily: 'monospace' }}>
-                      #{String(detailItem.deliveryId).slice(-8)}
-                    </dd>
-                  </div>
-                )}
-                {detailItem.withdrawalId && (
-                  <div>
-                    <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>Saque</dt>
-                    <dd style={{ margin: 0, fontSize: 13, fontFamily: 'monospace' }}>
-                      #{String(detailItem.withdrawalId).slice(-8)}
-                    </dd>
-                  </div>
-                )}
-                {detailItem._id && (
-                  <div>
-                    <dt style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--drop-text-muted)', letterSpacing: '0.06em', marginBottom: 2 }}>ID da transação</dt>
-                    <dd style={{ margin: 0, fontSize: 11, fontFamily: 'monospace', color: 'var(--drop-text-muted)', wordBreak: 'break-all' }}>
-                      {String(detailItem._id)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-
-              <button
-                onClick={() => setDetailItem(null)}
-                style={{
-                  marginTop: 20, width: '100%', padding: '11px 16px',
-                  background: 'var(--drop-purple)', border: 'none',
-                  borderRadius: 'var(--drop-radius-sm)', color: 'var(--drop-white)',
-                  cursor: 'pointer', fontSize: 14, fontWeight: 600
-                }}
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+              )}
+              {detail.deliveryId && <div><dt>Entrega</dt><dd className={ui.mono}>{`#${String(detail.deliveryId).slice(-8)}`}</dd></div>}
+              {detail.withdrawalId && <div><dt>Retirada</dt><dd className={ui.mono}>{`#${String(detail.withdrawalId).slice(-8)}`}</dd></div>}
+              {detail._id && <div><dt>ID da transação</dt><dd className={ui.mono}>{String(detail._id)}</dd></div>}
+            </dl>
+          )}
+        </AdminSheet>
+      </AdminShell>
     </ProtectedRoute>
   );
 }

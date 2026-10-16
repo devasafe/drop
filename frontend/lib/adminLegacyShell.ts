@@ -7,7 +7,7 @@ import { adminScreenTitle } from './adminNav';
  * o AdminShell; página apagada sai junto. lib/__tests__/adminLegacyShell.test.ts cobra os dois lados.
  */
 export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
-  '/admin/analytics', '/admin/app-cashbox', '/admin/conversas',
+  '/admin/analytics', '/admin/conversas',
   '/admin/dashboard', '/admin/estornos',
   '/admin/payouts', '/admin/pricing-config',
   '/admin/ranking-config',

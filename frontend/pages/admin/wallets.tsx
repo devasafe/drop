@@ -27,6 +27,7 @@ import { Select } from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
+import { amountFieldError, parseAmount } from '../../lib/adminAmount';
 import { formatMoney } from '../../lib/money';
 
 interface WalletRow {
@@ -68,13 +69,6 @@ const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: 
 const when = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const txKey = (t: WalletTransaction) => t._id ?? `${t.createdAt}|${t.amount}|${t.reason ?? ''}`;
-/**
- * Valor do crédito sem pagamento: tem que ser exatamente o digitado. Só dígitos, com vírgula ou ponto e até
- * 2 casas ("25", "25,5", "25.50"); separador de milhar, letras, sinal, espaço e notação "e" são recusados
- * (parseFloat leria "1.234,56" como 1.234 e "1e3" como 1000). Recusado → null.
- */
-const AMOUNT_RE = /^\d+([.,]\d{1,2})?$/;
-const parseAmount = (v: string): number | null => (AMOUNT_RE.test(v) ? Number(v.replace(',', '.')) : null);
 
 export default function AdminWalletsPage() {
   const { user } = useAuth();
@@ -174,11 +168,8 @@ export default function AdminWalletsPage() {
   };
 
   const creditValue = parseAmount(creditAmount);
-  const creditAmountError = !creditAmount
-    ? undefined
-    : creditValue === null
-      ? 'Use só números, com até 2 casas (ex.: 25,50).'
-      : creditValue <= 0 ? 'O valor tem que ser maior que zero.' : undefined;
+  // valor do crédito sem pagamento: exatamente o digitado (lib/adminAmount)
+  const creditAmountError = amountFieldError(creditAmount);
   const creditValid = creditValue !== null && creditValue > 0 && creditReason.trim().length >= 10;
 
   const submitCredit = async () => {
