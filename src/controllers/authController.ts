@@ -298,7 +298,7 @@ export const switchRole = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: 'Missing newRole' });
     }
 
-    if (!['cliente', 'lojista', 'motoboy', 'ceo', 'marketing', 'gerente_geral', 'gerente_clientes'].includes(newRole)) {
+    if (!['cliente', 'lojista', 'motoboy', 'ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(newRole)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
