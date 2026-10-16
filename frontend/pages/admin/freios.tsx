@@ -1,170 +1,172 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useCallback, useEffect, useId, useState } from 'react';
 import api from '../../lib/api';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import { useAuth } from '../../contexts/AuthContext';
-import { SettlementSwitchCard } from '../../components/drop/settlement/SettlementSwitchCard';
+import AdminShell from '../../components/admin/AdminShell';
+import { SettlementModeCard } from '../../components/admin/regras/SettlementModeCard';
+import { SaasFeeCard } from '../../components/admin/regras/SaasFeeCard';
+import type { BrakeKey, SwitchesState } from '../../components/admin/regras/switches';
+import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import styles from './Freios.module.css';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { useAuth } from '../../contexts/AuthContext';
+import { adminErrorMessage } from '../../lib/adminErrors';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import styles from '../../components/admin/freios/Freios.module.css';
 
-type SwitchKey = 'rankingPrizesEnabled' | 'benefitsRedeemEnabled' | 'gamificationPointsEnabled';
+/**
+ * Freios (D3a, tela 23): pausar funções que custam dinheiro. GET /admin/switches e
+ * PUT /admin/switches { [chave]: !atual } — iguais aos de hoje; a confirmação fica no cartão.
+ */
+interface BrakeDef { key: BrakeKey; title: string; on: string; off: string; cost: string }
 
-interface SwitchDef { key: SwitchKey; title: string; on: string; off: string; cost: string }
-
-const SWITCHES: SwitchDef[] = [
+const BRAKES: BrakeDef[] = [
   {
     key: 'rankingPrizesEnabled',
     title: 'Prêmios do ranking',
-    on: 'Ativo — dá pra distribuir os prêmios mensais (dinheiro na carteira dos top motoboys).',
-    off: 'Pausado — nenhum prêmio é pago. A distribuição fica bloqueada.',
+    on: 'Dá para distribuir os prêmios mensais (dinheiro na carteira dos melhores motoboys).',
+    off: 'Nenhum prêmio é pago. A distribuição fica bloqueada.',
     cost: 'R$ 500 / 300 / 150 por mês',
   },
   {
     key: 'benefitsRedeemEnabled',
     title: 'Resgate de benefícios',
-    on: 'Ativo — motoboys trocam pontos por benefícios (alguns creditam saldo real).',
-    off: 'Pausado — o resgate fica bloqueado. Nenhum crédito é gerado.',
+    on: 'Motoboys trocam pontos por benefícios (alguns creditam saldo real).',
+    off: 'O resgate fica bloqueado. Nenhum crédito é gerado.',
     cost: 'R$ 20 / 50 por resgate',
   },
   {
     key: 'gamificationPointsEnabled',
     title: 'Gamificação (pontos)',
-    on: 'Ativo — motoboys acumulam pontos por corrida (alimenta ranking e resgates).',
-    off: 'Pausado — não acumula pontos. As conquistas/badges continuam funcionando.',
+    on: 'Motoboys acumulam pontos por corrida (alimenta ranking e resgates).',
+    off: 'Não acumula pontos. As conquistas continuam funcionando.',
     cost: 'Indireto (habilita ranking e resgates)',
   },
 ];
 
 export default function FreiosPage() {
-  const router = useRouter();
-  const { user } = useAuth() as any;
-  const isCeo = (user?.activeRole || user?.role) === 'ceo';
-  const [state, setState] = useState<(Record<SwitchKey, boolean> & { settlementMode?: 'custodia' | 'direto'; saasMonthlyFee?: number; saasTrialDays?: number; saasGraceDays?: number; directTransfersEnabled?: boolean }) | null>(null);
-  // Mensalidade SaaS (CEO): campos em texto para aceitar vírgula; validados ao salvar.
-  const [fee, setFee] = useState('');
-  const [trial, setTrial] = useState('');
-  const [grace, setGrace] = useState('');
-  const [pix, setPix] = useState(false);
-  const [savingFee, setSavingFee] = useState(false);
-  const [busy, setBusy] = useState<SwitchKey | null>(null);
-  const [msg, setMsg] = useState('');
+  return (
+    <ProtectedRoute required_permission="settings:manage">
+      <AdminShell title="Freios">
+        <FreiosBody />
+      </AdminShell>
+    </ProtectedRoute>
+  );
+}
 
-  useEffect(() => {
-    api.get('/admin/switches').then((r) => { setState(r.data); syncSaas(r.data); }).catch(() => setMsg('Falha ao carregar os freios.'));
-  }, []);
+function BrakeCard({ def, on, onSave }: { def: BrakeDef; on: boolean; onSave: (next: boolean) => Promise<void> }) {
+  const titleId = useId();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const syncSaas = (d: any) => {
-    setFee(String(d?.saasMonthlyFee ?? 0).replace('.', ','));
-    setTrial(String(d?.saasTrialDays ?? 14));
-    setGrace(String(d?.saasGraceDays ?? 5));
-    setPix(!!d?.directTransfersEnabled);
-  };
-
-  const saveSaas = async () => {
-    const feeN = Number(fee.trim().replace(',', '.'));
-    const trialN = Number(trial);
-    const graceN = Number(grace);
-    if (!Number.isFinite(feeN) || feeN < 0 || Math.abs(feeN * 100 - Math.round(feeN * 100)) > 1e-6) return setMsg('Valor padrão inválido (use no máximo 2 casas decimais).');
-    if (!Number.isInteger(trialN) || trialN < 0 || trialN > 365) return setMsg('Dias de teste: inteiro de 0 a 365.');
-    if (!Number.isInteger(graceN) || graceN < 0 || graceN > 60) return setMsg('Dias de tolerância: inteiro de 0 a 60.');
-    setSavingFee(true);
-    setMsg('');
+  const confirm = async () => {
+    setBusy(true);
+    setErr(null);
     try {
-      const r = await api.put('/admin/switches', { saasMonthlyFee: feeN, saasTrialDays: trialN, saasGraceDays: graceN, directTransfersEnabled: pix });
-      setState(r.data);
-      syncSaas(r.data);
-    } catch (err: any) {
-      setMsg(err?.response?.data?.error || 'Erro ao salvar.');
+      await onSave(!on);
+      setConfirming(false);
+    } catch (e) {
+      setErr(adminErrorMessage(e, 'Erro ao salvar.'));
     } finally {
-      setSavingFee(false);
-    }
-  };
-
-  const toggle = async (key: SwitchKey) => {
-    if (!state) return;
-    setBusy(key);
-    setMsg('');
-    try {
-      const r = await api.put('/admin/switches', { [key]: !state[key] });
-      setState(r.data);
-    } catch (err: any) {
-      setMsg(err?.response?.data?.error || 'Erro ao salvar.');
-    } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
   return (
-    <ProtectedRoute required_permission="settings:manage">
-      <div className={styles.page}>
-        <div className={styles.container}>
-          <button className={styles.back} onClick={() => router.push('/admin/dashboard')}>← Dashboard</button>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Freios da plataforma</h1>
-            <p className={styles.subtitle}>Pause funções que custam dinheiro — ideal na fase grátis de lançamento.</p>
-          </header>
+    <article className={styles.card} aria-labelledby={titleId}>
+      <div className={styles.cardHead}>
+        <h2 id={titleId} className={styles.cardTitle}>{def.title}</h2>
+        <span className={on ? styles.badgeOn : styles.badgeOff}>{on ? 'Ativo' : 'Pausado'}</span>
+      </div>
+      <p className={styles.desc}>{on ? def.on : def.off}</p>
+      <p className={styles.cost}>Custo: <strong>{def.cost}</strong></p>
+      {confirming ? (
+        <div className={styles.confirm} role="group" aria-label={`Confirmar: ${on ? 'pausar' : 'ativar'} ${def.title}`}>
+          <p className={styles.confirmText}>
+            {on ? `Se pausar: ${def.off}` : `Se ativar: ${def.on} Custo: ${def.cost}.`}
+          </p>
+          <div className={styles.cardActions}>
+            <Button variant="secondary" size="sm" onClick={() => setConfirming(false)} disabled={busy}>Cancelar</Button>
+            <Button variant={on ? 'danger' : 'primary'} size="sm" onClick={confirm} loading={busy}>Confirmar</Button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.cardActions}>
+          <Button variant={on ? 'secondary' : 'primary'} size="sm" onClick={() => { setErr(null); setConfirming(true); }}>
+            {on ? 'Pausar' : 'Ativar'}
+          </Button>
+        </div>
+      )}
+      {err && <p className={styles.err} role="alert">{err}</p>}
+    </article>
+  );
+}
 
-          {msg && <div className={styles.msg}>{msg}</div>}
+function FreiosBody() {
+  const { user } = useAuth();
+  const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  const [state, setState] = useState<SwitchesState | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-          {isCeo && state?.settlementMode && (
-            <SettlementSwitchCard
-              mode={state.settlementMode}
-              onChanged={(m) => setState((prev) => (prev ? { ...prev, settlementMode: m } : prev))}
-            />
-          )}
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const r = await api.get('/admin/switches');
+      setState(r.data);
+    } catch (err) {
+      setError(adminErrorMessage(err, 'Falha ao carregar os freios.'));
+    }
+  }, []);
 
-          {isCeo && state && state.saasMonthlyFee !== undefined && (
-            <section className={styles.card} aria-labelledby="saas-fee-title">
-              <div className={styles.rowTitle} id="saas-fee-title">Mensalidade SaaS</div>
-              <div className={styles.rowDesc}>Cobrança mensal das lojas no modo direto. O valor especial de cada loja fica em Contas Asaas.</div>
-              <div className={styles.fields}>
-                <label className={styles.field}>Valor padrão (R$)
-                  <input type="text" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
-                </label>
-                <label className={styles.field}>Dias de teste
-                  <input type="text" inputMode="numeric" value={trial} onChange={(e) => setTrial(e.target.value)} />
-                </label>
-                <label className={styles.field}>Dias de tolerância
-                  <input type="text" inputMode="numeric" value={grace} onChange={(e) => setGrace(e.target.value)} />
-                </label>
-              </div>
-              <label className={styles.check}>
-                <input type="checkbox" checked={pix} onChange={(e) => setPix(e.target.checked)} />
-                Pix automático ao motoboy
-              </label>
-              <div><Button onClick={saveSaas} loading={savingFee}>Salvar mensalidade</Button></div>
-            </section>
-          )}
+  useEffect(() => { load(); }, [load]);
 
+  const saveBrake = async (key: BrakeKey, next: boolean) => {
+    const r = await api.put('/admin/switches', { [key]: next });
+    setState(r.data);
+  };
+
+  return (
+    <div className={styles.page}>
+      <Alert tone="info" title="Freios são para gastos que saem do caixa do DROP">
+        Cada freio pausa uma função que custa dinheiro. A mudança vale na hora.
+      </Alert>
+
+      {error ? (
+        <div className={`${blocks.block} ${styles.state}`}>
+          <p className={blocks.errText} role="alert">{error}</p>
+          <div><Button variant="secondary" onClick={load}>Tentar de novo</Button></div>
+        </div>
+      ) : !state ? (
+        <div className={`${blocks.block} ${styles.state}`} aria-busy="true" aria-label="Carregando">
+          <Skeleton height={72} />
+          <Skeleton height={72} />
+          <Skeleton height={72} />
+        </div>
+      ) : (
+        <>
           <div className={styles.list}>
-            {SWITCHES.map((s) => {
-              const on = state?.[s.key];
-              return (
-                <div key={s.key} className={`${styles.row} ${on ? styles.rowOn : styles.rowOff}`}>
-                  <div className={styles.info}>
-                    <div className={styles.rowTitle}>
-                      {state == null ? s.title : on ? `🟢 ${s.title}` : `⏸️ ${s.title}`}
-                      <span className={styles.costTag}>{s.cost}</span>
-                    </div>
-                    <div className={styles.rowDesc}>{state == null ? '—' : on ? s.on : s.off}</div>
-                  </div>
-                  <button
-                    className={`${styles.toggle} ${on ? styles.togglePause : styles.toggleOn}`}
-                    onClick={() => toggle(s.key)}
-                    disabled={busy === s.key || state == null}
-                  >
-                    {busy === s.key ? '...' : on ? 'Pausar' : 'Ativar'}
-                  </button>
-                </div>
-              );
-            })}
+            {BRAKES.map((b) => (
+              <BrakeCard key={b.key} def={b} on={!!state[b.key]} onSave={(next) => saveBrake(b.key, next)} />
+            ))}
           </div>
 
-          <p className={styles.foot}>
-            As <strong>conquistas/badges</strong> dos motoboys não custam nada e continuam ativas, mesmo com a gamificação pausada.
-          </p>
-        </div>
-      </div>
-    </ProtectedRoute>
+          {isCeo && (
+            <div className={styles.ceo}>
+              {state.settlementMode && (
+                <SettlementModeCard
+                  mode={state.settlementMode}
+                  onChanged={(m) => setState((prev) => (prev ? { ...prev, settlementMode: m } : prev))}
+                />
+              )}
+              {state.saasMonthlyFee !== undefined && <SaasFeeCard initial={state} onSaved={setState} />}
+            </div>
+          )}
+        </>
+      )}
+
+      <p className={styles.foot}>
+        As <strong>conquistas</strong> dos motoboys não custam nada e continuam ativas, mesmo com a gamificação pausada.
+      </p>
+    </div>
   );
 }

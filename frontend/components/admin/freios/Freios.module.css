@@ -1,0 +1,47 @@
+/* Freios (D3a, tela 23): um cartão por freio, confirmação no próprio cartão. Só token. */
+.page { display: flex; flex-direction: column; gap: var(--space-4); max-width: 820px; }
+.list { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+.cardHead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.cardTitle { margin: 0; font: var(--text-title); color: var(--color-text-primary); }
+.badgeOn,
+.badgeOff { padding: 2px var(--space-2); border-radius: var(--radius-pill); font: var(--text-caption); }
+.badgeOn { background: var(--color-success-subtle); color: var(--color-success-text); }
+.badgeOff { background: var(--color-warning-subtle); color: var(--color-warning-text); }
+.desc { margin: 0; font: var(--text-body); color: var(--color-text-secondary); }
+.cost { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.cost strong { color: var(--color-text-primary); }
+.cardActions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cardActions button { min-height: 44px; }
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+.confirmText { margin: 0; font: var(--text-meta); color: var(--color-text-primary); }
+.err { margin: 0; font: var(--text-meta); color: var(--color-error-text); }
+
+.ceo { display: flex; flex-direction: column; gap: var(--space-3); }
+.foot {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.foot strong { color: var(--color-text-primary); }
+.state { display: flex; flex-direction: column; gap: var(--space-2); }

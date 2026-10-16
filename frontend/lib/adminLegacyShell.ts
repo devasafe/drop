@@ -8,7 +8,7 @@ import { adminScreenTitle } from './adminNav';
  */
 export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
   '/admin/analytics', '/admin/app-cashbox', '/admin/avisos', '/admin/broadcasts', '/admin/conversas',
-  '/admin/coupons', '/admin/dashboard', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas',
+  '/admin/coupons', '/admin/dashboard', '/admin/estornos', '/admin/lojas-asaas',
   '/admin/payouts', '/admin/plan-approvals', '/admin/pricing-config',
   '/admin/ranking-config', '/admin/settings', '/admin/suporte',
   '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',

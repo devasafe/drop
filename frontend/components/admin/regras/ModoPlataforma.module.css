@@ -1,0 +1,38 @@
+/* Modo da plataforma e Mensalidade SaaS (D3a, tela 26). Só token. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.title { margin: 0; font: var(--text-title); color: var(--color-text-primary); }
+.badge {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font: var(--text-caption);
+}
+.current { margin: 0; font: var(--text-body); color: var(--color-text-secondary); }
+.current strong { color: var(--color-text-primary); }
+.desc { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.riskTitle { margin: 0; font: var(--text-label); color: var(--color-text-primary); }
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  font: var(--text-meta);
+  color: var(--color-text-primary);
+}
+.fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+.actions button { min-height: 44px; }
+
+@media (min-width: 1024px) {
+  .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

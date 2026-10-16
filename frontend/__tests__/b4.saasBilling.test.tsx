@@ -14,7 +14,7 @@ jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { activeRole: mockRole, role: mockRole, storeId: 's1' }, can: () => true, loading: false, permissionsLoading: false }),
 }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
-jest.mock('../components/drop/settlement/SettlementSwitchCard', () => ({ SettlementSwitchCard: () => null }));
+jest.mock('../components/admin/regras/SettlementModeCard', () => ({ SettlementModeCard: () => null }));jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));
 jest.mock('../components/drop/asaas/AsaasConnectCard', () => ({ AsaasConnectCard: () => null }));
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: 'direto', directCardEnabled: false, loading: false }) }));
 jest.mock('../hooks/useCustodyLeftoverState', () => ({ useCustodyLeftoverState: () => ({ loading: false, hasLeftover: false }) }));
@@ -113,7 +113,7 @@ describe('admin/freios — Mensalidade SaaS', () => {
   test('não-CEO não vê o card', async () => {
     mockRole = 'admin';
     render(<AdminFreios />);
-    await screen.findByText('Freios da plataforma');
+    await screen.findByRole('heading', { name: 'Freios' });
     await waitFor(() => expect(api.get).toHaveBeenCalled());
     expect(screen.queryByText('Mensalidade SaaS')).not.toBeInTheDocument();
   });
