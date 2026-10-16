@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { adminAuth, renderAdminPage } from './helpers/adminPage';
 import { resetViewport, setViewportWidth } from './helpers/viewport';
 import api from '../lib/api';
@@ -56,6 +56,21 @@ it('excluir vira pausar: não há Excluir nem DELETE; pausar usa o toggle', asyn
   await waitFor(() => expect(api.put).toHaveBeenCalledWith('/coupons/c1/toggle'));
   expect(api.delete).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Ativar PETAMIGO' })).toBeInTheDocument();
+});
+
+it('pausar: dois cliques mandam um PUT só; o botão trava até a resposta', async () => {
+  let resolve!: (v: unknown) => void;
+  (api.put as jest.Mock).mockImplementation(() => new Promise((r) => { resolve = r; }));
+  renderAdminPage(<AdminCoupons />);
+  const btn = await screen.findByRole('button', { name: 'Pausar SEMANATECH' });
+  fireEvent.click(btn);
+  fireEvent.click(btn);
+  expect(api.put).toHaveBeenCalledTimes(1);
+  expect(btn).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Ativar PETAMIGO' })).toBeEnabled();
+  await act(async () => { resolve({ data: {} }); });
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  expect(await screen.findByRole('button', { name: 'Pausar SEMANATECH' })).toBeEnabled();
 });
 
 it('erro ao pausar vira toast', async () => {
@@ -131,7 +146,8 @@ describe('validação do formulário antes de enviar', () => {
     renderAdminPage(<AdminCoupons />);
     await screen.findByRole('table', { name: 'Cupons' });
     preencher({ Código: 'novo5', ...campos });
-    fireEvent.click(screen.getByRole('button', { name: 'Criar cupom' }));
+    // act assíncrono: o POST e a releitura terminam dentro dele (sem aviso de act no fim do teste).
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Criar cupom' })); });
   };
 
   it('desconto fixo com valor 0 não envia', async () => {
@@ -182,6 +198,9 @@ describe('validação do formulário antes de enviar', () => {
       code: 'NOVO5', type: 'global', discountType: 'percent', discountValue: 10,
       minOrderValue: undefined, maxUses: undefined, validFrom: '2026-12-01', validUntil: '2026-12-31',
     }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Cupom NOVO5 criado', 'success'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('table', { name: 'Cupons' })).toBeInTheDocument();
   });
 
   it('desconto fixo válido envia o corpo completo', async () => {
@@ -190,5 +209,8 @@ describe('validação do formulário antes de enviar', () => {
       code: 'NOVO5', type: 'global', discountType: 'fixed', discountValue: 12.5,
       minOrderValue: 40, maxUses: 20, validFrom: '2026-12-01', validUntil: '2026-12-31',
     }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Cupom NOVO5 criado', 'success'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('table', { name: 'Cupons' })).toBeInTheDocument();
   });
 });

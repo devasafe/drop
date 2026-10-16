@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useId, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import api from '../../lib/api';
 import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -163,12 +163,25 @@ function CuponsBody() {
     }
   };
 
+  // Trava por linha: o ref barra o segundo clique no mesmo tick (dois PUT /toggle voltariam ao estado anterior).
+  const togglingRef = useRef<Set<string>>(new Set());
+  const [toggling, setToggling] = useState<Set<string>>(new Set());
+  const setRowBusy = (id: string, on: boolean) => {
+    if (on) togglingRef.current.add(id);
+    else togglingRef.current.delete(id);
+    setToggling(new Set(togglingRef.current));
+  };
+
   const handleToggle = async (c: Coupon) => {
+    if (togglingRef.current.has(c._id)) return;
+    setRowBusy(c._id, true);
     try {
       await api.put(`/coupons/${c._id}/toggle`);
       await fetchCoupons();
     } catch (err) {
       showToast(adminErrorMessage(err, 'Não deu para mudar o cupom'), 'error');
+    } finally {
+      setRowBusy(c._id, false);
     }
   };
 
@@ -247,6 +260,7 @@ function CuponsBody() {
                 className={styles.rowBtn}
                 aria-label={`${c.isActive ? 'Pausar' : 'Ativar'} ${c.code}`}
                 onClick={() => handleToggle(c)}
+                disabled={toggling.has(c._id)}
               >
                 {c.isActive ? 'Pausar' : 'Ativar'}
               </Button>
