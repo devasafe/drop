@@ -231,6 +231,27 @@ describe('Verificações · recusa por itens (AdminSheet, sem window.prompt)', (
     expect(window.prompt).not.toHaveBeenCalled();
   });
 
+  it('fechar a tela no meio da recusa para o lote', async () => {
+    let release!: () => void;
+    (api.post as jest.Mock)
+      .mockImplementationOnce(() => new Promise((r) => { release = () => r({ data: {} }); }))
+      .mockResolvedValue({ data: {} });
+    const { unmount } = render(<AdminVerificacoesPage />);
+    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
+    fireEvent.click(within(dialog).getByLabelText('Documento'));
+    fireEvent.click(within(dialog).getByLabelText('CNPJ · Eletro Center'));
+    fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'Documento vencido' } });
+    fireEvent.change(within(dialog).getByLabelText('Motivo · CNPJ · Eletro Center'), { target: { value: 'CNPJ baixado' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    unmount();
+    await act(async () => { release(); });
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
   it('item que falha fica marcado com o erro; enviar de novo só reenvia ele', async () => {
     (api.post as jest.Mock)
       .mockResolvedValueOnce({ data: {} })

@@ -78,8 +78,14 @@ function VerificacoesScreen() {
   // Contra clique duplo: marcado antes de qualquer setState (um lote por vez).
   const batchRunning = useRef(false);
 
-  // Fechar a tela no meio do "Aprovar tudo" para o lote (spec 6.2). Abort só na desmontagem.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // Recusa em lote tem o próprio controlador (pode rodar enquanto o "Aprovar tudo" de outra pessoa termina).
+  const rejectAbortRef = useRef<AbortController | null>(null);
+
+  // Fechar a tela no meio do "Aprovar tudo" ou da recusa para o lote (spec 6.2). Abort só na desmontagem.
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    rejectAbortRef.current?.abort();
+  }, []);
 
   // Só lê a fila que o papel pode ler (cada rota exige a sua permissão).
   const load = useCallback(async () => {
@@ -171,14 +177,17 @@ function VerificacoesScreen() {
   const sendRejects = async () => {
     if (!selected) return;
     const p = selected;
+    const ctrl = new AbortController();
+    rejectAbortRef.current = ctrl;
     const r = await runBatch(
       markedItems.map((i) => i.key),
       async (key) => {
         const item = p.items.find((i) => i.key === key);
         if (item) await api.post(item.rejectUrl, { reason: composeRejectReason(marked[key], mensagem) });
       },
-      { isAlreadyDone: isVerificationAlreadyDecided },
+      { isAlreadyDone: isVerificationAlreadyDecided, signal: ctrl.signal },
     );
+    if (ctrl.signal.aborted) return;
     const summary = batchSummaryText(r, { one: 'item concluído', many: 'itens concluídos' }); // K6
     if (r.failed.length === 0) {
       setRejectOpen(false);
