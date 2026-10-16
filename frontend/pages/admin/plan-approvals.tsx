@@ -1,265 +1,254 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import AdminShell from '../../components/admin/AdminShell';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { AdminSheet } from '../../components/admin/AdminSheet';
+import { StatusTag } from '../../components/admin/StatusTag';
+import { EmptyNote, LoadError, LoadSkeleton } from '../../components/admin/LoadState';
+import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
+import { Button } from '../../components/ui/Button';
+import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
 import api from '../../lib/api';
-import Icon from '../../components/Icon';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
-import styles from './AdminPlanApprovals.module.css';
+import blocks from '../../components/admin/AdminBlocks.module.css';
+import form from '../../components/admin/pessoas/PessoasForm.module.css';
+import styles from '../../components/admin/pessoas/Planos.module.css';
 
+interface PlanSub {
+  _id: string;
+  storeName: string;
+  currentPlan: string;
+  requestedPlan?: string | null;
+  planChangeStatus?: string;
+  requestedAt?: string;
+  rejectionReason?: string | null;
+  commissionRate?: number | null;
+}
+
+const PLANS: Record<string, { short: string; name: string }> = {
+  plan1: { short: 'Plano 1', name: 'Vitrine, sem motoboy' },
+  plan2: { short: 'Plano 2', name: 'Vitrine com motoboys do DROP' },
+  plan3: { short: 'Plano 3', name: 'Premium' },
+};
+const planShort = (id?: string | null) => (id && PLANS[id] ? PLANS[id].short : 'Plano desconhecido');
+const planText = (id?: string | null) => (id && PLANS[id] ? `${PLANS[id].short} · ${PLANS[id].name}` : 'Plano desconhecido');
+const dateBR = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
+
+type PlanTab = 'pendentes' | 'todas';
+const TITLE = 'Lojas · Planos';
+
+/**
+ * Lojas → Planos (D3a, tela 14). A guarda é a de hoje: can('plan:view') e /access-denied (sem ProtectedRoute).
+ * Aprovar e recusar exigem plan:approve no servidor: os botões só aparecem com ela.
+ */
 export default function PlanApprovals() {
   const router = useRouter();
-  const { user, loading: authLoading, can, permissionsLoading } = useAuth() || ({} as any);
-  const [pending, setPending] = useState<any[]>([]);
-  const [allSubs, setAllSubs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<string>('');
-  const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
-  const [tabFilter, setTabFilter] = useState<'pending' | 'all'>('pending');
+  const { user, loading: authLoading, can, permissionsLoading } = useAuth();
 
-  // Verificar permissão
   useEffect(() => {
     if (!authLoading && !permissionsLoading && user && !can('plan:view')) {
       router.push('/access-denied');
     }
   }, [user, authLoading, permissionsLoading, can, router]);
 
-  // Carregar dados
-  useEffect(() => {
-    if (!permissionsLoading && can('plan:view')) {
-      loadData();
-    }
-  }, [user, permissionsLoading]);
+  if (authLoading || permissionsLoading) {
+    return (
+      <AdminShell title={TITLE} tabs="lojas">
+        <LoadSkeleton />
+      </AdminShell>
+    );
+  }
+  if (!can('plan:view')) return null;
 
-  const loadData = async () => {
+  return (
+    <AdminShell title={TITLE} tabs="lojas">
+      <PlanosScreen canApprove={can('plan:approve')} />
+    </AdminShell>
+  );
+}
+
+function PlanosScreen({ canApprove }: { canApprove: boolean }) {
+  const { showToast } = useToast();
+  const [pending, setPending] = useState<PlanSub[] | null>(null);
+  const [all, setAll] = useState<PlanSub[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<PlanTab>('pendentes');
+  const [approving, setApproving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<PlanSub | null>(null);
+  const [reason, setReason] = useState('');
+
+  const load = useCallback(async () => {
+    setError(null);
     try {
-      setLoading(true);
-      const [pendRes, allRes] = await Promise.all([
+      const [p, a] = await Promise.all([
         api.get('/settings/pending-plan-changes'),
         api.get('/settings/all-store-subscriptions'),
       ]);
-      setPending(pendRes.data);
-      setAllSubs(allRes.data);
-      setMessage(null);
-    } catch (err: any) {
-      console.error('Erro ao carregar:', err);
-      setMessage({ type: 'error', text: 'Erro ao carregar requisições' });
-    } finally {
-      setLoading(false);
+      setPending(Array.isArray(p.data) ? p.data : []);
+      setAll(Array.isArray(a.data) ? a.data : []);
+    } catch (err) {
+      setError(isHttpStatus(err, 403) ? adminErrorMessage(err) : 'Não deu para carregar os pedidos de plano.');
     }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  /** O pedido sai dos pendentes; em "Todas", a assinatura vira a que o servidor devolveu. */
+  const applyDecision = (id: string, sub?: PlanSub) => {
+    setPending((list) => list && list.filter((p) => p._id !== id));
+    if (sub) setAll((list) => list && list.map((s) => (s._id === id ? sub : s)));
   };
 
-  const getPlanInfo = (planId: string) => {
-    const planMap: any = {
-      plan1: { name: 'Marketplace Only', icon: 'package' as const },
-      plan2: { name: 'Marketplace + Motoboys', icon: 'truck' as const },
-      plan3: { name: 'Premium', icon: 'star' as const },
-    };
-    return planMap[planId] || { name: 'Desconhecido', icon: 'alert-triangle' as const };
-  };
-
-  const handleApprove = async (subscriptionId: string) => {
-    setProcessing(subscriptionId);
+  const approve = async (sub: PlanSub) => {
+    setApproving(sub._id);
     try {
-      const res = await api.post('/settings/approve-plan-change', { subscriptionId });
-      setPending(pending.filter((p) => p._id !== subscriptionId));
-      setAllSubs(allSubs.map((s) => (s._id === subscriptionId ? res.data.subscription : s)));
-      setMessage({ type: 'success', text: 'Plano aprovado com sucesso!' });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      console.error('Erro ao aprovar:', err);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao aprovar' });
+      const res = await api.post('/settings/approve-plan-change', { subscriptionId: sub._id });
+      applyDecision(sub._id, res.data?.subscription);
+      showToast(`${planShort(sub.requestedPlan)} aprovado para ${sub.storeName}.`, 'success');
+    } catch (err) {
+      showToast(adminErrorMessage(err, 'Não deu para aprovar.'), 'error');
+      if (isHttpStatus(err, 409)) await load();
     } finally {
-      setProcessing(null);
+      setApproving(null);
     }
   };
 
-  const handleReject = async (subscriptionId: string) => {
-    if (!rejectionReason.trim()) {
-      setMessage({ type: 'error', text: 'Informe o motivo da rejeição' });
-      return;
-    }
-
-    setProcessing(subscriptionId);
+  const reject = async () => {
+    if (!rejecting) return;
     try {
-      const res = await api.post('/settings/reject-plan-change', {
-        subscriptionId,
-        reason: rejectionReason,
-      });
-      setPending(pending.filter((p) => p._id !== subscriptionId));
-      setAllSubs(allSubs.map((s) => (s._id === subscriptionId ? res.data.subscription : s)));
-      setMessage({ type: 'success', text: 'Plano rejeitado!' });
-      setRejectionReason('');
-      setShowRejectForm(null);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      console.error('Erro ao rejeitar:', err);
-      setMessage({ type: 'error', text: err?.response?.data?.error || 'Erro ao rejeitar' });
-    } finally {
-      setProcessing(null);
+      const res = await api.post('/settings/reject-plan-change', { subscriptionId: rejecting._id, reason: reason.trim() });
+      applyDecision(rejecting._id, res.data?.subscription);
+      showToast('Pedido recusado.', 'success');
+      setRejecting(null);
+      setReason('');
+    } catch (err) {
+      // 409: a loja desistiu ou outra pessoa decidiu. Relê e mostra o texto do servidor na sheet.
+      if (isHttpStatus(err, 409)) void load();
+      throw err;
     }
   };
 
-  if (authLoading || loading) {
+  const columns: AdminColumn<PlanSub>[] = [
+    { key: 'loja', header: 'Loja', primary: true, render: (s) => s.storeName },
+    { key: 'plano', header: 'Plano', render: (s) => planText(s.currentPlan) },
+    {
+      key: 'situacao',
+      header: 'Situação',
+      render: (s) => {
+        if (s.planChangeStatus === 'pending') return <StatusTag tone="warn">Pede {planShort(s.requestedPlan)}</StatusTag>;
+        if (s.planChangeStatus === 'rejected') {
+          return (
+            <span className={styles.situacao}>
+              <StatusTag tone="bad">Recusado</StatusTag>
+              {s.rejectionReason && <span className={blocks.muted}>{s.rejectionReason}</span>}
+            </span>
+          );
+        }
+        return <StatusTag tone="neutral">Sem pedido</StatusTag>;
+      },
+    },
+    { key: 'comissao', header: 'Comissão', align: 'right', render: (s) => (s.commissionRate == null ? '—' : `${s.commissionRate}%`) },
+  ];
+
+  const card = (sub: PlanSub) => {
+    const titleId = `plano-${sub._id}`;
     return (
-      <div className={styles.loadingScreen}>
-        <LoadingSkeleton variant="list" count={4} />
-      </div>
+      <li key={sub._id}>
+        <article className={styles.card} aria-labelledby={titleId}>
+          <header className={blocks.blockHead}>
+            <h3 id={titleId} className={blocks.blockTitle}>{sub.storeName}</h3>
+            <span className={blocks.muted}>pedido em {dateBR(sub.requestedAt)}</span>
+          </header>
+          <dl className={styles.compare}>
+            <div className={styles.compareItem}>
+              <dt>Hoje</dt>
+              <dd>{planText(sub.currentPlan)}</dd>
+            </div>
+            <div className={`${styles.compareItem} ${styles.want}`}>
+              <dt>Quer</dt>
+              <dd>{planText(sub.requestedPlan)}</dd>
+            </div>
+          </dl>
+          {canApprove && (
+            <div className={styles.cardActions}>
+              <Button variant="secondary" className={form.touch} disabled={approving === sub._id}
+                onClick={() => { setReason(''); setRejecting(sub); }}>
+                Recusar com motivo
+              </Button>
+              <Button className={form.touch} loading={approving === sub._id} disabled={approving !== null}
+                onClick={() => void approve(sub)}>
+                Aprovar {planShort(sub.requestedPlan)}
+              </Button>
+            </div>
+          )}
+        </article>
+      </li>
     );
-  }
-
-  if (!authLoading && !permissionsLoading && !can('plan:view')) {
-    return null;
-  }
-
-  const displayData = tabFilter === 'pending' ? pending : allSubs;
+  };
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.pageTitle}><Icon name="clipboard" size={20} /> Aprovações de Planos</h1>
-      <p className={styles.pageSub}>
-        Gerenciar mudanças de planos das lojas
-      </p>
-
-      {message && (
-        <div className={message.type === 'success' ? styles.messageSuccess : styles.messageError}>
-          {message.text}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className={styles.tabs}>
-        <button
-          onClick={() => setTabFilter('pending')}
-          className={tabFilter === 'pending' ? styles.tabBtnActive : styles.tabBtn}
-        >
-          <Icon name="clock" size={14} /> Pendentes ({pending.length})
-        </button>
-        <button
-          onClick={() => setTabFilter('all')}
-          className={tabFilter === 'all' ? styles.tabBtnActive : styles.tabBtn}
-        >
-          <Icon name="package" size={14} /> Todos ({allSubs.length})
-        </button>
-      </div>
-
-      {/* Lista */}
-      {displayData.length === 0 ? (
-        <div className={styles.emptyCard}>
-          <p className={styles.emptyText}>
-            {tabFilter === 'pending' ? 'Nenhuma requisição pendente' : 'Nenhum plano  registrado'}
-          </p>
-        </div>
+      {error ? (
+        <LoadError message={error} onRetry={() => { setPending(null); setAll(null); void load(); }} />
+      ) : pending === null || all === null ? (
+        <LoadSkeleton />
       ) : (
-        <div className={styles.list}>
-          {displayData.map((sub) => {
-            const currentPlan = getPlanInfo(sub.currentPlan);
-            const requestedPlan = sub.requestedPlan ? getPlanInfo(sub.requestedPlan) : null;
-            const isPending = sub.planChangeStatus === 'pending';
-            const isRejected = sub.planChangeStatus === 'rejected';
-
-            return (
-              <div
-                key={sub._id}
-                className={isPending ? styles.subCardPending : styles.subCard}
-              >
-                <div className={styles.subCardInner}>
-                  <div className={styles.subInfo}>
-                    <h3 className={styles.storeName}>
-                      <Icon name="store" size={14} /> {sub.storeName}
-                    </h3>
-
-                    {isPending && requestedPlan ? (
-                      <div className={styles.planInfoPending}>
-                        <p className={styles.planLine}>
-                          Plano atual: <Icon name={currentPlan.icon} size={14} /> {currentPlan.name}
-                        </p>
-                        <p className={styles.planRequested}>
-                          → Solicitando: <Icon name={requestedPlan.icon} size={14} /> {requestedPlan.name}
-                        </p>
-                        <p className={styles.planMeta}>
-                          Solicitado em: {new Date(sub.requestedAt).toLocaleDateString('pt-BR')}
-                        </p>
-                      </div>
-                    ) : isRejected ? (
-                      <div className={styles.planInfoRejected}>
-                        <p className={styles.planLine}>
-                          Plano atual: <Icon name={currentPlan.icon} size={14} /> {currentPlan.name}
-                        </p>
-                        <p className={styles.planMeta}>
-                          Motivo da rejeição: {sub.rejectionReason}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className={styles.planInfoDefault}>
-                        <p className={styles.planLine}>
-                          Plano: <Icon name={currentPlan.icon} size={14} /> {currentPlan.name}
-                        </p>
-                        <p className={styles.planMeta}>
-                          Comissão: {sub.commissionRate}%
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {isPending && (
-                    <div className={styles.actionBtns}>
-                      <button
-                        onClick={() => handleApprove(sub._id)}
-                        disabled={processing === sub._id}
-                        className={styles.btnApprove}
-                      >
-                        {processing === sub._id ? <Icon name="hourglass" size={14} /> : <Icon name="check" size={14} />} Aprovar
-                      </button>
-
-                      <button
-                        onClick={() => setShowRejectForm(showRejectForm === sub._id ? null : sub._id)}
-                        className={styles.btnReject}
-                      >
-                        <Icon name="x" size={14} /> Rejeitar
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Reject Form */}
-                {showRejectForm === sub._id && isPending && (
-                  <div className={styles.rejectForm}>
-                    <label className={styles.rejectLabel}>
-                      Motivo da rejeição:
-                    </label>
-                    <textarea
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Ex: Plano não corresponde ao perfil da loja"
-                      className={styles.rejectTextarea}
-                    />
-                    <div className={styles.rejectActions}>
-                      <button
-                        onClick={() => handleReject(sub._id)}
-                        disabled={processing === sub._id}
-                        className={styles.btnConfirmReject}
-                      >
-                        {processing === sub._id ? 'Rejeitando...' : 'Confirmar Rejeição'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowRejectForm(null);
-                          setRejectionReason('');
-                        }}
-                        className={styles.btnCancelReject}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <>
+          <div className={styles.tabs}>
+            <Tabs
+              label="Pedidos de plano"
+              items={[
+                { id: 'pendentes', label: 'Pendentes', count: pending.length },
+                { id: 'todas', label: 'Todas', count: all.length },
+              ]}
+              value={tab}
+              onChange={(id) => setTab(id as PlanTab)}
+              idPrefix="planos"
+            />
+          </div>
+          <div {...tabPanelProps(tab, 'planos')}>
+            {tab === 'pendentes' ? (
+              pending.length === 0
+                ? <EmptyNote text="Nenhum pedido de troca aguardando" />
+                : <ul className={styles.cards} aria-label="Pedidos de troca">{pending.map(card)}</ul>
+            ) : (
+              <AdminTable
+                caption="Assinaturas"
+                columns={columns}
+                rows={all}
+                rowKey={(s) => s._id}
+                rowLabel={(s) => s.storeName}
+                empty="Nenhum plano registrado"
+              />
+            )}
+          </div>
+        </>
       )}
+
+      <AdminSheet
+        open={rejecting !== null}
+        title="Recusar troca de plano"
+        onClose={() => setRejecting(null)}
+        primary={{ label: 'Recusar', tone: 'danger', onClick: reject, disabled: !reason.trim() }}
+      >
+        {rejecting && (
+          <p className={form.lead}>
+            {rejecting.storeName}: {planShort(rejecting.currentPlan)} → {planShort(rejecting.requestedPlan)}
+          </p>
+        )}
+        <label className={form.field}>
+          <span className={form.fieldLabel}>Motivo (obrigatório)</span>
+          <textarea
+            className={form.textarea}
+            rows={3}
+            value={reason}
+            placeholder="Ex.: Plano não corresponde ao perfil da loja"
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        <p className={blocks.muted}>A loja continua no plano atual e vê o motivo.</p>
+      </AdminSheet>
     </div>
   );
 }
