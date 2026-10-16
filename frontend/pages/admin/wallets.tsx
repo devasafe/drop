@@ -68,7 +68,13 @@ const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: 
 const when = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const txKey = (t: WalletTransaction) => t._id ?? `${t.createdAt}|${t.amount}|${t.reason ?? ''}`;
-const parseAmount = (v: string) => parseFloat(v.replace(',', '.'));
+/**
+ * Valor do crédito sem pagamento: tem que ser exatamente o digitado. Só dígitos, com vírgula ou ponto e até
+ * 2 casas ("25", "25,5", "25.50"); separador de milhar, letras, sinal, espaço e notação "e" são recusados
+ * (parseFloat leria "1.234,56" como 1.234 e "1e3" como 1000). Recusado → null.
+ */
+const AMOUNT_RE = /^\d+([.,]\d{1,2})?$/;
+const parseAmount = (v: string): number | null => (AMOUNT_RE.test(v) ? Number(v.replace(',', '.')) : null);
 
 export default function AdminWalletsPage() {
   const { user } = useAuth();
@@ -168,10 +174,15 @@ export default function AdminWalletsPage() {
   };
 
   const creditValue = parseAmount(creditAmount);
-  const creditValid = Number.isFinite(creditValue) && creditValue > 0 && creditReason.trim().length >= 10;
+  const creditAmountError = !creditAmount
+    ? undefined
+    : creditValue === null
+      ? 'Use só números, com até 2 casas (ex.: 25,50).'
+      : creditValue <= 0 ? 'O valor tem que ser maior que zero.' : undefined;
+  const creditValid = creditValue !== null && creditValue > 0 && creditReason.trim().length >= 10;
 
   const submitCredit = async () => {
-    if (!selected) return;
+    if (!selected || creditValue === null || !(creditValue > 0)) return;
     const target = selected;
     let newBalance: unknown;
     try {
@@ -357,7 +368,17 @@ export default function AdminWalletsPage() {
             O valor entra na carteira interna de {selected?.userName || 'usuário'} sem nenhum dinheiro entrar no DROP.
             Use só para corrigir um erro (cashback ou recarga). O motivo fica registrado na auditoria.
           </Alert>
-          <Input label="Valor (R$)" value={creditAmount} onChange={setCreditAmount} placeholder="0,00" inputMode="decimal" />
+          <Input
+            label="Valor (R$)"
+            value={creditAmount}
+            onChange={setCreditAmount}
+            placeholder="0,00"
+            inputMode="decimal"
+            error={creditAmountError}
+          />
+          {creditValue !== null && creditValue > 0 && (
+            <p className={blocks.muted}>{`Será creditado: ${formatMoney(creditValue)}`}</p>
+          )}
           <TextAreaField
             label="Motivo (mínimo 10 caracteres)"
             value={creditReason}

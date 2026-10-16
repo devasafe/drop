@@ -259,6 +259,66 @@ describe('tela nova', () => {
     expect(window.alert).not.toHaveBeenCalled();
   });
 
+  describe('valor do "Adicionar saldo" é exatamente o digitado (crédito sem pagamento)', () => {
+    const openCredit = async () => {
+      render(<AdminWalletsPage />);
+      await openCarlos();
+      await screen.findByText('Depósito via Pix');
+      fireEvent.click(screen.getByRole('button', { name: 'Adicionar saldo' }));
+      const sheet = screen.getByRole('dialog', { name: 'Adicionar saldo' });
+      fireEvent.change(within(sheet).getByLabelText('Motivo (mínimo 10 caracteres)'), {
+        target: { value: 'Ressarcimento do pedido 4790' },
+      });
+      return sheet;
+    };
+
+    it.each(['0', '0,00'])('"%s": botão desativado, "maior que zero" e nenhuma chamada', async (typed) => {
+      const sheet = await openCredit();
+      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: typed } });
+      const send = within(sheet).getByRole('button', { name: 'Confirmar adição' });
+      expect(send).toBeDisabled();
+      expect(within(sheet).getByText('O valor tem que ser maior que zero.')).toBeInTheDocument();
+      expect(within(sheet).queryByText(/^Será creditado:/)).not.toBeInTheDocument();
+      fireEvent.click(send);
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it.each(['1.234,56', '1,234.56', '10abc', '0,001', '1e3', ' 25', '-5', '25,'])(
+      '"%s": botão desativado, aviso curto e nenhuma chamada',
+      async (typed) => {
+        const sheet = await openCredit();
+        fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: typed } });
+        const send = within(sheet).getByRole('button', { name: 'Confirmar adição' });
+        expect(send).toBeDisabled();
+        expect(within(sheet).getByText('Use só números, com até 2 casas (ex.: 25,50).')).toBeInTheDocument();
+        expect(within(sheet).queryByText(/^Será creditado:/)).not.toBeInTheDocument();
+        fireEvent.click(send);
+        expect(post).not.toHaveBeenCalled();
+      },
+    );
+
+    it('"25,50": prévia "Será creditado: R$ 25,50" e envia 25.5', async () => {
+      const sheet = await openCredit();
+      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: '25,50' } });
+      expect(within(sheet).getByText('Será creditado: R$ 25,50')).toBeInTheDocument();
+      expect(within(sheet).queryByText('Use só números, com até 2 casas (ex.: 25,50).')).not.toBeInTheDocument();
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Confirmar adição' }));
+      await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
+        amount: 25.5, reason: 'Ressarcimento do pedido 4790',
+      }));
+    });
+
+    it('"1234.5": prévia com milhar formatado e envia 1234.5', async () => {
+      const sheet = await openCredit();
+      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: '1234.5' } });
+      expect(within(sheet).getByText('Será creditado: R$ 1.234,50')).toBeInTheDocument();
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Confirmar adição' }));
+      await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
+        amount: 1234.5, reason: 'Ressarcimento do pedido 4790',
+      }));
+    });
+  });
+
   it('busca por nome ou e-mail e filtro por papel', async () => {
     render(<AdminWalletsPage />);
     await screen.findByText('Carlos Lima');
