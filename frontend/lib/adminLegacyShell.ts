@@ -9,7 +9,7 @@ import { adminScreenTitle } from './adminNav';
 export const ADMIN_LEGACY_SHELL_ROUTES: string[] = [
   '/admin/analytics', '/admin/conversas',
   '/admin/dashboard',
-  '/admin/payouts', '/admin/pricing-config',
+  '/admin/pricing-config',
   '/admin/ranking-config',
 ];
 
