@@ -31,6 +31,8 @@ export function AdminSheet({ open, title, onClose, children, primary, secondaryL
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
+  /** Trava síncrona: o estado `busy` só muda no próximo render; dois cliques no mesmo tick passariam. */
+  const busyRef = useRef(false);
 
   useEffect(() => {
     alive.current = true;
@@ -46,7 +48,8 @@ export function AdminSheet({ open, title, onClose, children, primary, secondaryL
   };
 
   const run = async () => {
-    if (!primary || busy || primary.disabled) return;
+    if (!primary || busyRef.current || busy || primary.disabled) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -54,6 +57,7 @@ export function AdminSheet({ open, title, onClose, children, primary, secondaryL
     } catch (err) {
       if (alive.current) setError(adminErrorMessage(err));
     } finally {
+      busyRef.current = false;
       if (alive.current) setBusy(false);
     }
   };

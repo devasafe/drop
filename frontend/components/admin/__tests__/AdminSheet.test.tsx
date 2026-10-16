@@ -51,6 +51,23 @@ describe('AdminSheet', () => {
     expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
   });
 
+  it('dois cliques no mesmo tick (sem render entre eles): onClick roda uma vez e o botão segue travado', async () => {
+    let resolve!: () => void;
+    const onClick = jest.fn(() => new Promise<void>((r) => { resolve = r; }));
+    render(<AdminSheet open title="Liberar repasse" onClose={jest.fn()} primary={{ label: 'Liberar', onClick }}>x</AdminSheet>);
+    const btn = screen.getByRole('button', { name: 'Liberar' });
+    const propsKey = Object.keys(btn).find((k) => k.startsWith('__reactProps')) as string;
+    const handler = (btn as unknown as Record<string, { onClick: () => void }>)[propsKey].onClick;
+    await act(async () => {
+      handler();
+      handler();
+    });
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Enviando…' })).toBeDisabled();
+    await act(async () => { resolve(); });
+    expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
+  });
+
   it('erro: a mensagem do servidor aparece dentro e o botão volta', async () => {
     const onClose = jest.fn();
     const onClick = jest.fn().mockRejectedValue({ response: { status: 409, data: { error: 'Repasse já liberado' } } });
