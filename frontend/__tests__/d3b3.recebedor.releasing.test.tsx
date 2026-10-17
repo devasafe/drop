@@ -42,6 +42,15 @@ it('carteira da loja: repasse em liberação aparece como "Em transferência", n
   expect(screen.queryByText('releasing')).toBeNull();
 });
 
+it('carteira da loja: a pílula de "Em transferência" usa a cor de "Solicitado" (requested)', async () => {
+  render(<SellerWalletPage />);
+  const pills = await screen.findAllByText('Em transferência');
+  for (const pill of pills) {
+    expect(pill).toHaveClass('requested');
+    expect(pill).not.toHaveClass('releasing');
+  }
+});
+
 it('Dinheiro da loja (custódia): rótulo e tom do repasse em liberação', () => {
   expect(PAYOUT_LABEL.releasing).toBe('Em transferência');
   expect(PAYOUT_TONE.releasing).toBe('info');

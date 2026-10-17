@@ -99,6 +99,9 @@ function SellerWalletPageInner() {
     cancelled: 'Cancelado',
   }[s] || s);
 
+  // `releasing` não tem classe própria: usa a cor de "Solicitado" (como o modal de detalhes).
+  const payoutPillClass = (s: PayoutItem['status']): string => (s === 'releasing' ? 'requested' : s);
+
   const reload = async () => {
     const storeId = resolvedStoreId || user?.storeId || user?._id;
     if (!storeId) return;
@@ -217,7 +220,7 @@ function SellerWalletPageInner() {
       return {
         key: `p-${p._id}`, date: p.createdAt, sign: cancelled ? '' : ('+' as const), neutral: cancelled, amount: p.amount,
         title: `Venda · Pedido #${p.orderId?.slice(-6) || '—'}`,
-        statusLabel: payoutStatusLabel(p.status), statusClass: p.status as string,
+        statusLabel: payoutStatusLabel(p.status), statusClass: payoutPillClass(p.status),
         note: undefined as string | undefined,
         onClick: () => handlePayoutClick(p),
       };
@@ -341,7 +344,7 @@ function SellerWalletPageInner() {
                       </div>
                       <div className={styles.rowRight}>
                         <span className={`${styles.rowAmount} ${styles.credit}`}>+ {formatBRL(p.amount)}</span>
-                        <span className={`${styles.pill} ${styles[p.status] || ''}`}>{payoutStatusLabel(p.status)}</span>
+                        <span className={`${styles.pill} ${styles[payoutPillClass(p.status)] || ''}`}>{payoutStatusLabel(p.status)}</span>
                       </div>
                     </Row>
                   ))}
