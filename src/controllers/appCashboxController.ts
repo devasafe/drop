@@ -9,6 +9,7 @@ import {
 } from '../repositories/withdrawal.repository';
 import payoutService from '../services/payout.service';
 import logger from '../config/logger';
+import { computeCommissionProfit } from '../utils/commissionProfit';
 import {
   actorFromRequest,
   MoneyActionError,
@@ -51,18 +52,9 @@ async function loadCashboxHistory(appCashboxId: string): Promise<any[]> {
 // Ficam ocultos do extrato do caixa (já existe aba Saques dedicada).
 const OPERATIONAL_SOURCES = new Set(['manual_withdrawal', 'withdrawal_fee']);
 
-// Lucro REAL da plataforma = só as comissões que ela de fato embolsa.
-// O `balance` mistura custódia (order_payment entra e payout_paid sai), por isso
-// dava negativo. As comissões são lançadas como income no momento da entrega.
-const COMMISSION_SOURCES = new Set(['product_commission', 'delivery_commission']);
-
-// Soma líquida das comissões no history (income soma, reversão subtrai).
-export function computeCommissionProfit(history: { type: string; source: string; amount: number }[]): number {
-  return history.reduce((sum, h) => {
-    if (!COMMISSION_SOURCES.has(h.source)) return sum;
-    return h.type === 'income' ? sum + h.amount : sum - h.amount;
-  }, 0);
-}
+// Lucro REAL da plataforma: a regra mora em src/utils/commissionProfit.ts (D3b-3; a Visão
+// geral do Dinheiro usa a mesma). Reexportada aqui para os chamadores e testes antigos.
+export { computeCommissionProfit };
 
 export const getAppCashbox = async (req: Request & { user?: any }, res: Response) => {
   try {
