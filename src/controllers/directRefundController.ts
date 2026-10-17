@@ -9,6 +9,7 @@ import { getEffectivePermissions } from './rolePermissionsController';
 import { executeDirectRefund, markDirectRefundDone } from '../services/asaasLoja/refund';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
+import { actorFromRequest } from '../services/adminMoneyAction.service';
 
 /** Task 3.4 — botão "Estornar" (loja e admin) do pedido no modo direto. */
 
@@ -122,7 +123,7 @@ export async function resolveDirectRefund(req: any, res: Response) {
   if (refund.status === 'done') throw new AppError('Este estorno já foi concluído', 409, true, 'REFUND_ALREADY_DONE');
   if (refund.status === 'requested') throw new AppError('O estorno já está em andamento', 409, true, 'REFUND_IN_PROGRESS');
 
-  const marked = await markDirectRefundDone(refund.orderId, 'admin', { actorId: adminId, note });
+  const marked = await markDirectRefundDone(refund.orderId, 'admin', { actorId: adminId, note, actor: actorFromRequest(req) });
   if (!marked) throw new AppError('Este estorno já foi concluído', 409, true, 'REFUND_ALREADY_DONE');
   logger.info('[refund][AUDIT]', { refundId: refund.id, orderId: refund.orderId, adminId, note });
 

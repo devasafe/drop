@@ -6,6 +6,7 @@ import logger from '../../config/logger';
 import { emitToRoom, emitAdminNotification } from '../../utils/socketEmitter';
 import { storeKey, translate, StorePaymentsNotReadyError } from './charge';
 import { safeErrorText } from '../../utils/safeErrorText';
+import { AdminMoneyActor, recordAdminMoneyAction } from '../adminMoneyAction.service';
 
 /**
  * Estorno de pedido no modo SaaS "direto": POST /payments/{id}/refund com a chave da
@@ -105,10 +106,14 @@ export async function requestDirectRefund(params: {
 export async function markDirectRefundDone(
   orderId: string,
   source: 'api' | 'webhook' | 'admin',
-  opts: { actorId?: string; note?: string } = {},
+  // actor (D3b-3): quando há pessoa (resolver do admin), linha direct_refund_resolve na mesma transação.
+  opts: { actorId?: string; note?: string; actor?: AdminMoneyActor } = {},
 ): Promise<boolean> {
   const resolvedBy = opts.actorId ? `${source}:${opts.actorId}` : source;
   const done = await prisma.$transaction(async (tx) => {
+    const before = opts.actor
+      ? await tx.directRefund.findUnique({ where: { orderId }, select: { id: true, status: true, amount: true } })
+      : null;
     const { count } = await tx.directRefund.updateMany({
       where: { orderId, status: { not: 'done' } },
       data: {
@@ -122,6 +127,18 @@ export async function markDirectRefundDone(
       await tx.cancellation.updateMany({ where: { id: row.cancellationId }, data: { refundStatus: 'processed' } });
     }
     await tx.order.updateMany({ where: { id: orderId }, data: { paymentStatus: 'refunded', asaasChargeStatus: 'refunded' } });
+    if (opts.actor && before) {
+      await recordAdminMoneyAction(tx, {
+        actor: opts.actor,
+        type: 'direct_refund_resolve',
+        targetType: 'direct_refund',
+        targetId: before.id,
+        amount: before.amount,
+        reason: opts.note ?? null,
+        before: { status: before.status },
+        after: { status: 'done' },
+      });
+    }
     return true;
   });
   return done === true;

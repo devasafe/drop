@@ -9,6 +9,7 @@ import { decryptSensitiveData } from '../utils/encryption';
 import { maskPixKey } from '../services/asaasLoja/motoboyTransfer';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
+import { actorFromRequest, recordAdminMoneyAction } from '../services/adminMoneyAction.service';
 
 /** Sem `limit`, cada lista devolve o mesmo tamanho de antes da paginação; teto de 200. */
 const MAX_LIMIT = 200;
@@ -127,17 +128,30 @@ export async function retryTransfer(req: any, res: Response) {
   const id = String(req.params.id);
   const t = await prisma.motoboyTransfer.findUnique({ where: { id } });
   if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
-  const { count } = await prisma.motoboyTransfer.updateMany({
-    where: { id, status: { in: ['failed', 'failed_final'] } },
-    data: { status: 'failed', attempts: 0, nextAttemptAt: new Date() },
+  const actor = actorFromRequest(req);
+  // D3b-3: transição condicional + linha motoboy_transfer_retry na mesma transação.
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.motoboyTransfer.updateMany({
+      where: { id, status: { in: ['failed', 'failed_final'] } },
+      data: { status: 'failed', attempts: 0, nextAttemptAt: new Date() },
+    });
+    if (count !== 1) {
+      const code = t.status === 'uncertain' ? 'TRANSFER_UNCERTAIN' : t.status === 'done' ? 'TRANSFER_ALREADY_DONE' : 'TRANSFER_NOT_RETRYABLE';
+      const msg = t.status === 'uncertain'
+        ? 'Resultado incerto: confira no Asaas e use "Marcar como resolvido"'
+        : t.status === 'done' ? 'Esta transferência já foi concluída' : 'Esta transferência não pode ser reenviada agora';
+      throw new AppError(msg, 409, true, code);
+    }
+    await recordAdminMoneyAction(tx, {
+      actor,
+      type: 'motoboy_transfer_retry',
+      targetType: 'motoboy_transfer',
+      targetId: id,
+      amount: t.amount,
+      before: { status: t.status, attempts: t.attempts },
+      after: { status: 'failed', attempts: 0 },
+    });
   });
-  if (count !== 1) {
-    const code = t.status === 'uncertain' ? 'TRANSFER_UNCERTAIN' : t.status === 'done' ? 'TRANSFER_ALREADY_DONE' : 'TRANSFER_NOT_RETRYABLE';
-    const msg = t.status === 'uncertain'
-      ? 'Resultado incerto: confira no Asaas e use "Marcar como resolvido"'
-      : t.status === 'done' ? 'Esta transferência já foi concluída' : 'Esta transferência não pode ser reenviada agora';
-    throw new AppError(msg, 409, true, code);
-  }
   logger.info('[motoboyTransfer][AUDIT]', { transferId: id, adminId: req.user?.id, action: 'retry', from: t.status });
   const fresh = await prisma.motoboyTransfer.findUnique({ where: { id } });
   return res.json({ success: true, data: serialize(fresh!) });
@@ -193,18 +207,32 @@ export async function resolveTransfer(req: any, res: Response) {
   const t = await prisma.motoboyTransfer.findUnique({ where: { id } });
   if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
 
-  // Autor e nota gravados na mesma escrita condicional do estado terminal.
-  const { count } = await prisma.motoboyTransfer.updateMany({
-    where: { id, status: { in: ['failed', 'failed_final', 'uncertain'] } },
-    data: { status: 'done', doneAt: new Date(), lastError: null, resolvedBy: `admin:${adminId}`, resolutionNote: note },
+  const actor = actorFromRequest(req);
+  // Autor e nota gravados na mesma escrita condicional do estado terminal; D3b-3: linha
+  // motoboy_transfer_resolve na mesma transação.
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.motoboyTransfer.updateMany({
+      where: { id, status: { in: ['failed', 'failed_final', 'uncertain'] } },
+      data: { status: 'done', doneAt: new Date(), lastError: null, resolvedBy: `admin:${adminId}`, resolutionNote: note },
+    });
+    if (count !== 1) {
+      const done = t.status === 'done';
+      throw new AppError(
+        done ? 'Esta transferência já foi concluída' : 'Esta transferência não pode ser resolvida agora',
+        409, true, done ? 'TRANSFER_ALREADY_DONE' : t.status === 'requested' ? 'TRANSFER_IN_PROGRESS' : 'TRANSFER_NOT_RESOLVABLE',
+      );
+    }
+    await recordAdminMoneyAction(tx, {
+      actor,
+      type: 'motoboy_transfer_resolve',
+      targetType: 'motoboy_transfer',
+      targetId: id,
+      amount: t.amount,
+      reason: note,
+      before: { status: t.status },
+      after: { status: 'done' },
+    });
   });
-  if (count !== 1) {
-    const done = t.status === 'done';
-    throw new AppError(
-      done ? 'Esta transferência já foi concluída' : 'Esta transferência não pode ser resolvida agora',
-      409, true, done ? 'TRANSFER_ALREADY_DONE' : t.status === 'requested' ? 'TRANSFER_IN_PROGRESS' : 'TRANSFER_NOT_RESOLVABLE',
-    );
-  }
   logger.info('[motoboyTransfer][AUDIT]', { transferId: id, adminId, action: 'resolve', from: t.status, note });
   const fresh = await prisma.motoboyTransfer.findUnique({ where: { id } });
   return res.json({ success: true, data: serialize(fresh!) });
