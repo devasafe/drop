@@ -203,6 +203,8 @@ describe('PUT /admin/users/:id/roles — trabalho aberto', () => {
     const base = { customerId: comprador.userId, storeId: store.id, totalValue: 50, subtotal: 45, deliveryFee: 5, paymentMethod: 'pix' };
     const o1 = await prisma.order.create({ data: { ...base, status: 'pago' } as any });
     const o2 = await prisma.order.create({ data: { ...base, status: 'enviado' } as any });
+    // PIX ainda pendente também é trabalho aberto: pode ser pago depois de a loja fechar.
+    const o3 = await prisma.order.create({ data: { ...base, status: 'criado' } as any });
     await prisma.order.create({ data: { ...base, status: 'entregue' } as any });
     // Pedido aberto em loja de OUTRO dono não conta.
     const outroDono = await createTestUser('lojista', DOMAIN);
@@ -211,11 +213,11 @@ describe('PUT /admin/users/:id/roles — trabalho aberto', () => {
 
     const res = await putRoles(ceo, alvo.id, ['cliente']);
     expect(res.status).toBe(409);
-    expect(res.body).toMatchObject({ code: 'ROLE_HAS_OPEN_WORK', role: 'lojista', count: 2 });
+    expect(res.body).toMatchObject({ code: 'ROLE_HAS_OPEN_WORK', role: 'lojista', count: 3 });
     expect(typeof res.body.error).toBe('string');
     expect(sorted((await prisma.user.findUnique({ where: { id: alvo.id } }))?.roles)).toEqual(['cliente', 'lojista']);
 
-    await prisma.order.updateMany({ where: { id: { in: [o1.id, o2.id] } }, data: { status: 'entregue' } });
+    await prisma.order.updateMany({ where: { id: { in: [o1.id, o2.id, o3.id] } }, data: { status: 'entregue' } });
     const ok = await putRoles(ceo, alvo.id, ['cliente']);
     expect(ok.status).toBe(200);
     expect(ok.body.user.roles).toEqual(['cliente']);

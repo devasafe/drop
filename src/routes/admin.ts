@@ -65,7 +65,7 @@ const SAFE_USER_SELECT = {
 
 // Ordem do `role` base quando o atual sai da lista.
 const BASE_ROLE_ORDER = ['ceo', 'lojista', 'motoboy', 'cliente'];
-const OPEN_ORDER_STATUSES = ['pago', 'aguardando_motoboy', 'enviado'] as const;
+const OPEN_ORDER_STATUSES = ['criado', 'pago', 'aguardando_motoboy', 'enviado'] as const;
 const OPEN_DELIVERY_STATUSES = ['assigned', 'picked'] as const;
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
