@@ -37,13 +37,19 @@ export interface WalletAdjustResult {
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 20_000 };
 
+function directionOf(row: AdminMoneyAction, after: Record<string, unknown>): 'credit' | 'debit' {
+  if (after.direction === 'credit' || after.direction === 'debit') return after.direction;
+  // Nunca presumir: uma linha sem direção não pode virar "crédito" num replay.
+  throw new Error(`walletAdjust: linha ${row.id} sem direção gravada`);
+}
+
 function fromAction(row: AdminMoneyAction): WalletAdjustment {
   const before = (row.before ?? {}) as Record<string, unknown>;
   const after = (row.after ?? {}) as Record<string, unknown>;
   return {
     actionId: row.id,
     walletId: row.targetId,
-    direction: after.direction === 'debit' ? 'debit' : 'credit',
+    direction: directionOf(row, after),
     amount: Number(row.amount),
     reason: row.reason ?? '',
     balanceBefore: Number(before.balance),
@@ -58,12 +64,14 @@ const toCents = (v: unknown) => Math.round(Number(v) * 100);
 /**
  * A mesma chave só pode repetir o MESMO pedido (direção, valor em centavos, motivo). Se vier com
  * outros valores, devolver o ajuste antigo como "já registrado" esconderia que o pedido novo não
- * foi feito: responde 409 IDEMPOTENCY_KEY_REUSED e o saldo não muda. A carteira não entra na
- * comparação: na corrida da mesma chave em carteiras diferentes a perdedora recebe a vencedora.
+ * foi feito: responde 409 IDEMPOTENCY_KEY_REUSED e o saldo não muda. A carteira também entra na
+ * comparação: a mesma chave em outra carteira (em sequência ou na corrida decidida pela unique)
+ * é 409, nunca "já registrado" para uma carteira que não foi ajustada.
  */
-function replayOf(row: AdminMoneyAction, input: WalletAdjustInput): WalletAdjustResult {
+function replayOf(row: AdminMoneyAction, walletId: string, input: WalletAdjustInput): WalletAdjustResult {
   const adjustment = fromAction(row);
-  const same = adjustment.direction === input.direction
+  const same = row.targetId === walletId
+    && adjustment.direction === input.direction
     && toCents(adjustment.amount) === toCents(input.amount)
     && adjustment.reason === input.reason.trim();
   if (!same) {
@@ -94,7 +102,7 @@ export async function adjustWalletBalance(
       const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Wallet" WHERE id = ${walletId} FOR UPDATE`;
 
       const previous = await tx.adminMoneyAction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
-      if (previous) return replayOf(previous, input);
+      if (previous) return replayOf(previous, walletId, input);
       if (locked.length === 0) return null;
 
       const wallet = await tx.wallet.findUniqueOrThrow({ where: { id: walletId } });
@@ -140,10 +148,10 @@ export async function adjustWalletBalance(
     }, TX_OPTIONS);
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
-    // Mesma chave em carteiras diferentes ao mesmo tempo: a unique decidiu, esta transação foi
-    // desfeita inteira (saldo e lançamento) e devolvemos o resultado da vencedora.
+    // Mesma chave ao mesmo tempo sem trava em comum: a unique decidiu e esta transação foi desfeita
+    // inteira (saldo e lançamento). Mesma carteira e valores → replay; senão 409 IDEMPOTENCY_KEY_REUSED.
     const winner = await prisma.adminMoneyAction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
     if (!winner) throw err;
-    return replayOf(winner, input);
+    return replayOf(winner, walletId, input);
   }
 }

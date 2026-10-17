@@ -81,6 +81,20 @@ describe('crédito e débito', () => {
     expect(await prisma.adminMoneyAction.count({ where: { targetId: w.id } })).toBe(0);
   });
 
+  it('dois débitos simultâneos (chaves diferentes) que somados passam do saldo → um 200, um 409 INSUFFICIENT_BALANCE', async () => {
+    const w = await carteira(alvo.userId, 30);
+    const [a, b] = await Promise.all([
+      ajustar(ceo, w.id, corpo({ direction: 'debit', amount: 20 })),
+      ajustar(ceo, w.id, corpo({ direction: 'debit', amount: 20 })),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const conflito = a.status === 409 ? a : b;
+    expect(conflito.body).toEqual({ error: 'Saldo insuficiente para este débito', code: 'INSUFFICIENT_BALANCE', available: 10 });
+    expect(await saldo(w.id)).toBe(10);
+    expect(await prisma.walletEntry.count({ where: { walletId: w.id } })).toBe(1);
+    expect(await prisma.adminMoneyAction.count({ where: { targetId: w.id } })).toBe(1);
+  });
+
   it('carteira inexistente → 404', async () => {
     const r = await ajustar(ceo, 'nao-existe', corpo());
     expect(r.status).toBe(404);
@@ -120,16 +134,57 @@ describe('idempotência', () => {
     expect(await prisma.adminMoneyAction.count({ where: { idempotencyKey: body.idempotencyKey } })).toBe(1);
   });
 
-  it('mesma chave em paralelo em carteiras diferentes → a unique decide: só uma carteira muda', async () => {
+  it('mesma chave em paralelo em carteiras diferentes → a unique decide: um 200, um 409 IDEMPOTENCY_KEY_REUSED', async () => {
     const w1 = await carteira(alvo.userId, 0);
     const outro = await createTestUser('cliente', DOMAIN);
     const w2 = await carteira(outro.userId, 0);
     const body = corpo();
     const [a, b] = await Promise.all([ajustar(ceo, w1.id, body), ajustar(ceo, w2.id, body)]);
-    expect([a.status, b.status]).toEqual([200, 200]);
-    expect(a.body.adjustment.actionId).toBe(b.body.adjustment.actionId);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const [ok, conflito] = a.status === 200 ? [a, b] : [b, a];
+    expect(ok.body.replayed).toBe(false);
+    expect(conflito.body).toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED', actionId: ok.body.adjustment.actionId });
     expect((await saldo(w1.id)) + (await saldo(w2.id))).toBe(25);
     expect(await prisma.walletEntry.count({ where: { walletId: { in: [w1.id, w2.id] } } })).toBe(1);
+  });
+
+  it('mesma chave em outra carteira, em sequência → 409 IDEMPOTENCY_KEY_REUSED; a segunda carteira fica intacta', async () => {
+    const w1 = await carteira(alvo.userId, 0);
+    const outro = await createTestUser('cliente', DOMAIN);
+    const w2 = await carteira(outro.userId, 7);
+    const body = corpo();
+    const a = await ajustar(ceo, w1.id, body);
+    expect(a.status).toBe(200);
+    const b = await ajustar(ceo, w2.id, body);
+    expect(b.status).toBe(409);
+    expect(b.body).toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED', actionId: a.body.adjustment.actionId });
+    expect(await saldo(w1.id)).toBe(25);
+    expect(await saldo(w2.id)).toBe(7);
+    expect(await prisma.walletEntry.count({ where: { walletId: w2.id } })).toBe(0);
+  });
+
+  it('mesma chave numa carteira inexistente → 409 (não "já registrado")', async () => {
+    const w = await carteira(alvo.userId, 0);
+    const body = corpo();
+    expect((await ajustar(ceo, w.id, body)).status).toBe(200);
+    const r = await ajustar(ceo, 'nao-existe', body);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('IDEMPOTENCY_KEY_REUSED');
+  });
+
+  it('linha gravada sem direção não vira crédito no replay → 500, nada muda', async () => {
+    const w = await carteira(alvo.userId, 3);
+    const key = crypto.randomUUID();
+    await prisma.adminMoneyAction.create({
+      data: {
+        actorId: ceo.userId, actorRole: 'ceo', type: 'wallet_adjust', targetType: 'wallet', targetId: w.id,
+        amount: 25, reason: MOTIVO, before: { balance: 3 }, after: { balance: 28 }, idempotencyKey: key,
+      },
+    });
+    const r = await ajustar(ceo, w.id, corpo({ idempotencyKey: key }));
+    expect(r.status).toBe(500);
+    expect(await saldo(w.id)).toBe(3);
+    expect(await prisma.walletEntry.count({ where: { walletId: w.id } })).toBe(0);
   });
 });
 
