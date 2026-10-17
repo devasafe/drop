@@ -54,6 +54,11 @@ it('CSS de components/admin segue o DS v2 (só tokens)', () => {
   expect(strictReport(files)).toBe('');
 });
 
+it('CSS de components/admin sem sobra de cerca de código (```)', () => {
+  const sobras = walk('components/admin', /\.module\.css$/).filter((f) => read(f).includes('```'));
+  expect(sobras).toEqual([]);
+});
+
 it('sem style={{ em components/admin', () => {
   expect(inlineStyle(walk('components/admin', /\.tsx$/))).toEqual([]);
 });

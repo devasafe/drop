@@ -203,3 +203,59 @@ it('409 com mais um plano dentro da folha: avisa, acrescenta o plano e o próxim
   }));
   expect(mockToast).toHaveBeenCalledWith('Regras salvas · 5 lojas atualizadas', 'success');
 });
+
+it('comissão 8,5 → 8,50 (mesmos centavos): salva sem abrir a folha e sem commissionSync', async () => {
+  const cfg = { ...CONFIG, commissionPlan1: 8.5 };
+  get.mockImplementation((url: string) => (url === '/settings/platform-config' ? Promise.resolve({ data: cfg }) : Promise.reject(new Error(url))));
+  put.mockResolvedValue(saved({ ...cfg, motoboyCutPerKm: 2 }));
+  renderAdminPage(<AdminSettings />, GERENTE);
+  await changePlan('Por km de rota (R$)', '2');
+  await changePlan('Plano 1 · vitrine (%)', '8.50');
+  fireEvent.click(screen.getByRole('button', { name: /Salvar \d mudança/ }));
+  await waitFor(() => expect(put).toHaveBeenCalledWith('/settings/platform-config', expect.not.objectContaining({ commissionSync: expect.anything() })));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('clique duplo em "Salvar e aplicar": um PUT só', async () => {
+  let release: (v: unknown) => void = () => {};
+  put.mockReturnValue(new Promise((r) => { release = r; }));
+  renderAdminPage(<AdminSettings />, GERENTE);
+  await changePlan('Plano 2 · com motoboys (%)', '12');
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
+  const s = await sheet();
+  fireEvent.click(await within(s).findByRole('radio', { name: /Manter as especiais/ }));
+  const ok = within(s).getByRole('button', { name: 'Salvar e aplicar' });
+  fireEvent.click(ok);
+  fireEvent.click(ok);
+  expect(put).toHaveBeenCalledTimes(1);
+  release(saved({ ...CONFIG, commissionPlan2: 12 }, []));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(put).toHaveBeenCalledTimes(1);
+});
+
+it('409 só com planos já mostrados: relê o impacto e pede a escolha de novo', async () => {
+  let reads = 0;
+  get.mockImplementation((url: string) => {
+    if (url === '/settings/platform-config') return Promise.resolve({ data: CONFIG });
+    if (url === '/settings/commission-impact?plan=plan2&value=12') {
+      reads += 1;
+      return Promise.resolve({ data: reads === 1 ? IMPACT[url] : { oldValue: 14, newValue: 12, atOldValue: 2, special: [{ storeId: 's9', storeName: 'Loja Especial', rate: 10 }] } });
+    }
+    return Promise.reject(new Error(url));
+  });
+  put
+    .mockRejectedValueOnce({ response: { status: 409, data: { error: 'x', code: 'COMMISSION_SYNC_CHOICE_REQUIRED', plans: ['plan2'] } } })
+    .mockResolvedValueOnce(saved({ ...CONFIG, commissionPlan2: 12 }, []));
+  renderAdminPage(<AdminSettings />, GERENTE);
+  await changePlan('Plano 2 · com motoboys (%)', '12');
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
+  const s = await sheet();
+  fireEvent.click(await within(s).findByRole('radio', { name: /Manter as especiais/ }));
+  fireEvent.click(within(s).getByRole('button', { name: 'Salvar e aplicar' }));
+  expect(await within(s).findByText(/A comissão mudou no servidor\. Conferimos o impacto de novo/)).toBeInTheDocument();
+  expect(await within(s).findByText('Plano 2: 14% → 12%')).toBeInTheDocument();
+  expect(within(s).getByRole('button', { name: 'Salvar e aplicar' })).toBeDisabled();
+  fireEvent.click(within(s).getByRole('radio', { name: /Igualar todas/ }));
+  fireEvent.click(within(s).getByRole('button', { name: 'Salvar e aplicar' }));
+  await waitFor(() => expect(put).toHaveBeenLastCalledWith('/settings/platform-config', expect.objectContaining({ commissionSync: { plan2: 'all' } })));
+});

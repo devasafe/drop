@@ -43,9 +43,11 @@ export interface CommissionSyncSheetProps {
   changes: CommissionChange[] | null;
   onClose: () => void;
   onConfirm: (choices: CommissionSyncChoices) => Promise<void>;
+  /** Muda quando a tela quer reler o impacto de todos os planos e pedir a escolha de novo (409 do servidor). */
+  reloadToken?: number;
 }
 
-export function CommissionSyncSheet({ changes, onClose, onConfirm }: CommissionSyncSheetProps) {
+export function CommissionSyncSheet({ changes, onClose, onConfirm, reloadToken = 0 }: CommissionSyncSheetProps) {
   const [impacts, setImpacts] = useState<Partial<Record<CommissionPlanKey, ImpactState>>>({});
   const [choices, setChoices] = useState<CommissionSyncChoices>({});
   // Planos (e valores) já pedidos ao servidor nesta abertura.
@@ -64,6 +66,7 @@ export function CommissionSyncSheet({ changes, onClose, onConfirm }: CommissionS
     }
   }, []);
 
+  const lastToken = useRef(reloadToken);
   const signature = changes ? changes.map((c) => `${c.plan}:${c.newValue}`).join('|') : '';
   useEffect(() => {
     if (!changes) {
@@ -71,6 +74,11 @@ export function CommissionSyncSheet({ changes, onClose, onConfirm }: CommissionS
       setImpacts({});
       setChoices({});
       return;
+    }
+    if (lastToken.current !== reloadToken) {
+      lastToken.current = reloadToken;
+      requested.current = new Set();
+      setChoices({});
     }
     for (const c of changes) {
       const k = `${c.plan}:${c.newValue}`;
@@ -81,7 +89,7 @@ export function CommissionSyncSheet({ changes, onClose, onConfirm }: CommissionS
     }
     // `changes` entra pela assinatura (a tela cria um array novo a cada render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, loadOne]);
+  }, [signature, reloadToken, loadOne]);
 
   const list = changes ?? [];
   const ready = list.length > 0 && list.every((c) => impacts[c.plan]?.status === 'ok' && !!choices[c.plan]);

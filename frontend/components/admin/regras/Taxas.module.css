@@ -43,7 +43,6 @@
 }
 .syncTitle { margin: 0; font: var(--text-label); color: var(--color-text-primary); }
 .syncChoices { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
-```
 
 @media (min-width: 1024px) {
   .layout { grid-template-columns: minmax(0, 1fr) 360px; }

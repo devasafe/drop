@@ -130,6 +130,7 @@ export function TaxasTab() {
   const [simValue, setSimValue] = useState('100');
   const [simKm, setSimKm] = useState('3');
   const [simPlan, setSimPlan] = useState<1 | 2 | 3>(2);
+  const [syncReload, setSyncReload] = useState(0);
   const [syncChanges, setSyncChanges] = useState<CommissionChange[] | null>(null);
 
   const load = useCallback(async () => {
@@ -226,6 +227,16 @@ export function TaxasTab() {
           response: {
             status: 409,
             data: { error: `A comissão também mudou no servidor: ${missing.map((p) => PLAN_LABEL[p]).join(', ')}. Escolha abaixo e salve de novo.` },
+          },
+        };
+      }
+      if (plansMissingChoice(err).length > 0) {
+        // O valor do servidor mudou nos planos já mostrados: reler o impacto e pedir a escolha de novo.
+        setSyncReload((n) => n + 1);
+        throw {
+          response: {
+            status: 409,
+            data: { error: 'A comissão mudou no servidor. Conferimos o impacto de novo: escolha abaixo e salve de novo.' },
           },
         };
       }
@@ -326,7 +337,7 @@ export function TaxasTab() {
           </Button>
         </div>
       </aside>
-      <CommissionSyncSheet changes={syncChanges} onClose={() => setSyncChanges(null)} onConfirm={confirmSync} />
+      <CommissionSyncSheet changes={syncChanges} onClose={() => setSyncChanges(null)} onConfirm={confirmSync} reloadToken={syncReload} />
     </div>
   );
 }
