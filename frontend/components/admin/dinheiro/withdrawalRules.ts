@@ -55,13 +55,28 @@ export function bankSummary(w: Withdrawal): string | null {
   return `${b.bankName ?? 'Banco'} · ${type} · Ag ${b.routingNumber ?? '—'} · CC ${b.accountNumber ?? '—'} · ${b.ownerName ?? ''}`.trim();
 }
 
+/** currentStatus do corpo do 409 WITHDRAWAL_NOT_PENDING (D3b-3, E8). */
+export function withdrawalConflictStatus(err: unknown): string | null {
+  if (!isConflictWithCode(err, 'WITHDRAWAL_NOT_PENDING')) return null;
+  const s = (err as { response?: { data?: { currentStatus?: unknown } } }).response?.data?.currentStatus;
+  return typeof s === 'string' ? s : null;
+}
+
 /**
- * "Já feito" do lote de aprovação: 409 WITHDRAWAL_NOT_PENDING (o saque já saiu da fila: outra pessoa aprovou
- * ou recusou, ou ele já está em voo). Conta como feito e nunca é reenviado. Nenhum outro 409 entra aqui
- * (WITHDRAWAL_NOT_RESOLVABLE, por exemplo, é da resolução de saque incerto e é erro).
+ * "Já feito" do lote de aprovação (D3b-3, E8): só 409 WITHDRAWAL_NOT_PENDING com currentStatus 'processed'
+ * (o saque já foi pago). 'approved' (em voo/incerto) e 'rejected' são falhas com mensagem própria; sem
+ * currentStatus também não conta. WITHDRAWAL_NOT_RESOLVABLE é da resolução de incerto e é erro.
  */
 export function isWithdrawalAlreadyHandled(err: unknown): boolean {
-  return isConflictWithCode(err, 'WITHDRAWAL_NOT_PENDING');
+  return withdrawalConflictStatus(err) === 'processed';
+}
+
+/** Mensagem das falhas 409 WITHDRAWAL_NOT_PENDING que não são "já feito"; null para o resto. */
+export function withdrawalConflictMessage(err: unknown): string | null {
+  const s = withdrawalConflictStatus(err);
+  if (s === 'approved') return 'Em andamento: este saque já está sendo pago. Se não concluir, ele aparece em Incertos.';
+  if (s === 'rejected') return 'Este saque já foi rejeitado.';
+  return null;
 }
 
 /** 502 WITHDRAWAL_UNCERTAIN: o Pix pode ter saído. Falha, mas nunca entra no "Tentar de novo". */

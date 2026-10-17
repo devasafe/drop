@@ -3,7 +3,7 @@
  * com a MESMA regra da página antiga (pages/admin/verificacoes.tsx em 91a9597), e descreve cada item
  * pendente com as rotas de aprovar/recusar e a permissão que a rota exige.
  */
-import { isHttpStatus } from './adminErrors';
+import { isConflictWithCode, isHttpStatus } from './adminErrors';
 
 export type PersonKind = 'lojista' | 'motoboy' | 'cliente';
 export type VerificationKind = 'document' | 'facial' | 'courier' | 'cnpj' | 'address';
@@ -218,10 +218,12 @@ export function composeRejectReason(motivo: string, mensagem = ''): string {
 const NOT_PENDING = /não (está|estão) pendentes?/i;
 
 /**
- * "Já feito" destas rotas: aprovar/recusar item que não está mais pendente responde 400
- * ("Documento não está pendente", "Dados não estão pendentes"…). Outro erro nunca vira feito.
+ * "Já feito" destas rotas: aprovar/recusar item que não está mais pendente. D3b-3 (spec 4.4): o servidor
+ * responde 409 VERIFICATION_NOT_PENDING; o 400 antigo ("Documento não está pendente", "Dados não estão
+ * pendentes"…) continua aceito por compatibilidade. Outro erro nunca vira feito.
  */
 export function isVerificationAlreadyDecided(err: unknown): boolean {
+  if (isConflictWithCode(err, 'VERIFICATION_NOT_PENDING')) return true;
   if (!isHttpStatus(err, 400)) return false;
   const data = (err as { response?: { data?: { error?: unknown } } }).response?.data;
   return typeof data?.error === 'string' && NOT_PENDING.test(data.error);

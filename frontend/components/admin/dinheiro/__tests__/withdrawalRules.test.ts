@@ -4,7 +4,7 @@ import {
 } from '../withdrawalRules';
 
 const base: Withdrawal = { _id: 'w', amount: 10, status: 'approved', requestedAt: '2026-10-08T10:00:00Z' };
-const err = (status: number, code?: string) => ({ response: { status, data: { error: 'x', ...(code ? { code } : {}) } } });
+const err = (status: number, code?: string, extra: Record<string, unknown> = {}) => ({ response: { status, data: { error: 'x', ...(code ? { code } : {}), ...extra } } });
 
 describe('isResolvable (igual à página antiga)', () => {
   const now = Date.parse('2026-10-08T12:00:00Z');
@@ -24,8 +24,13 @@ describe('isResolvable (igual à página antiga)', () => {
 });
 
 describe('"já feito" do lote de aprovação (POST /withdrawals/approve)', () => {
-  it('409 WITHDRAWAL_NOT_PENDING é "já saiu da fila"', () => {
-    expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_PENDING'))).toBe(true);
+  it('409 WITHDRAWAL_NOT_PENDING com currentStatus processed é "já feito" (E8)', () => {
+    expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_PENDING', { currentStatus: 'processed' }))).toBe(true);
+  });
+  it('409 WITHDRAWAL_NOT_PENDING com approved, rejected ou sem currentStatus NÃO é "já feito" (E8)', () => {
+    expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_PENDING', { currentStatus: 'approved' }))).toBe(false);
+    expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_PENDING', { currentStatus: 'rejected' }))).toBe(false);
+    expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_PENDING'))).toBe(false);
   });
   it('409 WITHDRAWAL_NOT_RESOLVABLE NÃO é "já feito"', () => {
     expect(isWithdrawalAlreadyHandled(err(409, 'WITHDRAWAL_NOT_RESOLVABLE'))).toBe(false);

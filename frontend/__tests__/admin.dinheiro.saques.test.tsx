@@ -155,7 +155,7 @@ describe('tela nova', () => {
       }
       if (body.withdrawalId === 'w2') {
         pendingNow = pendingNow.filter((w) => w._id !== 'w2');
-        return Promise.reject({ response: { status: 409, data: { error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING' } } });
+        return Promise.reject({ response: { status: 409, data: { error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING', currentStatus: 'processed' } } });
       }
       return Promise.reject({ response: { status: 502, data: { error: 'Falha na transferência do saque: chave inválida' } } });
     });
@@ -173,6 +173,18 @@ describe('tela nova', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo os que falharam' }));
     await waitFor(() => expect(approveIds()).toEqual(['w1', 'w2', 'w3', 'w3']));
+  });
+
+  it.each([
+    ['approved', 'Zé: Em andamento: este saque já está sendo pago. Se não concluir, ele aparece em Incertos.'],
+    ['rejected', 'Zé: Este saque já foi rejeitado.'],
+  ])('409 WITHDRAWAL_NOT_PENDING com currentStatus %s é falha com mensagem própria (E8)', async (currentStatus, msg) => {
+    post.mockRejectedValue({ response: { status: 409, data: { error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING', currentStatus } } });
+    render(<AdminWithdrawalsPage />);
+    await screen.findByText('Zé');
+    await selectAllAndConfirm(1);
+    expect(await screen.findByText('Lote: 0 concluídos, 1 com erro')).toBeInTheDocument();
+    expect(screen.getByText(msg)).toBeInTheDocument();
   });
 
   it('resultado incerto (502 WITHDRAWAL_UNCERTAIN) nunca entra no "Tentar de novo"', async () => {

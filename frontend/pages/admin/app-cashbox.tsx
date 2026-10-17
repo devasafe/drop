@@ -23,12 +23,14 @@ import { StatusTag, type StatusTone } from '../../components/admin/StatusTag';
 import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
 import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
 import { flattenServerError } from '../../components/admin/dinheiro/serverError';
+import { flattenMoneyError } from '../../components/admin/dinheiro/moneyErrors';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
+import { isConflictWithCode } from '../../lib/adminErrors';
 import { amountFieldError, parseAmount } from '../../lib/adminAmount';
 import { formatMoney } from '../../lib/money';
 
@@ -189,7 +191,9 @@ export default function AdminCashboxPage() {
     try {
       await api.put(`/admin/app-cashbox/withdrawals/${approving._id}/approve`);
     } catch (err) {
-      throw flattenServerError(err, 'Erro ao aprovar a retirada');
+      // 403 CASHBOX_SELF_APPROVAL: "Outra pessoa precisa aprovar esta retirada". 409: outra pessoa decidiu antes.
+      if (isConflictWithCode(err, 'CASHBOX_WITHDRAWAL_NOT_PENDING')) void load();
+      throw flattenMoneyError(err, 'Erro ao aprovar a retirada');
     }
     setApproving(null);
     showToast('Retirada aprovada.', 'success');
@@ -201,7 +205,8 @@ export default function AdminCashboxPage() {
     try {
       await api.put(`/admin/app-cashbox/withdrawals/${rejecting._id}/reject`, { rejectionReason: rejectReason });
     } catch (err) {
-      throw flattenServerError(err, 'Erro ao recusar a retirada');
+      if (isConflictWithCode(err, 'CASHBOX_WITHDRAWAL_NOT_PENDING')) void load();
+      throw flattenMoneyError(err, 'Erro ao recusar a retirada');
     }
     setRejecting(null);
     setRejectReason('');
@@ -387,6 +392,10 @@ export default function AdminCashboxPage() {
               {approving.bankInfo?.account ? ` (${approving.bankInfo.account})` : ''}. O valor sai do caixa da plataforma.
             </p>
           )}
+          <p className={blocks.muted}>
+            Quem pediu a retirada não aprova a própria quando há outra pessoa que pode aprovar. Se só você pode, a
+            aprovação fica registrada no Histórico do Dinheiro.
+          </p>
         </AdminSheet>
 
         <AdminSheet

@@ -26,7 +26,7 @@ import { ResolveUncertainSheet, type ResolveOutcome } from '../../components/adm
 import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
 import { flattenServerError } from '../../components/admin/dinheiro/serverError';
 import {
-  bankSummary, isResolvable, isWithdrawalAlreadyHandled, isWithdrawalUncertain, withdrawalStatus, type Withdrawal,
+  bankSummary, isResolvable, isWithdrawalAlreadyHandled, isWithdrawalUncertain, withdrawalConflictMessage, withdrawalStatus, type Withdrawal,
 } from '../../components/admin/dinheiro/withdrawalRules';
 import { Button } from '../../components/ui/Button';
 import { Switch } from '../../components/ui/Switch';
@@ -181,6 +181,8 @@ export default function AdminWithdrawalsPage() {
         await api.post('/withdrawals/approve', { withdrawalId: id });
       } catch (err) {
         if (isWithdrawalUncertain(err)) uncertain.add(id);
+        const own = withdrawalConflictMessage(err);
+        if (own) throw { response: { status: 409, data: { error: own, code: 'WITHDRAWAL_NOT_PENDING' } } };
         throw err;
       }
     };
