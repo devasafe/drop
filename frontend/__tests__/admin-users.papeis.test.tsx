@@ -109,6 +109,30 @@ describe('Usuários · folha "Papéis"', () => {
     expect(within(rowOf('Ana Souza')).getByText('Gerente de lojistas · Lojista')).toBeInTheDocument();
   });
 
+  it.each([
+    [1, 'Papéis atualizados. A loja da pessoa foi fechada.'],
+    [2, 'Papéis atualizados. As 2 lojas da pessoa foram fechadas.'],
+  ])('tirar Lojista com %i loja(s) fechada(s) pelo servidor: toast avisa', async (storesClosed, msg) => {
+    (api.put as jest.Mock).mockResolvedValue({
+      data: { user: { id: 'u2', role: 'cliente', activeRole: 'cliente', roles: ['cliente'] }, storesClosed },
+    });
+    const dialog = await openPapeis('Rui Loja');
+    fireEvent.click(box(dialog, 'Lojista'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(msg, 'success'));
+  });
+
+  it('fora do CEO: sem botão "Papéis" para conta com papel de equipe só em activeRole', async () => {
+    setRole('gerente_geral', ['user:view_all', 'user:manage_roles']);
+    (api.get as jest.Mock).mockResolvedValue({
+      data: [...USERS, { _id: 'u9', name: 'Ivo Antigo', email: 'ivo@x.com', role: 'cliente', activeRole: 'marketing', roles: ['cliente'], status: 'active', createdAt: '2026-05-01T12:00:00Z' }],
+    });
+    render(<AdminUsersPage />);
+    await screen.findByText('Ivo Antigo');
+    expect(within(rowOf('Ivo Antigo')).queryByRole('button', { name: 'Papéis' })).toBeNull();
+    expect(within(rowOf('Ana Souza')).getByRole('button', { name: 'Papéis' })).toBeInTheDocument();
+  });
+
   it('desmarcar e marcar de volta deixa "Salvar" desabilitado', async () => {
     const dialog = await openPapeis('Rui Loja');
     fireEvent.click(box(dialog, 'Lojista'));

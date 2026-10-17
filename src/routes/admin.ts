@@ -68,14 +68,16 @@ const BASE_ROLE_ORDER = ['ceo', 'lojista', 'motoboy', 'cliente'];
 const OPEN_ORDER_STATUSES = ['pago', 'aguardando_motoboy', 'enviado'] as const;
 const OPEN_DELIVERY_STATUSES = ['assigned', 'picked'] as const;
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 /** Trabalho em aberto que impede tirar o papel: pedidos da loja (lojista) ou entregas em curso (motoboy). */
-async function openWorkFor(userId: string, removed: string[]) {
+async function openWorkFor(tx: Tx, userId: string, removed: string[]) {
   if (removed.includes('lojista')) {
-    const count = await prisma.order.count({ where: { store: { ownerId: userId }, status: { in: [...OPEN_ORDER_STATUSES] } } });
+    const count = await tx.order.count({ where: { store: { ownerId: userId }, status: { in: [...OPEN_ORDER_STATUSES] } } });
     if (count > 0) return { role: 'lojista', count, error: `Esta pessoa tem ${count} pedido(s) em aberto na loja. Termine ou repasse antes de tirar o papel de Lojista.` };
   }
   if (removed.includes('motoboy')) {
-    const count = await prisma.delivery.count({ where: { motoboyId: userId, status: { in: [...OPEN_DELIVERY_STATUSES] } } });
+    const count = await tx.delivery.count({ where: { motoboyId: userId, status: { in: [...OPEN_DELIVERY_STATUSES] } } });
     if (count > 0) return { role: 'motoboy', count, error: `Esta pessoa tem ${count} entrega(s) em andamento. Termine ou repasse antes de tirar o papel de Motoboy.` };
   }
   return null;
@@ -115,25 +117,31 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
       }
     }
 
-    const openWork = await openWorkFor(id, removed);
-    if (openWork) return res.status(409).json({ ...openWork, code: 'ROLE_HAS_OPEN_WORK' });
-
     // Papel de equipe é acréscimo, não área ativa: a pessoa segue como cliente.
     const currentActive = target.activeRole ? String(target.activeRole) : '';
     const activeRole = roles.includes(currentActive) && !isTeamRole(currentActive) ? currentActive : 'cliente';
     const role = roles.includes(String(target.role)) ? String(target.role) : BASE_ROLE_ORDER.find((r) => roles.includes(r))!;
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: { role: role as any, activeRole: activeRole as any, roles: roles as any },
-      select: SAFE_USER_SELECT,
-    }).catch(() => null);
-
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Checagem de trabalho aberto e gravação juntas: nada entra entre uma e outra.
+    const result = await prisma.$transaction(async (tx) => {
+      const openWork = await openWorkFor(tx, id, removed);
+      if (openWork) return { openWork };
+      // Sem lojista ninguém opera a loja: fecha (só isOpen). Devolver o papel não reabre.
+      const storesClosed = removed.includes('lojista')
+        ? (await tx.store.updateMany({ where: { ownerId: id, isOpen: true }, data: { isOpen: false } })).count
+        : 0;
+      const user = await tx.user.update({
+        where: { id },
+        data: { role: role as any, activeRole: activeRole as any, roles: roles as any },
+        select: SAFE_USER_SELECT,
+      });
+      return { user, storesClosed };
+    });
+    if ('openWork' in result) return res.status(409).json({ ...result.openWork, code: 'ROLE_HAS_OPEN_WORK' });
 
     // O token antigo carrega o papel anterior: derruba o socket (o HTTP já recusa).
     disconnectUser(String(id));
-    res.json({ message: 'Papéis atualizados', user });
+    res.json({ message: 'Papéis atualizados', user: result.user, storesClosed: result.storesClosed });
   } catch (err) {
     logger.error('Erro ao atualizar papéis', err as Error);
     res.status(500).json({ error: 'Failed to update roles' });

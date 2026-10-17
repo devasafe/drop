@@ -13,6 +13,7 @@ import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
+import * as notifier from '../services/notifier';
 
 const DOMAIN = '@papeis-multiplos.test';
 
@@ -35,6 +36,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  jest.restoreAllMocks();
   await cleanupUsersByEmailDomain(DOMAIN);
 });
 
@@ -156,6 +158,32 @@ describe('PUT /admin/users/:id/roles — CEO', () => {
     expect(res.status).toBe(404);
   });
 
+  it('activeRole ceo é preservado quando ceo continua na lista', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const alvo = await createAccount(['cliente', 'ceo'], 'ceo', 'ceo');
+    const res = await putRoles(ceo, alvo.id, ['cliente', 'ceo', 'lojista']);
+    expect(res.status).toBe(200);
+    expect(res.body.user.activeRole).toBe('ceo');
+    expect(res.body.user.role).toBe('ceo');
+  });
+
+  it('derruba o socket da pessoa ao salvar', async () => {
+    const spy = jest.spyOn(notifier, 'disconnectUser').mockImplementation(() => undefined);
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const alvo = await createAccount(['cliente'], 'cliente', 'cliente');
+    const res = await putRoles(ceo, alvo.id, ['cliente', 'motoboy']);
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledWith(alvo.id);
+  });
+
+  it('erro real do banco ao gravar → 500 (não 404)', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const alvo = await createAccount(['cliente'], 'cliente', 'cliente');
+    jest.spyOn(prisma, '$transaction').mockRejectedValueOnce(new Error('db caiu'));
+    const res = await putRoles(ceo, alvo.id, ['cliente', 'lojista']);
+    expect(res.status).toBe(500);
+  });
+
   it('PUT /admin/users/:id/role não existe mais (404)', async () => {
     const ceo = await createTestUser('ceo', DOMAIN);
     const alvo = await createAccount(['cliente'], 'cliente', 'cliente');
@@ -176,6 +204,10 @@ describe('PUT /admin/users/:id/roles — trabalho aberto', () => {
     const o1 = await prisma.order.create({ data: { ...base, status: 'pago' } as any });
     const o2 = await prisma.order.create({ data: { ...base, status: 'enviado' } as any });
     await prisma.order.create({ data: { ...base, status: 'entregue' } as any });
+    // Pedido aberto em loja de OUTRO dono não conta.
+    const outroDono = await createTestUser('lojista', DOMAIN);
+    const outraLoja = await prisma.store.create({ data: { ownerId: outroDono.userId, name: 'Loja Alheia', isOpen: true } as any });
+    await prisma.order.create({ data: { ...base, storeId: outraLoja.id, status: 'pago' } as any });
 
     const res = await putRoles(ceo, alvo.id, ['cliente']);
     expect(res.status).toBe(409);
@@ -248,5 +280,57 @@ describe('PUT /admin/users/:id/roles — quem não é CEO', () => {
     const res = await putRoles(gerente, alvo.id, ['cliente', 'lojista', 'motoboy']);
     expect(res.status).toBe(200);
     expect(sorted(res.body.user.roles)).toEqual(['cliente', 'lojista', 'motoboy']);
+  });
+});
+
+describe('PUT /admin/users/:id/roles — loja ao tirar lojista', () => {
+  it('fecha as lojas da pessoa (isOpen false), sem mexer em vitrine nem pausa; devolver o papel não reabre', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const alvo = await createAccount(['cliente', 'lojista'], 'lojista', 'lojista');
+    const pausa = new Date(Date.now() + 3600_000);
+    const s1 = await prisma.store.create({ data: { ownerId: alvo.id, name: 'Loja A', isOpen: true } as any });
+    const s2 = await prisma.store.create({ data: { ownerId: alvo.id, name: 'Loja B', isOpen: true, showInMarketplace: false, pausedUntil: pausa } as any });
+    const outroDono = await createTestUser('lojista', DOMAIN);
+    const alheia = await prisma.store.create({ data: { ownerId: outroDono.userId, name: 'Loja Alheia', isOpen: true } as any });
+
+    const res = await putRoles(ceo, alvo.id, ['cliente']);
+    expect(res.status).toBe(200);
+    expect(res.body.storesClosed).toBe(2);
+    const a = await prisma.store.findUnique({ where: { id: s1.id } });
+    const b = await prisma.store.findUnique({ where: { id: s2.id } });
+    expect(a?.isOpen).toBe(false);
+    expect(a?.showInMarketplace).toBe(true);
+    expect(b?.isOpen).toBe(false);
+    expect(b?.showInMarketplace).toBe(false);
+    expect(b?.pausedUntil?.getTime()).toBe(pausa.getTime());
+    expect((await prisma.store.findUnique({ where: { id: alheia.id } }))?.isOpen).toBe(true);
+
+    const volta = await putRoles(ceo, alvo.id, ['cliente', 'lojista']);
+    expect(volta.status).toBe(200);
+    expect(volta.body.storesClosed).toBe(0);
+    expect((await prisma.store.findUnique({ where: { id: s1.id } }))?.isOpen).toBe(false);
+  });
+
+  it('sem tirar lojista, a loja continua aberta e storesClosed é 0', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const alvo = await createAccount(['cliente', 'lojista'], 'lojista', 'lojista');
+    const loja = await prisma.store.create({ data: { ownerId: alvo.id, name: 'Loja Fica', isOpen: true } as any });
+    const res = await putRoles(ceo, alvo.id, ['cliente', 'lojista', 'motoboy']);
+    expect(res.status).toBe(200);
+    expect(res.body.storesClosed).toBe(0);
+    expect((await prisma.store.findUnique({ where: { id: loja.id } }))?.isOpen).toBe(true);
+  });
+
+  it('409 com pedido aberto não fecha a loja', async () => {
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const comprador = await createTestUser('cliente', DOMAIN);
+    const alvo = await createAccount(['cliente', 'lojista'], 'lojista', 'lojista');
+    const loja = await prisma.store.create({ data: { ownerId: alvo.id, name: 'Loja Ocupada', isOpen: true } as any });
+    await prisma.order.create({
+      data: { customerId: comprador.userId, storeId: loja.id, totalValue: 50, subtotal: 45, deliveryFee: 5, paymentMethod: 'pix', status: 'pago' } as any,
+    });
+    const res = await putRoles(ceo, alvo.id, ['cliente']);
+    expect(res.status).toBe(409);
+    expect((await prisma.store.findUnique({ where: { id: loja.id } }))?.isOpen).toBe(true);
   });
 });

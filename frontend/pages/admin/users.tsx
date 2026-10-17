@@ -75,7 +75,7 @@ const rolesOf = (u: AdminUser) =>
 const extraRolesOf = (u: AdminUser) => rolesOf(u).filter((r) => r !== 'cliente');
 const roleLabel = (role?: string) => (role ? ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role : '—');
 const rolesText = (u: AdminUser) => (extraRolesOf(u).length ? extraRolesOf(u) : ['cliente']).map(roleLabel).join(' · ');
-const isStaff = (u: AdminUser) => [...(u.roles ?? []), u.role].some((r) => STAFF_ROLES.includes(r));
+const isStaff = (u: AdminUser) => [...(u.roles ?? []), u.role, u.activeRole].some((r) => !!r && STAFF_ROLES.includes(r));
 const sameRoles = (a: string[], b: string[]) => a.length === b.length && a.every((r) => b.includes(r));
 const createdAtText = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
 
@@ -150,11 +150,13 @@ function UsuariosScreen() {
   const saveRoles = async () => {
     if (action.type !== 'edit-roles') return;
     const { user, roles } = action;
+    let storesClosed = 0;
     try {
       const res = await api.put(`/admin/users/${user._id}/roles`, { roles });
       // O servidor decide o papel ativo e o base: usa o que ele devolveu.
       const saved = res?.data?.user;
       patchUser(user._id, saved ? { role: saved.role, activeRole: saved.activeRole, roles: saved.roles } : { roles });
+      storesClosed = Number(res?.data?.storesClosed) || 0;
     } catch (err) {
       if (!isConflictWithCode(err, 'ROLE_HAS_OPEN_WORK')) throw err;
       const data = (err as { response: { data: { role?: string; count?: number } } }).response.data;
@@ -164,7 +166,11 @@ function UsuariosScreen() {
       setAction({ ...action, error });
       return;
     }
-    showToast('Papéis atualizados.', 'success');
+    // Sem lojista ninguém opera a loja: o servidor fecha as lojas da pessoa.
+    const closedText = storesClosed === 1
+      ? ' A loja da pessoa foi fechada.'
+      : storesClosed > 1 ? ` As ${storesClosed} lojas da pessoa foram fechadas.` : '';
+    showToast(`Papéis atualizados.${closedText}`, 'success');
     close();
   };
 
