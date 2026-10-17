@@ -13,7 +13,7 @@ import { useSellerPanel } from './seller/panel/SellerPanelProvider';
  */
 export default function RealtimeNotifier() {
   const { on, emit, isConnected } = useSocket();
-  const { user } = useAuth() || {};
+  const { user, teamRoles } = useAuth() || ({} as any);
   const [ownStoreId, setOwnStoreId] = useState<string | null>(null);
   // V12: no painel da loja (/seller/*) a loja vem do SellerPanelProvider, que já leu /stores/dashboard.
   const panel = useSellerPanel();
@@ -22,7 +22,9 @@ export default function RealtimeNotifier() {
   const role = user?.activeRole || user?.role;
   const isLojista = role === 'lojista';
   const isMotoboy = role === 'motoboy';
-  const isAdmin = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(role);
+  // Papel de equipe é acréscimo: quem segue cliente com marketing/gerente também ouve os avisos do admin.
+  const isAdmin = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'].includes(role)
+    || (Array.isArray(teamRoles) && teamRoles.length > 0);
 
   // Habilita o áudio e pede permissão de notificação no 1º gesto do usuário
   useEffect(() => {

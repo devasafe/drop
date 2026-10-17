@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { onlineTracker } from './onlineTracker';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
-import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedStoreIds, ADMIN_ROLES } from './socketRooms';
+import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedStoreIds, adminRolesOf } from './socketRooms';
 import { isOriginAllowed } from '../config/corsOrigins';
 import { isValidCoordinate } from '../utils/geo';
 import logger from '../config/logger';
@@ -228,7 +228,8 @@ export const initSocket = (server: any) => {
       if (!dbUser || dbUser.status === 'blocked' || !dbRoles.includes(String(decoded.role))) {
         return next(new Error('Forbidden'));
       }
-      socket.data.user = { id: decoded.id, role: decoded.role };
+      // `roles` do banco: papéis de equipe somam as salas de admin (acréscimo, não área ativa).
+      socket.data.user = { id: decoded.id, role: decoded.role, roles: (dbUser.roles || []).map(String) };
       return next();
     } catch (err) {
       return next(new Error('Authentication error'));
@@ -238,6 +239,7 @@ export const initSocket = (server: any) => {
   io.on('connection', (socket: Socket) => {
     const userId = socket.data.user?.id;
     const role = socket.data.user?.role;
+    const roles: string[] = socket.data.user?.roles || [];
     logger.debug(`✅ [Socket.io] Conectado: userId=${userId}, role=${role}`);
 
     // 📊 Registrar no tracker de presença em tempo real (para analytics do CEO)
@@ -270,14 +272,12 @@ export const initSocket = (server: any) => {
           .then((ids) => ids.forEach((id) => socket.join(`store:${id}`)))
           .catch((e) => console.warn('[Socket.io] falha ao carregar lojas do dono', e));
       }
-      // ADMIN ROLES (ceo, marketing, gerentes)
-      if (ADMIN_ROLES.includes(role)) {
+      // ADMIN (ceo ativo, marketing, gerentes): papel ativo + papéis de equipe da conta
+      const adminRoles = adminRolesOf({ id: userId, role, roles });
+      if (adminRoles.length > 0) {
         socket.join('admin');
-        socket.join(`admin:${role}`);
-        socket.join(`user:${userId}`);
-        logger.debug(`   ├─ Sala: admin`);
-        logger.debug(`   ├─ Sala: admin:${role}`);
-        logger.debug(`   └─ Sala: user:${userId}`);
+        adminRoles.forEach((r) => socket.join(`admin:${r}`));
+        logger.debug(`   ├─ Salas: admin, ${adminRoles.map((r) => `admin:${r}`).join(', ')}`);
       }
     }
 
@@ -286,7 +286,7 @@ export const initSocket = (server: any) => {
     socket.on('join', async (data) => {
       const room = data?.room;
       try {
-        if (!(await authorizeRoom({ id: userId, role }, room))) {
+        if (!(await authorizeRoom({ id: userId, role, roles }, room))) {
           console.warn(`[Socket.io] join negado: userId=${userId} role=${role} room=${String(room)}`);
           return;
         }
