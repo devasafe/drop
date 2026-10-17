@@ -11,6 +11,8 @@ import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
 import { recomputeStoresForOwner } from '../utils/storeVerification';
 import { emitAdminNotification } from '../utils/socketEmitter';
+import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { decideUserVerificationItem } from '../services/verificationDecision.service';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const ensureVerification = (user: any) => {
@@ -284,49 +286,27 @@ export const listPendingVerifications = async (_req: AuthenticatedRequest, res: 
   }
 };
 
-export const approveDocument = async (req: AuthenticatedRequest, res: Response) => {
+// D3b-3 (spec 4.4): decisão condicional por item — trava a linha, confere pending e grava só
+// o documento. Não pendente → 409 VERIFICATION_NOT_PENDING.
+async function decideDocument(req: AuthenticatedRequest, res: Response, approved: boolean) {
   try {
     const { userId } = req.params;
-    const user = await userRepository.findById(userId) as any;
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    ensureVerification(user);
-    if (user.verification!.document.status !== 'pending') {
-      return res.status(400).json({ error: 'Documento não está pendente' });
-    }
-    user.verification!.document.status = 'approved';
-    user.verification!.document.reviewedBy = req.user?.id;
-    user.verification!.document.reviewedAt = new Date();
-    user.verification!.document.rejectionReason = undefined;
-    await userRepository.update(user.id, { verification: user.verification });
-    logger.info('[verification][AUDIT] documento aprovado', { userId, by: req.user?.id });
+    const reason = approved ? undefined : (req.body?.reason || 'Documento não aprovado');
+    const result = await decideUserVerificationItem(String(userId), 'document', {
+      approved,
+      reviewerId: String(req.user?.id),
+      rejectionReason: reason,
+    });
+    if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
+    logger.info(`[verification][AUDIT] documento ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id, reason });
     await recomputeOwnerStoresSafe(userId);
-    return res.json({ message: 'Documento aprovado' });
+    return res.json({ message: approved ? 'Documento aprovado' : 'Documento rejeitado' });
   } catch (err) {
-    logger.error('Erro ao aprovar documento', err as Error);
+    if (sendMoneyActionError(res, err)) return;
+    logger.error(`Erro ao ${approved ? 'aprovar' : 'rejeitar'} documento`, err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
-};
+}
 
-export const rejectDocument = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const { reason } = req.body;
-    const user = await userRepository.findById(userId) as any;
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    ensureVerification(user);
-    if (user.verification!.document.status !== 'pending') {
-      return res.status(400).json({ error: 'Documento não está pendente' });
-    }
-    user.verification!.document.status = 'rejected';
-    user.verification!.document.reviewedBy = req.user?.id;
-    user.verification!.document.reviewedAt = new Date();
-    user.verification!.document.rejectionReason = reason || 'Documento não aprovado';
-    await userRepository.update(user.id, { verification: user.verification });
-    logger.info('[verification][AUDIT] documento rejeitado', { userId, by: req.user?.id, reason });
-    await recomputeOwnerStoresSafe(userId);
-    return res.json({ message: 'Documento rejeitado' });
-  } catch (err) {
-    logger.error('Erro ao rejeitar documento', err as Error);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-};
+export const approveDocument = (req: AuthenticatedRequest, res: Response) => decideDocument(req, res, true);
+export const rejectDocument = (req: AuthenticatedRequest, res: Response) => decideDocument(req, res, false);

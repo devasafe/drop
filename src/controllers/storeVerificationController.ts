@@ -15,6 +15,8 @@ import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
+import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { decideStoreVerificationItem, decideUserVerificationItem } from '../services/verificationDecision.service';
 
 const ensureUserVerification = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -201,61 +203,68 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
   }
 };
 
+// D3b-3 (spec 4.4): decisão condicional por item (trava a linha do usuário, grava só a facial).
 async function decideUserFacial(req: AuthenticatedRequest, res: Response, approved: boolean) {
-  const { userId } = req.params;
-  const user = await userRepository.findById(String(userId)) as any;
-  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-  ensureUserVerification(user);
-  if (user.verification!.facial!.status !== 'pending') return res.status(400).json({ error: 'Facial não está pendente' });
-  user.verification!.facial!.status = approved ? 'approved' : 'rejected';
-  user.verification!.facial!.reviewedBy = req.user?.id;
-  user.verification!.facial!.reviewedAt = new Date();
-  user.verification!.facial!.rejectionReason = approved ? undefined : (req.body?.reason || 'Selfie não aprovada');
-
-  // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (foto do rosto,
-  // verificada). Cliente não usa a facial como avatar (a foto de perfil dele é livre).
-  const roles: string[] = user.roles || (user.role ? [user.role] : []);
-  const facialViraAvatar = approved
-    && (roles.includes('motoboy') || roles.includes('lojista'))
-    && !!user.verification!.facial!.selfieUrl;
-  const updateData: any = { verification: user.verification };
-  if (facialViraAvatar) updateData.photo = user.verification!.facial!.selfieUrl;
-  await userRepository.update(user.id, updateData);
-  await recomputeStoresForOwner(userId);
-  logger.info(`[verification][AUDIT] facial ${approved ? 'aprovada' : 'rejeitada'}`, { userId, by: req.user?.id });
-  return res.json({ message: approved ? 'Facial aprovada' : 'Facial rejeitada' });
+  try {
+    const { userId } = req.params;
+    const result = await decideUserVerificationItem(
+      String(userId),
+      'facial',
+      { approved, reviewerId: String(req.user?.id), rejectionReason: approved ? undefined : (req.body?.reason || 'Selfie não aprovada') },
+      // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (foto do rosto,
+      // verificada). Cliente não usa a facial como avatar (a foto de perfil dele é livre).
+      (user, decided) => {
+        const roles: string[] = user.roles?.length ? user.roles : (user.role ? [user.role] : []);
+        const selfieUrl = typeof decided.selfieUrl === 'string' ? decided.selfieUrl : '';
+        const facialViraAvatar = approved && !!selfieUrl && (roles.includes('motoboy') || roles.includes('lojista'));
+        return facialViraAvatar ? { photo: selfieUrl } : {};
+      },
+    );
+    if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
+    await recomputeStoresForOwner(userId);
+    logger.info(`[verification][AUDIT] facial ${approved ? 'aprovada' : 'rejeitada'}`, { userId, by: req.user?.id });
+    return res.json({ message: approved ? 'Facial aprovada' : 'Facial rejeitada' });
+  } catch (err) {
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao decidir facial', err as Error, { userId: req.params.userId });
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
 }
 export const approveFacial = (req: AuthenticatedRequest, res: Response) => decideUserFacial(req, res, true);
 export const rejectFacial = (req: AuthenticatedRequest, res: Response) => decideUserFacial(req, res, false);
 
+// D3b-3 (spec 4.4): CNPJ e endereço vivem no mesmo JSON da loja — mesma decisão condicional.
 async function decideStoreItem(req: AuthenticatedRequest, res: Response, item: 'cnpj' | 'address', approved: boolean) {
-  const { storeId } = req.params;
-  const store: any = await prisma.store.findUnique({ where: { id: String(storeId) } });
-  if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-  ensureStoreVerification(store);
-  if (store.verification![item].status !== 'pending') return res.status(400).json({ error: `${item} não está pendente` });
-  store.verification![item].status = approved ? 'approved' : 'rejected';
-  store.verification![item].reviewedBy = req.user?.id;
-  store.verification![item].reviewedAt = new Date();
-  store.verification![item].rejectionReason = approved ? undefined : (req.body?.reason || 'Não aprovado');
-  await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
-  await recomputeStoreVerification(storeId);
-  logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id });
+  try {
+    const { storeId } = req.params;
+    const result = await decideStoreVerificationItem(String(storeId), item, {
+      approved,
+      reviewerId: String(req.user?.id),
+      rejectionReason: approved ? undefined : (req.body?.reason || 'Não aprovado'),
+    });
+    if (!result.found) return res.status(404).json({ error: 'Loja não encontrada' });
+    await recomputeStoreVerification(storeId);
+    logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id });
 
-  // Aviso ao dono (sino + push): a tela "Em análise" (/seller/abrir) mostra a etapa e o motivo.
-  const label = item === 'cnpj' ? 'CNPJ' : 'Endereço';
-  const reason = String(store.verification![item].rejectionReason || 'Não aprovado').slice(0, 300);
-  await notifyStore(store.id, {
-    title: `${label} ${approved ? 'aprovado' : 'recusado'}`,
-    message: approved
-      ? `O DROP aprovou o ${item === 'cnpj' ? 'CNPJ' : 'comprovante de endereço'} da sua loja.`
-      : `Motivo: ${reason}. Corrija e envie de novo.`,
-    link: STORE_LINKS.verification,
-    entityId: store.id,
-    type: 'system',
-    tag: 'verificacao-loja',
-  });
-  return res.json({ message: `${item} ${approved ? 'aprovado' : 'rejeitado'}` });
+    // Aviso ao dono (sino + push): a tela "Em análise" (/seller/abrir) mostra a etapa e o motivo.
+    const label = item === 'cnpj' ? 'CNPJ' : 'Endereço';
+    const reason = String(result.item.rejectionReason || 'Não aprovado').slice(0, 300);
+    await notifyStore(result.store.id, {
+      title: `${label} ${approved ? 'aprovado' : 'recusado'}`,
+      message: approved
+        ? `O DROP aprovou o ${item === 'cnpj' ? 'CNPJ' : 'comprovante de endereço'} da sua loja.`
+        : `Motivo: ${reason}. Corrija e envie de novo.`,
+      link: STORE_LINKS.verification,
+      entityId: result.store.id,
+      type: 'system',
+      tag: 'verificacao-loja',
+    });
+    return res.json({ message: `${item} ${approved ? 'aprovado' : 'rejeitado'}` });
+  } catch (err) {
+    if (sendMoneyActionError(res, err)) return;
+    logger.error(`Erro ao decidir ${item} da loja`, err as Error, { storeId: req.params.storeId });
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
 }
 export const approveStoreCnpj = (req: AuthenticatedRequest, res: Response) => decideStoreItem(req, res, 'cnpj', true);
 export const rejectStoreCnpj = (req: AuthenticatedRequest, res: Response) => decideStoreItem(req, res, 'cnpj', false);

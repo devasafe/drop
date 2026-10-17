@@ -55,11 +55,11 @@ describe('P4.5 — aviso da verificação da loja', () => {
     expect(n!.message).toContain('Não aprovado');
   });
 
-  it('item que não estava pendente (400) não gera aviso', async () => {
+  it('item que não estava pendente (409) não gera aviso', async () => {
     const { ceo, dono, store } = await setup();
     await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/approve`).set('Authorization', bearer(ceo));
     const again = await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/approve`).set('Authorization', bearer(ceo));
-    expect(again.status).toBe(400);
+    expect(again.status).toBe(409);
     expect(await prisma.notification.count({ where: { userId: dono.userId, entityId: store.id } })).toBe(1);
   });
 });

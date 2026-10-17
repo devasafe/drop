@@ -9,6 +9,8 @@ import logger from '../config/logger';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import env from '../config/env';
 import { ensureMotoboySubaccount } from '../services/asaas/subaccount';
+import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { decideUserVerificationItem } from '../services/verificationDecision.service';
 
 const ensureV = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -124,27 +126,31 @@ export const listPendingCourier = async (_req: AuthenticatedRequest, res: Respon
   }
 };
 
+// D3b-3 (spec 4.4): decisão condicional por item (trava a linha do usuário, grava só `courier`).
 async function decideCourier(req: AuthenticatedRequest, res: Response, approved: boolean) {
-  const { userId } = req.params;
-  const user = await userRepository.findById(String(userId)) as any;
-  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-  ensureV(user);
-  if (user.verification!.courier!.status !== 'pending') return res.status(400).json({ error: 'Dados não estão pendentes' });
-  user.verification!.courier!.status = approved ? 'approved' : 'rejected';
-  user.verification!.courier!.reviewedBy = req.user?.id;
-  user.verification!.courier!.reviewedAt = new Date();
-  user.verification!.courier!.rejectionReason = approved ? undefined : (req.body?.reason || 'Dados não aprovados');
-  await userRepository.update(user.id, { verification: user.verification });
-  // Ao aprovar o motoboy, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).
-  if (approved && env.PAYMENT_GATEWAY === 'asaas') {
-    try {
-      await ensureMotoboySubaccount(userId);
-    } catch (err) {
-      logger.error('Falha ao garantir subconta do motoboy na aprovação', err as Error, { userId });
+  try {
+    const { userId } = req.params;
+    const result = await decideUserVerificationItem(String(userId), 'courier', {
+      approved,
+      reviewerId: String(req.user?.id),
+      rejectionReason: approved ? undefined : (req.body?.reason || 'Dados não aprovados'),
+    });
+    if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
+    // Ao aprovar o motoboy, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).
+    if (approved && env.PAYMENT_GATEWAY === 'asaas') {
+      try {
+        await ensureMotoboySubaccount(userId);
+      } catch (err) {
+        logger.error('Falha ao garantir subconta do motoboy na aprovação', err as Error, { userId });
+      }
     }
+    logger.info(`[verification][AUDIT] motoboy ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id });
+    return res.json({ message: approved ? 'Motoboy aprovado' : 'Motoboy rejeitado' });
+  } catch (err) {
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao decidir verificação de motoboy', err as Error, { userId: req.params.userId });
+    return res.status(500).json({ error: 'Erro interno do servidor' });
   }
-  logger.info(`[verification][AUDIT] motoboy ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id });
-  return res.json({ message: approved ? 'Motoboy aprovado' : 'Motoboy rejeitado' });
 }
 export const approveCourier = (req: AuthenticatedRequest, res: Response) => decideCourier(req, res, true);
 export const rejectCourier = (req: AuthenticatedRequest, res: Response) => decideCourier(req, res, false);
