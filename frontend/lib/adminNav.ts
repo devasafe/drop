@@ -83,12 +83,15 @@ export const ADMIN_AREAS: AdminArea[] = [
   {
     key: 'dinheiro', group: 'Dinheiro', label: 'Dinheiro', icon: 'wallet',
     tabs: [
+      // D3b-3: Visão geral e Histórico servem aos dois modos (sem custodyOnly/directOnly); padrão só o CEO.
+      { key: 'visao-geral', label: 'Visão geral', href: '/admin/dinheiro', permission: 'money:overview' },
       { key: 'repasses', label: 'Repasses', href: '/admin/payouts', permission: 'payout:view', custodyOnly: true, whileCustodyOpen: true },
       { key: 'saques', label: 'Saques', href: '/admin/withdrawals', permission: 'withdrawal:view', custodyOnly: true, whileCustodyOpen: true },
       { key: 'estornos', label: 'Estornos', href: '/admin/estornos', permission: 'payout:view', directOnly: true },
       { key: 'carteiras', label: 'Carteiras', href: '/admin/wallets', permission: 'wallet:view_all', custodyOnly: true },
       { key: 'caixa', label: 'Caixa', href: '/admin/app-cashbox', permission: 'cashbox:view', custodyOnly: true },
       { key: 'pix', label: 'Pix aos motoboys', href: '/admin/transfers', permission: 'payout:view', directOnly: true },
+      { key: 'historico', label: 'Histórico', href: '/admin/dinheiro/historico', permission: 'money:overview' },
     ],
   },
   {

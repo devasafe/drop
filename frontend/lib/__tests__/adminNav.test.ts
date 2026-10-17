@@ -85,7 +85,7 @@ const CEO_CUSTODIA = {
   verificacoes: ['verificacoes'],
   usuarios: ['usuarios'],
   lojas: ['planos'],
-  dinheiro: ['repasses', 'saques', 'carteiras', 'caixa'],
+  dinheiro: ['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico'],
   suporte: ['atendimento'],
   comunicacao: ['broadcasts', 'avisos', 'cupons'],
   regras: ['taxas', 'ranking', 'modo'],
@@ -105,20 +105,20 @@ describe('menu por papel e por modo (permissões padrão)', () => {
   });
 
   it('CEO no direto: Asaas, Estornos e Pix; sem Planos, Repasses, Saques, Carteiras e Caixa', () => {
-    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['estornos', 'pix'] });
+    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['visao-geral', 'estornos', 'pix', 'historico'] });
   });
 
   it('CEO no direto com custódia em aberto: Repasses e Saques voltam (whileCustodyOpen); Carteiras e Caixa não', () => {
     expect(menu('ceo', 'direto', true)).toEqual({
-      ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['repasses', 'saques', 'estornos', 'pix'],
+      ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'historico'],
     });
   });
 
-  it('modo desconhecido (carregando ou erro): nenhuma aba de modo aparece, nem com custódia em aberto', () => {
+  it('modo desconhecido (carregando ou erro): nenhuma aba de modo aparece, nem com custódia em aberto (D3b-3: só Visão geral e Histórico)', () => {
     for (const open of [false, true]) {
       const m = menu('ceo', null, open);
       expect(m.lojas).toBeUndefined();
-      expect(m.dinheiro).toBeUndefined();
+      expect(m.dinheiro).toEqual(['visao-geral', 'historico']);
       expect(m.usuarios).toEqual(['usuarios']);
     }
   });
@@ -177,7 +177,7 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     const m = menu('marketing', 'custodia', false, ['*']);
     expect(m.permissoes).toBeUndefined();
     expect(m.comunicacao).toEqual(['broadcasts']);
-    expect(m.dinheiro).toEqual(['repasses', 'saques', 'carteiras', 'caixa']);
+    expect(m.dinheiro).toEqual(['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico']);
     expect(menu('marketing', 'direto', false, ['*']).lojas).toBeUndefined();
   });
 
@@ -185,7 +185,9 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     const areas = visibleAdminAreas(ctxFor('gerente_geral', 'custodia'));
     expect(adminAreaHref(areas.find((a) => a.key === 'dinheiro')!)).toBe('/admin/wallets');
     const ceoDireto = visibleAdminAreas(ctxFor('ceo', 'direto'));
-    expect(adminAreaHref(ceoDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/estornos');
+    expect(adminAreaHref(ceoDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/dinheiro');
+    const pagadorDireto = visibleAdminAreas(ctxFor('gerente_lojistas', 'direto', false, ['payout:view']));
+    expect(adminAreaHref(pagadorDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/estornos');
     expect(adminAreaHref(ceoDireto.find((a) => a.key === 'lojas')!)).toBe('/admin/lojas-asaas');
   });
 

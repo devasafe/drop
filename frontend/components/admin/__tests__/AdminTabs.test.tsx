@@ -49,9 +49,9 @@ beforeEach(() => {
 const tabs = (name: string) => within(screen.getByRole('navigation', { name })).getAllByRole('link');
 
 describe('AdminTabs', () => {
-  it('Dinheiro na custódia (CEO): as 4 abas do modo, a da página ativa e rolada para a vista', () => {
+  it('Dinheiro na custódia (CEO): Visão geral, as 4 abas do modo e Histórico; a da página ativa e rolada para a vista', () => {
     render(<AdminTabs area="dinheiro" />);
-    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Repasses', 'Saques', 'Carteiras', 'Caixa']);
+    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Visão geral', 'Repasses', 'Saques', 'Carteiras', 'Caixa', 'Histórico']);
     const ativa = screen.getByRole('link', { name: 'Repasses' });
     expect(ativa).toHaveAttribute('aria-current', 'page');
     expect(ativa).toHaveAttribute('href', '/admin/payouts');
@@ -59,19 +59,19 @@ describe('AdminTabs', () => {
     expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', inline: 'center' });
   });
 
-  it('Dinheiro no direto com custódia em aberto: Repasses, Saques, Estornos e Pix', () => {
+  it('Dinheiro no direto com custódia em aberto: Visão geral, Repasses, Saques, Estornos, Pix e Histórico', () => {
     mockSaas = { ...mockSaas, settlementMode: 'direto' };
     mockCustodyOpen = true;
     mockPath = '/admin/transfers';
     render(<AdminTabs area="dinheiro" />);
-    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Repasses', 'Saques', 'Estornos', 'Pix aos motoboys']);
+    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Visão geral', 'Repasses', 'Saques', 'Estornos', 'Pix aos motoboys', 'Histórico']);
     expect(screen.getByRole('link', { name: 'Pix aos motoboys' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('modo desconhecido: nenhuma aba de modo (e a barra some)', () => {
+  it('modo desconhecido: nenhuma aba de modo; só Visão geral e Histórico', () => {
     mockSaas = { ...mockSaas, loading: true };
-    const { container } = render(<AdminTabs area="dinheiro" />);
-    expect(container).toBeEmptyDOMElement();
+    render(<AdminTabs area="dinheiro" />);
+    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Visão geral', 'Histórico']);
   });
 
   it('área com uma aba só visível ao papel: sem barra', () => {

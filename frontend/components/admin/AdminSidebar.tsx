@@ -76,7 +76,7 @@ export function AdminSidebar({ id, areas, open, onClose, modeError, onRetryMode 
         })}
         {modeError && (
           <div className={styles.modeError} role="alert">
-            <p className={styles.modeErrorText}>Não deu para ler o modo da plataforma. As áreas de dinheiro ficam escondidas até a leitura voltar.</p>
+            <p className={styles.modeErrorText}>Não deu para ler o modo da plataforma. As abas que dependem do modo ficam escondidas até a leitura voltar.</p>
             {onRetryMode && (
               <button type="button" className={styles.retry} onClick={onRetryMode}>Tentar de novo</button>
             )}

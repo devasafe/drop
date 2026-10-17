@@ -68,7 +68,7 @@ describe('AdminShell · menu', () => {
     ]);
     const dinheiro = within(menu()).getByRole('link', { name: 'Dinheiro' });
     expect(dinheiro).toHaveAttribute('aria-current', 'page');
-    expect(dinheiro).toHaveAttribute('href', '/admin/payouts');
+    expect(dinheiro).toHaveAttribute('href', '/admin/dinheiro');
     expect(within(menu()).getByRole('link', { name: 'Usuários' })).not.toHaveAttribute('aria-current');
   });
 
@@ -79,26 +79,28 @@ describe('AdminShell · menu', () => {
     expect(screen.getByRole('button', { name: 'Conta' })).toBeInTheDocument();
   });
 
-  it('CEO no direto: Dinheiro abre Estornos e Lojas abre Asaas', () => {
+  it('CEO no direto: Dinheiro abre a Visão geral e Lojas abre Asaas', () => {
     mockSaas = { ...mockSaas, settlementMode: 'direto' };
     renderShell();
-    expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/estornos');
+    expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/dinheiro');
     expect(within(menu()).getByRole('link', { name: 'Lojas' })).toHaveAttribute('href', '/admin/lojas-asaas');
   });
 
-  it('modo carregando: Dinheiro e Lojas não aparecem (nunca presume custódia)', () => {
+  it('modo carregando: Lojas não aparece e Dinheiro só abre a Visão geral (nunca presume custódia)', () => {
     mockSaas = { ...mockSaas, loading: true };
     renderShell();
-    expect(within(menu()).queryByRole('link', { name: 'Dinheiro' })).toBeNull();
+    expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/dinheiro');
     expect(within(menu()).queryByRole('link', { name: 'Lojas' })).toBeNull();
     expect(within(menu()).queryByRole('alert')).toBeNull();
   });
 
-  it('erro ao ler o modo: avisa, esconde as áreas de dinheiro e deixa tentar de novo', () => {
+  it('erro ao ler o modo: avisa, Dinheiro só abre a Visão geral e deixa tentar de novo', () => {
     mockSaas = { ...mockSaas, error: true };
     renderShell();
-    expect(within(menu()).queryByRole('link', { name: 'Dinheiro' })).toBeNull();
+    expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/dinheiro');
     expect(within(menu()).getByRole('alert')).toHaveTextContent('Não deu para ler o modo da plataforma');
+    expect(within(menu()).getByRole('alert')).toHaveTextContent('As abas que dependem do modo ficam escondidas até a leitura voltar.');
+    expect(within(menu()).getByRole('alert')).not.toHaveTextContent('áreas de dinheiro');
     fireEvent.click(within(menu()).getByRole('button', { name: 'Tentar de novo' }));
     expect(mockSaas.retry).toHaveBeenCalledTimes(1);
   });
