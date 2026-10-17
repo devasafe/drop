@@ -10,9 +10,32 @@ import {
   listPendingSubs,
   listAllSubs,
   syncCommissionForPlan,
+  commissionImpact,
+  CommissionPlan,
+  CommissionSyncChoice,
 } from '../repositories/storeSubscription.repository';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
+import {
+  actorFromRequest,
+  MoneyActionError,
+  recordAdminMoneyAction,
+  sendMoneyActionError,
+} from '../services/adminMoneyAction.service';
+
+const COMMISSION_FIELDS: ReadonlyArray<readonly [CommissionPlan, 'commissionPlan1' | 'commissionPlan2' | 'commissionPlan3']> = [
+  ['plan1', 'commissionPlan1'],
+  ['plan2', 'commissionPlan2'],
+  ['plan3', 'commissionPlan3'],
+];
+const SYNC_CHOICES: CommissionSyncChoice[] = ['keep_special', 'all'];
+const round2 = (v: number) => Math.round(v * 100) / 100;
+const cents = (v: unknown) => Math.round(Number(v) * 100);
+/** Número (ou texto numérico) entre 0 e 100; senão null. */
+const parsePercent = (value: unknown): number | null => {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100 ? round2(n) : null;
+};
 
 // ✅ GET Current Platform Config
 export const getPlatformConfig = async (req: Request, res: Response) => {
@@ -26,7 +49,9 @@ export const getPlatformConfig = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ UPDATE Platform Config (Only CEO)
+// ✅ UPDATE Platform Config (settings:manage)
+// D3b-3 (spec 6): comissão de plano alterada exige escolha (commissionSync) para as lojas;
+// config + lojas + linha commission_sync numa transação só. Valor igual não toca nas lojas.
 export const updatePlatformConfig = async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user?.id || (req as any).userId;
@@ -35,6 +60,7 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       commissionPlan1,
       commissionPlan2,
       commissionPlan3,
+      commissionSync,
       motoboyCutPerDelivery,
       motoboyCutPerKm,
       motoboyMinimumWithdraw,
@@ -63,11 +89,31 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       minimums[field] = n;
     }
 
+    // Comissão por plano (D3b-3): número entre 0 e 100, duas casas.
+    const commissions: Partial<Record<CommissionPlan, number>> = {};
+    const commissionInput: Record<CommissionPlan, unknown> = { plan1: commissionPlan1, plan2: commissionPlan2, plan3: commissionPlan3 };
+    for (const [plan, field] of COMMISSION_FIELDS) {
+      if (commissionInput[plan] === undefined) continue;
+      const n = parsePercent(commissionInput[plan]);
+      if (n === null) return res.status(400).json({ error: 'A comissão precisa ser um número entre 0 e 100', field });
+      commissions[plan] = n;
+    }
+
+    // Escolha por plano: objeto estrito { plan1?|plan2?|plan3?: 'keep_special' | 'all' }.
+    let choices: Partial<Record<CommissionPlan, CommissionSyncChoice>> = {};
+    if (commissionSync !== undefined && commissionSync !== null) {
+      const ok = typeof commissionSync === 'object' && !Array.isArray(commissionSync)
+        && Object.entries(commissionSync).every(([k, v]) =>
+          COMMISSION_FIELDS.some(([p]) => p === k) && SYNC_CHOICES.includes(v as CommissionSyncChoice));
+      if (!ok) return res.status(400).json({ error: 'Escolha de sincronização inválida' });
+      choices = commissionSync as Partial<Record<CommissionPlan, CommissionSyncChoice>>;
+    }
+
     // Só grava os campos enviados (patch parcial), preservando o resto da config.
     const patch: Record<string, any> = {};
-    if (commissionPlan1 !== undefined) patch.commissionPlan1 = commissionPlan1;
-    if (commissionPlan2 !== undefined) patch.commissionPlan2 = commissionPlan2;
-    if (commissionPlan3 !== undefined) patch.commissionPlan3 = commissionPlan3;
+    for (const [plan, field] of COMMISSION_FIELDS) {
+      if (commissions[plan] !== undefined) patch[field] = commissions[plan];
+    }
     if (motoboyCutPerDelivery !== undefined) patch.motoboyCutPerDelivery = motoboyCutPerDelivery;
     if (motoboyCutPerKm !== undefined) patch.motoboyCutPerKm = motoboyCutPerKm;
     if (motoboyMinimumWithdraw !== undefined) patch.motoboyMinimumWithdraw = minimums.motoboyMinimumWithdraw;
@@ -88,32 +134,76 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
     if (cardInstallmentMaxCount !== undefined) patch.cardInstallmentMaxCount = cardInstallmentMaxCount;
     if (cardInstallmentMinValue !== undefined) patch.cardInstallmentMinValue = cardInstallmentMinValue;
 
-    const config = await savePlatformConfig(patch, userId);
+    const actor = actorFromRequest(req);
+    const { config, commissionSync: synced } = await prisma.$transaction(async (tx) => {
+      // Trava a config: a comparação com o valor salvo e a gravação acontecem sem corrida.
+      const current = await ensurePlatformConfig(userId, tx);
+      await tx.$queryRaw`SELECT id FROM "PlatformConfig" WHERE id = ${current.id} FOR UPDATE`;
+      const locked = await tx.platformConfig.findUniqueOrThrow({ where: { id: current.id } });
 
-    // Notificar todos os clientes sobre mudança de tema sazonal
+      const changes: Array<{ plan: CommissionPlan; oldValue: number; newValue: number }> = [];
+      for (const [plan, field] of COMMISSION_FIELDS) {
+        const newValue = commissions[plan];
+        if (newValue === undefined) continue;
+        const oldValue = Number(locked[field]);
+        if (cents(oldValue) !== cents(newValue)) changes.push({ plan, oldValue, newValue });
+      }
+      const missing = changes.filter((c) => !choices[c.plan]).map((c) => c.plan);
+      if (missing.length > 0) {
+        throw new MoneyActionError(409, 'COMMISSION_SYNC_CHOICE_REQUIRED',
+          'Escolha o que fazer com as lojas dos planos com comissão alterada', { plans: missing });
+      }
+
+      const saved = await savePlatformConfig(patch, userId, tx);
+      const results: Array<{ plan: CommissionPlan; oldValue: number; newValue: number; choice: CommissionSyncChoice; storesUpdated: number }> = [];
+      for (const c of changes) {
+        const choice = choices[c.plan] as CommissionSyncChoice;
+        const storesUpdated = await syncCommissionForPlan(tx, c.plan, c.oldValue, c.newValue, choice);
+        await recordAdminMoneyAction(tx, {
+          actor,
+          type: 'commission_sync',
+          targetType: 'plan_commission',
+          targetId: c.plan,
+          before: { value: c.oldValue },
+          after: { value: c.newValue, choice, storesUpdated },
+        });
+        results.push({ ...c, choice, storesUpdated });
+      }
+      return { config: saved, commissionSync: results };
+    }, { maxWait: 15_000, timeout: 20_000 });
+
+    // Notificar todos os clientes sobre mudança de tema sazonal (depois do commit)
     if (seasonalTheme !== undefined) {
       emitToAll('theme:updated', { seasonalTheme: config.seasonalTheme });
     }
 
-    // 🔴 IMPORTANTE: Sincronizar comissões em todas as StoreSubscriptions
-    const [c1, c2, c3] = await Promise.all([
-      syncCommissionForPlan('plan1', commissionPlan1),
-      syncCommissionForPlan('plan2', commissionPlan2),
-      syncCommissionForPlan('plan3', commissionPlan3),
-    ]);
-    const synced = c1 + c2 + c3;
-
-    logger.debug('✅ Platform config updated:', config);
-    logger.debug(`📊 Sincronizadas ${synced} lojas com novas comissões`);
+    const total = synced.reduce((acc, s) => acc + s.storesUpdated, 0);
+    logger.info('[settings] configuração da plataforma salva', { by: userId, commissionSync: synced });
 
     return res.json({
       config,
-      message: `Configurações salvas e ${synced} lojas sincronizadas`,
+      commissionSync: synced,
+      message: `Configurações salvas e ${total} lojas sincronizadas`,
     });
   } catch (err) {
-    console.error('❌ Error updating platform config:', err);
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao atualizar configurações da plataforma', err as Error);
     return res.status(500).json({ error: 'Erro ao atualizar configurações' });
   }
+};
+
+// GET /settings/commission-impact?plan=plan1|plan2|plan3&value=<n> (settings:manage) — D3b-3 spec 6.
+export const getCommissionImpact = async (req: Request, res: Response) => {
+  const plan = String(req.query.plan ?? '') as CommissionPlan;
+  const field = COMMISSION_FIELDS.find(([p]) => p === plan)?.[1];
+  if (!field) return res.status(400).json({ error: 'Plano inválido' });
+  const newValue = parsePercent(req.query.value);
+  if (newValue === null) return res.status(400).json({ error: 'Valor inválido' });
+
+  const config = await ensurePlatformConfig('system');
+  const oldValue = Number(config[field]);
+  const { atOldValue, special } = await commissionImpact(plan, oldValue);
+  return res.json({ oldValue, newValue, atOldValue, special });
 };
 
 // ✅ GET Store Subscription (loja vê seu plano atual)

@@ -12,6 +12,7 @@ import {
   getAllStoreSubscriptions,
   updateStorePlan,
   cancelPlanChangeRequest,
+  getCommissionImpact,
 } from '../controllers/settingsController';
 import { catchAsync } from '../middleware/errorHandler';
 
@@ -57,8 +58,11 @@ router.get('/store-asaas-terms', (_req, res) => res.json({
 // Public - Get current config
 router.get('/platform-config', getPlatformConfig);
 
-// Admin - Update config
+// Admin - Update config (D3b-3: comissão alterada exige commissionSync por plano)
 router.put('/platform-config', authenticate, authorizePermission('settings:manage'), updatePlatformConfig);
+
+// Admin - Impacto de mudar a comissão de um plano (D3b-3)
+router.get('/commission-impact', authenticate, authorizePermission('settings:manage'), catchAsync(getCommissionImpact));
 
 // Store - Get own subscription (papel-base)
 router.get('/store-subscription', authenticate, getStoreSubscription);

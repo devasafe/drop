@@ -1,5 +1,6 @@
 // Repositório do StoreSubscription (plano/assinatura da loja) em Prisma/Postgres.
 // `commissionRate` é Decimal → number na fronteira; reexpõe `_id`.
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const num = (v: any) => (v == null ? v : Number(v));
@@ -44,12 +45,48 @@ export async function listAllSubs(): Promise<any[]> {
   return list.map(toApiSub);
 }
 
-/** Sincroniza a comissão de todas as lojas de um plano (usado quando o CEO muda a config). */
-export async function syncCommissionForPlan(plan: 'plan1' | 'plan2' | 'plan3', commissionRate: number): Promise<number> {
-  if (commissionRate === undefined || commissionRate === null) return 0;
-  const r = await prisma.storeSubscription.updateMany({
-    where: { currentPlan: plan },
-    data: { commissionRate },
-  });
+export type CommissionPlan = 'plan1' | 'plan2' | 'plan3';
+export type CommissionSyncChoice = 'keep_special' | 'all';
+
+/**
+ * Lojas do plano que SEGUEM o valor do plano: taxa igual ao valor ou sem taxa própria (nula).
+ * As outras (taxa própria diferente) são as "especiais" (spec D3b-3 6).
+ */
+export function followsPlanWhere(plan: CommissionPlan, value: number): Prisma.StoreSubscriptionWhereInput {
+  return { currentPlan: plan, OR: [{ commissionRate: value }, { commissionRate: null }] };
+}
+
+/**
+ * Leva o novo valor às lojas do plano, dentro da transação de quem salvou a config.
+ * keep_special: só as que seguiam o valor antigo; all: todas do plano. Devolve quantas mudaram.
+ */
+export async function syncCommissionForPlan(
+  db: Prisma.TransactionClient,
+  plan: CommissionPlan,
+  oldValue: number,
+  newValue: number,
+  choice: CommissionSyncChoice,
+): Promise<number> {
+  const where = choice === 'all' ? { currentPlan: plan } : followsPlanWhere(plan, oldValue);
+  const r = await db.storeSubscription.updateMany({ where, data: { commissionRate: newValue } });
   return r.count;
+}
+
+/** Impacto de mudar o valor do plano: quantas seguem o valor atual e quais são especiais. */
+export async function commissionImpact(
+  plan: CommissionPlan,
+  oldValue: number,
+): Promise<{ atOldValue: number; special: Array<{ storeId: string; storeName: string; rate: number }> }> {
+  const [atOldValue, specials] = await Promise.all([
+    prisma.storeSubscription.count({ where: followsPlanWhere(plan, oldValue) }),
+    prisma.storeSubscription.findMany({
+      where: { currentPlan: plan, commissionRate: { not: null }, NOT: { commissionRate: oldValue } },
+      select: { storeId: true, storeName: true, commissionRate: true },
+      orderBy: { storeName: 'asc' },
+    }),
+  ]);
+  return {
+    atOldValue,
+    special: specials.map((s) => ({ storeId: s.storeId, storeName: s.storeName, rate: Number(s.commissionRate) })),
+  };
 }

@@ -1,7 +1,10 @@
 // Repositório do PlatformConfig (config singleton da plataforma) em Prisma/Postgres.
 // Converte os campos Decimal→number na fronteira, já que todos os consumidores
 // (walletCalculations, controllers) esperam números, e reexpõe `_id`.
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 const num = (v: any) => (v == null ? v : Number(v));
 
@@ -43,19 +46,19 @@ export async function getPlatformConfig(): Promise<any | null> {
 }
 
 /** Garante a existência da config singleton, criando com defaults se necessário. */
-export async function ensurePlatformConfig(updatedBy: string): Promise<any> {
-  const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+export async function ensurePlatformConfig(updatedBy: string, db: Db = prisma): Promise<any> {
+  const existing = await db.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
   if (existing) return toApiConfig(existing);
-  const created = await prisma.platformConfig.create({ data: { updatedBy: String(updatedBy || 'system') } });
+  const created = await db.platformConfig.create({ data: { updatedBy: String(updatedBy || 'system') } });
   return toApiConfig(created);
 }
 
 /** Atualiza (ou cria) a config singleton com um patch parcial e retorna a forma de API. */
-export async function updatePlatformConfig(patch: Record<string, any>, updatedBy: string): Promise<any> {
-  const existing = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+export async function updatePlatformConfig(patch: Record<string, any>, updatedBy: string, db: Db = prisma): Promise<any> {
+  const existing = await db.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
   const data = { ...patch, updatedBy: String(updatedBy || 'system') };
   const saved = existing
-    ? await prisma.platformConfig.update({ where: { id: existing.id }, data })
-    : await prisma.platformConfig.create({ data });
+    ? await db.platformConfig.update({ where: { id: existing.id }, data })
+    : await db.platformConfig.create({ data });
   return toApiConfig(saved);
 }
