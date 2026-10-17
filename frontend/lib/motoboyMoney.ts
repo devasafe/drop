@@ -92,6 +92,7 @@ export function moneyBadge(m: MoneyInfo): { label: string; tone: MoneyTone } {
   if (m.blocked && m.status !== 'paid' && m.status !== 'cancelled') return { label: 'Bloqueado', tone: 'err' };
   switch (m.status) {
     case 'pending': return { label: 'A liberar', tone: 'warn' };
+    case 'releasing': return { label: 'Em transferência', tone: 'info' };
     case 'released': return { label: 'Liberado', tone: 'ok' };
     case 'requested': return { label: 'Saque pedido', tone: 'info' };
     case 'paid': return { label: 'Sacado', tone: 'neutral' };

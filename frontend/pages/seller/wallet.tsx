@@ -34,7 +34,8 @@ interface StoreWallet {
 interface PayoutItem {
   _id: string;
   amount: number;
-  status: 'pending' | 'released' | 'requested' | 'paid' | 'cancelled';
+  /** releasing (D3b-3): a DROP está transferindo o repasse (GET /payouts/my já devolve). */
+  status: 'pending' | 'releasing' | 'released' | 'requested' | 'paid' | 'cancelled';
   orderId: string;
   createdAt: string;
   releasedAt?: string;
@@ -91,6 +92,7 @@ function SellerWalletPageInner() {
 
   const payoutStatusLabel = (s: PayoutItem['status']) => ({
     pending: 'Pendente',
+    releasing: 'Em transferência',
     released: 'Disponivel',
     requested: 'Saque solicitado',
     paid: 'Pago',
@@ -451,7 +453,7 @@ function SellerWalletPageInner() {
             title="Detalhes do Repasse"
             subtitle={oi?.customerName ? `Compra de ${oi.customerName}` : `Pedido #${p.orderId?.slice(-6) || '—'}`}
             statusLabel={payoutStatusLabel(p.status)}
-            statusTone={p.status}
+            statusTone={p.status === 'releasing' ? 'requested' : p.status}
             amount={p.amount}
             amountSign="+"
             details={details}

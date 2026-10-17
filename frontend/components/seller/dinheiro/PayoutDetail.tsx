@@ -19,6 +19,7 @@ function heroMeta(p: any): string {
   switch (p.status) {
     case 'released': return p.releasedAt ? `Disponível para sacar desde ${formatDateTime(p.releasedAt)}` : 'Disponível para sacar';
     case 'pending': return 'Libera depois da conferência da DROP.';
+    case 'releasing': return 'A DROP está transferindo este repasse.';
     case 'requested': return 'Saque pedido. O valor vai para a sua chave Pix.';
     case 'paid': return p.paidAt ? `Sacado em ${formatDateTime(p.paidAt)}` : 'Sacado';
     case 'cancelled': return `Cancelado${p.cancelReason ? `: ${p.cancelReason}` : ''}`;

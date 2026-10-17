@@ -6,6 +6,7 @@ export const ASAAS_URL = 'https://www.asaas.com/login';
 /** Payout da custódia no vocabulário da loja. */
 export const PAYOUT_LABEL: Record<string, string> = {
   pending: 'A receber',
+  releasing: 'Em transferência',
   released: 'Liberado',
   requested: 'Saque pedido',
   paid: 'Sacado',
@@ -13,6 +14,7 @@ export const PAYOUT_LABEL: Record<string, string> = {
 };
 export const PAYOUT_TONE: Record<string, StageTone> = {
   pending: 'warning',
+  releasing: 'info',
   released: 'success',
   requested: 'info',
   paid: 'neutral',

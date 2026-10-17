@@ -86,3 +86,11 @@ test('erro de rede não vira "não encontrado"', async () => {
 test('CSS só com tokens', () => {
   expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', 'PayoutDetail.module.css'), 'utf8'))).toEqual([]);
 });
+
+test('D3b-3 (F6): repasse em liberação diz que a transferência está em andamento', async () => {
+  payouts = [{ _id: 'py1', orderId: 'ord000004812', amount: 63.15, status: 'releasing', createdAt: '2026-10-12T08:57:00Z' }];
+  render(<PayoutDetail payoutId="py1" storeId="s1" onBack={jest.fn()} />);
+  expect(await screen.findByText('A DROP está transferindo este repasse.')).toBeInTheDocument();
+  expect(screen.getByText('Em transferência')).toBeInTheDocument();
+  expect(screen.queryByText('releasing')).toBeNull();
+});

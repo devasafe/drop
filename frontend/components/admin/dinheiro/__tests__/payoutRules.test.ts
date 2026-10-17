@@ -3,21 +3,17 @@ import {
 } from '../payoutRules';
 
 const base: Payout = { _id: 'p', recipientType: 'store', recipientId: 's', orderId: 'o', amount: 10, status: 'pending', createdAt: '2026-10-08T10:00:00Z' };
-const err = (status: number, error: string) => ({ response: { status, data: { error } } });
+const conflict = (data: Record<string, unknown>) => ({ response: { status: 409, data: { error: 'x', ...data } } });
 
-describe('"já liberado" pelo texto exato do servidor', () => {
-  it.each(['released', 'requested', 'paid'])('status atual %s conta como feito (Asaas, 502)', (st) => {
-    expect(isPayoutAlreadyReleased(err(502, `Transferência no Asaas não concluída: Payout não está pendente (status atual: ${st})`))).toBe(true);
+describe('"já liberado" pelo 409 PAYOUT_NOT_PENDING (D3b-3)', () => {
+  it.each(['released', 'requested', 'paid'])('currentStatus %s e não bloqueado conta como feito', (st) => {
+    expect(isPayoutAlreadyReleased(conflict({ code: 'PAYOUT_NOT_PENDING', currentStatus: st, blocked: false }))).toBe(true);
   });
-  it('o mesmo texto com 400 também (caminho sem Asaas do mesmo serviço)', () => {
-    expect(isPayoutAlreadyReleased(err(400, 'Payout não está pendente (status atual: released)'))).toBe(true);
-  });
-  it('cancelado, bloqueado, sem subconta, sem status, 409 e rede não contam', () => {
-    expect(isPayoutAlreadyReleased(err(502, 'Payout não está pendente (status atual: cancelled)'))).toBe(false);
-    expect(isPayoutAlreadyReleased(err(400, 'Payout bloqueado: Fraude'))).toBe(false);
-    expect(isPayoutAlreadyReleased(err(502, 'Transferência no Asaas não concluída: Recebedor sem subconta Asaas configurada'))).toBe(false);
-    expect(isPayoutAlreadyReleased(err(400, 'Payout p1 não encontrado ou não está pending'))).toBe(false);
-    expect(isPayoutAlreadyReleased(err(409, '(status atual: released)'))).toBe(false);
+  it('em andamento, bloqueado, cancelado, o texto antigo e rede não contam', () => {
+    expect(isPayoutAlreadyReleased(conflict({ code: 'PAYOUT_NOT_PENDING', currentStatus: 'releasing', blocked: false }))).toBe(false);
+    expect(isPayoutAlreadyReleased(conflict({ code: 'PAYOUT_NOT_PENDING', currentStatus: 'pending', blocked: true }))).toBe(false);
+    expect(isPayoutAlreadyReleased(conflict({ code: 'PAYOUT_NOT_PENDING', currentStatus: 'cancelled', blocked: false }))).toBe(false);
+    expect(isPayoutAlreadyReleased({ response: { status: 502, data: { error: 'Payout não está pendente (status atual: released)' } } })).toBe(false);
     expect(isPayoutAlreadyReleased(new Error('Network Error'))).toBe(false);
   });
 });

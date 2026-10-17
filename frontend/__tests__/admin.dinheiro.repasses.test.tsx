@@ -178,14 +178,14 @@ describe('tela nova', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
-  it('lote: em sequência; falha parcial não para os outros; "já liberado" (status do servidor) conta como feito; só reenvia o que falhou', async () => {
+  it('lote: em sequência; falha parcial não para os outros; "já liberado" (409 PAYOUT_NOT_PENDING released) conta como feito; só reenvia o que falhou', async () => {
     payoutsNow = [P1, P2, P5, P3, P4];
     post.mockImplementation((url: string) => {
       const id = url.split('/')[3];
       if (id === 'p1') { markReleased('p1'); return Promise.resolve({ data: {} }); }
       if (id === 'p2') {
         markReleased('p2');
-        return Promise.reject({ response: { status: 502, data: { error: 'Transferência no Asaas não concluída: Payout não está pendente (status atual: released)' } } });
+        return Promise.reject({ response: { status: 409, data: { error: 'Repasse não está pendente (status atual: released)', code: 'PAYOUT_NOT_PENDING', currentStatus: 'released', blocked: false } } });
       }
       return Promise.reject({ response: { status: 502, data: { error: 'Transferência no Asaas não concluída: Recebedor sem subconta Asaas configurada' } } });
     });

@@ -144,6 +144,7 @@ export default function OrderDetailPage() {
   const payoutStatusLabel = (s: string) => {
     switch (s) {
       case 'pending': return 'Pendente';
+      case 'releasing': return 'Em transferência';
       case 'released': return 'Disponivel';
       case 'requested': return 'Saque solicitado';
       case 'paid': return 'Pago';

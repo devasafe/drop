@@ -24,10 +24,11 @@ export function moneyErrorMessage(err: unknown, fallback?: string): string {
     case 'PAYOUT_NOT_FOUND':
       return 'Repasse não encontrado. Atualize a lista.';
     case 'PAYOUT_NOT_PENDING':
-      if (d.blocked === true) return 'Bloqueado: desbloqueie antes de liberar.';
+      // Em andamento vence a marca de bloqueado: a transferência já começou.
       if (d.currentStatus === 'releasing') {
         return 'Em andamento: a transferência deste repasse já começou. Se não concluir, ele aparece em "Incertos".';
       }
+      if (d.blocked === true) return 'Bloqueado: desbloqueie antes de liberar.';
       if (d.currentStatus === 'cancelled') return 'Cancelado: este repasse não pode ser liberado.';
       if (typeof d.currentStatus === 'string' && PAYOUT_DONE_STATUSES.includes(d.currentStatus)) return 'Este repasse já foi liberado.';
       return 'Este repasse não está mais aguardando liberação.';

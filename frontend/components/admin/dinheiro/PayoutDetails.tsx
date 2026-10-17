@@ -4,7 +4,7 @@
  */
 import Link from 'next/link';
 import ui from './Dinheiro.module.css';
-import { payoutStatus, recipientName, type Payout } from './payoutRules';
+import { isManualResolveId, payoutStatus, recipientName, type Payout } from './payoutRules';
 import { formatMoney } from '../../../lib/money';
 
 export interface PayoutInvoice { _id?: string; invoiceNumber?: string }
@@ -71,6 +71,9 @@ export function PayoutDetails({ payout: p, invoice }: { payout: Payout; invoice:
         <div><dt>Criado em</dt><dd>{dateTime(p.createdAt)}</dd></div>
         {p.releasedAt && <div><dt>Liberado em</dt><dd>{dateTime(p.releasedAt)}</dd></div>}
         {p.paidAt && <div><dt>Pago em</dt><dd>{dateTime(p.paidAt)}</dd></div>}
+        {p.uncertainAt && <div><dt>Incerto desde</dt><dd>{dateTime(p.uncertainAt)}</dd></div>}
+        {p.resolvedAt && <div><dt>Resolvido em</dt><dd>{dateTime(p.resolvedAt)}</dd></div>}
+        {p.resolutionNote && <div><dt>Nota da resolução</dt><dd>{p.resolutionNote}</dd></div>}
       </dl>
 
       {(p.gatewayProvider || p.gatewayTransferId) && (
@@ -78,7 +81,15 @@ export function PayoutDetails({ payout: p, invoice }: { payout: Payout; invoice:
           <h3 className={ui.fieldLabel}>Gateway</h3>
           <dl className={ui.detail}>
             {p.gatewayProvider && <div><dt>Provedor</dt><dd>{p.gatewayProvider}</dd></div>}
-            {p.gatewayTransferId && <div><dt>ID da transferência</dt><dd className={ui.mono}>{p.gatewayTransferId}</dd></div>}
+            {p.gatewayTransferId && (
+              <div>
+                <dt>ID da transferência</dt>
+                {/* manual_resolve_* é o id sintético do "Resolver" sem nº informado: não é uma transferência do Asaas. */}
+                {isManualResolveId(p.gatewayTransferId)
+                  ? <dd>Resolvido à mão (sem nº do Asaas)</dd>
+                  : <dd className={ui.mono}>{p.gatewayTransferId}</dd>}
+              </div>
+            )}
           </dl>
         </>
       )}

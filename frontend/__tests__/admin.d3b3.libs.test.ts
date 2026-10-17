@@ -123,6 +123,9 @@ describe('moneyErrorMessage (códigos novos da P1 e da P2)', () => {
   it.each([
     ['repasse em andamento', http(409, { code: 'PAYOUT_NOT_PENDING', currentStatus: 'releasing', blocked: false, error: 'x' }),
       'Em andamento: a transferência deste repasse já começou. Se não concluir, ele aparece em "Incertos".'],
+    // Minor da Task 16: em andamento vence a marca de bloqueado (a transferência já começou).
+    ['repasse em andamento e bloqueado', http(409, { code: 'PAYOUT_NOT_PENDING', currentStatus: 'releasing', blocked: true, error: 'x' }),
+      'Em andamento: a transferência deste repasse já começou. Se não concluir, ele aparece em "Incertos".'],
     ['repasse bloqueado', http(409, { code: 'PAYOUT_NOT_PENDING', currentStatus: 'pending', blocked: true, error: 'x' }),
       'Bloqueado: desbloqueie antes de liberar.'],
     ['repasse já liberado', http(409, { code: 'PAYOUT_NOT_PENDING', currentStatus: 'paid', blocked: false, error: 'x' }),

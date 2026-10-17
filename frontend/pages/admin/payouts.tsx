@@ -1,12 +1,13 @@
 /**
- * Dinheiro · Repasses (DS v2, D3a, tela 3). Só custódia (menu custodyOnly + whileCustodyOpen).
- * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.repasses.test.tsx):
- * GET /payouts/admin?status&recipientType&limit=100 · GET /payouts/admin/obligations · GET /payouts/admin/config ·
- * POST /payouts/admin/:id/release · POST /payouts/admin/:id/block { reason } · POST /payouts/admin/:id/unblock ·
- * PUT /payouts/admin/config { enabled } · GET /invoices/by-order/:orderId.
- * "Liberar N repasses" = runBatch, um por vez (o servidor confere "pending" antes de transferir).
- * K10: "já feito" só pelo texto do servidor "(status atual: released|requested|paid)"; sem esse texto é erro, e o
- * "Tentar de novo" relê a lista e só reenvia o que ainda está aguardando liberação.
+ * Dinheiro · Repasses (DS v2, D3a, tela 3; D3b-3). Só custódia (menu custodyOnly + whileCustodyOpen).
+ * GET /payouts/admin?status&recipientType&limit=100 (filtro "Incertos": ?uncertain=1) · GET /payouts/admin/obligations ·
+ * GET /payouts/admin/config · POST /payouts/admin/:id/release · POST /payouts/admin/:id/block { reason } (3 a 500) ·
+ * POST /payouts/admin/:id/unblock · POST /payouts/admin/:id/resolve-uncertain · PUT /payouts/admin/config { enabled } ·
+ * GET /invoices/by-order/:orderId.
+ * "Liberar N repasses" = runBatch, um por vez (o servidor reivindica pending → releasing antes de transferir).
+ * D3b-3: "já feito" só pelo 409 PAYOUT_NOT_PENDING com currentStatus released|requested|paid e não bloqueado;
+ * em andamento, bloqueado e qualquer outro erro são falha, e o "Tentar de novo" relê a lista e só reenvia o que
+ * ainda está aguardando liberação. Repasse incerto (releasing) só sai pelo "Resolver".
  * O lote guarda o que foi selecionado: repasse fora dessa lista (ou que saiu da fila) falha, nunca conta como feito.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,10 +22,13 @@ import { LoadError, LoadSkeleton } from '../../components/admin/LoadState';
 import { StatusTag } from '../../components/admin/StatusTag';
 import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
 import { PayoutDetails, type PayoutInvoice } from '../../components/admin/dinheiro/PayoutDetails';
+import { ResolvePayoutSheet, type PayoutResolveOutcome } from '../../components/admin/dinheiro/ResolvePayoutSheet';
 import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
 import {
-  isPayoutAlreadyReleased, isReadyToRelease, payoutStatus, recipientName, releaseSummary, type Payout,
+  BLOCK_REASON_MAX, BLOCK_REASON_MIN, isPayoutAlreadyReleased, isPayoutResolvable, isReadyToRelease, payoutStatus,
+  recipientName, releaseSummary, type Payout,
 } from '../../components/admin/dinheiro/payoutRules';
+import { flattenMoneyError } from '../../components/admin/dinheiro/moneyErrors';
 import { flattenServerError } from '../../components/admin/dinheiro/serverError';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
@@ -32,6 +36,7 @@ import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
+import { isConflictWithCode } from '../../lib/adminErrors';
 import { formatMoney } from '../../lib/money';
 import { batchSummaryText, retryFailed, runBatch, type BatchOptions, type BatchResult } from '../../lib/runBatch';
 
@@ -43,9 +48,13 @@ interface ReleaseBatch {
   skipped: string[];
 }
 
+/** Valor do filtro "Incertos": vira ?uncertain=1 (P1.4), não um status. */
+const UNCERTAIN_FILTER = 'incertos';
 const STATUS_OPTIONS = [
   { value: '', label: 'Todas as situações' },
   { value: 'pending', label: 'Aguardando liberação' },
+  { value: UNCERTAIN_FILTER, label: 'Incertos' },
+  { value: 'releasing', label: 'Em liberação' },
   { value: 'released', label: 'Liberado' },
   { value: 'requested', label: 'Saque pedido' },
   { value: 'paid', label: 'Pago' },
@@ -63,6 +72,8 @@ const AUTO_OFF = 'Desligada: o repasse só fica disponível para saque depois qu
 
 /** Repasse que não está na lista do lote: erro com a mensagem, nunca "feito". */
 const MISSING_ITEM = 'Esse repasse não está mais na lista. Atualize a lista.';
+/** 409 ao bloquear um repasse que outra pessoa já bloqueou (pré-voo F12). */
+const ALREADY_BLOCKED = 'Este repasse já está bloqueado. A lista foi atualizada.';
 const missingItemError = () => Object.assign(new Error(MISSING_ITEM), { response: { data: { error: MISSING_ITEM } } });
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
@@ -93,6 +104,7 @@ export default function AdminPayoutsPage() {
   const [unblocking, setUnblocking] = useState<Payout | null>(null);
   const [toggleTo, setToggleTo] = useState<boolean | null>(null);
   const [details, setDetails] = useState<Payout | null>(null);
+  const [resolving, setResolving] = useState<Payout | null>(null);
   const [invoice, setInvoice] = useState<PayoutInvoice | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -107,7 +119,8 @@ export default function AdminPayoutsPage() {
   const fetchPayouts = useCallback(async (): Promise<Payout[] | null> => {
     try {
       const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
+      if (statusFilter === UNCERTAIN_FILTER) params.set('uncertain', '1');
+      else if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('recipientType', typeFilter);
       params.set('limit', '100');
       const res = await api.get(`/payouts/admin?${params}`);
@@ -181,7 +194,12 @@ export default function AdminPayoutsPage() {
     const skipped = prev?.skipped ?? [];
     const send = async (id: string) => {
       if (!Object.prototype.hasOwnProperty.call(names, id)) throw missingItemError();
-      await api.post(`/payouts/admin/${id}/release`);
+      try {
+        await api.post(`/payouts/admin/${id}/release`);
+      } catch (err) {
+        // "Já feito" passa intacto para o runBatch; o resto vira a mensagem em português do código.
+        throw isPayoutAlreadyReleased(err) ? err : flattenMoneyError(err, 'Erro ao liberar o repasse');
+      }
     };
     const pack = (result: BatchResult<string>): ReleaseBatch => ({ names, result, skipped });
     setBatchBusy(true);
@@ -241,7 +259,15 @@ export default function AdminPayoutsPage() {
     try {
       await api.post(`/payouts/admin/${blocking._id}/block`, { reason: blockReason.trim() });
     } catch (err) {
-      throw flattenServerError(err, 'Erro ao bloquear o repasse');
+      // Outra pessoa liberou ou bloqueou antes: a lista é relida para mostrar o estado de agora.
+      if (isConflictWithCode(err, 'PAYOUT_NOT_PENDING')) {
+        void fetchPayouts();
+        // Pré-voo F12: o texto do lote ("desbloqueie antes de liberar") não serve para quem tentou bloquear.
+        if ((err as { response?: { data?: { blocked?: unknown } } }).response?.data?.blocked === true) {
+          throw { response: { status: 409, data: { error: ALREADY_BLOCKED } } };
+        }
+      }
+      throw flattenMoneyError(err, 'Erro ao bloquear o repasse');
     } finally {
       blockInFlight.current = false;
     }
@@ -258,7 +284,8 @@ export default function AdminPayoutsPage() {
     try {
       await api.post(`/payouts/admin/${unblocking._id}/unblock`);
     } catch (err) {
-      throw flattenServerError(err, 'Erro ao desbloquear o repasse');
+      if (isConflictWithCode(err, 'PAYOUT_NOT_BLOCKED')) void fetchPayouts();
+      throw flattenMoneyError(err, 'Erro ao desbloquear o repasse');
     } finally {
       unblockInFlight.current = false;
     }
@@ -283,6 +310,13 @@ export default function AdminPayoutsPage() {
     setToggleTo(null);
   };
 
+  const onResolved = async (outcome: PayoutResolveOutcome) => {
+    setResolving(null);
+    showToast(outcome === 'released' ? 'Repasse resolvido: pago.' : 'Repasse resolvido: voltou para "Aguardando liberação".', 'success');
+    await fetchPayouts();
+    await fetchStats();
+  };
+
   const list = payouts ?? [];
   const ready = list.filter(isReadyToRelease);
   const others = list.filter((p) => !isReadyToRelease(p));
@@ -290,6 +324,8 @@ export default function AdminPayoutsPage() {
   const confirmItems = ready.filter((p) => releaseKeys?.includes(p._id));
   const confirmSum = confirmItems.reduce((s, p) => s + Number(p.amount), 0);
   const n = releaseKeys?.length ?? 0;
+  const blockLen = blockReason.trim().length;
+  const blockValid = blockLen >= BLOCK_REASON_MIN && blockLen <= BLOCK_REASON_MAX;
   const showReady = statusFilter === '' || statusFilter === 'pending';
   const showOthers = others.length > 0 || !showReady;
 
@@ -342,9 +378,15 @@ export default function AdminPayoutsPage() {
     </div>
   ) : null);
 
-  const otherAction = (p: Payout) => (p.status === 'pending' && p.blocked && canBlock
-    ? <Button size="sm" variant="secondary" className={ui.touch} onClick={() => setUnblocking(p)}>Desbloquear</Button>
-    : null);
+  const otherAction = (p: Payout) => {
+    if (p.status === 'pending' && p.blocked && canBlock) {
+      return <Button size="sm" variant="secondary" className={ui.touch} onClick={() => setUnblocking(p)}>Desbloquear</Button>;
+    }
+    if (canRelease && isPayoutResolvable(p)) {
+      return <Button size="sm" className={ui.touch} onClick={() => setResolving(p)}>Resolver</Button>;
+    }
+    return null;
+  };
 
   return (
     <ProtectedRoute required_permission="payout:view">
@@ -477,14 +519,20 @@ export default function AdminPayoutsPage() {
           open={!!blocking}
           title="Bloquear repasse"
           onClose={() => setBlocking(null)}
-          primary={{ label: 'Bloquear repasse', tone: 'danger', disabled: !blockReason.trim(), onClick: submitBlock }}
+          primary={{ label: 'Bloquear repasse', tone: 'danger', disabled: !blockValid, onClick: submitBlock }}
         >
           {blocking && (
             <p className={blocks.muted}>
               {`${recipientName(blocking)} · ${formatMoney(Number(blocking.amount))}. O repasse fica parado até alguém desbloquear.`}
             </p>
           )}
-          <TextAreaField label="Motivo do bloqueio" value={blockReason} onChange={setBlockReason} placeholder="Fraude, inconsistência…" />
+          <TextAreaField
+            label="Motivo do bloqueio"
+            value={blockReason}
+            onChange={setBlockReason}
+            placeholder="Fraude, inconsistência…"
+            hint={`De ${BLOCK_REASON_MIN} a ${BLOCK_REASON_MAX} caracteres (${blockLen}/${BLOCK_REASON_MAX}).`}
+          />
         </AdminSheet>
 
         <AdminSheet
@@ -516,6 +564,13 @@ export default function AdminPayoutsPage() {
         <AdminSheet open={!!details} title="Detalhes do repasse" onClose={() => setDetails(null)} secondaryLabel="Fechar">
           {details && <PayoutDetails payout={details} invoice={invoice} />}
         </AdminSheet>
+
+        <ResolvePayoutSheet
+          payout={resolving}
+          onClose={() => setResolving(null)}
+          onResolved={onResolved}
+          onStale={() => { void fetchPayouts(); void fetchStats(); }}
+        />
       </AdminShell>
     </ProtectedRoute>
   );
