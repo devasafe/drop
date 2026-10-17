@@ -4,11 +4,13 @@
  */
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import { AdminMoneyActionType } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { ValidationError } from '../utils/AppError';
 import logger from '../config/logger';
 import { getMoneySummary, listMoneyMovements, MONEY_MOVEMENT_TYPES } from '../services/moneyOverview.service';
+import { listAdminMoneyActions } from '../services/moneyHistory.service';
 
 const router = Router();
 
@@ -17,6 +19,15 @@ const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
 
 const movementsQuery = z.object({
   type: z.preprocess(emptyToUndefined, z.enum(MONEY_MOVEMENT_TYPES).optional()),
+  cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
+});
+
+const SP_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const actionsQuery = z.object({
+  actorId: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
+  type: z.preprocess(emptyToUndefined, z.nativeEnum(AdminMoneyActionType).optional()),
+  from: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE).optional()),
+  to: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE).optional()),
   cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
 });
 
@@ -44,6 +55,17 @@ router.get('/movements', authenticate, authorizePermission('money:overview'), as
     return res.json(await listMoneyMovements(parsed.data));
   } catch (err) {
     return sendReadFailure(res, err, 'os movimentos de hoje');
+  }
+});
+
+// GET /api/admin/money/actions?actorId=&type=&from=&to=&cursor= — aba Histórico (spec 8)
+router.get('/actions', authenticate, authorizePermission('money:overview'), async (req: any, res: Response) => {
+  const parsed = actionsQuery.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Filtro inválido', details: parsed.error.flatten().fieldErrors });
+  try {
+    return res.json(await listAdminMoneyActions(parsed.data));
+  } catch (err) {
+    return sendReadFailure(res, err, 'o histórico de ações de dinheiro');
   }
 });
 
