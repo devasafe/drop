@@ -27,6 +27,20 @@ function withTx<T>(tx: Tx | undefined, fn: (db: Tx) => Promise<T>): Promise<T> {
   return tx ? fn(tx) : prisma.$transaction(fn);
 }
 
+/**
+ * D3b-3: repasse em `releasing` sem a marca de incerteza só é resolvível depois disso (o
+ * processo caiu entre a reivindicação e o Asaas). `updatedAt` é gravado pela reivindicação.
+ */
+export const PAYOUT_STALE_RELEASING_MS = 10 * 60 * 1000;
+
+/** where de repasse resolvível: releasing + (uncertainAt OU reivindicado há mais de 10 min). */
+export function resolvablePayoutWhere(now: Date = new Date()): Prisma.PayoutWhereInput {
+  return {
+    status: 'releasing',
+    OR: [{ uncertainAt: { not: null } }, { updatedAt: { lt: new Date(now.getTime() - PAYOUT_STALE_RELEASING_MS) } }],
+  };
+}
+
 /** Garante a carteira do recebedor e aplica um delta nos buckets de saldo. */
 async function bumpWalletBuckets(
   db: Tx,
@@ -494,9 +508,11 @@ class PayoutService {
     orderId?: string;
     page?: number;
     limit?: number;
+    /** D3b-3: só os resolvíveis (filtro "Incertos" do painel). */
+    uncertain?: boolean;
   }): Promise<{ payouts: Payout[]; total: number }> {
-    const where: any = {};
-    if (filters.status) where.status = filters.status;
+    const where: any = filters.uncertain ? { ...resolvablePayoutWhere() } : {};
+    if (filters.status && !filters.uncertain) where.status = filters.status;
     if (filters.recipientType) where.recipientType = filters.recipientType;
     if (filters.recipientId) where.recipientId = filters.recipientId;
     if (filters.orderId) where.orderId = filters.orderId;

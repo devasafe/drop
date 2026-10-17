@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { requireCustodyOrLeftover } from '../middleware/requireSettlement';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
+import { validate } from '../middleware/validate';
+import { z } from 'zod';
 import {
   getMyPayouts,
   getMyPayoutSummary,
@@ -13,6 +15,7 @@ import {
   unblockPayout,
   toggleAutoApprove,
   getPayoutConfig,
+  resolveUncertainPayoutHandler,
 } from '../controllers/payoutController';
 
 const router = Router();
@@ -31,6 +34,13 @@ router.get('/admin/obligations', authenticate, authorizePermission('payout:view'
 
 // Admin - Liberar payout manualmente
 router.post('/admin/:id/release', authenticate, authorizePermission('payout:release'), releasePayoutManually);
+
+// Admin - Resolver repasse incerto/travado em liberação (D3b-3), depois de conferir no Asaas
+const resolvePayoutSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('released'), asaasTransferId: z.string().trim().min(1).max(100).optional(), note: z.string().trim().min(10).max(1000) }).strict(),
+  z.object({ outcome: z.literal('not_sent'), note: z.string().trim().min(10).max(1000) }).strict(),
+]);
+router.post('/admin/:id/resolve-uncertain', authenticate, authorizePermission('payout:release'), validate(resolvePayoutSchema), resolveUncertainPayoutHandler);
 
 // Admin - Marcar payouts como pagos
 router.post('/admin/mark-paid', authenticate, authorizePermission('payout:mark_paid'), markPayoutsPaid);

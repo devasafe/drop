@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import env from '../config/env';
 import logger from '../config/logger';
-import payoutService from './payout.service';
+import payoutService, { resolvablePayoutWhere } from './payout.service';
 import { sendPayoutTransfer, flagPayoutReleaseUncertain } from './asaas/release';
 import {
   AdminMoneyActor,
@@ -115,4 +115,83 @@ export async function releasePayoutAsAdmin(
     );
     throw uncertainError();
   }
+}
+
+export type ResolvePayoutInput =
+  | { outcome: 'released'; asaasTransferId?: string; note: string }
+  | { outcome: 'not_sent'; note: string };
+
+/**
+ * D3b-3 · resolver repasse incerto (spec 4.1). O admin conferiu no Asaas:
+ *  - released: conclui (baixa + movimento) como o fluxo feliz;
+ *  - not_sent: volta a pending (pode ser liberado de novo).
+ * A primeira gravação condicional (releasing + elegível) trava a linha: uma resolução
+ * concorrente espera e encontra o repasse fora de releasing → 409 PAYOUT_NOT_RESOLVABLE.
+ */
+export async function resolveUncertainPayout(
+  payoutId: string,
+  actor: AdminMoneyActor,
+  input: ResolvePayoutInput,
+): Promise<{ id: string; status: 'released' | 'pending' }> {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.payout.findUnique({ where: { id: payoutId } });
+    if (!before) throw new MoneyActionError(404, 'PAYOUT_NOT_FOUND', 'Payout não encontrado');
+
+    const notResolvable = async () => {
+      const now = await tx.payout.findUnique({ where: { id: payoutId }, select: { status: true, uncertainAt: true } });
+      return new MoneyActionError(
+        409,
+        'PAYOUT_NOT_RESOLVABLE',
+        'Repasse não está incerto nem travado em liberação (ou já foi resolvido)',
+        { currentStatus: now?.status ?? before.status, uncertainAt: now?.uncertainAt ? now.uncertainAt.toISOString() : null },
+      );
+    };
+
+    const resolution = { resolvedBy: actor.id, resolvedAt: new Date(), resolutionNote: input.note };
+    const beforeJson = {
+      status: before.status,
+      uncertainAt: before.uncertainAt ? before.uncertainAt.toISOString() : null,
+      gatewayTransferId: before.gatewayTransferId,
+    };
+
+    if (input.outcome === 'not_sent') {
+      const { count } = await tx.payout.updateMany({
+        where: { id: payoutId, ...resolvablePayoutWhere() },
+        data: { status: 'pending', uncertainAt: null, gatewayTransferId: null, ...resolution },
+      });
+      if (count !== 1) throw await notResolvable();
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'payout_resolve_uncertain',
+        targetType: 'payout',
+        targetId: payoutId,
+        amount: before.amount,
+        reason: input.note,
+        before: beforeJson,
+        after: { status: 'pending', outcome: 'not_sent' },
+      });
+      logger.info('[repasse] repasse incerto resolvido', { payoutId, outcome: 'not_sent', adminId: actor.id });
+      return { id: payoutId, status: 'pending' as const };
+    }
+
+    const { count } = await tx.payout.updateMany({
+      where: { id: payoutId, ...resolvablePayoutWhere() },
+      data: resolution,
+    });
+    if (count !== 1) throw await notResolvable();
+    const transferId = input.asaasTransferId || before.gatewayTransferId || `manual_resolve_${payoutId}`;
+    await payoutService.settleClaimedRelease(tx, payoutId, { gatewayProvider: 'asaas', gatewayTransferId: transferId });
+    await recordAdminMoneyAction(tx, {
+      actor,
+      type: 'payout_resolve_uncertain',
+      targetType: 'payout',
+      targetId: payoutId,
+      amount: before.amount,
+      reason: input.note,
+      before: beforeJson,
+      after: { status: 'released', outcome: 'released', gatewayTransferId: transferId },
+    });
+    logger.info('[repasse] repasse incerto resolvido', { payoutId, outcome: 'released', adminId: actor.id });
+    return { id: payoutId, status: 'released' as const };
+  });
 }

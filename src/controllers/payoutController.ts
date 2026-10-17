@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma';
 import { isStoreOwner } from '../utils/storeOwnership';
 import logger from '../config/logger';
 import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
-import { releasePayoutAsAdmin } from '../services/payoutRelease.service';
+import { releasePayoutAsAdmin, resolveUncertainPayout, ResolvePayoutInput } from '../services/payoutRelease.service';
 
 // Lojista/Motoboy - Ver meus payouts
 export const getMyPayouts = async (req: Request & { user?: any }, res: Response) => {
@@ -73,7 +73,7 @@ export const getMyPayoutSummary = async (req: Request & { user?: any }, res: Res
 // Admin/CEO - Ver todos os payouts
 export const getAdminPayouts = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { status, recipientType, recipientId, orderId, page, limit } = req.query;
+    const { status, recipientType, recipientId, orderId, page, limit, uncertain } = req.query;
 
     const result = await payoutService.listPayouts({
       status: status as string,
@@ -82,6 +82,7 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
       orderId: orderId as string,
       page: Number(page) || 1,
       limit: Number(limit) || 50,
+      uncertain: uncertain === '1' || uncertain === 'true',
     });
 
     // Enriquecer cada payout com dados do destinatario e do pedido (origem/destino)
@@ -288,5 +289,17 @@ export const getPendingObligations = async (req: Request & { user?: any }, res: 
   } catch (err) {
     console.error('Erro ao buscar obrigações:', err);
     return res.status(500).json({ error: 'Erro ao buscar obrigações' });
+  }
+};
+
+// Admin - Resolver repasse incerto/travado em liberação (D3b-3, spec 4.1), depois de conferir no Asaas.
+export const resolveUncertainPayoutHandler = async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const payout = await resolveUncertainPayout(String(req.params.id), actorFromRequest(req), req.body as ResolvePayoutInput);
+    return res.json({ message: 'Repasse resolvido', payout });
+  } catch (err: any) {
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('[repasse] falha ao resolver repasse incerto', err as Error, { payoutId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao resolver o repasse' });
   }
 };
