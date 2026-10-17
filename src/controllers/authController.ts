@@ -20,7 +20,7 @@ const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex'
 
 // ✅ SEGURANÇA: validação de entrada do registro (formato + limites de tamanho)
 // Auto-cadastro só cria papéis base. Papéis administrativos (ceo, marketing,
-// gerente_*) só são atribuídos por um CEO em PUT /admin/users/:id/role.
+// gerente_*) só são atribuídos por um CEO em PUT /admin/users/:id/roles.
 // `.strip()` descarta qualquer campo extra (roles, activeRole, permissions, status…).
 const SELF_SIGNUP_ROLES = ['cliente', 'lojista', 'motoboy'] as const;
 const optionalShort = z.string().trim().max(30).optional().or(z.literal(''));

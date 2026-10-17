@@ -210,9 +210,9 @@ describe('papel de equipe como acréscimo — pontos que decidiam pelo papel ati
     const alvo = await createAccount(['cliente'], 'cliente');
 
     const res = await request(app)
-      .put(`/api/admin/users/${alvo.user.id}/role`)
+      .put(`/api/admin/users/${alvo.user.id}/roles`)
       .set('Authorization', `Bearer ${ceo.token}`)
-      .send({ role: 'marketing' });
+      .send({ roles: ['cliente', 'marketing'] });
 
     expect(res.status).toBe(200);
     const saved = await prisma.user.findUnique({ where: { id: alvo.user.id } });

@@ -2,7 +2,7 @@ import { requireSettlement } from '../middleware/requireSettlement';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import { isTeamRole } from '../controllers/rolePermissionsController';
+import { activeRoleOf, isTeamRole } from '../controllers/rolePermissionsController';
 import { catchAsync } from '../middleware/errorHandler';
 import { deleteStoreRatingReply } from '../controllers/storeRatingReplyController';
 import { prisma } from '../lib/prisma';
@@ -63,48 +63,69 @@ const SAFE_USER_SELECT = {
   status: true, blockedAt: true, blockReason: true, createdAt: true,
 } as const;
 
-// PUT /admin/users/:id/role - Atualizar role do usuário
-router.put('/users/:id/role', authenticate, authorizePermission('user:manage_roles'), async (req: any, res: Response) => {
+// Ordem do `role` base quando o atual sai da lista.
+const BASE_ROLE_ORDER = ['ceo', 'lojista', 'motoboy', 'cliente'];
+const OPEN_ORDER_STATUSES = ['pago', 'aguardando_motoboy', 'enviado'] as const;
+const OPEN_DELIVERY_STATUSES = ['assigned', 'picked'] as const;
+
+/** Trabalho em aberto que impede tirar o papel: pedidos da loja (lojista) ou entregas em curso (motoboy). */
+async function openWorkFor(userId: string, removed: string[]) {
+  if (removed.includes('lojista')) {
+    const count = await prisma.order.count({ where: { store: { ownerId: userId }, status: { in: [...OPEN_ORDER_STATUSES] } } });
+    if (count > 0) return { role: 'lojista', count, error: `Esta pessoa tem ${count} pedido(s) em aberto na loja. Termine ou repasse antes de tirar o papel de Lojista.` };
+  }
+  if (removed.includes('motoboy')) {
+    const count = await prisma.delivery.count({ where: { motoboyId: userId, status: { in: [...OPEN_DELIVERY_STATUSES] } } });
+    if (count > 0) return { role: 'motoboy', count, error: `Esta pessoa tem ${count} entrega(s) em andamento. Termine ou repasse antes de tirar o papel de Motoboy.` };
+  }
+  return null;
+}
+
+// PUT /admin/users/:id/roles - Grava a lista COMPLETA de papéis do usuário
+router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_roles'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const { role } = req.body;
+    const input = req.body?.roles;
 
-    if (!role) return res.status(400).json({ error: 'Role is required' });
-    if (!ALLOWED_ROLES.includes(role)) {
-      return res.status(400).json({ error: `Invalid role. Allowed: ${ALLOWED_ROLES.join(', ')}` });
+    if (!Array.isArray(input) || !input.every((r) => typeof r === 'string' && ALLOWED_ROLES.includes(r))) {
+      return res.status(400).json({ error: `Lista de papéis inválida. Permitidos: ${ALLOWED_ROLES.join(', ')}`, code: 'INVALID_ROLES' });
     }
+    // Todo mundo pode comprar: `cliente` sempre entra.
+    const roles: string[] = Array.from(new Set([...input, 'cliente']));
 
-    const actorRole = req.user?.activeRole || req.user?.role;
-    if (actorRole !== 'ceo') {
-      if (ADMIN_ROLES.includes(role)) {
-        return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos' });
-      }
-      // Também não pode rebaixar quem já é da equipe administrativa.
-      const target = await prisma.user.findUnique({ where: { id }, select: { roles: true, role: true } });
-      const targetRoles = [...(target?.roles || []), target?.role].filter(Boolean) as string[];
-      if (targetRoles.some((r) => ADMIN_ROLES.includes(r))) {
-        return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador' });
-      }
-    }
-
-    // Nao permite admin rebaixar a si mesmo (evita lockout: se for o unico CEO, perde acesso)
+    // Nao permite admin alterar a si mesmo (evita lockout: se for o unico CEO, perde acesso)
     if (String(req.user.id) === String(id)) {
       return res.status(400).json({ error: 'Voce nao pode alterar o proprio role. Peca para outro admin.' });
     }
 
-    const current = await prisma.user.findUnique({ where: { id }, select: { roles: true } });
-    if (!current) return res.status(404).json({ error: 'User not found' });
-    // Mantém os papéis-base (cliente/lojista/motoboy); só o papel administrativo
-    // anterior é substituído. Antes, `roles: [role]` apagava os demais papéis.
-    const roles = Array.from(new Set([...(current.roles || []).filter((r) => !ADMIN_ROLES.includes(r)), role]));
+    const target = await prisma.user.findUnique({ where: { id }, select: { roles: true, role: true, activeRole: true } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    // Conta antiga pode ter o papel só em `role`/`activeRole`: conta como atual (a tela também marca).
+    const currentRoles = Array.from(new Set([...(target.roles || []), target.role, target.activeRole].filter(Boolean).map(String)));
+    const added = roles.filter((r) => !currentRoles.includes(r));
+    const removed = currentRoles.filter((r) => !roles.includes(r));
+
+    if (activeRoleOf(req.user) !== 'ceo') {
+      if ([...added, ...removed].some((r) => ADMIN_ROLES.includes(r))) {
+        return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos' });
+      }
+      // Também não pode mexer em quem já é da equipe administrativa.
+      if (currentRoles.some((r) => ADMIN_ROLES.includes(r))) {
+        return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador' });
+      }
+    }
+
+    const openWork = await openWorkFor(id, removed);
+    if (openWork) return res.status(409).json({ ...openWork, code: 'ROLE_HAS_OPEN_WORK' });
+
     // Papel de equipe é acréscimo, não área ativa: a pessoa segue como cliente.
-    const teamRole = isTeamRole(role);
-    if (teamRole && !roles.includes('cliente')) roles.push('cliente');
-    const activeRole = teamRole ? 'cliente' : role;
+    const currentActive = target.activeRole ? String(target.activeRole) : '';
+    const activeRole = roles.includes(currentActive) && !isTeamRole(currentActive) ? currentActive : 'cliente';
+    const role = roles.includes(String(target.role)) ? String(target.role) : BASE_ROLE_ORDER.find((r) => roles.includes(r))!;
 
     const user = await prisma.user.update({
       where: { id },
-      data: { role, activeRole, roles },
+      data: { role: role as any, activeRole: activeRole as any, roles: roles as any },
       select: SAFE_USER_SELECT,
     }).catch(() => null);
 
@@ -112,10 +133,10 @@ router.put('/users/:id/role', authenticate, authorizePermission('user:manage_rol
 
     // O token antigo carrega o papel anterior: derruba o socket (o HTTP já recusa).
     disconnectUser(String(id));
-    res.json({ message: 'Role updated successfully', user });
+    res.json({ message: 'Papéis atualizados', user });
   } catch (err) {
-    console.error('Erro ao atualizar role:', err);
-    res.status(500).json({ error: 'Failed to update role' });
+    logger.error('Erro ao atualizar papéis', err as Error);
+    res.status(500).json({ error: 'Failed to update roles' });
   }
 });
 

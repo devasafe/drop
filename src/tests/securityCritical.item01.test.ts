@@ -76,9 +76,9 @@ describe('Item 1 — cadastro não aceita papel administrativo', () => {
     const alvo = await createTestUser('cliente', DOMAIN);
 
     const res = await request(app)
-      .put(`/api/admin/users/${alvo.userId}/role`)
+      .put(`/api/admin/users/${alvo.userId}/roles`)
       .set('Authorization', bearer(gerente))
-      .send({ role: 'gerente_geral' });
+      .send({ roles: ['cliente', 'gerente_geral'] });
     expect(res.status).toBe(403);
     const after = await prisma.user.findUnique({ where: { id: alvo.userId } });
     expect(after?.activeRole).toBe('cliente');
@@ -86,16 +86,16 @@ describe('Item 1 — cadastro não aceita papel administrativo', () => {
     // Nem rebaixar quem já é administrador
     const ceoAlvo = await createTestUser('ceo', DOMAIN);
     const demote = await request(app)
-      .put(`/api/admin/users/${ceoAlvo.userId}/role`)
+      .put(`/api/admin/users/${ceoAlvo.userId}/roles`)
       .set('Authorization', bearer(gerente))
-      .send({ role: 'cliente' });
+      .send({ roles: ['cliente'] });
     expect(demote.status).toBe(403);
 
     // Papel base continua delegável
     const ok = await request(app)
-      .put(`/api/admin/users/${alvo.userId}/role`)
+      .put(`/api/admin/users/${alvo.userId}/roles`)
       .set('Authorization', bearer(gerente))
-      .send({ role: 'lojista' });
+      .send({ roles: ['cliente', 'lojista'] });
     expect(ok.status).toBe(200);
   });
 
@@ -103,9 +103,9 @@ describe('Item 1 — cadastro não aceita papel administrativo', () => {
     const ceo = await createTestUser('ceo', DOMAIN);
     const alvo = await createTestUser('cliente', DOMAIN);
     const res = await request(app)
-      .put(`/api/admin/users/${alvo.userId}/role`)
+      .put(`/api/admin/users/${alvo.userId}/roles`)
       .set('Authorization', bearer(ceo))
-      .send({ role: 'gerente_geral' });
+      .send({ roles: ['cliente', 'gerente_geral'] });
     expect(res.status).toBe(200);
   });
 });
