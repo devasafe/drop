@@ -20,6 +20,7 @@ import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { emitAdminNotification, emitToRoom } from '../utils/socketEmitter';
 import { insertNotifications } from '../repositories/notification.repository';
+import { AdminMoneyActor, actorFromRequest, recordAdminMoneyAction } from '../services/adminMoneyAction.service';
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
 
@@ -240,6 +241,12 @@ const WR_IN_FLIGHT = 'approved';
 
 const conflict = (message: string) => Object.assign(new Error(message), { withdrawalConflict: true });
 
+/** Status atual do saque para o corpo do 409 (o painel decide "já feito" por ele). */
+async function currentWithdrawalStatus(id: string): Promise<string | null> {
+  const row = await prisma.withdrawalRequest.findUnique({ where: { id: String(id) }, select: { status: true } });
+  return row?.status ?? null;
+}
+
 /**
  * Baixa local de um saque que SAIU: payouts vinculados → paid (ou libera o blockedBalance do
  * saque da carteira pessoal). Roda dentro da transação de quem conclui o saque (fluxo feliz
@@ -265,8 +272,10 @@ async function settlePaidWithdrawal(tx: any, withdrawal: any, transferId: string
   }
 }
 
-// Executa aprovação + processamento. Reutilizado pelo endpoint approveWithdrawal e pelo auto-approve.
-async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
+// Executa aprovação + processamento. Reutilizado pelo endpoint approveWithdrawal (actor = pessoa)
+// e pelo auto-approve (actor = null: sem linha de registro, approvedBy = 'auto').
+async function executeWithdrawalApproval(withdrawal: any, actor: AdminMoneyActor | null) {
+  const approverId = actor?.id ?? 'auto';
   // Trava anti-saque em dobro: reivindica o saque ANTES de chamar o gateway.
   const { count } = await prisma.withdrawalRequest.updateMany({
     where: { id: String(withdrawal._id), status: 'pending' },
@@ -277,10 +286,24 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
   const markUncertain = async (reason: string) => {
     // A marca pode falhar (banco fora): o alerta sai mesmo assim e a falha é registrada —
     // nunca silencioso. Sem a marca, o saque fica em `approved` e a resolução manual vale
-    // depois de 10 minutos.
+    // depois de 10 minutos. D3b-3: com pessoa, a linha withdrawal_approve (uncertain) vai
+    // na MESMA transação da marca.
     let marked = true;
     try {
-      await updateWR(withdrawal._id, { uncertainAt: new Date(), rejectionReason: `Resposta incerta: ${reason}`.slice(0, 500) });
+      await prisma.$transaction(async (tx) => {
+        await updateWR(withdrawal._id, { uncertainAt: new Date(), rejectionReason: `Resposta incerta: ${reason}`.slice(0, 500) }, tx);
+        if (actor) {
+          await recordAdminMoneyAction(tx, {
+            actor,
+            type: 'withdrawal_approve',
+            targetType: 'withdrawal_request',
+            targetId: String(withdrawal._id),
+            amount: Number(withdrawal.amount),
+            before: { status: 'pending' },
+            after: { status: WR_IN_FLIGHT, uncertain: true, detail: reason.slice(0, 200) },
+          });
+        }
+      });
     } catch (markErr) {
       marked = false;
       logger.error('[saque] falha ao gravar a marca de incerteza', markErr as Error, { withdrawalId: String(withdrawal._id) });
@@ -345,6 +368,22 @@ async function executeWithdrawalApproval(withdrawal: any, approverId: string) {
         },
       });
       if (done.count !== 1) throw new Error('Saque saiu do status de processamento durante a aprovação');
+
+      if (actor) {
+        await recordAdminMoneyAction(tx, {
+          actor,
+          type: 'withdrawal_approve',
+          targetType: 'withdrawal_request',
+          targetId: String(withdrawal._id),
+          amount: Number(withdrawal.amount),
+          before: { status: 'pending' },
+          after: {
+            status: 'processed',
+            transactionId: transferResult.gatewayTransferId || null,
+            payoutIds: (withdrawal.payoutIds || []).map(String),
+          },
+        });
+      }
     });
   } catch (err: any) {
     // O gateway aceitou a transferência, mas a baixa local falhou: o Pix saiu e o saque
@@ -372,7 +411,7 @@ export async function maybeAutoApproveWithdrawal(withdrawalId: string) {
     const w = await findWRById(withdrawalId);
     if (!w || w.status !== 'pending') return;
 
-    await executeWithdrawalApproval(w, 'auto');
+    await executeWithdrawalApproval(w, null);
   } catch (err) {
     console.error('[AUTO-APPROVE WITHDRAWAL] falhou:', err);
   }
@@ -381,7 +420,7 @@ export async function maybeAutoApproveWithdrawal(withdrawalId: string) {
 // ✅ CEO - Aprovar saque (chama gateway de pagamento)
 export const approveWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const ceoId = req.user?.id || (req as any).userId;
+    const actor = actorFromRequest(req);
     const { withdrawalId } = req.body;
 
     const withdrawal = await findWRById(withdrawalId);
@@ -389,10 +428,10 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
     if (withdrawal.status !== 'pending') {
-      return res.status(409).json({ error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING' });
+      return res.status(409).json({ error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING', currentStatus: withdrawal.status });
     }
 
-    const transferResult = await executeWithdrawalApproval(withdrawal, ceoId);
+    const transferResult = await executeWithdrawalApproval(withdrawal, actor);
     const updated = await findWRById(withdrawalId);
 
     return res.json({
@@ -402,9 +441,13 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
     });
   } catch (err: any) {
     if (err?.withdrawalConflict) {
-      return res.status(409).json({ error: err.message, code: 'WITHDRAWAL_NOT_PENDING' });
+      return res.status(409).json({
+        error: err.message,
+        code: 'WITHDRAWAL_NOT_PENDING',
+        currentStatus: await currentWithdrawalStatus(String(req.body?.withdrawalId)),
+      });
     }
-    console.error('[WITHDRAWAL ERROR]', err);
+    logger.error('[saque] falha ao aprovar saque', err as Error, { withdrawalId: req.body?.withdrawalId });
     if (err?.transferUncertain) {
       return res.status(502).json({ error: err.message, code: 'WITHDRAWAL_UNCERTAIN' });
     }
@@ -430,7 +473,8 @@ export const STALE_IN_FLIGHT_MS = 10 * 60 * 1000;
  */
 export const resolveUncertainWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const adminId = req.user?.id || (req as any).userId;
+    const actor = actorFromRequest(req);
+    const adminId = actor.id;
     const { id } = req.params;
     const { outcome, asaasTransferId, note } = req.body as { outcome: 'paid' | 'not_sent'; asaasTransferId?: string; note: string };
 
@@ -447,15 +491,32 @@ export const resolveUncertainWithdrawal = async (req: Request & { user?: any }, 
     const resolution = { resolvedBy: String(adminId), resolvedAt: new Date(), resolutionNote: note };
     const notResolvable = () => conflict('Saque não está incerto nem travado em processamento (ou já foi resolvido)');
 
+    const before = {
+      status: WR_IN_FLIGHT,
+      uncertainAt: withdrawal.uncertainAt ? new Date(withdrawal.uncertainAt).toISOString() : null,
+    };
+
     if (outcome === 'not_sent') {
-      const { count } = await prisma.withdrawalRequest.updateMany({
-        where: eligible,
-        data: {
-          status: 'pending', uncertainAt: null, approvedAt: null, approvedBy: null,
-          rejectionReason: `Conferido no Asaas: não enviado. ${note}`.slice(0, 500), ...resolution,
-        },
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.withdrawalRequest.updateMany({
+          where: eligible,
+          data: {
+            status: 'pending', uncertainAt: null, approvedAt: null, approvedBy: null,
+            rejectionReason: `Conferido no Asaas: não enviado. ${note}`.slice(0, 500), ...resolution,
+          },
+        });
+        if (count !== 1) throw notResolvable();
+        await recordAdminMoneyAction(tx, {
+          actor,
+          type: 'withdrawal_resolve_uncertain',
+          targetType: 'withdrawal_request',
+          targetId: String(withdrawal._id),
+          amount: Number(withdrawal.amount),
+          reason: note,
+          before,
+          after: { status: 'pending', outcome: 'not_sent' },
+        });
       });
-      if (count !== 1) throw notResolvable();
     } else {
       const transferId = asaasTransferId || withdrawal.transactionId || `manual_resolve_${withdrawal._id}`;
       await prisma.$transaction(async (tx) => {
@@ -465,6 +526,16 @@ export const resolveUncertainWithdrawal = async (req: Request & { user?: any }, 
         });
         if (count !== 1) throw notResolvable();
         await settlePaidWithdrawal(tx, withdrawal, transferId);
+        await recordAdminMoneyAction(tx, {
+          actor,
+          type: 'withdrawal_resolve_uncertain',
+          targetType: 'withdrawal_request',
+          targetId: String(withdrawal._id),
+          amount: Number(withdrawal.amount),
+          reason: note,
+          before,
+          after: { status: 'processed', outcome: 'paid', transactionId: transferId },
+        });
       });
       await notifyMotoboy(
         withdrawal.motoboyId,
@@ -510,10 +581,10 @@ export const getWithdrawalConfig = async (_req: Request & { user?: any }, res: R
   }
 };
 
-// ✅ CEO - Rejeitar saque
+// ✅ CEO - Rejeitar saque. D3b-3: linha withdrawal_reject (com quem rejeitou) na mesma transação.
 export const rejectWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const ceoId = req.user?.id || (req as any).userId;
+    const actor = actorFromRequest(req);
     const { withdrawalId, reason } = req.body;
 
     const withdrawal = await findWRById(withdrawalId);
@@ -522,7 +593,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
     }
 
     if (withdrawal.status !== 'pending') {
-      return res.status(409).json({ error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING' });
+      return res.status(409).json({ error: 'Saque não está pendente', code: 'WITHDRAWAL_NOT_PENDING', currentStatus: withdrawal.status });
     }
 
     const rejectionReason = reason || 'Rejeitado pelo CEO';
@@ -548,11 +619,26 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
           await tx.wallet.update({ where: { id: w.id }, data: { blockedBalance: newBlocked, balance: { increment: withdrawal.amount } } });
           await tx.walletEntry.create({ data: { walletId: w.id, type: 'refund', category: 'refund', amount: withdrawal.amount, reason: `Saque rejeitado: ${rejectionReason}` } });
         }
+
+        await recordAdminMoneyAction(tx, {
+          actor,
+          type: 'withdrawal_reject',
+          targetType: 'withdrawal_request',
+          targetId: String(withdrawal._id),
+          amount: Number(withdrawal.amount),
+          reason: rejectionReason,
+          before: { status: 'pending' },
+          after: { status: 'rejected', rejectedBy: actor.id },
+        });
         return toApiWR(await tx.withdrawalRequest.findUnique({ where: { id: String(withdrawal._id) } }));
       });
     } catch (err: any) {
       if (err?.withdrawalConflict) {
-        return res.status(409).json({ error: err.message, code: 'WITHDRAWAL_NOT_PENDING' });
+        return res.status(409).json({
+          error: err.message,
+          code: 'WITHDRAWAL_NOT_PENDING',
+          currentStatus: await currentWithdrawalStatus(String(withdrawal._id)),
+        });
       }
       throw err;
     }
@@ -571,7 +657,7 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       withdrawal: updatedWithdrawal,
     });
   } catch (err) {
-    console.error('❌ Erro ao rejeitar saque:', err);
+    logger.error('[saque] falha ao rejeitar saque', err as Error, { withdrawalId: req.body?.withdrawalId });
     return res.status(500).json({ error: 'Erro ao rejeitar saque' });
   }
 };

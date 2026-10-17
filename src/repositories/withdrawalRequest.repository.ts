@@ -1,5 +1,6 @@
 // Repositório do WithdrawalRequest (saque de motoboy/lojista/user) em Prisma/Postgres.
 // `amount` é Decimal → number na fronteira; reexpõe `_id`.
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const num = (v: any) => (v == null ? v : Number(v));
@@ -38,7 +39,11 @@ export async function findWRByMotoboy(motoboyId: string): Promise<any[]> {
   return list.map(toApiWR);
 }
 
-export async function updateWR(id: string, data: Record<string, any>): Promise<any> {
-  const w = await prisma.withdrawalRequest.update({ where: { id: String(id) }, data });
+export async function updateWR(
+  id: string,
+  data: Record<string, any>,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<any> {
+  const w = await db.withdrawalRequest.update({ where: { id: String(id) }, data });
   return toApiWR(w);
 }
