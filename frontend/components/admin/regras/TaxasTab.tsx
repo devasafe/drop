@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import api from '../../../lib/api';
-import { adminErrorMessage } from '../../../lib/adminErrors';
+import { adminErrorMessage, isConflictWithCode } from '../../../lib/adminErrors';
 import { formatMoney } from '../../../lib/money';
 import { simulateOrder, type SimulationConfig } from '../../../lib/orderSimulation';
 import { Alert } from '../../ui/Alert';
@@ -11,6 +11,9 @@ import { Skeleton } from '../../ui/Skeleton';
 import { useToast } from '../../ui/Toast';
 import blocks from '../AdminBlocks.module.css';
 import styles from './Taxas.module.css';
+import {
+  CommissionSyncSheet, PLAN_LABEL, type CommissionChange, type CommissionPlanKey, type CommissionSyncChoices,
+} from './CommissionSyncSheet';
 
 /**
  * Regras e taxas · Taxas e tempos (D3a, tela 22). GET /settings/platform-config e
@@ -41,7 +44,6 @@ const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits:
 const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
   {
     title: 'Comissão das lojas',
-    note: 'Vale para todas as lojas do plano: salvar aplica esta comissão a todas, inclusive às que tinham uma especial.',
     fields: [
       { key: 'commissionPlan1', label: 'Plano 1 · vitrine (%)', short: 'Plano 1', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
       { key: 'commissionPlan2', label: 'Plano 2 · com motoboys (%)', short: 'Plano 2', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
@@ -95,6 +97,28 @@ const toSimNumber = (s: string) => {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
 
+const PLAN_FIELDS: Record<CommissionPlanKey, ConfigKey> = {
+  plan1: 'commissionPlan1', plan2: 'commissionPlan2', plan3: 'commissionPlan3',
+};
+const PLANS = Object.keys(PLAN_FIELDS) as CommissionPlanKey[];
+const centsOf = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) : NaN);
+
+/** Planos cuja comissão mudou (comparação em centavos, como o servidor). */
+function commissionChanges(config: PlatformConfig, edit: PlatformConfig): CommissionChange[] {
+  return PLANS
+    .filter((p) => centsOf(config[PLAN_FIELDS[p]]) !== centsOf(edit[PLAN_FIELDS[p]]))
+    .map((p) => ({ plan: p, newValue: edit[PLAN_FIELDS[p]] as number }));
+}
+
+/** 409 COMMISSION_SYNC_CHOICE_REQUIRED: os planos que o servidor diz que mudaram de valor. */
+function plansMissingChoice(err: unknown): CommissionPlanKey[] {
+  if (!isConflictWithCode(err, 'COMMISSION_SYNC_CHOICE_REQUIRED')) return [];
+  const plans = (err as { response?: { data?: { plans?: unknown } } }).response?.data?.plans;
+  return Array.isArray(plans) ? plans.filter((p): p is CommissionPlanKey => PLANS.includes(p as CommissionPlanKey)) : [];
+}
+
+type SaveResponse = { config?: PlatformConfig; commissionSync?: Array<{ storesUpdated?: unknown }> };
+
 export function TaxasTab() {
   const { showToast } = useToast();
   const simTitleId = useId();
@@ -106,6 +130,7 @@ export function TaxasTab() {
   const [simValue, setSimValue] = useState('100');
   const [simKm, setSimKm] = useState('3');
   const [simPlan, setSimPlan] = useState<1 | 2 | 3>(2);
+  const [syncChanges, setSyncChanges] = useState<CommissionChange[] | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -149,21 +174,65 @@ export function TaxasTab() {
     setEdit((prev) => (prev ? { ...prev, [f.key]: v } : prev));
   };
 
+  const applySaved = (raw: unknown) => {
+    const data = (raw ?? {}) as SaveResponse;
+    // O PUT devolve { config, commissionSync, message }; usar a config salva (antes os campos zeravam).
+    const savedConfig = (data.config ?? raw) as PlatformConfig;
+    setConfig(savedConfig);
+    setEdit(savedConfig);
+    const synced = Array.isArray(data.commissionSync) ? data.commissionSync : [];
+    const stores = synced.reduce((s, x) => s + (Number(x.storesUpdated) || 0), 0);
+    showToast(
+      synced.length > 0 ? `Regras salvas · ${stores} ${stores === 1 ? 'loja atualizada' : 'lojas atualizadas'}` : 'Regras salvas',
+      'success',
+    );
+  };
+
+  const changesFor = (plans: CommissionPlanKey[]): CommissionChange[] =>
+    plans.map((p) => ({ plan: p, newValue: edit[PLAN_FIELDS[p]] as number }));
+
   const save = async () => {
+    const pending = commissionChanges(config, edit);
+    if (pending.length > 0) {
+      // Comissão alterada: antes de salvar, mostrar o impacto e pedir a escolha (spec 6).
+      setSaveError(null);
+      setSyncChanges(pending);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
       const res = await api.put('/settings/platform-config', edit);
-      // O PUT devolve { config, message }; usar a config salva (antes os campos zeravam).
-      const saved = res.data?.config ?? res.data;
-      setConfig(saved);
-      setEdit(saved);
-      showToast('Regras salvas', 'success');
+      applySaved(res.data);
     } catch (err) {
-      setSaveError(adminErrorMessage(err, 'Erro ao salvar configurações'));
+      const plans = plansMissingChoice(err);
+      if (plans.length > 0) setSyncChanges(changesFor(plans));
+      else setSaveError(adminErrorMessage(err, 'Erro ao salvar configurações'));
     } finally {
       setSaving(false);
     }
+  };
+
+  /** Salvar com a escolha de cada plano (chamado pela folha; erro aparece dentro dela). */
+  const confirmSync = async (choices: CommissionSyncChoices) => {
+    let data: unknown;
+    try {
+      data = (await api.put('/settings/platform-config', { ...edit, commissionSync: choices })).data;
+    } catch (err) {
+      const missing = plansMissingChoice(err).filter((p) => !(syncChanges ?? []).some((c) => c.plan === p));
+      if (missing.length > 0) {
+        setSyncChanges((prev) => [...(prev ?? []), ...changesFor(missing)]);
+        throw {
+          response: {
+            status: 409,
+            data: { error: `A comissão também mudou no servidor: ${missing.map((p) => PLAN_LABEL[p]).join(', ')}. Escolha abaixo e salve de novo.` },
+          },
+        };
+      }
+      throw err;
+    }
+    setSyncChanges(null);
+    applySaved(data);
   };
 
   const simInput = { productTotal: toSimNumber(simValue), distanceKm: toSimNumber(simKm), plan: simPlan };
@@ -257,6 +326,7 @@ export function TaxasTab() {
           </Button>
         </div>
       </aside>
+      <CommissionSyncSheet changes={syncChanges} onClose={() => setSyncChanges(null)} onConfirm={confirmSync} />
     </div>
   );
 }

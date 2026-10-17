@@ -117,13 +117,6 @@ describe('Taxas e tempos', () => {
     expect(screen.getByRole('button', { name: 'Salvar 1 mudança' })).toBeEnabled();
   });
 
-  it('comissão: avisa que vale para todas as lojas do plano (salvar sobrescreve a especial)', async () => {
-    renderAdminPage(<AdminSettings />, GERENTE);
-    await screen.findByLabelText('Plano 2 · com motoboys (%)');
-    expect(screen.getByText('Vale para todas as lojas do plano: salvar aplica esta comissão a todas, inclusive às que tinham uma especial.')).toBeInTheDocument();
-    expect(screen.queryByText(/cada loja pode ter a sua/)).toBeNull();
-  });
-
   it('a simulação muda com valor, distância e plano', async () => {
     renderAdminPage(<AdminSettings />, GERENTE);
     await screen.findByLabelText('Plano 2 · com motoboys (%)');
@@ -152,13 +145,13 @@ describe('Taxas e tempos', () => {
     expect(screen.getByRole('button', { name: 'Salvar 1 mudança' })).toBeDisabled();
   });
 
-  it('salvar: PUT com a config inteira, toast e volta a "Nenhuma mudança"', async () => {
-    (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, commissionPlan2: 12 }, message: 'ok' } });
+  it('salvar sem mudar comissão: PUT com a config inteira, toast e volta a "Nenhuma mudança"', async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, motoboyCutPerKm: 2 }, message: 'ok' } });
     renderAdminPage(<AdminSettings />, GERENTE);
-    fireEvent.change(await screen.findByLabelText('Plano 2 · com motoboys (%)'), { target: { value: '12' } });
+    fireEvent.change(await screen.findByLabelText('Por km de rota (R$)'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Regras salvas', 'success'));
-    expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...CONFIG, commissionPlan2: 12 });
+    expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...CONFIG, motoboyCutPerKm: 2 });
     expect(screen.getByRole('button', { name: 'Nenhuma mudança' })).toBeDisabled();
   });
 
