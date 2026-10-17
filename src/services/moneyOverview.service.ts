@@ -282,7 +282,8 @@ export function decodeMoneyCursor(raw: string): MoneyCursor {
     throw new ValidationError('Cursor inválido');
   }
   const at = typeof parsed?.at === 'string' ? new Date(parsed.at) : new Date(Number.NaN);
-  if (Number.isNaN(at.getTime()) || typeof parsed?.id !== 'string' || !parsed.id || parsed.id.length > 200) {
+  // `at` canônico (o que encodeMoneyCursor grava), com ano de 4 dígitos; recusa "5", "0001-…", "+275760-…"
+  if (Number.isNaN(at.getTime()) || at.toISOString() !== parsed.at || typeof parsed?.id !== 'string' || !parsed.id || parsed.id.length > 200) {
     throw new ValidationError('Cursor inválido');
   }
   return { at, id: parsed.id };
@@ -530,6 +531,7 @@ export async function listMoneyMovements(
 ): Promise<MoneyMovementPage> {
   const cursor = opts.cursor ? decodeMoneyCursor(opts.cursor) : null;
   const day = saoPauloDayRange(cursor ? cursor.at : now);
+  if (Number.isNaN(day.start.getTime())) throw new ValidationError('Cursor inválido');
   const fetchers = (opts.type ? [opts.type] : [...MONEY_MOVEMENT_TYPES]).flatMap((t) => MOVEMENT_FETCHERS[t]);
   const perSource = await Promise.all(fetchers.map((f) => fetchAfterCursor(f, day, cursor)));
 

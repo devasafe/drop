@@ -195,6 +195,35 @@ describe('listMoneyMovements', () => {
   });
 });
 
+describe('ramos de nome', () => {
+  it('ajuste de carteira de loja e de plataforma, e saque com nome vazio', async () => {
+    const store = await createMoneyStore(DOMAIN, { name: 'Loja Ajuste' });
+    const platformOwner = `plat_${MARK}`;
+    const sw = await createWallet({ owner: store, ownerType: 'store' });
+    const pw = await createWallet({ owner: platformOwner, ownerType: 'platform' });
+    try {
+      await prisma.walletEntry.createMany({
+        data: [
+          { walletId: sw.id, type: 'credit', category: 'adjustment', amount: 7, reason: 'Ajuste da plataforma: loja', createdAt: at(12, 1) },
+          { walletId: pw.id, type: 'debit', category: 'adjustment', amount: 3, reason: 'Ajuste da plataforma: plataforma', createdAt: at(12, 2) },
+        ],
+      });
+      await prisma.withdrawalRequest.create({
+        data: { motoboyId: motoboy.userId, motoboyName: '', motoboyEmail: 'v@d3b3p33.test', amount: 6, status: 'processed', processedAt: at(12, 3) },
+      });
+      const page = await listMoneyMovements({}, NOW);
+      expect(view(page.items)).toEqual([
+        [at(12, 3).toISOString(), 'withdrawal_paid', -6, 'Saque pago', null, null],
+        [at(12, 2).toISOString(), 'wallet_adjust', -3, 'Ajuste da plataforma (débito)', null, null],
+        [at(12, 1).toISOString(), 'wallet_adjust', 7, 'Ajuste da plataforma (crédito)', 'Loja Ajuste', null],
+      ]);
+    } finally {
+      await prisma.walletEntry.deleteMany({ where: { walletId: { in: [sw.id, pw.id] } } });
+      await prisma.wallet.deleteMany({ where: { id: { in: [sw.id, pw.id] } } });
+    }
+  });
+});
+
 describe('GET /api/admin/money/movements', () => {
   const get = (u: TestUser, qs = '') => request(app).get(`/api/admin/money/movements${qs}`).set('Authorization', bearer(u));
 
@@ -208,6 +237,9 @@ describe('GET /api/admin/money/movements', () => {
   it.each([
     ['?type=nao_existe'],
     ['?cursor=nao-e-cursor'],
+    ...['0001-06-01T00:00:00.000Z', '+275760-09-13T00:00:00.000Z', '5'].map(
+      (iso) => [`?cursor=${encodeURIComponent(Buffer.from(JSON.stringify({ at: iso, id: 'x' })).toString('base64url'))}`],
+    ),
     [`?cursor=${encodeURIComponent(Buffer.from(JSON.stringify({ at: 'ontem', id: 'x' })).toString('base64url'))}`],
   ])('%s → 400', async (qs) => {
     const r = await get(ceo, qs);
