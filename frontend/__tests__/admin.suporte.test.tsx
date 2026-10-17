@@ -88,7 +88,7 @@ describe('portão e filtros por permissão (D1)', () => {
     expect(screen.getByRole('heading', { name: 'Suporte' })).toBeInTheDocument();
     expect(filters()).toEqual(['Todos', 'Abertos', 'Em atendimento', 'Comigo', 'Resolvidos', 'Conversas entre usuários']);
     await screen.findByRole('button', { name: /Meu pedido chegou sem o cabo/ });
-    expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: {} });
+    expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: { scope: 'staff' } });
   });
 
   it('só support:attend: sem o filtro de conversas', async () => {

@@ -4,6 +4,7 @@ import { addAddress, listAddresses, removeAddress, editAddress, setDefaultAddres
 import { authenticate } from '../middleware/auth';
 import upload, { handleUploadError } from '../middleware/upload';
 import userRepository from '../repositories/user.repository';
+import { isTeamRole } from '../controllers/rolePermissionsController';
 
 const router = Router();
 
@@ -31,6 +32,14 @@ router.put('/active-role', authenticate, async (req: Request, res: Response) => 
 
     if (!activeRole) {
       return res.status(400).json({ error: 'activeRole é obrigatório' });
+    }
+
+    // Papel de equipe é acréscimo às permissões da conta, não uma área ativa.
+    if (isTeamRole(activeRole)) {
+      return res.status(400).json({
+        error: 'TEAM_ROLE_NOT_SWITCHABLE',
+        message: 'Papel de equipe não é uma área: o painel da equipe abre pela sua conta.',
+      });
     }
 
     const user = await userRepository.findById(String(userId)) as any;

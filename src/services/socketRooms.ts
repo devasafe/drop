@@ -6,12 +6,25 @@
 import { prisma } from '../lib/prisma';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { isMotoboyVerified } from '../utils/courierVerification';
+import { staffRolesOf } from '../controllers/rolePermissionsController';
 
 export const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
 
 export interface SocketUser {
   id: string;
+  /** Papel ativo (do token, conferido no banco no handshake). */
   role: string;
+  /** Papéis da conta lidos do BANCO no handshake: os de equipe somam salas de admin. */
+  roles?: string[];
+}
+
+/**
+ * Papéis administrativos que valem para as salas `admin` e `admin:<papel>`: o papel ativo
+ * mais os papéis de equipe da conta (equipe é acréscimo, como na união de permissões).
+ * CEO só pelo papel ativo (`ceo` não é papel de equipe).
+ */
+export function adminRolesOf(user: SocketUser): string[] {
+  return staffRolesOf({ activeRole: user.role, roles: user.roles }).filter((r) => ADMIN_ROLES.includes(r));
 }
 
 const kycEnforced = () => process.env.KYC_ENFORCED === 'true';
@@ -33,8 +46,8 @@ export async function authorizeRoom(user: SocketUser | undefined, room: unknown)
   if (room.startsWith('user:')) return room === `user:${user.id}`;
   if (room.startsWith('store:')) return isStoreOwner(room.slice('store:'.length), user.id);
   if (room === 'motoboys') return canJoinMotoboysRoom(user);
-  if (room === 'admin') return ADMIN_ROLES.includes(user.role);
-  if (room.startsWith('admin:')) return ADMIN_ROLES.includes(user.role) && room === `admin:${user.role}`;
+  if (room === 'admin') return adminRolesOf(user).length > 0;
+  if (room.startsWith('admin:')) return adminRolesOf(user).includes(room.slice('admin:'.length));
   if (room.startsWith('conversation:')) return isConversationParticipant(room.slice('conversation:'.length), user.id);
 
   return false;

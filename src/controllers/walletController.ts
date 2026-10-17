@@ -12,6 +12,7 @@ import { emitWalletUpdated, emitWalletTransferCompleted } from '../utils/socketE
 import env from '../config/env';
 import { isStoreOwner } from '../utils/storeOwnership';
 import logger from '../config/logger';
+import { staffRolesOf } from './rolePermissionsController';
 
 /**
  * Reconcilia os buckets de saldo de um recebedor (store/motoboy) a partir dos
@@ -93,11 +94,12 @@ export const getStoreWallet = async (req: Request, res: Response) => {
 
     // ✅ SEGURANÇA (IDOR): só o dono da loja ou um admin pode ver a carteira.
     const requesterId = (req as any).user?.id;
-    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
+    // CEO pelo papel ativo; gerentes também como papel de equipe da conta (acréscimo).
     const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_lojistas'];
+    const isAdminViewer = staffRolesOf((req as any).user).some((r) => ADMIN_VIEW.includes(r));
     const storeOwner = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     if (!storeOwner) return res.status(404).json({ error: 'Carteira da loja não encontrada' });
-    if (String(storeOwner.ownerId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+    if (String(storeOwner.ownerId) !== String(requesterId) && !isAdminViewer) {
       return res.status(403).json({ error: 'Acesso negado à carteira da loja' });
     }
 
@@ -263,11 +265,11 @@ export const getStoreFinancialSummary = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
     const requesterId = (req as any).user?.id;
-    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
     const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_lojistas'];
+    const isAdminViewer = staffRolesOf((req as any).user).some((r) => ADMIN_VIEW.includes(r));
     const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
     if (!store) return res.status(404).json({ error: 'Loja não encontrada' });
-    if (String(store.ownerId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+    if (String(store.ownerId) !== String(requesterId) && !isAdminViewer) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
@@ -397,9 +399,9 @@ export const getMotoboyWallet = async (req: Request, res: Response) => {
 
     // ✅ SEGURANÇA (IDOR): só o próprio motoboy ou um admin pode ver a carteira.
     const requesterId = (req as any).user?.id;
-    const requesterRole = (req as any).user?.activeRole || (req as any).user?.role;
     const ADMIN_VIEW = ['ceo', 'gerente_geral', 'gerente_motoboys'];
-    if (String(motoboyId) !== String(requesterId) && !ADMIN_VIEW.includes(requesterRole)) {
+    const isAdminViewer = staffRolesOf((req as any).user).some((r) => ADMIN_VIEW.includes(r));
+    if (String(motoboyId) !== String(requesterId) && !isAdminViewer) {
       return res.status(403).json({ error: 'Acesso negado à carteira do motoboy' });
     }
 

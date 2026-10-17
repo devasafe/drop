@@ -1,6 +1,6 @@
 /**
- * Correções V1/V2 (D3a): no celular a troca de área mora na tela Conta. Cada papel de equipe
- * da conta aparece como área própria em "Suas áreas".
+ * Papel de equipe vira acréscimo (16/10): a pessoa continua cliente. Em Conta, o cartão
+ * "Painel da equipe" leva direto ao painel (sem troca de área); as áreas de equipe saem de "Suas áreas".
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ContaPage from '../pages/conta';
@@ -9,8 +9,15 @@ const push = jest.fn();
 const switchRole = jest.fn();
 const apiGet = jest.fn();
 let mockUser: any;
+let mockTeamRoles: string[] = [];
+let mockPerms: string[] = [];
 jest.mock('next/router', () => ({ useRouter: () => ({ push, replace: jest.fn(), query: {} }) }));
-jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: mockUser, switchRole, logout: jest.fn(), loading: false }) }));
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: mockUser, switchRole, logout: jest.fn(), loading: false,
+    teamRoles: mockTeamRoles, can: (p: string) => mockPerms.includes(p),
+  }),
+}));
 jest.mock('../hooks/useSaasConfig', () => ({ useSaasConfig: () => ({ settlementMode: 'custodia', directCardEnabled: false, loading: false }) }));
 jest.mock('../hooks/useCustodyLeftover', () => ({ useCustodyLeftover: () => false }));
 jest.mock('../hooks/useSync', () => ({ useAddresses: () => ({ addresses: [], loading: false, setAddresses: jest.fn() }) }));
@@ -18,29 +25,48 @@ jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: (...a: any[]) => apiGet(...a) } }));
 
 const base = { _id: 'u1', name: 'Ana', email: 'ana@email.com' };
-const team = ['cliente', 'marketing', 'gerente_motoboys'];
 
 beforeEach(() => {
   push.mockClear(); switchRole.mockReset(); apiGet.mockReset();
-  apiGet.mockImplementation((url: string) => Promise.resolve({
-    data: url === '/role-permissions/me' ? { permissions: ['payout:view'] } : {},
-  }));
+  apiGet.mockResolvedValue({ data: {} });
+  mockTeamRoles = []; mockPerms = [];
 });
 
-test('cada papel de equipe da conta aparece em "Suas áreas", com a descrição', async () => {
-  mockUser = { ...base, activeRole: 'cliente', roles: team };
+test('com papel de equipe e aba visível: cartão "Painel da equipe" com os papéis; sem áreas de equipe', async () => {
+  mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing', 'gerente_motoboys'] };
+  mockTeamRoles = ['marketing', 'gerente_motoboys'];
+  mockPerms = ['broadcast:send'];
   render(<ContaPage />);
-  expect(screen.getByRole('heading', { name: 'Suas áreas' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /^Marketing\s*Avisos, broadcasts e tema do app\./ })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /^Gerente de motoboys\s*Motoboys, verificações e Pix\./ })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Painel da equipe\s*Marketing · Gerente de motoboys/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Marketing/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Gerente de motoboys/ })).not.toBeInTheDocument();
+  await waitFor(() => expect(apiGet).toHaveBeenCalled());
+});
+
+test('o clique leva ao adminHomeHref sem chamar switchRole', async () => {
+  mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'gerente_motoboys'] };
+  mockTeamRoles = ['gerente_motoboys'];
+  mockPerms = ['payout:view'];
+  render(<ContaPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Painel da equipe/ }));
+  expect(push).toHaveBeenCalledWith('/admin/payouts');
+  expect(switchRole).not.toHaveBeenCalled();
+  await waitFor(() => expect(apiGet).toHaveBeenCalled());
+});
+
+test('papel de equipe sem aba visível: sem cartão', async () => {
+  mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
+  mockTeamRoles = ['marketing'];
+  render(<ContaPage />);
   expect(screen.queryByText('Painel da equipe')).not.toBeInTheDocument();
   await waitFor(() => expect(apiGet).toHaveBeenCalled());
 });
 
-test('cliente puro não vê área de equipe', async () => {
+test('cliente puro não vê o cartão', async () => {
   mockUser = { ...base, activeRole: 'cliente', roles: ['cliente'] };
+  mockPerms = ['broadcast:send'];
   render(<ContaPage />);
-  expect(screen.queryByText(/Marketing|Gerente/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Painel da equipe')).not.toBeInTheDocument();
   await waitFor(() => expect(apiGet).toHaveBeenCalled());
 });
 
@@ -48,26 +74,6 @@ test('o CEO continua com "Administração"', async () => {
   mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'ceo'] };
   render(<ContaPage />);
   expect(screen.getByRole('button', { name: /^Administração/ })).toBeInTheDocument();
-  expect(screen.queryByText(/Marketing|Gerente/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Painel da equipe')).not.toBeInTheDocument();
   await waitFor(() => expect(apiGet).toHaveBeenCalled());
-});
-
-test('escolher "Gerente de motoboys" troca para o papel e abre a primeira página do painel que ele pode abrir', async () => {
-  mockUser = { ...base, activeRole: 'cliente', roles: team };
-  switchRole.mockResolvedValue({});
-  render(<ContaPage />);
-  fireEvent.click(screen.getByRole('button', { name: /^Gerente de motoboys/ }));
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/payouts'));
-  expect(switchRole).toHaveBeenCalledWith('gerente_motoboys');
-});
-
-test('troca recusada pelo servidor: não navega', async () => {
-  mockUser = { ...base, activeRole: 'cliente', roles: team };
-  switchRole.mockRejectedValue(new Error('403'));
-  render(<ContaPage />);
-  fireEvent.click(screen.getByRole('button', { name: /^Marketing/ }));
-  await waitFor(() => expect(switchRole).toHaveBeenCalledWith('marketing'));
-  await Promise.resolve();
-  expect(apiGet).not.toHaveBeenCalledWith('/role-permissions/me');
-  expect(push).not.toHaveBeenCalled();
 });

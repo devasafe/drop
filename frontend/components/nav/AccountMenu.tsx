@@ -5,24 +5,23 @@ import { ROLE_AREAS, ROLE_HOME, Role } from '../../lib/navConfig';
 import { ROUTES } from '../../lib/routes';
 import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
 import { imageUrl } from '../../lib/config';
-import { teamAreasOf, enterTeamPanel } from '../../lib/teamPanel';
+import { teamPanelEntry } from '../../lib/teamPanel';
+import { isAdminPanelRoute } from '../../lib/adminNav';
 import Icon, { type IconName } from '../Icon';
 import styles from './AccountMenu.module.css';
 
 export default function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, switchRole, logout } = useAuth();
+  const { user, switchRole, logout, teamRoles, can } = useAuth();
   const router = useRouter();
   if (!user) return null;
 
   const activeRole = (user.activeRole || user.role || 'cliente') as Role;
   const roles = (user.roles || (user.role ? [user.role] : [])) as string[];
-  const roleAreas = ROLE_AREAS.filter((a) => roles.includes(a.role));
-  // Cada papel de equipe (marketing/gerentes) é uma área própria; entra pela primeira página do painel que abre.
-  const teamAreas = teamAreasOf(roles);
-  const myAreas: { role: string; label: string; description: string; icon: IconName; team: boolean }[] = [
-    ...roleAreas.map((a) => ({ ...a, team: false })),
-    ...teamAreas.map((a) => ({ ...a, team: true })),
-  ];
+  const myAreas: { role: string; label: string; description: string; icon: IconName }[] =
+    ROLE_AREAS.filter((a) => roles.includes(a.role));
+  // Papel de equipe é acréscimo: um item leva direto ao painel, sem trocar de área.
+  const teamPanel = activeRole === 'ceo' ? null : teamPanelEntry(teamRoles, can);
+  const inAdmin = isAdminPanelRoute(router?.pathname ?? '');
 
   const go = (href: string) => { onNavigate?.(); router.push(href); };
 
@@ -35,19 +34,6 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
     }
     onNavigate?.();
     router.push(ROLE_HOME[role]);
-  };
-
-  const openTeamPanel = async (role: string) => {
-    if (role === activeRole) return;
-    let href: string | null;
-    try {
-      href = await enterTeamPanel(role, switchRole);
-    } catch {
-      return; // troca falhou: não navega
-    }
-    if (!href) return;
-    onNavigate?.();
-    router.push(href);
   };
 
   const activeArea = myAreas.find((a) => a.role === activeRole);
@@ -83,7 +69,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
                 type="button"
                 className={styles.areaCard}
                 data-active={isActive}
-                onClick={() => (a.team ? openTeamPanel(a.role) : selectArea(a.role as Role))}
+                onClick={() => selectArea(a.role as Role)}
               >
                 <span className={styles.areaIcon}><Icon name={a.icon} size={16} /></span>
                 <span className={styles.areaText}>
@@ -94,6 +80,26 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
               </button>
             );
           })}
+        </div>
+      )}
+
+      {(teamPanel || (inAdmin && activeRole !== 'ceo')) && (
+        <div className={styles.section}>
+          <div className={styles.sectionLabel}>Equipe</div>
+          {teamPanel && !inAdmin && (
+            <button type="button" className={styles.areaCard} onClick={() => go(teamPanel.href)}>
+              <span className={styles.areaIcon}><Icon name="shield" size={16} /></span>
+              <span className={styles.areaText}>
+                <span className={styles.areaLabel}>Painel da equipe</span>
+                <span className={styles.areaDesc}>{teamPanel.roles}</span>
+              </span>
+            </button>
+          )}
+          {inAdmin && activeRole !== 'ceo' && (
+            <button type="button" className={styles.item} onClick={() => go(ROLE_HOME[activeRole] ?? '/inicio')}>
+              <span className={styles.itemIcon}><Icon name="shopping-bag" size={14} /></span> Voltar ao app
+            </button>
+          )}
         </div>
       )}
 

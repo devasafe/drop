@@ -20,6 +20,7 @@ export function adminAuth(role: string, perms: string[] = []): AdminAuthValue {
     loading: false,
     activeRole: role,
     permissions: perms,
+    teamRoles: [],
     permissionsLoading: false,
     can,
     login: jest.fn(),

@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import { Prisma, AdminMoneyAction, AdminMoneyActionType } from '@prisma/client';
+import { teamRolesOf } from '../controllers/rolePermissionsController';
 
 /**
  * D3b-3 · registro único das ações de dinheiro do admin (spec 3.1).
@@ -82,7 +83,10 @@ export async function recordAdminMoneyAction(
 export function actorFromRequest(req: { user?: any }): AdminMoneyActor {
   const id = String(req?.user?.id ?? '').trim();
   if (!id) throw new Error('actorFromRequest: requisição sem autor autenticado');
-  return { id, role: String(req.user.activeRole || req.user.role || '') };
+  const active = String(req.user.activeRole || req.user.role || '');
+  // Papel de equipe é acréscimo: quem age com papel ativo de cliente aparece pelo papel de equipe.
+  const team = active === 'ceo' ? [] : teamRolesOf(req.user);
+  return { id, role: team[0] ?? active };
 }
 
 /**

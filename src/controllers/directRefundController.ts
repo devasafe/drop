@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../utils/AppError';
 import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
-import { getEffectivePermissions } from './rolePermissionsController';
+import { getAccountPermissions } from './rolePermissionsController';
 import { executeDirectRefund, markDirectRefundDone } from '../services/asaasLoja/refund';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
@@ -39,7 +39,8 @@ async function hasAdminPermission(user: any, permission: string): Promise<boolea
   if (role === 'ceo') return true;
   if (!role) return false;
   try {
-    const { permissions } = await getEffectivePermissions(role);
+    // Papel ativo + papéis de equipe da conta (união).
+    const permissions = await getAccountPermissions(user);
     return permissions.includes('*') || permissions.includes(permission);
   } catch {
     return false; // fail closed

@@ -4,6 +4,20 @@ import { createConversation, updateConversation, deleteConversationById } from '
 import { prisma } from '../lib/prisma';
 import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import logger from '../config/logger';
+import { staffRolesOf, activeRoleOf } from './rolePermissionsController';
+
+// Categorias de ticket que a conta atende: CEO (ativo) e gerente_geral veem todas (null);
+// gerentes de área, as suas. Papéis de equipe valem como acréscimo, sem trocar de área.
+const MANAGER_CATEGORY: Record<string, string> = {
+  gerente_clientes: 'clientes',
+  gerente_lojistas: 'lojistas',
+  gerente_motoboys: 'motoboys',
+};
+function supportScopeOf(user: any): { all: boolean; categories: string[] } {
+  const roles = staffRolesOf(user);
+  if (activeRoleOf(user) === 'ceo' || roles.includes('gerente_geral')) return { all: true, categories: [] };
+  return { all: false, categories: roles.map((r) => MANAGER_CATEGORY[r]).filter(Boolean) };
+}
 
 // Mapeamento de role para gerente responsável e categoria
 const ROLE_TO_CATEGORY: Record<string, 'clientes' | 'lojistas' | 'motoboys' | 'geral'> = {
@@ -114,17 +128,20 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
 export const listTickets = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const activeRole = (req.user as any)?.activeRole || req.user?.role;
+    // Duas telas usam esta rota: o atendimento do admin (TicketsView, `?scope=staff`) e a Central de
+    // Ajuda de quem abre chamado. Sem `scope=staff`, devolve só os chamados do próprio usuário —
+    // senão um cliente+gerente veria em "meus chamados" os de outros clientes e perderia os próprios.
+    const staffView = req.query.scope === 'staff';
+    const scope = staffView ? supportScopeOf(req.user) : { all: false, categories: [] as string[] };
 
     let where: any = {};
 
-    if (activeRole === 'ceo' || activeRole === 'gerente_geral') {
+    if (scope.all) {
       // vê tudo, com filtros opcionais
       if (req.query.category) where.category = req.query.category as any;
       if (req.query.status) where.status = req.query.status as any;
-    } else if (activeRole?.startsWith('gerente_')) {
-      const suffix = activeRole.replace('gerente_', '');
-      where.category = suffix as any;
+    } else if (scope.categories.length > 0) {
+      where.category = scope.categories.length === 1 ? (scope.categories[0] as any) : { in: scope.categories as any };
     } else {
       // usuário comum vê apenas os próprios tickets (filtro JSON-path em openedBy.userId)
       where.openedBy = { path: ['userId'], equals: String(userId) };
@@ -145,19 +162,14 @@ export const assignTicket = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { id } = req.params;
     const userId = req.user?.id;
-    const activeRole = (req.user as any)?.activeRole || req.user?.role;
+    const scope = supportScopeOf(req.user);
 
     const ticket = await prisma.supportTicket.findUnique({ where: { id: String(id) } });
     if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
 
     // Verificar se o gerente tem permissão para esta categoria de ticket
-    if (activeRole !== 'ceo' && activeRole !== 'gerente_geral') {
-      const categoryForRole: Record<string, string> = {
-        gerente_clientes: 'clientes',
-        gerente_lojistas: 'lojistas',
-        gerente_motoboys: 'motoboys',
-      };
-      if (categoryForRole[activeRole] !== ticket.category) {
+    if (!scope.all) {
+      if (!scope.categories.includes(String(ticket.category))) {
         return res.status(403).json({ error: 'Você não pode assumir tickets de outra categoria' });
       }
     }
@@ -213,24 +225,18 @@ export const resolveTicket = async (req: AuthenticatedRequest, res: Response) =>
   try {
     const { id } = req.params;
     const userId = req.user?.id;
-    const activeRole = (req.user as any)?.activeRole || req.user?.role;
+    const scope = supportScopeOf(req.user);
 
     const ticket = await prisma.supportTicket.findUnique({ where: { id: String(id) } });
     if (!ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
 
-    const adminRoles = ['ceo', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
-    if (!adminRoles.includes(activeRole)) {
+    if (!scope.all && scope.categories.length === 0) {
       return res.status(403).json({ error: 'Apenas a equipe de suporte pode finalizar atendimentos' });
     }
 
     // Gerentes específicos só podem resolver tickets da sua categoria
-    if (activeRole !== 'ceo' && activeRole !== 'gerente_geral') {
-      const categoryForRole: Record<string, string> = {
-        gerente_clientes: 'clientes',
-        gerente_lojistas: 'lojistas',
-        gerente_motoboys: 'motoboys',
-      };
-      if (categoryForRole[activeRole] !== ticket.category) {
+    if (!scope.all) {
+      if (!scope.categories.includes(String(ticket.category))) {
         return res.status(403).json({ error: 'Você não pode resolver tickets de outra categoria' });
       }
     }

@@ -24,12 +24,16 @@ const initials = (name?: string) =>
 
 /** Menu do admin (protótipo .u-side): marca, grupos, itens com contador e rodapé com nome e papel. */
 export function AdminSidebar({ id, areas, open, onClose, modeError, onRetryMode }: AdminSidebarProps) {
-  const { user } = useAuth();
+  const { user, teamRoles } = useAuth();
   const router = useRouter();
   const badges = useBadgeCounts();
   const closeRef = useRef<HTMLButtonElement>(null);
   const activeArea = adminAreaForPath(router?.pathname ?? '');
   const role: string | undefined = user?.activeRole || user?.role;
+  // Equipe é acréscimo (a pessoa segue cliente): o rodapé mostra os papéis de equipe da conta.
+  const roleLabel = role !== 'ceo' && teamRoles && teamRoles.length > 0
+    ? teamRoles.map(adminRoleLabel).join(' · ')
+    : adminRoleLabel(role);
 
   // Gaveta aberta: o foco vai para o "Fechar menu" (no computador a gaveta nunca abre).
   useEffect(() => {
@@ -88,7 +92,7 @@ export function AdminSidebar({ id, areas, open, onClose, modeError, onRetryMode 
         <span className={styles.avatar} aria-hidden="true">{initials(user?.name)}</span>
         <span className={styles.who}>
           <span className={styles.name}>{user?.name || 'Equipe'}</span>
-          <span className={styles.role}>{adminRoleLabel(role)}</span>
+          <span className={styles.role}>{roleLabel}</span>
         </span>
       </div>
     </aside>

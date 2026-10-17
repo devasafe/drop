@@ -62,7 +62,15 @@ type ActionState =
   | { type: 'unblock'; user: AdminUser }
   | { type: 'disconnect'; user: AdminUser };
 
-const roleOf = (u: AdminUser) => u.activeRole || u.role;
+/**
+ * Papel mostrado e usado no filtro: o administrativo vem primeiro. Papel de equipe é acréscimo (16/10),
+ * então a equipe segue com papel ativo cliente; sem esta ordem ela apareceria como "Cliente", sumiria
+ * da aba "Equipe" e o diálogo viria com `cliente` marcado (confirmar rebaixaria).
+ */
+const roleOf = (u: AdminUser) => {
+  const all = [u.activeRole, u.role, ...(u.roles ?? [])].filter(Boolean) as string[];
+  return all.find((r) => STAFF_ROLES.includes(r)) ?? u.activeRole ?? u.role;
+};
 const roleLabel = (role?: string) => (role ? ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role : '—');
 const isStaff = (u: AdminUser) => [...(u.roles ?? []), u.role].some((r) => STAFF_ROLES.includes(r));
 const createdAtText = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
@@ -139,8 +147,11 @@ function UsuariosScreen() {
     if (action.type !== 'edit-role') return;
     const { user, newRole } = action;
     const res = await api.put(`/admin/users/${user._id}/role`, { role: newRole });
-    const roles = res?.data?.user?.roles || [newRole];
-    patchUser(user._id, { role: newRole, activeRole: newRole, roles });
+    // O servidor decide o papel ativo (papel de equipe mantém a pessoa como cliente): usa o que ele devolveu.
+    const saved = res?.data?.user;
+    patchUser(user._id, saved
+      ? { role: saved.role ?? newRole, activeRole: saved.activeRole, roles: saved.roles ?? [newRole] }
+      : { role: newRole, roles: [newRole] });
     showToast(`Papel trocado para ${roleLabel(newRole)}.`, 'success');
     close();
   };

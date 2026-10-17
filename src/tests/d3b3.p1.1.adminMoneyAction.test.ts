@@ -122,6 +122,12 @@ describe('actorFromRequest e MoneyActionError', () => {
   it('lê o autor do req autenticado (papel ativo primeiro) e lança sem id', () => {
     expect(actorFromRequest({ user: { id: 'u1', role: 'cliente', activeRole: 'gerente_geral' } })).toEqual({ id: 'u1', role: 'gerente_geral' });
     expect(actorFromRequest({ user: { id: 'u2', role: 'ceo' } })).toEqual({ id: 'u2', role: 'ceo' });
+    // Papel de equipe é acréscimo (fix/equipe-acrescimo): com papel ativo 'cliente', o autor
+    // aparece no Histórico pelo papel de equipe da conta, não como cliente.
+    expect(actorFromRequest({ user: { id: 'u3', role: 'cliente', activeRole: 'cliente', roles: ['cliente', 'gerente_geral'] } }))
+      .toEqual({ id: 'u3', role: 'gerente_geral' });
+    expect(actorFromRequest({ user: { id: 'u4', role: 'ceo', activeRole: 'ceo', roles: ['ceo', 'gerente_geral'] } }))
+      .toEqual({ id: 'u4', role: 'ceo' });
     expect(() => actorFromRequest({})).toThrow(/sem autor/);
   });
 

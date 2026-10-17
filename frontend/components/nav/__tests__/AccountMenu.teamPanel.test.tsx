@@ -1,94 +1,104 @@
-// Correções V1/V2 (D3a): cada papel de equipe da conta é uma área própria no menu da conta,
-// como Cliente/Lojista/Motoboy/Administração.
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+// Papel de equipe vira acréscimo (16/10): a pessoa continua cliente. O menu da conta não lista
+// mais as áreas de equipe; mostra o item "Painel da equipe", que leva direto ao painel (sem troca de área).
+import { render, screen, fireEvent } from '@testing-library/react';
 import AccountMenu from '../AccountMenu';
 
 const push = jest.fn();
 const switchRole = jest.fn();
-const apiGet = jest.fn();
 let mockUser: any;
+let mockTeamRoles: string[] = [];
+let mockPerms: string[] = [];
+let mockPath = '/inicio';
 
-jest.mock('next/router', () => ({ useRouter: () => ({ push, pathname: '/inicio' }) }));
+jest.mock('next/router', () => ({ useRouter: () => ({ push, pathname: mockPath }) }));
 jest.mock('../../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: mockUser, switchRole, logout: jest.fn() }),
+  useAuth: () => ({
+    user: mockUser,
+    switchRole,
+    logout: jest.fn(),
+    teamRoles: mockTeamRoles,
+    can: (p: string) => mockPerms.includes(p),
+  }),
 }));
-jest.mock('../../../lib/api', () => ({ __esModule: true, default: { get: (...a: any[]) => apiGet(...a) } }));
 
 const base = { id: '1', name: 'Ana Souza', email: 'ana@x.com' };
-const team = ['cliente', 'marketing', 'gerente_motoboys'];
 
 beforeEach(() => {
-  push.mockClear(); switchRole.mockReset(); apiGet.mockReset();
-  apiGet.mockResolvedValue({ data: { permissions: ['payout:view'] } });
+  push.mockClear(); switchRole.mockReset();
+  mockTeamRoles = []; mockPerms = []; mockPath = '/inicio';
 });
 
-describe('AccountMenu · papéis de equipe como áreas', () => {
-  it('cada papel de equipe da conta aparece como área, com a descrição', () => {
-    mockUser = { ...base, activeRole: 'cliente', roles: team };
+describe('AccountMenu · papel de equipe como acréscimo', () => {
+  it('não lista as áreas de equipe no seletor; mostra "Painel da equipe" com os papéis', () => {
+    mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing', 'gerente_motoboys'] };
+    mockTeamRoles = ['marketing', 'gerente_motoboys'];
+    mockPerms = ['broadcast:send'];
     render(<AccountMenu />);
-    expect(screen.getByRole('button', { name: /^Marketing\s*Avisos, broadcasts e tema do app\.$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Gerente de motoboys\s*Motoboys, verificações e Pix\.$/ })).toBeInTheDocument();
-    expect(screen.queryByText('Gerente geral')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Marketing/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Gerente de motoboys/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Painel da equipe\s*Marketing · Gerente de motoboys/ })).toBeInTheDocument();
+  });
+
+  it('o clique leva à primeira página do painel, sem trocar de área', () => {
+    mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = ['broadcast:send'];
+    const onNavigate = jest.fn();
+    render(<AccountMenu onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole('button', { name: /Painel da equipe/ }));
+    expect(push).toHaveBeenCalledWith('/admin/broadcasts');
+    expect(switchRole).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalled();
+  });
+
+  it('papel de equipe sem nenhuma aba visível: sem o item', () => {
+    mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = [];
+    render(<AccountMenu />);
     expect(screen.queryByText('Painel da equipe')).toBeNull();
   });
 
-  it('cliente puro não vê área de equipe', () => {
+  it('cliente puro não vê o item', () => {
     mockUser = { ...base, activeRole: 'cliente', roles: ['cliente'] };
+    mockPerms = ['broadcast:send'];
     render(<AccountMenu />);
-    expect(screen.queryByText(/Marketing|Gerente/)).toBeNull();
+    expect(screen.queryByText('Painel da equipe')).toBeNull();
   });
 
   it('o CEO continua com "Administração"', () => {
     mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'ceo'] };
     render(<AccountMenu />);
     expect(screen.getByText('Administração')).toBeInTheDocument();
-    expect(screen.queryByText(/Marketing|Gerente/)).toBeNull();
+    expect(screen.queryByText('Painel da equipe')).toBeNull();
   });
 
-  it('escolher "Gerente de motoboys" troca para o papel e abre a primeira página do painel que ele pode abrir', async () => {
-    mockUser = { ...base, activeRole: 'cliente', roles: team };
-    switchRole.mockResolvedValue({});
-    const onNavigate = jest.fn();
-    render(<AccountMenu onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole('button', { name: /^Gerente de motoboys/ }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/payouts'));
-    expect(switchRole).toHaveBeenCalledWith('gerente_motoboys');
-    expect(apiGet).toHaveBeenCalledWith('/role-permissions/me');
-    expect(onNavigate).toHaveBeenCalled();
-  });
-
-  it('com ativo marketing: "Marketing" marcado (ATUAL, sem troca) e "Cliente" troca para cliente', async () => {
-    mockUser = { ...base, activeRole: 'marketing', roles: team };
-    switchRole.mockResolvedValue({});
+  it('dentro do painel, "Voltar ao app" leva ao início', () => {
+    mockPath = '/admin/broadcasts';
+    mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = ['broadcast:send'];
     render(<AccountMenu />);
-    const mk = screen.getByRole('button', { name: /^Marketing.*ATUAL$/ });
-    expect(mk).toHaveAttribute('data-active', 'true');
-    fireEvent.click(mk);
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao app/ }));
+    expect(push).toHaveBeenCalledWith('/inicio');
     expect(switchRole).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /^Cliente/ }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/inicio'));
-    expect(switchRole).toHaveBeenCalledWith('cliente');
   });
 
-  it('troca feita mas a leitura das permissões falhou: não navega', async () => {
-    mockUser = { ...base, activeRole: 'cliente', roles: team };
-    switchRole.mockResolvedValue({});
-    apiGet.mockRejectedValueOnce(new Error('500'));
+  it('"Voltar ao app" leva à home do papel ativo (lojista com marketing → painel da loja)', () => {
+    mockPath = '/admin/broadcasts';
+    mockUser = { ...base, activeRole: 'lojista', roles: ['cliente', 'lojista', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = ['broadcast:send'];
     render(<AccountMenu />);
-    fireEvent.click(screen.getByRole('button', { name: /^Marketing/ }));
-    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/role-permissions/me'));
-    await Promise.resolve();
-    expect(push).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao app/ }));
+    expect(push).toHaveBeenCalledWith('/seller/dashboard');
   });
 
-  it('troca recusada pelo servidor: não navega', async () => {
-    mockUser = { ...base, activeRole: 'cliente', roles: team };
-    switchRole.mockRejectedValue(new Error('403'));
+  it('fora do painel não mostra "Voltar ao app"', () => {
+    mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = ['broadcast:send'];
     render(<AccountMenu />);
-    fireEvent.click(screen.getByRole('button', { name: /^Gerente de motoboys/ }));
-    await waitFor(() => expect(switchRole).toHaveBeenCalledWith('gerente_motoboys'));
-    await Promise.resolve();
-    expect(apiGet).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
+    expect(screen.queryByText('Voltar ao app')).toBeNull();
   });
 });

@@ -81,6 +81,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
 
   // O JWT vale dias e é stateless: confere no banco se a conta existe, não está
   // bloqueada e ainda tem o papel do token (admin rebaixado perde o acesso na hora).
+  let dbRoles: string[] = [];
   try {
     const account = await prisma.user.findUnique({
       where: { id: String(decoded.id) },
@@ -99,12 +100,15 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
     if (!tokenRole || !accountRoles.includes(String(tokenRole))) {
       return res.status(401).json({ error: 'SESSION_ROLE_CHANGED', message: 'Seu acesso mudou. Entre novamente.' });
     }
+    dbRoles = (account.roles || []).map(String);
   } catch (err) {
     console.error('[authenticate] falha ao conferir a conta:', err);
     return res.status(503).json({ error: 'Servico indisponivel' });
   }
 
-  req.user = decoded;
+  // `roles` vem do BANCO, não do token: os papéis de equipe somam permissões e
+  // remover um deles precisa valer já na próxima requisição.
+  req.user = { ...decoded, roles: dbRoles };
   if (isDev) logger.debug(`✅ [AUTH OK] ${req.path} - User: ${decoded.id}`);
   return next();
 };
@@ -117,7 +121,12 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
 export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
   try {
     const token = readRequestToken(req);
-    if (token && JWT_SECRET) req.user = verifyAuthToken(token) as any;
+    if (token && JWT_SECRET) {
+      // Sem `roles`: os papéis de equipe somam permissões e só valem lidos do BANCO (como no
+      // `authenticate`); os do token podem estar velhos (papel removido depois do login).
+      const { roles: _tokenRoles, ...decoded } = verifyAuthToken(token);
+      req.user = decoded as any;
+    }
   } catch {
     // token inválido/expirado → anônimo
   }

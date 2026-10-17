@@ -1,51 +1,22 @@
 /**
- * Papéis de equipe como áreas (correções V1/V2 da D3a): cada papel de equipe que a conta tem (marketing e gerentes)
- * é uma área própria no seletor de área (AccountMenu e tela Conta), ao lado de Cliente/Lojista/Motoboy/Administração.
- * O CEO segue com "Administração" (ROLE_AREAS).
+ * "Painel da equipe" (16/10): papel de equipe (marketing e gerentes) não é uma área para a qual se troca —
+ * é um acréscimo à conta. A pessoa continua cliente e o painel admin mostra o que os papéis de equipe dela
+ * liberam (o servidor devolve a união em /role-permissions/me). O CEO segue com "Administração" (ROLE_AREAS).
  */
-import type { IconName } from '../components/Icon';
-import { adminHomeHref, adminRoleLabel } from './adminNav';
+import { adminHomeHref, adminRoleLabel, canOpenAdminPanel } from './adminNav';
 
-export interface TeamArea {
-  role: string;
-  label: string;
-  description: string;
-  icon: IconName;
+export interface TeamPanelEntry {
+  /** Nomes dos papéis de equipe, ex.: "Marketing · Gerente de motoboys". */
+  roles: string;
+  /** Primeira página do painel que a conta abre. */
+  href: string;
 }
 
-const TEAM_DESCRIPTIONS: Record<string, string> = {
-  marketing: 'Avisos, broadcasts e tema do app.',
-  gerente_geral: 'Operação e equipe no painel administrativo.',
-  gerente_clientes: 'Clientes, verificações e suporte.',
-  gerente_lojistas: 'Lojas, planos e repasses.',
-  gerente_motoboys: 'Motoboys, verificações e Pix.',
-};
-
-/** Áreas de equipe na ordem do seletor; o rótulo é o mesmo do painel (adminRoleLabel). */
-export const TEAM_AREAS: TeamArea[] = Object.entries(TEAM_DESCRIPTIONS).map(([role, description]) => ({
-  role, label: adminRoleLabel(role), description, icon: 'shield',
-}));
-
-/** As áreas de equipe que a conta tem em `roles`. */
-export function teamAreasOf(roles: string[]): TeamArea[] {
-  return TEAM_AREAS.filter((a) => roles.includes(a.role));
-}
-
-/**
- * Troca para o papel de equipe e devolve a primeira página do painel que ele abre.
- * Lança se o servidor recusar a troca (quem chama não navega). As permissões do novo papel só existem depois
- * da troca: lemos /role-permissions/me aqui (o cookie já é o do novo papel) em vez de esperar o AuthContext.
- * Devolve null se a leitura falhar ou se o papel não abre nenhuma página: quem chama não navega.
- */
-export async function enterTeamPanel(teamRole: string, switchRole: (role: string) => Promise<unknown>): Promise<string | null> {
-  await switchRole(teamRole);
-  try {
-    // Import sob demanda: o menu da conta não carrega o cliente da API só por existir.
-    const { default: api } = await import('./api');
-    const res = await api.get('/role-permissions/me');
-    const perms: string[] = res.data?.permissions || [];
-    return adminHomeHref((p) => perms.includes('*') || perms.includes(p), false);
-  } catch {
-    return null;
-  }
+/** Entrada do painel da equipe: só com papel de equipe e ao menos uma aba visível; senão null. */
+export function teamPanelEntry(teamRoles: string[] | undefined, can: ((p: string) => boolean) | undefined): TeamPanelEntry | null {
+  if (!teamRoles || teamRoles.length === 0 || !can) return null;
+  if (!canOpenAdminPanel(can, false)) return null;
+  const href = adminHomeHref(can, false);
+  if (!href) return null;
+  return { roles: teamRoles.map(adminRoleLabel).join(' · '), href };
 }

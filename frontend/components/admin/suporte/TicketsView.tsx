@@ -58,7 +58,9 @@ export function TicketsView({ filter }: { filter: TicketFilter }) {
   const fetchTickets = useCallback(async () => {
     setListError(null);
     try {
-      const params: Record<string, string> = {};
+      // `scope=staff`: a fila de atendimento. Sem ele, a rota devolve só os chamados da própria conta
+      // (Central de Ajuda) — a equipe segue cliente e também abre chamado.
+      const params: Record<string, string> = { scope: 'staff' };
       if (status) params.status = status;
       const res = await api.get('/support/tickets', { params });
       setTickets(Array.isArray(res.data) ? res.data : []);
