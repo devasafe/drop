@@ -21,6 +21,7 @@ import { isStoreOwner } from '../utils/storeOwnership';
 import { emitAdminNotification, emitToRoom } from '../utils/socketEmitter';
 import { insertNotifications } from '../repositories/notification.repository';
 import { AdminMoneyActor, actorFromRequest, recordAdminMoneyAction } from '../services/adminMoneyAction.service';
+import { STALE_IN_FLIGHT_MS } from '../utils/withdrawalRules';
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
 
@@ -459,8 +460,8 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
   }
 };
 
-/** Saque em `approved` sem a marca de incerteza só é resolvível depois disso (processo caiu). */
-export const STALE_IN_FLIGHT_MS = 10 * 60 * 1000;
+// STALE_IN_FLIGHT_MS mora em utils/withdrawalRules (D3b-3); reexportada para quem já importa daqui.
+export { STALE_IN_FLIGHT_MS };
 
 /**
  * R27 — POST /withdrawals/:id/resolve-uncertain (admin, `withdrawal:approve`).

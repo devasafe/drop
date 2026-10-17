@@ -29,6 +29,7 @@ import walletsRoutes from './routes/wallets'; // ✅ NOVO
 import debtsRoutes from './routes/debts';
 import withdrawalsRoutes from './routes/withdrawals'; // ✅ NOVO - Withdrawal/Payout management
 import adminRoutes from './routes/admin'; // ✅ NOVO - Admin routes
+import adminMoneyRoutes from './routes/adminMoney'; // D3b-3: Visão geral do Dinheiro e Histórico
 import pricingPlanRoutes from './routes/pricingPlanRoutes'; // ✅ NOVO - Pricing Plans
 import settingsRoutes from './routes/settings'; // ✅ NOVO - Platform Settings
 import chatRoutes from './routes/chat'; // ✅ CHAT ROUTES
@@ -130,6 +131,7 @@ logger.debug('✅ [APP] Chat routes mounted at /api/chat');
 app.use('/api/wallets', walletsRoutes);
 app.use('/api/debts', debtsRoutes);
 app.use('/api/withdrawals', withdrawalsRoutes);
+app.use('/api/admin/money', adminMoneyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/pricing-plans', pricingPlanRoutes);
 app.use('/api/store', storeRoutes);
