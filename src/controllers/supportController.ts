@@ -4,7 +4,7 @@ import { createConversation, updateConversation, deleteConversationById } from '
 import { prisma } from '../lib/prisma';
 import { emitToRoom, emitAdminNotification } from '../utils/socketEmitter';
 import logger from '../config/logger';
-import { staffRolesOf } from './rolePermissionsController';
+import { staffRolesOf, activeRoleOf } from './rolePermissionsController';
 
 // Categorias de ticket que a conta atende: CEO (ativo) e gerente_geral veem todas (null);
 // gerentes de área, as suas. Papéis de equipe valem como acréscimo, sem trocar de área.
@@ -15,7 +15,7 @@ const MANAGER_CATEGORY: Record<string, string> = {
 };
 function supportScopeOf(user: any): { all: boolean; categories: string[] } {
   const roles = staffRolesOf(user);
-  if (roles[0] === 'ceo' || roles.includes('gerente_geral')) return { all: true, categories: [] };
+  if (activeRoleOf(user) === 'ceo' || roles.includes('gerente_geral')) return { all: true, categories: [] };
   return { all: false, categories: roles.map((r) => MANAGER_CATEGORY[r]).filter(Boolean) };
 }
 
@@ -128,7 +128,11 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
 export const listTickets = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const scope = supportScopeOf(req.user);
+    // Duas telas usam esta rota: o atendimento do admin (TicketsView, `?scope=staff`) e a Central de
+    // Ajuda de quem abre chamado. Sem `scope=staff`, devolve só os chamados do próprio usuário —
+    // senão um cliente+gerente veria em "meus chamados" os de outros clientes e perderia os próprios.
+    const staffView = req.query.scope === 'staff';
+    const scope = staffView ? supportScopeOf(req.user) : { all: false, categories: [] as string[] };
 
     let where: any = {};
 

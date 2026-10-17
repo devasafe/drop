@@ -121,7 +121,12 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
 export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
   try {
     const token = readRequestToken(req);
-    if (token && JWT_SECRET) req.user = verifyAuthToken(token) as any;
+    if (token && JWT_SECRET) {
+      // Sem `roles`: os papéis de equipe somam permissões e só valem lidos do BANCO (como no
+      // `authenticate`); os do token podem estar velhos (papel removido depois do login).
+      const { roles: _tokenRoles, ...decoded } = verifyAuthToken(token);
+      req.user = decoded as any;
+    }
   } catch {
     // token inválido/expirado → anônimo
   }

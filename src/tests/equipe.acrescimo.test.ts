@@ -172,11 +172,37 @@ describe('papel de equipe como acréscimo — pontos que decidiam pelo papel ati
       ],
     });
 
-    const res = await request(app).get('/api/support/tickets').set('Authorization', `Bearer ${gerente.token}`);
+    const res = await request(app).get('/api/support/tickets?scope=staff').set('Authorization', `Bearer ${gerente.token}`);
 
     expect(res.status).toBe(200);
     const mine = res.body.filter((t: any) => String(t.subject).startsWith('[equipe-acrescimo]'));
     expect(mine.map((t: any) => t.category)).toEqual(['clientes']);
+  });
+
+  it('sem scope=staff (Central de Ajuda), cliente+gerente vê só os PRÓPRIOS chamados, de qualquer categoria', async () => {
+    const gerente = await createAccount(['cliente', 'gerente_clientes'], 'cliente');
+    await prisma.supportTicket.createMany({
+      data: [
+        { conversationId: 'conv-eq-3', openedBy: { userId: 'outra-pessoa', role: 'cliente', name: 'X' }, category: 'clientes', subject: '[equipe-acrescimo] de outro' },
+        { conversationId: 'conv-eq-4', openedBy: { userId: gerente.user.id, role: 'cliente', name: 'Eu' }, category: 'lojistas', subject: '[equipe-acrescimo] meu' },
+      ],
+    });
+
+    const res = await request(app).get('/api/support/tickets').set('Authorization', `Bearer ${gerente.token}`);
+
+    expect(res.status).toBe(200);
+    const mine = res.body.filter((t: any) => String(t.subject).startsWith('[equipe-acrescimo]'));
+    expect(mine.map((t: any) => t.subject)).toEqual(['[equipe-acrescimo] meu']);
+  });
+
+  it('cliente puro com scope=staff continua vendo só os próprios', async () => {
+    const puro = await createAccount(['cliente'], 'cliente');
+    await prisma.supportTicket.create({
+      data: { conversationId: 'conv-eq-5', openedBy: { userId: 'outra-pessoa', role: 'cliente', name: 'X' }, category: 'clientes', subject: '[equipe-acrescimo] de outro' },
+    });
+    const res = await request(app).get('/api/support/tickets?scope=staff').set('Authorization', `Bearer ${puro.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.filter((t: any) => String(t.subject).startsWith('[equipe-acrescimo]'))).toEqual([]);
   });
 
   it('CEO atribuir marketing mantém a pessoa como cliente (papel ativo não vira equipe)', async () => {
@@ -192,5 +218,94 @@ describe('papel de equipe como acréscimo — pontos que decidiam pelo papel ati
     const saved = await prisma.user.findUnique({ where: { id: alvo.user.id } });
     expect(saved!.activeRole).toBe('cliente');
     expect([...(saved!.roles || [])].sort()).toEqual(['cliente', 'marketing']);
+  });
+});
+
+describe('revisão — negativos e pontos restantes', () => {
+  afterEach(async () => {
+    const convs = await prisma.conversation.findMany({ where: { relatedOrderNumber: 'equipe-acrescimo' }, select: { id: true } });
+    const ids = convs.map((c) => c.id);
+    await prisma.message.deleteMany({ where: { conversationId: { in: ids } } });
+    await prisma.supportTicket.deleteMany({ where: { conversationId: { in: ids } } });
+    await prisma.conversation.deleteMany({ where: { id: { in: ids } } });
+  });
+
+  it('ceo em roles com papel ativo cliente não vale como acréscimo: 403 em rota de permissão', async () => {
+    const conta = await createAccount(['ceo', 'cliente'], 'cliente');
+    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${conta.token}`);
+    expect(res.status).toBe(403);
+    const me = await request(app).get('/api/role-permissions/me').set('Authorization', `Bearer ${conta.token}`);
+    expect(me.body.permissions).not.toContain('*');
+  });
+
+  it('ceo em roles com papel ativo cliente: authorizeCEO recusa', async () => {
+    const { authorizeCEO } = await import('../middleware/authorize');
+    const status = jest.fn().mockReturnThis();
+    const json = jest.fn();
+    const next = jest.fn();
+    authorizeCEO({ user: { id: 'x', role: 'cliente', activeRole: 'cliente', roles: ['ceo', 'cliente'] } } as any, { status, json } as any, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(403);
+  });
+
+  it('broadcast para destino fora da união de notificationTargets → 403', async () => {
+    const equipe = await createAccount(['cliente', 'marketing'], 'cliente');
+    const res = await request(app)
+      .post('/api/broadcasts')
+      .set('Authorization', `Bearer ${equipe.token}`)
+      .send({ title: '[equipe-acrescimo] fora', body: 'teste', targetRoles: ['lojista'] });
+    expect(res.status).toBe(403);
+  });
+
+  it('optionalAuth não copia roles do token (papéis só valem lidos do banco)', async () => {
+    const { optionalAuth } = await import('../middleware/auth');
+    const token = jwt.sign({ id: 'x', role: 'cliente', activeRole: 'cliente', roles: ['cliente', 'marketing'] }, TEST_JWT_SECRET, { expiresIn: '1h' });
+    const req: any = { headers: { authorization: `Bearer ${token}` }, cookies: {} };
+    optionalAuth(req, {} as any, jest.fn());
+    expect(req.user.id).toBe('x');
+    expect(req.user.roles).toBeUndefined();
+  });
+
+  it('cliente+gerente_motoboys (papel ativo cliente) vê a carteira de um motoboy; cliente puro não', async () => {
+    const gerente = await createAccount(['cliente', 'gerente_motoboys'], 'cliente');
+    const puro = await createAccount(['cliente'], 'cliente');
+    const moto = await createAccount(['motoboy', 'cliente'], 'motoboy', 'motoboy');
+
+    const ok = await request(app).get(`/api/wallets/motoboy/${moto.user.id}`).set('Authorization', `Bearer ${gerente.token}`);
+    expect(ok.status).toBe(200);
+    const negado = await request(app).get(`/api/wallets/motoboy/${moto.user.id}`).set('Authorization', `Bearer ${puro.token}`);
+    expect(negado.status).toBe(403);
+  });
+
+  it('resposta do gerente (papel ativo cliente) em conversa de suporte sai com selo "suporte"', async () => {
+    const cliente = await createAccount(['cliente'], 'cliente');
+    const gerente = await createAccount(['cliente', 'gerente_clientes'], 'cliente');
+    const conv = await prisma.conversation.create({
+      data: {
+        type: 'suporte' as any,
+        supportCategory: 'clientes' as any,
+        relatedOrderNumber: 'equipe-acrescimo',
+        participant1: { userId: cliente.user.id, role: 'cliente', name: 'Cliente' },
+        participant2: { userId: gerente.user.id, role: 'gerente', name: 'Gerente' },
+      },
+    });
+    await prisma.supportTicket.create({
+      data: {
+        conversationId: conv.id,
+        openedBy: { userId: cliente.user.id, role: 'cliente', name: 'Cliente' },
+        assignedTo: [{ userId: gerente.user.id, name: 'Gerente' }],
+        category: 'clientes',
+        subject: '[equipe-acrescimo] chat',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/chat/conversations/${conv.id}/messages`)
+      .set('Authorization', `Bearer ${gerente.token}`)
+      .send({ text: 'Olá, sou do suporte' });
+
+    expect(res.status).toBeLessThan(300);
+    const msg = await prisma.message.findFirst({ where: { conversationId: conv.id } });
+    expect(msg!.senderRole).toBe('suporte');
   });
 });

@@ -500,7 +500,11 @@ export const sendMessage = async (
     const message = await createMessage({
       conversationId: String(conversationId),
       senderId: String(userId),
-      senderRole: normalizeRole(userRole),
+      // Quem atende (não quem abriu o chamado) responde como "Suporte": com papel de equipe como
+      // acréscimo, o papel ativo do gerente é cliente e o selo sairia "Cliente".
+      senderRole: isSupportConv && isSenderAdmin && String(conversation.participant1.userId) !== String(userId)
+        ? 'suporte'
+        : normalizeRole(userRole),
       senderName: userName || 'Usuário',
       text: text.trim(),
       attachments: attachments || [],
