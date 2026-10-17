@@ -8,10 +8,14 @@ import { NIGHT_PREF_KEY } from '../lib/nightTheme';
 import { themeForPath, LIGHT_ROUTES, ADMIN_LIGHT_ROUTES, MOTOBOY_NIGHT_ROUTES, THEME_BOOT_SCRIPT } from '../lib/routeTheme';
 
 const ADMIN_DIR = path.join(__dirname, '..', 'pages', 'admin');
-const adminPages = fs.readdirSync(ADMIN_DIR)
-  .filter((f) => /\.tsx?$/.test(f))
-  .map((f) => f.replace(/\.tsx?$/, ''))
-  .map((name) => (name === 'index' ? '/admin' : `/admin/${name}`));
+// D3b-3: lê as subpastas também (/admin/dinheiro/historico).
+const routesUnder = (dir: string, base: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+  if (e.isDirectory()) return routesUnder(path.join(dir, e.name), `${base}/${e.name}`);
+  if (!/\.tsx?$/.test(e.name)) return [];
+  const name = e.name.replace(/\.tsx?$/, '');
+  return [name === 'index' ? base : `${base}/${name}`];
+});
+const adminPages = routesUnder(ADMIN_DIR, '/admin');
 
 describe('tema do admin (D3a)', () => {
   it('toda página de /admin está na lista clara do admin', () => {

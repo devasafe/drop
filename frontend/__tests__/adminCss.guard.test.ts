@@ -42,9 +42,8 @@ const inlineStyle = (files: string[]) => files
   .filter(({ line }) => /style=\{\{/.test(line))
   .map(({ f, line, n }) => `${f}:${n}: ${line.trim()}`);
 
-const migratedPages = fs.readdirSync(path.join(ROOT, 'pages', 'admin'))
-  .filter((f) => /\.tsx$/.test(f))
-  .map((f) => `pages/admin/${f}`);
+// D3b-3: inclui as subpastas (pages/admin/dinheiro/historico.tsx); `walk` ignora __tests__.
+const migratedPages = walk('pages/admin', /\.tsx$/);
 
 const importedCss = (page: string) =>
   Array.from(read(page).matchAll(/from\s+'(\.\/[^']+\.module\.css)'/g), (m) => path.posix.join(path.posix.dirname(page), m[1]));
@@ -68,4 +67,8 @@ it('toda página de /admin monta a casca AdminShell', () => {
 it('páginas de /admin já migradas: sem style={{ e CSS importado estrito', () => {
   expect(inlineStyle(migratedPages)).toEqual([]);
   expect(strictReport(migratedPages.flatMap(importedCss))).toBe('');
+});
+
+it('as subpáginas do admin também entram nos guardas (D3b-3)', () => {
+  expect(migratedPages).toEqual(expect.arrayContaining(['pages/admin/dinheiro.tsx', 'pages/admin/dinheiro/historico.tsx']));
 });
