@@ -46,7 +46,8 @@ router.post('/admin/:id/resolve-uncertain', authenticate, authorizePermission('p
 router.post('/admin/mark-paid', authenticate, authorizePermission('payout:mark_paid'), markPayoutsPaid);
 
 // Admin - Bloquear/desbloquear payout
-router.post('/admin/:id/block', authenticate, authorizePermission('payout:block'), blockPayout);
+const blockPayoutSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+router.post('/admin/:id/block', authenticate, authorizePermission('payout:block'), validate(blockPayoutSchema), blockPayout);
 router.post('/admin/:id/unblock', authenticate, authorizePermission('payout:block'), unblockPayout);
 
 // Admin - Config de auto-aprovação

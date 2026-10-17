@@ -3,8 +3,8 @@ import payoutService from '../services/payout.service';
 import { prisma } from '../lib/prisma';
 import { isStoreOwner } from '../utils/storeOwnership';
 import logger from '../config/logger';
-import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
-import { releasePayoutAsAdmin, resolveUncertainPayout, ResolvePayoutInput } from '../services/payoutRelease.service';
+import { actorFromRequest, sendMoneyActionError, MoneyActionError, recordAdminMoneyAction } from '../services/adminMoneyAction.service';
+import { releasePayoutAsAdmin, resolveUncertainPayout, ResolvePayoutInput, payoutNotPendingError } from '../services/payoutRelease.service';
 
 // Lojista/Motoboy - Ver meus payouts
 export const getMyPayouts = async (req: Request & { user?: any }, res: Response) => {
@@ -172,52 +172,85 @@ export const getAdminPayouts = async (req: Request & { user?: any }, res: Respon
   }
 };
 
-// Admin/CEO - Bloquear payout (fraude, inconsistência)
+// Admin/CEO - Bloquear payout (fraude, inconsistência). D3b-3: condicional (pending e livre),
+// motivo obrigatório (validado na rota), linha payout_block na mesma transação.
 export const blockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { id } = req.params;
-    const { reason } = req.body;
+    const id = String(req.params.id);
+    const reason = String(req.body.reason);
+    const actor = actorFromRequest(req);
 
-    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
-    if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
-    if (payout.status !== 'pending') {
-      return res.status(400).json({ error: 'Apenas payouts pendentes podem ser bloqueados' });
-    }
-
-    const updated = await prisma.payout.update({
-      where: { id: String(id) },
-      data: {
-        blocked: true,
-        blockReason: reason || 'Sem motivo informado',
-        blockedAt: new Date(),
-        blockedBy: req.user?.id ? String(req.user.id) : null,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.payout.updateMany({
+        where: { id, status: 'pending', blocked: false },
+        data: { blocked: true, blockReason: reason, blockedAt: new Date(), blockedBy: actor.id },
+      });
+      if (count !== 1) throw await payoutNotPendingError(id, tx);
+      const payout = await tx.payout.findUniqueOrThrow({ where: { id } });
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'payout_block',
+        targetType: 'payout',
+        targetId: id,
+        amount: payout.amount,
+        reason,
+        before: { status: 'pending', blocked: false },
+        after: { status: 'pending', blocked: true },
+      });
+      return payout;
     });
 
     return res.json({ message: 'Payout bloqueado', payout: { ...updated, _id: updated.id, amount: Number(updated.amount) } });
   } catch (err: any) {
-    console.error('Erro ao bloquear payout:', err);
-    return res.status(500).json({ error: err.message || 'Erro ao bloquear' });
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao bloquear payout', err as Error, { payoutId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao bloquear o repasse' });
   }
 };
 
-// Admin/CEO - Desbloquear payout
+// Admin/CEO - Desbloquear payout. D3b-3: condicional (só bloqueado), linha payout_unblock
+// guardando quem desbloqueou e o bloqueio anterior.
 export const unblockPayout = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
+    const actor = actorFromRequest(req);
 
-    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
-    if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
-
-    const updated = await prisma.payout.update({
-      where: { id: String(id) },
-      data: { blocked: false, blockReason: null, blockedAt: null, blockedBy: null },
+    const updated = await prisma.$transaction(async (tx) => {
+      const before = await tx.payout.findUnique({ where: { id } });
+      if (!before) throw new MoneyActionError(404, 'PAYOUT_NOT_FOUND', 'Payout não encontrado');
+      const { count } = await tx.payout.updateMany({
+        where: { id, blocked: true },
+        data: { blocked: false, blockReason: null, blockedAt: null, blockedBy: null },
+      });
+      if (count !== 1) {
+        const now = await tx.payout.findUnique({ where: { id }, select: { status: true } });
+        throw new MoneyActionError(409, 'PAYOUT_NOT_BLOCKED', 'Repasse não está bloqueado', {
+          currentStatus: now?.status ?? before.status,
+          blocked: false,
+        });
+      }
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'payout_unblock',
+        targetType: 'payout',
+        targetId: id,
+        amount: before.amount,
+        before: {
+          blocked: true,
+          blockReason: before.blockReason,
+          blockedBy: before.blockedBy,
+          blockedAt: before.blockedAt ? before.blockedAt.toISOString() : null,
+        },
+        after: { blocked: false },
+      });
+      return tx.payout.findUniqueOrThrow({ where: { id } });
     });
 
     return res.json({ message: 'Payout desbloqueado', payout: { ...updated, _id: updated.id, amount: Number(updated.amount) } });
   } catch (err: any) {
-    console.error('Erro ao desbloquear payout:', err);
-    return res.status(500).json({ error: err.message || 'Erro ao desbloquear' });
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao desbloquear payout', err as Error, { payoutId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao desbloquear o repasse' });
   }
 };
 
@@ -272,6 +305,8 @@ export const markPayoutsPaid = async (req: Request & { user?: any }, res: Respon
     const totalPaid = await payoutService.markPayoutsPaid(
       payoutIds,
       gatewayTransferId || `manual_paid_${Date.now()}`,
+      undefined,
+      { actor: actorFromRequest(req) },
     );
 
     return res.json({ message: 'Payouts marcados como pagos', totalPaid });

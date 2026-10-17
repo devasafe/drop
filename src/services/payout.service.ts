@@ -1,5 +1,6 @@
 import { Payout, Prisma, PayoutRecipientType, OwnerType, PayoutGatewayProvider } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { AdminMoneyActor, recordAdminMoneyAction } from './adminMoneyAction.service';
 
 export type { PayoutRecipientType };
 
@@ -285,7 +286,8 @@ class PayoutService {
     payoutIds: string[],
     gatewayTransferId: string,
     tx?: Tx,
-    options?: { skipCashboxDebit?: boolean },
+    // actor (D3b-3): quando há pessoa (rota do admin), uma linha payout_mark_paid por repasse.
+    options?: { skipCashboxDebit?: boolean; actor?: AdminMoneyActor },
   ): Promise<number> {
     return withTx(tx, async (db) => {
       let totalPaid = 0;
@@ -305,6 +307,18 @@ class PayoutService {
         });
         if (count !== 1) {
           throw new Error(`Payout ${id} não está em status pagável (released ou requested)`);
+        }
+
+        if (options?.actor) {
+          await recordAdminMoneyAction(db, {
+            actor: options.actor,
+            type: 'payout_mark_paid',
+            targetType: 'payout',
+            targetId: id,
+            amount: payout.amount,
+            before: { status: payout.status },
+            after: { status: 'paid', gatewayTransferId },
+          });
         }
 
         // Se ainda estava released (admin paga sem saque formal), debita availableBalance
