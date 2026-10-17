@@ -17,7 +17,7 @@ import { getLevel, checkAndAwardBadges } from './gamificationController';
 import notifier from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateOrderDistribution } from '../utils/walletCalculations';
 import { addCommissionToAppCashbox } from './appCashboxController';
-import { emitDeliveryStatusChanged, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged } from '../utils/socketEmitter';
+import { emitDeliveryStatusChanged, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged, emitAdminNotification } from '../utils/socketEmitter';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { isDeliveryWithinRadius } from '../services/dispatch';
 import { geoVisiblePendingIds } from '../services/dispatchGeo';
@@ -1292,10 +1292,20 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
 
       // Novo fluxo: cancelar payouts + reembolsar cliente + debitar AppCashbox.
       // SÓ quando este request reivindicou o cancelamento (evita reembolso duplicado).
+      let refundHeldForReview = false;
       if (newlyCancelled && !directOrder) {
         try {
           await prisma.$transaction(async (tx) => {
-            await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
+            const result = await payoutService.cancelPayoutsForOrder(order.id, 'product_returned', tx);
+            if (result.errors.length > 0) {
+              // Repasse em liberação (releasing) ou já liquidado (requested/paid): o dinheiro
+              // pode já ter saído pra loja/motoboy. NÃO reembolsar o cliente automaticamente
+              // (pagamento em dobro). Desfaz a transação e escala pro admin.
+              throw Object.assign(new Error('PAYOUT_ALREADY_SETTLED'), {
+                needsManualReview: true,
+                payoutErrors: result.errors,
+              });
+            }
 
             const refundAmount = order.totalValue || 0;
             if (refundAmount > 0) {
@@ -1310,8 +1320,21 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
             }
           });
           logger.debug(`✅ [confirmReturn] Reembolso processado para cliente ${order.customerId}`);
-        } catch (refundErr) {
-          console.error('[confirmReturn] Erro ao processar reembolso:', refundErr);
+        } catch (refundErr: any) {
+          refundHeldForReview = true;
+          if (refundErr?.needsManualReview) {
+            logger.error('Devolução confirmada com repasse em liberação ou liquidado — reembolso retido para revisão manual', 'PAYOUT_ALREADY_SETTLED', {
+              orderId: order.id, payoutErrors: refundErr.payoutErrors,
+            });
+          } else {
+            logger.error('Erro ao processar o reembolso da devolução confirmada', refundErr as Error, { orderId: order.id });
+          }
+          emitAdminNotification({
+            title: 'Reembolso de devolução retido ⚠️',
+            body: `O produto do pedido ${order.id} voltou à loja, mas o reembolso do cliente não foi feito automaticamente. Confira os repasses do pedido.`,
+            url: '/admin/payouts',
+            tag: 'payout',
+          });
         }
       } else if (!newlyCancelled) {
         logger.debug(`⏭️ [confirmReturn] Pedido ${order._id} já estava cancelado — refund pulado (anti-duplo-reembolso)`);
@@ -1329,8 +1352,10 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
         reason: 'Produto devolvido à loja',
         message: directRefundPending
           ? 'Seu pedido foi cancelado. O reembolso será feito pela loja.'
-          : 'Seu pedido foi cancelado e o reembolso foi processado.',
-        refundStatus: directRefundPending ? 'pending' : 'processed',
+          : refundHeldForReview
+            ? 'Seu pedido foi cancelado. O reembolso está em análise pela equipe.'
+            : 'Seu pedido foi cancelado e o reembolso foi processado.',
+        refundStatus: directRefundPending || refundHeldForReview ? 'pending' : 'processed',
         cancelledAt: order.cancelledAt,
       });
 
