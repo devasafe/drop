@@ -147,6 +147,25 @@ describe('aprovar', () => {
     expect(await linhas(id, 'cashbox_withdrawal_approve')).toHaveLength(1);
   });
 
+  it('duas retiradas diferentes que somadas passam do saldo → uma aprovada, outra 400, saldo nunca negativo', async () => {
+    const a = (await pedir(ceo, 60)).body.withdrawal._id;
+    const b = (await pedir(ceo, 60)).body.withdrawal._id;
+    const box = (await prisma.appCashbox.findFirst())!;
+    const original = Number(box.balance);
+    await prisma.appCashbox.updateMany({ data: { balance: 100 } });
+    const [ra, rb] = await Promise.all([aprovar(ceo2, a), aprovar(ceo2, b)]);
+    const depois = Number((await prisma.appCashbox.findFirst())!.balance);
+    // o afterEach devolve 60 pela entrada aprovada: deixa o caixa em original - 60
+    await prisma.appCashbox.updateMany({ data: { balance: original - 60 } });
+    expect([ra.status, rb.status].sort()).toEqual([200, 400]);
+    expect((ra.status === 400 ? ra : rb).body).toEqual({ error: 'Saldo insuficiente para aprovar saque' });
+    expect(depois).toBe(40);
+    const perdedora = ra.status === 400 ? a : b;
+    expect((await prisma.withdrawal.findUnique({ where: { id: perdedora } }))?.status).toBe('pending');
+    expect(await prisma.appCashboxEntry.count({ where: { withdrawalId: perdedora } })).toBe(0);
+    expect(await linhas(perdedora, 'cashbox_withdrawal_approve')).toHaveLength(0);
+  });
+
   it('falha ao gravar a linha desfaz a aprovação e o débito', async () => {
     const id = (await pedir(ceo)).body.withdrawal._id;
     jest.spyOn(moneyActions, 'recordAdminMoneyAction').mockRejectedValueOnce(new Error('falha ao gravar a linha'));

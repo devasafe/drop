@@ -17,6 +17,9 @@ import {
 } from '../services/adminMoneyAction.service';
 import { hasOtherCashboxApprover } from '../services/cashboxApproval.service';
 
+/** Saldo não cobre a retirada na hora do débito (rollback total da aprovação). */
+class InsufficientCashboxBalance extends Error {}
+
 /** 409 da retirada que não está mais pendente (o painel lê currentStatus). */
 const cashboxNotPending = (currentStatus: string) =>
   new MoneyActionError(409, 'CASHBOX_WITHDRAWAL_NOT_PENDING', 'Retirada não está pendente', { currentStatus });
@@ -318,9 +321,19 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
         const now = await tx.withdrawal.findUnique({ where: { id: String(withdrawal._id) }, select: { status: true } });
         throw cashboxNotPending(now?.status ?? 'unknown');
       }
+      // Débito condicional: duas retiradas diferentes aprovadas juntas não deixam o caixa negativo.
+      const box = await tx.appCashbox.findFirst({ select: { id: true } });
+      const debited = box
+        ? await tx.appCashbox.updateMany({
+            where: { id: box.id, balance: { gte: withdrawal.amount } },
+            data: { balance: { decrement: withdrawal.amount }, totalExpenses: { increment: withdrawal.amount } },
+          })
+        : { count: 0 };
+      if (debited.count !== 1) throw new InsufficientCashboxBalance();
       await recordCashboxEntry(tx, {
         type: 'withdrawal',
         source: 'manual_withdrawal',
+        affectsBalance: false,
         amount: withdrawal.amount,
         withdrawalId: String(withdrawal._id),
         reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
@@ -345,6 +358,9 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       message: 'Saque aprovado com sucesso!',
     });
   } catch (err) {
+    if (err instanceof InsufficientCashboxBalance) {
+      return res.status(400).json({ error: 'Saldo insuficiente para aprovar saque' });
+    }
     if (sendMoneyActionError(res, err)) return;
     logger.error('Erro ao aprovar retirada do caixa', err as Error, { withdrawalId: req.params.id });
     return res.status(500).json({ error: 'Erro ao aprovar saque' });
