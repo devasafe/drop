@@ -164,6 +164,35 @@ describe('listMoneyMovements', () => {
     expect(new Set([...first.items, ...rest.items].map((i) => i.type))).toEqual(new Set(['cashbox']));
     expect(new Set([...first.items, ...rest.items].map((i) => i.id)).size).toBe(55);
   });
+
+  it('empate de horário cruzando a 51ª linha de uma fonte: cada movimento aparece uma vez, na ordem', async () => {
+    const box = await ensureAppCashbox();
+    const T = at(9, 0);
+    // 48 horários distintos (mais recentes) + 4 linhas com o MESMO instante (as mais antigas): a 51ª cai no empate
+    await prisma.appCashboxEntry.createMany({
+      data: [
+        ...Array.from({ length: 48 }, (_, i) => ({
+          appCashboxId: box.id, type: 'deposit' as const, source: 'manual_deposit' as const, amount: 1, reason: MARK,
+          createdAt: new Date(T.getTime() + (i + 1) * 1000),
+        })),
+        ...Array.from({ length: 4 }, () => ({
+          appCashboxId: box.id, type: 'deposit' as const, source: 'manual_deposit' as const, amount: 1, reason: MARK, createdAt: T,
+        })),
+      ],
+    });
+    const all: MoneyMovement[] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 4; i++) {
+      const page = await listMoneyMovements({ type: 'cashbox', cursor }, NOW);
+      all.push(...page.items);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    expect(all).toHaveLength(52);
+    expect(new Set(all.map((i) => i.id)).size).toBe(52);
+    const sorted = [...all].sort((a, b) => b.at.localeCompare(a.at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    expect(all.map((i) => i.id)).toEqual(sorted.map((i) => i.id));
+  });
 });
 
 describe('GET /api/admin/money/movements', () => {
