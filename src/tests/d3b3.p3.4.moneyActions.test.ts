@@ -124,6 +124,8 @@ describe('listAdminMoneyActions', () => {
   });
 });
 
+const nulCursor = Buffer.from(JSON.stringify({ at: '2031-06-10T12:00:00.000Z', id: 'a\u0000b' }), 'utf8').toString('base64url');
+
 describe('GET /api/admin/money/actions', () => {
   const get = (u: TestUser, qs = '') => request(app).get(`/api/admin/money/actions${qs}`).set('Authorization', bearer(u));
 
@@ -142,6 +144,11 @@ describe('GET /api/admin/money/actions', () => {
     ['?from=2031-02-31'],
     ['?from=2031-07-02&to=2031-07-01'],
     ['?cursor=nao-e-cursor'],
+    ['?to=9999-12-31'],
+    ['?from=0000-01-01'],
+    ['?from=0001-01-01'],
+    ['?actorId=%00'],
+    [`?cursor=${nulCursor}`],
   ])('%s → 400', async (qs) => {
     const r = await get(ceo, qs);
     expect(r.status).toBe(400);
@@ -150,5 +157,12 @@ describe('GET /api/admin/money/actions', () => {
 
   it('papel sem money:overview → 403', async () => {
     expect((await get(gerente)).status).toBe(403);
+  });
+});
+
+describe('GET /api/admin/money/movements com NUL no cursor', () => {
+  it('→ 400', async () => {
+    const r = await request(app).get(`/api/admin/money/movements?cursor=${nulCursor}`).set('Authorization', bearer(ceo));
+    expect(r.status).toBe(400);
   });
 });

@@ -283,7 +283,7 @@ export function decodeMoneyCursor(raw: string): MoneyCursor {
   }
   const at = typeof parsed?.at === 'string' ? new Date(parsed.at) : new Date(Number.NaN);
   // `at` canônico (o que encodeMoneyCursor grava), com ano de 4 dígitos; recusa "5", "0001-…", "+275760-…"
-  if (Number.isNaN(at.getTime()) || at.toISOString() !== parsed.at || typeof parsed?.id !== 'string' || !parsed.id || parsed.id.length > 200) {
+  if (Number.isNaN(at.getTime()) || at.toISOString() !== parsed.at || typeof parsed?.id !== 'string' || !parsed.id || parsed.id.length > 200 || parsed.id.includes('\0')) {
     throw new ValidationError('Cursor inválido');
   }
   return { at, id: parsed.id };

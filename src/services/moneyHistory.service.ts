@@ -9,6 +9,10 @@ import { ValidationError } from '../utils/AppError';
 import { saoPauloToday } from './asaasLoja/charge';
 import { decodeMoneyCursor, encodeMoneyCursor, MONEY_PAGE_SIZE, saoPauloDayStartOf } from './moneyOverview.service';
 
+/** Dia de São Paulo: AAAA-MM-DD. */
+export const SP_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface AdminMoneyActionFilters {
@@ -41,8 +45,9 @@ export interface AdminMoneyActionPage {
 
 /** 'YYYY-MM-DD' válido → 00:00 em SP; data inexistente (ex.: 31/02) → 400. */
 function saoPauloDateStart(value: string, field: 'from' | 'to'): Date {
-  const start = /^\d{4}-\d{2}-\d{2}$/.test(value) ? saoPauloDayStartOf(value) : new Date(Number.NaN);
-  if (Number.isNaN(start.getTime()) || saoPauloToday(start) !== value) {
+  const start = SP_DATE_RE.test(value) ? saoPauloDayStartOf(value) : new Date(Number.NaN);
+  const year = Number(value.slice(0, 4));
+  if (Number.isNaN(start.getTime()) || saoPauloToday(start) !== value || year < MIN_YEAR || year > MAX_YEAR) {
     throw new ValidationError(`Data inválida em "${field}" (use AAAA-MM-DD)`);
   }
   return start;

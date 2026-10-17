@@ -10,7 +10,7 @@ import { authorizePermission } from '../middleware/authorize';
 import { ValidationError } from '../utils/AppError';
 import logger from '../config/logger';
 import { getMoneySummary, listMoneyMovements, MONEY_MOVEMENT_TYPES } from '../services/moneyOverview.service';
-import { listAdminMoneyActions } from '../services/moneyHistory.service';
+import { listAdminMoneyActions, SP_DATE_RE } from '../services/moneyHistory.service';
 
 const router = Router();
 
@@ -22,12 +22,11 @@ const movementsQuery = z.object({
   cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
 });
 
-const SP_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const actionsQuery = z.object({
-  actorId: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
+  actorId: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).regex(/^[^\0]*$/).optional()),
   type: z.preprocess(emptyToUndefined, z.nativeEnum(AdminMoneyActionType).optional()),
-  from: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE).optional()),
-  to: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE).optional()),
+  from: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE_RE).optional()),
+  to: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE_RE).optional()),
   cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
 });
 
