@@ -54,6 +54,9 @@
   white-space: nowrap;
 }
 .kpiHint { font: var(--text-caption); font-style: normal; color: var(--color-text-secondary); }
+.kpiLink { color: inherit; text-decoration: none; border: 1px solid transparent; }
+.kpiLink:hover { border-color: var(--color-border-default); }
+.kpiLink:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
 
 .muted { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
 .money { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

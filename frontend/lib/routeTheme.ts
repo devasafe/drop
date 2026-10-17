@@ -37,7 +37,7 @@ export const SELLER_LIGHT_ROUTES: string[] = [
  */
 export const ADMIN_LIGHT_ROUTES: string[] = [
   '/admin/app-cashbox', '/admin/avisos', '/admin/broadcasts',
-  '/admin/coupons', '/admin/dashboard', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas',
+  '/admin/coupons', '/admin/dashboard', '/admin/dinheiro', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas',
   '/admin/payouts', '/admin/permissoes', '/admin/plan-approvals',
   '/admin/seasonal-theme', '/admin/settings', '/admin/suporte',
   '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
