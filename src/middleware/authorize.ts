@@ -160,8 +160,8 @@ export async function authorizeWalletOwnerById(req: Request, res: Response, next
   }
 
   // Sem bypass administrativo: esta rota DEBITA a carteira (saque). Operar dinheiro de
-  // terceiro não é papel de gerente — ajuste administrativo vai por PUT /admin/wallets/:id/balance
-  // (exclusivo do CEO, com motivo e auditoria).
+  // terceiro não é papel de gerente — ajuste administrativo vai por POST /admin/wallets/:id/adjust
+  // (exclusivo do CEO, com motivo, idempotência e registro em AdminMoneyAction).
   try {
     const { walletId } = req.params;
     const wallet = await prisma.wallet.findUnique({ where: { id: String(walletId) }, select: { owner: true } });

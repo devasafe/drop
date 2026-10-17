@@ -55,7 +55,7 @@ router.post('/:userId/topup', requireSettlement('custodia'), authenticate, requi
 router.get('/topup/:topupId/status', requireSettlement('custodia'), authenticate, getWalletTopupStatus);
 // Segurança (2026-10-07): não existe crédito self-service. Saldo só entra por
 // pagamento confirmado (POST /:userId/topup → webhook) ou por crédito administrativo
-// auditado (POST /admin/wallets/:id/add-balance, exclusivo do CEO).
+// auditado (POST /admin/wallets/:id/adjust, exclusivo do CEO).
 router.post(
   '/:userId/transfer',
   requireSettlement('custodia'),

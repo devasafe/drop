@@ -1,5 +1,4 @@
 import { requireSettlement } from '../middleware/requireSettlement';
-import walletService from '../services/wallet.prisma.service';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
@@ -14,6 +13,8 @@ import env from '../config/env';
 import { decryptSensitiveData } from '../utils/encryption';
 import { z } from 'zod';
 import logger from '../config/logger';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { adjustWalletBalance, WalletAdjustInput } from '../services/walletAdjust.service';
 
 const router = Router();
 
@@ -390,91 +391,48 @@ router.get('/wallets/:id/transactions', authenticate, authorizePermission('walle
   }
 });
 
-// Crédito/ajuste manual de carteira: exclusivo do CEO (wallet:credit não é delegável),
-// com motivo obrigatório. A trilha de auditoria fica persistida no próprio WalletEntry
-// (reason + reference `ADMIN_CREDIT|ADMIN_ADJUST:<adminId>:<timestamp>` + createdAt + amount).
+// Ajustar saldo (D3b-3, spec 5): crédito ou débito auditado, exclusivo do CEO (wallet:credit
+// não é delegável), com motivo, teto e chave de idempotência. Saldo + lançamento
+// ('Ajuste da plataforma: <motivo>', categoria adjustment) + linha wallet_adjust numa transação.
+// Substitui POST /wallets/:id/add-balance e PUT /wallets/:id/balance (removidas).
 const ADMIN_WALLET_MAX = 50_000;
-const adminReason = z.string().trim().min(10, 'Informe o motivo (mínimo 10 caracteres)').max(500);
-const AddBalanceSchema = z.object({
-  amount: z.number().positive('Valor deve ser positivo').max(ADMIN_WALLET_MAX, `Máximo R$ ${ADMIN_WALLET_MAX}`),
-  reason: adminReason,
-});
-const AdjustBalanceSchema = z.object({
-  amount: z.number().refine((v) => v !== 0 && Math.abs(v) <= ADMIN_WALLET_MAX, 'Valor inválido'),
-  reason: adminReason,
-});
+const hasTwoDecimals = (v: number) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6;
+const AdjustWalletSchema = z.object({
+  direction: z.enum(['credit', 'debit'], { errorMap: () => ({ message: 'Escolha crédito ou débito' }) }),
+  amount: z.number({ invalid_type_error: 'Valor inválido' })
+    .positive('Valor deve ser positivo')
+    .max(ADMIN_WALLET_MAX, `Máximo R$ ${ADMIN_WALLET_MAX}`)
+    .refine(hasTwoDecimals, 'Use no máximo duas casas decimais'),
+  reason: z.string().trim().min(10, 'Informe o motivo (mínimo 10 caracteres)').max(500, 'Motivo muito longo (máximo 500 caracteres)'),
+  idempotencyKey: z.string().uuid('Chave de idempotência inválida'),
+}).strict();
 
-// POST /admin/wallets/:id/add-balance - Adicionar saldo à carteira
-router.post('/wallets/:id/add-balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
-  try {
-    const { id } = req.params;
-    const parsed = AddBalanceSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
-    }
-    const { amount, reason } = parsed.data;
-
-    const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
-    if (!existing) {
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    // Adição manual de saldo (crédito administrativo, categoria 'deposit').
-    const reference = `ADMIN_CREDIT:${req.user.id}:${Date.now()}`;
-    const wallet = await walletService.credit({
-      owner: existing.owner, ownerType: existing.ownerType as any, amount,
-      reason, category: 'deposit', reference,
-    });
-    logger.info('[wallet][AUDIT] crédito administrativo', {
-      adminId: req.user.id, walletId: existing.id, owner: existing.owner, ownerType: existing.ownerType,
-      amount, reason, reference,
-    });
-
-    res.json({
-      success: true,
-      message: 'Saldo adicionado com sucesso',
-      newBalance: Number(wallet.balance),
-      transactionId: reference,
-    });
-  } catch (err) {
-    console.error('Erro ao adicionar saldo:', err);
-    res.status(500).json({ error: 'Failed to add balance' });
+// POST /admin/wallets/:id/adjust - Ajustar saldo (crédito ou débito)
+router.post('/wallets/:id/adjust', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
+  const parsed = AdjustWalletSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
   }
-});
-
-// PUT /admin/wallets/:id/balance - Adicionar saldo manual (ajuste administrativo)
-router.put('/wallets/:id/balance', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
   try {
-    const { id } = req.params;
-    const parsed = AdjustBalanceSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Dados inválidos' });
-    }
-    const { amount, reason } = parsed.data;
-
-    const existing = await prisma.wallet.findUnique({ where: { id: String(id) } });
-    if (!existing) {
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    // Ajuste administrativo (crédito se amount > 0, débito se < 0).
-    const reference = `ADMIN_ADJUST:${req.user.id}:${Date.now()}`;
-    const ref = { owner: existing.owner, ownerType: existing.ownerType as any };
-    const wallet = amount > 0
-      ? await walletService.credit({ ...ref, amount, reason, category: 'deposit', reference })
-      : await walletService.debit({ ...ref, amount: Math.abs(amount), reason, category: 'transfer', reference });
-    logger.info('[wallet][AUDIT] ajuste administrativo', {
-      adminId: req.user.id, walletId: existing.id, owner: existing.owner, ownerType: existing.ownerType,
-      amount, reason, reference,
+    const result = await adjustWalletBalance(String(req.params.id), actorFromRequest(req), parsed.data as WalletAdjustInput);
+    if (!result) return res.status(404).json({ error: 'Carteira não encontrada' });
+    logger.info('[wallet][AUDIT] ajuste de saldo', {
+      adminId: req.user.id,
+      walletId: result.adjustment.walletId,
+      actionId: result.adjustment.actionId,
+      direction: result.adjustment.direction,
+      amount: result.adjustment.amount,
+      replayed: result.replayed,
     });
-
-    res.json({
-      message: 'Wallet balance updated',
-      wallet: { ...wallet, balance: Number(wallet.balance) },
+    return res.json({
+      message: result.replayed ? 'Ajuste já registrado' : 'Saldo ajustado',
+      replayed: result.replayed,
+      adjustment: result.adjustment,
     });
   } catch (err) {
-    console.error('Erro ao atualizar saldo:', err);
-    res.status(500).json({ error: 'Failed to update wallet balance' });
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('[wallet] falha ao ajustar saldo', err as Error, { walletId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao ajustar o saldo' });
   }
 });
 

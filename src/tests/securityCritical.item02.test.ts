@@ -3,6 +3,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import request from 'supertest';
 import { Role } from '@prisma/client';
 import app from '../app';
@@ -34,13 +35,13 @@ afterEach(async () => {
 });
 
 describe('Item 2 — wallet:credit exclusiva do CEO', () => {
-  it('cliente não credita carteira pelo admin (add-balance) → 403', async () => {
+  it('cliente não credita carteira pelo admin (adjust) → 403', async () => {
     const cliente = await createTestUser('cliente', DOMAIN);
     const wallet = await prisma.wallet.create({ data: { owner: cliente.userId, ownerType: 'user', balance: 0 } });
     const res = await request(app)
-      .post(`/api/admin/wallets/${wallet.id}/add-balance`)
+      .post(`/api/admin/wallets/${wallet.id}/adjust`)
       .set('Authorization', bearer(cliente))
-      .send({ amount: 500, reason: 'tentativa de crédito indevido' });
+      .send({ direction: 'credit', amount: 500, reason: 'tentativa de crédito indevido', idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(403);
     const after = await prisma.wallet.findUnique({ where: { id: wallet.id } });
     expect(Number(after?.balance)).toBe(0);
