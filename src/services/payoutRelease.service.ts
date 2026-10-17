@@ -67,7 +67,18 @@ export async function releasePayoutAsAdmin(
 
   // 1. Reivindica antes do Asaas.
   if (!(await payoutService.claimPayoutForRelease(payoutId))) throw await payoutNotPendingError(payoutId);
-  const payout = await prisma.payout.findUniqueOrThrow({ where: { id: payoutId } });
+  let payout;
+  try {
+    payout = await prisma.payout.findUniqueOrThrow({ where: { id: payoutId } });
+  } catch (err) {
+    // Nada saiu ainda (o Asaas não foi chamado): devolve a pending para não prender em releasing.
+    try {
+      await payoutService.unclaimRelease(payoutId);
+    } catch (unclaimErr) {
+      logger.error('[repasse] releitura falhou e a devolução a pending também', unclaimErr as Error, { payoutId });
+    }
+    throw err;
+  }
 
   // 2. Transferência.
   const outcome = await sendPayoutTransfer(payout);

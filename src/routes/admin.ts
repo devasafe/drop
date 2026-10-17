@@ -13,7 +13,7 @@ import env from '../config/env';
 import { decryptSensitiveData } from '../utils/encryption';
 import { z } from 'zod';
 import logger from '../config/logger';
-import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { actorFromRequest, sendMoneyActionError, MoneyActionError } from '../services/adminMoneyAction.service';
 import { adjustWalletBalance, WalletAdjustInput } from '../services/walletAdjust.service';
 
 const router = Router();
@@ -629,17 +629,38 @@ router.get('/asaas/subaccounts', authenticate, authorizePermission('gateway:mana
 
 // POST /admin/asaas/release-order/:orderId — re-tenta transferir/liberar os payouts
 // PENDENTES de um pedido (ex: subconta criada DEPOIS da entrega, ou transferência falhou).
+// D3b-3: é uma pessoa movendo dinheiro → cada repasse passa por releasePayoutAsAdmin
+// (reivindica antes do Asaas e grava a linha payout_release com o autor). Um repasse que
+// não sai (recusa, incerto, outro caminho pegou) não impede os demais; o estado final de
+// cada um volta na resposta.
 router.post('/asaas/release-order/:orderId', authenticate, authorizePermission('gateway:manage'), async (req: any, res: Response) => {
+  const orderId = String(req.params.orderId);
   try {
-    const { releaseOrderViaAsaas } = await import('../services/asaas/release');
-    await releaseOrderViaAsaas(req.params.orderId);
+    const actor = actorFromRequest(req);
+    const { releasePayoutAsAdmin } = await import('../services/payoutRelease.service');
+    const pending = await prisma.payout.findMany({
+      where: { orderId, status: 'pending', blocked: false },
+      select: { id: true },
+    });
+    for (const { id } of pending) {
+      try {
+        await releasePayoutAsAdmin(id, actor, true);
+      } catch (err: any) {
+        if (err instanceof MoneyActionError) {
+          logger.warn('[re-liberar pedido] repasse não liberado', { orderId, payoutId: id, code: err.code });
+        } else {
+          logger.error('[re-liberar pedido] falha inesperada ao liberar repasse', err as Error, { orderId, payoutId: id });
+        }
+      }
+    }
     const payouts = await prisma.payout.findMany({
-      where: { orderId: String(req.params.orderId) },
+      where: { orderId },
       select: { recipientType: true, amount: true, status: true, gatewayTransferId: true },
     });
-    return res.json({ orderId: req.params.orderId, payouts: payouts.map((p) => ({ ...p, amount: Number(p.amount) })) });
+    return res.json({ orderId, payouts: payouts.map((p) => ({ ...p, amount: Number(p.amount) })) });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Erro ao re-liberar pedido' });
+    logger.error('[re-liberar pedido] erro', err as Error, { orderId });
+    return res.status(500).json({ error: 'Erro ao re-liberar o pedido' });
   }
 });
 

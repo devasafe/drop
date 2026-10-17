@@ -160,7 +160,8 @@ async function releaseOneAutomatically(payout: Payout): Promise<boolean> {
 
 /**
  * Liberação automática do PEDIDO inteiro (loja + motoboy) — fluxo ao finalizar a entrega com
- * autoApprovePayouts e re-liberação do admin (`POST /admin/asaas/release-order/:orderId`).
+ * autoApprovePayouts. A re-liberação do admin (`POST /admin/asaas/release-order/:orderId`) NÃO
+ * passa por aqui: é uma pessoa, usa releasePayoutAsAdmin (grava a linha payout_release).
  * Nunca relança: a entrega não pode quebrar; o que não saiu fica pending (ou incerto) para o admin.
  */
 export async function releaseOrderViaAsaas(orderId: string): Promise<void> {
