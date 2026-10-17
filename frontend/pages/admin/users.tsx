@@ -6,11 +6,11 @@ import { AdminSheet, type AdminSheetPrimary } from '../../components/admin/Admin
 import { StatusTag } from '../../components/admin/StatusTag';
 import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
 import { SearchField } from '../../components/ui/SearchField';
-import { Select } from '../../components/ui/Select';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
-import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
+import { adminErrorMessage, isConflictWithCode, isHttpStatus } from '../../lib/adminErrors';
 import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
@@ -29,7 +29,7 @@ interface AdminUser {
   createdAt: string;
 }
 
-/** Papéis que PUT /admin/users/:id/role aceita (ALLOWED_ROLES do servidor), com o rótulo da tela. */
+/** Papéis que PUT /admin/users/:id/roles aceita (ALLOWED_ROLES do servidor), com o rótulo da tela. */
 const ROLE_OPTIONS = [
   { value: 'ceo', label: 'CEO' },
   { value: 'marketing', label: 'Marketing' },
@@ -57,30 +57,34 @@ const TABS: { id: UserTab; label: string }[] = [
 
 type ActionState =
   | { type: 'none' }
-  | { type: 'edit-role'; user: AdminUser; newRole: string }
+  | { type: 'edit-roles'; user: AdminUser; roles: string[]; error?: string }
   | { type: 'block'; user: AdminUser; reason: string }
   | { type: 'unblock'; user: AdminUser }
   | { type: 'disconnect'; user: AdminUser };
 
 /**
- * Papel mostrado e usado no filtro: o administrativo vem primeiro. Papel de equipe é acréscimo (16/10),
- * então a equipe segue com papel ativo cliente; sem esta ordem ela apareceria como "Cliente", sumiria
- * da aba "Equipe" e o diálogo viria com `cliente` marcado (confirmar rebaixaria).
+ * Todos os papéis da pessoa, na ordem de ROLE_OPTIONS: `roles` mais `role` e `activeRole` se faltarem
+ * (conta antiga) e sempre `cliente`. É o que a folha "Papéis" marca ao abrir.
  */
-const roleOf = (u: AdminUser) => {
-  const all = [u.activeRole, u.role, ...(u.roles ?? [])].filter(Boolean) as string[];
-  return all.find((r) => STAFF_ROLES.includes(r)) ?? u.activeRole ?? u.role;
-};
+const ROLE_ORDER = ROLE_OPTIONS.map((r) => r.value);
+const sortRoles = (roles: string[]) =>
+  [...roles].sort((a, b) => (ROLE_ORDER.indexOf(a) + 1 || 99) - (ROLE_ORDER.indexOf(b) + 1 || 99));
+const rolesOf = (u: AdminUser) =>
+  sortRoles(Array.from(new Set([...(u.roles ?? []), u.role, u.activeRole, 'cliente'].filter(Boolean) as string[])));
+/** Papéis além de cliente: o que a coluna mostra e o que tira a pessoa da aba "Clientes". */
+const extraRolesOf = (u: AdminUser) => rolesOf(u).filter((r) => r !== 'cliente');
 const roleLabel = (role?: string) => (role ? ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role : '—');
+const rolesText = (u: AdminUser) => (extraRolesOf(u).length ? extraRolesOf(u) : ['cliente']).map(roleLabel).join(' · ');
 const isStaff = (u: AdminUser) => [...(u.roles ?? []), u.role].some((r) => STAFF_ROLES.includes(r));
+const sameRoles = (a: string[], b: string[]) => a.length === b.length && a.every((r) => b.includes(r));
 const createdAtText = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
 
 function inTab(u: AdminUser, tab: UserTab): boolean {
   switch (tab) {
-    case 'clientes': return roleOf(u) === 'cliente';
-    case 'lojistas': return roleOf(u) === 'lojista';
-    case 'motoboys': return roleOf(u) === 'motoboy';
-    case 'equipe': return STAFF_ROLES.includes(roleOf(u));
+    case 'clientes': return extraRolesOf(u).length === 0;
+    case 'lojistas': return rolesOf(u).includes('lojista');
+    case 'motoboys': return rolesOf(u).includes('motoboy');
+    case 'equipe': return rolesOf(u).some((r) => STAFF_ROLES.includes(r));
     case 'bloqueados': return u.status === 'blocked';
     default: return true;
   }
@@ -143,16 +147,24 @@ function UsuariosScreen() {
     setUsers((prev) => prev && prev.map((u) => (u._id === id ? { ...u, ...patch } : u)));
   const close = () => setAction({ type: 'none' });
 
-  const saveRole = async () => {
-    if (action.type !== 'edit-role') return;
-    const { user, newRole } = action;
-    const res = await api.put(`/admin/users/${user._id}/role`, { role: newRole });
-    // O servidor decide o papel ativo (papel de equipe mantém a pessoa como cliente): usa o que ele devolveu.
-    const saved = res?.data?.user;
-    patchUser(user._id, saved
-      ? { role: saved.role ?? newRole, activeRole: saved.activeRole, roles: saved.roles ?? [newRole] }
-      : { role: newRole, roles: [newRole] });
-    showToast(`Papel trocado para ${roleLabel(newRole)}.`, 'success');
+  const saveRoles = async () => {
+    if (action.type !== 'edit-roles') return;
+    const { user, roles } = action;
+    try {
+      const res = await api.put(`/admin/users/${user._id}/roles`, { roles });
+      // O servidor decide o papel ativo e o base: usa o que ele devolveu.
+      const saved = res?.data?.user;
+      patchUser(user._id, saved ? { role: saved.role, activeRole: saved.activeRole, roles: saved.roles } : { roles });
+    } catch (err) {
+      if (!isConflictWithCode(err, 'ROLE_HAS_OPEN_WORK')) throw err;
+      const data = (err as { response: { data: { role?: string; count?: number } } }).response.data;
+      const error = data.role === 'motoboy'
+        ? `Esta pessoa tem ${data.count} entrega(s) em andamento. Termine ou repasse antes de tirar o papel de Motoboy.`
+        : `Esta pessoa tem ${data.count} pedido(s) em aberto na loja. Termine ou repasse antes de tirar o papel de Lojista.`;
+      setAction({ ...action, error });
+      return;
+    }
+    showToast('Papéis atualizados.', 'success');
     close();
   };
 
@@ -180,7 +192,6 @@ function UsuariosScreen() {
     close();
   };
 
-  const roleOptions = isCeo ? ROLE_OPTIONS : ROLE_OPTIONS.filter((r) => !STAFF_ROLES.includes(r.value));
   const canChangeRoleOf = (u: AdminUser) => canRoles && (isCeo || !isStaff(u));
 
   const columns: AdminColumn<AdminUser>[] = [
@@ -198,7 +209,7 @@ function UsuariosScreen() {
         </span>
       ),
     },
-    { key: 'papel', header: 'Papel', render: (u) => roleLabel(roleOf(u)) },
+    { key: 'papel', header: 'Papel', render: rolesText },
     {
       key: 'conta',
       header: 'Conta',
@@ -225,8 +236,8 @@ function UsuariosScreen() {
       <div className={blocks.actions}>
         {roleBtn && (
           <Button size="sm" variant="secondary" className={form.touch}
-            onClick={() => setAction({ type: 'edit-role', user: u, newRole: roleOf(u) })}>
-            Trocar papel
+            onClick={() => setAction({ type: 'edit-roles', user: u, roles: rolesOf(u) })}>
+            Papéis
           </Button>
         )}
         {canBlock && (u.status === 'blocked' ? (
@@ -250,15 +261,29 @@ function UsuariosScreen() {
   let sheetTitle = '';
   let primary: AdminSheetPrimary | undefined;
   let body: ReactNode = null;
-  if (action.type === 'edit-role') {
+  if (action.type === 'edit-roles') {
     const a = action;
-    sheetTitle = 'Trocar papel';
-    primary = { label: 'Salvar', onClick: saveRole, disabled: !a.newRole || a.newRole === a.user.role };
+    const toggle = (role: string, on: boolean) =>
+      setAction({ ...a, error: undefined, roles: sortRoles(on ? [...a.roles, role] : a.roles.filter((r) => r !== role)) });
+    sheetTitle = 'Papéis';
+    primary = { label: 'Salvar', onClick: saveRoles, disabled: sameRoles(a.roles, rolesOf(a.user)) };
     body = (
       <>
         <p className={form.lead}>{a.user.name} ({a.user.email})</p>
-        <Select label="Novo papel" value={a.newRole} options={roleOptions} onChange={(v) => setAction({ ...a, newRole: v })} />
-        <p className={blocks.muted}>A sessão aberta da pessoa é desconectada para o papel novo valer.</p>
+        <div role="group" aria-label="Papéis da pessoa" className={form.field}>
+          {ROLE_OPTIONS.map((r) => (
+            <Checkbox
+              key={r.value}
+              label={r.label}
+              checked={r.value === 'cliente' || a.roles.includes(r.value)}
+              disabled={r.value === 'cliente' || (!isCeo && STAFF_ROLES.includes(r.value))}
+              description={r.value === 'cliente' ? 'Todo mundo pode comprar' : undefined}
+              onChange={(on) => toggle(r.value, on)}
+            />
+          ))}
+        </div>
+        {a.error && <p className={blocks.errText} role="alert">{a.error}</p>}
+        <p className={blocks.muted}>A sessão aberta da pessoa é desconectada para os papéis novos valerem.</p>
       </>
     );
   } else if (action.type === 'block') {
@@ -345,7 +370,7 @@ function UsuariosScreen() {
 
       {users && !error && <p className={blocks.muted}>{filtered.length} de {users.length}</p>}
       <p className={blocks.muted}>
-        Ninguém bloqueia, desconecta nem troca o papel da própria conta: peça para outra pessoa da equipe.
+        Ninguém bloqueia, desconecta nem muda os papéis da própria conta: peça para outra pessoa da equipe.
       </p>
 
       <AdminSheet open={action.type !== 'none'} title={sheetTitle} onClose={close} primary={primary}>

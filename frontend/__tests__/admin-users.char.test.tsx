@@ -1,7 +1,8 @@
 /**
  * D3a · P3.1 · caracterização de /admin/users: as chamadas ao servidor, com método e corpo.
  * Escrito contra a página antiga e mantido SEM mudança na nova. Os nomes que mudaram de propósito
- * ("Role" → "Trocar papel") vão como alternativa na mesma busca.
+ * ("Role" → "Trocar papel" → "Papéis") vão como alternativa na mesma busca. A troca de papel virou a lista
+ * completa de papéis (PUT /admin/users/:id/roles), então esse teste foi reescrito para as caixinhas.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdminUsersPage from '../pages/admin/users';
@@ -46,13 +47,13 @@ test('carrega a lista com GET /admin/users', async () => {
   expect(api.get).toHaveBeenCalledWith('/admin/users');
 });
 
-test('trocar papel: PUT /admin/users/:id/role { role }', async () => {
+test('papéis: PUT /admin/users/:id/roles { roles } com a lista marcada', async () => {
   render(<AdminUsersPage />);
   await screen.findByText('Ana Souza');
-  fireEvent.click(screen.getAllByRole('button', { name: /^(Role|Trocar papel)$/ })[0]);
-  fireEvent.change(await screen.findByDisplayValue('Cliente'), { target: { value: 'lojista' } });
+  fireEvent.click(screen.getAllByRole('button', { name: /^(Role|Trocar papel|Papéis)$/ })[0]);
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Lojista' }));
   fireEvent.click(last('Salvar'));
-  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/users/u1/role', { role: 'lojista' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/users/u1/roles', { roles: ['lojista', 'cliente'] }));
 });
 
 test('bloquear: PUT /admin/users/:id/status { status: blocked, reason } com o motivo aparado', async () => {

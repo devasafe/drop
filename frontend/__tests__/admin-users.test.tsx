@@ -112,7 +112,7 @@ describe('Usuários · permissão dos botões (mesma da rota do servidor)', () =
   it.each([
     [['user:view_all'], []],
     [['user:view_all', 'user:block'], ['Bloquear', 'Desconectar']],
-    [['user:view_all', 'user:manage_roles'], ['Trocar papel']],
+    [['user:view_all', 'user:manage_roles'], ['Papéis']],
   ])('gerente com %j vê %j na linha de um cliente', async (perms, expected) => {
     setRole('gerente_geral', perms);
     render(<AdminUsersPage />);
@@ -120,33 +120,34 @@ describe('Usuários · permissão dos botões (mesma da rota do servidor)', () =
     expect(within(rowOf('Ana Souza')).queryAllByRole('button').map((b) => b.textContent)).toEqual(expected);
   });
 
-  it('fora do CEO: não mexe no papel de quem é da equipe e não oferece papel da equipe', async () => {
+  it('fora do CEO: não mexe nos papéis de quem é da equipe e não libera papel da equipe', async () => {
     setRole('gerente_geral', ['user:view_all', 'user:manage_roles']);
     render(<AdminUsersPage />);
     await screen.findByText('Gil Gerente');
-    expect(within(rowOf('Gil Gerente')).queryByRole('button', { name: 'Trocar papel' })).toBeNull();
-    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Trocar papel' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Trocar papel' });
-    const select = within(dialog).getByLabelText('Novo papel') as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(['lojista', 'cliente', 'motoboy']);
+    expect(within(rowOf('Gil Gerente')).queryByRole('button', { name: 'Papéis' })).toBeNull();
+    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Papéis' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Papéis' });
+    const enabled = within(dialog).getAllByRole('checkbox').filter((c) => !(c as HTMLInputElement).disabled);
+    expect(enabled.map((c) => c.closest('label')!.textContent)).toEqual(['Lojista', 'Motoboy']);
   });
 });
 
 describe('Usuários · ações na AdminSheet', () => {
-  it('CEO troca o papel: todos os papéis, "Salvar" só com papel diferente, toast e a linha muda', async () => {
-    (api.put as jest.Mock).mockResolvedValue({ data: { user: { roles: ['lojista'] } } });
+  it('CEO muda os papéis: todos os papéis, "Salvar" só com mudança, toast e a linha muda', async () => {
+    (api.put as jest.Mock).mockResolvedValue({ data: { user: { role: 'cliente', activeRole: 'cliente', roles: ['cliente', 'lojista'] } } });
     render(<AdminUsersPage />);
     await screen.findByText('Ana Souza');
-    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Trocar papel' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Trocar papel' });
-    const select = within(dialog).getByLabelText('Novo papel') as HTMLSelectElement;
-    expect(select.options).toHaveLength(9);
+    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Papéis' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Papéis' });
+    const boxes = within(dialog).getAllByRole('checkbox');
+    expect(boxes).toHaveLength(9);
+    expect(boxes.filter((c) => (c as HTMLInputElement).disabled)).toHaveLength(1); // só Cliente
     expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeDisabled();
-    fireEvent.change(select, { target: { value: 'lojista' } });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Lojista' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/users/u1/role', { role: 'lojista' }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/users/u1/roles', { roles: ['lojista', 'cliente'] }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(mockToast).toHaveBeenCalledWith('Papel trocado para Lojista.', 'success');
+    expect(mockToast).toHaveBeenCalledWith('Papéis atualizados.', 'success');
     expect(within(rowOf('Ana Souza')).getByText('Lojista')).toBeInTheDocument();
   });
 

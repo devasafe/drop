@@ -1,7 +1,7 @@
 /**
  * Papel de equipe vira acréscimo (16/10): a equipe segue com papel ativo cliente. A lista de usuários
- * mostra e filtra pelo papel administrativo (de `roles`/`role`), e o diálogo vem com ele marcado
- * (confirmar não rebaixa). Depois de salvar, a linha usa o usuário devolvido pelo servidor.
+ * mostra e filtra pelo papel administrativo (de `roles`/`role`), e a folha "Papéis" vem com ele marcado
+ * (salvar sem mudar nada fica desabilitado). Depois de salvar, a linha usa o usuário devolvido pelo servidor.
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdminUsersPage from '../pages/admin/users';
@@ -64,12 +64,12 @@ describe('Usuários · equipe com papel ativo cliente', () => {
     expect(within(tabs).getByRole('tab', { name: /Clientes/ }).textContent).toBe('Clientes2');
   });
 
-  it('"Trocar papel" vem com o papel administrativo marcado (Salvar desabilitado)', async () => {
+  it('"Papéis" vem com o papel administrativo marcado (Salvar desabilitado)', async () => {
     render(<AdminUsersPage />);
     await screen.findByText('Mia Marketing');
-    fireEvent.click(within(rowOf('Mia Marketing')).getByRole('button', { name: 'Trocar papel' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Trocar papel' });
-    expect((within(dialog).getByLabelText('Novo papel') as HTMLSelectElement).value).toBe('marketing');
+    fireEvent.click(within(rowOf('Mia Marketing')).getByRole('button', { name: 'Papéis' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Papéis' });
+    expect((within(dialog).getByRole('checkbox', { name: 'Marketing' }) as HTMLInputElement).checked).toBe(true);
     expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeDisabled();
   });
 
@@ -79,9 +79,9 @@ describe('Usuários · equipe com papel ativo cliente', () => {
     });
     render(<AdminUsersPage />);
     await screen.findByText('Ana Souza');
-    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Trocar papel' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Trocar papel' });
-    fireEvent.change(within(dialog).getByLabelText('Novo papel'), { target: { value: 'marketing' } });
+    fireEvent.click(within(rowOf('Ana Souza')).getByRole('button', { name: 'Papéis' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Papéis' });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Marketing' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(within(rowOf('Ana Souza')).getByText('Marketing')).toBeInTheDocument();
