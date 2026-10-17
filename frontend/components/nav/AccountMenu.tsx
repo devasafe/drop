@@ -96,7 +96,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
             </button>
           )}
           {inAdmin && activeRole !== 'ceo' && (
-            <button type="button" className={styles.item} onClick={() => go(ROLE_HOME.cliente)}>
+            <button type="button" className={styles.item} onClick={() => go(ROLE_HOME[activeRole] ?? '/inicio')}>
               <span className={styles.itemIcon}><Icon name="shopping-bag" size={14} /></span> Voltar ao app
             </button>
           )}

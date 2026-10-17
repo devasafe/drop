@@ -77,9 +77,9 @@ describe('chamados (/admin/suporte)', () => {
   it('lista com params vazios e filtra por situação', async () => {
     renderAdminPage(<AdminSuporte />);
     await screen.findByRole('button', { name: /Meu pedido chegou sem o cabo/ });
-    expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: {} });
+    expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: { scope: 'staff' } });
     fireEvent.click(screen.getByRole('button', { name: /^Abertos?$/ }));
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: { status: 'aberto' } }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/support/tickets', { params: { scope: 'staff', status: 'aberto' } }));
   });
 
   it('abrir e assumir: lê a conversa, PUT …/assign e relê a lista', async () => {

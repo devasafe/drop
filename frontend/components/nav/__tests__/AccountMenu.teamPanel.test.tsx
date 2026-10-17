@@ -84,6 +84,16 @@ describe('AccountMenu · papel de equipe como acréscimo', () => {
     expect(switchRole).not.toHaveBeenCalled();
   });
 
+  it('"Voltar ao app" leva à home do papel ativo (lojista com marketing → painel da loja)', () => {
+    mockPath = '/admin/broadcasts';
+    mockUser = { ...base, activeRole: 'lojista', roles: ['cliente', 'lojista', 'marketing'] };
+    mockTeamRoles = ['marketing'];
+    mockPerms = ['broadcast:send'];
+    render(<AccountMenu />);
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao app/ }));
+    expect(push).toHaveBeenCalledWith('/seller/dashboard');
+  });
+
   it('fora do painel não mostra "Voltar ao app"', () => {
     mockUser = { ...base, activeRole: 'cliente', roles: ['cliente', 'marketing'] };
     mockTeamRoles = ['marketing'];
