@@ -1,9 +1,9 @@
 /**
- * Dinheiro · Carteiras (DS v2, D3a, tela 17). Consulta de carteiras; o extrato pede a aprovação da pessoa.
- * Chamadas iguais às da página antiga (__tests__/admin.dinheiro.carteiras.test.tsx):
+ * Dinheiro · Carteiras (DS v2, D3a, tela 17; D3b-3). Consulta de carteiras; o extrato pede a aprovação da pessoa.
  * GET /admin/wallets · GET /wallet-access/outgoing · GET /admin/wallets/:id/transactions ·
- * POST /wallet-access/request { targetUserId, reason } · POST /admin/wallets/:id/add-balance { amount, reason }.
- * "Adicionar saldo" é só do CEO (wallet:credit não é delegável) e sempre avisa que cria saldo sem pagamento.
+ * POST /wallet-access/request { targetUserId, reason } ·
+ * POST /admin/wallets/:id/adjust { direction, amount, reason, idempotencyKey } (D3b-3: "Ajustar saldo", que substitui
+ * o antigo "Adicionar saldo"). Só o CEO com wallet:credit (não delegável); o ajuste fica no Histórico do Dinheiro.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -17,17 +17,17 @@ import { StatusTag } from '../../components/admin/StatusTag';
 import ui from '../../components/admin/dinheiro/Dinheiro.module.css';
 import { TextAreaField } from '../../components/admin/dinheiro/TextAreaField';
 import { flattenServerError } from '../../components/admin/dinheiro/serverError';
+import { AdjustBalanceSheet } from '../../components/admin/dinheiro/AdjustBalanceSheet';
 import {
   isCreditEntry, paymentMethodLabel, transactionLabel, transactionStatus, type WalletTransaction,
 } from '../../components/admin/dinheiro/walletLabels';
-import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
-import { amountFieldError, parseAmount } from '../../lib/adminAmount';
+import type { WalletAdjustResponse } from '../../lib/adminMoney';
 import { formatMoney } from '../../lib/money';
 
 interface WalletRow {
@@ -71,8 +71,10 @@ const when = (iso: string) =>
 const txKey = (t: WalletTransaction) => t._id ?? `${t.createdAt}|${t.amount}|${t.reason ?? ''}`;
 
 export default function AdminWalletsPage() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const isCeo = (user?.activeRole || user?.role) === 'ceo';
+  // wallet:credit é só do CEO e não é delegável (o servidor confere de novo).
+  const canAdjust = isCeo && can('wallet:credit');
   const { showToast } = useToast();
 
   const [wallets, setWallets] = useState<WalletRow[] | null>(null);
@@ -86,9 +88,7 @@ export default function AdminWalletsPage() {
   const [txError, setTxError] = useState<string | null>(null);
   const [requestFor, setRequestFor] = useState<WalletRow | null>(null);
   const [reason, setReason] = useState('');
-  const [creditOpen, setCreditOpen] = useState(false);
-  const [creditAmount, setCreditAmount] = useState('');
-  const [creditReason, setCreditReason] = useState('');
+  const [adjusting, setAdjusting] = useState(false);
 
   const loadOutgoing = useCallback(async () => {
     try {
@@ -152,7 +152,7 @@ export default function AdminWalletsPage() {
       return;
     }
     setSelected(w);
-    setCreditOpen(false);
+    setAdjusting(false);
     void loadTransactions(w);
   };
 
@@ -172,33 +172,24 @@ export default function AdminWalletsPage() {
     await loadOutgoing();
   };
 
-  const creditValue = parseAmount(creditAmount);
-  // valor do crédito sem pagamento: exatamente o digitado (lib/adminAmount)
-  const creditAmountError = amountFieldError(creditAmount);
-  const creditValid = creditValue !== null && creditValue > 0 && creditReason.trim().length >= 10;
-
-  const submitCredit = async () => {
-    if (!selected || creditValue === null || !(creditValue > 0)) return;
-    const target = selected;
-    let newBalance: unknown;
-    try {
-      const res = await api.post(`/admin/wallets/${target._id}/add-balance`, {
-        amount: creditValue,
-        reason: creditReason.trim(),
-      });
-      newBalance = res.data?.newBalance;
-    } catch (err) {
-      throw flattenServerError(err, 'Não deu para adicionar o saldo.');
-    }
-    const balance = typeof newBalance === 'number' ? newBalance : (target.balance || 0) + creditValue;
-    const patch = (w: WalletRow) => (w._id === target._id ? { ...w, balance } : w);
-    setSelected(patch(target));
+  const patchBalance = (walletId: string, balance: number) => {
+    const patch = (w: WalletRow) => (w._id === walletId ? { ...w, balance } : w);
+    setSelected((s) => (s ? patch(s) : s));
     setWallets((ws) => (ws ? ws.map(patch) : ws));
-    setCreditOpen(false);
-    setCreditAmount('');
-    setCreditReason('');
-    showToast('Saldo adicionado.', 'success');
-    await loadTransactions(target);
+  };
+
+  const onAdjusted = async ({ replayed, adjustment }: WalletAdjustResponse) => {
+    if (!selected) return;
+    const target = selected;
+    setAdjusting(false);
+    patchBalance(target._id, adjustment.balanceAfter);
+    showToast(
+      replayed
+        ? `Este ajuste já estava registrado. Saldo: ${formatMoney(adjustment.balanceAfter)}.`
+        : `Saldo ajustado. Saldo agora: ${formatMoney(adjustment.balanceAfter)}.`,
+      'success',
+    );
+    await loadTransactions({ ...target, balance: adjustment.balanceAfter });
   };
 
   const term = search.trim().toLowerCase();
@@ -309,9 +300,9 @@ export default function AdminWalletsPage() {
               <section className={blocks.block} aria-label={`Carteira de ${selected.userName || 'usuário'}`}>
                 <div className={blocks.blockHead}>
                   <h2 className={blocks.blockTitle}>{selected.userName || 'Usuário'}</h2>
-                  {isCeo && (
-                    <Button size="sm" variant="secondary" className={ui.touch} onClick={() => setCreditOpen(true)}>
-                      Adicionar saldo
+                  {canAdjust && (
+                    <Button size="sm" variant="secondary" className={ui.touch} onClick={() => setAdjusting(true)}>
+                      Ajustar saldo
                     </Button>
                   )}
                 </div>
@@ -354,34 +345,14 @@ export default function AdminWalletsPage() {
           />
         </AdminSheet>
 
-        <AdminSheet
-          open={creditOpen && !!selected}
-          title="Adicionar saldo"
-          onClose={() => setCreditOpen(false)}
-          primary={{ label: 'Confirmar adição', tone: 'danger', disabled: !creditValid, onClick: submitCredit }}
-        >
-          <Alert tone="warning" title="Isto cria saldo sem pagamento">
-            O valor entra na carteira interna de {selected?.userName || 'usuário'} sem nenhum dinheiro entrar no DROP.
-            Use só para corrigir um erro (cashback ou recarga). O motivo fica registrado na auditoria.
-          </Alert>
-          <Input
-            label="Valor (R$)"
-            value={creditAmount}
-            onChange={setCreditAmount}
-            placeholder="0,00"
-            inputMode="decimal"
-            error={creditAmountError}
-          />
-          {creditValue !== null && creditValue > 0 && (
-            <p className={blocks.muted}>{`Será creditado: ${formatMoney(creditValue)}`}</p>
-          )}
-          <TextAreaField
-            label="Motivo (mínimo 10 caracteres)"
-            value={creditReason}
-            onChange={setCreditReason}
-            placeholder="Descreva o motivo da adição"
-          />
-        </AdminSheet>
+        <AdjustBalanceSheet
+          target={adjusting && selected
+            ? { walletId: selected._id, name: selected.userName || 'Usuário', balance: selected.balance || 0 }
+            : null}
+          onClose={() => setAdjusting(false)}
+          onAdjusted={onAdjusted}
+          onBalanceKnown={(available) => { if (selected) patchBalance(selected._id, available); }}
+        />
       </AdminShell>
     </ProtectedRoute>
   );

@@ -1,8 +1,8 @@
 /**
  * D3a · P4.1 — Dinheiro · Carteiras (tela 17).
  * Caracterização: as chamadas que a página antiga faz (passa na antiga e na nova).
- * Tela nova: leitura que falha mostra erro (nunca zero ou lista vazia), "Adicionar saldo" só do CEO numa
- * AdminSheet com aviso de saldo sem pagamento, pedido de acesso na AdminSheet, celular em cartões.
+ * Tela nova: leitura que falha mostra erro (nunca zero ou lista vazia), "Ajustar saldo" (D3b-3) está em
+ * admin.d3b3.ajusteSaldo.test.tsx; aqui, pedido de acesso na AdminSheet, celular em cartões.
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import api from '../lib/api';
@@ -109,20 +109,6 @@ describe('caracterização: chamadas ao servidor (página antiga e nova)', () =>
     fireEvent.click(screen.getByRole('button', { name: /^(Enviar solicitação|Enviar pedido)$/ }));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/wallet-access/request', {
       targetUserId: 'u2', reason: 'Reclamação 123 de débito',
-    }));
-  });
-
-  it('CEO: adiciona saldo com valor e motivo (POST /admin/wallets/:id/add-balance)', async () => {
-    render(<AdminWalletsPage />);
-    await openCarlos();
-    fireEvent.click(screen.getByRole('button', { name: /Adicionar Cashback|^Adicionar saldo$/ }));
-    fireEvent.change(screen.getByPlaceholderText(/^0[.,]00$/), { target: { value: '25.5' } });
-    fireEvent.change(screen.getByPlaceholderText('Descreva o motivo da adição'), {
-      target: { value: 'Ressarcimento do pedido 4790' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /confirmar adição/i }));
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
-      amount: 25.5, reason: 'Ressarcimento do pedido 4790',
     }));
   });
 });
@@ -237,38 +223,6 @@ describe('tela nova', () => {
     expect(screen.getByRole('button', { name: 'Recusado · pedir de novo' })).toBeEnabled();
   });
 
-  it('"Adicionar saldo" não aparece para quem não é CEO (wallet:credit é só do CEO)', async () => {
-    mockRole = 'gerente_geral';
-    render(<AdminWalletsPage />);
-    await openCarlos();
-    await screen.findByText('Depósito via Pix');
-    expect(screen.queryByRole('button', { name: 'Adicionar saldo' })).not.toBeInTheDocument();
-  });
-
-  it('CEO: "Adicionar saldo" abre a AdminSheet com o aviso e só envia com motivo de 10+ caracteres', async () => {
-    render(<AdminWalletsPage />);
-    await openCarlos();
-    await screen.findByText('Depósito via Pix');
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar saldo' }));
-    const sheet = screen.getByRole('dialog', { name: 'Adicionar saldo' });
-    expect(within(sheet).getByText('Isto cria saldo sem pagamento')).toBeInTheDocument();
-    const send = within(sheet).getByRole('button', { name: 'Confirmar adição' });
-    fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: '25,50' } });
-    fireEvent.change(within(sheet).getByLabelText('Motivo (mínimo 10 caracteres)'), { target: { value: 'curto' } });
-    expect(send).toBeDisabled();
-    fireEvent.change(within(sheet).getByLabelText('Motivo (mínimo 10 caracteres)'), {
-      target: { value: 'Ressarcimento do pedido 4790' },
-    });
-    expect(send).toBeEnabled();
-    fireEvent.click(send);
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
-      amount: 25.5, reason: 'Ressarcimento do pedido 4790',
-    }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(mockToast).toHaveBeenCalledWith('Saldo adicionado.', 'success');
-    expect(screen.getAllByText('R$ 143,82').length).toBeGreaterThan(0);
-  });
-
   it('erro do servidor ao pedir acesso aparece dentro da AdminSheet, que fica aberta', async () => {
     post.mockRejectedValueOnce({ response: { status: 400, data: { error: 'Já existe um pedido pendente' } } });
     render(<AdminWalletsPage />);
@@ -283,66 +237,6 @@ describe('tela nova', () => {
     expect(await within(sheet).findByText('Já existe um pedido pendente')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(window.alert).not.toHaveBeenCalled();
-  });
-
-  describe('valor do "Adicionar saldo" é exatamente o digitado (crédito sem pagamento)', () => {
-    const openCredit = async () => {
-      render(<AdminWalletsPage />);
-      await openCarlos();
-      await screen.findByText('Depósito via Pix');
-      fireEvent.click(screen.getByRole('button', { name: 'Adicionar saldo' }));
-      const sheet = screen.getByRole('dialog', { name: 'Adicionar saldo' });
-      fireEvent.change(within(sheet).getByLabelText('Motivo (mínimo 10 caracteres)'), {
-        target: { value: 'Ressarcimento do pedido 4790' },
-      });
-      return sheet;
-    };
-
-    it.each(['0', '0,00'])('"%s": botão desativado, "maior que zero" e nenhuma chamada', async (typed) => {
-      const sheet = await openCredit();
-      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: typed } });
-      const send = within(sheet).getByRole('button', { name: 'Confirmar adição' });
-      expect(send).toBeDisabled();
-      expect(within(sheet).getByText('O valor tem que ser maior que zero.')).toBeInTheDocument();
-      expect(within(sheet).queryByText(/^Será creditado:/)).not.toBeInTheDocument();
-      fireEvent.click(send);
-      expect(post).not.toHaveBeenCalled();
-    });
-
-    it.each(['1.234,56', '1,234.56', '10abc', '0,001', '1e3', ' 25', '-5', '25,'])(
-      '"%s": botão desativado, aviso curto e nenhuma chamada',
-      async (typed) => {
-        const sheet = await openCredit();
-        fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: typed } });
-        const send = within(sheet).getByRole('button', { name: 'Confirmar adição' });
-        expect(send).toBeDisabled();
-        expect(within(sheet).getByText('Use só números, com até 2 casas (ex.: 25,50).')).toBeInTheDocument();
-        expect(within(sheet).queryByText(/^Será creditado:/)).not.toBeInTheDocument();
-        fireEvent.click(send);
-        expect(post).not.toHaveBeenCalled();
-      },
-    );
-
-    it('"25,50": prévia "Será creditado: R$ 25,50" e envia 25.5', async () => {
-      const sheet = await openCredit();
-      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: '25,50' } });
-      expect(within(sheet).getByText('Será creditado: R$ 25,50')).toBeInTheDocument();
-      expect(within(sheet).queryByText('Use só números, com até 2 casas (ex.: 25,50).')).not.toBeInTheDocument();
-      fireEvent.click(within(sheet).getByRole('button', { name: 'Confirmar adição' }));
-      await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
-        amount: 25.5, reason: 'Ressarcimento do pedido 4790',
-      }));
-    });
-
-    it('"1234.5": prévia com milhar formatado e envia 1234.5', async () => {
-      const sheet = await openCredit();
-      fireEvent.change(within(sheet).getByLabelText('Valor (R$)'), { target: { value: '1234.5' } });
-      expect(within(sheet).getByText('Será creditado: R$ 1.234,50')).toBeInTheDocument();
-      fireEvent.click(within(sheet).getByRole('button', { name: 'Confirmar adição' }));
-      await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/wallets/w1/add-balance', {
-        amount: 1234.5, reason: 'Ressarcimento do pedido 4790',
-      }));
-    });
   });
 
   it('busca por nome ou e-mail e filtro por papel', async () => {

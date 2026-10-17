@@ -1,7 +1,7 @@
 /** Rótulos do extrato de carteira (mesma inferência da página antiga, l. 214-264, sem as abreviações). */
 import type { StatusTone } from '../StatusTag';
 
-export type WalletCategory = 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'transfer';
+export type WalletCategory = 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'transfer' | 'adjustment';
 
 export interface WalletTransaction {
   _id?: string;
@@ -17,6 +17,7 @@ export interface WalletTransaction {
 
 const CATEGORY_LABEL: Record<WalletCategory, string> = {
   deposit: 'Depósito', withdrawal: 'Saque', payment: 'Pagamento', refund: 'Estorno', transfer: 'Transferência',
+  adjustment: 'Ajuste da plataforma',
 };
 
 const METHOD_LABEL: Record<string, string> = {
