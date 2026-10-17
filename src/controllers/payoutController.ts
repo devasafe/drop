@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import payoutService from '../services/payout.service';
 import { prisma } from '../lib/prisma';
 import { isStoreOwner } from '../utils/storeOwnership';
+import logger from '../config/logger';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { releasePayoutAsAdmin } from '../services/payoutRelease.service';
 
 // Lojista/Motoboy - Ver meus payouts
 export const getMyPayouts = async (req: Request & { user?: any }, res: Response) => {
@@ -243,38 +246,17 @@ export const getPayoutConfig = async (req: Request & { user?: any }, res: Respon
   }
 };
 
-// Admin/CEO - Liberar payout manualmente
+// Admin/CEO - Liberar payout manualmente (D3b-3, spec 4.1: reivindica antes do Asaas;
+// 409 PAYOUT_NOT_PENDING, 502 PAYOUT_TRANSFER_REFUSED / PAYOUT_TRANSFER_UNCERTAIN).
+// Libera SÓ o payout deste id (liberar a loja não libera o motoboy do mesmo pedido).
 export const releasePayoutManually = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { id } = req.params;
-    const payout = await prisma.payout.findUnique({ where: { id: String(id) } });
-    if (!payout) return res.status(404).json({ error: 'Payout não encontrado' });
-    if (payout.blocked) {
-      return res.status(400).json({ error: `Payout bloqueado: ${payout.blockReason || 'sem motivo'}` });
-    }
-
-    // No modo Asaas, liberar = transferir de verdade da conta-mãe p/ a subconta do
-    // recebedor. Liberar SÓ o payout deste id (liberar a loja não libera o motoboy do
-    // mesmo pedido, e vice-versa). No modo legado, apenas move o espelho contábil.
-    if (process.env.PAYMENT_GATEWAY === 'asaas') {
-      const { releaseSinglePayoutViaAsaas } = await import('../services/asaas/release');
-      try {
-        await releaseSinglePayoutViaAsaas(id);
-      } catch (err: any) {
-        return res.status(502).json({
-          error: err?.message
-            ? `Transferência no Asaas não concluída: ${err.message}`
-            : 'Transferência no Asaas não concluída. Verifique se o recebedor tem subconta/chave PIX e tente novamente.',
-        });
-      }
-    } else {
-      await payoutService.releasePayout(id);
-    }
-
-    return res.json({ message: 'Payout liberado com sucesso' });
+    const payout = await releasePayoutAsAdmin(String(req.params.id), actorFromRequest(req));
+    return res.json({ message: 'Payout liberado com sucesso', payout });
   } catch (err: any) {
-    console.error('Erro ao liberar payout:', err);
-    return res.status(400).json({ error: err.message || 'Erro ao liberar payout' });
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao liberar payout', err as Error, { payoutId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao liberar o repasse' });
   }
 };
 

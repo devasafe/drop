@@ -1,4 +1,4 @@
-import { Payout, Prisma, PayoutRecipientType, OwnerType } from '@prisma/client';
+import { Payout, Prisma, PayoutRecipientType, OwnerType, PayoutGatewayProvider } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export type { PayoutRecipientType };
@@ -89,6 +89,71 @@ class PayoutService {
         availableBalance: { increment: amount },
       });
     });
+  }
+
+  /**
+   * D3b-3 · passo 1 da liberação: reivindica o repasse (pending e não bloqueado → releasing).
+   * Só quem consegue a transição chama o Asaas — a outra liberação concorrente recebe false.
+   */
+  async claimPayoutForRelease(payoutId: string, db: Tx = prisma): Promise<boolean> {
+    const { count } = await db.payout.updateMany({
+      where: { id: payoutId, status: 'pending', blocked: false },
+      data: { status: 'releasing' },
+    });
+    return count === 1;
+  }
+
+  /**
+   * D3b-3 · passo 3: baixa de um repasse reivindicado (releasing → released) e movimento
+   * pendingBalance → availableBalance. Roda dentro da transação de quem conclui (com a linha
+   * de registro). Lança se o repasse não estiver mais em releasing.
+   */
+  async settleClaimedRelease(
+    db: Tx,
+    payoutId: string,
+    gateway?: { gatewayProvider: PayoutGatewayProvider; gatewayTransferId: string },
+  ): Promise<Payout> {
+    const { count } = await db.payout.updateMany({
+      where: { id: payoutId, status: 'releasing' },
+      data: {
+        status: 'released',
+        releasedAt: new Date(),
+        ...(gateway ? { gatewayProvider: gateway.gatewayProvider, gatewayTransferId: gateway.gatewayTransferId } : {}),
+      },
+    });
+    if (count !== 1) throw new Error(`Payout ${payoutId} saiu de releasing antes da baixa`);
+    const payout = await db.payout.findUniqueOrThrow({ where: { id: payoutId } });
+    const ownerType: OwnerType = payout.recipientType === 'store' ? 'store' : 'motoboy';
+    const amount = num(payout.amount);
+    await bumpWalletBuckets(db, String(payout.recipientId), ownerType, {
+      pendingBalance: { decrement: amount },
+      availableBalance: { increment: amount },
+    });
+    return payout;
+  }
+
+  /** D3b-3 · recusa definitiva do Asaas: devolve o repasse reivindicado a pending. */
+  async unclaimRelease(payoutId: string, db: Tx = prisma): Promise<boolean> {
+    const { count } = await db.payout.updateMany({
+      where: { id: payoutId, status: 'releasing' },
+      data: { status: 'pending' },
+    });
+    return count === 1;
+  }
+
+  /**
+   * D3b-3 · resposta incerta: o dinheiro pode ter saído. Marca uncertainAt (e o id da
+   * transferência, se o Asaas devolveu) e mantém releasing até o admin resolver.
+   */
+  async markReleaseUncertain(db: Tx, payoutId: string, gatewayTransferId: string | null): Promise<boolean> {
+    const { count } = await db.payout.updateMany({
+      where: { id: payoutId, status: 'releasing' },
+      data: {
+        uncertainAt: new Date(),
+        ...(gatewayTransferId ? { gatewayProvider: 'asaas' as const, gatewayTransferId } : {}),
+      },
+    });
+    return count === 1;
   }
 
   async releasePayoutsForOrder(orderId: string, tx?: Tx): Promise<void> {
