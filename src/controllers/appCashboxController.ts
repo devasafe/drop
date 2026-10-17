@@ -2,14 +2,24 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { ensureAppCashbox, recordCashboxEntry } from '../repositories/appCashbox.repository';
 import {
-  createWithdrawal,
   findWithdrawalById,
   findWithdrawals,
   countWithdrawals,
-  updateWithdrawal,
+  toApiWithdrawal,
 } from '../repositories/withdrawal.repository';
 import payoutService from '../services/payout.service';
 import logger from '../config/logger';
+import {
+  actorFromRequest,
+  MoneyActionError,
+  recordAdminMoneyAction,
+  sendMoneyActionError,
+} from '../services/adminMoneyAction.service';
+import { hasOtherCashboxApprover } from '../services/cashboxApproval.service';
+
+/** 409 da retirada que não está mais pendente (o painel lê currentStatus). */
+const cashboxNotPending = (currentStatus: string) =>
+  new MoneyActionError(409, 'CASHBOX_WITHDRAWAL_NOT_PENDING', 'Retirada não está pendente', { currentStatus });
 
 /**
  * Carrega o extrato (ledger) do caixa na forma { type, source, amount, date, ... }
@@ -206,13 +216,22 @@ export const requestWithdrawal = async (req: Request & { user?: any }, res: Resp
       });
     }
 
-    // ✅ Criar solicitação de saque
-    const withdrawal = await createWithdrawal({
-      appCashboxId: cashbox.id,
-      amount,
-      status: 'pending',
-      bankInfo,
-      reason,
+    // ✅ Criar solicitação de saque com quem pediu + linha de registro (mesma transação).
+    const actor = actorFromRequest(req);
+    const withdrawal = await prisma.$transaction(async (tx) => {
+      const created = await tx.withdrawal.create({
+        data: { appCashboxId: cashbox.id, amount, status: 'pending', bankInfo, reason, requestedBy: actor.id },
+      });
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'cashbox_withdrawal_request',
+        targetType: 'cashbox_withdrawal',
+        targetId: created.id,
+        amount: Number(created.amount),
+        reason: reason ?? null,
+        after: { status: 'pending', requestedBy: actor.id },
+      });
+      return toApiWithdrawal(created);
     });
 
     // ✅ Registrar no histórico (apenas o débito vai quando aprovado)
@@ -260,11 +279,13 @@ export const getWithdrawals = async (req: Request & { user?: any }, res: Respons
 
 /**
  * PUT /admin/app-cashbox/withdrawals/:id/approve
- * Aprova um saque (só pode ser feito por CEO)
+ * Aprova uma retirada. D3b-3: quem pediu não aprova se existe outra pessoa apta
+ * (403 CASHBOX_SELF_APPROVAL); não pendente → 409 CASHBOX_WITHDRAWAL_NOT_PENDING;
+ * status + débito + linha cashbox_withdrawal_approve na mesma transação.
  */
 export const approveWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const actor = actorFromRequest(req);
     const { id } = req.params;
 
     const withdrawal = await findWithdrawalById(id);
@@ -272,9 +293,7 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
 
-    if (withdrawal.status !== 'pending') {
-      return res.status(400).json({ error: `Saque já foi ${withdrawal.status}` });
-    }
+    if (withdrawal.status !== 'pending') throw cashboxNotPending(withdrawal.status);
 
     // ✅ Validar se ainda tem saldo
     const cashbox = await prisma.appCashbox.findFirst();
@@ -282,14 +301,23 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Saldo insuficiente para aprovar saque' });
     }
 
-    // ✅ Status (pending → approved, condicional) + débito no caixa na MESMA transação:
+    const requestedBy: string | null = withdrawal.requestedBy ?? null;
+    const selfApproved = !!requestedBy && requestedBy === actor.id;
+
+    // ✅ Status (pending → approved, condicional) + débito no caixa + linha na MESMA transação:
     // duas aprovações concorrentes não debitam o caixa duas vezes.
-    const approved = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
+      if (selfApproved && (await hasOtherCashboxApprover(tx, actor.id))) {
+        throw new MoneyActionError(403, 'CASHBOX_SELF_APPROVAL', 'Outra pessoa precisa aprovar esta retirada');
+      }
       const { count } = await tx.withdrawal.updateMany({
         where: { id: String(withdrawal._id), status: 'pending' },
-        data: { status: 'approved', approvedAt: new Date(), processedBy: userId },
+        data: { status: 'approved', approvedAt: new Date(), processedBy: actor.id },
       });
-      if (count !== 1) return false;
+      if (count !== 1) {
+        const now = await tx.withdrawal.findUnique({ where: { id: String(withdrawal._id) }, select: { status: true } });
+        throw cashboxNotPending(now?.status ?? 'unknown');
+      }
       await recordCashboxEntry(tx, {
         type: 'withdrawal',
         source: 'manual_withdrawal',
@@ -297,11 +325,16 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
         withdrawalId: String(withdrawal._id),
         reason: `Saque aprovado - ${withdrawal.reason || 'Sem motivo'}`,
       });
-      return true;
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'cashbox_withdrawal_approve',
+        targetType: 'cashbox_withdrawal',
+        targetId: String(withdrawal._id),
+        amount: withdrawal.amount,
+        before: { status: 'pending', requestedBy },
+        after: { status: 'approved', approvedBy: actor.id, selfApproved },
+      });
     });
-    if (!approved) {
-      return res.status(409).json({ error: 'Saque não está mais pendente' });
-    }
     const updated = await findWithdrawalById(id);
 
     logger.debug('✅ Saque aprovado:', updated._id);
@@ -312,18 +345,20 @@ export const approveWithdrawal = async (req: Request & { user?: any }, res: Resp
       message: 'Saque aprovado com sucesso!',
     });
   } catch (err) {
-    console.error('❌ Erro ao aprovar saque:', err);
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao aprovar retirada do caixa', err as Error, { withdrawalId: req.params.id });
     return res.status(500).json({ error: 'Erro ao aprovar saque' });
   }
 };
 
 /**
  * PUT /admin/app-cashbox/withdrawals/:id/reject
- * Rejeita um saque
+ * Rejeita uma retirada. D3b-3: condicional (só pending), 409 CASHBOX_WITHDRAWAL_NOT_PENDING,
+ * linha cashbox_withdrawal_reject na mesma transação.
  */
 export const rejectWithdrawal = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const actor = actorFromRequest(req);
     const { id } = req.params;
     const { rejectionReason } = req.body;
 
@@ -332,16 +367,28 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       return res.status(404).json({ error: 'Saque não encontrado' });
     }
 
-    if (withdrawal.status !== 'pending') {
-      return res.status(400).json({ error: `Saque já foi ${withdrawal.status}` });
-    }
+    if (withdrawal.status !== 'pending') throw cashboxNotPending(withdrawal.status);
 
-    // ✅ Atualizar status
-    const updated = await updateWithdrawal(withdrawal._id, {
-      status: 'rejected',
-      rejectedAt: new Date(),
-      rejectionReason,
-      processedBy: userId,
+    const updated = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.withdrawal.updateMany({
+        where: { id: String(withdrawal._id), status: 'pending' },
+        data: { status: 'rejected', rejectedAt: new Date(), rejectionReason, processedBy: actor.id },
+      });
+      if (count !== 1) {
+        const now = await tx.withdrawal.findUnique({ where: { id: String(withdrawal._id) }, select: { status: true } });
+        throw cashboxNotPending(now?.status ?? 'unknown');
+      }
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'cashbox_withdrawal_reject',
+        targetType: 'cashbox_withdrawal',
+        targetId: String(withdrawal._id),
+        amount: withdrawal.amount,
+        reason: rejectionReason ?? null,
+        before: { status: 'pending', requestedBy: withdrawal.requestedBy ?? null },
+        after: { status: 'rejected', rejectedBy: actor.id },
+      });
+      return toApiWithdrawal(await tx.withdrawal.findUniqueOrThrow({ where: { id: String(withdrawal._id) } }));
     });
 
     logger.debug('✅ Saque rejeitado:', updated._id);
@@ -352,7 +399,8 @@ export const rejectWithdrawal = async (req: Request & { user?: any }, res: Respo
       message: 'Saque rejeitado.',
     });
   } catch (err) {
-    console.error('❌ Erro ao rejeitar saque:', err);
+    if (sendMoneyActionError(res, err)) return;
+    logger.error('Erro ao rejeitar retirada do caixa', err as Error, { withdrawalId: req.params.id });
     return res.status(500).json({ error: 'Erro ao rejeitar saque' });
   }
 };
@@ -369,13 +417,29 @@ export const registerDeposit = async (req: Request & { user?: any }, res: Respon
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    await recordCashboxEntry(prisma, {
-      type: 'deposit',
-      source: 'manual_deposit',
-      amount,
-      reason: reason || 'Depósito manual',
+    // D3b-3: entrada no caixa + linha cashbox_deposit (autor e saldo antes/depois) na mesma transação.
+    const actor = actorFromRequest(req);
+    const cashbox = await prisma.$transaction(async (tx) => {
+      await recordCashboxEntry(tx, {
+        type: 'deposit',
+        source: 'manual_deposit',
+        amount,
+        reason: reason || 'Depósito manual',
+      });
+      const box = await ensureAppCashbox(tx);
+      const after = Number(box.balance);
+      await recordAdminMoneyAction(tx, {
+        actor,
+        type: 'cashbox_deposit',
+        targetType: 'cashbox',
+        targetId: box.id,
+        amount,
+        reason: reason || 'Depósito manual',
+        before: { balance: Math.round((after - Number(amount)) * 100) / 100 },
+        after: { balance: after },
+      });
+      return box;
     });
-    const cashbox = await ensureAppCashbox();
 
     logger.debug('✅ Depósito registrado:', amount);
 
