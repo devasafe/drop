@@ -50,3 +50,13 @@ test('sem loja carregada: só o esqueleto, sem editor', () => {
   renderPage();
   expect(screen.queryByText('Salvar horários')).not.toBeInTheDocument();
 });
+test('aberta fora do horário (override): "Aberta agora" e até quando', () => {
+  const fechado = { open: '10:00', close: '18:00', closed: true };
+  const semana = { sunday: fechado, monday: fechado, tuesday: fechado, wednesday: fechado, thursday: fechado, friday: fechado, saturday: fechado };
+  const ate = new Date(Date.now() + 60 * 60 * 1000);
+  const hhmm = ate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+  mockPanel = { ...mockPanel, store: store({ operatingHours: semana, openOverrideUntil: ate.toISOString() }) };
+  renderPage();
+  expect(screen.getByText('Aberta agora')).toBeInTheDocument();
+  expect(screen.getByText(`Aberta fora do horário até ${hhmm}`)).toBeInTheDocument();
+});

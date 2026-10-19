@@ -254,9 +254,13 @@ export default function AgoraPage() {
 
   const lowStock = (products || []).filter((p: any) => p?.isActive !== false && isLowStock(p));
   const saasBlocked = billing === 'paused' || billing === 'cancelled';
-  const isOpen = store?.isOpen !== false && !saasBlocked;
-  const hours = store ? openStatus(store) : { open: false, closesAt: null, opensAt: null };
+  const hours: ReturnType<typeof openStatus> = store ? openStatus(store) : { open: false, closesAt: null, opensAt: null };
   const pausedUntil = store?.pausedUntil && Date.parse(store.pausedUntil) > Date.now() ? store.pausedUntil : null;
+  // Aberta de verdade = a regra do cliente (openStatus). A pausa tem o próprio aviso: com ela,
+  // a chave segue o interruptor manual, como antes.
+  const isOpen = !saasBlocked && (pausedUntil ? store?.isOpen !== false : hours.open);
+  // Interruptor ligado, sem pausa, mas fora do horário cadastrado.
+  const closedByHours = !isOpen && !saasBlocked && !pausedUntil && store?.isOpen !== false;
 
   const toggleOpen = async (next: boolean) => {
     if (!store?._id) return;
@@ -306,8 +310,12 @@ export default function AgoraPage() {
   const switchDescription = saasBlocked
     ? 'Abre sozinha quando o pagamento cair'
     : isOpen
-      ? hours.closesAt ? `Fecha às ${hours.closesAt}` : canSayReceiving ? 'Recebendo pedidos' : undefined
-      : 'Clientes não veem seus produtos';
+      ? hours.overrideUntil
+        ? `Aberta fora do horário até ${hours.overrideUntil}`
+        : hours.closesAt ? `Fecha às ${hours.closesAt}` : canSayReceiving ? 'Recebendo pedidos' : undefined
+      : closedByHours
+        ? hours.opensAt ? `Fechada pelo horário. Abre às ${hours.opensAt}` : 'Fechada pelo horário'
+        : 'Clientes não veem seus produtos';
 
   return (
     <ProtectedRoute required_role="lojista">
@@ -372,8 +380,14 @@ export default function AgoraPage() {
                     </Alert>
                   )}
                   {!isOpen && !saasBlocked && (
-                    <Alert tone="warning" title="Você está fechada" action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}>
-                      Clientes não veem seus produtos.
+                    <Alert
+                      tone="warning"
+                      title={closedByHours ? 'Fechada pelo horário' : 'Você está fechada'}
+                      action={{ label: 'Abrir agora', onClick: () => toggleOpen(true) }}
+                    >
+                      {closedByHours
+                        ? 'Clientes não conseguem comprar agora. Se abrir, a loja volta a seguir o horário sozinha depois.'
+                        : 'Clientes não veem seus produtos.'}
                     </Alert>
                   )}
                 </>
