@@ -304,3 +304,26 @@ test('saldo antigo sem conferir os saques: não abre o saque (fail closed) e Ten
   fireEvent.click(card);
   expect(await screen.findByRole('button', { name: 'Sacar R$ 60,00' })).toBeInTheDocument();
 });
+
+describe('faixa "Falta sua chave Pix"', () => {
+  test('com transferências paradas sem chave: valor do servidor e ação que leva ao cadastro', async () => {
+    mockApi({ '/motoboy/transfers': { data: { success: true, data: TRANSFERS, nextCursor: null, pixKeyMissing: { count: 2, amount: 19.75 } } } });
+    render(<DirectEarnings hasLeftover={false} now={NOW} />);
+    expect(await screen.findByText('Falta sua chave Pix')).toBeInTheDocument();
+    expect(screen.getByText('R$ 19,75 de entregas estão esperando sua chave Pix. Assim que você cadastrar, o dinheiro cai sozinho.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar chave Pix' }));
+    expect(mockPush).toHaveBeenCalledWith('/dados-recebimento');
+  });
+
+  test('sem transferência parada (ou campo ausente): sem faixa', async () => {
+    mockApi({ '/motoboy/transfers': { data: { success: true, data: TRANSFERS, nextCursor: null, pixKeyMissing: { count: 0, amount: 0 } } } });
+    const { unmount } = render(<DirectEarnings hasLeftover={false} now={NOW} />);
+    await screen.findByRole('region', { name: 'Recebido hoje' });
+    expect(screen.queryByText('Falta sua chave Pix')).not.toBeInTheDocument();
+    unmount();
+    mockApi();
+    render(<DirectEarnings hasLeftover={false} now={NOW} />);
+    await screen.findByRole('region', { name: 'Recebido hoje' });
+    expect(screen.queryByText('Falta sua chave Pix')).not.toBeInTheDocument();
+  });
+});

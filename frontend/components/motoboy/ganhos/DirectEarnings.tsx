@@ -30,6 +30,11 @@ const toList = (d: any): any[] => (Array.isArray(d) ? d : Array.isArray(d?.withd
 const toMoneyList = (raw: any): MoneyInfo[] => (Array.isArray(raw) ? raw : []).map(transferToMoney).filter(Boolean) as MoneyInfo[];
 const nextCursorOf = (d: any): string | null => (typeof d?.nextCursor === 'string' && d.nextCursor ? d.nextCursor : null);
 const ms = (iso: string | null) => (iso ? Date.parse(iso) || 0 : 0);
+/** Total parado esperando a chave Pix (GET /motoboy/transfers → pixKeyMissing, todas as páginas); 0 se ausente. */
+const pixMissingOf = (d: any): number => {
+  const v = Number(d?.pixKeyMissing?.amount);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+};
 
 /** Saldo do modo anterior: null = carregando; 'error' = a leitura falhou (K29: nunca 0, nunca some calado). */
 type Legacy = number | null | 'error';
@@ -41,6 +46,7 @@ type Legacy = number | null | 'error';
  * - "Esta semana" vem só de GET /deliveries/summary (K35); "A caminho" só com a lista inteira.
  * - Rótulo e tom de cada Pix vêm de transferView (K30), via moneyBadge e isLateTransfer.
  * - Sem saldo antigo (hasLeftover=false) não sai chamada a /wallets, /payouts nem /withdrawals.
+ * - "Falta sua chave Pix" usa `pixKeyMissing` de GET /motoboy/transfers (total do servidor, não da página).
  * Cada linha já é o Pix da própria corrida (GET /motoboy/transfers): não há lista de entregas para
  * casar com useMotoboyMoney aqui.
  */
@@ -60,6 +66,7 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
   const [weekFailed, setWeekFailed] = useState(false);
   const [weekAttempt, setWeekAttempt] = useState(0);
   const [pix, setPix] = useState<string | null>(null);
+  const [pixMissing, setPixMissing] = useState(0);
   const [late, setLate] = useState<MoneyInfo | null>(null);
   const [legacy, setLegacy] = useState<Legacy>(null);
   const [legacyAttempt, setLegacyAttempt] = useState(0);
@@ -81,9 +88,11 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
         if (my !== gen.current) return;
         setItems(toMoneyList(r?.data?.data));
         setCursor(nextCursorOf(r?.data));
+        setPixMissing(pixMissingOf(r?.data));
       })
       .catch(() => {
         if (my !== gen.current) return;
+        setPixMissing(0);
         // K29: erro nunca vira a lista vazia ("Nenhum Pix ainda").
         setItems(null);
         setCursor(null);
@@ -212,6 +221,11 @@ export function DirectEarnings({ hasLeftover, now = new Date() }: { hasLeftover:
 
   return (
     <div className={styles.stack}>
+      {pixMissing > 0 && (
+        <Alert tone="warning" title="Falta sua chave Pix" action={{ label: 'Cadastrar chave Pix', onClick: () => router.push(MOTOBOY_ROUTES.recebimento) }}>
+          {`${formatMoney(pixMissing)} de entregas estão esperando sua chave Pix. Assim que você cadastrar, o dinheiro cai sozinho.`}
+        </Alert>
+      )}
       {hasLeftover && (
         legacy === 'error' ? (
           <section className={blocks.blk} aria-label="Saldo do modo anterior">

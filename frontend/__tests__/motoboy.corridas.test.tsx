@@ -185,6 +185,21 @@ test.each([
   expect(mockRouter.push).not.toHaveBeenCalled();
 });
 
+test('409 MOTOBOY_PIX_KEY_REQUIRED: mensagem do servidor com "Cadastrar chave Pix", a oferta fica', async () => {
+  mockStatus = { ...mockStatus, online: true, gps: 'active' };
+  mockPool.deliveries = [offer('d1')];
+  const msg = 'Cadastre sua chave Pix para pegar corridas: é por ela que você recebe.';
+  post.mockRejectedValue({ response: { status: 409, data: { error: msg, code: 'MOTOBOY_PIX_KEY_REQUIRED' } } });
+  await renderPage();
+  fireEvent.click(screen.getByRole('button', { name: 'Aceitar por R$ 9,60' }));
+  expect(await screen.findByText(msg)).toBeInTheDocument();
+  expect(screen.queryByText('Outro entregador aceitou antes')).not.toBeInTheDocument();
+  expect(screen.getByTestId('oferta-d1')).toBeInTheDocument();
+  expect(mockPool.setDeliveries).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cadastrar chave Pix' }));
+  expect(mockRouter.push).toHaveBeenCalledWith('/dados-recebimento');
+});
+
 test('erro que não é 409: alerta com a mensagem do servidor e a oferta fica', async () => {
   mockStatus = { ...mockStatus, online: true, gps: 'active' };
   mockPool.deliveries = [offer('d1')];

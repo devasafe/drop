@@ -61,6 +61,8 @@ export default function CorridasPage() {
   const [accepting, setAccepting] = useState<string | null>(null);
   const inFlight = useRef(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  // Modo direto: o servidor recusa o aceite sem chave Pix (409 MOTOBOY_PIX_KEY_REQUIRED).
+  const [pixRequired, setPixRequired] = useState<string | null>(null);
   const [notVerified, setNotVerified] = useState(false);
   const [lost, setLost] = useState<{ variant: OfferLostVariant; summary: string } | null>(null);
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
@@ -130,13 +132,17 @@ export default function CorridasPage() {
     inFlight.current = true;
     setAccepting(d._id);
     setClaimError(null);
+    setPixRequired(null);
     try {
       const res = await api.post(`/deliveries/${d._id}/claim`);
       // Sem ?nav=1 (K1): a navegação abre tocando no mapa da corrida.
       router.push(MOTOBOY_ROUTES.corrida(String(res?.data?._id ?? d._id)));
     } catch (err) {
       const e = apiError(err);
-      if (e.status === 409) {
+      if (e.status === 409 && e.code === 'MOTOBOY_PIX_KEY_REQUIRED') {
+        // A oferta segue valendo: só falta a chave Pix.
+        setPixRequired(e.message || 'Cadastre sua chave Pix para pegar corridas: é por ela que você recebe.');
+      } else if (e.status === 409) {
         setLost({ variant: e.code === 'ORDER_CLOSED' ? 'closed' : 'claimed', summary: offerSummary(d) });
         setPool((prev: any[]) => prev.filter((x: any) => x._id !== d._id));
         refetch?.();
@@ -277,6 +283,11 @@ export default function CorridasPage() {
               {pushBlock}
               {lost && <OfferLost variant={lost.variant} summary={lost.summary} onContinue={() => setLost(null)} />}
               {claimError && <p role="alert" className={blocks.errText}>{claimError}</p>}
+              {pixRequired && (
+                <Alert tone="warning" title="Falta sua chave Pix" action={{ label: 'Cadastrar chave Pix', onClick: () => router.push(MOTOBOY_ROUTES.recebimento) }}>
+                  {pixRequired}
+                </Alert>
+              )}
               {poolLoading ? (
                 <div className={blocks.stack}><Skeleton height={300} radius="var(--radius-lg)" /><Skeleton height={160} /></div>
               ) : visible.length === 0 ? (
