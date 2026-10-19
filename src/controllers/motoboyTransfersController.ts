@@ -86,7 +86,11 @@ export async function listMyTransfers(req: any, res: Response) {
       orderBy: page.orderBy,
       take: page.take,
     }),
-    pixKeyMissingSummary(String(req.user.id)),
+    // A faixa de Ganhos é acessória: se o resumo falhar, a lista continua (zero = sem faixa).
+    pixKeyMissingSummary(String(req.user.id)).catch((err) => {
+      logger.error('[motoboyTransfer] resumo da chave Pix falhou', err);
+      return { count: 0, amount: 0 };
+    }),
   ]);
   const { items, nextCursor } = sliceCursorPage(rows, page);
   return res.json({ success: true, data: items.map(serializeForMotoboy), nextCursor, pixKeyMissing });

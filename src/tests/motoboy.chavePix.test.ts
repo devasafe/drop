@@ -156,6 +156,22 @@ describe('GET /motoboy/transfers — valor parado esperando a chave Pix', () => 
     const res = await request(app).get('/api/motoboy/transfers').set('Authorization', bearer(m));
     expect(res.body.pixKeyMissing).toEqual({ count: 0, amount: 0 });
   });
+
+  it('falha no resumo não derruba a lista: devolve zero e a lista continua', async () => {
+    const m = await createTestUser('motoboy', DOMAIN);
+    const a = await setup({ status: 'picked', fee: 10, motoboy: m });
+    expect((await finalizar(a.delivery, m)).status).toBe(200);
+    const mod = require('../services/asaasLoja/motoboyTransfer');
+    const spy = jest.spyOn(mod, 'pixKeyMissingSummary').mockRejectedValueOnce(new Error('db fora'));
+    try {
+      const res = await request(app).get('/api/motoboy/transfers').set('Authorization', bearer(m));
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.pixKeyMissing).toEqual({ count: 0, amount: 0 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('POST /deliveries/:id/claim — chave Pix obrigatória no modo direto', () => {
