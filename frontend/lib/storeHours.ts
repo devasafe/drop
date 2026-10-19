@@ -33,23 +33,12 @@ export function pausedBackAt(pausedUntil?: string | null, now: Date = new Date()
   return futureHHMM(pausedUntil, now);
 }
 
-/**
- * Aberta agora, na ordem do backend (isOpenAt): pausada → fechada; isOpen=false → fechada;
- * aberta fora do horário (`openOverrideUntil` no futuro) → aberta até essa hora; senão, o horário
- * cadastrado. Sem horário: vale isOpen, sem horas.
- */
-export function openStatus(
-  store: { isOpen?: boolean; operatingHours?: OperatingHours | null; pausedUntil?: string | null; openOverrideUntil?: string | null },
-  now: Date = new Date(),
-): { open: boolean; closesAt: string | null; opensAt: string | null; pausedBackAt?: string; overrideUntil?: string } {
-  const back = pausedBackAt(store.pausedUntil, now);
-  if (back) return { open: false, closesAt: null, opensAt: null, pausedBackAt: back };
-  if (store.isOpen === false) return { open: false, closesAt: null, opensAt: null };
-  const until = futureHHMM(store.openOverrideUntil, now);
-  if (until) return { open: true, closesAt: until, opensAt: null, overrideUntil: until };
+type HoursStatus = { open: boolean; closesAt: string | null; opensAt: string | null };
+
+/** Só o horário cadastrado no instante `now` (SP), com as mesmas validações do backend (isOpenAt). */
+function byHours(operatingHours: OperatingHours | null | undefined, now: Date): HoursStatus {
   const { dayIndex, minutes: t } = brazilNow(now);
-  const day = store.operatingHours?.[DAYS[dayIndex]];
-  // Mesma ordem e mesmas validações do backend (isOpenAt).
+  const day = operatingHours?.[DAYS[dayIndex]];
   if (!day) return { open: true, closesAt: null, opensAt: null };
   if (day.closed) return { open: false, closesAt: null, opensAt: null };
   if (!day.open || !day.close) return { open: true, closesAt: null, opensAt: null };
@@ -62,4 +51,26 @@ export function openStatus(
   const isOpen = closeMin <= openMin ? t >= openMin || t < closeMin : t >= openMin && t < closeMin;
   if (isOpen) return { open: true, closesAt: day.close, opensAt: null };
   return { open: false, closesAt: null, opensAt: t < openMin ? day.open : null };
+}
+
+/**
+ * Aberta agora, na ordem do backend (isOpenAt): pausada → fechada; isOpen=false → fechada;
+ * aberta fora do horário (`openOverrideUntil` no futuro) → aberta; senão, o horário cadastrado.
+ * Sem horário: vale isOpen, sem horas. Com override, `closesAt` é a hora do override, a não ser
+ * que nesse instante o horário já abra (override até a abertura de hoje): aí a loja fica aberta
+ * direto e fecha no fechamento do horário.
+ */
+export function openStatus(
+  store: { isOpen?: boolean; operatingHours?: OperatingHours | null; pausedUntil?: string | null; openOverrideUntil?: string | null },
+  now: Date = new Date(),
+): { open: boolean; closesAt: string | null; opensAt: string | null; pausedBackAt?: string; overrideUntil?: string } {
+  const back = pausedBackAt(store.pausedUntil, now);
+  if (back) return { open: false, closesAt: null, opensAt: null, pausedBackAt: back };
+  if (store.isOpen === false) return { open: false, closesAt: null, opensAt: null };
+  const until = futureHHMM(store.openOverrideUntil, now);
+  if (until) {
+    const after = byHours(store.operatingHours, new Date(store.openOverrideUntil as string));
+    return { open: true, closesAt: after.open ? after.closesAt : until, opensAt: null, overrideUntil: until };
+  }
+  return byHours(store.operatingHours, now);
 }

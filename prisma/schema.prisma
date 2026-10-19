@@ -448,7 +448,7 @@ model Store {
   /// Lojista abriu fora do horário: aberta (ignorando operatingHours) até este instante, se isOpen
   /// e sem pausa. Gravado pelo PUT operating-hours com isOpen=true; vence na leitura, sem job.
   openOverrideUntil    DateTime?
-  isVerified          Boolean   @default(false)
+  isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
   deliveryRadiusKm     Float?

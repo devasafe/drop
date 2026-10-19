@@ -10,6 +10,11 @@ describe('openStatus: aberta fora do horário (openOverrideUntil)', () => {
     expect(r).toEqual({ open: true, closesAt: '23:59', opensAt: null, overrideUntil: '23:59' });
   });
 
+  it('override até a abertura de hoje: closesAt é o fechamento do dia (fica aberta direto)', () => {
+    const r = openStatus({ isOpen: true, operatingHours: hours, openOverrideUntil: sp('10:00').toISOString() }, sp('07:00'));
+    expect(r).toEqual({ open: true, closesAt: '18:00', opensAt: null, overrideUntil: '10:00' });
+  });
+
   it('override vencido: volta a seguir o horário', () => {
     const r = openStatus({ isOpen: true, operatingHours: hours, openOverrideUntil: sp('19:00').toISOString() }, sp('20:00'));
     expect(r).toEqual({ open: false, closesAt: null, opensAt: null });

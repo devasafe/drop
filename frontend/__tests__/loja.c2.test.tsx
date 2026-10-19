@@ -46,3 +46,21 @@ test('busca na capa mostra o campo', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Buscar na loja' }));
   expect(screen.getByPlaceholderText('Buscar em Eletro Center…')).toBeInTheDocument();
 });
+
+test('aberta fora do horário até a abertura de hoje: "Aberta até 18:00" (o fechamento do horário)', async () => {
+  // Só o Date é falso: timers reais para o RTL. Quarta 21/10/2026, 07:00 em São Paulo.
+  jest.useFakeTimers({
+    now: new Date('2026-10-21T07:00:00-03:00'),
+    doNotFake: ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame',
+      'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval',
+      'setTimeout', 'clearTimeout'] as any,
+  });
+  try {
+    mockStores = [{ ...mockStores[0], operatingHours: { wednesday: { open: '10:00', close: '18:00', closed: false } }, openOverrideUntil: '2026-10-21T10:00:00-03:00' }];
+    render(<StorePage />);
+    expect(await screen.findByText('Aberta até 18:00')).toBeInTheDocument();
+    expect(screen.queryByText('Aberta até 10:00')).toBeNull();
+  } finally {
+    jest.useRealTimers();
+  }
+});
