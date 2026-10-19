@@ -6,7 +6,7 @@ import { AppError } from '../utils/AppError';
 import logger from '../config/logger';
 import { isStoreOwner } from '../utils/storeOwnership';
 import { decryptSensitiveData } from '../utils/encryption';
-import { maskPixKey } from '../services/asaasLoja/motoboyTransfer';
+import { maskPixKey, pixKeyMissingSummary } from '../services/asaasLoja/motoboyTransfer';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { parseCursorPage, sliceCursorPage } from '../utils/cursorPagination';
 import { actorFromRequest, recordAdminMoneyAction } from '../services/adminMoneyAction.service';
@@ -74,16 +74,22 @@ async function withNames<T extends { storeId: string; motoboyId: string }>(rows:
   return { storeName: (id: string) => sn.get(id) ?? null, motoboyName: (id: string) => un.get(id) ?? null };
 }
 
-/** GET /api/motoboy/transfers — SEMPRE os do usuário autenticado. */
+/**
+ * GET /api/motoboy/transfers — SEMPRE os do usuário autenticado.
+ * `pixKeyMissing`: o total (de todas as páginas) parado esperando a chave Pix, para a faixa de Ganhos.
+ */
 export async function listMyTransfers(req: any, res: Response) {
   const page = parseCursorPage(req.query, { defaultLimit: 100, maxLimit: MAX_LIMIT });
-  const rows = await prisma.motoboyTransfer.findMany({
-    where: { AND: [{ motoboyId: String(req.user.id) }, page.where] },
-    orderBy: page.orderBy,
-    take: page.take,
-  });
+  const [rows, pixKeyMissing] = await Promise.all([
+    prisma.motoboyTransfer.findMany({
+      where: { AND: [{ motoboyId: String(req.user.id) }, page.where] },
+      orderBy: page.orderBy,
+      take: page.take,
+    }),
+    pixKeyMissingSummary(String(req.user.id)),
+  ]);
   const { items, nextCursor } = sliceCursorPage(rows, page);
-  return res.json({ success: true, data: items.map(serializeForMotoboy), nextCursor });
+  return res.json({ success: true, data: items.map(serializeForMotoboy), nextCursor, pixKeyMissing });
 }
 
 /** GET /api/stores/:storeId/transfers — só o dono da loja. */

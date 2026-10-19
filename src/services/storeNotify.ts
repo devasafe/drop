@@ -30,31 +30,47 @@ export interface StoreNotice {
   dedupe?: boolean;
 }
 
+/** Links do app do motoboy usados em avisos (sino e push). */
+export const MOTOBOY_LINKS = {
+  /** Cadastro da chave Pix (tela compartilhada com a loja). */
+  pixKey: '/dados-recebimento',
+} as const;
+
 /**
- * Avisa o DONO da loja: grava a Notification (fonte de verdade do sino), depois emite
- * `notification:received` só para a sala `user:<dono>` e manda o push com o mesmo link.
+ * Avisa UM usuário: grava a Notification (fonte de verdade do sino), depois emite
+ * `notification:received` só para a sala `user:<id>` e manda o push com o mesmo link.
  * Best-effort: nunca lança — quem chama já gravou o que importa (pedido, cancelamento, decisão).
  * Usa `notifier.io` direto (e não utils/socketEmitter) para não criar import circular:
  * o socketEmitter importa este arquivo.
  */
+export async function notifyUser(userId: string | null | undefined, n: StoreNotice): Promise<void> {
+  if (!userId) return;
+  try {
+    const uid = String(userId);
+    const entityId = n.entityId ? String(n.entityId) : null;
+
+    if (n.dedupe && entityId) {
+      const dup = await prisma.notification.findFirst({ where: { userId: uid, entityId, title: n.title }, select: { id: true } });
+      if (dup) return;
+    }
+
+    const row = await prisma.notification.create({
+      data: { userId: uid, title: n.title, message: n.message, type: n.type ?? 'system', link: n.link, entityId, read: false },
+    });
+    notifier.io?.to(`user:${uid}`).emit('notification:received', { ...row, _id: row.id });
+    await sendPushToUser(uid, { title: n.title, body: n.message, url: n.link, tag: n.tag });
+  } catch (err) {
+    logger.warn('[storeNotify] falha ao avisar o usuário', { userId: String(userId), errName: (err as Error)?.name });
+  }
+}
+
+/** Avisa o DONO da loja (notifyUser no dono). Best-effort: nunca lança. */
 export async function notifyStore(storeId: string | null | undefined, n: StoreNotice): Promise<void> {
   if (!storeId) return;
   try {
     const store = await prisma.store.findUnique({ where: { id: String(storeId) }, select: { ownerId: true } });
     if (!store?.ownerId) return;
-    const userId = String(store.ownerId);
-    const entityId = n.entityId ? String(n.entityId) : null;
-
-    if (n.dedupe && entityId) {
-      const dup = await prisma.notification.findFirst({ where: { userId, entityId, title: n.title }, select: { id: true } });
-      if (dup) return;
-    }
-
-    const row = await prisma.notification.create({
-      data: { userId, title: n.title, message: n.message, type: n.type ?? 'system', link: n.link, entityId, read: false },
-    });
-    notifier.io?.to(`user:${userId}`).emit('notification:received', { ...row, _id: row.id });
-    await sendPushToUser(userId, { title: n.title, body: n.message, url: n.link, tag: n.tag });
+    await notifyUser(String(store.ownerId), n);
   } catch (err) {
     logger.warn('[storeNotify] falha ao avisar a loja', { storeId: String(storeId), errName: (err as Error)?.name });
   }

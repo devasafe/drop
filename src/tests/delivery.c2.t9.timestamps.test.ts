@@ -36,6 +36,8 @@ async function cenario(status: 'pending' | 'assigned' | 'picked') {
   const dono = await createTestUser('lojista', DOMAIN);
   const cliente = await createTestUser('cliente', DOMAIN);
   const motoboy = await createTestUser('motoboy', DOMAIN);
+  // Pedido direto: sem chave Pix o motoboy não pega a corrida (MOTOBOY_PIX_KEY_REQUIRED).
+  await prisma.user.update({ where: { id: motoboy.userId }, data: { asaas: { status: 'none', pixKey: '12345678909', pixKeyType: 'CPF' } } as any });
   const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Loja T9', isOpen: true, latitude: '-22.90', longitude: '-43.20' } as any });
   const order = await prisma.order.create({
     data: { customerId: cliente.userId, storeId: store.id, totalValue: 30, subtotal: 20, deliveryFee: 10, status: 'pago', paymentMethod: 'pix', paymentStatus: 'paid', paymentProvider: 'asaas_loja' } as any,

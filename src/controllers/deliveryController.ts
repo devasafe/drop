@@ -28,7 +28,7 @@ import payoutService from '../services/payout.service';
 import env from '../config/env';
 import logger from '../config/logger';
 import { isDirectOrder } from '../utils/settlement';
-import { createTransferForDelivery, notifyTransferCreated } from '../services/asaasLoja/motoboyTransfer';
+import { createTransferForDelivery, notifyTransferCreated, motoboyPixSnapshot } from '../services/asaasLoja/motoboyTransfer';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { motoboySummary } from '../services/motoboySummary';
@@ -577,6 +577,15 @@ export const createDelivery = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+/** Modo direto: a loja paga o motoboy por Pix, então sem chave Pix ele não pega a corrida. */
+const PIX_KEY_REQUIRED = 'MOTOBOY_PIX_KEY_REQUIRED';
+async function directOrderWithoutPixKey(orderId: string, motoboyId: string): Promise<boolean> {
+  const order = await prisma.order.findUnique({ where: { id: String(orderId) }, select: { paymentProvider: true } });
+  if (!isDirectOrder(order)) return false;
+  const { pixKey } = await motoboyPixSnapshot(prisma, motoboyId);
+  return !pixKey;
+}
+
 // assign a motoboy to a delivery (store owner or system)
 export const assignDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -609,6 +618,9 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     const userId = req.user?.id;
     if (!userId || store.ownerId.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden - only store owner can assign motoboy' });
+    }
+    if (await directOrderWithoutPixKey(order.id, String(motoboyId))) {
+      return res.status(409).json({ error: 'Este motoboy ainda não cadastrou a chave Pix e não pode receber por esta entrega.', code: PIX_KEY_REQUIRED });
     }
 
     delivery.motoboyId = motoboyId;
@@ -972,6 +984,9 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // desfaz o aceite (409 ORDER_CLOSED). Quem cancela depois enxerga o motoboy (compensa).
     const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true } });
     if (!target) return res.status(409).json(ALREADY_CLAIMED_BODY);
+    if (await directOrderWithoutPixKey(target.orderId, String(userId))) {
+      return res.status(409).json({ error: 'Cadastre sua chave Pix para pegar corridas: é por ela que você recebe.', code: PIX_KEY_REQUIRED });
+    }
     const ORDER_CLOSED = 'ORDER_CLOSED';
     const ORDER_MISSING = 'ORDER_MISSING';
     let claimedCount: number;

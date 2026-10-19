@@ -11,7 +11,7 @@ import logger from '../../config/logger';
 import { maskSensitiveText } from '../../utils/safeErrorText';
 import { storeKey, translate, saoPauloToday, StorePaymentsNotReadyError } from './charge';
 import { DIRECT_REFUND_BACKOFF_MS } from './refund';
-import { notifyStore, STORE_LINKS } from '../storeNotify';
+import { notifyStore, notifyUser, STORE_LINKS, MOTOBOY_LINKS } from '../storeNotify';
 
 export type TransferReason = 'delivery' | 'cancellation_compensation';
 
@@ -89,7 +89,7 @@ async function markFirstFailure(t: Pick<MotoboyTransfer, 'id' | 'orderId' | 'sto
 }
 
 /** Chave Pix ATUAL do motoboy (User.asaas.pixKey/pixKeyType) — usada para o snapshot da transferência. */
-async function motoboyPixSnapshot(tx: Prisma.TransactionClient, motoboyId: string | null): Promise<{ pixKey: string; pixKeyType: string }> {
+export async function motoboyPixSnapshot(tx: Prisma.TransactionClient, motoboyId: string | null): Promise<{ pixKey: string; pixKeyType: string }> {
   const user = motoboyId ? await tx.user.findUnique({ where: { id: String(motoboyId) }, select: { asaas: true } }) : null;
   const asaas: any = user?.asaas ?? {};
   const pixKey = typeof asaas.pixKey === 'string' ? asaas.pixKey.trim() : '';
@@ -144,6 +144,40 @@ export async function createTransferForDelivery(
   });
 }
 
+/** Transferências do motoboy paradas esperando a chave Pix (o job as envia quando ele cadastrar). */
+const PIX_KEY_MISSING_WHERE = (motoboyId: string) => ({ motoboyId: String(motoboyId), status: 'failed', lastError: 'MOTOBOY_PIX_KEY_MISSING' });
+
+/**
+ * Quanto o motoboy tem parado esperando a chave Pix. Com a chave já cadastrada devolve zero:
+ * o Pix sai sozinho na próxima volta do job, não há o que pedir a ele.
+ */
+export async function pixKeyMissingSummary(motoboyId: string): Promise<{ count: number; amount: number }> {
+  const { pixKey } = await motoboyPixSnapshot(prisma, motoboyId);
+  if (pixKey) return { count: 0, amount: 0 };
+  const agg = await prisma.motoboyTransfer.aggregate({ where: PIX_KEY_MISSING_WHERE(motoboyId), _sum: { amount: true }, _count: true });
+  return { count: agg._count, amount: cents(agg._sum.amount ?? 0) / 100 };
+}
+
+/** Sino + push do motoboy: cadastrar a chave Pix. Best-effort (notifyUser nunca lança). */
+async function noticeMotoboyPixKeyMissing(t: Pick<MotoboyTransfer, 'id' | 'motoboyId' | 'amount'>): Promise<void> {
+  // Soma tudo o que está parado por esse motivo (inclui esta); se a soma falhar, vale esta transferência.
+  let total = Number(t.amount);
+  try {
+    const agg = await prisma.motoboyTransfer.aggregate({ where: PIX_KEY_MISSING_WHERE(t.motoboyId), _sum: { amount: true } });
+    if (agg._sum.amount != null) total = Number(agg._sum.amount);
+  } catch (err) {
+    logger.warn('[motoboyTransfer] falha ao somar o valor parado sem chave Pix', { transferId: t.id, errName: (err as Error)?.name });
+  }
+  await notifyUser(t.motoboyId, {
+    title: 'Cadastre sua chave Pix',
+    message: `Você tem R$ ${brl(total)} de entregas para receber. Cadastre sua chave Pix para o dinheiro cair na sua conta.`,
+    link: MOTOBOY_LINKS.pixKey,
+    entityId: t.id,
+    type: 'system',
+    tag: 'motoboy-pix-key-missing',
+  });
+}
+
 /** Avisos pós-commit (socket só para salas; sem chave Pix no payload). */
 export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' | 'lastError' | 'motoboyId' | 'storeId' | 'orderId' | 'amount'>): void {
   if (t.status === 'pending') return;
@@ -151,6 +185,9 @@ export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' |
     const payload = { transferId: t.id, orderId: t.orderId, storeId: t.storeId, amount: Number(t.amount), error: t.lastError };
     if (t.lastError === 'MOTOBOY_PIX_KEY_MISSING') {
       emitToRoom(`user:${t.motoboyId}`, 'motoboy:transfer_pix_key_missing', payload);
+      void noticeMotoboyPixKeyMissing(t).catch((err) => {
+        logger.warn('[motoboyTransfer] falha ao avisar o motoboy da chave Pix', { transferId: t.id, errName: (err as Error)?.name });
+      });
     }
     const shortId = String(t.orderId).slice(-6);
     const valor = Number(t.amount).toFixed(2).replace('.', ',');
