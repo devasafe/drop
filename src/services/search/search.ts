@@ -137,13 +137,14 @@ interface VisibleStore {
   isOpen: boolean;
   operatingHours: any;
   pausedUntil: Date | null;
+  openOverrideUntil: Date | null;
 }
 
 /** Mesmo filtro do `listStores`: KYC (com KYC_ENFORCED) AND mensalidade (modo direto). */
 async function visibleStores(): Promise<VisibleStore[]> {
   return prisma.store.findMany({
     where: await publicStoreVisibilityWhere(),
-    select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true, pausedUntil: true },
+    select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true, pausedUntil: true, openOverrideUntil: true },
   });
 }
 
@@ -157,8 +158,8 @@ async function storeScope(origin: LatLngPoint | null, openNow: boolean, now = ne
   let stores = await visibleStores();
   if (openNow) {
     const { dayIndex, minutes } = brazilNow(now);
-    // D1: loja pausada não está "aberta agora".
-    stores = stores.filter((s) => !isStorePaused(s, now) && isOpenAt(s, dayIndex, minutes));
+    // D1: loja pausada não está "aberta agora"; aberta fora do horário (override) está.
+    stores = stores.filter((s) => !isStorePaused(s, now) && isOpenAt(s, dayIndex, minutes, now));
   }
   const distById = new Map<string, number | null>();
   const ids: string[] = [];

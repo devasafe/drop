@@ -11,6 +11,8 @@ const PUBLIC_STORE_FIELDS = [
   'featuredBannerUrl', 'coverBannerUrl', 'createdAt',
   // D1: identidade e pausa (públicos: a vitrine mostra logo/frase e "volta às HH:MM").
   'logoUrl', 'tagline', 'pausedUntil',
+  // Aberta fora do horário até esta hora (o `openStatus` do frontend lê).
+  'openOverrideUntil',
 ] as const;
 
 export function toPublicStore(store: any): any {

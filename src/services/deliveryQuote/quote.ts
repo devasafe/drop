@@ -44,6 +44,8 @@ export interface QuoteStore {
   operatingHours?: any;
   /** D1: pausa da loja; enquanto no futuro, a cotação vem fechada. */
   pausedUntil?: Date | null;
+  /** Aberta fora do horário até este instante (o lojista abriu na mão). */
+  openOverrideUntil?: Date | null;
 }
 
 export interface LatLngPoint {
@@ -103,7 +105,10 @@ function openState(store: QuoteStore, now: Date): { open: boolean; opensAt?: str
   const paused = isStorePaused({ pausedUntil: store.pausedUntil ?? null }, now);
   const ref = paused ? new Date(store.pausedUntil as Date) : now;
   const { dayIndex, minutes } = brazilNow(ref);
-  const open = isOpenAt({ isOpen: store.isOpen, operatingHours: store.operatingHours }, dayIndex, minutes);
+  const open = isOpenAt(
+    { isOpen: store.isOpen, operatingHours: store.operatingHours, openOverrideUntil: store.openOverrideUntil },
+    dayIndex, minutes, ref,
+  );
   if (open && !paused) return { open: true };
   if (open && paused) return { open: false, opensAt: toHHMM(minutes) };
   // Fechada pelo toggle manual não tem hora de volta; só informa quando é o horário que fecha.

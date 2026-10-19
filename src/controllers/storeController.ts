@@ -23,6 +23,7 @@ import { toApiProduct } from './productController';
 import { findPublicCouponsForStore } from '../repositories/coupon.repository';
 import { ACTIVE_PRODUCT_WHERE } from '../services/catalog/activeProduct';
 import { isStoreOpenWithHoursNow } from '../utils/storeOpen';
+import { openOverrideUntilFor } from '../utils/storeHours';
 import { AppError } from '../utils/AppError';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { acceptDeadline, isAwaitingStoreAccept, storeAcceptTimeoutMin } from '../utils/acceptDeadline';
@@ -182,15 +183,26 @@ export const updateOperatingHours = async (req: AuthenticatedRequest, res: Respo
 
     const { operatingHours, isOpen } = req.body;
 
+    // Abrir (isOpen=true) fora do horário vale até a próxima virada: o servidor calcula o override
+    // com o horário que vai ficar gravado. Dentro do horário, ou fechando, o override sai.
+    // Sem isOpen no corpo o override fica como está.
+    const override = typeof isOpen === 'boolean'
+      ? { openOverrideUntil: isOpen ? openOverrideUntilFor({ operatingHours: operatingHours || store.operatingHours }) : null }
+      : {};
+
     const updated = await prisma.store.update({
       where: { id },
       data: {
         ...(typeof isOpen === 'boolean' ? { isOpen } : {}),
         ...(operatingHours ? { operatingHours } : {}),
+        ...override,
       },
     });
 
-    return res.json({ success: true, store: { isOpen: updated.isOpen, operatingHours: updated.operatingHours } });
+    return res.json({
+      success: true,
+      store: { isOpen: updated.isOpen, operatingHours: updated.operatingHours, openOverrideUntil: updated.openOverrideUntil },
+    });
   } catch (err) {
     logger.error('Erro ao atualizar horários da loja', err as Error);
     return res.status(500).json({ error: 'Erro ao atualizar horários' });

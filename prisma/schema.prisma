@@ -445,7 +445,10 @@ model Store {
   isOpen               Boolean   @default(true)
   /// D1: pausa temporária. "Aberta agora" = isOpen && (pausedUntil nulo ou vencido); sem job.
   pausedUntil          DateTime?
-  isVerified           Boolean   @default(false)
+  /// Lojista abriu fora do horário: aberta (ignorando operatingHours) até este instante, se isOpen
+  /// e sem pausa. Gravado pelo PUT operating-hours com isOpen=true; vence na leitura, sem job.
+  openOverrideUntil    DateTime?
+  isVerified          Boolean   @default(false)
   verification         Json?
   asaas                Json?
   deliveryRadiusKm     Float?
