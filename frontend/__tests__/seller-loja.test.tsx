@@ -87,10 +87,13 @@ test('troca recusada pelo servidor: não navega', async () => {
   expect(mockPush).not.toHaveBeenCalled();
 });
 
-test('só lojista: a seção não aparece', async () => {
+// Regra mudou em 19/10 (AreasSection): Cliente é sempre uma área — todo mundo pode comprar e o
+// servidor acrescenta 'cliente' ao lojista na troca. Antes, só lojista não via a seção.
+test('só lojista (conta antiga, sem cliente em roles): "Suas áreas" mostra Cliente', async () => {
   mockUser = { ...mockUser, roles: ['lojista'] };
   await renderPage();
-  expect(screen.queryByRole('heading', { name: 'Suas áreas' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Suas áreas' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Cliente/ })).toBeInTheDocument();
 });
 
 test('custódia: plano com a comissão do admin e atalho "Plano e comissão", sem Assinatura', async () => {

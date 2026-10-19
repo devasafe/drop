@@ -1,4 +1,4 @@
-import { ChangeEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Bell, Camera, ChartColumn, CirclePause, Clock, Headphones, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, Star, Store, Ticket, UserRound, Wallet,
@@ -9,9 +9,9 @@ import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvide
 import { PauseSheet, isPaused, pausedUntilLabel, resumeStore } from '../../components/seller/loja/PauseSheet';
 import { IdentitySheet, uploadStoreImage, MAX_IMAGE_BYTES } from '../../components/seller/loja/IdentitySheet';
 import { NavRow } from '../../components/seller/ui/NavRow';
+import { AreasSection } from '../../components/panel/AreasSection';
 import PushEnableBanner from '../../components/PushEnableBanner';
 import StoreQRCode from '../../components/StoreQRCode';
-import Icon from '../../components/Icon';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Sheet } from '../../components/ui/Sheet';
@@ -24,7 +24,6 @@ import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
 import { storeAnalytics, type StoreOverview } from '../../lib/analyticsApi';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
-import { ROLE_AREAS, ROLE_HOME } from '../../lib/navConfig';
 import { openStatus } from '../../lib/storeHours';
 import { summarizeHours } from '../../lib/sellerHours';
 import { payload, apiErrorMessage } from '../../lib/sellerApi';
@@ -37,7 +36,7 @@ const initials = (name?: string) => (name || 'Loja').split(/\s+/).slice(0, 2).ma
 
 export default function SellerLoja() {
   const router = useRouter();
-  const { user, logout, switchRole } = useAuth() || ({} as any);
+  const { logout } = useAuth() || ({} as any);
   const { store, orders, refresh } = useSellerPanel();
   // O hook devolve 'custodia' enquanto carrega e quando falha: o que depende do modo
   // (plano, comissão, Assinatura, Conta Asaas) só aparece com o modo confirmado.
@@ -82,14 +81,6 @@ export default function SellerLoja() {
     api.get('/settings/platform-config').then((r) => setConfig(payload(r))).catch(() => setConfig(null));
   }, [custodia]);
 
-  // Troca de perfil: mesma regra de /conta. O backend decide; se recusar, não navega.
-  const activeRole = user?.activeRole || user?.role || 'lojista';
-  const roles: string[] = user?.roles || (user?.role ? [user.role] : []);
-  const otherAreas = roles.length > 1 ? ROLE_AREAS.filter((a) => roles.includes(a.role) && a.role !== activeRole) : [];
-  const goToArea = async (role: string) => {
-    try { await switchRole(role); } catch { return; }
-    router.push(ROLE_HOME[role as keyof typeof ROLE_HOME]);
-  };
 
   const ratingCount = ratings?.length ?? 0;
   const ratingAvg = ratingCount ? ratings!.reduce((s, r) => s + Number(r.storeRating || 0), 0) / ratingCount : 0;
@@ -321,18 +312,7 @@ export default function SellerLoja() {
             </ul>
           </section>
 
-          {otherAreas.length > 0 && (
-            <section aria-label="Suas áreas" className={blocks.stack}>
-              <h2 className={blocks.cap}>Suas áreas</h2>
-              <ul className={blocks.list}>
-                {otherAreas.map((a) => (
-                  <Fragment key={a.role}>
-                    <NavRow icon={<Icon name={a.icon} size={20} />} label={a.label} sub={a.description} onClick={() => goToArea(a.role)} />
-                  </Fragment>
-                ))}
-              </ul>
-            </section>
-          )}
+          <AreasSection />
 
           <button type="button" className={styles.logout} onClick={() => logout?.()}>
             <LogOut size={20} aria-hidden="true" /> Sair

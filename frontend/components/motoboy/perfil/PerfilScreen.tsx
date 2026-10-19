@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { Bike, Headphones, KeyRound, LogOut, ShieldCheck, User } from 'lucide-react';
 import MotoboyShell from '../panel/MotoboyShell';
 import { NavRow } from '../../panel/NavRow';
+import { AreasSection } from '../../panel/AreasSection';
 import blocks from '../../panel/PanelBlocks.module.css';
 import MotoboyRatingsBlock from '../../MotoboyRatingsBlock';
 import { Alert } from '../../ui/Alert';
@@ -128,6 +129,8 @@ export function PerfilScreen() {
             <Switch label="Tela escura à noite" description="Automático das 18h às 6h" checked={night} onChange={toggleNight} />
           </li>
         </ul>
+
+        <AreasSection />
 
         <ul className={blocks.list}>
           <NavRow icon={<User size={20} />} label="Dados e senha" sub="E-mail, celular, alterar senha" onClick={() => router.push(MOTOBOY_ROUTES.perfilDados)} />

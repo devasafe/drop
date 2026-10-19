@@ -116,3 +116,11 @@ test('rota: aba com barra, noturna, redirect do profile e página antiga apagada
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/MotoboyProfile.module.css'))).toBe(false);
   expect(fs.readFileSync(path.join(ROOT, 'components/motoboy/perfil/PerfilScreen.tsx'), 'utf8')).not.toMatch(/style=\{\{/);
 });
+
+test('bug 19/10: a aba Perfil mostra "Suas áreas" com Cliente para voltar ao app', async () => {
+  render(<MotoboyPerfil />);
+  expect(await screen.findByText('★ 4,5 (2) · desde jul/2026')).toBeInTheDocument();
+  expect(await screen.findByText('Moto · FKR2D19')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Suas áreas' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Cliente/ })).toBeInTheDocument();
+});
