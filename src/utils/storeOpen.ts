@@ -22,14 +22,14 @@ export function isStoreOpenNow(store: { isOpen: boolean; pausedUntil?: Date | nu
   return !!store.isOpen && !isStorePaused(store, now);
 }
 
-/** `isStoreOpenNow` + horário de funcionamento (fuso de São Paulo). É o `isOpenNow` do GET público da loja. */
+/** `isStoreOpenNow` + horário de funcionamento (fuso de São Paulo) e o override de abrir fora do horário. É o `isOpenNow` do GET público da loja. */
 export function isStoreOpenWithHoursNow(
-  store: { isOpen: boolean; pausedUntil?: Date | null; operatingHours?: any },
+  store: { isOpen: boolean; pausedUntil?: Date | null; operatingHours?: any; openOverrideUntil?: Date | null },
   now: Date = new Date(),
 ): boolean {
   if (!isStoreOpenNow(store, now)) return false;
   const { dayIndex, minutes } = brazilNow(now);
-  return isOpenAt(store, dayIndex, minutes);
+  return isOpenAt(store, dayIndex, minutes, now);
 }
 
 /**

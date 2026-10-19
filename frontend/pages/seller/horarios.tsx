@@ -46,7 +46,9 @@ export default function SellerHorarios() {
   const sub = paused
     ? 'Reabre sozinha nesse horário'
     : st?.open
-      ? (st.closesAt ? `Fecha hoje às ${st.closesAt}` : 'Sem horário definido para hoje')
+      ? st.overrideUntil
+        ? `Aberta fora do horário até ${st.overrideUntil}`
+        : (st.closesAt ? `Fecha hoje às ${st.closesAt}` : 'Sem horário definido para hoje')
       : (st?.opensAt ? `Abre hoje às ${st.opensAt}` : 'Fora do horário de hoje');
 
   return (

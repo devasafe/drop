@@ -559,3 +559,69 @@ describe('V13 · dica "Primeiro pedido? É só aceitar." (protótipo, tela 1)', 
     expect(screen.queryByText(/É só aceitar\./)).toBeNull();
   });
 });
+
+describe('abrir fora do horário (openOverrideUntil)', () => {
+  // Quarta 21/10/2026, horário de São Paulo (-03:00); a loja abre 10:00–18:00.
+  const sp = (hhmm: string) => new Date(`2026-10-21T${hhmm}:00-03:00`);
+  const hours = { wednesday: { open: '10:00', close: '18:00', closed: false } };
+  // Só o Date é falso: timers e microtasks reais para o RTL.
+  const at = (d: Date) => jest.useFakeTimers({
+    now: d,
+    doNotFake: ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame',
+      'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval',
+      'setTimeout', 'clearTimeout'] as any,
+  });
+  afterEach(() => { jest.useRealTimers(); });
+
+  test('isOpen ligado mas fora do horário: "Loja fechada", "Fechada pelo horário. Abre às 10:00"', async () => {
+    at(sp('07:00'));
+    mockPanel.store = { ...mockPanel.store, isOpen: true, operatingHours: hours };
+    await renderAgora();
+    const sw = screen.getByRole('switch', { name: 'Loja fechada' });
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText('Fechada pelo horário. Abre às 10:00')).toBeInTheDocument();
+    expect(screen.getByText('Fechada pelo horário')).toBeInTheDocument();
+    expect(screen.queryByText('Você está fechada')).toBeNull();
+    expect(screen.queryByText('Recebendo pedidos')).toBeNull();
+  });
+
+  test('fora do horário, depois de fechar: só "Fechada pelo horário"', async () => {
+    at(sp('20:00'));
+    mockPanel.store = { ...mockPanel.store, isOpen: true, operatingHours: hours };
+    await renderAgora();
+    expect(screen.getByRole('switch', { name: 'Loja fechada' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getAllByText('Fechada pelo horário').length).toBeGreaterThan(0);
+  });
+
+  test('ligar fora do horário chama o PUT com isOpen: true (o servidor cria o override)', async () => {
+    at(sp('07:00'));
+    put.mockResolvedValue({ data: {} });
+    mockPanel.store = { ...mockPanel.store, isOpen: true, operatingHours: hours };
+    await renderAgora();
+    fireEvent.click(screen.getByRole('switch', { name: 'Loja fechada' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/stores/s1/operating-hours', { isOpen: true }));
+    expect(mockPanel.refresh).toHaveBeenCalled();
+  });
+
+  test('"Abrir agora" do aviso fora do horário também chama o PUT com isOpen: true', async () => {
+    at(sp('20:00'));
+    put.mockResolvedValue({ data: {} });
+    mockPanel.store = { ...mockPanel.store, isOpen: true, operatingHours: hours };
+    await renderAgora();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir agora' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/stores/s1/operating-hours', { isOpen: true }));
+  });
+
+  test('com override: "Loja aberta", "Aberta fora do horário até 23:59"; desligar fecha', async () => {
+    at(sp('20:00'));
+    put.mockResolvedValue({ data: {} });
+    mockPanel.store = { ...mockPanel.store, isOpen: true, operatingHours: hours, openOverrideUntil: sp('23:59').toISOString() };
+    await renderAgora();
+    const sw = screen.getByRole('switch', { name: 'Loja aberta' });
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Aberta fora do horário até 23:59')).toBeInTheDocument();
+    expect(screen.queryByText('Fechada pelo horário')).toBeNull();
+    fireEvent.click(sw);
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/stores/s1/operating-hours', { isOpen: false }));
+  });
+});
