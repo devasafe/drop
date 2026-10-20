@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { getQueue, getSummary, listOrders, getOrderDetail, getMap } from '../controllers/adminOpsController';
+import { getAdminCancelPreview } from '../controllers/adminOpsActionsController';
 
 const router = Router();
 const canViewOps = authorizePermission('operation:view');
@@ -24,5 +25,8 @@ router.get('/orders', authenticate, canViewOps, listOrders);
 
 // GET /api/admin/orders/:id — Pedido · visão do admin (spec 3.3); PIN, CPF e e-mail nunca saem
 router.get('/orders/:id', authenticate, canViewOps, getOrderDetail);
+
+// D3b-1 · P2.2 — prévia do cancelamento do admin por culpa
+router.get('/orders/:id/cancel-preview', authenticate, authorizePermission('order:admin_cancel'), getAdminCancelPreview);
 
 export default router;
