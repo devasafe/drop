@@ -176,7 +176,7 @@ function MapaAoVivo() {
               <div><dt>Teto</dt><dd>{kmLabel(data.dispatch.maxKm)}</dd></div>
               <div><dt>Sem motoboy depois de</dt><dd>{`${data.dispatch.poolTimeoutMin} min`}</dd></div>
             </dl>
-            <p className={blocks.muted}>Só leitura: vem da configuração do servidor (DISPATCH_*).</p>
+            <p className={blocks.muted}>Só leitura: vem da configuração do servidor.</p>
           </section>
         </div>
       </div>

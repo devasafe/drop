@@ -93,6 +93,16 @@ describe('listAdminOrders', () => {
     ]);
   });
 
+  it('com filtro de loja, meta.attention conta só a loja filtrada', async () => {
+    await seed();
+    const outraLoja = await createOpsStore(DOMAIN, { name: 'Outra Loja' });
+    await createOpsOrder({ customerId: cliente.userId, storeId: outraLoja, status: 'pago', createdAt: ago(13), paidAt: ago(12) });
+    expect((await listAdminOrders({ filter: 'todos', storeId }, NOW)).meta.attention).toBe(6);
+    expect((await listAdminOrders({ filter: 'atencao', storeId }, NOW)).meta.attention).toBe(6);
+    expect((await listAdminOrders({ filter: 'todos', storeId: outraLoja }, NOW)).meta.attention).toBe(1);
+    expect((await listAdminOrders({ filter: 'todos' }, NOW)).meta.attention).toBeGreaterThanOrEqual(7);
+  });
+
   it('filtros: todos, aguardando Pix, na loja, em entrega e cancelados hoje', async () => {
     const s = await seed();
     const list = async (filter: any) => ids((await listAdminOrders({ filter, storeId }, NOW)).items);

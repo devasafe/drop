@@ -70,10 +70,11 @@ async function loadMotoboy(id: string): Promise<AdminOrderDetail['motoboy']> {
 
 /** Pedidos do cliente e cancelamentos de 30 dias que contam contra ele (inclui culpa do cliente dada pelo admin). */
 async function loadCustomerStats(customerId: string, now: Date) {
-  const orders = await prisma.order.findMany({ where: { customerId }, select: { id: true } });
-  const ids = orders.map((o) => o.id);
-  const cancellations30d = await countCustomerCancellations30d(customerId, now);
-  return { ordersCount: ids.length, cancellations30d };
+  const [ordersCount, cancellations30d] = await Promise.all([
+    prisma.order.count({ where: { customerId } }),
+    countCustomerCancellations30d(customerId, now),
+  ]);
+  return { ordersCount, cancellations30d };
 }
 
 async function namesById(ids: string[]): Promise<Map<string, string>> {

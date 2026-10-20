@@ -194,18 +194,18 @@ export async function listAdminOrders(
 ): Promise<AdminOrdersResponse> {
   const limits = await readOpsLimits();
   const day = saoPauloDayRange(now);
-  const scan = await scanAttention(await filterWhere('atencao', day.start), limits, now, opts.attentionScanMax ?? ATTENTION_SCAN_MAX);
-  const allAttention = scan.rows;
-  const meta = await ordersMeta(limits, allAttention.length, scan.truncated, day.start, now);
+  const storeWhere: Prisma.OrderWhereInput = input.storeId ? { storeId: input.storeId } : {};
+  // Com filtro de loja, a varredura e o meta.attention são só dessa loja.
+  const scan = await scanAttention(
+    { AND: [await filterWhere('atencao', day.start), storeWhere] }, limits, now, opts.attentionScanMax ?? ATTENTION_SCAN_MAX,
+  );
+  const meta = await ordersMeta(limits, scan.rows.length, scan.truncated, day.start, now);
 
-  if (input.filter === 'atencao') {
-    const items = input.storeId ? allAttention.filter((r) => r.store.id === input.storeId) : allAttention;
-    return { items, nextCursor: null, meta };
-  }
+  if (input.filter === 'atencao') return { items: scan.rows, nextCursor: null, meta };
 
   const page = parseCursorPage({ cursor: input.cursor }, { defaultLimit: ORDERS_PAGE_SIZE, maxLimit: ORDERS_PAGE_SIZE });
   const records = await prisma.order.findMany({
-    where: { AND: [await filterWhere(input.filter, day.start), input.storeId ? { storeId: input.storeId } : {}, page.where] },
+    where: { AND: [await filterWhere(input.filter, day.start), storeWhere, page.where] },
     orderBy: page.orderBy,
     take: page.take,
     select: ORDER_ROW_SELECT,

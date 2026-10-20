@@ -152,6 +152,8 @@ describe('listas', () => {
     expect(within(despacho).getByText('Teto').parentElement).toHaveTextContent('12 km');
     expect(within(despacho).getByText('Sem motoboy depois de').parentElement).toHaveTextContent('8 min');
     expect(within(despacho).queryByRole('button')).toBeNull();
+    // Nome de variável de ambiente não aparece na tela (revisão final).
+    expect(despacho).not.toHaveTextContent('DISPATCH_');
   });
 });
 
