@@ -56,6 +56,8 @@ export const ADMIN_MONEY_ACTION_TYPES = [
   'wallet_adjust', 'commission_sync', 'motoboy_transfer_retry', 'motoboy_transfer_resolve', 'direct_refund_resolve',
   // D3b-1 (P2.3): cancelamento do admin com estorno, alvo 'order'.
   'order_admin_cancel',
+  // D3b-1: "Ver chave" do Pix manual do DROP (consulta auditada), alvo 'motoboy_transfer'.
+  'motoboy_transfer_pix_reveal',
 ] as const;
 export type AdminMoneyActionType = (typeof ADMIN_MONEY_ACTION_TYPES)[number];
 
@@ -130,6 +132,7 @@ export const ACTION_TYPE_LABEL: Record<AdminMoneyActionType, string> = {
   motoboy_transfer_resolve: 'Pix ao motoboy resolvido',
   direct_refund_resolve: 'Estorno resolvido',
   order_admin_cancel: 'Pedido cancelado pelo admin',
+  motoboy_transfer_pix_reveal: 'Chave Pix revelada (Pix manual do DROP)',
 };
 
 const TARGET_LABEL: Record<string, string> = {

@@ -7,6 +7,8 @@
  * D3b-1: compensação com culpa platform vira Pix manual do DROP (payer 'platform', PLATFORM_MANUAL_PIX). O job nunca
  * o envia e o retry responde 409 TRANSFER_MANUAL_PIX: sem "Tentar agora"; o admin paga pelo banco e usa "Resolver".
  * Item sem `payer` (lista antiga) é Pix da loja.
+ * "Ver chave" (só Pix manual, payout:release): GET /admin/transfers/:id/pix-key, auditado no Histórico do Dinheiro.
+ * A chave vive só no estado local da folha e some ao fechar; nunca vai para log.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -56,6 +58,11 @@ const TONE: Record<string, StatusTone> = {
 const ACTIONABLE = ['failed', 'failed_final', 'uncertain'];
 const RETRYABLE = ['failed', 'failed_final'];
 
+interface RevealedKey { pixKey: string; pixKeyType: string | null; motoboyName: string | null; amount: number }
+const PIX_TYPE_LABEL: Record<string, string> = {
+  CPF: 'CPF', CNPJ: 'CNPJ', EMAIL: 'E-mail', PHONE: 'Telefone', EVP: 'Chave aleatória',
+};
+
 const who = (r: Row) => `${r.storeName ?? 'Loja'} → ${r.motoboyName ?? 'Motoboy'}`;
 const isManualPix = (r: Row) => r.payer === 'platform';
 
@@ -73,6 +80,11 @@ export default function AdminTransfersPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [resolving, setResolving] = useState<Row | null>(null);
   const [note, setNote] = useState('');
+  const [keyRow, setKeyRow] = useState<Row | null>(null);
+  const [revealed, setRevealed] = useState<RevealedKey | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
+  /** Cada abertura/fechamento invalida a busca em voo: resposta tardia não traz a chave de volta. */
+  const keyGen = useRef(0);
 
   // Geração da consulta: cada carga da 1ª página (troca de filtro, recarga) invalida as respostas em voo,
   // e um "Carregar mais" disparado antes não anexa linhas da lista antiga (igual à página antiga).
@@ -144,6 +156,39 @@ export default function AdminTransfersPage() {
     await load();
   };
 
+  const fetchKey = async (r: Row) => {
+    const gen = ++keyGen.current;
+    setRevealed(null);
+    setKeyError(null);
+    try {
+      const res = await api.get(`/admin/transfers/${r.id}/pix-key`);
+      if (gen === keyGen.current) setRevealed(res.data?.data ?? null);
+    } catch (err) {
+      if (gen === keyGen.current) setKeyError(serverErrorMessage(err, 'Não foi possível buscar a chave Pix.'));
+    }
+  };
+
+  const openKey = (r: Row) => {
+    setKeyRow(r);
+    fetchKey(r);
+  };
+
+  const closeKey = () => {
+    keyGen.current++;
+    setKeyRow(null);
+    setRevealed(null);
+    setKeyError(null);
+  };
+
+  const copyKey = async () => {
+    if (!revealed) return;
+    try {
+      await navigator.clipboard?.writeText(revealed.pixKey);
+    } catch {
+      /* sem clipboard (http, permissão): a chave continua visível para copiar à mão */
+    }
+  };
+
   const columns: AdminColumn<Row>[] = [
     { key: 'quem', header: 'Loja → motoboy', primary: true, render: who },
     { key: 'pedido', header: 'Pedido', render: (r) => <span className={ui.mono}>{`#${String(r.orderId).slice(-6)}`}</span> },
@@ -174,6 +219,9 @@ export default function AdminTransfersPage() {
       <div className={ui.rowActions}>
         {RETRYABLE.includes(r.status) && !isManualPix(r) && (
           <Button size="sm" className={ui.touch} loading={busy === r.id} onClick={() => retry(r)}>Tentar agora</Button>
+        )}
+        {isManualPix(r) && (
+          <Button size="sm" variant="tertiary" className={ui.touch} onClick={() => openKey(r)}>Ver chave</Button>
         )}
         <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setResolving(r); setNote(''); }}>
           Resolver
@@ -237,6 +285,28 @@ export default function AdminTransfersPage() {
             placeholder={resolving && isManualPix(resolving) ? 'Ex.: Pix pago pelo banco do DROP, comprovante 123' : 'Ex.: conferido no painel do Asaas, Pix concluído'}
             hint="Mínimo de 10 caracteres. Fica no histórico da transferência."
           />
+        </AdminSheet>
+
+        <AdminSheet open={!!keyRow} title="Chave Pix do motoboy" onClose={closeKey} secondaryLabel="Fechar">
+          {keyError ? (
+            <div className={ui.result}>
+              <p role="alert" className={ui.formError}>{keyError}</p>
+              <Button variant="secondary" className={ui.touch} onClick={() => keyRow && fetchKey(keyRow)}>Tentar de novo</Button>
+            </div>
+          ) : revealed ? (
+            <div className={ui.result}>
+              <dl className={ui.detail}>
+                <div><dt>Motoboy</dt><dd>{revealed.motoboyName ?? keyRow?.motoboyName ?? 'Motoboy'}</dd></div>
+                <div><dt>Valor</dt><dd>{formatMoney(Number(revealed.amount))}</dd></div>
+                <div><dt>Tipo</dt><dd>{revealed.pixKeyType ? PIX_TYPE_LABEL[revealed.pixKeyType] ?? revealed.pixKeyType : 'Não informado'}</dd></div>
+                <div><dt>Chave</dt><dd className={ui.mono}>{revealed.pixKey}</dd></div>
+              </dl>
+              <Button variant="secondary" className={ui.touch} onClick={copyKey}>Copiar chave</Button>
+            </div>
+          ) : (
+            <p className={blocks.muted}>Buscando a chave…</p>
+          )}
+          <p className={ui.hint}>Esta consulta fica registrada no Histórico do Dinheiro.</p>
         </AdminSheet>
       </AdminShell>
     </ProtectedRoute>
