@@ -10,6 +10,7 @@ import { buildQueue } from '../services/adminOps/queue';
 import { getOpsSummary } from '../services/adminOps/summary';
 import { listAdminOrders, ORDERS_FILTERS } from '../services/adminOps/orders';
 import { OrdersFilter } from '../services/adminOps/types';
+import { getAdminOrderDetail } from '../services/adminOps/orderDetail';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
@@ -55,5 +56,18 @@ export const listOrders = async (req: AuthenticatedRequest, res: Response) => {
     return res.json(await listAdminOrders({ filter: filter as OrdersFilter, storeId, cursor }));
   } catch (err) {
     return sendOpsReadFailure(res, err, 'os pedidos');
+  }
+};
+
+// GET /api/admin/orders/:id — Pedido · visão do admin (spec 3.3)
+export const getOrderDetail = async (req: AuthenticatedRequest, res: Response) => {
+  const id = String(req.params.id ?? '');
+  try {
+    const can = await permissionCheckFor(req.user);
+    const detail = id && id.length <= 64 ? await getAdminOrderDetail(id, can) : null;
+    if (!detail) return res.status(404).json({ error: 'Pedido não encontrado', code: 'ORDER_NOT_FOUND' });
+    return res.json(detail);
+  } catch (err) {
+    return sendOpsReadFailure(res, err, 'o pedido');
   }
 };
