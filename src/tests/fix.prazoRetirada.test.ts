@@ -49,16 +49,22 @@ afterEach(async () => {
 async function assignedOrder(orderStatus: any = 'aguardando_motoboy') {
   const o = await createOpsOrder({
     customerId: cliente.userId, storeId, status: orderStatus, acceptedAt: minutesAgo(60),
-    delivery: { status: 'assigned', motoboyId: motoboy.userId, assignedAt: minutesAgo(45), pin: '1234', pinRetirada: '5678' },
+    delivery: { status: 'assigned', motoboyId: motoboy.userId, assignedAt: minutesAgo(45), pin: '1234', pinRetirada: '5678', createdAt: minutesAgo(60) },
   });
   await prisma.delivery.update({ where: { id: o.deliveryId! }, data: { updatedAt: minutesAgo(40) } });
   return o;
 }
 
-const expectNoNotices = () => {
-  expect(emitToRoomSpy).not.toHaveBeenCalled();
-  expect(adminChangedSpy).not.toHaveBeenCalled();
-  expect(notifyMotoboysSpy).not.toHaveBeenCalled();
+// Filtra pelos ids do teste: sobras de outras suítes no banco não contam.
+const roomsOf = (o: { orderId: string; deliveryId: string | null }) =>
+  emitToRoomSpy.mock.calls.filter((c) => c[2]?.orderId === o.orderId || c[2]?.deliveryId === o.deliveryId).map((c) => c[0]);
+const adminCallsOf = (o: { orderId: string }) => adminChangedSpy.mock.calls.filter((c) => c[0] === o.orderId);
+const motoboyCallsOf = (o: { deliveryId: string | null }) =>
+  notifyMotoboysSpy.mock.calls.filter((c) => c[0]?.delivery?.id === o.deliveryId);
+const expectNoNotices = (o: { orderId: string; deliveryId: string | null }) => {
+  expect(roomsOf(o)).toEqual([]);
+  expect(adminCallsOf(o)).toEqual([]);
+  expect(motoboyCallsOf(o)).toEqual([]);
 };
 
 it('caso normal: devolve a corrida ao pool como nova e avisa', async () => {
@@ -74,10 +80,9 @@ it('caso normal: devolve a corrida ao pool como nova e avisa', async () => {
   expect(d!.createdAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
   expect((await prisma.order.findUnique({ where: { id: o.orderId } }))!.status).toBe('aguardando_motoboy');
 
-  expect(adminChangedSpy).toHaveBeenCalledWith(o.orderId, 'aguardando_motoboy');
-  const rooms = emitToRoomSpy.mock.calls.map((c) => c[0]);
-  expect(rooms).toEqual(expect.arrayContaining([`user:${cliente.userId}`, `store:${storeId}`, `user:${motoboy.userId}`]));
-  expect(notifyMotoboysSpy).toHaveBeenCalledTimes(1);
+  expect(adminCallsOf(o)).toEqual([[o.orderId, 'aguardando_motoboy']]);
+  expect(roomsOf(o).sort()).toEqual([`store:${storeId}`, `user:${cliente.userId}`, `user:${motoboy.userId}`].sort());
+  expect(motoboyCallsOf(o)).toHaveLength(1);
 });
 
 it.each(['cancelado', 'rejeitado', 'entregue'])('pedido %s com entrega ainda assigned: nada muda e nada é avisado', async (status) => {
@@ -88,7 +93,7 @@ it.each(['cancelado', 'rejeitado', 'entregue'])('pedido %s com entrega ainda ass
   expect(await prisma.delivery.findUnique({ where: { id: o.deliveryId! } })).toMatchObject({
     status: 'assigned', motoboyId: motoboy.userId,
   });
-  expectNoNotices();
+  expectNoNotices(o);
 });
 
 it('retirada entre a leitura e a escrita: a entrega continua picked e nada é avisado', async () => {
@@ -96,7 +101,7 @@ it('retirada entre a leitura e a escrita: a entrega continua picked e nada é av
   const original = prisma.delivery.findMany.bind(prisma.delivery);
   jest.spyOn(prisma.delivery, 'findMany').mockImplementationOnce((async (args: any) => {
     const list = await original(args);
-    await prisma.delivery.update({ where: { id: o.deliveryId! }, data: { status: 'picked', pickedAt: new Date() } });
+    await prisma.delivery.update({ where: { id: o.deliveryId! }, data: { status: 'picked', pickedAt: new Date(), updatedAt: minutesAgo(40) } });
     return list;
   }) as any);
 
@@ -106,7 +111,7 @@ it('retirada entre a leitura e a escrita: a entrega continua picked e nada é av
     status: 'picked', motoboyId: motoboy.userId,
   });
   expect((await prisma.order.findUnique({ where: { id: o.orderId } }))!.status).toBe('aguardando_motoboy');
-  expectNoNotices();
+  expectNoNotices(o);
 });
 
 it('depois do job, o poolTimeout não marca a entrega devolvida como aguardando decisão do cliente', async () => {
@@ -115,4 +120,25 @@ it('depois do job, o poolTimeout não marca a entrega devolvida como aguardando 
   await runPoolTimeout();
 
   expect((await prisma.order.findUnique({ where: { id: o.orderId } }))!.awaitingCustomerPoolDecision).toBe(false);
+});
+
+it('pedido criado com entrega assigned antiga: devolve a entrega e o pedido continua criado', async () => {
+  const o = await assignedOrder('criado');
+  await runDeliveryTimeout();
+
+  expect(await prisma.delivery.findUnique({ where: { id: o.deliveryId! } })).toMatchObject({ status: 'pending', motoboyId: null });
+  expect((await prisma.order.findUnique({ where: { id: o.orderId } }))!.status).toBe('criado');
+});
+
+it('erro numa entrega não impede a seguinte de ser devolvida', async () => {
+  const a = await assignedOrder();
+  const b = await assignedOrder();
+  const original = prisma.$transaction.bind(prisma) as any;
+  jest.spyOn(prisma, '$transaction').mockRejectedValueOnce(new Error('falha simulada') as never)
+    .mockImplementation(((...args: any[]) => original(...args)) as any);
+
+  await runDeliveryTimeout();
+
+  const states = await prisma.delivery.findMany({ where: { id: { in: [a.deliveryId!, b.deliveryId!] } }, select: { status: true } });
+  expect(states.map((d) => d.status).sort()).toEqual(['assigned', 'pending']);
 });

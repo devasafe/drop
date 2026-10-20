@@ -1,4 +1,5 @@
 import { CronJob } from 'cron';
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
 import { emitAdminOrderChanged, emitToRoom } from '../utils/socketEmitter';
@@ -23,8 +24,10 @@ import logger from '../config/logger';
 // Intervalo de timeout em minutos (30 min)
 const DELIVERY_TIMEOUT_MINUTES = 30;
 
-// Pedido ainda vivo: só nestes a corrida pode voltar ao pool.
-const LIVE_ORDER_STATUSES = ['pago', 'aguardando_motoboy', 'enviado'];
+// Pedido fechado: a corrida não volta ao pool (mesma regra do reassign).
+const CLOSED_ORDER_STATUSES = ['entregue', 'cancelado', 'rejeitado'];
+// Só estes viram 'aguardando_motoboy'; um 'criado' com entrega legada só devolve a entrega.
+const LIVE_ORDER_STATUSES: OrderStatus[] = ['pago', 'aguardando_motoboy', 'enviado'];
 
 /** Uma varredura (separada do agendamento para ser testável, como runPoolTimeout). */
 export async function runDeliveryTimeout(): Promise<void> {
@@ -59,7 +62,7 @@ export async function runDeliveryTimeout(): Promise<void> {
         // leitura e a escrita vencem o job.
         const won = await prisma.$transaction(async (tx) => {
           const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
-          if (!rows.length || !LIVE_ORDER_STATUSES.includes(rows[0].status)) return false;
+          if (!rows.length || CLOSED_ORDER_STATUSES.includes(rows[0].status)) return false;
           const { count } = await tx.delivery.updateMany({
             where: { id: delivery.id, status: 'assigned', motoboyId, updatedAt: { lt: timeoutThreshold } },
             data: {
@@ -69,7 +72,7 @@ export async function runDeliveryTimeout(): Promise<void> {
           });
           if (count !== 1) return false;
           await tx.order.updateMany({
-            where: { id: order.id, status: { in: LIVE_ORDER_STATUSES as any } },
+            where: { id: order.id, status: { in: LIVE_ORDER_STATUSES } },
             data: { status: 'aguardando_motoboy' },
           });
           return true;
