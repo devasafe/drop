@@ -5,7 +5,7 @@ import { calculateCancellationFee } from '../../utils/cancellationFee';
 import { isDirectOrder } from '../../utils/settlement';
 import { directCustomerRefund } from '../asaasLoja/directCancellation';
 import { cancelFeeConfigOf } from './feeConfig';
-import { round2 } from './shared';
+import { round2, motoboyOnTheWay } from './shared';
 import { CUSTOMER_CANCELLABLE } from './customerRule';
 
 /**
@@ -17,13 +17,13 @@ export async function customerCancelPreview(order: any): Promise<Record<string, 
     return { cancellable: false, reason: 'STATUS', status: order.status };
   }
   const del = order.deliveryId
-    ? await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } })
+    ? await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { status: true, motoboyId: true, statusDevolucao: true } })
     : null;
   if (del?.statusDevolucao === 'aguardando_confirmacao') {
     return { cancellable: false, reason: 'RETURN_IN_PROGRESS', status: order.status };
   }
   const feeConfig = cancelFeeConfigOf(await getPlatformConfig());
-  const motoboyEnRoute = order.status === 'enviado' && !!order.deliveryId && !!del?.motoboyId;
+  const motoboyEnRoute = motoboyOnTheWay(order.status, del);
   const fee = calculateCancellationFee({
     actor: 'customer', motoboyInvolved: motoboyEnRoute,
     orderTotal: order.totalValue || 0, deliveryFee: order.deliveryFee || 0, config: feeConfig,

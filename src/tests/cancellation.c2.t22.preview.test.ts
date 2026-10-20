@@ -53,13 +53,15 @@ it('outro cliente não vê; pedido inexistente é 404; nada muda no pedido', asy
   expect(depois!.status).toBe('pago');
 });
 
-it('a prévia acompanha o status: o mesmo pedido muda de grátis para com taxa, sem gravar nada', async () => {
+it('a prévia acompanha a etapa da entrega: grátis com o motoboy indo à loja, com taxa depois da retirada, sem gravar nada', async () => {
   const { cliente, order } = await cenario('aguardando_motoboy', { motoboy: true });
+  // D3b-1 P2.1b: "em rota" é a entrega retirada (picked). Indo à loja (assigned) é grátis.
+  await prisma.delivery.updateMany({ where: { orderId: order.id }, data: { status: 'assigned' } });
   expect((await preview(order.id, cliente)).body.data).toMatchObject({ fee: 0, refund: 244, motoboyEnRoute: false });
-  await prisma.order.update({ where: { id: order.id }, data: { status: 'enviado' } });
+  await prisma.delivery.updateMany({ where: { orderId: order.id }, data: { status: 'picked' } });
   expect((await preview(order.id, cliente)).body.data).toMatchObject({ fee: 7.4, refund: 236.6, motoboyEnRoute: true });
   expect(await prisma.cancellation.count({ where: { orderId: order.id } })).toBe(0);
-  expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('enviado');
+  expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('aguardando_motoboy');
 });
 
 it('usuario bloqueado leva 403, como no POST /cancel', async () => {

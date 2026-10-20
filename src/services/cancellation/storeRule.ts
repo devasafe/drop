@@ -67,7 +67,9 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   // Aceite da loja: divisor entre REJEITAR (antes do aceite, sem taxa) e CANCELAR
   // (após o aceite, taxa da entrega — spec §3.2). `isLate` continua só como rótulo.
   const storeAccepted = !!order.acceptedAt;
-  const isLate = order.status === 'enviado';
+  // Etapa real (D3b-1 B2): retirada = 'picked'. Para a loja nada muda (entrega retirada tem
+  // motoboy e o guard acima barra); vale para o admin com culpa da loja.
+  const isLate = order.status === 'enviado' || delivery?.status === 'picked';
   const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
   const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
   const refundAmount = order.totalValue || 0;

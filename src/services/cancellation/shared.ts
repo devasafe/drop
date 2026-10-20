@@ -19,3 +19,15 @@ export function directRefundStatus(order: any, flow: string, amount: number): 'p
   }
   return 'processed';
 }
+
+/**
+ * Motoboy "em rota" (já retirou o pedido na loja): é o que liga a taxa do cliente e a
+ * compensação do motoboy. Na operação o pedido fica em 'aguardando_motoboy' e só a entrega vai a
+ * 'picked' (D3b-1, B2); 'enviado' continua valendo para pedido antigo gravado com esse status.
+ */
+export function motoboyOnTheWay(
+  orderStatus: string,
+  delivery: { status?: string | null; motoboyId?: string | null } | null | undefined,
+): boolean {
+  return !!delivery?.motoboyId && (delivery.status === 'picked' || orderStatus === 'enviado');
+}

@@ -19,7 +19,7 @@ import {
   directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation, CancellationClaimLostError,
 } from '../asaasLoja/directCancellation';
 import { cancelFeeConfigOf } from './feeConfig';
-import { round2, directRefundStatus } from './shared';
+import { round2, directRefundStatus, motoboyOnTheWay } from './shared';
 import { AdminCancelActor, CancelRuleResult, adminCancellationFields } from './types';
 
 /** Estados em que o cliente pode cancelar — os MESMOS do cancelamento e da prévia. */
@@ -58,9 +58,9 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
   const orderId = String(order.id);
   const customerId = String(order.customerId);
 
-  // Estados canceláveis pelo cliente. Inclui 'aguardando_motoboy' (loja já
-  // aceitou, motoboy ainda não retirou) — reembolso é GRÁTIS/total nesse caso
-  // (ver motoboyEnRoute/fee abaixo: taxa só vale em 'enviado').
+  // Estados canceláveis pelo cliente. Inclui 'aguardando_motoboy' (loja já aceitou) — o
+  // reembolso é GRÁTIS/total até o motoboy retirar o pedido
+  // (ver motoboyEnRoute/fee abaixo: taxa só vale com a entrega retirada, motoboyOnTheWay).
   const cancellableStatuses = CUSTOMER_CANCELLABLE;
   if (!cancellableStatuses.includes(order.status)) {
     return {
@@ -74,18 +74,15 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
     return { status: 400, refusal: 'NOT_CANCELLABLE', body: { error: 'Pedido já foi entregue. Devolução deve ser solicitada.' } };
   }
 
-  // `isLate` continua só para ROTULAGEM (reasonCode/isLateCancellation) — NÃO decide mais
-  // se cobra a taxa. A taxa passa a valer sempre que há motoboy aceito (motoboyInvolved).
-  const isLate = order.status === 'enviado';
   const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
   const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
 
   const cfg = await getPlatformConfig();
   const feeConfig = cancelFeeConfigOf(cfg);
   let compMotoboyId: string | null = null;
-  let deliveryForGuard: { motoboyId: string | null; statusDevolucao: string | null } | null = null;
+  let deliveryForGuard: { status: string; motoboyId: string | null; statusDevolucao: string | null } | null = null;
   if (order.deliveryId) {
-    const del = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+    const del = await prisma.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { status: true, motoboyId: true, statusDevolucao: true } });
     deliveryForGuard = del ?? null;
     compMotoboyId = del?.motoboyId ?? null;
   }
@@ -97,9 +94,12 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
   }
 
   const motoboyInvolved = !!order.deliveryId && !!compMotoboyId;
-  // Taxa do CLIENTE = valor da entrega, só com o motoboy em rota ('enviado'); a entrega vai
-  // inteira pro motoboy. Antes disso, cancelamento grátis (reembolso cheio).
-  const motoboyEnRoute = order.status === 'enviado' && motoboyInvolved;
+  // Taxa do CLIENTE = valor da entrega, só com o motoboy em rota (entrega retirada, D3b-1 B2); a
+  // entrega vai inteira pro motoboy. Antes disso, cancelamento grátis (reembolso cheio).
+  let motoboyEnRoute = motoboyOnTheWay(order.status, deliveryForGuard);
+  // `isLate` rotula o cancelamento tardio e separa a multa COD da liberação da reserva COD:
+  // segue a mesma etapa da taxa.
+  let isLate = motoboyEnRoute;
   let fee = calculateCancellationFee({
     actor: 'customer',
     motoboyInvolved: motoboyEnRoute,
@@ -118,7 +118,7 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
   if (!direct) {
     // Trava + releitura da entrega na MESMA transação: devolução em andamento descoberta
     // depois da leitura desfaz a trava — antes de qualquer dinheiro se mover.
-    let fresh: { motoboyId: string | null; statusDevolucao: string | null } | null = null;
+    let fresh: { status: string; motoboyId: string | null; statusDevolucao: string | null } | null = null;
     try {
       const claimed = await prisma.$transaction(async (tx) => {
         const claim = await tx.order.updateMany({
@@ -127,7 +127,7 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
         });
         if (claim.count === 0) return false;
         if (order.deliveryId) {
-          fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+          fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { status: true, motoboyId: true, statusDevolucao: true } });
           if (fresh?.statusDevolucao === 'aguardando_confirmacao') throw new CancelReturnInProgressError();
         }
         return true;
@@ -142,15 +142,20 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
       throw err;
     }
 
-    // Entrega relida DEPOIS da trava: quem assumiu a entrega no meio é compensado.
+    // Entrega relida DEPOIS da trava: quem assumiu a entrega no meio é compensado, e uma
+    // retirada no meio passa a cobrar a taxa. Taxa e reembolso são recalculados.
     if (order.deliveryId) {
-      const freshMotoboy = (fresh as { motoboyId: string | null } | null)?.motoboyId ?? null;
-      if (freshMotoboy !== compMotoboyId) {
+      const freshRow = fresh as { status: string; motoboyId: string | null } | null;
+      const freshMotoboy = freshRow?.motoboyId ?? null;
+      const freshOnTheWay = motoboyOnTheWay(order.status, freshRow);
+      if (freshMotoboy !== compMotoboyId || freshOnTheWay !== motoboyEnRoute) {
         logger.warn('[cancelOrder] entrega mudou entre a leitura e a trava — relida', { orderId, before: compMotoboyId, after: freshMotoboy });
         compMotoboyId = freshMotoboy;
+        motoboyEnRoute = freshOnTheWay;
+        isLate = freshOnTheWay;
         fee = calculateCancellationFee({
           actor: 'customer',
-          motoboyInvolved: order.status === 'enviado' && !!freshMotoboy,
+          motoboyInvolved: freshOnTheWay,
           orderTotal: order.totalValue || 0,
           deliveryFee: order.deliveryFee || 0,
           config: feeConfig,
@@ -321,9 +326,11 @@ export async function cancelOrderAsCustomerRule(input: CustomerCancelInput): Pro
     // desfaz tudo (DELIVERY_CHANGED); senão, a compensação vai a quem está na entrega agora.
     direct ? (async (tx: Prisma.TransactionClient) => {
       if (!order.deliveryId) return null;
-      const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true, statusDevolucao: true } });
+      const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { status: true, motoboyId: true, statusDevolucao: true } });
       if (fresh?.statusDevolucao === 'aguardando_confirmacao') throw new CancelReturnInProgressError();
-      if (order.status === 'enviado' && !!fresh?.motoboyId !== motoboyInvolved) throw new CancelDeliveryChangedError();
+      // A etapa mudou entre a leitura e a trava (retirada no meio, ou o motoboy saiu): a taxa e o
+      // estorno já calculados não valem mais → desfaz tudo, o cliente tenta de novo.
+      if (motoboyOnTheWay(order.status, fresh) !== motoboyEnRoute) throw new CancelDeliveryChangedError();
       return fresh?.motoboyId
         ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: fee.motoboyShare }
         : null;

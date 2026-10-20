@@ -390,9 +390,11 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(deliveryRow.orderId) }, include: orderInclude }));
     if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
 
-    // Mesmos estados canceláveis de `cancelOrderByCustomer` — a entrega 'picked'
-    // normalmente corresponde a pedido 'enviado', mas cobrimos 'pago' defensivamente.
-    const cancellableStatuses = ['pago', 'enviado'];
+    // Pedido real com a entrega retirada fica em 'aguardando_motoboy' (D3b-1 B2); 'pago' e o
+    // 'enviado' antigo continuam aceitos. A mesma lista vale para a checagem e para as duas travas
+    // (custódia e recordCancellationWithCompensation do direto). A entrega continua exigindo
+    // 'picked' e a espera mínima, checadas acima.
+    const cancellableStatuses = ['pago', 'aguardando_motoboy', 'enviado'];
     if (!cancellableStatuses.includes(order.status)) {
       return res.status(400).json({
         error: `Pedido não pode ser cancelado no estado: ${order.status}`,
