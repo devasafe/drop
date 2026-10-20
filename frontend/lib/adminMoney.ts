@@ -53,6 +53,8 @@ export const ADMIN_MONEY_ACTION_TYPES = [
   'withdrawal_approve', 'withdrawal_reject', 'withdrawal_resolve_uncertain',
   'cashbox_deposit', 'cashbox_withdrawal_request', 'cashbox_withdrawal_approve', 'cashbox_withdrawal_reject',
   'wallet_adjust', 'commission_sync', 'motoboy_transfer_retry', 'motoboy_transfer_resolve', 'direct_refund_resolve',
+  // D3b-1 (P2.3): cancelamento do admin com estorno, alvo 'order'.
+  'order_admin_cancel',
 ] as const;
 export type AdminMoneyActionType = (typeof ADMIN_MONEY_ACTION_TYPES)[number];
 
@@ -126,6 +128,7 @@ export const ACTION_TYPE_LABEL: Record<AdminMoneyActionType, string> = {
   motoboy_transfer_retry: 'Pix ao motoboy: nova tentativa',
   motoboy_transfer_resolve: 'Pix ao motoboy resolvido',
   direct_refund_resolve: 'Estorno resolvido',
+  order_admin_cancel: 'Pedido cancelado pelo admin',
 };
 
 const TARGET_LABEL: Record<string, string> = {
@@ -138,6 +141,7 @@ const TARGET_LABEL: Record<string, string> = {
   motoboy_transfer: 'Pix ao motoboy',
   direct_refund: 'Estorno',
   verification: 'Verificação',
+  order: 'Pedido',
 };
 
 export const shortId = (id: string): string => `#${String(id).slice(-6)}`;

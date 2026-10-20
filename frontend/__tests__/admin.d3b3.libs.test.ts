@@ -46,8 +46,8 @@ describe('isMoneySummary (fail closed: resposta fora do contrato vira erro, nunc
 });
 
 describe('rótulos', () => {
-  it('os 17 tipos de ação da spec 3.1 têm rótulo em português', () => {
-    expect(ADMIN_MONEY_ACTION_TYPES).toHaveLength(17);
+  it('os 18 tipos de ação (17 da D3b-3 + order_admin_cancel da D3b-1) têm rótulo em português', () => {
+    expect(ADMIN_MONEY_ACTION_TYPES).toHaveLength(18);
     expect(Object.keys(ACTION_TYPE_LABEL).sort()).toEqual([...ADMIN_MONEY_ACTION_TYPES].sort());
     expect(ACTION_TYPE_LABEL.wallet_adjust).toBe('Saldo ajustado');
     expect(ACTION_TYPE_LABEL.payout_resolve_uncertain).toBe('Repasse incerto resolvido');

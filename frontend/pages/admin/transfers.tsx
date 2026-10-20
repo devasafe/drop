@@ -4,6 +4,9 @@
  * GET /admin/transfers { params: { status?, cursor? } } · POST /admin/transfers/:id/retry ·
  * POST /admin/transfers/:id/resolve { note }. Ações só com payout:release, como a rota.
  * Pix incerto nunca é reenviado: "Tentar agora" só existe em failed/failed_final.
+ * D3b-1: compensação com culpa platform vira Pix manual do DROP (payer 'platform', PLATFORM_MANUAL_PIX). O job nunca
+ * o envia e o retry responde 409 TRANSFER_MANUAL_PIX: sem "Tentar agora"; o admin paga pelo banco e usa "Resolver".
+ * Item sem `payer` (lista antiga) é Pix da loja.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -33,6 +36,8 @@ interface Row {
   attempts: number;
   lastError: string | null;
   pixKeyMasked: string;
+  /** Quem paga: a loja (Pix pelo Asaas) ou o DROP (Pix manual). Ausente = loja. */
+  payer?: 'store' | 'platform';
 }
 
 const FILTERS = [
@@ -52,6 +57,7 @@ const ACTIONABLE = ['failed', 'failed_final', 'uncertain'];
 const RETRYABLE = ['failed', 'failed_final'];
 
 const who = (r: Row) => `${r.storeName ?? 'Loja'} → ${r.motoboyName ?? 'Motoboy'}`;
+const isManualPix = (r: Row) => r.payer === 'platform';
 
 export default function AdminTransfersPage() {
   const { can } = useAuth();
@@ -146,6 +152,7 @@ export default function AdminTransfersPage() {
       render: (r) => (
         <span>
           <StatusTag tone={TONE[r.status] ?? 'neutral'}>{TRANSFER_STATUS_LABEL[r.status] ?? r.status}</StatusTag>
+          {isManualPix(r) && <StatusTag tone="info">Pix manual do DROP</StatusTag>}
           <span className={ui.sub}>{`${r.attempts} tentativa(s)${r.pixKeyMasked ? ` · Pix ${r.pixKeyMasked}` : ''}`}</span>
         </span>
       ),
@@ -153,6 +160,7 @@ export default function AdminTransfersPage() {
     {
       key: 'motivo', header: 'Motivo',
       render: (r) => {
+        if (isManualPix(r) && r.status !== 'done') return <span className={ui.sub}>Pague pelo seu banco e use Resolver</span>;
         const msg = r.lastError && r.status !== 'done' ? humanizeTransferError(r.lastError) : null;
         return msg ? <span className={ui.errLine}>{msg}</span> : '—';
       },
@@ -164,7 +172,7 @@ export default function AdminTransfersPage() {
     if (!canAct || !ACTIONABLE.includes(r.status)) return null;
     return (
       <div className={ui.rowActions}>
-        {RETRYABLE.includes(r.status) && (
+        {RETRYABLE.includes(r.status) && !isManualPix(r) && (
           <Button size="sm" className={ui.touch} loading={busy === r.id} onClick={() => retry(r)}>Tentar agora</Button>
         )}
         <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setResolving(r); setNote(''); }}>
@@ -211,12 +219,17 @@ export default function AdminTransfersPage() {
           onClose={() => setResolving(null)}
           primary={{ label: 'Confirmar resolução', disabled: note.trim().length < 10, onClick: resolve }}
         >
-          {resolving && (
+          {resolving && (isManualPix(resolving) ? (
+            <p className={blocks.muted}>
+              {`Pix manual do DROP de ${formatMoney(Number(resolving.amount))} para ${resolving.motoboyName ?? 'o motoboy'}.`}{' '}
+              Pague pelo seu banco e use Resolver com os dados do comprovante na nota.
+            </p>
+          ) : (
             <p className={blocks.muted}>
               {`Pix de ${formatMoney(Number(resolving.amount))} para ${resolving.motoboyName ?? 'o motoboy'}.`} Confira no
               painel do Asaas antes de resolver: se o Pix anterior já saiu, nunca reenvie.
             </p>
-          )}
+          ))}
           <TextAreaField
             label="Nota da conferência"
             value={note}
