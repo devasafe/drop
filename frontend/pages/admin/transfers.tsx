@@ -234,7 +234,7 @@ export default function AdminTransfersPage() {
             label="Nota da conferência"
             value={note}
             onChange={setNote}
-            placeholder="Ex.: conferido no painel do Asaas, Pix concluído"
+            placeholder={resolving && isManualPix(resolving) ? 'Ex.: Pix pago pelo banco do DROP, comprovante 123' : 'Ex.: conferido no painel do Asaas, Pix concluído'}
             hint="Mínimo de 10 caracteres. Fica no histórico da transferência."
           />
         </AdminSheet>

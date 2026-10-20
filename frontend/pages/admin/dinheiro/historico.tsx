@@ -177,7 +177,7 @@ function Historico() {
     { key: 'alvo', header: 'Alvo', render: (i) => actionTargetLabel(i.targetType, i.targetId) },
     { key: 'valor', header: 'Valor', align: 'right', render: (i) => (i.amount === null ? '—' : formatMoney(i.amount)) },
     { key: 'motivo', header: 'Motivo', render: (i) => i.reason || '—' },
-    { key: 'mudanca', header: 'Antes → depois', render: (i) => summarizeMoneyChange(i.before, i.after) },
+    { key: 'mudanca', header: 'Antes → depois', render: (i) => summarizeMoneyChange(i.before, i.after, i.type) },
   ];
 
   return (

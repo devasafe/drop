@@ -5,7 +5,7 @@
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import api from '../lib/api';
-import { ACTION_TYPE_LABEL, ADMIN_MONEY_ACTION_TYPES, actionTargetLabel } from '../lib/adminMoney';
+import { ACTION_TYPE_LABEL, ADMIN_MONEY_ACTION_TYPES, actionTargetLabel, summarizeMoneyChange } from '../lib/adminMoney';
 import AdminDinheiroHistoricoPage from '../pages/admin/dinheiro/historico';
 
 jest.mock('next/router', () => ({
@@ -64,4 +64,28 @@ it('o filtro "Ação" tem o tipo novo e relê com ?type=order_admin_cancel', asy
   expect(Array.from(acao.options).map((o) => o.textContent)).toContain('Pedido cancelado pelo admin');
   fireEvent.change(acao, { target: { value: 'order_admin_cancel' } });
   await waitFor(() => expect(get).toHaveBeenLastCalledWith('/admin/money/actions?type=order_admin_cancel'));
+});
+
+it('"Antes → depois" do cancelamento: situação do pedido em português, não o código cru', async () => {
+  get.mockImplementation(() => Promise.resolve({ data: page([{
+    ...CANCELAMENTO, before: { status: 'aguardando_motoboy' }, after: { status: 'cancelado', fault: 'store', refundStatus: 'processed' },
+  }]) }));
+  render(<AdminDinheiroHistoricoPage />);
+  const table = await screen.findByRole('table', { name: 'Ações de dinheiro' });
+  const [, linha] = within(table).getAllByRole('row');
+  expect(linha).toHaveTextContent('Procurando motoboy → Cancelado');
+  expect(linha).not.toHaveTextContent('aguardando_motoboy');
+});
+
+it.each([
+  ['criado', 'Aguardando pagamento'], ['pago', 'Na loja'], ['enviado', 'Em entrega'], ['aguardando_motoboy', 'Procurando motoboy'],
+])('status anterior %s vira %s', (cru, texto) => {
+  expect(summarizeMoneyChange({ status: cru }, { status: 'cancelado' }, 'order_admin_cancel')).toBe(`${texto} → Cancelado`);
+});
+
+it('compensação do motoboy que falhou aparece no resumo (nota 5)', () => {
+  expect(summarizeMoneyChange({ status: 'pago' }, { status: 'cancelado', compensationFailed: true }, 'order_admin_cancel'))
+    .toBe('Na loja → Cancelado · compensação do motoboy falhou');
+  expect(summarizeMoneyChange({ status: 'pago' }, { status: 'cancelado', compensationFailed: false }, 'order_admin_cancel'))
+    .toBe('Na loja → Cancelado');
 });

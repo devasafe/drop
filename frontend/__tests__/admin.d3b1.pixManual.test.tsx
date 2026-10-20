@@ -84,6 +84,9 @@ it('Resolver no Pix manual: a folha fala do banco do DROP e manda POST resolve {
   expect(dialog).toHaveTextContent('Pix manual do DROP de R$ 8,90 para Carlos Lima.');
   expect(dialog).toHaveTextContent('Pague pelo seu banco e use Resolver com os dados do comprovante na nota.');
   expect(dialog).not.toHaveTextContent('painel do Asaas antes de resolver');
+  const nota = within(dialog).getByLabelText('Nota da conferência') as HTMLTextAreaElement;
+  expect(nota.placeholder).toContain('banco do DROP');
+  expect(nota.placeholder).not.toContain('Asaas');
   fireEvent.change(within(dialog).getByLabelText('Nota da conferência'), { target: { value: '  Pix pago pelo banco, comprovante 123  ' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar resolução' }));
   await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/transfers/t9/resolve', { note: 'Pix pago pelo banco, comprovante 123' }));

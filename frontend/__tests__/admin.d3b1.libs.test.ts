@@ -7,7 +7,7 @@ import api from '../lib/api';
 import {
   adminCancelOrder, adminOrderStatus, adminReassign, ageLabel, buildQueueRows, cancelResultText, cancellationNote,
   elapsedLabel, fetchAdminOrder, fetchAdminOrders, fetchCancelPreview, fetchOpsMap, fetchOpsSummary, fetchQueue,
-  flattenOpsError, gmvComparison, isOpsConflict, isUnpaidPreview, kmLabel, mergeTimeline, minutesLabel, motoboyMapState, motoboyOrder,
+  flattenOpsError, gmvComparison, isAdminOrderDetail, isAdminOrdersResponse, isCancelPreview, isOpsMapResponse, isQueueResponse, isOpsConflict, isUnpaidPreview, kmLabel, mergeTimeline, minutesLabel, motoboyMapState, motoboyOrder,
   opsErrorMessage, orderTag, pctLabel, queueTotal, radiusLabel,
   type AdminOrderActionView, type OpsMapResponse, type QueueGroupEntry, type QueueTag, type TimelineStep,
 } from '../lib/adminOps';
@@ -321,5 +321,55 @@ describe('mensagens dos erros', () => {
     });
     expect(flattenOpsError(new Error('resposta fora do formato'), 'Não deu para cancelar o pedido.').response.data.error)
       .toBe('Não deu para cancelar o pedido.');
+  });
+});
+
+describe('checagem do formato aperta além da casca (fail closed)', () => {
+  const { money } = DETAIL;
+  const sem = <T extends object>(o: T, k: string) => { const c = { ...o } as Record<string, unknown>; delete c[k]; return c; };
+
+  it('casos válidos: nulos e vazios da nota 1 continuam aceitos', () => {
+    expect(isAdminOrderDetail(DETAIL)).toBe(true);
+    expect(isAdminOrderDetail({ ...DETAIL, money: { ...money, storeShare: 40, motoboyShare: 8.9, platformShare: 5,
+      payouts: [{ id: 'p', recipientType: 'store', amount: 40, status: 'paid' }], motoboyTransfer: { status: 'done', amount: 8.9 } } })).toBe(true);
+    expect(isAdminOrdersResponse({ items: [ROW], nextCursor: null, meta: META })).toBe(true);
+    expect(isCancelPreview({ ...PREVIEW, compensationPaidBy: null, countsAgainst: null })).toBe(true);
+    expect(isOpsMapResponse(MAP)).toBe(true);
+    expect(isQueueResponse({ groups: GROUPS })).toBe(true);
+  });
+
+  it.each([
+    ['money incompleto', { ...DETAIL, money: sem(money, 'paidByCustomer') }],
+    ['money com número em texto', { ...DETAIL, money: { ...money, subtotal: '56' } }],
+    ['payouts ausente', { ...DETAIL, money: sem(money, 'payouts') }],
+    ['motoboyTransfer ausente', { ...DETAIL, money: sem(money, 'motoboyTransfer') }],
+    ['storeShare ausente', { ...DETAIL, money: sem(money, 'storeShare') }],
+    ['settlementMode desconhecido', { ...DETAIL, settlementMode: 'x' }],
+    ['cliente sem ordersCount', { ...DETAIL, customer: sem(DETAIL.customer, 'ordersCount') }],
+    ['etapa da linha do tempo sem horário definido', { ...DETAIL, timeline: [{ key: 'paid', sincePrevMin: null }] }],
+    ['item sem total', { ...DETAIL, items: [{ name: 'x', quantity: 1, unitPrice: 2 }] }],
+  ])('pedido do admin: %s', (_n, d) => expect(isAdminOrderDetail(d)).toBe(false));
+
+  it.each([
+    ['linha sem stageSince', sem(ROW, 'stageSince')],
+    ['linha com stageSince inválido', { ...ROW, stageSince: 'ontem' }],
+    ['linha sem shortId', sem(ROW, 'shortId')],
+  ])('lista de pedidos: %s', (_n, row) => expect(isAdminOrdersResponse({ items: [row], nextCursor: null, meta: META })).toBe(false));
+
+  it.each([
+    ['sem countsAgainst', sem(PREVIEW, 'countsAgainst')],
+    ['compensationPaidBy fora do enum', { ...PREVIEW, compensationPaidBy: 'banco' }],
+  ])('prévia: %s', (_n, d) => expect(isCancelPreview(d)).toBe(false));
+
+  it('mapa: stage desconhecido e espera sem horário', () => {
+    expect(isOpsMapResponse({ ...MAP, inDelivery: [{ ...MAP.inDelivery[0], stage: 'voando' }] })).toBe(false);
+    expect(isOpsMapResponse({ ...MAP, waiting: [sem(MAP.waiting[0], 'since')] })).toBe(false);
+  });
+
+  it('fila: item sem since ou com since inválido', () => {
+    const bom = item('o1', 5);
+    expect(isQueueResponse({ groups: [entry('refund', 'customer_money', [sem(bom, 'since') as any])] })).toBe(false);
+    expect(isQueueResponse({ groups: [entry('refund', 'customer_money', [{ ...bom, since: 'x' }])] })).toBe(false);
+    expect(isQueueResponse({ groups: [entry('refund', 'customer_money', [{ ...bom, tag: 'Outra' } as any])] })).toBe(false);
   });
 });

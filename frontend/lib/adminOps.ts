@@ -124,9 +124,26 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
 const isNumOrNull = (v: unknown): boolean => v === null || isNum(v);
 const allNum = (o: Record<string, unknown>, keys: string[]): boolean => keys.every((k) => isNum(o[k]));
 
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const isIso = (v: unknown): v is string => isStr(v) && Number.isFinite(Date.parse(v));
+const isIsoOrNull = (v: unknown): boolean => v === null || isIso(v);
+const isStrOrNull = (v: unknown): boolean => v === null || isStr(v);
+const oneOf = (v: unknown, list: readonly string[]): boolean => isStr(v) && list.includes(v);
+const oneOfOrNull = (v: unknown, list: readonly string[]): boolean => v === null || oneOf(v, list);
+const FAULTS: readonly string[] = ['customer', 'store', 'motoboy', 'platform'];
+const ATTENTIONS: readonly string[] = [
+  'estorno_pendente', 'loja_parada', 'cliente_decidindo', 'sem_motoboy', 'retirada_demorada', 'atrasado',
+];
+const TAGS: readonly string[] = ['Urgente', 'Esperando', 'Lote', 'KYC', 'Suporte', 'Receita', 'Operação'];
+const TIMELINE_KEYS: readonly string[] = ['created', 'paid', 'accepted', 'assigned', 'picked', 'delivered', 'cancelled'];
+const idName = (v: unknown): boolean => isObj(v) && isStr(v.id) && isStr(v.name);
+
+const isQueueItem = (i: unknown): boolean => isObj(i) && isStr(i.id) && isStr(i.title) && isStr(i.context)
+  && isIso(i.since) && oneOf(i.tag, TAGS) && isStr(i.href);
+
 export function isQueueResponse(d: unknown): d is QueueResponse {
   return isObj(d) && Array.isArray(d.groups) && d.groups.every((g) => isObj(g)
-    && typeof g.type === 'string' && typeof g.group === 'string' && isNum(g.count) && Array.isArray(g.items));
+    && isStr(g.type) && isStr(g.group) && isNum(g.count) && Array.isArray(g.items) && g.items.every(isQueueItem));
 }
 
 export function isOpsSummary(d: unknown): d is OpsSummary {
@@ -142,28 +159,57 @@ export function isOpsSummary(d: unknown): d is OpsSummary {
 
 export function isAdminOrdersResponse(d: unknown): d is AdminOrdersResponse {
   if (!isObj(d) || !Array.isArray(d.items) || !isObj(d.meta)) return false;
-  if (!(d.nextCursor == null || typeof d.nextCursor === 'string')) return false;
+  if (!(d.nextCursor == null || isStr(d.nextCursor))) return false;
   const m = d.meta;
   return allNum(m, ['active', 'activePaid', 'awaitingPix', 'attention', 'acceptLimitMin', 'poolTimeoutMin', 'deliveredToday'])
     && isNumOrNull(m.acceptAvgMin) && isNumOrNull(m.findMotoboyAvgMin) && typeof m.attentionTruncated === 'boolean'
-    && d.items.every((r) => isObj(r) && typeof r.id === 'string' && isObj(r.store) && isNum(r.total));
+    && d.items.every((r) => isObj(r) && isStr(r.id) && isStr(r.shortId) && isStr(r.status) && isStrOrNull(r.deliveryStatus)
+      && idName(r.store) && (r.motoboy === null || idName(r.motoboy))
+      && isIso(r.createdAt) && isIso(r.stageSince) && isNum(r.total) && oneOfOrNull(r.attention, ATTENTIONS));
 }
 
 export function isAdminOrderDetail(d: unknown): d is AdminOrderDetail {
-  return isObj(d) && typeof d.id === 'string' && typeof d.status === 'string'
-    && isObj(d.store) && isObj(d.customer) && isObj(d.money)
-    && Array.isArray(d.timeline) && Array.isArray(d.adminActions) && Array.isArray(d.items)
-    && Array.isArray(d.allowedActions) && typeof d.refundPending === 'boolean';
+  if (!isObj(d) || !isStr(d.id) || !isStr(d.shortId) || !isStr(d.status) || !isStrOrNull(d.deliveryStatus)) return false;
+  if (!oneOf(d.settlementMode, ['custody', 'direct']) || typeof d.refundPending !== 'boolean') return false;
+  if (!idName(d.store)) return false;
+  const c = d.customer;
+  if (!isObj(c) || !isStr(c.id) || !isStr(c.name) || !isNum(c.ordersCount) || !isNum(c.cancellations30d)) return false;
+  const mb = d.motoboy;
+  if (mb !== null && !(isObj(mb) && idName(mb))) return false;
+  const m = d.money;
+  // Ruling de segurança: sem permissão, as três partes vêm null e payouts [] / motoboyTransfer null (não é zero).
+  if (!isObj(m) || !allNum(m, ['subtotal', 'deliveryFee', 'couponDiscount', 'walletApplied', 'paidByCustomer'])
+    || !isNumOrNull(m.storeShare) || !isNumOrNull(m.motoboyShare) || !isNumOrNull(m.platformShare)
+    || !Array.isArray(m.payouts) || !m.payouts.every((p) => isObj(p) && isStr(p.id) && isStr(p.recipientType) && isNum(p.amount) && isStr(p.status))
+    || !(m.motoboyTransfer === null || (isObj(m.motoboyTransfer) && isStr(m.motoboyTransfer.status) && isNum(m.motoboyTransfer.amount)))) {
+    return false;
+  }
+  const k = d.cancellation;
+  if (k !== null && !(isObj(k) && isStr(k.cancelledBy) && isStrOrNull(k.faultParty) && isStr(k.reason)
+    && isStrOrNull(k.adminName) && isIso(k.at) && isStr(k.refundStatus))) return false;
+  return Array.isArray(d.timeline) && d.timeline.every((t) => isObj(t) && oneOf(t.key, TIMELINE_KEYS) && isIsoOrNull(t.at) && isNumOrNull(t.sincePrevMin))
+    && Array.isArray(d.adminActions) && d.adminActions.every((a) => isObj(a) && isStr(a.id) && oneOf(a.action, ['cancel', 'reassign'])
+      && isStr(a.actorName) && isStr(a.reason) && oneOfOrNull(a.faultParty, FAULTS) && isIso(a.at))
+    && Array.isArray(d.items) && d.items.every((i) => isObj(i) && isStr(i.name) && allNum(i, ['quantity', 'unitPrice', 'total']))
+    && Array.isArray(d.allowedActions) && d.allowedActions.every((x) => oneOf(x, ['cancel', 'reassign']));
 }
 
 export function isOpsMapResponse(d: unknown): d is OpsMapResponse {
   return isObj(d) && Array.isArray(d.motoboys) && Array.isArray(d.waiting) && Array.isArray(d.inDelivery)
     && isObj(d.dispatch) && allNum(d.dispatch, ['initialKm', 'stepKm', 'stepSeconds', 'maxKm', 'poolTimeoutMin'])
-    && d.motoboys.every((m) => isObj(m) && typeof m.id === 'string' && isNum(m.lat) && isNum(m.lng) && typeof m.state === 'string');
+    && d.motoboys.every((m) => isObj(m) && isStr(m.id) && isStr(m.name) && isNum(m.lat) && isNum(m.lng) && isStr(m.updatedAt)
+      && oneOf(m.state, ['free', 'delivering', 'stale']) && isStrOrNull(m.orderId) && isStrOrNull(m.shortId))
+    && d.waiting.every((w) => isObj(w) && isStr(w.orderId) && isStr(w.shortId) && isStr(w.storeName)
+      && isNumOrNull(w.storeLat) && isNumOrNull(w.storeLng) && isIso(w.since) && isNumOrNull(w.radiusKm)
+      && typeof w.customerDeciding === 'boolean')
+    && d.inDelivery.every((x) => isObj(x) && isStr(x.orderId) && isStr(x.shortId) && isStr(x.motoboyName)
+      && oneOf(x.stage, ['indo_para_loja', 'levando']));
 }
 
 export function isCancelPreview(d: unknown): d is CancelPreview {
-  return isObj(d) && typeof d.fault === 'string' && allNum(d, ['customerRefund', 'feeCharged', 'motoboyCompensation']);
+  return isObj(d) && oneOf(d.fault, FAULTS) && allNum(d, ['customerRefund', 'feeCharged', 'motoboyCompensation'])
+    && oneOfOrNull(d.compensationPaidBy, ['customer', 'store', 'platform'])
+    && oneOfOrNull(d.countsAgainst, ['customer', 'store', 'motoboy']);
 }
 
 const isCancelResult = (d: unknown): d is CancelResult => isObj(d) && d.ok === true
@@ -333,6 +379,7 @@ export const orderTag = (shortId: string): string => (shortId.startsWith('#') ? 
 export function adminOrderStatus(status: string, deliveryStatus: string | null): { label: string; tone: StatusTone } {
   if (status === 'cancelado') return { label: 'Cancelado', tone: 'bad' };
   if (status === 'rejeitado') return { label: 'Recusado pela loja', tone: 'bad' };
+  if (status === 'enviado') return { label: 'Em entrega', tone: 'info' };
   if (status === 'entregue') return { label: 'Entregue', tone: 'ok' };
   if (status === 'criado') return { label: 'Aguardando pagamento', tone: 'neutral' };
   if (deliveryStatus === 'picked') return { label: 'Em entrega', tone: 'info' };

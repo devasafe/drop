@@ -3,6 +3,7 @@
  * (GET /admin/money/summary|movements|actions, P3; POST /admin/wallets/:id/adjust, P2), os rótulos em português
  * e o resumo legível de "antes → depois" do registro de ações. Nada aqui chama o servidor.
  */
+import { adminOrderStatus } from './adminOps';
 import type { StatusTone } from '../components/admin/StatusTag';
 import { adminRoleLabel } from './adminNav';
 import { formatMoney } from './money';
@@ -196,13 +197,17 @@ const pct = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits:
 const statusText = (v: unknown): string | null => (typeof v === 'string' ? STATUS_LABEL[v] ?? v : null);
 
 /** "pendente → liberado", "saldo R$ 10,00 → R$ 35,50 · crédito", "15% → 12% · manteve as especiais"… */
-export function summarizeMoneyChange(beforeRaw: unknown, afterRaw: unknown): string {
+export function summarizeMoneyChange(beforeRaw: unknown, afterRaw: unknown, type?: string): string {
   const b = asObject(beforeRaw);
   const a = asObject(afterRaw);
   const parts: string[] = [];
 
-  const from = statusText(b.status);
-  const to = statusText(a.status);
+  // Cancelamento do admin: status de pedido, com o vocabulário da equipe (não o de repasse/saque).
+  const text = type === 'order_admin_cancel'
+    ? (v: unknown) => (typeof v === 'string' ? adminOrderStatus(v, null).label : null)
+    : statusText;
+  const from = text(b.status);
+  const to = text(a.status);
   if (from && to && from !== to) parts.push(`${from} → ${to}`);
   else if (to || from) parts.push((to ?? from) as string);
 
@@ -229,6 +234,7 @@ export function summarizeMoneyChange(beforeRaw: unknown, afterRaw: unknown): str
   if (a.outcome === 'not_sent') parts.push('conferido: não enviado');
   if (a.uncertain === true) parts.push('incerto');
   if (a.selfApproved === true) parts.push('aprovou a própria retirada');
+  if (a.compensationFailed === true) parts.push('compensação do motoboy falhou');
 
   return parts.length ? parts.join(' · ') : '—';
 }
