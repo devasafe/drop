@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { getQueue, getSummary, listOrders, getOrderDetail, getMap } from '../controllers/adminOpsController';
-import { getAdminCancelPreview, postAdminCancel } from '../controllers/adminOpsActionsController';
+import { getAdminCancelPreview, postAdminCancel, postAdminReassign } from '../controllers/adminOpsActionsController';
 
 const router = Router();
 const canViewOps = authorizePermission('operation:view');
@@ -31,5 +31,8 @@ router.get('/orders/:id/cancel-preview', authenticate, authorizePermission('orde
 
 // D3b-1 · P2.3 — cancelar com estorno, com culpa
 router.post('/orders/:id/cancel', authenticate, authorizePermission('order:admin_cancel'), postAdminCancel);
+
+// D3b-1 · P2.5 — reatribuir motoboy (antes da retirada, sem punição)
+router.post('/orders/:id/reassign', authenticate, authorizePermission('order:reassign'), postAdminReassign);
 
 export default router;

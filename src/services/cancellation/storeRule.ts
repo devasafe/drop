@@ -100,7 +100,8 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   // Trava atômica: só UM request move o pedido. Pedido direto (R19-a): trava + estoque
   // dentro da transação do registro (abaixo).
   const direct = isDirectOrder(order);
-  // Motoboy que aceitou entre o guard e a trava (relido depois da trava).
+  // Motoboy na entrega DEPOIS da trava: count 1 do cancelamento da entrega pendente = ninguém;
+  // count 0 = o relido. É só ele quem é compensado (um reassign no meio tirou o anterior).
   let acceptedMidwayMotoboyId: string | null = null;
   if (!direct) {
     const claim = await prisma.order.updateMany({
@@ -204,7 +205,7 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   if (chargeStoreFee) {
     try {
       const feeConfig = cancelFeeConfigOf(await getPlatformConfig());
-      const compMotoboyId: string | null = delivery?.motoboyId ?? acceptedMidwayMotoboyId;
+      const compMotoboyId: string | null = acceptedMidwayMotoboyId;
       const fee = storeFeeFigures(order, feeConfig, !!compMotoboyId);
       cancellationFeeCharged = fee.totalFee;
 

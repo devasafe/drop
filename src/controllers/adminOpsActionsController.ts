@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../types';
 import logger from '../config/logger';
 import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { previewAdminCancel, adminCancelOrder } from '../services/adminOps/adminCancel';
+import { adminReassignDelivery } from '../services/adminOps/reassign';
 
 // GET /api/admin/orders/:id/cancel-preview?fault= (order:admin_cancel)
 export const getAdminCancelPreview = async (req: AuthenticatedRequest, res: Response) => {
@@ -33,5 +34,17 @@ export const postAdminCancel = async (req: AuthenticatedRequest, res: Response) 
     if (sendMoneyActionError(res, err)) return undefined;
     logger.error('[adminOps] falha ao cancelar o pedido', err as Error, { orderId: req.params.id });
     return res.status(500).json({ error: 'Erro ao cancelar o pedido' });
+  }
+};
+
+// POST /api/admin/orders/:id/reassign { reason } (order:reassign)
+export const postAdminReassign = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await adminReassignDelivery({ orderId: String(req.params.id), reason: req.body?.reason, actor: actorFromRequest(req) });
+    return res.json({ ok: true });
+  } catch (err) {
+    if (sendMoneyActionError(res, err)) return undefined;
+    logger.error('[adminOps] falha ao reatribuir o motoboy', err as Error, { orderId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao reatribuir o motoboy' });
   }
 };

@@ -67,12 +67,21 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
       await registerPinFailure(delivery.id);
       return res.status(400).json({ error: 'PIN de retirada inválido' });
     }
-    // Zera no objeto: o persistDelivery abaixo regrava a linha inteira.
+    // Retirada condicional (D3b-1): só vale se a entrega ainda é deste motoboy, 'assigned' e com
+    // este PIN. Um reassign do admin no meio faz count 0 → 409, e a linha não é regravada
+    // (excludedMotoboyIds e o pool ficam como o reassign deixou).
+    const pickedAt = new Date();
+    const { count: pickedCount } = await prisma.delivery.updateMany({
+      where: { id: delivery.id, status: 'assigned', motoboyId: delivery.motoboyId, pinRetirada: delivery.pinRetirada },
+      data: { status: 'picked', pickedAt, pinFailedAttempts: 0, pinLockedUntil: null },
+    });
+    if (pickedCount !== 1) {
+      return res.status(409).json({ error: 'A entrega mudou. Recarregue.', code: 'DELIVERY_CHANGED' });
+    }
     delivery.pinFailedAttempts = 0;
     delivery.pinLockedUntil = null;
     delivery.status = 'picked';
-    delivery.pickedAt = new Date();
-    await persistDelivery(delivery);
+    delivery.pickedAt = pickedAt;
 
     // Get motoboy name
     const motoboy = delivery.motoboyId
@@ -619,6 +628,9 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     if (!userId || store.ownerId.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden - only store owner can assign motoboy' });
     }
+    if ((delivery.excludedMotoboyIds ?? []).includes(String(motoboyId))) {
+      return res.status(409).json({ error: 'O suporte tirou este motoboy desta corrida; ele não pode recebê-la de novo.', code: 'DELIVERY_NOT_AVAILABLE' });
+    }
     if (await directOrderWithoutPixKey(order.id, String(motoboyId))) {
       return res.status(409).json({ error: 'Este motoboy ainda não cadastrou a chave Pix e não pode receber por esta entrega.', code: PIX_KEY_REQUIRED });
     }
@@ -815,7 +827,7 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
     // filtro JS (haversine) legado abaixo, com comportamento idêntico.
     const geoIds = await geoVisiblePendingIds(motoboyLoc);
 
-    let visible: any[];
+    let visible: any[] = [];
     if (geoIds) {
       const rows = (await prisma.delivery.findMany({ where: { id: { in: geoIds } } })).map(toApiDelivery);
       const byId = new Map(rows.map((r: any) => [String(r._id ?? r.id), r]));
@@ -830,6 +842,9 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
       visible = pendingAll.filter((d) => isDeliveryWithinRadius(d as any, motoboyLoc, now));
     }
 
+    // D3b-1: o motoboy retirado da corrida pelo admin não a recebe de novo.
+    const viewerId = String(req.user.id);
+    visible = visible.filter((d: any) => !(d.excludedMotoboyIds ?? []).includes(viewerId));
     const total = visible.length;
     // Pool: nunca PIN (entrega devolvida ao pool pode carregar PINs antigos).
     const deliveries = visible.slice(skip, skip + limit).map((d: any) => stripDeliveryPins(d));
@@ -952,6 +967,8 @@ export const setMotoboyAvailability = async (req: AuthenticatedRequest, res: Res
 // 409 do aceite: corrida já levada por outro motoboy (ou que não existe mais). A mensagem é a de
 // sempre (o app antigo lê `error`); o `code` deixa a tela nova dizer "Outro entregador aceitou".
 const ALREADY_CLAIMED_BODY = { error: 'Already claimed or not available', code: 'ALREADY_CLAIMED' } as const;
+// D3b-1: corrida de que o admin tirou este motoboy (excludedMotoboyIds) — não volta para ele.
+const NOT_AVAILABLE_BODY = { error: 'Esta corrida não está mais disponível para você.', code: 'DELIVERY_NOT_AVAILABLE' } as const;
 
 export const claimDelivery = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -982,8 +999,9 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // transação, a linha do pedido é travada (FOR UPDATE) ANTES da entrega — a mesma ordem
     // de travas da recusa/cancelamento (pedido → entrega) — e pedido cancelado/rejeitado
     // desfaz o aceite (409 ORDER_CLOSED). Quem cancela depois enxerga o motoboy (compensa).
-    const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true } });
+    const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true, excludedMotoboyIds: true } });
     if (!target) return res.status(409).json(ALREADY_CLAIMED_BODY);
+    if (target.excludedMotoboyIds.includes(String(userId))) return res.status(409).json(NOT_AVAILABLE_BODY);
     if (await directOrderWithoutPixKey(target.orderId, String(userId))) {
       return res.status(409).json({ error: 'Cadastre sua chave Pix para pegar corridas: é por ela que você recebe.', code: PIX_KEY_REQUIRED });
     }
@@ -996,7 +1014,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
         if (rows.length === 0) throw new Error(ORDER_MISSING);
         if (rows[0].status === 'cancelado' || rows[0].status === 'rejeitado') throw new Error(ORDER_CLOSED);
         const c = await tx.delivery.updateMany({
-          where: { id, status: 'pending', motoboyId: null },
+          where: { id, status: 'pending', motoboyId: null, NOT: { excludedMotoboyIds: { has: String(userId) } } },
           data: { motoboyId: userId, status: 'assigned', assignedAt: new Date(), pin: pinEntrega, pinRetirada, pinFailedAttempts: 0, pinLockedUntil: null },
         });
         return c.count;
@@ -1013,7 +1031,11 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       }
       throw err;
     }
-    if (claimedCount === 0) return res.status(409).json(ALREADY_CLAIMED_BODY);
+    if (claimedCount === 0) {
+      // Excluído entre a leitura e a trava (reassign no meio) → NOT_AVAILABLE; senão, outro levou.
+      const again = await prisma.delivery.findUnique({ where: { id }, select: { excludedMotoboyIds: true } });
+      return res.status(409).json(again?.excludedMotoboyIds.includes(String(userId)) ? NOT_AVAILABLE_BODY : ALREADY_CLAIMED_BODY);
+    }
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id } }));
 
     // Buscar order para notificações

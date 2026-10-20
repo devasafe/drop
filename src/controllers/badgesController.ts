@@ -74,7 +74,7 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
           ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
           : null;
         const pendingAll = await prisma.delivery.findMany({
-          where: { status: 'pending', motoboyId: null },
+          where: { status: 'pending', motoboyId: null, NOT: { excludedMotoboyIds: { has: String(userId) } } },
           select: { storeLatitude: true, storeLongitude: true, createdAt: true },
           take: 200,
         });

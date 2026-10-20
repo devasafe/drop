@@ -19,7 +19,8 @@ export function toApiDelivery(delivery: Delivery | null): any {
 }
 
 /**
- * Remove os três PINs de um objeto de entrega (para loja, admin, pool, logs, sockets).
+ * Remove os três PINs de um objeto de entrega (para loja, admin, pool, logs, sockets) e a lista
+ * de motoboys excluídos pelo admin (D3b-1: ids de outros motoboys não saem da API).
  */
 export function stripDeliveryPins<T extends Record<string, any> | null | undefined>(delivery: T): T {
   if (!delivery) return delivery;
@@ -27,6 +28,7 @@ export function stripDeliveryPins<T extends Record<string, any> | null | undefin
   delete rest.pin;
   delete rest.pinRetirada;
   delete rest.pinDevolucao;
+  delete rest.excludedMotoboyIds;
   return rest as T;
 }
 
