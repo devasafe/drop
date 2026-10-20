@@ -31,7 +31,8 @@ import { emitToRoom } from '../utils/socketEmitter';
  * cliente com o mesmo evento repetidas vezes enquanto ele não decide.
  */
 
-const DEFAULT_POOL_TIMEOUT_MIN = 15;
+// Exportado para a Operação ao vivo (D3b-1) usar o mesmo padrão quando a config não tem o valor.
+export const DEFAULT_POOL_TIMEOUT_MIN = 15;
 
 export interface PoolTimeoutSummary {
   processed: number;
