@@ -43,6 +43,7 @@ function PrecisaDeMim() {
   const [queueError, setQueueError] = useState<string | null>(null);
   const [filter, setFilter] = useState<QueueFilter>('tudo');
   const [now, setNow] = useState(() => Date.now());
+  const [retrying, setRetrying] = useState(false);
 
   const loadSummary = useCallback(async () => {
     setSummaryError(null);
@@ -58,12 +59,15 @@ function PrecisaDeMim() {
   const loadQueue = useCallback(async (silent = false) => {
     setQueueError(null);
     if (!silent) setGroups(null);
+    setRetrying(silent);
     try {
       const q = await fetchQueue();
       setGroups(q.groups);
       setNow(Date.now());
     } catch (err) {
       setQueueError(serverErrorMessage(err, 'Não deu para carregar a fila de hoje.'));
+    } finally {
+      setRetrying(false);
     }
   }, []);
 
@@ -107,7 +111,7 @@ function PrecisaDeMim() {
             <EmptyNote text="Nada depende de você agora" />
           ) : (
             <ul className={ui.queue} aria-label="Itens da fila">
-              {rows.map((r) => <QueueLine key={r.key} row={r} now={now} onRetry={() => { void loadQueue(true); }} />)}
+              {rows.map((r) => <QueueLine key={r.key} row={r} now={now} retrying={retrying} onRetry={() => { void loadQueue(true); }} />)}
             </ul>
           )}
         </section>
@@ -162,7 +166,7 @@ function TodayKpis({ s }: { s: OpsSummary }) {
   );
 }
 
-function QueueLine({ row, now, onRetry }: { row: QueueRow; now: number; onRetry: () => void }) {
+function QueueLine({ row, now, retrying, onRetry }: { row: QueueRow; now: number; retrying: boolean; onRetry: () => void }) {
   if (row.kind === 'error') {
     return (
       <li className={ui.queueRow}>
@@ -170,7 +174,7 @@ function QueueLine({ row, now, onRetry }: { row: QueueRow; now: number; onRetry:
           {/* Texto do servidor (g.error); o nome do assunto é a reserva. */}
           {row.message.trim() || `Não deu para carregar ${QUEUE_TYPE_LABEL[row.type]}`}
           <span aria-hidden="true">·</span>
-          <Button variant="tertiary" size="sm" onClick={onRetry}>Tentar de novo</Button>
+          <Button variant="tertiary" size="sm" disabled={retrying} onClick={onRetry}>Tentar de novo</Button>
         </p>
       </li>
     );

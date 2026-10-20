@@ -96,6 +96,7 @@ describe('KPIs de hoje', () => {
 describe('Fila de hoje', () => {
   it('carregando: esqueleto, sem o texto de vazio', () => {
     routes['/admin/queue'] = () => new Promise(() => undefined);
+    routes['/admin/ops/summary'] = () => new Promise(() => undefined);
     render(<AdminOperacaoPage />);
     expect(within(fila()).getByLabelText('Carregando')).toBeInTheDocument();
     expect(screen.queryByText('Nada depende de você agora')).toBeNull();
