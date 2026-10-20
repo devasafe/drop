@@ -218,21 +218,51 @@ describe('releitura e erros que preservam a lista', () => {
     expect(screen.getByText('#d4e5f6')).toBeInTheDocument();
   });
 
-  it('releitura silenciosa depois do "Carregar mais": os itens da 2ª página continuam', async () => {
-    const ROW_3 = { ...ROW_ENTREGA, id: 'o3', shortId: 'g7h8i9' };
+  it('primeira leitura falhou e a releitura também: o erro cheio fica, sem esqueleto nem aviso de última leitura', async () => {
+    jest.useFakeTimers();
+    mockConnected = false;
+    routes[ATENCAO] = fail(500, 'Erro ao listar pedidos');
+    render(<AdminPedidosPage />);
+    const bloco = screen.getByRole('region', { name: 'Pedidos' });
+    expect(await within(bloco).findByRole('alert')).toHaveTextContent('Erro ao listar pedidos');
+    const antes = calls(ATENCAO);
+    act(() => { jest.advanceTimersByTime(30_000); });
+    await waitFor(() => expect(calls(ATENCAO)).toBe(antes + 1));
+    expect(await within(bloco).findByRole('alert')).toHaveTextContent('Erro ao listar pedidos');
+    expect(within(bloco).getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
+    expect(screen.queryByText(/Mostrando a última leitura/)).toBeNull();
+  });
+
+  it('com páginas extras carregadas, o evento não relê e avisa "Há pedidos atualizados"', async () => {
     routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
-    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_3]));
+    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_ENTREGA]));
     render(<AdminPedidosPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
-    expect(await screen.findByText('#g7h8i9')).toBeInTheDocument();
-    routes[ATENCAO] = ok(page([ROW_LOJA, ROW_ENTREGA], 'c9'));
+    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
     const antes = calls(ATENCAO);
     act(() => { mockReconnect?.(); });
-    await waitFor(() => expect(calls(ATENCAO)).toBe(antes + 1));
-    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
-    expect(screen.getByText('#g7h8i9')).toBeInTheDocument();
+    expect(await screen.findByText(/Há pedidos atualizados/)).toBeInTheDocument();
+    expect(calls(ATENCAO)).toBe(antes);
     expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
-    expect(screen.getAllByRole('row')).toHaveLength(4);
+    expect(screen.getByText('#d4e5f6')).toBeInTheDocument();
+  });
+
+  it('"Atualizar" relê a 1ª página e a lista volta a uma página', async () => {
+    routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
+    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_ENTREGA]));
+    render(<AdminPedidosPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
+    act(() => { mockReconnect?.(); });
+    await screen.findByText(/Há pedidos atualizados/);
+    routes[ATENCAO] = ok(page([ROW_LOJA], 'c7'));
+    const antes = calls(ATENCAO);
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(calls(ATENCAO)).toBe(antes + 1));
+    await waitFor(() => expect(screen.queryByText('#d4e5f6')).toBeNull());
+    expect(screen.queryByText(/Há pedidos atualizados/)).toBeNull();
+    expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Carregar mais' })).toBeInTheDocument();
   });
 
   it('erro no "Carregar mais": o botão vira "Tentar de novo" e a lista fica', async () => {

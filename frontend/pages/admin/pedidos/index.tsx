@@ -62,15 +62,21 @@ function PedidosAoVivo() {
   const req = useRef(0);
   // Trava síncrona contra clique duplo em "Carregar mais".
   const moreInFlight = useRef(false);
-  // Itens trazidos por "Carregar mais": a releitura silenciosa troca só a 1ª página e os mantém.
-  const extra = useRef<AdminOrderRow[]>([]);
+  // Há leitura na tela? Sem ela, a releitura silenciosa se comporta como a primeira (erro cheio).
+  const hasData = useRef(false);
+  // O usuário trouxe páginas extras: a releitura automática não mexe na lista, só avisa.
+  const paged = useRef(false);
+  const [pendingUpdate, setPendingUpdate] = useState(false);
 
-  /** `silent`: releitura do evento/polling volta à 1ª página sem apagar a tabela da tela. */
-  const load = useCallback(async (silent = false) => {
+  /** `silent`: releitura volta à 1ª página sem apagar a tabela da tela (só vale se já há leitura). */
+  const load = useCallback(async (wantSilent = false) => {
+    const silent = wantSilent && hasData.current;
     const id = ++req.current;
     moreInFlight.current = false;
+    paged.current = false;
+    setPendingUpdate(false);
     if (!silent) {
-      extra.current = [];
+      hasData.current = false;
       setRows(null);
       setMeta(null);
       setCursor(null);
@@ -82,12 +88,10 @@ function PedidosAoVivo() {
     try {
       const page = await fetchAdminOrders(filter, { storeId: storeId || null });
       if (id !== req.current) return;
-      const fresh = new Set(page.items.map((o) => o.id));
-      const kept = extra.current.filter((o) => !fresh.has(o.id));
-      extra.current = kept;
-      setRows([...page.items, ...kept]);
+      hasData.current = true;
+      setRows(page.items);
       setMeta(page.meta);
-      if (!kept.length) setCursor(page.nextCursor);
+      setCursor(page.nextCursor);
       setNow(Date.now());
       setStores((prev) => withStores(prev, page.items));
     } catch (err) {
@@ -97,7 +101,10 @@ function PedidosAoVivo() {
     }
   }, [filter, storeId]);
 
-  const refresh = useCallback(() => { void load(true); }, [load]);
+  const refresh = useCallback(() => {
+    if (paged.current) setPendingUpdate(true);
+    else void load(true);
+  }, [load]);
   const { isConnected } = useAdminOrderChanged(refresh);
 
   useEffect(() => { void load(); }, [load]);
@@ -123,11 +130,9 @@ function PedidosAoVivo() {
       if (id !== req.current) return;
       setRows((prev) => {
         const seen = new Set((prev ?? []).map((o) => o.id));
-        const added = page.items.filter((o) => !seen.has(o.id));
-        const have = new Set(extra.current.map((o) => o.id));
-        extra.current = [...extra.current, ...added.filter((o) => !have.has(o.id))];
-        return [...(prev ?? []), ...added];
+        return [...(prev ?? []), ...page.items.filter((o) => !seen.has(o.id))];
       });
+      paged.current = true;
       setCursor(page.nextCursor);
       setStores((prev) => withStores(prev, page.items));
     } catch (err) {
@@ -209,6 +214,12 @@ function PedidosAoVivo() {
           <p role="status" className={ui.live}>
             Não deu para atualizar. Mostrando a última leitura.{' '}
             <Button variant="secondary" className={ui.touch} onClick={() => { void load(true); }}>Tentar de novo</Button>
+          </p>
+        )}
+        {pendingUpdate && !error && (
+          <p role="status" className={ui.live}>
+            Há pedidos atualizados.{' '}
+            <Button variant="secondary" className={ui.touch} onClick={() => { void load(true); }}>Atualizar</Button>
           </p>
         )}
         <AdminTable
