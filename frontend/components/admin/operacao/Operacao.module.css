@@ -68,3 +68,15 @@
   .split { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
   .go { min-height: 36px; }
 }
+
+/* Pedidos ao vivo: filtro de loja, aviso de polling e "Carregar mais". */
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
+.toolbar > * { flex: 1 1 200px; min-width: 0; }
+.live { margin: 0; font: var(--text-caption); color: var(--color-warning-text); }
+.loadMore { display: flex; justify-content: center; }
+.touch { min-height: 44px; }
+
+@media (min-width: 1024px) {
+  .toolbar > * { flex: 0 1 280px; }
+  .touch { min-height: 36px; }
+}
