@@ -23,6 +23,9 @@ import logger from '../config/logger';
 // Intervalo de timeout em minutos (30 min)
 const DELIVERY_TIMEOUT_MINUTES = 30;
 
+// Pedido ainda vivo: só nestes a corrida pode voltar ao pool.
+const LIVE_ORDER_STATUSES = ['pago', 'aguardando_motoboy', 'enviado'];
+
 /** Uma varredura (separada do agendamento para ser testável, como runPoolTimeout). */
 export async function runDeliveryTimeout(): Promise<void> {
   try {
@@ -49,21 +52,34 @@ export async function runDeliveryTimeout(): Promise<void> {
       try {
         const order: any = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
         const motoboyId = delivery.motoboyId;
+        if (!order || !motoboyId) continue;
 
-        logger.debug(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
-
-        // Volta delivery para 'pending' (novo PIN é gerado na próxima atribuição)
-        await prisma.delivery.update({
-          where: { id: delivery.id },
-          data: { status: 'pending', motoboyId: null, pin: null, pinRetirada: null },
+        // Mesma ordem de travas do claim e do cancelamento: pedido (FOR UPDATE) → entrega. Só devolve
+        // ao pool a corrida que continua parada: retirada, cancelamento ou pedido encerrado entre a
+        // leitura e a escrita vencem o job.
+        const won = await prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
+          if (!rows.length || !LIVE_ORDER_STATUSES.includes(rows[0].status)) return false;
+          const { count } = await tx.delivery.updateMany({
+            where: { id: delivery.id, status: 'assigned', motoboyId, updatedAt: { lt: timeoutThreshold } },
+            data: {
+              status: 'pending', motoboyId: null, assignedAt: null, createdAt: new Date(),
+              pin: null, pinRetirada: null, pinDevolucao: null, pinFailedAttempts: 0, pinLockedUntil: null,
+            },
+          });
+          if (count !== 1) return false;
+          await tx.order.updateMany({
+            where: { id: order.id, status: { in: LIVE_ORDER_STATUSES as any } },
+            data: { status: 'aguardando_motoboy' },
+          });
+          return true;
         });
+        if (!won) continue;
 
-        // Atualiza status do pedido para "aguardando_motoboy"
-        if (order) {
-          await prisma.order.update({ where: { id: order.id }, data: { status: 'aguardando_motoboy' } });
-          // D3b-1: a corrida voltou ao pool; a Operação ao vivo relê a lista.
-          emitAdminOrderChanged(String(order.id), 'aguardando_motoboy');
-        }
+        logger.debug(`🔄 [DELIVERY TIMEOUT] Reatribuída delivery ${delivery.id} (motoboy: ${motoboyId})`);
+
+        // D3b-1: a corrida voltou ao pool; a Operação ao vivo relê a lista.
+        emitAdminOrderChanged(String(order.id), 'aguardando_motoboy');
 
         // 📬 Notificar CLIENTE que motoboy não compareceu
         if (order && order.customerId) {
@@ -112,16 +128,16 @@ export async function runDeliveryTimeout(): Promise<void> {
           });
           logger.debug(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
         } catch (e) {
-          console.warn(`⚠️ [DELIVERY TIMEOUT] Erro ao notificar motoboys:`, e);
+          logger.warn('[DELIVERY TIMEOUT] Erro ao notificar motoboys', { deliveryId: delivery.id, error: String(e) });
         }
 
       } catch (error) {
-        console.error(`❌ [DELIVERY TIMEOUT] Erro ao processar delivery ${delivery.id}:`, error);
+        logger.error('[DELIVERY TIMEOUT] Erro ao processar delivery', error as Error, { deliveryId: delivery.id });
       }
     }
 
   } catch (error) {
-    console.error('❌ [DELIVERY TIMEOUT JOB] Erro:', error);
+    logger.error('[DELIVERY TIMEOUT JOB] Erro', error as Error);
   }
 }
 
