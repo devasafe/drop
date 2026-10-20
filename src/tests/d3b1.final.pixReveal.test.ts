@@ -54,6 +54,8 @@ describe('GET /api/admin/transfers/:id/pix-key', () => {
     expect(r.status).toBe(200);
     expect(r.body.data).toEqual({ pixKey: CPF, pixKeyType: 'CPF', motoboyName: expect.any(String), amount: 12.5 });
     expect(r.body.data.motoboyName.length).toBeGreaterThan(0);
+    expect(r.headers['cache-control']).toBe('no-store');
+    expect(r.headers.pragma).toBe('no-cache');
 
     const rows = await prisma.adminMoneyAction.findMany({ where: { targetId: t.id } });
     expect(rows).toHaveLength(1);

@@ -279,6 +279,8 @@ export async function revealTransferPixKey(req: any, res: Response) {
   );
   logger.info('[motoboyTransfer][AUDIT]', { transferId: id, adminId: req.user?.id, action: 'pix_reveal' });
   const motoboy = await prisma.user.findUnique({ where: { id: t.motoboyId }, select: { name: true } });
+  // A chave completa não pode ficar em cache do navegador nem de proxy.
+  res.set({ 'Cache-Control': 'no-store', Pragma: 'no-cache' });
   return res.json({
     success: true,
     data: { pixKey, pixKeyType: t.pixKeyType, motoboyName: motoboy?.name ?? null, amount: Number(t.amount) },
