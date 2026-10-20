@@ -15,6 +15,8 @@ type FakeMarker = {
 const mockMarkers: FakeMarker[] = [];
 jest.mock('maplibre-gl', () => ({
   Marker: jest.fn().mockImplementation(({ element }: { element: HTMLElement }) => {
+    // O Marker real põe esta classe no elemento (position:absolute); o código da camada não pode apagá-la.
+    element.classList.add('maplibregl-marker');
     const m: FakeMarker = {
       element,
       lngLat: null,
@@ -105,4 +107,38 @@ it('enquadra os pontos uma vez só', () => {
   expect(fakeMap.fitBounds.mock.calls[0][0]).toEqual([[-46.6, -23.7], [-46.4, -23.5]]);
   rerender(withMap(<OpsMarkersLayer motoboys={[P('m1', 'free', { lat: -23.9, lng: -46.9 })]} stores={[]} onSelect={jest.fn()} />));
   expect(fakeMap.fitBounds).toHaveBeenCalledTimes(1);
+});
+
+it('as classes do MapLibre sobrevivem à criação e ao estado novo', () => {
+  const { rerender } = render(withMap(
+    <OpsMarkersLayer motoboys={[P('m1', 'free')]} stores={[{ id: 'o1', name: 'Loja', lat: -23.5, lng: -46.6 }]} onSelect={jest.fn()} />,
+  ));
+  expect(mockMarkers[0].element).toHaveClass('maplibregl-marker', 'point', 'free');
+  expect(mockMarkers[1].element).toHaveClass('maplibregl-marker', 'store');
+  rerender(withMap(
+    <OpsMarkersLayer motoboys={[P('m1', 'delivering')]} stores={[{ id: 'o1', name: 'Loja', lat: -23.5, lng: -46.6 }]} onSelect={jest.fn()} />,
+  ));
+  expect(mockMarkers[0].element).toHaveClass('maplibregl-marker', 'point', 'delivering');
+  expect(mockMarkers[0].element).not.toHaveClass('free');
+});
+
+it('rerender que tira a loja remove o pino dela', () => {
+  const { rerender } = render(withMap(
+    <OpsMarkersLayer motoboys={[]} stores={[{ id: 'o1', name: 'Loja', lat: -23.5, lng: -46.6 }]} onSelect={jest.fn()} />,
+  ));
+  rerender(withMap(<OpsMarkersLayer motoboys={[]} stores={[]} onSelect={jest.fn()} />));
+  expect(mockMarkers[0].remove).toHaveBeenCalled();
+});
+
+it('desmontar remove todos os marcadores e pinos', () => {
+  const { unmount } = render(withMap(
+    <OpsMarkersLayer
+      motoboys={[P('m1', 'free'), P('m2', 'stale')]}
+      stores={[{ id: 'o1', name: 'Loja', lat: -23.5, lng: -46.6 }]}
+      onSelect={jest.fn()}
+    />,
+  ));
+  expect(mockMarkers).toHaveLength(3);
+  unmount();
+  mockMarkers.forEach((m) => expect(m.remove).toHaveBeenCalled());
 });

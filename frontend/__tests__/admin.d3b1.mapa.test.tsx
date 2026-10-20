@@ -231,6 +231,7 @@ describe('atualização', () => {
 });
 
 describe('celular', () => {
+  // Garante a ordem no DOM; o layout de uma coluna (mapa em cima) vem do CSS (grid de 1 coluna abaixo de 1024 px).
   it('o mapa vem antes das listas', async () => {
     setViewportWidth(390);
     render(<AdminMapaPage />);

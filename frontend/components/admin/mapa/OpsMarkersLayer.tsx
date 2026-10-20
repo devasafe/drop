@@ -17,7 +17,9 @@ export interface OpsMarkersLayerProps { motoboys: OpsMapPoint[]; stores: OpsStor
 
 function paintPoint(el: HTMLButtonElement, p: OpsMapPoint) {
   const label = [p.name, MAP_STATE_LABEL[p.state], p.detail].filter(Boolean).join(' · ');
-  el.className = `${styles.point} ${styles[p.state]}`;
+  // Só as classes de estado: as do MapLibre (maplibregl-marker e a da âncora) precisam sobreviver.
+  el.classList.remove(styles.free, styles.delivering, styles.stale);
+  el.classList.add(styles.point, styles[p.state]);
   el.dataset.state = p.state;
   el.setAttribute('aria-label', label);
   el.title = label;
@@ -25,7 +27,7 @@ function paintPoint(el: HTMLButtonElement, p: OpsMapPoint) {
 
 function storeEl(name: string): HTMLDivElement {
   const el = document.createElement('div');
-  el.className = styles.store;
+  el.classList.add(styles.store);
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', `${name} · aguardando motoboy`);
   const pin = document.createElement('span');
