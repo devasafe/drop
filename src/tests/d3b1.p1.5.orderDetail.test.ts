@@ -262,7 +262,7 @@ describe('GET /api/admin/orders/:id', () => {
     expect((await get(ceo, cZero.orderId)).body.refundPending).toBe(false);
   });
 
-  it('dinheiro sensível pede permissão: só operation:view não vê repasses, Pix ao motoboy nem fatia da plataforma', async () => {
+  it('dinheiro sensível pede permissão: só operation:view não vê repasses, Pix ao motoboy nem as partes do dinheiro', async () => {
     const o = await order({ status: 'entregue', totalValue: 110, deliveryFee: 10, storeAmount: 90, commissionDelivery: 2 });
     await prisma.payout.create({ data: { recipientType: 'store', recipientId: storeId, orderId: o.orderId, amount: 90, status: 'pending' } });
     await prisma.motoboyTransfer.create({
@@ -276,13 +276,14 @@ describe('GET /api/admin/orders/:id', () => {
     try {
       const r = await get(gerente, o.orderId);
       expect(r.status).toBe(200);
-      expect(r.body.money).toMatchObject({ payouts: [], motoboyTransfer: null, platformShare: null, paidByCustomer: 110, storeShare: 90 });
+      expect(r.body.money).toMatchObject({ payouts: [], motoboyTransfer: null, storeShare: null, motoboyShare: null, platformShare: null, paidByCustomer: 110 });
     } finally {
       await restore();
     }
     const rc = await get(ceo, o.orderId);
     expect(rc.body.money.payouts).toHaveLength(1);
     expect(rc.body.money.motoboyTransfer).toEqual({ status: 'done', amount: 8 });
+    expect(rc.body.money).toMatchObject({ storeShare: 90, motoboyShare: 8 });
     expect(rc.body.money.platformShare).not.toBeNull();
   });
 });

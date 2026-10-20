@@ -158,21 +158,25 @@ export async function getAdminOrderDetail(orderId: string, can: PermissionCheck,
     ? await prisma.delivery.findUnique({ where: { id: order.deliveryId }, select: SAFE_DELIVERY_SELECT })
     : await prisma.delivery.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' }, select: SAFE_DELIVERY_SELECT });
 
+  const seePayouts = can('payout:view');
+  const seeShares = can('money:overview');
+
   const [motoboy, customerStats, cancellation, actions, payouts, transfer, directRefund, tx, config] = await Promise.all([
     delivery?.motoboyId ? loadMotoboy(delivery.motoboyId) : null,
     loadCustomerStats(order.customerId, now),
     prisma.cancellation.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' } }),
     prisma.adminOrderAction.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } }),
-    prisma.payout.findMany({
+    seePayouts ? prisma.payout.findMany({
       where: { orderId },
       orderBy: { createdAt: 'asc' },
       select: { id: true, recipientType: true, amount: true, status: true },
-    }),
-    prisma.motoboyTransfer.findFirst({
+    }) : [],
+    // O Pix ao motoboy entra na conta das partes (money:overview) e é exibido com payout:view.
+    seePayouts || seeShares ? prisma.motoboyTransfer.findFirst({
       where: { orderId, reason: 'delivery' },
       orderBy: { createdAt: 'desc' },
       select: { status: true, amount: true },
-    }),
+    }) : null,
     direct ? prisma.directRefund.findUnique({ where: { orderId }, select: { status: true } }) : null,
     prisma.transaction.findFirst({ where: { orderId }, orderBy: { createdAt: 'asc' }, select: { commissionDelivery: true } }),
     getPlatformConfig(),
@@ -230,12 +234,15 @@ export async function getAdminOrderDetail(orderId: string, can: PermissionCheck,
     })),
     money: {
       ...money,
-      // Paridade com as rotas irmãs: repasses pedem payout:view e a fatia da plataforma, money:overview.
-      platformShare: can('money:overview') ? money.platformShare : null,
-      payouts: can('payout:view')
+      // Paridade com as rotas irmãs: repasses pedem payout:view; as partes (e a receita do DROP que
+      // sai por subtração) pedem money:overview.
+      storeShare: seeShares ? money.storeShare : null,
+      motoboyShare: seeShares ? money.motoboyShare : null,
+      platformShare: seeShares ? money.platformShare : null,
+      payouts: seePayouts
         ? payouts.map((p) => ({ id: p.id, recipientType: p.recipientType, amount: Number(p.amount), status: p.status }))
         : [],
-      motoboyTransfer: can('payout:view') && transfer ? { status: transfer.status, amount: Number(transfer.amount) } : null,
+      motoboyTransfer: seePayouts && transfer ? { status: transfer.status, amount: Number(transfer.amount) } : null,
     },
     cancellation: cancellation
       ? {
