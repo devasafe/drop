@@ -1,0 +1,230 @@
+/**
+ * Pedido · visão do admin (D3b-1, spec 3.3; protótipo tela 6). Permissão operation:view (padrão só CEO).
+ * GET /admin/orders/:id → topo (situação, loja, cliente, total, modo e o aviso de PIN oculto), linha do tempo com
+ * as ações do admin, itens, dinheiro do pedido e pessoas. O servidor nunca manda PIN, CPF nem e-mail, e a tela só
+ * mostra os campos do contrato. Estorno pendente vira aviso no topo, com link para Estornos.
+ * Relê sozinha quando o evento admin:order_changed traz este pedido (ou quando o socket volta).
+ */
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import ProtectedRoute from '../../../components/ProtectedRoute';
+import AdminShell from '../../../components/admin/AdminShell';
+import blocks from '../../../components/admin/AdminBlocks.module.css';
+import { LoadError, LoadSkeleton } from '../../../components/admin/LoadState';
+import { StatusTag } from '../../../components/admin/StatusTag';
+import ui from '../../../components/admin/operacao/Operacao.module.css';
+import { Alert } from '../../../components/ui/Alert';
+import { useAdminOrderChanged } from '../../../hooks/useAdminOrderChanged';
+import { plural, spTime } from '../../../lib/adminMoney';
+import {
+  ADMIN_ACTION_LABEL, FAULT_LABEL, PAYOUT_STATUS_LABEL, RECIPIENT_LABEL, SETTLEMENT_LABEL, TIMELINE_LABEL,
+  adminOrderStatus, cancellationNote, fetchAdminOrder, mergeTimeline, minutesLabel, opsErrorMessage, orderTag,
+  type AdminOrderActionView, type AdminOrderDetail, type TimelineStep,
+} from '../../../lib/adminOps';
+import { formatMoney } from '../../../lib/money';
+import { TRANSFER_STATUS_LABEL } from '../../../lib/transferErrors';
+
+export default function AdminPedidoPage() {
+  return (
+    <ProtectedRoute required_permission="operation:view">
+      <PedidoAdmin />
+    </ProtectedRoute>
+  );
+}
+
+function PedidoAdmin() {
+  const router = useRouter();
+  const id = typeof router.query.id === 'string' ? router.query.id : null;
+  const [order, setOrder] = useState<AdminOrderDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Só a última leitura vale (evento chegando junto com "Tentar de novo").
+  const req = useRef(0);
+
+  /** `silent`: releitura do evento sem apagar a tela. */
+  const load = useCallback(async (silent = false) => {
+    if (!id) return;
+    const n = ++req.current;
+    if (!silent) setOrder(null);
+    setError(null);
+    try {
+      const o = await fetchAdminOrder(id);
+      if (n === req.current) setOrder(o);
+    } catch (err) {
+      if (n === req.current) setError(opsErrorMessage(err, 'Não deu para carregar o pedido.'));
+    }
+  }, [id]);
+
+  useEffect(() => { void load(); }, [load]);
+  useAdminOrderChanged((ids) => {
+    if (id && (ids === null || ids.includes(id))) void load(true);
+  });
+
+  return (
+    <AdminShell title={order ? `Pedido ${orderTag(order.shortId)}` : 'Pedido'}>
+      <div className={ui.stack}>
+        <Link href="/admin/pedidos" className={ui.link}>Voltar para Pedidos ao vivo</Link>
+        {error ? (
+          <LoadError message={error} onRetry={() => { void load(); }} />
+        ) : !order ? (
+          <LoadSkeleton lines={8} />
+        ) : (
+          <PedidoBody order={order} />
+        )}
+      </div>
+    </AdminShell>
+  );
+}
+
+const share = (v: number | null) => (v === null ? '—' : formatMoney(v));
+
+function PedidoBody({ order }: { order: AdminOrderDetail }) {
+  const st = adminOrderStatus(order.status, order.deliveryStatus);
+  const m = order.money;
+  const total = m.subtotal + m.deliveryFee - m.couponDiscount;
+  return (
+    <>
+      {order.refundPending && (
+        <Alert tone="warning" title="Estorno pendente">
+          O dinheiro do cliente ainda não voltou. <Link href="/admin/estornos" className={ui.link}>Ver em Estornos</Link>
+        </Alert>
+      )}
+
+      <section className={blocks.block} aria-label="Resumo do pedido">
+        <div className={blocks.blockHead}>
+          <h2 className={blocks.blockTitle}>{orderTag(order.shortId)}</h2>
+          <StatusTag tone={st.tone}>{st.label}</StatusTag>
+        </div>
+        <dl className={ui.facts}>
+          <div><dt>Loja</dt><dd>{order.store.name}</dd></div>
+          <div><dt>Cliente</dt><dd>{order.customer.name}</dd></div>
+          <div><dt>Total</dt><dd>{formatMoney(total)}</dd></div>
+          <div><dt>Modo</dt><dd>{SETTLEMENT_LABEL[order.settlementMode] ?? order.settlementMode}</dd></div>
+        </dl>
+        <Alert tone="info">PIN de retirada e de entrega ocultos</Alert>
+      </section>
+
+      <div className={ui.split}>
+        <div className={ui.side}>
+          <section className={blocks.block} aria-label="Linha do tempo">
+            <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Linha do tempo</h2></div>
+            <ol className={ui.timeline}>
+              {mergeTimeline(order.timeline, order.adminActions).map((e) => (e.kind === 'step'
+                ? <StepLine key={e.key} step={e.step} order={order} />
+                : <ActionLine key={e.key} action={e.action} />))}
+            </ol>
+          </section>
+
+          <section className={blocks.block} aria-label="Itens">
+            <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Itens</h2></div>
+            <ul className={ui.lines}>
+              {order.items.map((it, i) => (
+                <li key={`${it.name}-${i}`} className={ui.line}>
+                  <span>{`${it.quantity}× ${it.name}`}</span>
+                  <span className={ui.money}>{formatMoney(it.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+
+        <div className={ui.side}>
+          <section className={blocks.block} aria-label="Dinheiro do pedido">
+            <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Dinheiro do pedido</h2></div>
+            <dl className={ui.facts}>
+              <div><dt>Subtotal</dt><dd>{formatMoney(m.subtotal)}</dd></div>
+              <div><dt>Entrega</dt><dd>{formatMoney(m.deliveryFee)}</dd></div>
+              {m.couponDiscount > 0 && <div><dt>Cupom</dt><dd>{formatMoney(-m.couponDiscount)}</dd></div>}
+              {m.walletApplied > 0 && <div><dt>Carteira</dt><dd>{formatMoney(-m.walletApplied)}</dd></div>}
+              <div><dt>Pago pelo cliente</dt><dd>{formatMoney(m.paidByCustomer)}</dd></div>
+            </dl>
+            <h3 className={ui.subTitle}>Partes</h3>
+            <dl className={ui.facts}>
+              <div><dt>Loja</dt><dd>{share(m.storeShare)}</dd></div>
+              <div><dt>Motoboy</dt><dd>{share(m.motoboyShare)}</dd></div>
+              <div><dt>DROP</dt><dd>{share(m.platformShare)}</dd></div>
+            </dl>
+            {order.settlementMode === 'custody' ? (
+              m.payouts.length === 0 ? (
+                <p className={blocks.muted}>Nenhum repasse para mostrar.</p>
+              ) : (
+                <ul className={ui.lines} aria-label="Repasses">
+                  {m.payouts.map((p) => (
+                    <li key={p.id} className={ui.line}>
+                      <span>{`Repasse · ${RECIPIENT_LABEL[p.recipientType] ?? p.recipientType}`}</span>
+                      <span className={ui.money}>{`${formatMoney(p.amount)} · ${PAYOUT_STATUS_LABEL[p.status] ?? p.status}`}</span>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : m.motoboyTransfer ? (
+              <dl className={ui.facts}>
+                <div>
+                  <dt>Pix ao motoboy</dt>
+                  <dd>{`${formatMoney(m.motoboyTransfer.amount)} · ${TRANSFER_STATUS_LABEL[m.motoboyTransfer.status] ?? m.motoboyTransfer.status}`}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className={blocks.muted}>Nenhum Pix ao motoboy para mostrar.</p>
+            )}
+          </section>
+
+          <section className={blocks.block} aria-label="Pessoas">
+            <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Pessoas</h2></div>
+            <dl className={ui.facts}>
+              <div><dt>Cliente</dt><dd>{order.customer.name}</dd></div>
+              <div><dt>Pedidos do cliente</dt><dd>{plural(order.customer.ordersCount, 'pedido', 'pedidos')}</dd></div>
+              <div><dt>Cancelamentos em 30 dias</dt><dd>{order.customer.cancellations30d}</dd></div>
+              {order.motoboy ? (
+                <>
+                  <div><dt>Motoboy</dt><dd>{order.motoboy.name}</dd></div>
+                  <div><dt>Veículo</dt><dd>{[order.motoboy.vehicle, order.motoboy.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
+                  <div>
+                    <dt>Nota</dt>
+                    <dd>
+                      {order.motoboy.rating === null
+                        ? 'Sem nota'
+                        : order.motoboy.rating.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    </dd>
+                  </div>
+                </>
+              ) : (
+                <div><dt>Motoboy</dt><dd>Ainda sem motoboy</dd></div>
+              )}
+            </dl>
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function StepLine({ step, order }: { step: TimelineStep; order: AdminOrderDetail }) {
+  const cancelled = step.key === 'cancelled';
+  const cls = !step.at ? ui.step : `${ui.step} ${cancelled ? ui.stepCancelled : ui.stepDone}`;
+  return (
+    <li className={cls} data-step={step.key}>
+      <span className={ui.stepLabel}>{TIMELINE_LABEL[step.key] ?? step.key}</span>
+      <span className={ui.stepTime}>{step.at ? spTime(step.at) : '—'}</span>
+      {step.at && step.sincePrevMin !== null && (
+        <span className={ui.stepNote}>{`+${minutesLabel(step.sincePrevMin)} desde a etapa anterior`}</span>
+      )}
+      {cancelled && order.cancellation && <span className={ui.stepNote}>{cancellationNote(order.cancellation)}</span>}
+    </li>
+  );
+}
+
+function ActionLine({ action }: { action: AdminOrderActionView }) {
+  const note = [
+    `por ${action.actorName}`,
+    action.reason,
+    action.faultParty ? `culpa: ${FAULT_LABEL[action.faultParty]}` : null,
+  ].filter(Boolean).join(' · ');
+  return (
+    <li className={`${ui.step} ${ui.stepAction}`} data-step={`acao-${action.action}`}>
+      <span className={ui.stepLabel}>{ADMIN_ACTION_LABEL[action.action] ?? action.action}</span>
+      <span className={ui.stepTime}>{spTime(action.at)}</span>
+      <span className={ui.stepNote}>{note}</span>
+    </li>
+  );
+}

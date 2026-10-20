@@ -80,3 +80,25 @@
   .toolbar > * { flex: 0 1 280px; }
   .touch { min-height: 36px; }
 }
+
+/* Pedido do admin: linha do tempo (barra à esquerda pelo estado), itens e dinheiro. */
+.timeline { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-border-default);
+}
+.stepDone { border-left-color: var(--color-success); }
+.stepAction { border-left-color: var(--color-warning); }
+.stepCancelled { border-left-color: var(--color-error); }
+.stepLabel { font: var(--text-label); color: var(--color-text-primary); }
+.stepCancelled .stepLabel { color: var(--color-error-text); }
+.stepTime { font: var(--text-meta); color: var(--color-text-primary); font-variant-numeric: tabular-nums; text-align: right; }
+.stepNote { grid-column: 1 / -1; font: var(--text-caption); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.lines { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.line { display: flex; justify-content: space-between; gap: var(--space-3); font: var(--text-meta); color: var(--color-text-primary); }
+.line > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.money { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.subTitle { margin: var(--space-2) 0 0; font: var(--text-label); color: var(--color-text-secondary); }
