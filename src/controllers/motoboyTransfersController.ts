@@ -252,3 +252,35 @@ export async function resolveTransfer(req: any, res: Response) {
   const fresh = await prisma.motoboyTransfer.findUnique({ where: { id } });
   return res.json({ success: true, data: serialize(fresh!) });
 }
+
+/**
+ * GET /api/admin/transfers/:id/pix-key — D3b-1 "Ver chave": chave completa só do Pix manual
+ * do DROP ainda não pago (o admin paga pelo banco). A consulta vira linha
+ * motoboy_transfer_pix_reveal ANTES da resposta; se a linha falhar, a chave não sai.
+ * A chave nunca vai para log nem para a linha de auditoria.
+ */
+export async function revealTransferPixKey(req: any, res: Response) {
+  const id = String(req.params.id);
+  const t = await prisma.motoboyTransfer.findUnique({ where: { id } });
+  if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
+  if (t.payer !== 'platform' || t.lastError !== 'PLATFORM_MANUAL_PIX' || t.status === 'done' || !t.pixKeyEncrypted) {
+    throw new AppError('A chave só aparece no Pix manual do DROP ainda não pago', 409, true, 'PIX_KEY_NOT_REVEALABLE');
+  }
+  const pixKey = decryptSensitiveData(t.pixKeyEncrypted);
+  const actor = actorFromRequest(req);
+  await prisma.$transaction((tx) =>
+    recordAdminMoneyAction(tx, {
+      actor,
+      type: 'motoboy_transfer_pix_reveal',
+      targetType: 'motoboy_transfer',
+      targetId: id,
+      amount: t.amount,
+    }),
+  );
+  logger.info('[motoboyTransfer][AUDIT]', { transferId: id, adminId: req.user?.id, action: 'pix_reveal' });
+  const motoboy = await prisma.user.findUnique({ where: { id: t.motoboyId }, select: { name: true } });
+  return res.json({
+    success: true,
+    data: { pixKey, pixKeyType: t.pixKeyType, motoboyName: motoboy?.name ?? null, amount: Number(t.amount) },
+  });
+}

@@ -1472,6 +1472,8 @@ enum AdminMoneyActionType {
   direct_refund_resolve
   // D3b-1: cancelamento com estorno pelo admin (POST /admin/orders/:id/cancel)
   order_admin_cancel
+  // D3b-1: admin viu a chave Pix completa do Pix manual do DROP (GET /admin/transfers/:id/pix-key)
+  motoboy_transfer_pix_reveal
 }
 
 model AdminMoneyAction {
