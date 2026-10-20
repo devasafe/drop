@@ -109,6 +109,10 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   { key: 'analytics:view_platform',     label: 'Ver analytics da plataforma', category: 'Analytics' },
   // Financeiro — Visão geral (D3b-3): padrão só CEO (via '*'); concedível em Permissões.
   { key: 'money:overview',              label: 'Ver a visão geral do dinheiro e o histórico de ações', category: 'Financeiro — Visão geral' },
+  // Operação (D3b-1): padrão só CEO (via '*'); concedíveis em Permissões. Fora de CEO_ONLY_PERMISSIONS.
+  { key: 'operation:view',              label: 'Ver a operação ao vivo (fila, pedidos e mapa)', category: 'Operação' },
+  { key: 'order:admin_cancel',          label: 'Cancelar pedido com estorno, escolhendo a culpa', category: 'Operação' },
+  { key: 'order:reassign',              label: 'Reatribuir o motoboy de um pedido antes da retirada', category: 'Operação' },
 ];
 
 // Permissões que movem dinheiro sem lastro: exclusivas do CEO (via '*'), nunca

@@ -44,6 +44,8 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   });
   const orderIds = suiteOrders.map((o) => o.id);
   await prisma.cancellation.deleteMany({ where: { orderId: { in: orderIds } } });
+  // D3b-1: ações do admin sobre os pedidos da suíte ou feitas pelos usuários da suíte (sem FK).
+  await prisma.adminOrderAction.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { actorId: { in: ids } }] } });
   await prisma.delivery.deleteMany({ where: { OR: [{ orderId: { in: orderIds } }, { motoboyId: { in: ids } }] } });
 
   await prisma.order.deleteMany({

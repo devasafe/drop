@@ -37,10 +37,12 @@ const SPEC_TYPES = [
   'withdrawal_approve', 'withdrawal_reject', 'withdrawal_resolve_uncertain',
   'cashbox_deposit', 'cashbox_withdrawal_request', 'cashbox_withdrawal_approve', 'cashbox_withdrawal_reject',
   'wallet_adjust', 'commission_sync', 'motoboy_transfer_retry', 'motoboy_transfer_resolve', 'direct_refund_resolve',
+  // D3b-1: cancelamento com estorno pelo admin
+  'order_admin_cancel',
 ];
 
 describe('schema da D3b-3', () => {
-  it('o enum AdminMoneyActionType tem exatamente os 17 tipos da spec 3.1', () => {
+  it('o enum AdminMoneyActionType tem exatamente os 17 tipos da spec 3.1 e o cancelamento do admin (D3b-1)', () => {
     expect(Object.values(AdminMoneyActionType).sort()).toEqual([...SPEC_TYPES].sort());
   });
 

@@ -178,6 +178,8 @@ enum AppCashboxSource {
   payout_paid
   store_payout_reserved
   motoboy_payout_reserved
+  // D3b-1: compensação ao motoboy paga pelo DROP no cancelamento do admin com culpa 'platform' (custódia)
+  admin_cancel_compensation
 }
 
 enum DeliveryInvoiceStatus {
@@ -709,6 +711,8 @@ model Delivery {
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
   cancelledAt               DateTime?
+  /// D3b-1: motoboys tirados desta corrida por "Reatribuir". Não recebem a oferta de novo nem conseguem pegá-la.
+  excludedMotoboyIds        String[]            @default([])
 
   @@index([orderId])
   @@index([motoboyId])
@@ -909,6 +913,10 @@ model Cancellation {
   refundStatus        RefundStatus?          @default(pending)
   isLateCancellation  Boolean                @default(false)
   lateCancellationFee Decimal?               @db.Decimal(12, 2)
+  // D3b-1: cancelamento pelo admin. faultParty = quem teve a culpa (as estatísticas contam por ela
+  // quando cancelledBy = 'admin'; 'platform' não conta para ninguém). adminId = quem cancelou.
+  faultParty          CancellationFault?
+  adminId             String?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -1366,6 +1374,9 @@ model MotoboyTransfer {
   storeId          String
   motoboyId        String
   reason           String    @default("delivery")
+  // D3b-1: quem paga o Pix. 'platform' = compensação do cancelamento do admin com culpa do DROP no
+  // modo SaaS, paga por Pix manual do DROP e baixada pelo "Resolver" de /admin/transfers.
+  payer            TransferPayer @default(store)
   amount           Decimal   @db.Decimal(12, 2)
   pixKeyEncrypted  String
   pixKeyType       String
@@ -1459,6 +1470,8 @@ enum AdminMoneyActionType {
   motoboy_transfer_retry
   motoboy_transfer_resolve
   direct_refund_resolve
+  // D3b-1: cancelamento com estorno pelo admin (POST /admin/orders/:id/cancel)
+  order_admin_cancel
 }
 
 model AdminMoneyAction {
@@ -1481,4 +1494,39 @@ model AdminMoneyAction {
   @@index([createdAt(sort: Desc)])
   @@index([actorId, createdAt])
   @@index([type, createdAt])
+}
+
+// D3b-1: quem paga a MotoboyTransfer (a loja, como hoje, ou o DROP).
+enum TransferPayer {
+  store
+  platform
+}
+
+// D3b-1 · Operação ao vivo: culpa escolhida pelo admin ao cancelar.
+enum CancellationFault {
+  customer
+  store
+  motoboy
+  platform
+}
+
+enum AdminOrderActionType {
+  cancel
+  reassign
+}
+
+/// D3b-1 · registro das ações do admin sobre um pedido (cancelar com estorno, reatribuir motoboy).
+/// Aparece na linha do tempo do pedido com autor e motivo. `details` guarda valores e o motoboy anterior.
+model AdminOrderAction {
+  id         String               @id @default(uuid())
+  orderId    String
+  action     AdminOrderActionType
+  actorId    String
+  actorRole  String
+  reason     String
+  faultParty CancellationFault?
+  details    Json?
+  createdAt  DateTime             @default(now())
+
+  @@index([orderId, createdAt])
 }
