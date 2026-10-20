@@ -230,8 +230,12 @@ export async function getAdminOrderDetail(orderId: string, can: PermissionCheck,
     })),
     money: {
       ...money,
-      payouts: payouts.map((p) => ({ id: p.id, recipientType: p.recipientType, amount: Number(p.amount), status: p.status })),
-      motoboyTransfer: transfer ? { status: transfer.status, amount: Number(transfer.amount) } : null,
+      // Paridade com as rotas irmãs: repasses pedem payout:view e a fatia da plataforma, money:overview.
+      platformShare: can('money:overview') ? money.platformShare : null,
+      payouts: can('payout:view')
+        ? payouts.map((p) => ({ id: p.id, recipientType: p.recipientType, amount: Number(p.amount), status: p.status }))
+        : [],
+      motoboyTransfer: can('payout:view') && transfer ? { status: transfer.status, amount: Number(transfer.amount) } : null,
     },
     cancellation: cancellation
       ? {

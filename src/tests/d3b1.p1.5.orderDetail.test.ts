@@ -239,4 +239,50 @@ describe('GET /api/admin/orders/:id', () => {
       await restore();
     }
   });
+
+  it('refundPending: direto pelo DirectRefund; custódia por failed; sem valor a estornar não conta', async () => {
+    const refund = (orderId: string, status: string) =>
+      prisma.directRefund.create({
+        data: { orderId, storeId, asaasPaymentId: 'pay_x', amount: 10, status, requestedBy: ceo.userId },
+      });
+    const dPendente = await order({ status: 'cancelado', paymentProvider: 'asaas_loja', cancelledAt: plus(1) });
+    await refund(dPendente.orderId, 'pending');
+    const dFeito = await order({ status: 'cancelado', paymentProvider: 'asaas_loja', cancelledAt: plus(1) });
+    await refund(dFeito.orderId, 'done');
+    expect((await get(ceo, dPendente.orderId)).body.refundPending).toBe(true);
+    expect((await get(ceo, dFeito.orderId)).body.refundPending).toBe(false);
+
+    const cancel = (orderId: string, data: Record<string, unknown>) =>
+      prisma.cancellation.create({ data: { orderId, cancelledBy: 'admin', reason: 'x', reasonCode: 'other', ...data } as any });
+    const cFalhou = await order({ status: 'cancelado', cancelledAt: plus(1) });
+    await cancel(cFalhou.orderId, { refundAmount: 20, refundStatus: 'failed' });
+    const cZero = await order({ status: 'cancelado', cancelledAt: plus(1) });
+    await cancel(cZero.orderId, { refundAmount: 0 });
+    expect((await get(ceo, cFalhou.orderId)).body.refundPending).toBe(true);
+    expect((await get(ceo, cZero.orderId)).body.refundPending).toBe(false);
+  });
+
+  it('dinheiro sensível pede permissão: só operation:view não vê repasses, Pix ao motoboy nem fatia da plataforma', async () => {
+    const o = await order({ status: 'entregue', totalValue: 110, deliveryFee: 10, storeAmount: 90, commissionDelivery: 2 });
+    await prisma.payout.create({ data: { recipientType: 'store', recipientId: storeId, orderId: o.orderId, amount: 90, status: 'pending' } });
+    await prisma.motoboyTransfer.create({
+      data: {
+        deliveryId: fakeObjectId(), orderId: o.orderId, storeId, motoboyId: motoboy.userId,
+        amount: 8, pixKeyEncrypted: 'x', pixKeyType: 'cpf', status: 'done', reason: 'delivery',
+      },
+    });
+    const gerente = await createTestUser('gerente_geral', DOMAIN);
+    const restore = await grantRolePermissions('gerente_geral', ['operation:view']);
+    try {
+      const r = await get(gerente, o.orderId);
+      expect(r.status).toBe(200);
+      expect(r.body.money).toMatchObject({ payouts: [], motoboyTransfer: null, platformShare: null, paidByCustomer: 110, storeShare: 90 });
+    } finally {
+      await restore();
+    }
+    const rc = await get(ceo, o.orderId);
+    expect(rc.body.money.payouts).toHaveLength(1);
+    expect(rc.body.money.motoboyTransfer).toEqual({ status: 'done', amount: 8 });
+    expect(rc.body.money.platformShare).not.toBeNull();
+  });
 });
