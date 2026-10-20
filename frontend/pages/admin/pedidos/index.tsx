@@ -73,10 +73,10 @@ function PedidosAoVivo() {
     const silent = wantSilent && hasData.current;
     const id = ++req.current;
     moreInFlight.current = false;
-    paged.current = false;
-    setPendingUpdate(false);
     if (!silent) {
       hasData.current = false;
+      paged.current = false;
+      setPendingUpdate(false);
       setRows(null);
       setMeta(null);
       setCursor(null);
@@ -89,6 +89,9 @@ function PedidosAoVivo() {
       const page = await fetchAdminOrders(filter, { storeId: storeId || null });
       if (id !== req.current) return;
       hasData.current = true;
+      // Só uma leitura que deu certo troca a lista: se falhar, as páginas extras e o aviso continuam.
+      paged.current = false;
+      setPendingUpdate(false);
       setRows(page.items);
       setMeta(page.meta);
       setCursor(page.nextCursor);

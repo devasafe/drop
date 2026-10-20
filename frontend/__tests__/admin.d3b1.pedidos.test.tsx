@@ -265,6 +265,27 @@ describe('releitura e erros que preservam a lista', () => {
     expect(screen.getByRole('button', { name: 'Carregar mais' })).toBeInTheDocument();
   });
 
+  it('"Atualizar" que falha mantém as páginas extras; o próximo evento não relê e o aviso continua', async () => {
+    routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
+    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_ENTREGA]));
+    render(<AdminPedidosPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
+    act(() => { mockReconnect?.(); });
+    await screen.findByText(/Há pedidos atualizados/);
+    routes[ATENCAO] = fail(500, 'Erro ao listar pedidos');
+    const antes = calls(ATENCAO);
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await screen.findByText(/Não deu para atualizar/);
+    expect(calls(ATENCAO)).toBe(antes + 1);
+    expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
+    expect(screen.getByText('#d4e5f6')).toBeInTheDocument();
+    act(() => { mockReconnect?.(); });
+    expect(calls(ATENCAO)).toBe(antes + 1);
+    expect(screen.getByText(/Há pedidos atualizados/)).toBeInTheDocument();
+    expect(screen.getByText('#d4e5f6')).toBeInTheDocument();
+  });
+
   it('erro no "Carregar mais": o botão vira "Tentar de novo" e a lista fica', async () => {
     routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
     routes[`${ATENCAO}&cursor=c1`] = fail(500, 'Falha na próxima página');
