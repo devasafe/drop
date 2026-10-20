@@ -57,6 +57,8 @@ export interface CancellationCompensation {
   motoboyId: string | null | undefined;
   /** `calculateCancellationFee(...).motoboyShare` — nunca recalculado aqui. */
   motoboyShare: number;
+  /** Quem paga: a loja (padrão, Pix pela conta dela) ou o DROP (Pix manual, culpa platform). */
+  payer?: 'store' | 'platform';
 }
 
 /** Alerta (dinheiro inconsistente): a entrega já tem transferência e a compensação não foi criada. */
@@ -111,6 +113,7 @@ export async function createCancellationCompensation(
     { id: String(c.order.id), storeId: String(c.order.storeId) },
     'cancellation_compensation',
     Number(c.motoboyShare),
+    c.payer ?? 'store',
   );
 }
 

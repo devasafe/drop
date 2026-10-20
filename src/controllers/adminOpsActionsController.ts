@@ -5,8 +5,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import logger from '../config/logger';
-import { sendMoneyActionError } from '../services/adminMoneyAction.service';
-import { previewAdminCancel } from '../services/adminOps/adminCancel';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { previewAdminCancel, adminCancelOrder } from '../services/adminOps/adminCancel';
 
 // GET /api/admin/orders/:id/cancel-preview?fault= (order:admin_cancel)
 export const getAdminCancelPreview = async (req: AuthenticatedRequest, res: Response) => {
@@ -16,5 +16,22 @@ export const getAdminCancelPreview = async (req: AuthenticatedRequest, res: Resp
     if (sendMoneyActionError(res, err)) return undefined;
     logger.error('[adminOps] falha na prévia do cancelamento', err as Error, { orderId: req.params.id });
     return res.status(500).json({ error: 'Erro ao calcular a prévia do cancelamento' });
+  }
+};
+
+// POST /api/admin/orders/:id/cancel { fault, reason } (order:admin_cancel)
+export const postAdminCancel = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await adminCancelOrder({
+      orderId: String(req.params.id),
+      fault: req.body?.fault,
+      reason: req.body?.reason,
+      actor: actorFromRequest(req),
+    });
+    return res.json(result);
+  } catch (err) {
+    if (sendMoneyActionError(res, err)) return undefined;
+    logger.error('[adminOps] falha ao cancelar o pedido', err as Error, { orderId: req.params.id });
+    return res.status(500).json({ error: 'Erro ao cancelar o pedido' });
   }
 };

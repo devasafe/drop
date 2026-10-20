@@ -97,6 +97,12 @@ export async function motoboyPixSnapshot(tx: Prisma.TransactionClient, motoboyId
 }
 
 /**
+ * D3b-1: compensação paga pelo DROP no modo SaaS (culpa platform). A linha nasce com o admin
+ * (`failed_final`): o job nunca envia (só payer 'store') e o admin paga pelo banco e usa "Resolver".
+ */
+export const PLATFORM_MANUAL_PIX = 'PLATFORM_MANUAL_PIX';
+
+/**
  * Cria a MotoboyTransfer da entrega (1 por delivery, unique em deliveryId).
  * Deve ser chamada DENTRO da transação da trava picked→delivered.
  */
@@ -106,6 +112,7 @@ export async function createTransferForDelivery(
   order: { id: string; storeId: string },
   reason: TransferReason = 'delivery',
   amountOverride?: number,
+  payer: 'store' | 'platform' = 'store',
 ): Promise<MotoboyTransfer> {
   // Config lida pelo `tx` (mesma conexão/snapshot da transação que grava a linha).
   const pc: any = await tx.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
@@ -118,7 +125,11 @@ export async function createTransferForDelivery(
 
   let status = 'pending';
   let lastError: string | null = null;
-  if (Math.round(amount * 100) > Math.round(maxAmount * 100)) {
+  if (payer === 'platform') {
+    // Pix manual do DROP: sem envio automático, então o teto por transferência não se aplica.
+    status = 'failed_final';
+    lastError = PLATFORM_MANUAL_PIX;
+  } else if (Math.round(amount * 100) > Math.round(maxAmount * 100)) {
     status = 'failed_final';
     lastError = 'AMOUNT_OVER_LIMIT';
   } else if (!pixKey) {
@@ -134,11 +145,12 @@ export async function createTransferForDelivery(
       motoboyId: String(delivery.motoboyId),
       reason,
       amount,
+      payer,
       pixKeyEncrypted: pixKey ? encryptSensitiveData(pixKey) : '',
       pixKeyType: pixKey ? pixKeyType : '',
       status,
       lastError,
-      // Nasce falha (sem chave Pix / acima do teto): a 1ª falha é agora.
+      // Nasce falha (sem chave Pix / acima do teto / Pix manual do DROP): a 1ª falha é agora.
       firstFailedAt: status === 'pending' ? null : new Date(),
     },
   });
@@ -181,6 +193,15 @@ async function noticeMotoboyPixKeyMissing(t: Pick<MotoboyTransfer, 'id' | 'motob
 /** Avisos pós-commit (socket só para salas; sem chave Pix no payload). */
 export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' | 'lastError' | 'motoboyId' | 'storeId' | 'orderId' | 'amount'>): void {
   if (t.status === 'pending') return;
+  if (t.lastError === PLATFORM_MANUAL_PIX) {
+    emitAdminNotification({
+      title: 'Pix manual do DROP ao motoboy',
+      body: `Pedido ${String(t.orderId).slice(-6)}: R$ ${Number(t.amount).toFixed(2).replace('.', ',')} de compensação. Pague pelo banco e use "Resolver".`,
+      url: '/admin/transfers',
+      tag: `motoboy-transfer-${t.id}`,
+    });
+    return;
+  }
   try {
     const payload = { transferId: t.id, orderId: t.orderId, storeId: t.storeId, amount: Number(t.amount), error: t.lastError };
     if (t.lastError === 'MOTOBOY_PIX_KEY_MISSING') {
@@ -584,6 +605,7 @@ export async function storeHasOverdueTransfer(storeId: string, now: Date = new D
   const n = await prisma.motoboyTransfer.count({
     where: {
       storeId,
+      payer: 'store',
       status: { in: ['failed', 'failed_final'] },
       createdAt: { lt: new Date(now.getTime() - transferBlockHours * 60 * 60 * 1000) },
       // R15: motivos fora do controle da loja não bloqueiam (lastError nulo conta).

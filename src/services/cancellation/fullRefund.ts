@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
 import env from '../../config/env';
@@ -26,6 +27,8 @@ export interface FullRefundOpts {
   admin?: AdminCancelActor;
   /** Texto livre gravado em Cancellation.details (o motivo do admin). */
   details?: string;
+  /** Culpa do DROP (admin): no pedido direto, a entrega cheia vira Pix manual do DROP ao motoboy. */
+  platformCompensation?: boolean;
 }
 
 /**
@@ -142,7 +145,16 @@ export async function cancelOrderWithFullRefund(
     try {
       ({ cancellation } = await recordCancellationWithCompensation(
         cancellationData,
-        null,
+        // Culpa do DROP no SaaS: quem está na corrida, relido pelo `tx` depois da trava, recebe a
+        // entrega cheia como MotoboyTransfer payer 'platform' (Pix manual), na mesma transação.
+        opts.platformCompensation && order.deliveryId
+          ? async (tx: Prisma.TransactionClient) => {
+            const fresh = await tx.delivery.findUnique({ where: { id: String(order.deliveryId) }, select: { motoboyId: true } });
+            return fresh?.motoboyId
+              ? { order, deliveryId: order.deliveryId, motoboyId: fresh.motoboyId, motoboyShare: round2(Number(order.deliveryFee) || 0), payer: 'platform' as const }
+              : null;
+          }
+          : null,
         { orderId: order.id, from: cancellableStatuses, to: 'cancelado', restock: order.products || [] },
       ));
     } catch (err) {

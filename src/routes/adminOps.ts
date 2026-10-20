@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
 import { getQueue, getSummary, listOrders, getOrderDetail, getMap } from '../controllers/adminOpsController';
-import { getAdminCancelPreview } from '../controllers/adminOpsActionsController';
+import { getAdminCancelPreview, postAdminCancel } from '../controllers/adminOpsActionsController';
 
 const router = Router();
 const canViewOps = authorizePermission('operation:view');
@@ -28,5 +28,8 @@ router.get('/orders/:id', authenticate, canViewOps, getOrderDetail);
 
 // D3b-1 · P2.2 — prévia do cancelamento do admin por culpa
 router.get('/orders/:id/cancel-preview', authenticate, authorizePermission('order:admin_cancel'), getAdminCancelPreview);
+
+// D3b-1 · P2.3 — cancelar com estorno, com culpa
+router.post('/orders/:id/cancel', authenticate, authorizePermission('order:admin_cancel'), postAdminCancel);
 
 export default router;

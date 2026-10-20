@@ -26,6 +26,8 @@ export const ADMIN_MONEY_TARGET_TYPES = [
   'motoboy_transfer',
   'direct_refund',
   'verification',
+  // D3b-1: cancelamento com estorno feito pelo admin (alvo = o pedido).
+  'order',
 ] as const;
 export type AdminMoneyTargetType = (typeof ADMIN_MONEY_TARGET_TYPES)[number];
 

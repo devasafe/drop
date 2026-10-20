@@ -14,6 +14,7 @@ import { emitAdminNotification } from '../utils/socketEmitter';
  *  - `pending` e `failed` com nextAttemptAt vencido → sendTransfer (claim atômico, teto
  *    diário P10, backoff P5; a 6ª falha vira `failed_final`).
  *  - `uncertain`, `done` e `failed_final` nunca são tocados aqui (R6/R7: só o admin).
+ *  - `payer: 'platform'` (Pix manual do DROP, D3b-1) nunca é enviada aqui: só o admin resolve.
  */
 
 export const STUCK_REQUESTED_MS = 10 * 60 * 1000;
@@ -47,7 +48,7 @@ export async function runMotoboyTransfers(now: Date = new Date()): Promise<{ sen
 
   // 2) Envios e retentativas vencidas.
   const due = await prisma.motoboyTransfer.findMany({
-    where: { status: { in: ['pending', 'failed'] }, nextAttemptAt: { lte: now } },
+    where: { status: { in: ['pending', 'failed'] }, nextAttemptAt: { lte: now }, payer: 'store' },
     select: { id: true },
     orderBy: { nextAttemptAt: 'asc' },
     take: BATCH,

@@ -1046,10 +1046,18 @@ export const getCancellationHistory = async (req: AuthenticatedRequest, res: Res
       orderBy: { createdAt: 'desc' },
     });
 
+    // D3b-1: culpa, autor e motivo interno do cancelamento do admin são só da equipe.
+    const history = isAdmin
+      ? cancellations
+      : cancellations.map(({ faultParty: _fp, adminId: _ad, details, ...rest }) => {
+        void _fp; void _ad;
+        return rest.cancelledBy === 'admin' ? rest : { ...rest, details };
+      });
+
     return res.json({
       success: true,
-      count: cancellations.length,
-      history: cancellations,
+      count: history.length,
+      history,
     });
   } catch (error: any) {
     logger.error('Erro ao buscar histórico de cancelamentos', error as Error);

@@ -44,11 +44,11 @@ export async function directMonthSummary(storeId: string, month?: string) {
       _sum: { totalValue: true },
     }),
     prisma.motoboyTransfer.aggregate({
-      where: { storeId, status: 'done', doneAt: inMonth },
+      where: { storeId, payer: 'store', status: 'done', doneAt: inMonth },
       _count: { _all: true },
       _sum: { amount: true },
     }),
-    prisma.motoboyTransfer.count({ where: { storeId, status: { in: STUCK_STATUSES } } }),
+    prisma.motoboyTransfer.count({ where: { storeId, payer: 'store', status: { in: STUCK_STATUSES } } }),
     prisma.directRefund.aggregate({
       where: { storeId, status: 'done', doneAt: inMonth },
       _count: { _all: true },

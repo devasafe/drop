@@ -58,7 +58,7 @@ describe('schema da D3b-3', () => {
 
   it('os alvos aceitos são os da spec 3.1', () => {
     expect([...ADMIN_MONEY_TARGET_TYPES].sort()).toEqual([
-      'cashbox', 'cashbox_withdrawal', 'direct_refund', 'motoboy_transfer', 'payout',
+      'cashbox', 'cashbox_withdrawal', 'direct_refund', 'motoboy_transfer', 'order', 'payout',
       'plan_commission', 'verification', 'wallet', 'withdrawal_request',
     ]);
   });

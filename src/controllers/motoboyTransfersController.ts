@@ -43,6 +43,7 @@ function serialize(t: MotoboyTransfer) {
     storeId: t.storeId,
     motoboyId: t.motoboyId,
     reason: t.reason,
+    payer: t.payer,
     amount: Number(t.amount),
     status: t.status,
     attempts: t.attempts,
@@ -101,7 +102,7 @@ export async function listStoreTransfers(req: any, res: Response) {
   const storeId = String(req.params.storeId);
   if (!(await isStoreOwner(storeId, req.user?.id))) throw new AppError('Sem permissão para esta loja', 403, true, 'FORBIDDEN');
   const page = parseCursorPage(req.query, { defaultLimit: 100, maxLimit: MAX_LIMIT });
-  const rows = await prisma.motoboyTransfer.findMany({ where: { AND: [{ storeId }, page.where] }, orderBy: page.orderBy, take: page.take });
+  const rows = await prisma.motoboyTransfer.findMany({ where: { AND: [{ storeId, payer: 'store' }, page.where] }, orderBy: page.orderBy, take: page.take });
   const { items, nextCursor } = sliceCursorPage(rows, page);
   const names = await withNames(items);
   return res.json({
@@ -138,6 +139,10 @@ export async function retryTransfer(req: any, res: Response) {
   const id = String(req.params.id);
   const t = await prisma.motoboyTransfer.findUnique({ where: { id } });
   if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
+  // D3b-1: o Pix manual do DROP não tem envio automático; o admin paga pelo banco e usa "Resolver".
+  if (t.payer === 'platform') {
+    throw new AppError('Pix manual do DROP: pague pelo banco e use "Marcar como resolvido"', 409, true, 'TRANSFER_MANUAL_PIX');
+  }
   const actor = actorFromRequest(req);
   // D3b-3: transição condicional + linha motoboy_transfer_retry na mesma transação.
   await prisma.$transaction(async (tx) => {
