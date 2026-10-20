@@ -15,6 +15,7 @@ import { LoadError, LoadSkeleton } from '../../../components/admin/LoadState';
 import { StatusTag } from '../../../components/admin/StatusTag';
 import ui from '../../../components/admin/operacao/Operacao.module.css';
 import { Alert } from '../../../components/ui/Alert';
+import { Button } from '../../../components/ui/Button';
 import { useAdminOrderChanged } from '../../../hooks/useAdminOrderChanged';
 import { plural, spTime } from '../../../lib/adminMoney';
 import {
@@ -38,20 +39,29 @@ function PedidoAdmin() {
   const id = typeof router.query.id === 'string' ? router.query.id : null;
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Releitura silenciosa que falhou: o pedido fica na tela, com aviso.
+  const [staleError, setStaleError] = useState(false);
   // Só a última leitura vale (evento chegando junto com "Tentar de novo").
   const req = useRef(0);
+  const hasOrder = useRef(false);
 
-  /** `silent`: releitura do evento sem apagar a tela. */
-  const load = useCallback(async (silent = false) => {
+  /** `silent`: releitura do evento sem apagar a tela (só vale se já há pedido). */
+  const load = useCallback(async (wantSilent = false) => {
     if (!id) return;
+    const silent = wantSilent && hasOrder.current;
     const n = ++req.current;
-    if (!silent) setOrder(null);
+    if (!silent) { hasOrder.current = false; setOrder(null); }
     setError(null);
     try {
       const o = await fetchAdminOrder(id);
-      if (n === req.current) setOrder(o);
+      if (n !== req.current) return;
+      hasOrder.current = true;
+      setStaleError(false);
+      setOrder(o);
     } catch (err) {
-      if (n === req.current) setError(opsErrorMessage(err, 'Não deu para carregar o pedido.'));
+      if (n !== req.current) return;
+      if (silent) setStaleError(true);
+      else { setStaleError(false); setError(opsErrorMessage(err, 'Não deu para carregar o pedido.')); }
     }
   }, [id]);
 
@@ -64,6 +74,12 @@ function PedidoAdmin() {
     <AdminShell title={order ? `Pedido ${orderTag(order.shortId)}` : 'Pedido'}>
       <div className={ui.stack}>
         <Link href="/admin/pedidos" className={ui.link}>Voltar para Pedidos ao vivo</Link>
+        {staleError && !error && (
+          <p role="status" className={ui.live}>
+            Não deu para atualizar. Mostrando a última leitura.{' '}
+            <Button variant="secondary" className={ui.touch} onClick={() => { void load(true); }}>Tentar de novo</Button>
+          </p>
+        )}
         {error ? (
           <LoadError message={error} onRetry={() => { void load(); }} />
         ) : !order ? (

@@ -309,3 +309,21 @@ describe('sem permissão de dinheiro (partes e repasses ocultos pelo servidor)',
     expect(dinheiro).not.toHaveTextContent('Sem Pix ao motoboy');
   });
 });
+
+describe('releitura que falha', () => {
+  it('mantém o pedido na tela com aviso; some depois de um "Tentar de novo" que dá certo', async () => {
+    jest.useFakeTimers();
+    render(<AdminPedidoPage />);
+    await regiao('Resumo do pedido');
+    routes['/admin/orders/o1'] = fail(500, { error: 'boom' });
+    act(() => { mockHandlers['admin:order_changed']({ orderId: 'o1', status: 'cancelado', at: '2026-10-20T15:00:05.000Z' }); });
+    act(() => { jest.advanceTimersByTime(2_000); });
+    expect(await screen.findByText(/Não deu para atualizar\. Mostrando a última leitura\./)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Resumo do pedido' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    routes['/admin/orders/o1'] = ok(DETAIL);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    await waitFor(() => expect(screen.queryByText(/Mostrando a última leitura/)).toBeNull());
+    expect(screen.getByRole('region', { name: 'Resumo do pedido' })).toBeInTheDocument();
+  });
+});
