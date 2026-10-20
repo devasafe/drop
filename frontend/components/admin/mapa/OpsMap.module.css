@@ -1,0 +1,70 @@
+/* Mapa ao vivo do admin (D3b-1): moldura, legenda, listas e os pontos do MapLibre. Cor só por token. */
+.head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.mapCol { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.box { position: relative; height: 360px; border-radius: var(--radius-lg); overflow: hidden; background: var(--color-surface-sunken); }
+.map { position: absolute; inset: 0; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.legend li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.dot { width: 10px; height: 10px; border-radius: var(--radius-pill); }
+.list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.item { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) 0; border-top: 1px solid var(--color-border-default); }
+.item:first-child { border-top: 0; }
+.itemMeta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font: var(--text-caption); color: var(--color-text-secondary); }
+.link { font: var(--text-label); color: var(--color-text-link); text-decoration: underline; overflow-wrap: anywhere; }
+.selected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  font: var(--text-meta);
+  color: var(--color-text-primary);
+}
+
+/* Pontos (marcadores DOM do MapLibre): um círculo por motoboy, com a cor do estado; pino da loja aguardando. */
+.point {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 3px solid var(--color-surface-default);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.point:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.free { background: var(--color-success); }
+.delivering { background: var(--color-action-primary); }
+.stale { background: var(--color-text-muted); }
+.store { display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.storePin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-surface-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning);
+}
+.storeLabel {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-default);
+  font: var(--text-caption);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .box { height: 560px; }
+}
