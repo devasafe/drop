@@ -1,6 +1,7 @@
 /**
  * D3b-1 · P2.5 — reatribuir motoboy (spec 4.3). Só com a entrega 'assigned' (antes da
- * retirada). A entrega volta ao pool com o mesmo createdAt (o raio segue a idade), o motoboy
+ * retirada). A entrega volta ao pool com createdAt = agora (decisão do usuário: o raio recomeça e o
+ * pool timeout não dispara logo em seguida), o motoboy
  * entra em excludedMotoboyIds e não recebe a corrida de novo. Sem punição: nenhum
  * Cancellation, multa ou ponto. O efeito reaproveita o reassign do deliveryTimeout.job.
  */
@@ -29,6 +30,7 @@ export async function adminReassignDelivery(input: { orderId: string; reason: un
     });
   }
   const previousMotoboyId = delivery.motoboyId;
+  const backToPoolAt = new Date();
 
   // Mesma ordem de travas do claim e do cancelamento: pedido (FOR UPDATE) → entrega.
   const won = await prisma.$transaction(async (tx) => {
@@ -37,7 +39,7 @@ export async function adminReassignDelivery(input: { orderId: string; reason: un
     const { count } = await tx.delivery.updateMany({
       where: { id: delivery.id, status: 'assigned', motoboyId: previousMotoboyId },
       data: {
-        status: 'pending', motoboyId: null, assignedAt: null,
+        status: 'pending', motoboyId: null, assignedAt: null, createdAt: backToPoolAt,
         pin: null, pinRetirada: null, pinDevolucao: null, pinFailedAttempts: 0, pinLockedUntil: null,
         excludedMotoboyIds: { push: previousMotoboyId },
       },
@@ -92,7 +94,7 @@ export async function adminReassignDelivery(input: { orderId: string; reason: un
 
   // O pool recebe a oferta de novo pelo emissor existente.
   emitDeliveryCreated({
-    _id: delivery.id, orderId: order.id, distance: delivery.distance, fee: Number(delivery.fee), createdAt: delivery.createdAt,
+    _id: delivery.id, orderId: order.id, distance: delivery.distance, fee: Number(delivery.fee), createdAt: backToPoolAt,
   });
   emitAdminOrderChanged(order.id, 'aguardando_motoboy');
 }

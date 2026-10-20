@@ -25,6 +25,7 @@ import { createWallet } from './helpers/financePg';
 import { criarCorrida, limparCorridas, RIDE_PIN_RETIRADA, Ride } from './helpers/motoboyRide';
 import { adminCancelOrder } from '../services/adminOps/adminCancel';
 import { adminReassignDelivery } from '../services/adminOps/reassign';
+import { runPoolTimeout } from '../jobs/poolTimeout.job';
 
 jest.setTimeout(30000);
 
@@ -90,6 +91,7 @@ async function outroMotoboy(): Promise<TestUser> {
 describe('reatribuir antes da retirada', () => {
   it('assigned → pending, motoboy excluído, pedido aguardando motoboy, sem punição e com registro', async () => {
     const r = await corridaAtribuida();
+    const antes = Date.now();
     const res = await reassign(r.orderId);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
@@ -99,7 +101,8 @@ describe('reatribuir antes da retirada', () => {
       status: 'pending', motoboyId: null, assignedAt: null, pin: null, pinRetirada: null,
       excludedMotoboyIds: [r.motoboy.userId],
     });
-    expect(d!.createdAt.toISOString()).toBe(OLD.toISOString());
+    // Decisão do usuário (correções finais): reatribuir zera o relógio do pool (raio e pool timeout recomeçam).
+    expect(d!.createdAt.getTime()).toBeGreaterThanOrEqual(antes - 1000);
     expect((await prisma.order.findUnique({ where: { id: r.orderId } }))?.status).toBe('aguardando_motoboy');
 
     const oa = await prisma.adminOrderAction.findMany({ where: { orderId: r.orderId } });
@@ -120,6 +123,14 @@ describe('reatribuir antes da retirada', () => {
     expect(emitToRoom).toHaveBeenCalledWith(`user:${r.motoboy.userId}`, 'delivery:you_were_reassigned', expect.objectContaining({ deliveryId: r.deliveryId }));
     expect(emitDeliveryCreated).toHaveBeenCalledWith(expect.objectContaining({ _id: r.deliveryId, orderId: r.orderId }));
     expect(emitAdminOrderChanged).toHaveBeenCalledWith(r.orderId, 'aguardando_motoboy');
+  });
+
+  it('entrega antiga reatribuída não dispara o pool timeout logo em seguida', async () => {
+    const r = await corridaAtribuida();
+    await prisma.delivery.update({ where: { id: r.deliveryId }, data: { createdAt: new Date(Date.now() - 40 * 60000) } });
+    expect((await reassign(r.orderId)).status).toBe(200);
+    await runPoolTimeout();
+    expect((await prisma.order.findUnique({ where: { id: r.orderId } }))?.awaitingCustomerPoolDecision).toBe(false);
   });
 
   it('o excluído não vê a oferta e o claim dele dá 409; outro motoboy vê e pega', async () => {
