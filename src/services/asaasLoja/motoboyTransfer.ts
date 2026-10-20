@@ -193,16 +193,16 @@ async function noticeMotoboyPixKeyMissing(t: Pick<MotoboyTransfer, 'id' | 'motob
 /** Avisos pós-commit (socket só para salas; sem chave Pix no payload). */
 export function notifyTransferCreated(t: Pick<MotoboyTransfer, 'id' | 'status' | 'lastError' | 'motoboyId' | 'storeId' | 'orderId' | 'amount'>): void {
   if (t.status === 'pending') return;
-  if (t.lastError === PLATFORM_MANUAL_PIX) {
-    emitAdminNotification({
-      title: 'Pix manual do DROP ao motoboy',
-      body: `Pedido ${String(t.orderId).slice(-6)}: R$ ${Number(t.amount).toFixed(2).replace('.', ',')} de compensação. Pague pelo banco e use "Resolver".`,
-      url: '/admin/transfers',
-      tag: `motoboy-transfer-${t.id}`,
-    });
-    return;
-  }
   try {
+    if (t.lastError === PLATFORM_MANUAL_PIX) {
+      emitAdminNotification({
+        title: 'Pix manual do DROP ao motoboy',
+        body: `Pedido ${String(t.orderId).slice(-6)}: R$ ${Number(t.amount).toFixed(2).replace('.', ',')} de compensação. Pague pelo banco e use "Resolver".`,
+        url: '/admin/transfers',
+        tag: `motoboy-transfer-${t.id}`,
+      });
+      return;
+    }
     const payload = { transferId: t.id, orderId: t.orderId, storeId: t.storeId, amount: Number(t.amount), error: t.lastError };
     if (t.lastError === 'MOTOBOY_PIX_KEY_MISSING') {
       emitToRoom(`user:${t.motoboyId}`, 'motoboy:transfer_pix_key_missing', payload);
@@ -409,9 +409,10 @@ export async function sendTransfer(transferId: string, now: Date = new Date()): 
 
     // P10: o que já saiu (ou pode ter saído) hoje, desta loja. `uncertain` conta, porque o
     // dinheiro pode ter saído. Dia civil de São Paulo, pela última mudança da linha.
+    // O Pix manual do DROP (payer 'platform', D3b-1) não sai da conta da loja: não conta.
     const today = await tx.motoboyTransfer.aggregate({
       where: {
-        storeId: t.storeId, id: { not: t.id }, status: { in: ['requested', 'done', 'uncertain'] },
+        storeId: t.storeId, payer: 'store', id: { not: t.id }, status: { in: ['requested', 'done', 'uncertain'] },
         updatedAt: { gte: saoPauloDayStart(now) },
       },
       _sum: { amount: true },

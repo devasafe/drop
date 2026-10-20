@@ -207,7 +207,7 @@ export async function adminCancelOrder(input: { orderId: string; fault: unknown;
   const platformComp = fault === 'platform' && motoboyId ? round2(Number(order.deliveryFee) || 0) : 0;
   const custodyPlatformComp = direct ? 0 : platformComp;
   const motoboyCompensation = fault === 'platform' ? platformComp : preview.motoboyCompensation;
-  const after = {
+  const after: Record<string, string | number | boolean | null> = {
     status: 'cancelado',
     fault,
     cancellationId: String(cancellation.id),
@@ -237,6 +237,8 @@ export async function adminCancelOrder(input: { orderId: string; fault: unknown;
         });
       });
     } catch (err) {
+      // O registro guarda a falha e o aviso ao motoboy não promete o valor.
+      after.compensationFailed = true;
       logger.error('[adminCancel] pedido cancelado, mas a compensação do motoboy falhou', err as Error, { orderId, motoboyId });
       emitAdminNotification({
         title: 'Compensação do motoboy não paga',
@@ -293,7 +295,7 @@ export async function adminCancelOrder(input: { orderId: string; fault: unknown;
   if (motoboyId && fresh) {
     await notifyUser(motoboyId, {
       title: 'Corrida cancelada',
-      message: motoboyCompensation > 0
+      message: motoboyCompensation > 0 && !after.compensationFailed
         ? `O suporte do DROP cancelou a corrida #${shortId}. Você recebe R$ ${brl(motoboyCompensation)} de compensação.`
         : `O suporte do DROP cancelou a corrida #${shortId}.`,
       link: '/motoboy',

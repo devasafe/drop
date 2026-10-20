@@ -29,7 +29,10 @@ import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
 import { emitAdminOrderChanged, emitAdminNotification } from '../utils/socketEmitter';
 import { runMotoboyTransfers } from '../jobs/motoboyTransfers.job';
-import { storeHasOverdueTransfer } from '../services/asaasLoja/motoboyTransfer';
+import { storeHasOverdueTransfer, sendTransfer } from '../services/asaasLoja/motoboyTransfer';
+import walletService from '../services/wallet.prisma.service';
+import { encryptSensitiveData } from '../utils/encryption';
+import { grantStoreConsent } from './helpers/storeConsent';
 import { adminCancelOrder } from '../services/adminOps/adminCancel';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { snapshotPlatformConfig } from './helpers/pgCleanup';
@@ -260,6 +263,37 @@ describe('culpas no SaaS (direto)', () => {
   });
 });
 
+describe('Pix manual do DROP e o limite diário da loja', () => {
+  it('o Pix platform resolvido hoje não consome o limite diário: a loja ainda envia até o teto cheio', async () => {
+    const s = await cenarioCancel(DOMAIN, { mode: 'direct', orderStatus: 'aguardando_motoboy', delivery: 'assigned' });
+    expect((await cancel(s.orderId, 'platform')).status).toBe(200);
+    const [pt] = await transfersOf(s.orderId);
+    const resolved = await request(app).post(`/api/admin/transfers/${pt.id}/resolve`).set('Authorization', bearer(ceo))
+      .send({ note: 'Pix feito pelo banco do DROP' });
+    expect(resolved.status).toBe(200);
+    expect((await prisma.motoboyTransfer.findUnique({ where: { id: pt.id } }))?.status).toBe('done');
+
+    // Teto diário = exatamente o Pix da própria loja; o Pix do DROP (12, done hoje) não pode contar.
+    await updatePlatformConfig({ directTransfersEnabled: true, directTransferDailyMaxPerStore: 100 } as any, 'test');
+    await prisma.storeAsaasAccount.update({ where: { storeId: s.storeId }, data: { authWebhookConfirmedAt: new Date() } });
+    await grantStoreConsent(s.storeId);
+    const own = await prisma.motoboyTransfer.create({
+      data: {
+        deliveryId: `d3b1p23-${Date.now()}`, orderId: s.orderId, storeId: s.storeId, motoboyId: s.motoboy.userId,
+        amount: 100, pixKeyEncrypted: encryptSensitiveData('12345678909'), pixKeyType: 'CPF',
+        status: 'pending', nextAttemptAt: new Date(Date.now() - 60 * 1000),
+      },
+    });
+    postAs.mockReset();
+    postAs.mockResolvedValue({ id: 'tra_d3b1_p23', status: 'PENDING' });
+
+    expect(await sendTransfer(own.id)).toBe('requested');
+    const row = await prisma.motoboyTransfer.findUnique({ where: { id: own.id } });
+    expect(row).toMatchObject({ status: 'requested', lastError: null });
+    expect(postAs.mock.calls.filter((c) => c[0] === D3B1_STORE_KEY && c[1] === '/transfers')).toHaveLength(1);
+  });
+});
+
 describe('eventos da regra da loja com admin', () => {
   const roomEmits: { room: string; event: string }[] = [];
   const fakeIo = { to: (room: string) => ({ emit: (event: string) => { roomEmits.push({ room, event }); } }), emit: jest.fn() };
@@ -361,10 +395,65 @@ describe('concorrência e recusas', () => {
     } else {
       expect(status).toBe('entregue');
       expect(adm.status).toBe(409);
+      // Entregue antes da leitura → NOT_CANCELLABLE; entregue entre a leitura e a trava → ORDER_CHANGED.
+      expect(['ORDER_CHANGED', 'ORDER_NOT_CANCELLABLE']).toContain(adm.body.code);
+      expect(adm.body.currentStatus).toBe('entregue');
       expect(await cancellationsOf(s.orderId)).toHaveLength(0);
       expect(await customerRefunds(s.cliente.userId)).toHaveLength(0);
       expect(await orderActionsOf(s.orderId)).toHaveLength(0);
     }
+  });
+
+  const finalizar = (s: CancelScenario) =>
+    request(app).post(`/api/deliveries/${s.deliveryId}/finalizar`).set('Authorization', bearer(s.motoboy)).send({ pin: '12345' });
+
+  it('em sequência, finaliza → cancela: 409 ORDER_NOT_CANCELLABLE com currentStatus entregue, nada muda', async () => {
+    const s = await cenarioCancel(DOMAIN, { mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'picked' });
+    expect((await finalizar(s)).status).toBe(200);
+    const adm = await cancel(s.orderId, 'motoboy');
+    expect(adm.status).toBe(409);
+    expect(adm.body).toMatchObject({ code: 'ORDER_NOT_CANCELLABLE', currentStatus: 'entregue' });
+    expect(await cancellationsOf(s.orderId)).toHaveLength(0);
+    expect(await customerRefunds(s.cliente.userId)).toHaveLength(0);
+    expect(await orderActionsOf(s.orderId)).toHaveLength(0);
+  });
+
+  it('em sequência, cancela → finaliza: 400 da finalização (entrega já cancelada), nada é pago ao motoboy', async () => {
+    const s = await cenarioCancel(DOMAIN, { mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'picked' });
+    expect((await cancel(s.orderId, 'motoboy')).status).toBe(200);
+    const fin = await finalizar(s);
+    // O código real: finalizarEntrega exige a entrega 'picked'; cancelada, responde 400 (não 409).
+    expect(fin.status).toBe(400);
+    expect(fin.body).toEqual({ error: 'Retirada ainda não validada pela loja' });
+    expect((await orderOf(s.orderId))?.status).toBe('cancelado');
+    expect((await prisma.delivery.findUnique({ where: { id: s.deliveryId! } }))?.status).toBe('cancelled');
+    expect(await motoboyPayouts(s.orderId)).toHaveLength(0);
+    expect(await customerRefunds(s.cliente.userId)).toHaveLength(1);
+  });
+
+  it('a compensação do DROP falha (custódia): registro com compensationFailed e o aviso ao motoboy não promete valor', async () => {
+    const s = await cenarioCancel(DOMAIN, { mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'assigned' });
+    const original = walletService.credit.bind(walletService);
+    const spy = jest.spyOn(walletService, 'credit').mockImplementation(((input: any, tx?: any) => {
+      if (String(input?.reference ?? '').startsWith('ADMIN_CANCEL_COMP_')) return Promise.reject(new Error('falha simulada'));
+      return original(input, tx);
+    }) as any);
+    try {
+      const res = await cancel(s.orderId, 'platform');
+      expect(res.status).toBe(200);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await prisma.walletEntry.count({ where: { reference: `ADMIN_CANCEL_COMP_${s.orderId}` } })).toBe(0);
+    expect(await prisma.appCashboxEntry.count({ where: { orderId: s.orderId, source: 'admin_cancel_compensation' } })).toBe(0);
+    expect(adminNotify).toHaveBeenCalledWith(expect.objectContaining({ title: 'Compensação do motoboy não paga' }));
+    const [ma] = await moneyActionsOf(s.orderId);
+    expect(ma.after).toMatchObject({ compensationFailed: true });
+    const [oa] = await orderActionsOf(s.orderId);
+    expect(oa.details).toMatchObject({ compensationFailed: true });
+    const [m] = await noticesOf(s.motoboy.userId);
+    expect(m.title).toBe('Corrida cancelada');
+    expect(m.message).not.toMatch(/R\$/);
   });
 
   it('o registro falha (autor inválido): o pedido fica cancelado e a compensação do DROP fica paga', async () => {
