@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 
 
 import onlineTracker from '../services/onlineTracker';
+import { orderIdsCancelledByAdminNotAgainst } from '../services/cancellation/faultStats';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,9 +116,16 @@ export const storeOverview = async (req: AuthenticatedRequest, res: Response) =>
       platformCancellationRate(),
     ]);
 
+    // D3b-1: pedido cancelado pelo admin com culpa que não é da loja (cliente, motoboy, DROP)
+    // não conta na taxa de cancelamento da loja. Os demais cancelados contam como antes.
+    const notStoreFault = await orderIdsCancelledByAdminNotAgainst(
+      'store',
+      [...currentOrders, ...previousOrders].map((o) => String(o.id)),
+    );
+
     const computeMetrics = (orders: any[]) => {
       const billable = orders.filter(o => BILLABLE_STATUSES.includes(o.status));
-      const cancelled = orders.filter(o => o.status === 'cancelado' || o.status === 'rejeitado');
+      const cancelled = orders.filter(o => (o.status === 'cancelado' || o.status === 'rejeitado') && !notStoreFault.has(String(o.id)));
       const revenue = billable.reduce((sum, o) => sum + storeRevenueOfOrder(o), 0);
       const productsSold = billable.reduce(
         (sum, o) => sum + (o.products || []).reduce((s: number, p: any) => s + (p.quantity || 0), 0),

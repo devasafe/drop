@@ -42,6 +42,7 @@ import { cancelOrderAsCustomerRule } from '../services/cancellation/customerRule
 import { cancelOrderAsStoreRule } from '../services/cancellation/storeRule';
 import { cancelOrderWithFullRefund } from '../services/cancellation/fullRefund';
 import { customerCancelPreview } from '../services/cancellation/customerPreview';
+import { countsAgainstWhere } from '../services/cancellation/faultStats';
 
 // Reexport: storeAcceptTimeout.job e os testes antigos importam daqui.
 export { cancelOrderWithFullRefund };
@@ -1086,8 +1087,9 @@ export const getCancellationStats = async (req: AuthenticatedRequest, res: Respo
     const orders = await prisma.order.findMany({ where: { storeId: store.id }, select: { id: true, status: true } });
     const orderIds = orders.map(o => o.id);
 
+    // D3b-1: cancelamento do admin com culpa que não é da loja não conta para a loja.
     const cancellations = await prisma.cancellation.findMany({
-      where: { orderId: { in: orderIds } },
+      where: { orderId: { in: orderIds }, ...countsAgainstWhere('store') },
       select: { reasonCode: true, refundStatus: true, refundAmount: true },
     });
 

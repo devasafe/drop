@@ -12,9 +12,9 @@ import { isDirectOrder } from '../../utils/settlement';
 import { getPlatformConfig } from '../../repositories/platformConfig.repository';
 import { splitPaidOrder, toCents, fromCents } from '../moneyOverview.service';
 import { ADMIN_CANCELLABLE_STATUSES, AdminOrderAllowedAction, AdminOrderDetail, TimelineKey, TimelineStep } from './types';
+import { countCustomerCancellations30d } from '../cancellation/faultStats';
 import { CANCELLED_ORDER_STATUSES, MIN_MS, PermissionCheck, round1, shortOrderId } from './common';
 
-const DAY_MS = 24 * 60 * MIN_MS;
 
 /** O que o admin vê da entrega: sem pin, pinRetirada nem pinDevolucao. */
 const SAFE_DELIVERY_SELECT = Prisma.validator<Prisma.DeliverySelect>()({
@@ -72,15 +72,7 @@ async function loadMotoboy(id: string): Promise<AdminOrderDetail['motoboy']> {
 async function loadCustomerStats(customerId: string, now: Date) {
   const orders = await prisma.order.findMany({ where: { customerId }, select: { id: true } });
   const ids = orders.map((o) => o.id);
-  const cancellations30d = ids.length
-    ? await prisma.cancellation.count({
-        where: {
-          orderId: { in: ids },
-          createdAt: { gte: new Date(now.getTime() - 30 * DAY_MS) },
-          OR: [{ cancelledBy: 'customer' }, { cancelledBy: 'admin', faultParty: 'customer' }],
-        },
-      })
-    : 0;
+  const cancellations30d = await countCustomerCancellations30d(customerId, now);
   return { ordersCount: ids.length, cancellations30d };
 }
 
