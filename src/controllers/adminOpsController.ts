@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../types';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
 import { buildQueue } from '../services/adminOps/queue';
+import { getOpsSummary } from '../services/adminOps/summary';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
@@ -25,5 +26,14 @@ export const getQueue = async (req: AuthenticatedRequest, res: Response) => {
     return res.json(await buildQueue({ now: new Date(), limits, can }));
   } catch (err) {
     return sendOpsReadFailure(res, err, 'a fila');
+  }
+};
+
+// GET /api/admin/ops/summary — KPIs de hoje, pedidos por hora e saúde (spec 3.1)
+export const getSummary = async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    return res.json(await getOpsSummary());
+  } catch (err) {
+    return sendOpsReadFailure(res, err, 'o resumo de hoje');
   }
 };

@@ -5,12 +5,15 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import { getQueue } from '../controllers/adminOpsController';
+import { getQueue, getSummary } from '../controllers/adminOpsController';
 
 const router = Router();
 const canViewOps = authorizePermission('operation:view');
 
 // GET /api/admin/queue — "Precisa de mim" (spec 3.1)
 router.get('/queue', authenticate, canViewOps, getQueue);
+
+// GET /api/admin/ops/summary — KPIs de hoje, pedidos por hora e "Saúde agora" (spec 3.1)
+router.get('/ops/summary', authenticate, canViewOps, getSummary);
 
 export default router;
