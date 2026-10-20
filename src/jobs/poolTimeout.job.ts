@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
-import { emitToRoom } from '../utils/socketEmitter';
+import { emitAdminOrderChanged, emitToRoom } from '../utils/socketEmitter';
 
 /**
  * 🕐 JOB: Timeout do pool de entregas (spec §6.1)
@@ -75,6 +75,8 @@ export async function runPoolTimeout(): Promise<PoolTimeoutSummary> {
         deliveryId: delivery.id,
         message: 'Nenhum entregador aceitou sua entrega ainda. Deseja continuar tentando ou cancelar?',
       });
+      // D3b-1: o pedido passa a "cliente decidindo" na Operação ao vivo.
+      emitAdminOrderChanged(String(order.id), String(order.status));
 
       flagged++;
       logger.info('[poolTimeout] pedido marcado aguardando decisão do cliente (pool sem motoboy)', {

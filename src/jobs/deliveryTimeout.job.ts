@@ -1,7 +1,7 @@
 import { CronJob } from 'cron';
 import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
-import { emitDeliveryRejected, emitToRoom } from '../utils/socketEmitter';
+import { emitAdminOrderChanged, emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
 
 /**
@@ -23,107 +23,112 @@ import logger from '../config/logger';
 // Intervalo de timeout em minutos (30 min)
 const DELIVERY_TIMEOUT_MINUTES = 30;
 
+/** Uma varredura (separada do agendamento para ser testável, como runPoolTimeout). */
+export async function runDeliveryTimeout(): Promise<void> {
+  try {
+    const now = new Date();
+    const timeoutThreshold = new Date(now.getTime() - DELIVERY_TIMEOUT_MINUTES * 60000);
+
+    // Buscar entregas atribuídas há mais de 30 minutos. `orderId` é um id do
+    // Postgres — sem `.populate`; o pedido é carregado logo abaixo no loop.
+    const timedOutDeliveries = await prisma.delivery.findMany({
+      where: {
+        status: 'assigned',
+        motoboyId: { not: null },
+        updatedAt: { lt: timeoutThreshold },
+      },
+    });
+
+    if (timedOutDeliveries.length === 0) {
+      return;
+    }
+
+    logger.debug(`🕐 [DELIVERY TIMEOUT] Encontradas ${timedOutDeliveries.length} entregas expiradas`);
+
+    for (const delivery of timedOutDeliveries) {
+      try {
+        const order: any = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
+        const motoboyId = delivery.motoboyId;
+
+        logger.debug(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
+
+        // Volta delivery para 'pending' (novo PIN é gerado na próxima atribuição)
+        await prisma.delivery.update({
+          where: { id: delivery.id },
+          data: { status: 'pending', motoboyId: null, pin: null, pinRetirada: null },
+        });
+
+        // Atualiza status do pedido para "aguardando_motoboy"
+        if (order) {
+          await prisma.order.update({ where: { id: order.id }, data: { status: 'aguardando_motoboy' } });
+          // D3b-1: a corrida voltou ao pool; a Operação ao vivo relê a lista.
+          emitAdminOrderChanged(String(order.id), 'aguardando_motoboy');
+        }
+
+        // 📬 Notificar CLIENTE que motoboy não compareceu
+        if (order && order.customerId) {
+          emitToRoom(`user:${order.customerId}`, 'delivery:reassigned_timeout', {
+            orderId: order.id,
+            deliveryId: delivery.id,
+            reason: 'Motoboy não compareceu no tempo estimado',
+            message: '⏰ Seu motoboy não compareceu. Procurando outro entregador...',
+            timestamp: new Date().toISOString()
+          });
+          logger.debug(`📬 [DELIVERY TIMEOUT] Cliente ${order.customerId} notificado`);
+        }
+
+        // 📬 Notificar LOJA sobre reatribuição
+        if (order && order.storeId) {
+          emitToRoom(`store:${order.storeId}`, 'delivery:reassigned_timeout', {
+            orderId: order.id,
+            deliveryId: delivery.id,
+            reason: 'Motoboy não compareceu',
+            message: '⏰ Motoboy não compareceu. Aguardando novo entregador.',
+            timestamp: new Date().toISOString()
+          });
+          logger.debug(`📬 [DELIVERY TIMEOUT] Loja ${order.storeId} notificada`);
+        }
+
+        // 🔔 Notificar MOTOBOY que foi desatribuído (para logs)
+        if (motoboyId) {
+          emitToRoom(`user:${motoboyId}`, 'delivery:you_were_reassigned', {
+            deliveryId: delivery.id,
+            reason: 'Não comparecimento dentro do prazo',
+            message: 'Você foi desatribuído desta entrega por não comparecer no prazo'
+          });
+          logger.debug(`🔔 [DELIVERY TIMEOUT] Motoboy ${motoboyId} notificado de desatribuição`);
+        }
+
+        // 📱 Notificar motoboys que nova delivery está disponível
+        try {
+          notifier.notifyMotoboys({
+            type: 'new_delivery',
+            delivery: {
+              id: delivery.id,
+              orderId: order.id,
+              fee: delivery.fee,
+              distance: delivery.distance
+            }
+          });
+          logger.debug(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
+        } catch (e) {
+          console.warn(`⚠️ [DELIVERY TIMEOUT] Erro ao notificar motoboys:`, e);
+        }
+
+      } catch (error) {
+        console.error(`❌ [DELIVERY TIMEOUT] Erro ao processar delivery ${delivery.id}:`, error);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ [DELIVERY TIMEOUT JOB] Erro:', error);
+  }
+}
+
 export function startDeliveryTimeoutJob() {
   logger.debug('🕐 [DELIVERY TIMEOUT JOB] Iniciada (executa a cada 5 min)');
 
-  const job = new CronJob('*/5 * * * *', async () => {
-    try {
-      const now = new Date();
-      const timeoutThreshold = new Date(now.getTime() - DELIVERY_TIMEOUT_MINUTES * 60000);
-
-      // Buscar entregas atribuídas há mais de 30 minutos. `orderId` é um id do
-      // Postgres — sem `.populate`; o pedido é carregado logo abaixo no loop.
-      const timedOutDeliveries = await prisma.delivery.findMany({
-        where: {
-          status: 'assigned',
-          motoboyId: { not: null },
-          updatedAt: { lt: timeoutThreshold },
-        },
-      });
-
-      if (timedOutDeliveries.length === 0) {
-        return;
-      }
-
-      logger.debug(`🕐 [DELIVERY TIMEOUT] Encontradas ${timedOutDeliveries.length} entregas expiradas`);
-
-      for (const delivery of timedOutDeliveries) {
-        try {
-          const order: any = await prisma.order.findUnique({ where: { id: String(delivery.orderId) } });
-          const motoboyId = delivery.motoboyId;
-
-          logger.debug(`🔄 [DELIVERY TIMEOUT] Reatribuindo delivery ${delivery.id} (motoboy: ${motoboyId})`);
-
-          // Volta delivery para 'pending' (novo PIN é gerado na próxima atribuição)
-          await prisma.delivery.update({
-            where: { id: delivery.id },
-            data: { status: 'pending', motoboyId: null, pin: null, pinRetirada: null },
-          });
-
-          // Atualiza status do pedido para "aguardando_motoboy"
-          if (order) {
-            await prisma.order.update({ where: { id: order.id }, data: { status: 'aguardando_motoboy' } });
-          }
-
-          // 📬 Notificar CLIENTE que motoboy não compareceu
-          if (order && order.customerId) {
-            emitToRoom(`user:${order.customerId}`, 'delivery:reassigned_timeout', {
-              orderId: order.id,
-              deliveryId: delivery.id,
-              reason: 'Motoboy não compareceu no tempo estimado',
-              message: '⏰ Seu motoboy não compareceu. Procurando outro entregador...',
-              timestamp: new Date().toISOString()
-            });
-            logger.debug(`📬 [DELIVERY TIMEOUT] Cliente ${order.customerId} notificado`);
-          }
-
-          // 📬 Notificar LOJA sobre reatribuição
-          if (order && order.storeId) {
-            emitToRoom(`store:${order.storeId}`, 'delivery:reassigned_timeout', {
-              orderId: order.id,
-              deliveryId: delivery.id,
-              reason: 'Motoboy não compareceu',
-              message: '⏰ Motoboy não compareceu. Aguardando novo entregador.',
-              timestamp: new Date().toISOString()
-            });
-            logger.debug(`📬 [DELIVERY TIMEOUT] Loja ${order.storeId} notificada`);
-          }
-
-          // 🔔 Notificar MOTOBOY que foi desatribuído (para logs)
-          if (motoboyId) {
-            emitToRoom(`user:${motoboyId}`, 'delivery:you_were_reassigned', {
-              deliveryId: delivery.id,
-              reason: 'Não comparecimento dentro do prazo',
-              message: 'Você foi desatribuído desta entrega por não comparecer no prazo'
-            });
-            logger.debug(`🔔 [DELIVERY TIMEOUT] Motoboy ${motoboyId} notificado de desatribuição`);
-          }
-
-          // 📱 Notificar motoboys que nova delivery está disponível
-          try {
-            notifier.notifyMotoboys({
-              type: 'new_delivery',
-              delivery: {
-                id: delivery.id,
-                orderId: order.id,
-                fee: delivery.fee,
-                distance: delivery.distance
-              }
-            });
-            logger.debug(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
-          } catch (e) {
-            console.warn(`⚠️ [DELIVERY TIMEOUT] Erro ao notificar motoboys:`, e);
-          }
-
-        } catch (error) {
-          console.error(`❌ [DELIVERY TIMEOUT] Erro ao processar delivery ${delivery.id}:`, error);
-        }
-      }
-
-    } catch (error) {
-      console.error('❌ [DELIVERY TIMEOUT JOB] Erro:', error);
-    }
-  });
+  const job = new CronJob('*/5 * * * *', runDeliveryTimeout);
 
   job.start();
   return job;

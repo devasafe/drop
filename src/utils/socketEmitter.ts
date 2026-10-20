@@ -52,6 +52,21 @@ export const emitAdminNotification = (payload: { title: string; body?: string; u
 };
 
 /**
+ * D3b-1 · aviso mínimo para as telas da Operação (sala `admin`): só id, status e hora, sem dado
+ * pessoal. A tela relê pela API, que confere operation:view. Chamado nos emissores de mudança de
+ * pedido e de corrida, nos jobs de timeout que não passam por eles e nas ações do admin.
+ */
+export const emitAdminOrderChanged = (orderId: string, status: string) => {
+  emitToRoom('admin', 'admin:order_changed', { orderId: String(orderId), status: String(status), at: new Date().toISOString() });
+};
+
+/** Id do pedido no objeto de API (`_id`) ou do Prisma (`id`). */
+const orderIdOf = (order: any): string | null => {
+  const id = order?._id ?? order?.id;
+  return id ? String(id) : null;
+};
+
+/**
  * Força logout de um usuário específico via socket (best-effort).
  * Frontend (AuthContext) escuta 'auth:force_logout' e limpa token + redireciona.
  * Se o user estiver offline (sem socket), o evento se perde — o bloqueio de login
@@ -143,6 +158,10 @@ export const emitOrderCreated = (order: any) => {
   if (order.customerId) {
     emitToRoom(`user:${order.customerId}`, 'order:created', payload);
   }
+
+  // D3b-1: Pedidos ao vivo relê a lista (só id e status vão para a sala admin).
+  const createdId = orderIdOf(order);
+  if (createdId) emitAdminOrderChanged(createdId, String(order.status));
 };
 
 export const emitOrderUpdated = (order: any) => {
@@ -180,6 +199,10 @@ export const emitOrderStatusChanged = (order: any) => {
   if (order.customerId) {
     emitToRoom(`user:${order.customerId}`, 'order:status_changed', payload);
   }
+
+  // D3b-1: Operação ao vivo relê a lista (só id e status vão para a sala admin).
+  const changedId = orderIdOf(order);
+  if (changedId) emitAdminOrderChanged(changedId, String(order.status));
 };
 
 export const emitDeliveryCreated = (delivery: any) => {
@@ -241,6 +264,8 @@ export const emitDeliveryStatusChanged = (delivery: any) => {
       if (!order) return;
       if (order.customerId) emitToRoom(`user:${order.customerId}`, 'delivery:status_changed', payload);
       if (order.storeId) emitToRoom(`store:${order.storeId}`, 'delivery:status_changed', payload);
+      // D3b-1: claim, retirada e entrega mudam o "Por que importa" da Operação ao vivo.
+      emitAdminOrderChanged(String(order.id), String(order.status));
     }).catch((err: any) => {
       console.warn('[socketEmitter] Erro ao notificar status da entrega:', err.message);
     });
@@ -289,6 +314,10 @@ export const emitDeliveryPicked = (delivery: any, order: any) => {
       }
     );
   }
+
+  // D3b-1: a retirada muda a etapa na Operação ao vivo.
+  const pickedOrderId = orderIdOf(order);
+  if (pickedOrderId) emitAdminOrderChanged(pickedOrderId, String(order.status));
 };
 
 export const emitDeliveryLocationUpdated = (delivery: any) => {
@@ -388,6 +417,10 @@ export const emitOrderCancelled = (order: any, cancellation: any) => {
     });
   }
   // Sem broadcast global (cliente e loja já foram avisados nas salas acima).
+
+  // D3b-1: Operação ao vivo relê a lista (só id e status vão para a sala admin).
+  const cancelledId = orderIdOf(order);
+  if (cancelledId) emitAdminOrderChanged(cancelledId, String(order.status ?? 'cancelado'));
 };
 
 /**
@@ -498,6 +531,10 @@ export const emitOrderRejectedByStore = (order: any, reason: string) => {
       console.warn('[emitOrderRejectedByStore] Erro ao buscar delivery:', err.message);
     });
   }
+
+  // D3b-1: Operação ao vivo relê a lista (só id e status vão para a sala admin).
+  const rejectedId = orderIdOf(order);
+  if (rejectedId) emitAdminOrderChanged(rejectedId, String(order.status ?? 'rejeitado'));
 };
 
 export const emitOrderAcceptedByStore = (order: any) => {
@@ -519,6 +556,10 @@ export const emitOrderAcceptedByStore = (order: any) => {
       message: '✅ Pedido aceito. Aguardando motoboy'
     });
   }
+
+  // D3b-1: o aceite tira o pedido de "loja parada" na Operação ao vivo.
+  const acceptedId = orderIdOf(order);
+  if (acceptedId) emitAdminOrderChanged(acceptedId, String(order.status));
 };
 
 // 🎉 Entrega foi COMPLETADA - Notificar TODAS as partes
@@ -626,6 +667,9 @@ export const emitDeliveryAssigned = (delivery: any, motoboy: any) => {
   
   prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
     if (!order) return;
+
+    // D3b-1: motoboy atribuído muda a etapa na Operação ao vivo.
+    emitAdminOrderChanged(String(order.id), String(order.status));
     
     // 🔴 Notificar CLIENTE
     if (order.customerId) {
