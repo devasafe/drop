@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { checkImageSpec } from '../utils/imageSpecs';
 
 const withId = (b: any) => ({ ...b, _id: b.id });
 const ORDER = [{ sortOrder: 'asc' as const }, { createdAt: 'desc' as const }];
@@ -84,6 +85,8 @@ export const uploadBannerImage = async (req: any, res: Response) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const sizeError = checkImageSpec(file.buffer, 'promoBanner');
+    if (sizeError) return res.status(422).json({ error: sizeError, code: 'IMAGE_SIZE_INVALID' });
     const imageUrl = await uploadToCloudinary(file.buffer, 'drop/banners');
     return res.json({ imageUrl });
   } catch (err) {

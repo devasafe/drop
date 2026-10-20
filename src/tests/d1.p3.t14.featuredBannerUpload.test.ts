@@ -10,10 +10,11 @@ import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
+import { png } from './helpers/png';
 
 const DOMAIN = '@d1p3t14.test';
-// PNG mínimo (assinatura + IHDR); o upload só checa mimetype/extensão.
-const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489', 'hex');
+// Banner da Home no padrão (imageSpecs.featuredBanner): 2:1, 1200 × 600.
+const PNG = png(1200, 600);
 let dono: TestUser;
 let storeId: string;
 

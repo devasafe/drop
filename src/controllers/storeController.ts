@@ -17,6 +17,7 @@ import { emitStoreCreated, emitStoreUpdated } from '../utils/socketEmitter';
 import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { checkImageSpec } from '../utils/imageSpecs';
 import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
@@ -491,6 +492,8 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
 
     const file = (req as any).file;
     if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const sizeError = checkImageSpec(file.buffer, type === 'cover' ? 'cover' : 'featuredBanner');
+    if (sizeError) return res.status(422).json({ error: sizeError, code: 'IMAGE_SIZE_INVALID' });
 
     const url = await uploadToCloudinary(file.buffer, 'drop/banners');
 
@@ -518,6 +521,8 @@ export const uploadStoreLogo = async (req: AuthenticatedRequest, res: Response, 
     }
     const file = (req as any).file;
     if (!file) throw new AppError('Envie uma imagem para o logo', 400, true, 'NO_FILE');
+    const sizeError = checkImageSpec(file.buffer, 'logo');
+    if (sizeError) return res.status(422).json({ error: sizeError, code: 'IMAGE_SIZE_INVALID' });
 
     const logoUrl = await uploadToCloudinary(file.buffer, 'drop/logos');
     await prisma.store.update({ where: { id: store.id }, data: { logoUrl } });

@@ -6,6 +6,7 @@ import userRepository from '../repositories/user.repository';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { isValidImageBuffer } from '../middleware/upload';
+import { checkImageSpec } from '../utils/imageSpecs';
 import logger from '../config/logger';
 import { isValidCPF } from '../utils/documentValidation';
 import { buyerCpfStatus } from '../utils/buyerCpf';
@@ -159,6 +160,8 @@ export const updatePhoto = async (req: AuthenticatedRequest, res: Response) => {
     if (!isValidImageBuffer(req.file.buffer)) {
       return res.status(400).json({ error: 'Imagem inválida' });
     }
+    const sizeError = checkImageSpec(req.file.buffer, 'avatar');
+    if (sizeError) return res.status(422).json({ error: sizeError, code: 'IMAGE_SIZE_INVALID' });
 
     const photo = await uploadToCloudinary(req.file.buffer, 'drop/users');
     await userRepository.update(userId, { photo });

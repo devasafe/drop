@@ -13,11 +13,14 @@ import app from '../app';
 import { prisma } from '../lib/prisma';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
+import { png } from './helpers/png';
 
 const DOMAIN = '@d1ident.test';
 const LOGO = 'https://res.cloudinary.com/demo/image/upload/drop/logos/logo.png';
 const CAPA = 'https://res.cloudinary.com/demo/image/upload/drop/banners/capa.png';
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// Capa e logo no tamanho do padrão (imageSpecs): 3:1 e 1:1.
+const CAPA_PNG = png(1200, 400);
+const PNG = png(400, 400);
 
 afterEach(async () => {
   await cleanupUsersByEmailDomain(DOMAIN);
@@ -86,7 +89,7 @@ describe('uploads de capa e logo', () => {
     const dono = await createTestUser('lojista', DOMAIN);
     const store = await lojaPlano1(dono);
     const res = await request(app).post('/api/stores/banner').query({ type: 'cover' }).set('Authorization', bearer(dono))
-      .attach('banner', PNG, { filename: 'capa.png', contentType: 'image/png' });
+      .attach('banner', CAPA_PNG, { filename: 'capa.png', contentType: 'image/png' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, type: 'cover', url: 'https://res.cloudinary.com/demo/image/upload/drop/banners/arquivo.png' });
     const saved = await prisma.store.findUnique({ where: { id: store.id } });
