@@ -126,10 +126,12 @@ export function notifyOnlineMotoboysNewDelivery(delivery: any): void {
       where: { role: 'motoboy', isOnline: true },
       select: { id: true },
     });
-    if (motoboys.length === 0) return;
+    const excluded = new Set<string>((delivery?.excludedMotoboyIds ?? []).map(String));
+    const targets = motoboys.filter((m) => !excluded.has(m.id));
+    if (targets.length === 0) return;
     const fee = Number(delivery?.fee);
     const feeTxt = Number.isFinite(fee) && fee > 0 ? ` • R$ ${fee.toFixed(2).replace('.', ',')}` : '';
-    await sendPushToUsers(motoboys.map((m) => m.id), {
+    await sendPushToUsers(targets.map((m) => m.id), {
       title: 'Nova corrida disponível! 🏍️',
       body: `Toque para ver e aceitar${feeTxt}`,
       url: '/motoboy',

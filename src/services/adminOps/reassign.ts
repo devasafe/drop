@@ -95,6 +95,7 @@ export async function adminReassignDelivery(input: { orderId: string; reason: un
   // O pool recebe a oferta de novo pelo emissor existente.
   emitDeliveryCreated({
     _id: delivery.id, orderId: order.id, distance: delivery.distance, fee: Number(delivery.fee), createdAt: backToPoolAt,
+    excludedMotoboyIds: [...(delivery.excludedMotoboyIds ?? []), previousMotoboyId],
   });
   emitAdminOrderChanged(order.id, 'aguardando_motoboy');
 }

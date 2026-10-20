@@ -205,14 +205,32 @@ export const emitOrderStatusChanged = (order: any) => {
   if (changedId) emitAdminOrderChanged(changedId, String(order.status));
 };
 
+/** Emite para uma sala menos as salas pessoais (`user:<id>`) dos usuários indicados. */
+const emitToRoomExceptUsers = (room: string, exceptUserIds: string[], event: string, data: any) => {
+  if (exceptUserIds.length === 0) return emitToRoom(room, event, data);
+  const io = notifier.io;
+  if (!io) {
+    console.error(`❌ [SOCKET.EMIT] io não inicializado para sala: ${room}`);
+    return;
+  }
+  try {
+    if (DEBUG) logger.debug(`[SOCKET.EMIT] "${event}" → ${room} (exceto ${exceptUserIds.length})`);
+    io.to(room).except(exceptUserIds.map((id) => `user:${id}`)).emit(event, data);
+  } catch (err) {
+    console.error(`❌ [SOCKET.EMIT] Erro ao emitir para sala "${room}":`, err);
+  }
+};
+
 export const emitDeliveryCreated = (delivery: any) => {
   // Nada global: o objeto da entrega tem endereço/coordenadas do cliente. Só a sala
   // `motoboys` (KYC aprovado) recebe um aviso mínimo — o pool é buscado pela API.
+  // Motoboy excluído da corrida (reatribuição do admin) não é avisado.
   const deliveryId = delivery._id ?? delivery.id;
-  emitToRoom('motoboys', 'delivery:created', { _id: deliveryId, deliveryId, orderId: delivery.orderId });
+  const excluded: string[] = (delivery.excludedMotoboyIds ?? []).map(String);
+  emitToRoomExceptUsers('motoboys', excluded, 'delivery:created', { _id: deliveryId, deliveryId, orderId: delivery.orderId });
 
   // 🏍️ Notificar motoboys de nova entrega disponível
-  emitToRoom('motoboys', 'delivery:available', {
+  emitToRoomExceptUsers('motoboys', excluded, 'delivery:available', {
     deliveryId,
     orderId: delivery.orderId,
     distance: delivery.distance,
