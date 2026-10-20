@@ -53,6 +53,8 @@ function PedidosAoVivo() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moreError, setMoreError] = useState<string | null>(null);
+  // Releitura silenciosa que falhou: a última leitura continua na tela, com aviso.
+  const [staleError, setStaleError] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [stores, setStores] = useState<Record<string, string>>({});
   const [now, setNow] = useState(() => Date.now());
@@ -60,29 +62,38 @@ function PedidosAoVivo() {
   const req = useRef(0);
   // Trava síncrona contra clique duplo em "Carregar mais".
   const moreInFlight = useRef(false);
+  // Itens trazidos por "Carregar mais": a releitura silenciosa troca só a 1ª página e os mantém.
+  const extra = useRef<AdminOrderRow[]>([]);
 
   /** `silent`: releitura do evento/polling volta à 1ª página sem apagar a tabela da tela. */
   const load = useCallback(async (silent = false) => {
     const id = ++req.current;
     moreInFlight.current = false;
     if (!silent) {
+      extra.current = [];
       setRows(null);
       setMeta(null);
       setCursor(null);
     }
     setError(null);
+    setStaleError(false);
     setMoreError(null);
     setLoadingMore(false);
     try {
       const page = await fetchAdminOrders(filter, { storeId: storeId || null });
       if (id !== req.current) return;
-      setRows(page.items);
+      const fresh = new Set(page.items.map((o) => o.id));
+      const kept = extra.current.filter((o) => !fresh.has(o.id));
+      extra.current = kept;
+      setRows([...page.items, ...kept]);
       setMeta(page.meta);
-      setCursor(page.nextCursor);
+      if (!kept.length) setCursor(page.nextCursor);
       setNow(Date.now());
       setStores((prev) => withStores(prev, page.items));
     } catch (err) {
-      if (id === req.current) setError(serverErrorMessage(err, 'Não deu para carregar os pedidos.'));
+      if (id !== req.current) return;
+      if (silent) setStaleError(true);
+      else setError(serverErrorMessage(err, 'Não deu para carregar os pedidos.'));
     }
   }, [filter, storeId]);
 
@@ -112,7 +123,10 @@ function PedidosAoVivo() {
       if (id !== req.current) return;
       setRows((prev) => {
         const seen = new Set((prev ?? []).map((o) => o.id));
-        return [...(prev ?? []), ...page.items.filter((o) => !seen.has(o.id))];
+        const added = page.items.filter((o) => !seen.has(o.id));
+        const have = new Set(extra.current.map((o) => o.id));
+        extra.current = [...extra.current, ...added.filter((o) => !have.has(o.id))];
+        return [...(prev ?? []), ...added];
       });
       setCursor(page.nextCursor);
       setStores((prev) => withStores(prev, page.items));
@@ -191,6 +205,12 @@ function PedidosAoVivo() {
         <div className={ui.toolbar}>
           <Select label="Loja" value={storeId} onChange={setStoreId} options={storeOptions} />
         </div>
+        {staleError && !error && (
+          <p role="status" className={ui.live}>
+            Não deu para atualizar. Mostrando a última leitura.{' '}
+            <Button variant="secondary" className={ui.touch} onClick={() => { void load(true); }}>Tentar de novo</Button>
+          </p>
+        )}
         <AdminTable
           columns={columns}
           rows={rows}

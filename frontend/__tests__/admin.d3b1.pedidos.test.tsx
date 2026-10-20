@@ -202,6 +202,53 @@ describe('"Carregar mais"', () => {
   });
 });
 
+describe('releitura e erros que preservam a lista', () => {
+  it('releitura silenciosa que falha: a tabela fica e aparece o aviso, com "Tentar de novo"', async () => {
+    render(<AdminPedidosPage />);
+    await tabela();
+    routes[ATENCAO] = fail(500, 'Erro ao listar pedidos');
+    act(() => { mockReconnect?.(); });
+    const aviso = await screen.findByText(/Não deu para atualizar\. Mostrando a última leitura\./);
+    expect(screen.getByRole('table', { name: 'Pedidos' })).toBeInTheDocument();
+    expect(screen.getByText('Entregues hoje')).toBeInTheDocument();
+    expect(screen.queryByText('Sem os números agora (veja o erro na lista).')).toBeNull();
+    routes[ATENCAO] = ok(page([ROW_ENTREGA]));
+    fireEvent.click(within(aviso.closest('p') as HTMLElement).getByRole('button', { name: 'Tentar de novo' }));
+    await waitFor(() => expect(screen.queryByText(/Mostrando a última leitura/)).toBeNull());
+    expect(screen.getByText('#d4e5f6')).toBeInTheDocument();
+  });
+
+  it('releitura silenciosa depois do "Carregar mais": os itens da 2ª página continuam', async () => {
+    const ROW_3 = { ...ROW_ENTREGA, id: 'o3', shortId: 'g7h8i9' };
+    routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
+    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_3]));
+    render(<AdminPedidosPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+    expect(await screen.findByText('#g7h8i9')).toBeInTheDocument();
+    routes[ATENCAO] = ok(page([ROW_LOJA, ROW_ENTREGA], 'c9'));
+    const antes = calls(ATENCAO);
+    act(() => { mockReconnect?.(); });
+    await waitFor(() => expect(calls(ATENCAO)).toBe(antes + 1));
+    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
+    expect(screen.getByText('#g7h8i9')).toBeInTheDocument();
+    expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(4);
+  });
+
+  it('erro no "Carregar mais": o botão vira "Tentar de novo" e a lista fica', async () => {
+    routes[ATENCAO] = ok(page([ROW_LOJA], 'c1'));
+    routes[`${ATENCAO}&cursor=c1`] = fail(500, 'Falha na próxima página');
+    render(<AdminPedidosPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+    expect(await screen.findByText('Falha na próxima página')).toBeInTheDocument();
+    expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
+    routes[`${ATENCAO}&cursor=c1`] = ok(page([ROW_ENTREGA]));
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(await screen.findByText('#d4e5f6')).toBeInTheDocument();
+    expect(screen.getByText('#a1b2c3')).toBeInTheDocument();
+  });
+});
+
 describe('tempo real', () => {
   it('evento admin:order_changed: relê uma vez por janela de 2 s, sem apagar a tabela', async () => {
     jest.useFakeTimers();
@@ -242,6 +289,19 @@ describe('tempo real', () => {
     expect(screen.queryByText('Recarregando a cada 30 s')).toBeNull();
     act(() => { jest.advanceTimersByTime(60_000); });
     expect(calls(ATENCAO)).toBe(antes + 1);
+  });
+
+  it('ao desmontar: desassina o evento e a volta do socket e cancela a janela de 2 s', async () => {
+    jest.useFakeTimers();
+    const { unmount } = render(<AdminPedidosPage />);
+    await tabela();
+    act(() => { mockHandlers['admin:order_changed']({ orderId: 'o1', status: 'pago', at: '2026-10-20T15:00:00.000Z' }); });
+    const antes = calls(ATENCAO);
+    unmount();
+    expect(mockHandlers['admin:order_changed']).toBeUndefined();
+    expect(mockReconnect).toBeNull();
+    act(() => { jest.advanceTimersByTime(60_000); });
+    expect(calls(ATENCAO)).toBe(antes);
   });
 
   it('sem operation:view: o evento não é assinado', async () => {
