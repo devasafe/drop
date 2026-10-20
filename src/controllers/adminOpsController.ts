@@ -8,6 +8,8 @@ import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
 import { buildQueue } from '../services/adminOps/queue';
 import { getOpsSummary } from '../services/adminOps/summary';
+import { listAdminOrders, ORDERS_FILTERS } from '../services/adminOps/orders';
+import { OrdersFilter } from '../services/adminOps/types';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
@@ -35,5 +37,23 @@ export const getSummary = async (_req: AuthenticatedRequest, res: Response) => {
     return res.json(await getOpsSummary());
   } catch (err) {
     return sendOpsReadFailure(res, err, 'o resumo de hoje');
+  }
+};
+
+const invalidFilter = (res: Response) => res.status(400).json({ error: 'Filtro inválido', code: 'INVALID_FILTER' });
+
+// GET /api/admin/orders?filtro=&storeId=&cursor= — Pedidos ao vivo (spec 3.2)
+export const listOrders = async (req: AuthenticatedRequest, res: Response) => {
+  const rawFilter = req.query.filtro;
+  const filter = rawFilter === undefined || rawFilter === '' ? 'atencao' : rawFilter;
+  if (typeof filter !== 'string' || !(ORDERS_FILTERS as readonly string[]).includes(filter)) return invalidFilter(res);
+  const rawStore = req.query.storeId;
+  if (rawStore !== undefined && rawStore !== '' && (typeof rawStore !== 'string' || rawStore.length > 64)) return invalidFilter(res);
+  const storeId = typeof rawStore === 'string' && rawStore ? rawStore : undefined;
+  const cursor = typeof req.query.cursor === 'string' && req.query.cursor ? req.query.cursor : undefined;
+  try {
+    return res.json(await listAdminOrders({ filter: filter as OrdersFilter, storeId, cursor }));
+  } catch (err) {
+    return sendOpsReadFailure(res, err, 'os pedidos');
   }
 };
