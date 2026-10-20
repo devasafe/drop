@@ -1,0 +1,70 @@
+/* Operação ao vivo do admin (D3b-1): Precisa de mim, Pedidos ao vivo e Pedido do admin. Cor só por token. */
+.stack { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.side { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.link { color: var(--color-text-link); text-decoration: underline; }
+
+/* Fila de hoje: título e contexto à esquerda; idade, etiqueta e "Resolver" à direita (quebram no celular). */
+.queue { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.queueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.queueRow:first-child { border-top: 0; }
+.queueText { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; min-width: 0; }
+.queueTitle { font: var(--text-label); color: var(--color-text-primary); overflow-wrap: anywhere; }
+.queueContext { font: var(--text-caption); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.queueMeta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.age { font: var(--text-caption); color: var(--color-text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font: var(--text-label);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.go:hover { border-color: var(--color-border-strong); }
+.go:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.rowNote { font: var(--text-caption); color: var(--color-text-secondary); }
+.rowError { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; font: var(--text-meta); color: var(--color-error-text); }
+
+/* Lateral: barras por hora e números curtos (rótulo à esquerda, valor à direita). */
+.bars { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.bar {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr) 3ch;
+  gap: var(--space-2);
+  align-items: center;
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.bar > span:last-child { text-align: right; }
+.facts { display: grid; gap: var(--space-2); margin: 0; }
+.facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); min-width: 0; }
+.facts dt { font: var(--text-meta); color: var(--color-text-secondary); }
+.facts dd {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  .split { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .go { min-height: 36px; }
+}
