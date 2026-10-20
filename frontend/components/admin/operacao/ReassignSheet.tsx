@@ -24,6 +24,8 @@ export interface ReassignSheetProps {
 
 export function ReassignSheet({ open, orderId, motoboyName, onClose, onReassigned, onStale }: ReassignSheetProps) {
   const [reason, setReason] = useState('');
+  // POST em andamento: motivo travado (a AdminSheet já trava o botão).
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (open) setReason('');
@@ -34,11 +36,14 @@ export function ReassignSheet({ open, orderId, motoboyName, onClose, onReassigne
 
   const submit = async () => {
     if (!valid) return;
+    setSending(true);
     try {
       await adminReassign(orderId, reason.trim());
     } catch (err) {
       if (isOpsConflict(err)) onStale();
       throw flattenOpsError(err, 'Não deu para reatribuir o motoboy.');
+    } finally {
+      setSending(false);
     }
     await onReassigned();
   };
@@ -59,6 +64,7 @@ export function ReassignSheet({ open, orderId, motoboyName, onClose, onReassigne
         onChange={setReason}
         placeholder="Ex.: motoboy parado há 25 min sem ir até a loja"
         hint={`${reasonLen}/${ADMIN_REASON_MAX}. Fica na linha do tempo do pedido com o seu nome.`}
+        disabled={sending}
       />
     </AdminSheet>
   );

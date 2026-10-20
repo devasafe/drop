@@ -132,12 +132,12 @@ describe('Cancelar com estorno', () => {
     await escolher(dialog, 'Cliente', 'R$ 47,90');
     expect(fact(previa(dialog), 'Cliente recebe de volta')).toHaveTextContent('R$ 47,90');
     expect(fact(previa(dialog), 'Taxa cobrada do cliente')).toHaveTextContent('R$ 12,00');
-    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 7,00 · paga pelo cliente');
+    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 7,00 · sai da taxa do cliente');
     expect(fact(previa(dialog), 'Conta como cancelamento')).toHaveTextContent('Do cliente');
 
     await escolher(dialog, 'Loja', 'Da loja');
     expect(fact(previa(dialog), 'Taxa cobrada da loja')).toHaveTextContent('R$ 15,00');
-    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 7,00 · paga pela loja');
+    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 7,00 · sai da taxa da loja');
 
     await escolher(dialog, 'Motoboy', 'Do motoboy');
     expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('Nenhuma');
@@ -227,6 +227,56 @@ describe('Cancelar com estorno', () => {
     expect(await within(dialog).findByText('Este pedido não pode mais ser cancelado (situação: entregue).')).toBeInTheDocument();
   });
 
+  it('loja no modo direto: sem taxa, a compensação é à parte e "paga pela loja"', async () => {
+    routes['/admin/orders/o1'] = ok({ ...DETAIL, settlementMode: 'direct' });
+    routes['/admin/orders/o1/cancel-preview?fault=store'] = ok({
+      fault: 'store', customerRefund: 59.9, feeCharged: 0, motoboyCompensation: 7, compensationPaidBy: 'store', countsAgainst: 'store',
+    });
+    const dialog = await abrirCancelar();
+    await escolher(dialog, 'Loja', 'Da loja');
+    expect(within(previa(dialog)).queryByText(/Taxa cobrada/)).toBeNull();
+    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 7,00 · paga pela loja');
+    expect(within(previa(dialog)).queryByText(/sai da taxa/)).toBeNull();
+  });
+
+  it('pedido relido com outro estado (409): a prévia da mesma culpa é refeita e o confirmar desliga até ela chegar', async () => {
+    post.mockRejectedValueOnce(conflict({ code: 'ORDER_CHANGED', currentStatus: 'aguardando_motoboy', error: 'Order changed' }));
+    const dialog = await abrirCancelar();
+    await escolher(dialog, 'Cliente', 'R$ 47,90');
+    escreverMotivo(dialog, 'Cliente desistiu por telefone');
+    expect(confirmar(dialog)).toBeEnabled();
+    let releaseNova!: () => void;
+    routes['/admin/orders/o1'] = ok({ ...DETAIL, deliveryStatus: 'picked' });
+    routes['/admin/orders/o1/cancel-preview?fault=customer'] = () => new Promise((r) => {
+      releaseNova = () => r({ data: { ...(PREVIEWS.customer as object), customerRefund: 40, feeCharged: 19.9, motoboyCompensation: 8.9 } });
+    });
+    const antes = calls('/admin/orders/o1/cancel-preview?fault=customer');
+    fireEvent.click(confirmar(dialog));
+    expect(await within(dialog).findByText('O pedido mudou. Recarregue.')).toBeInTheDocument();
+    await waitFor(() => expect(calls('/admin/orders/o1/cancel-preview?fault=customer')).toBe(antes + 1));
+    expect(within(previa(dialog)).queryByText('R$ 47,90')).toBeNull();
+    expect(confirmar(dialog)).toBeDisabled();
+    await act(async () => { releaseNova(); });
+    expect(fact(previa(dialog), 'Cliente recebe de volta')).toHaveTextContent('R$ 40,00');
+    expect(confirmar(dialog)).toBeEnabled();
+  });
+
+  it('enquanto o POST corre: culpa e motivo travados', async () => {
+    let release!: () => void;
+    post.mockImplementationOnce(() => new Promise((r) => {
+      release = () => r({ data: { ok: true, cancellationId: 'k1', refundAmount: 59.9, refundStatus: 'processed' } });
+    }));
+    const dialog = await abrirCancelar();
+    await escolher(dialog, 'Loja', 'Da loja');
+    escreverMotivo(dialog, 'Loja fechou sem avisar');
+    fireEvent.click(confirmar(dialog));
+    await waitFor(() => expect(typeof release).toBe('function'));
+    within(dialog).getAllByRole('radio').forEach((r) => expect(r).toBeDisabled());
+    expect(within(dialog).getByLabelText('Motivo (de 5 a 500 caracteres)')).toBeDisabled();
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
   it('clique duplo em confirmar: um POST só', async () => {
     let release!: () => void;
     post.mockImplementationOnce(() => new Promise((r) => {
@@ -262,6 +312,18 @@ describe('Reatribuir motoboy', () => {
     expect(post).toHaveBeenCalledWith('/admin/orders/o1/reassign', { reason: 'Motoboy parado há 25 min' });
     expect(screen.getByText('Corrida devolvida à fila')).toBeInTheDocument();
     await waitFor(() => expect(calls('/admin/orders/o1')).toBe(antes + 1));
+  });
+
+  it('enquanto o POST corre: motivo travado', async () => {
+    let release!: () => void;
+    post.mockImplementationOnce(() => new Promise((r) => { release = () => r({ data: { ok: true } }); }));
+    const dialog = await abrirReatribuir();
+    escreverMotivo(dialog, 'Motoboy parado há 25 min');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar reatribuição' }));
+    await waitFor(() => expect(typeof release).toBe('function'));
+    expect(within(dialog).getByLabelText('Motivo (de 5 a 500 caracteres)')).toBeDisabled();
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('409 DELIVERY_CHANGED com o pedido já retirado: "O motoboy já retirou o pedido", e o pedido é relido', async () => {
@@ -308,7 +370,7 @@ describe('culpa "Cliente" com o motoboy em rota (B2: taxa vale com a entrega ret
     expect(screen.getByText('Em entrega')).toBeInTheDocument();
     await escolher(dialog, 'Cliente', 'R$ 40,00');
     expect(fact(previa(dialog), 'Taxa cobrada do cliente')).toHaveTextContent('R$ 19,90');
-    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 8,90 · paga pelo cliente');
+    expect(fact(previa(dialog), 'Compensação do motoboy')).toHaveTextContent('R$ 8,90 · sai da taxa do cliente');
     expect(fact(previa(dialog), 'Conta como cancelamento')).toHaveTextContent('Do cliente');
   });
 });

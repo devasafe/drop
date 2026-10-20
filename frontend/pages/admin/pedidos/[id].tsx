@@ -118,6 +118,7 @@ function PedidoAdmin() {
               open={sheet === 'cancel'}
               orderId={order.id}
               orderLabel={orderTag(order.shortId)}
+              orderVersion={`${order.status}|${order.deliveryStatus ?? ''}|${order.motoboy?.id ?? ''}`}
               onClose={() => setSheet(null)}
               onCancelled={onCancelled}
               onStale={reloadAfterConflict}

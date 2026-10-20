@@ -5,7 +5,10 @@
  * - prévia de GET /admin/orders/:id/cancel-preview?fault=, relida a cada troca de culpa (só a última vale);
  * - motivo obrigatório, de 5 a 500 caracteres sem contar os espaços das pontas;
  * - confirmar só com culpa, prévia dessa mesma culpa e motivo válido;
- * - 409 (ORDER_CHANGED, ORDER_NOT_CANCELLABLE): a mensagem aparece na folha e a tela relê o pedido.
+ * - 409 (ORDER_CHANGED, ORDER_NOT_CANCELLABLE): a mensagem aparece na folha e a tela relê o pedido;
+ * - pedido relido com outro estado (`orderVersion`) com a folha aberta: a prévia da culpa marcada é refeita, porque o
+ *   servidor recalcula taxa e compensação pelo estado novo; o confirmar desliga até ela chegar;
+ * - com culpa do cliente (ou da loja na custódia) a compensação do motoboy sai DE DENTRO da taxa, não soma a ela.
  * A culpa nunca chega ao cliente (spec 4.2, avisos): a folha lembra isso ao admin.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -30,17 +33,21 @@ export interface CancelOrderSheetProps {
   orderId: string;
   /** "#a1b2c3" (título da folha). */
   orderLabel: string;
+  /** Muda quando o estado do pedido muda (ex.: `${status}|${deliveryStatus}|${motoboyId}`): refaz a prévia. */
+  orderVersion: string;
   onClose: () => void;
   onCancelled: (r: CancelResult) => void | Promise<void>;
   /** 409: o pedido mudou enquanto a folha estava aberta; a tela relê (a folha fica aberta com a mensagem). */
   onStale: () => void;
 }
 
-export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancelled, onStale }: CancelOrderSheetProps) {
+export function CancelOrderSheet({ open, orderId, orderLabel, orderVersion, onClose, onCancelled, onStale }: CancelOrderSheetProps) {
   const [fault, setFault] = useState<CancelFault | null>(null);
   const [reason, setReason] = useState('');
   const [preview, setPreview] = useState<CancelPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  // POST em andamento: culpa e motivo travados (a AdminSheet já trava o botão).
+  const [sending, setSending] = useState(false);
   // Só a prévia da última culpa escolhida vale (troca rápida de culpa).
   const previewReq = useRef(0);
 
@@ -68,6 +75,16 @@ export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancell
     }
   };
 
+  // Pedido relido com outro estado: a prévia mostrada pode não valer mais.
+  const seenVersion = useRef(orderVersion);
+  useEffect(() => {
+    if (seenVersion.current === orderVersion) return;
+    seenVersion.current = orderVersion;
+    if (open && fault) void loadPreview(fault);
+    // Só a troca de versão dispara; open e fault são lidos do render atual.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderVersion]);
+
   const pick = (f: CancelFault) => {
     setFault(f);
     void loadPreview(f);
@@ -80,11 +97,14 @@ export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancell
   const submit = async () => {
     if (!fault || !valid) return;
     let result: CancelResult;
+    setSending(true);
     try {
       result = await adminCancelOrder(orderId, fault, reason.trim());
     } catch (err) {
       if (isOpsConflict(err)) onStale();
       throw flattenOpsError(err, 'Não deu para cancelar o pedido.');
+    } finally {
+      setSending(false);
     }
     await onCancelled(result);
   };
@@ -107,6 +127,7 @@ export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancell
             checked={fault === f}
             onChange={() => pick(f)}
             label={FAULT_LABEL[f]}
+            disabled={sending}
           />
         ))}
       </fieldset>
@@ -132,6 +153,7 @@ export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancell
         onChange={setReason}
         placeholder="Ex.: a loja fechou sem avisar e o cliente pediu para cancelar"
         hint={`${reasonLen}/${ADMIN_REASON_MAX}. Fica na linha do tempo do pedido com o seu nome.`}
+        disabled={sending}
       />
       <p className={blocks.muted}>O cliente não vê a culpa: recebe só o aviso de cancelamento pelo suporte do DROP.</p>
     </AdminSheet>
@@ -139,7 +161,11 @@ export function CancelOrderSheet({ open, orderId, orderLabel, onClose, onCancell
 }
 
 function PreviewFacts({ p }: { p: CancelPreview }) {
-  const payer = p.compensationPaidBy ? ` · paga ${PAYER_LABEL[p.compensationPaidBy]}` : '';
+  // Com taxa cobrada do próprio culpado, a compensação é parte dela: "sai da taxa", para não parecer soma.
+  const fromFee = p.feeCharged > 0 && p.compensationPaidBy === p.fault;
+  const payer = fromFee
+    ? ` · sai da taxa ${FEE_FROM_LABEL[p.fault]}`
+    : p.compensationPaidBy ? ` · paga ${PAYER_LABEL[p.compensationPaidBy]}` : '';
   return (
     <dl className={ui.facts}>
       <div>

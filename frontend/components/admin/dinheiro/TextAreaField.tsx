@@ -8,10 +8,11 @@ export interface TextAreaFieldProps {
   placeholder?: string;
   hint?: string;
   rows?: number;
+  disabled?: boolean;
 }
 
 /** Campo de texto longo (motivo, nota da conferência) com rótulo ligado ao campo. */
-export function TextAreaField({ label, value, onChange, placeholder, hint, rows = 3 }: TextAreaFieldProps) {
+export function TextAreaField({ label, value, onChange, placeholder, hint, rows = 3, disabled }: TextAreaFieldProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   return (
@@ -23,6 +24,7 @@ export function TextAreaField({ label, value, onChange, placeholder, hint, rows 
         value={value}
         placeholder={placeholder}
         rows={rows}
+        disabled={disabled}
         aria-describedby={hint ? hintId : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
