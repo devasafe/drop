@@ -21,6 +21,9 @@ const mockUser = { id: 'adm1', name: 'Marina', role: 'ceo', activeRole: 'ceo' };
 jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: mockUser, can: () => true, loading: false, permissionsLoading: false }),
 }));
+jest.mock('../contexts/SocketContext', () => ({
+  useSocket: () => ({ on: () => () => undefined, onReconnect: () => () => undefined, isConnected: true, isReconnecting: false, emit: jest.fn() }),
+}));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
 jest.mock('../components/ProtectedRoute', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
 jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellMock'));

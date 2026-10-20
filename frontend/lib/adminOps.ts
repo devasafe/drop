@@ -113,6 +113,8 @@ export const ADMIN_ORDER_CHANGED_EVENT = 'admin:order_changed';
 export type MotoboyMapState = OpsMapResponse['motoboys'][number]['state'];
 /** O Mapa ao vivo relê a cada 15 s (o ritmo do envio de posição do app do motoboy). */
 export const OPS_MAP_POLL_MS = 15_000;
+/** Precisa de mim: a fila tem saques, verificações e suporte, que não têm evento; relê sempre a cada 60 s. */
+export const OPERACAO_POLL_MS = 60_000;
 /** Posição mais velha que isto: "Sem sinal". */
 export const STALE_AFTER_MS = 2 * 60_000;
 

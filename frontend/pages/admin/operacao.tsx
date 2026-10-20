@@ -6,7 +6,7 @@
  * receita → operação; no grupo, a mais antiga primeiro. Cada bloco carrega e falha sozinho (fail closed).
  */
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
 import blocks from '../../components/admin/AdminBlocks.module.css';
@@ -20,11 +20,12 @@ import { Chip } from '../../components/ui/Chip';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { plural } from '../../lib/adminMoney';
 import {
-  QUEUE_FILTERS, QUEUE_TAG_TONE, QUEUE_TYPE_LABEL, ageLabel, buildQueueRows, fetchOpsSummary, fetchQueue,
+  OPERACAO_POLL_MS, QUEUE_FILTERS, QUEUE_TAG_TONE, QUEUE_TYPE_LABEL, ageLabel, buildQueueRows, fetchOpsSummary, fetchQueue,
   gmvComparison, minutesLabel, pctLabel, queueTotal,
   type OpsSummary, type QueueFilter, type QueueGroupEntry, type QueueRow,
 } from '../../lib/adminOps';
 import { formatMoney } from '../../lib/money';
+import { useAdminOrderChanged } from '../../hooks/useAdminOrderChanged';
 
 export default function AdminOperacaoPage() {
   return (
@@ -45,34 +46,71 @@ function PrecisaDeMim() {
   const [now, setNow] = useState(() => Date.now());
   const [retrying, setRetrying] = useState(false);
 
-  const loadSummary = useCallback(async () => {
-    setSummaryError(null);
-    setSummary(null);
+  // Releitura silenciosa que falhou: os dados ficam na tela, com aviso.
+  const [staleError, setStaleError] = useState(false);
+  // Só a última leitura de cada bloco vale (polling, evento e "Tentar de novo" podem se cruzar).
+  const summaryReq = useRef(0);
+  const queueReq = useRef(0);
+  const hasSummary = useRef(false);
+  const hasQueue = useRef(false);
+
+  /** `wantSilent`: evento e polling relêem sem apagar o que está na tela (só vale se já há dados). */
+  const loadSummary = useCallback(async (wantSilent = false) => {
+    const silent = wantSilent && hasSummary.current;
+    const n = ++summaryReq.current;
+    if (!silent) { hasSummary.current = false; setSummaryError(null); setSummary(null); }
     try {
-      setSummary(await fetchOpsSummary());
+      const s = await fetchOpsSummary();
+      if (n !== summaryReq.current) return;
+      hasSummary.current = true;
+      setSummaryError(null);
+      setSummary(s);
+      return true;
     } catch (err) {
-      setSummaryError(serverErrorMessage(err, 'Não deu para carregar os números de hoje.'));
+      if (n !== summaryReq.current) return;
+      if (silent) setStaleError(true);
+      else setSummaryError(serverErrorMessage(err, 'Não deu para carregar os números de hoje.'));
     }
+    return false;
   }, []);
 
-  /** `silent`: "Tentar de novo" de um tipo relê a fila sem apagar as linhas que já estão na tela. */
-  const loadQueue = useCallback(async (silent = false) => {
-    setQueueError(null);
-    if (!silent) setGroups(null);
+  /** `wantSilent`: "Tentar de novo" de um tipo, evento e polling relêem sem apagar as linhas que já estão na tela. */
+  const loadQueue = useCallback(async (wantSilent = false) => {
+    const silent = wantSilent && hasQueue.current;
+    const n = ++queueReq.current;
+    if (!silent) { hasQueue.current = false; setQueueError(null); setGroups(null); }
     setRetrying(silent);
     try {
       const q = await fetchQueue();
+      if (n !== queueReq.current) return;
+      hasQueue.current = true;
+      setQueueError(null);
       setGroups(q.groups);
       setNow(Date.now());
+      return true;
     } catch (err) {
-      setQueueError(serverErrorMessage(err, 'Não deu para carregar a fila de hoje.'));
+      if (n !== queueReq.current) return;
+      if (silent) setStaleError(true);
+      else setQueueError(serverErrorMessage(err, 'Não deu para carregar a fila de hoje.'));
     } finally {
-      setRetrying(false);
+      if (n === queueReq.current) setRetrying(false);
     }
+    return false;
   }, []);
+
+  /** Relê fila e resumo; o aviso de "última leitura" só some quando as duas voltam bem. */
+  const refresh = useCallback(async () => {
+    const [s, q] = await Promise.all([loadSummary(true), loadQueue(true)]);
+    if (s !== false && q !== false) setStaleError(false);
+  }, [loadSummary, loadQueue]);
 
   useEffect(() => { void loadSummary(); }, [loadSummary]);
   useEffect(() => { void loadQueue(); }, [loadQueue]);
+  useEffect(() => {
+    const t = setInterval(() => { void refresh(); }, OPERACAO_POLL_MS);
+    return () => clearInterval(t);
+  }, [refresh]);
+  useAdminOrderChanged(() => { void refresh(); });
   // "há N min" anda sozinho entre uma leitura e outra.
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
@@ -83,6 +121,12 @@ function PrecisaDeMim() {
 
   return (
     <div className={ui.stack}>
+      {staleError && (
+        <p role="status" className={ui.live}>
+          Não deu para atualizar. Mostrando a última leitura.{' '}
+          <Button variant="secondary" className={ui.touch} onClick={() => { void refresh(); }}>Tentar de novo</Button>
+        </p>
+      )}
       <section aria-label="Hoje">
         {summaryError ? (
           <LoadError message={summaryError} onRetry={() => { void loadSummary(); }} />
