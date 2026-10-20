@@ -15,12 +15,34 @@ import { motoboyCancellationCompensationSafe } from '../motoboyCompensation';
 import {
   directCustomerRefund, settleDirectRefund, recordCancellationWithCompensation, CancellationClaimLostError,
 } from '../asaasLoja/directCancellation';
-import { cancelFeeConfigOf } from './feeConfig';
+import { cancelFeeConfigOf, CancelFeeConfig } from './feeConfig';
 import { directRefundStatus } from './shared';
 import { ADMIN_CANCELLABLE_STATUSES, AdminCancelActor, CancelRuleResult, adminCancellationFields } from './types';
 
 /** A loja cancela SÓ até um motoboy aceitar a corrida ('enviado' fica de fora). */
 export const STORE_CANCELLABLE = ['criado', 'pago', 'aguardando_motoboy'];
+
+/**
+ * Decisão pura da taxa da loja, compartilhada pela regra e pela prévia do admin (P2.2).
+ * `isLate`: pedido em rota. `chargeStoreFee`: só custódia, após o aceite; no COD só se em rota.
+ */
+export function storeFeeDecision(order: any, delivery: { status?: string | null } | null | undefined): { isLate: boolean; chargeStoreFee: boolean } {
+  const isLate = order.status === 'enviado' || delivery?.status === 'picked';
+  const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
+  return { isLate, chargeStoreFee: !isDirectOrder(order) && !!order.acceptedAt && (!isCashOnDelivery || isLate) };
+}
+
+/** Taxa da loja (custódia): total e parte do motoboy, com o motoboy da corrida ou não. */
+export function storeFeeFigures(order: any, fees: CancelFeeConfig, motoboyInvolved: boolean) {
+  return calculateCancellationFee({
+    actor: 'store', motoboyInvolved, orderTotal: order.totalValue || 0, deliveryFee: order.deliveryFee || 0, config: fees,
+  });
+}
+
+/** Modo direto: parte do motoboy pela conta da loja, só após o aceite (a loja não paga multa). */
+export function storeDirectMotoboyShare(order: any, fees: CancelFeeConfig): number {
+  return order.acceptedAt ? storeFeeFigures(order, fees, true).motoboyShare : 0;
+}
 
 export interface StoreCancelInput {
   /** Pedido na forma de API (toApiOrder), com a posse da loja já conferida por quem chama. */
@@ -69,7 +91,7 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   const storeAccepted = !!order.acceptedAt;
   // Etapa real (D3b-1 B2): retirada = 'picked'. Para a loja nada muda (entrega retirada tem
   // motoboy e o guard acima barra); vale para o admin com culpa da loja.
-  const isLate = order.status === 'enviado' || delivery?.status === 'picked';
+  const { isLate, chargeStoreFee } = storeFeeDecision(order, delivery);
   const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
   const useAsaas = env.PAYMENT_GATEWAY === 'asaas';
   const refundAmount = order.totalValue || 0;
@@ -178,19 +200,12 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   // Taxa de cancelamento da loja — SÓ após o aceite. COD preserva o comportamento legado
   // (taxa só quando `isLate`), para o bloco de taxa e o de liberação da reserva COD ficarem
   // MUTUAMENTE EXCLUSIVOS. Modo direto: sem carteira da loja/AppCashbox — taxa não cobrada aqui.
-  const chargeStoreFee = !direct && storeAccepted && (!isCashOnDelivery || isLate);
   let cancellationFeeCharged = 0;
   if (chargeStoreFee) {
     try {
       const feeConfig = cancelFeeConfigOf(await getPlatformConfig());
       const compMotoboyId: string | null = delivery?.motoboyId ?? acceptedMidwayMotoboyId;
-      const fee = calculateCancellationFee({
-        actor: 'store',
-        motoboyInvolved: !!compMotoboyId,
-        orderTotal: order.totalValue || 0,
-        deliveryFee: order.deliveryFee || 0,
-        config: feeConfig,
-      });
+      const fee = storeFeeFigures(order, feeConfig, !!compMotoboyId);
       cancellationFeeCharged = fee.totalFee;
 
       if (fee.totalFee > 0) {
@@ -236,16 +251,7 @@ export async function cancelOrderAsStoreRule(input: StoreCancelInput): Promise<C
   // = há motoboy → relido pelo `tx` e compensado (se a loja já tinha aceitado o pedido).
   let directCompensation: Parameters<typeof recordCancellationWithCompensation>[1] = null;
   if (direct && order.deliveryId) {
-    let storeShare = 0;
-    if (storeAccepted) {
-      storeShare = calculateCancellationFee({
-        actor: 'store',
-        motoboyInvolved: true,
-        orderTotal: order.totalValue || 0,
-        deliveryFee: order.deliveryFee || 0,
-        config: cancelFeeConfigOf(await getPlatformConfig()),
-      }).motoboyShare;
-    }
+    const storeShare = storeDirectMotoboyShare(order, cancelFeeConfigOf(await getPlatformConfig()));
     directCompensation = async (tx) => {
       const cancelPending = await tx.delivery.updateMany({
         where: { id: String(order.deliveryId), status: 'pending', motoboyId: null },

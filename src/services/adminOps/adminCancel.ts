@@ -11,7 +11,8 @@ import { isDirectOrder } from '../../utils/settlement';
 import { directCustomerRefund } from '../asaasLoja/directCancellation';
 import { MoneyActionError } from '../adminMoneyAction.service';
 import { cancelFeeConfigOf, CancelFeeConfig } from '../cancellation/feeConfig';
-import { motoboyOnTheWay } from '../cancellation/shared';
+import { motoboyOnTheWay, round2 } from '../cancellation/shared';
+import { storeFeeDecision, storeFeeFigures, storeDirectMotoboyShare } from '../cancellation/storeRule';
 import { ADMIN_CANCELLABLE_STATUSES } from '../cancellation/types';
 import type { CancelFault, CancelPreview } from './types';
 
@@ -20,8 +21,6 @@ export const CANCEL_FAULTS: readonly CancelFault[] = ['customer', 'store', 'moto
 export function isCancelFault(v: unknown): v is CancelFault {
   return typeof v === 'string' && (CANCEL_FAULTS as readonly string[]).includes(v);
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export interface CancelTargetDelivery {
   id: string;
@@ -63,7 +62,10 @@ export function computeCancelPreview(order: any, delivery: CancelTargetDelivery 
   const p = previewByRule(order, delivery, fault, fees);
   if (order.paymentStatus === 'paid') return p;
   const walletBack = isDirectOrder(order) ? 0 : round2(Number(order.walletApplied) || 0);
-  return { ...p, customerRefund: walletBack, feeCharged: fault === 'customer' ? 0 : p.feeCharged };
+  if (fault === 'customer') {
+    return { ...p, customerRefund: walletBack, feeCharged: 0, motoboyCompensation: 0, compensationPaidBy: null };
+  }
+  return { ...p, customerRefund: walletBack };
 }
 
 /** As mesmas fórmulas das regras da P2.1/P2.1b, para o pedido pago. */
@@ -89,18 +91,12 @@ function previewByRule(order: any, delivery: CancelTargetDelivery | null, fault:
   }
 
   if (fault === 'store') {
-    const storeAccepted = !!order.acceptedAt;
     if (direct) {
-      const comp = storeAccepted && motoboyId
-        ? calculateCancellationFee({ actor: 'store', motoboyInvolved: true, orderTotal: total, deliveryFee, config: fees }).motoboyShare
-        : 0;
+      const comp = motoboyId ? storeDirectMotoboyShare(order, fees) : 0;
       return { fault, customerRefund: fullRefund, feeCharged: 0, motoboyCompensation: comp, compensationPaidBy: comp > 0 ? 'store' : null, countsAgainst: 'store' };
     }
-    const isCashOnDelivery = order.paymentMethod === 'cash_on_delivery';
-    const isLate = order.status === 'enviado' || delivery?.status === 'picked';
-    const chargeStoreFee = storeAccepted && (!isCashOnDelivery || isLate);
-    const fee = calculateCancellationFee({ actor: 'store', motoboyInvolved: !!motoboyId, orderTotal: total, deliveryFee, config: fees });
-    const feeCharged = chargeStoreFee ? fee.totalFee : 0;
+    const fee = storeFeeFigures(order, fees, !!motoboyId);
+    const feeCharged = storeFeeDecision(order, delivery).chargeStoreFee ? fee.totalFee : 0;
     const comp = feeCharged > 0 && motoboyId ? fee.motoboyShare : 0;
     return { fault, customerRefund: fullRefund, feeCharged, motoboyCompensation: comp, compensationPaidBy: comp > 0 ? 'store' : null, countsAgainst: 'store' };
   }

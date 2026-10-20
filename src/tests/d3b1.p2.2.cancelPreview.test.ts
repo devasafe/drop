@@ -89,6 +89,23 @@ describe('prévia por culpa — custódia', () => {
   });
 });
 
+describe('prévia por culpa — custódia, casos de borda', () => {
+  it('loja aceita sem motoboy: taxa 1,20 da loja, sem compensação', async () => {
+    const { r } = await previewOf({ mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'pending' }, 'store');
+    expect(r.body).toEqual({ fault: 'store', customerRefund: 52, feeCharged: 1.2, motoboyCompensation: 0, compensationPaidBy: null, countsAgainst: 'store' });
+  });
+
+  it('loja com a entrega retirada (picked): mesma taxa e compensação da loja', async () => {
+    const { r } = await previewOf({ mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'picked' }, 'store');
+    expect(r.body).toEqual({ fault: 'store', customerRefund: 52, feeCharged: 1.2, motoboyCompensation: 0.6, compensationPaidBy: 'store', countsAgainst: 'store' });
+  });
+
+  it('DROP sem motoboy: 100% ao cliente, sem compensação', async () => {
+    const { r } = await previewOf({ mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'pending' }, 'platform');
+    expect(r.body).toEqual({ fault: 'platform', customerRefund: 52, feeCharged: 0, motoboyCompensation: 0, compensationPaidBy: null, countsAgainst: null });
+  });
+});
+
 describe('prévia por culpa — SaaS (direto)', () => {
   it('cliente, motoboy em rota: devolve 40; 12 ao motoboy', async () => {
     const { r } = await previewOf({ mode: 'direct', orderStatus: 'aguardando_motoboy', delivery: 'picked' }, 'customer');
@@ -151,6 +168,18 @@ describe('prévia — recusas, acesso e só leitura', () => {
     expect(r.body).toEqual({ fault: 'customer', customerRefund: 0, feeCharged: 0, motoboyCompensation: 0, compensationPaidBy: null, countsAgainst: 'customer' });
     const d = await previewOf({ mode: 'direct', orderStatus: 'criado', paid: false, acceptedAt: false }, 'store');
     expect(d.r.body).toMatchObject({ customerRefund: 0 });
+  });
+
+  it('não pago em custódia com carteira usada: volta só a carteira; culpa do cliente sem taxa nem compensação', async () => {
+    const s = await cenarioCancel(DOMAIN, { mode: 'custody', orderStatus: 'criado', paid: false, acceptedAt: false });
+    await prisma.order.update({ where: { id: s.orderId }, data: { walletApplied: 7.5 } });
+    expect((await preview(s.orderId, 'customer')).body).toEqual({ fault: 'customer', customerRefund: 7.5, feeCharged: 0, motoboyCompensation: 0, compensationPaidBy: null, countsAgainst: 'customer' });
+    expect((await preview(s.orderId, 'motoboy')).body).toMatchObject({ customerRefund: 7.5 });
+  });
+
+  it('não pago com motoboy e culpa do cliente: zera taxa e compensação', async () => {
+    const { r } = await previewOf({ mode: 'custody', orderStatus: 'aguardando_motoboy', delivery: 'picked', paid: false }, 'customer');
+    expect(r.body).toMatchObject({ customerRefund: 0, feeCharged: 0, motoboyCompensation: 0, compensationPaidBy: null });
   });
 
   it('a prévia não muda nada', async () => {
