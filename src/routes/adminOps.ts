@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import { getQueue, getSummary, listOrders, getOrderDetail } from '../controllers/adminOpsController';
+import { getQueue, getSummary, listOrders, getOrderDetail, getMap } from '../controllers/adminOpsController';
 
 const router = Router();
 const canViewOps = authorizePermission('operation:view');
@@ -15,6 +15,9 @@ router.get('/queue', authenticate, canViewOps, getQueue);
 
 // GET /api/admin/ops/summary — KPIs de hoje, pedidos por hora e "Saúde agora" (spec 3.1)
 router.get('/ops/summary', authenticate, canViewOps, getSummary);
+
+// GET /api/admin/ops/map — Mapa ao vivo (spec 3.4)
+router.get('/ops/map', authenticate, canViewOps, getMap);
 
 // GET /api/admin/orders?filtro=&storeId=&cursor= — Pedidos ao vivo (spec 3.2)
 router.get('/orders', authenticate, canViewOps, listOrders);

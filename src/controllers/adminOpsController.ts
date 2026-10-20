@@ -11,6 +11,7 @@ import { getOpsSummary } from '../services/adminOps/summary';
 import { listAdminOrders, ORDERS_FILTERS } from '../services/adminOps/orders';
 import { OrdersFilter } from '../services/adminOps/types';
 import { getAdminOrderDetail } from '../services/adminOps/orderDetail';
+import { getOpsMap } from '../services/adminOps/map';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
@@ -69,5 +70,14 @@ export const getOrderDetail = async (req: AuthenticatedRequest, res: Response) =
     return res.json(detail);
   } catch (err) {
     return sendOpsReadFailure(res, err, 'o pedido');
+  }
+};
+
+// GET /api/admin/ops/map — Mapa ao vivo (spec 3.4)
+export const getMap = async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    return res.json(await getOpsMap());
+  } catch (err) {
+    return sendOpsReadFailure(res, err, 'o mapa');
   }
 };
