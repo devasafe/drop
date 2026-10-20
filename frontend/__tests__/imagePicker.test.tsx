@@ -6,7 +6,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useImagePicker } from '../components/image/useImagePicker';
 import { IMAGE_SPECS } from '../lib/imageSpecs';
-import { mockCanvas, mockImageSize, imageFile } from './helpers/imageMocks';
+import { mockCanvas, mockImageSize, mockImageError, mockImageBySrc, imageFile, dataUrlOf } from './helpers/imageMocks';
 
 const onReady = jest.fn();
 
@@ -82,4 +82,26 @@ test('"Usar foto" entrega um JPEG recortado no tamanho exato da área', async ()
   expect(sw / sh).toBeCloseTo(3);
   expect(sy + sh / 2).toBeCloseTo(450);
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('arquivo que não decodifica: "Não deu para ler a imagem", sem recorte', async () => {
+  mockImageError();
+  render(<Harness />);
+  choose(imageFile());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para ler a imagem. Tente outra.');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('duas escolhas seguidas: a primeira, que termina de carregar depois, é descartada', async () => {
+  // A grande demora a carregar; a pequena (escolhida depois) responde antes.
+  mockImageBySrc((src) => (src === dataUrlOf('grande')
+    ? { width: 2400, height: 800, delay: 30 }
+    : { width: 300, height: 100 }));
+  render(<Harness />);
+  choose(imageFile('grande.png', 'image/png', 'grande'));
+  choose(imageFile('pequena.png', 'image/png', 'pequena'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('a sua tem 300 × 100');
+  await new Promise((r) => setTimeout(r, 80));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toBeInTheDocument();
 });

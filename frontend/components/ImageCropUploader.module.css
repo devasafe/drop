@@ -144,11 +144,10 @@
   background: var(--bg);
 }
 
-.cropImg {
-  max-width: 100%;
+/* O limite de altura fica no ReactCrop: o CSS da lib faz o wrapper e a <img> herdarem
+   (`max-height: inherit`), e um max-height direto na <img> perde na especificidade. */
+.crop {
   max-height: 55vh;
-  object-fit: contain;
-  display: block;
 }
 
 /* Actions */
@@ -203,4 +202,6 @@
 @media (max-width: 640px) {
   .modal { padding: 0; }
   .cropArea { height: 260px; }
+  /* 260px da área menos o padding de 16px em cima e embaixo: a foto inteira cabe sem rolar. */
+  .crop { max-height: 228px; }
 }

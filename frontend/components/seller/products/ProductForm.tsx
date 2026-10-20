@@ -3,6 +3,7 @@ import { useId, useRef, useState } from 'react';
 import { Video, X } from 'lucide-react';
 import api from '../../../lib/api';
 import ImageCropUploader from '../../ImageCropUploader';
+import { IMAGE_SPECS } from '../../../lib/imageSpecs';
 import RichTextEditor from '../../RichTextEditor';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
@@ -164,9 +165,9 @@ export function ProductForm({ values, onChange, errors, media, onMediaChange, ca
         )}
         {total < MAX_IMAGES && (
           <ImageCropUploader
-            aspectRatio={1}
-            targetWidth={800}
-            targetHeight={800}
+            aspectRatio={IMAGE_SPECS.product.ratio}
+            targetWidth={IMAGE_SPECS.product.width}
+            targetHeight={IMAGE_SPECS.product.height}
             label={total === 0 ? 'Adicionar foto' : 'Adicionar outra foto'}
             onFileCropped={(file, dataUrl) => onMediaChange({ ...media, added: [...media.added, { file, preview: dataUrl }] })}
           />

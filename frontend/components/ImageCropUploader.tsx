@@ -5,6 +5,7 @@ import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { checkMinSize } from '../lib/imageSpecs';
 import { cropImage, initialCrop, type PercentCrop } from './image/cropImage';
+import { useCropMinWidth } from './image/useCropMinWidth';
 import styles from './ImageCropUploader.module.css';
 
 interface Props {
@@ -34,6 +35,9 @@ export default function ImageCropUploader({
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState<PercentCrop>();
   const [error, setError] = useState('');
+  const minCrop = useCropMinWidth(targetWidth);
+  // Cada escolha ganha um número; a leitura de uma escolha antiga que termina depois é descartada.
+  const pickRef = useRef(0);
 
   const openFilePicker = () => {
     if (!disabled) inputRef.current?.click();
@@ -44,17 +48,20 @@ export default function ImageCropUploader({
     e.target.value = '';
     if (!file) return;
     setError('');
+    const pick = ++pickRef.current;
     const reader = new FileReader();
     reader.onload = () => {
+      if (pick !== pickRef.current) return;
       const img = new Image();
       img.onload = () => {
+        if (pick !== pickRef.current) return;
         // Imagem menor que o tamanho final não é recortada (sairia esticada).
         const tooSmall = checkMinSize(img.naturalWidth, img.naturalHeight, { width: targetWidth, height: targetHeight });
         if (tooSmall) { setError(tooSmall); return; }
         setCrop(initialCrop(img.naturalWidth, img.naturalHeight, aspectRatio));
         setImage(img);
       };
-      img.onerror = () => setError('Não deu para ler a imagem. Tente outra.');
+      img.onerror = () => { if (pick === pickRef.current) setError('Não deu para ler a imagem. Tente outra.'); };
       img.src = reader.result as string;
     };
     reader.readAsDataURL(file);
@@ -62,12 +69,20 @@ export default function ImageCropUploader({
 
   const handleConfirm = useCallback(() => {
     if (!crop || !image) return;
-    const { file, dataUrl } = cropImage(image, crop, targetWidth, targetHeight);
-    onFileCropped(file, dataUrl);
+    let result: { file: File; dataUrl: string };
+    try {
+      result = cropImage(image, crop, targetWidth, targetHeight);
+    } catch {
+      setError('Não deu para recortar a imagem. Tente outra.');
+      return;
+    }
+    setError('');
+    onFileCropped(result.file, result.dataUrl);
     setImage(null);
   }, [crop, image, targetWidth, targetHeight, onFileCropped]);
 
   const handleCancel = () => {
+    setError('');
     setImage(null);
     setCrop(undefined);
   };
@@ -103,7 +118,7 @@ export default function ImageCropUploader({
           </div>
         )}
       </div>
-      {error && <p role="alert" className={styles.error}>{error}</p>}
+      {error && !image && <p role="alert" className={styles.error}>{error}</p>}
 
       {image && (
         <div className={styles.overlay}>
@@ -118,18 +133,23 @@ export default function ImageCropUploader({
             <div className={styles.cropArea}>
               {/* @ts-ignore */}
               <ReactCrop
+                className={styles.crop}
                 crop={crop}
                 onChange={(_px: unknown, pct: PercentCrop) => setCrop(pct)}
                 aspect={aspectRatio}
                 keepSelection
+                minWidth={minCrop.minWidth}
               >
                 <img
+                  ref={minCrop.ref}
                   src={image.src}
                   alt="Para recortar"
-                  className={styles.cropImg}
+                  onLoad={minCrop.onLoad}
                 />
               </ReactCrop>
             </div>
+
+            {error && <p role="alert" className={styles.error}>{error}</p>}
 
             <div className={styles.modalActions}>
               <button className={styles.btnCancel} onClick={handleCancel}>

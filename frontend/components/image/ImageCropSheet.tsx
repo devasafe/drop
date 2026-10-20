@@ -7,6 +7,7 @@ import { Sheet } from '../ui/Sheet';
 import { Button } from '../ui/Button';
 import type { ImageSpec } from '../../lib/imageSpecs';
 import { cropImage, initialCrop, type PercentCrop } from './cropImage';
+import { useCropMinWidth } from './useCropMinWidth';
 import styles from './ImageCropSheet.module.css';
 
 interface Props {
@@ -20,13 +21,11 @@ interface Props {
 /** Enquadrador travado na proporção da área; "Usar foto" exporta no tamanho exato (`spec.width × spec.height`). */
 export function ImageCropSheet({ image, spec, onCancel, onConfirm }: Props) {
   const [crop, setCrop] = useState<PercentCrop | undefined>();
-  // Largura mínima do recorte na tela: abaixo disso o trecho teria menos pixels que a área.
-  const [minWidth, setMinWidth] = useState<number | undefined>();
+  const minCrop = useCropMinWidth(spec.width);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setError('');
-    setMinWidth(undefined);
     setCrop(image ? initialCrop(image.naturalWidth, image.naturalHeight, spec.ratio) : undefined);
   }, [image, spec.ratio]);
 
@@ -47,20 +46,18 @@ export function ImageCropSheet({ image, spec, onCancel, onConfirm }: Props) {
           {image && (
             // @ts-ignore
             <ReactCrop
+              className={styles.crop}
               crop={crop}
               onChange={(_px: unknown, pct: PercentCrop) => setCrop(pct)}
               aspect={spec.ratio}
               keepSelection
-              minWidth={minWidth}
+              minWidth={minCrop.minWidth}
             >
               <img
+                ref={minCrop.ref}
                 src={image.src}
                 alt="Imagem para enquadrar"
-                className={styles.img}
-                onLoad={(e) => {
-                  const el = e.currentTarget;
-                  if (el.naturalWidth) setMinWidth((spec.width * el.width) / el.naturalWidth);
-                }}
+                onLoad={minCrop.onLoad}
               />
             </ReactCrop>
           )}

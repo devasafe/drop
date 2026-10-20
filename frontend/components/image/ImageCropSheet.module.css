@@ -8,7 +8,9 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
 }
-.img { display: block; max-width: 100%; max-height: 60vh; }
+/* O limite de altura fica no ReactCrop: o CSS da lib faz o wrapper e a <img> herdarem
+   (`max-height: inherit`), e um max-height direto na <img> perde na especificidade. */
+.crop { max-height: 60vh; }
 .meta { margin: 0; font: var(--text-meta); color: var(--color-text-muted); }
 .error { margin: 0; font: var(--text-meta); color: var(--color-error-text); }
 .actions { display: flex; justify-content: flex-end; gap: var(--space-2); }

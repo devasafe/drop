@@ -36,3 +36,12 @@ test('foto grande: recorte centrado sai em 800 × 800', async () => {
   expect([dw, dh]).toEqual([800, 800]);
   expect([sx, sy, sw, sh].map(Math.round)).toEqual([300, 0, 1000, 1000]);
 });
+
+test('falha do canvas ao confirmar: mostra o aviso e não entrega arquivo', async () => {
+  mockImageSize(1600, 1000);
+  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((() => null) as any);
+  fireEvent.change(renderUploader(), { target: { files: [imageFile()] } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirmar recorte' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para recortar a imagem. Tente outra.');
+  expect(onFileCropped).not.toHaveBeenCalled();
+});

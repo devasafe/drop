@@ -40,6 +40,7 @@ export default function FotoPerfilPage() {
 
   // Recorte obrigatório 1:1: a foto sai em 400 × 400 (JPEG do canvas, então o tipo já é confiável).
   const picker = useImagePicker(IMAGE_SPECS.avatar, (file, dataUrl) => {
+    setError('');
     setPhoto(file);
     setPreview(dataUrl);
   }, { onError: setError });

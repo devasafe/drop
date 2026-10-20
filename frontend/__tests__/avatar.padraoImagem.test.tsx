@@ -45,6 +45,29 @@ describe('/foto-perfil', () => {
     expect(((api.post as jest.Mock).mock.calls[0][1] as FormData).get('photo')).toHaveProperty('type', 'image/jpeg');
     expect(drawImage.mock.calls[0].slice(-2)).toEqual([400, 400]);
   });
+  it('recorte válido depois de uma recusa: o aviso antigo some', async () => {
+    mockImageSize(300, 300);
+    mockCanvas();
+    render(<FotoPerfilPage />);
+    fireEvent.change(screen.getByLabelText('Selecionar foto de perfil'), { target: { files: [imageFile('eu.png')] } });
+    expect(await screen.findByText(/Imagem pequena demais/)).toBeInTheDocument();
+    mockImageSize(1000, 1000);
+    fireEvent.change(screen.getByLabelText('Selecionar foto de perfil'), { target: { files: [imageFile('eu.png')] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
+    await waitFor(() => expect(screen.queryByText('Enquadrar foto de perfil')).not.toBeInTheDocument());
+    expect(screen.queryByText(/Imagem pequena demais/)).not.toBeInTheDocument();
+  });
+
+  it('"Selecione uma foto" some quando a foto é escolhida', async () => {
+    mockImageSize(1000, 1000);
+    mockCanvas();
+    render(<FotoPerfilPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
+    expect(screen.getByText('Selecione uma foto para continuar.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Selecionar foto de perfil'), { target: { files: [imageFile('eu.png')] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
+    await waitFor(() => expect(screen.queryByText('Selecione uma foto para continuar.')).not.toBeInTheDocument());
+  });
 });
 
 describe('Dados pessoais', () => {

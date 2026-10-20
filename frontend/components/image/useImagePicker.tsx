@@ -37,6 +37,8 @@ export function useImagePicker(
   const inputRef = useRef<HTMLInputElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [error, setError] = useState('');
+  // Cada escolha ganha um número; a leitura de uma escolha antiga que termina depois é descartada.
+  const pickRef = useRef(0);
 
   const fail = useCallback((message: string) => {
     setError(message);
@@ -47,21 +49,25 @@ export function useImagePicker(
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    const pick = ++pickRef.current;
+    const current = () => pick === pickRef.current;
     setError('');
     if (!IMAGE_TYPES.includes(file.type)) { fail('Use uma imagem JPG, PNG ou WebP.'); return; }
     if (file.size > MAX_IMAGE_BYTES) { fail('A imagem pode ter até 5 MB.'); return; }
     const reader = new FileReader();
     reader.onload = () => {
+      if (!current()) return;
       const img = new Image();
       img.onload = () => {
+        if (!current()) return;
         const tooSmall = checkMinSize(img.naturalWidth, img.naturalHeight, spec);
         if (tooSmall) { fail(tooSmall); return; }
         setImage(img);
       };
-      img.onerror = () => fail('Não deu para ler a imagem. Tente outra.');
+      img.onerror = () => { if (current()) fail('Não deu para ler a imagem. Tente outra.'); };
       img.src = reader.result as string;
     };
-    reader.onerror = () => fail('Não deu para ler a imagem. Tente outra.');
+    reader.onerror = () => { if (current()) fail('Não deu para ler a imagem. Tente outra.'); };
     reader.readAsDataURL(file);
   };
 
