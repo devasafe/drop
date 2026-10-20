@@ -10,7 +10,7 @@ describe('navConfig', () => {
     expect(ROLE_HOME.cliente).toBe('/inicio');
     expect(ROLE_HOME.lojista).toBe('/seller/dashboard');
     expect(ROLE_HOME.motoboy).toBe('/motoboy');
-    expect(ROLE_HOME.ceo).toBe('/admin/dashboard');
+    expect(ROLE_HOME.ceo).toBe('/admin/operacao'); // D3b-1: casa do admin com operation:view
   });
 
   it('cliente tem os 4 itens de bottomNav na ordem certa', () => {

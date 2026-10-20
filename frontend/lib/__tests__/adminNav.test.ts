@@ -58,7 +58,7 @@ describe('permissões padrão (fixture = matriz do backend)', () => {
 describe('tabela do menu (spec 3.3)', () => {
   it('áreas na ordem do protótipo, com o grupo de cada uma', () => {
     expect(ADMIN_AREAS.map((a) => `${a.group}/${a.key}`)).toEqual([
-      'Operação/numeros',
+      'Operação/operacao', 'Operação/pedidos', 'Operação/mapa', 'Operação/numeros',
       'Pessoas/verificacoes', 'Pessoas/usuarios', 'Pessoas/lojas',
       'Dinheiro/dinheiro',
       'Comunicação/suporte', 'Comunicação/comunicacao',
@@ -70,17 +70,15 @@ describe('tabela do menu (spec 3.3)', () => {
     expect(ADMIN_AREAS.filter((a) => a.badge).map((a) => [a.key, a.badge])).toEqual([['verificacoes', 'verifications']]);
   });
 
-  it('nenhuma aba de "Precisa de mim", "Pedidos ao vivo" ou "Mapa" (D3b)', () => {
-    const labels = ADMIN_AREAS.flatMap((a) => [a.label, ...a.tabs.map((t) => t.label)]);
-    for (const x of ['Precisa de mim', 'Pedidos ao vivo', 'Mapa de motoboys']) expect(labels).not.toContain(x);
-  });
-
   it('chaves de aba únicas dentro de cada área', () => {
     for (const a of ADMIN_AREAS) expect(new Set(a.tabs.map((t) => t.key)).size).toBe(a.tabs.length);
   });
 });
 
 const CEO_CUSTODIA = {
+  operacao: ['operacao'],
+  pedidos: ['pedidos'],
+  mapa: ['mapa'],
   numeros: ['visao-geral'],
   verificacoes: ['verificacoes'],
   usuarios: ['usuarios'],
@@ -321,9 +319,10 @@ describe('página × aba: a mesma proteção (veio do adminNav.parity.test, que 
   const PAGES = path.join(__dirname, '..', '..', 'pages');
   const plain = ADMIN_AREAS.flatMap((a) => a.tabs).filter((t) => !t.href.includes('?'));
   it.each(plain.map((t) => [t.href, t] as const))('%s', (href, t) => {
-    const file = path.join(PAGES, `${href}.tsx`);
-    expect(fs.existsSync(file)).toBe(true);
-    const src = fs.readFileSync(file, 'utf8');
+    // D3b-1: página com subpáginas mora em pasta (pages/admin/pedidos/index.tsx ao lado de [id].tsx).
+    const file = [path.join(PAGES, `${href}.tsx`), path.join(PAGES, href, 'index.tsx')].find((f) => fs.existsSync(f));
+    expect(file).toBeDefined();
+    const src = fs.readFileSync(file as string, 'utf8');
     if (t.ceoOnly) {
       expect(src).toMatch(/required_role="ceo"/);
     } else {
@@ -348,7 +347,7 @@ describe('fora do painel (Nav): quem abre o admin e por onde entra', () => {
   });
 
   it('entra pela primeira página que o papel abre, sem depender do modo', () => {
-    expect(adminHomeHref(() => true, true)).toBe('/admin/dashboard');
+    expect(adminHomeHref(() => true, true)).toBe('/admin/operacao'); // D3b-1: o CEO tem operation:view
     expect(adminHomeHref(canOf('gerente_geral'), false)).toBe('/admin/dashboard');
     expect(adminHomeHref(canOf('gerente_clientes'), false)).toBe('/admin/verificacoes');
     expect(adminHomeHref(canOf('marketing'), false)).toBe('/admin/seasonal-theme');

@@ -63,6 +63,7 @@ describe('AdminShell · menu', () => {
       'Operação', 'Pessoas', 'Dinheiro', 'Comunicação', 'Configuração',
     ]);
     expect(links().map((a) => a.textContent)).toEqual([
+      'Precisa de mim', 'Pedidos ao vivo', 'Mapa ao vivo',
       'Números do negócio', 'Verificações', 'Usuários', 'Lojas', 'Dinheiro', 'Suporte',
       'Avisos e broadcasts', 'Regras e taxas', 'Freios', 'Permissões', 'Tema sazonal',
     ]);

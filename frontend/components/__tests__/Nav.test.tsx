@@ -43,14 +43,20 @@ describe('Nav — logo leva à Home da role', () => {
     render(<Nav />);
     expect(logoHref()).toBe('/motoboy');
   });
-  it('ceo → /admin/dashboard', () => {
+  it('ceo → /admin/operacao (D3b-1: Precisa de mim)', () => {
     mockUser = { name: 'X', activeRole: 'ceo', roles: ['ceo'] };
     render(<Nav />);
-    expect(logoHref()).toBe('/admin/dashboard');
+    expect(logoHref()).toBe('/admin/operacao');
   });
-  it('admin delegado (marketing) com permissões → /admin/dashboard', () => {
+  it('admin delegado (marketing) com todas as permissões, inclusive operation:view → /admin/operacao', () => {
     mockUser = { name: 'X', activeRole: 'marketing', roles: ['marketing'] };
     mockCan = () => true;
+    render(<Nav />);
+    expect(logoHref()).toBe('/admin/operacao');
+  });
+  it('admin delegado sem operation:view continua no painel de antes', () => {
+    mockUser = { name: 'X', activeRole: 'marketing', roles: ['marketing'] };
+    mockCan = (p) => p !== 'operation:view';
     render(<Nav />);
     expect(logoHref()).toBe('/admin/dashboard');
   });
@@ -60,10 +66,10 @@ describe('Nav — fora do painel, o atalho para o admin (D3a)', () => {
   beforeEach(() => { mockUser = { name: 'X', activeRole: 'cliente', roles: ['cliente'] }; mockCan = () => false; });
   const atalho = () => screen.queryByRole('link', { name: 'Abrir o painel do admin' });
 
-  it('CEO: atalho para a primeira página do admin', () => {
+  it('CEO: atalho para a primeira página do admin (D3b-1: Precisa de mim)', () => {
     mockUser = { name: 'X', activeRole: 'ceo', roles: ['ceo'] };
     render(<Nav />);
-    expect(atalho()).toHaveAttribute('href', '/admin/dashboard');
+    expect(atalho()).toHaveAttribute('href', '/admin/operacao');
   });
   it('gerente de clientes: atalho e logo levam às Verificações (a primeira página que ele abre)', () => {
     mockUser = { name: 'X', activeRole: 'gerente_clientes', roles: ['gerente_clientes'] };

@@ -12,6 +12,7 @@
 import type { IconName } from '../components/Icon';
 
 export type AdminAreaKey =
+  | 'operacao' | 'pedidos' | 'mapa'
   | 'numeros' | 'verificacoes' | 'usuarios' | 'lojas' | 'dinheiro' | 'suporte' | 'comunicacao'
   | 'regras' | 'freios' | 'permissoes' | 'tema';
 
@@ -58,6 +59,20 @@ export interface AdminNavContext {
 export const ADMIN_GROUPS: AdminGroup[] = ['Operação', 'Pessoas', 'Dinheiro', 'Comunicação', 'Configuração'];
 
 export const ADMIN_AREAS: AdminArea[] = [
+  // D3b-1: Operação ao vivo. Padrão só o CEO (operation:view, delegável em Permissões), sem filtro de modo.
+  // Vêm antes de Números do negócio: com operation:view, a casa do admin (adminHomeHref) é Precisa de mim.
+  {
+    key: 'operacao', group: 'Operação', label: 'Precisa de mim', icon: 'bell',
+    tabs: [{ key: 'operacao', label: 'Precisa de mim', href: '/admin/operacao', permission: 'operation:view' }],
+  },
+  {
+    key: 'pedidos', group: 'Operação', label: 'Pedidos ao vivo', icon: 'list',
+    tabs: [{ key: 'pedidos', label: 'Pedidos ao vivo', href: '/admin/pedidos', permission: 'operation:view' }],
+  },
+  {
+    key: 'mapa', group: 'Operação', label: 'Mapa ao vivo', icon: 'map-pin',
+    tabs: [{ key: 'mapa', label: 'Mapa ao vivo', href: '/admin/mapa', permission: 'operation:view' }],
+  },
   {
     key: 'numeros', group: 'Operação', label: 'Números do negócio', icon: 'chart-bar',
     tabs: [
@@ -231,6 +246,7 @@ export function canOpenAdminPanel(can: (p: string) => boolean, isCeo: boolean): 
 /**
  * Primeira página do admin que o papel abre. Prefere uma aba sem modo (abre em qualquer modo); se o papel só
  * tem abas presas a modo, usa a primeira delas (o AdminShell mostra o menu certo ao carregar o modo).
+ * D3b-1: com operation:view é /admin/operacao (Precisa de mim é a primeira aba da tabela); sem ela, nada muda.
  */
 export function adminHomeHref(can: (p: string) => boolean, isCeo: boolean): string | null {
   const ctx = noMode(can, isCeo);

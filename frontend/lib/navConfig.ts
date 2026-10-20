@@ -45,7 +45,8 @@ export const ROLE_HOME: Record<Role, string> = {
   cliente: '/inicio',
   lojista: '/seller/dashboard',
   motoboy: '/motoboy',
-  ceo: '/admin/dashboard',
+  // D3b-1: a casa do admin com operation:view (o CEO sempre tem) é Precisa de mim.
+  ceo: '/admin/operacao',
 };
 
 export const ROLE_AREAS: RoleArea[] = [
