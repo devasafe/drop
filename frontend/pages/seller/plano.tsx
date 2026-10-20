@@ -1,11 +1,12 @@
 // frontend/pages/seller/plano.tsx
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Upload, Wallet } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import ModeGate from '../../components/ModeGate';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
-import { uploadStoreImage, MAX_IMAGE_BYTES } from '../../components/seller/loja/IdentitySheet';
+import { uploadStoreImage } from '../../components/seller/loja/IdentitySheet';
+import { useImagePicker } from '../../components/image/useImagePicker';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -15,6 +16,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
+import { IMAGE_SPECS } from '../../lib/imageSpecs';
 import { formatMoney } from '../../lib/money';
 import { storeAnalytics } from '../../lib/analyticsApi';
 import { payload, apiErrorMessage } from '../../lib/sellerApi';
@@ -112,11 +114,8 @@ function PlanoInner() {
     }
   };
 
-  const onBanner = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) { showToast('A imagem pode ter até 5 MB.', 'error'); return; }
+  // O banner passa pelo recorte 2:1 e sobe já em 1200 × 600 (mesma área do carrossel do Início).
+  const onBanner = async (file: File) => {
     setBannerBusy(true);
     try {
       await uploadStoreImage(String(store?._id), 'featured', file);
@@ -128,6 +127,8 @@ function PlanoInner() {
       setBannerBusy(false);
     }
   };
+  const toastError = useCallback((message: string) => showToast(message, 'error'), [showToast]);
+  const bannerPicker = useImagePicker(IMAGE_SPECS.featuredBanner, onBanner, { onError: toastError });
 
   if (modeError && !modeLoading) {
     // sem confirmar o modo, não mostra plano nem comissão (o hook assume custódia no erro)
@@ -200,9 +201,10 @@ function PlanoInner() {
         </p>
         <label className={blocks.fileBtn}>
           <Upload size={16} aria-hidden="true" /> {bannerBusy ? 'Enviando…' : 'Enviar banner'}
-          <input type="file" accept="image/png,image/jpeg,image/webp" className={blocks.hiddenInput} aria-label="Escolher o banner do Início" disabled={bannerBusy} onChange={onBanner} />
+          <input {...bannerPicker.inputProps} className={blocks.hiddenInput} aria-label="Escolher o banner do Início" disabled={bannerBusy} />
         </label>
-        <span className={blocks.meta}>1200 × 400 · texto curto, sem preço que muda todo dia</span>
+        <span className={blocks.meta}>{`${IMAGE_SPECS.featuredBanner.width} × ${IMAGE_SPECS.featuredBanner.height} · texto curto, sem preço que muda todo dia`}</span>
+        {bannerPicker.sheet}
       </section>
 
       <div className={blocks.head}>

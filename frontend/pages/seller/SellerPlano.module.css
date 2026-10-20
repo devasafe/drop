@@ -2,7 +2,7 @@
 .banner {
   display: grid;
   place-items: center;
-  aspect-ratio: 3 / 1;
+  aspect-ratio: 2 / 1;
   overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);

@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
@@ -6,9 +6,10 @@ import { useToast } from '../../ui/Toast';
 import api from '../../../lib/api';
 import { imageUrl } from '../../../lib/config';
 import { apiErrorMessage, payload } from '../../../lib/sellerApi';
+import { IMAGE_SPECS } from '../../../lib/imageSpecs';
+import { useImagePicker } from '../../image/useImagePicker';
 import blocks from '../../panel/PanelBlocks.module.css';
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const TAGLINE_MAX = 80;
 
 /**
@@ -59,11 +60,9 @@ export function IdentitySheet({ open, onClose, storeId, logoUrl, tagline, storeN
   const tooLong = trimmed.length > TAGLINE_MAX;
   const initials = (storeName || 'Loja').split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
 
-  const onLogo = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !storeId) return;
-    if (file.size > MAX_IMAGE_BYTES) { setError('A imagem pode ter até 5 MB.'); return; }
+  // Logo passa pelo recorte 1:1 e sobe já em 400 × 400.
+  const onLogo = async (file: File) => {
+    if (!storeId) return;
     setLogoBusy(true);
     setError('');
     try {
@@ -76,6 +75,7 @@ export function IdentitySheet({ open, onClose, storeId, logoUrl, tagline, storeN
       setLogoBusy(false);
     }
   };
+  const logoPicker = useImagePicker(IMAGE_SPECS.logo, onLogo, { onError: setError });
 
   const save = async () => {
     if (!storeId || tooLong) return;
@@ -102,17 +102,15 @@ export function IdentitySheet({ open, onClose, storeId, logoUrl, tagline, storeN
           </span>
           <span className={blocks.tx}>
             <b>Logo da loja</b>
-            <span>Quadrado, fundo liso. Até 5 MB.</span>
+            <span>{`Quadrado, fundo liso. ${IMAGE_SPECS.logo.width} × ${IMAGE_SPECS.logo.height}, até 5 MB.`}</span>
           </span>
           <label className={blocks.fileBtn}>
             {logoBusy ? 'Enviando…' : 'Trocar logo'}
             <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
+              {...logoPicker.inputProps}
               className={blocks.hiddenInput}
               aria-label="Escolher o logo da loja"
               disabled={logoBusy}
-              onChange={onLogo}
             />
           </label>
         </div>
@@ -127,6 +125,7 @@ export function IdentitySheet({ open, onClose, storeId, logoUrl, tagline, storeN
         {error && <p role="alert" className={blocks.errText}>{error}</p>}
         <Button onClick={save} loading={saving} disabled={tooLong || !storeId}>Salvar frase</Button>
       </div>
+      {logoPicker.sheet}
     </Sheet>
   );
 }

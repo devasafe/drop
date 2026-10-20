@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { confirmIfAsked, renderAdminPage, stubNativeDialogs } from './helpers/adminPage';
 import api from '../lib/api';
 import AdminAvisos from '../pages/admin/avisos';
+import { mockCanvas, mockImageSize, imageFile } from './helpers/imageMocks';
 
 const mockRouter = { pathname: '/admin/avisos', asPath: '/admin/avisos', query: {}, push: jest.fn(), replace: jest.fn() };
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
@@ -62,11 +63,13 @@ it('remover: DELETE /banners/:id', async () => {
   await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/banners/b1'));
 });
 
-it('envia a imagem e publica com sortOrder = tamanho da lista', async () => {
+it('envia a imagem (recortada em 2:1) e publica com sortOrder = tamanho da lista', async () => {
+  mockImageSize(2400, 1200);
+  mockCanvas();
   const { container } = renderAdminPage(<AdminAvisos />);
   await loaded();
-  const file = new File(['x'], 'banner.jpg', { type: 'image/jpeg' });
-  fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } });
+  fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [imageFile('banner.jpg', 'image/jpeg')] } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/banners/upload', expect.any(FormData), { headers: { 'Content-Type': 'multipart/form-data' } }));
   fireEvent.click(await screen.findByRole('button', { name: 'Publicar aviso' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/banners', {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { ChevronRight, Lock, Pencil } from 'lucide-react';
 import api from '../../lib/api';
@@ -12,6 +12,8 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { Skeleton } from '../ui/Skeleton';
+import { IMAGE_SPECS } from '../../lib/imageSpecs';
+import { useImagePicker } from '../image/useImagePicker';
 import styles from './PersonalData.module.css';
 
 type Campo = 'name' | 'telefone' | 'cpf';
@@ -35,7 +37,20 @@ export function PersonalData() {
   const [error, setError] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const file = useRef<HTMLInputElement>(null);
+
+  // Recorte obrigatório 1:1: a foto sobe já em 400 × 400.
+  const uploadPhoto = async (f: File) => {
+    setPhotoError(null);
+    const fd = new FormData();
+    fd.append('photo', f);
+    try {
+      const r = await api.post('/user/me/photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMe((m: any) => ({ ...m, photo: r.data?.photo ?? m.photo }));
+    } catch (e) {
+      setPhotoError(serverMessage(e) || 'Não deu para trocar a foto.');
+    }
+  };
+  const picker = useImagePicker(IMAGE_SPECS.avatar, uploadPhoto, { onError: setPhotoError });
 
   const load = () => {
     setFailed(false);
@@ -70,18 +85,6 @@ export function PersonalData() {
       setSaving(false);
     }
   };
-  const uploadPhoto = async (f: File | undefined) => {
-    if (!f) return;
-    setPhotoError(null);
-    const fd = new FormData();
-    fd.append('photo', f);
-    try {
-      const r = await api.post('/user/me/photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setMe((m: any) => ({ ...m, photo: r.data?.photo ?? m.photo }));
-    } catch {
-      setPhotoError('Não deu para trocar a foto.');
-    }
-  };
   const row = (label: string, text: string, opts: { campo?: Campo; badge?: string } = {}) => (
     <div className={styles.row}>
       <span className={styles.tx}><span>{label}</span><b>{text}</b></span>
@@ -99,12 +102,13 @@ export function PersonalData() {
       <div className={styles.photoRow}>
         <Avatar name={me.name || 'Você'} src={me.photo} size="lg" />
         <div>
-          <button type="button" className={styles.link} onClick={() => file.current?.click()}>Trocar foto</button>
+          <button type="button" className={styles.link} onClick={picker.open}>Trocar foto</button>
           <p className={styles.hint}>Opcional · o motoboy vê na entrega</p>
-          <input ref={file} type="file" accept="image/*" hidden aria-label="Foto de perfil" onChange={(e) => uploadPhoto(e.target.files?.[0])} />
+          <input {...picker.inputProps} hidden aria-label="Foto de perfil" />
         </div>
       </div>
       {photoError && <Alert tone="error" title={photoError} />}
+      {picker.sheet}
       <div className={styles.card}>
         {row('Nome', me.name || '—', { campo: 'name' })}
         {row('E-mail', me.email, { badge: emailOk ? 'Confirmado' : undefined })}

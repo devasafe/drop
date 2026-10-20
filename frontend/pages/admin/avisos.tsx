@@ -12,6 +12,8 @@ import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../components/ui/Toast';
 import { imageUrl } from '../../lib/config';
 import { adminErrorMessage } from '../../lib/adminErrors';
+import { IMAGE_SPECS, specHint } from '../../lib/imageSpecs';
+import { useImagePicker } from '../../components/image/useImagePicker';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import styles from '../../components/admin/comunicacao/Avisos.module.css';
 
@@ -64,6 +66,7 @@ function AvisosBody() {
 
   useEffect(() => { fetchBanners(); }, [fetchBanners]);
 
+  // A imagem passa pelo recorte 2:1 e sobe já em 1200 × 600 (o carrossel do Início).
   const handleFile = async (file: File) => {
     setUploading(true);
     try {
@@ -71,12 +74,14 @@ function AvisosBody() {
       form.append('image', file);
       const res = await api.post('/banners/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setNewImage(res.data.imageUrl);
-    } catch {
-      showToast('Falha no upload da imagem', 'error');
+    } catch (err) {
+      showToast(adminErrorMessage(err, 'Falha no upload da imagem'), 'error');
     } finally {
       setUploading(false);
     }
   };
+  const toastError = useCallback((message: string) => showToast(message, 'error'), [showToast]);
+  const picker = useImagePicker(IMAGE_SPECS.promoBanner, handleFile, { onError: toastError });
 
   const handleCreate = async () => {
     if (!newImage || !banners) return;
@@ -146,15 +151,12 @@ function AvisosBody() {
           ) : (
             <label className={styles.dropzone}>
               <Upload size={20} aria-hidden="true" />
-              <span>{uploading ? 'Enviando…' : 'Enviar imagem do banner (2:1)'}</span>
-              <input
-                type="file"
-                accept="image/*"
-                className={styles.fileInput}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-              />
+              <span>{uploading ? 'Enviando…' : 'Enviar imagem do banner'}</span>
+              <span>{specHint(IMAGE_SPECS.promoBanner)}</span>
+              <input {...picker.inputProps} className={styles.fileInput} disabled={uploading} />
             </label>
           )}
+          {picker.sheet}
           <Input label="Título (opcional)" value={newTitle} onChange={setNewTitle} placeholder="Título (opcional, p/ acessibilidade)" />
           <Input
             label="Link ao tocar (opcional)"

@@ -4,6 +4,7 @@ import { resetViewport, setViewportWidth } from './helpers/viewport';
 import api from '../lib/api';
 import AdminBroadcasts from '../pages/admin/broadcasts';
 import AdminAvisos from '../pages/admin/avisos';
+import { mockCanvas, mockImageSize, imageFile } from './helpers/imageMocks';
 
 const mockRouter = { pathname: '/admin/broadcasts', asPath: '/admin/broadcasts', query: {}, push: jest.fn(), replace: jest.fn() };
 jest.mock('next/router', () => ({ useRouter: () => mockRouter }));
@@ -182,17 +183,32 @@ describe('Avisos da home', () => {
     expect(screen.getByText('Semana Tech')).toBeInTheDocument();
   });
 
-  it('upload com erro: toast; a prévia mostra a imagem enviada', async () => {
-    (api.post as jest.Mock).mockRejectedValueOnce(new Error('falhou'));
+  it('upload com erro: toast com a mensagem do servidor; a prévia mostra a imagem enviada', async () => {
+    mockImageSize(2400, 1200);
+    mockCanvas();
+    (api.post as jest.Mock).mockRejectedValueOnce({ response: { status: 422, data: { error: 'A imagem precisa ter pelo menos 1200 × 600 px, na proporção 2:1.', code: 'IMAGE_SIZE_INVALID' } } });
     const { container } = renderAdminPage(<AdminAvisos />);
     await screen.findByText('1º · ativo');
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })] } });
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Falha no upload da imagem', 'error'));
+    fireEvent.change(input, { target: { files: [imageFile('a.jpg', 'image/jpeg')] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('A imagem precisa ter pelo menos 1200 × 600 px, na proporção 2:1.', 'error'));
     (api.post as jest.Mock).mockResolvedValueOnce({ data: { imageUrl: '/uploads/novo.jpg' } });
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [new File(['x'], 'b.jpg', { type: 'image/jpeg' })] } });
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [imageFile('b.jpg', 'image/jpeg')] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
     const preview = screen.getByRole('region', { name: 'Prévia na home' });
     expect(await within(preview).findByRole('img')).toBeInTheDocument();
+  });
+
+  it('imagem menor que 1200 × 600: recusada com aviso, sem recorte e sem upload', async () => {
+    mockImageSize(1000, 500);
+    const { container } = renderAdminPage(<AdminAvisos />);
+    await screen.findByText('1º · ativo');
+    expect(screen.getByText('1200 × 600 px · JPG, PNG ou WebP · até 5 MB')).toBeInTheDocument();
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [imageFile('a.jpg', 'image/jpeg')] } });
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Imagem pequena demais: precisa de pelo menos 1200 × 600 px (a sua tem 1000 × 500).', 'error'));
+    expect(screen.queryByRole('button', { name: 'Usar foto' })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('lista ilegível: "Tentar de novo" e não deixa publicar (a ordem depende da lista)', async () => {

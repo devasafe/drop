@@ -46,6 +46,12 @@
   color: var(--text-subtle);
 }
 
+.error {
+  margin: var(--space-2) 0 0;
+  font: var(--text-meta);
+  color: var(--color-error-text);
+}
+
 /* Preview */
 
 .previewWrap {

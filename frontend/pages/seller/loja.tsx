@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   Bell, Camera, ChartColumn, CirclePause, Clock, Headphones, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, Star, Store, Ticket, UserRound, Wallet,
@@ -7,7 +7,8 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { PauseSheet, isPaused, pausedUntilLabel, resumeStore } from '../../components/seller/loja/PauseSheet';
-import { IdentitySheet, uploadStoreImage, MAX_IMAGE_BYTES } from '../../components/seller/loja/IdentitySheet';
+import { IdentitySheet, uploadStoreImage } from '../../components/seller/loja/IdentitySheet';
+import { useImagePicker } from '../../components/image/useImagePicker';
 import { NavRow } from '../../components/seller/ui/NavRow';
 import { AreasSection } from '../../components/panel/AreasSection';
 import PushEnableBanner from '../../components/PushEnableBanner';
@@ -22,6 +23,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
+import { IMAGE_SPECS } from '../../lib/imageSpecs';
 import { storeAnalytics, type StoreOverview } from '../../lib/analyticsApi';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import { openStatus } from '../../lib/storeHours';
@@ -96,11 +98,9 @@ export default function SellerLoja() {
   const st = store ? openStatus(store) : null;
 
   // Capa: todos os planos. Banner da Home (featured): só Premium; quem decide é o servidor.
-  const pickImage = (type: 'cover' | 'featured') => async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !storeId) return;
-    if (file.size > MAX_IMAGE_BYTES) { showToast('A imagem pode ter até 5 MB.', 'error'); return; }
+  // As duas passam pelo recorte obrigatório (useImagePicker) e sobem já no tamanho da área.
+  const sendImage = async (type: 'cover' | 'featured', file: File) => {
+    if (!storeId) return;
     const setBusy = type === 'cover' ? setCoverBusy : setFeaturedBusy;
     setBusy(true);
     try {
@@ -115,6 +115,9 @@ export default function SellerLoja() {
       setBusy(false);
     }
   };
+  const toastError = useCallback((message: string) => showToast(message, 'error'), [showToast]);
+  const coverPicker = useImagePicker(IMAGE_SPECS.cover, (file) => sendImage('cover', file), { onError: toastError });
+  const featuredPicker = useImagePicker(IMAGE_SPECS.featuredBanner, (file) => sendImage('featured', file), { onError: toastError });
 
   const resume = async () => {
     if (!storeId) return;
@@ -176,18 +179,18 @@ export default function SellerLoja() {
             <div className={blocks.actions}>
               <label className={blocks.fileBtn}>
                 <Camera size={16} aria-hidden="true" /> {coverBusy ? 'Enviando…' : 'Trocar capa'}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className={blocks.hiddenInput} aria-label="Escolher a capa da loja" disabled={coverBusy} onChange={pickImage('cover')} />
+                <input {...coverPicker.inputProps} className={blocks.hiddenInput} aria-label="Escolher a capa da loja" disabled={coverBusy} />
               </label>
               <Button size="sm" variant="secondary" leftIcon={<Pencil size={16} />} onClick={() => setIdentityOpen(true)}>Frase e logo</Button>
             </div>
-            <span className={blocks.meta}>Capa 1200 × 400 · logo quadrado · até 5 MB</span>
+            <span className={blocks.meta}>{`Capa ${IMAGE_SPECS.cover.width} × ${IMAGE_SPECS.cover.height} · logo ${IMAGE_SPECS.logo.width} × ${IMAGE_SPECS.logo.height} · até 5 MB`}</span>
             {plan === 3 && (
               <div className={blocks.actions}>
                 <label className={blocks.fileBtn}>
                   <ImageIcon size={16} aria-hidden="true" /> {featuredBusy ? 'Enviando…' : 'Banner da Home'}
-                  <input type="file" accept="image/png,image/jpeg,image/webp" className={blocks.hiddenInput} aria-label="Escolher o banner da Home" disabled={featuredBusy} onChange={pickImage('featured')} />
+                  <input {...featuredPicker.inputProps} className={blocks.hiddenInput} aria-label="Escolher o banner da Home" disabled={featuredBusy} />
                 </label>
-                <span className={blocks.meta}>Destaque na Home do app · Premium</span>
+                <span className={blocks.meta}>{`Destaque na Home do app · Premium · ${IMAGE_SPECS.featuredBanner.width} × ${IMAGE_SPECS.featuredBanner.height}`}</span>
               </div>
             )}
           </section>
@@ -319,6 +322,8 @@ export default function SellerLoja() {
           </button>
         </div>
 
+        {coverPicker.sheet}
+        {featuredPicker.sheet}
         <PauseSheet open={pauseOpen} onClose={() => setPauseOpen(false)} storeId={storeId} activeOrders={activeOrders} onChanged={(u) => { setPausedUntil(u); refresh(); }} />
         <IdentitySheet open={identityOpen} onClose={() => setIdentityOpen(false)} storeId={storeId} logoUrl={store.logoUrl} tagline={store.tagline} storeName={store.name} onSaved={refresh} />
         <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="QR code da loja" presentation="bottom">

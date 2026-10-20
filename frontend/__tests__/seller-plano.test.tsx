@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { ToastProvider } from '../components/ui/Toast';
 import SellerPlano, { received, prevMonthRange } from '../pages/seller/plano';
 import api from '../lib/api';
+import { mockCanvas, mockImageSize, imageFile } from './helpers/imageMocks';
 
 const mockRefresh = jest.fn();
 let mockPanel: any;
@@ -112,14 +113,19 @@ test('troca recusada mostra o motivo', async () => {
   expect(screen.getByText('CNPJ em análise')).toBeInTheDocument();
 });
 
-test('banner do Início pode ser enviado antes da aprovação (type=featured)', async () => {
+test('banner do Início pode ser enviado antes da aprovação (type=featured), recortado em 2:1', async () => {
+  mockImageSize(2400, 1200);
+  const { drawImage } = mockCanvas();
   (api.post as jest.Mock).mockResolvedValue({ data: { success: true, type: 'featured', url: 'https://x/b.png' } });
   renderPage();
   await screen.findByRole('heading', { name: 'Pool de motoboys · Plano 2' });
   expect(screen.getByText('Pode enviar agora: ele entra no ar quando o Premium for aprovado.')).toBeInTheDocument();
-  const file = new File(['x'], 'banner.png', { type: 'image/png' });
-  fireEvent.change(screen.getByLabelText('Escolher o banner do Início'), { target: { files: [file] } });
+  expect(screen.getByText('1200 × 600 · texto curto, sem preço que muda todo dia')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Escolher o banner do Início'), { target: { files: [imageFile('banner.png')] } });
+  expect(await screen.findByText('Enquadrar banner da Home')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Usar foto' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/banner?type=featured', expect.any(FormData)));
+  expect(drawImage.mock.calls[0].slice(-2)).toEqual([1200, 600]);
   await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
 });
 

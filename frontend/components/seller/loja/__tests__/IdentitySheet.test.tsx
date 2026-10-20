@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ToastProvider } from '../../../ui/Toast';
 import { IdentitySheet, uploadStoreImage } from '../IdentitySheet';
 import api from '../../../../lib/api';
+import { mockCanvas, mockImageSize } from '../../../../__tests__/helpers/imageMocks';
 
 jest.mock('../../../../lib/api', () => ({ __esModule: true, default: { post: jest.fn(), put: jest.fn() } }));
 
@@ -30,21 +31,27 @@ test('frase com mais de 80 caracteres: erro e botão desligado', () => {
   expect(screen.getByText('Salvar frase').closest('button')).toBeDisabled();
 });
 
-test('logo sobe em POST /stores/:id/logo no campo logo', async () => {
+test('logo sobe em POST /stores/:id/logo no campo logo (já recortado)', async () => {
+  mockImageSize(800, 800);
+  mockCanvas();
   (api.post as jest.Mock).mockResolvedValue({ data: { success: true, data: { logoUrl: 'https://res.cloudinary.com/x/logo.png' } } });
   const p = renderSheet();
   const file = new File(['x'], 'logo.png', { type: 'image/png' });
   fireEvent.change(screen.getByLabelText('Escolher o logo da loja'), { target: { files: [file] } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/s1/logo', expect.any(FormData)));
   const fd = (api.post as jest.Mock).mock.calls[0][1] as FormData;
-  expect(fd.get('logo')).toBe(file);
+  expect((fd.get('logo') as File).type).toBe('image/jpeg');
   await waitFor(() => expect(p.onSaved).toHaveBeenCalled());
 });
 
 test('erro do servidor ao enviar o logo aparece na tela', async () => {
   (api.post as jest.Mock).mockRejectedValue({ response: { status: 400, data: { error: 'Imagem inválida' } } });
+  mockImageSize(800, 800);
+  mockCanvas();
   const p = renderSheet();
   fireEvent.change(screen.getByLabelText('Escolher o logo da loja'), { target: { files: [new File(['x'], 'l.png', { type: 'image/png' })] } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
   expect(await screen.findByText('Imagem inválida')).toBeInTheDocument();
   expect(p.onSaved).not.toHaveBeenCalled();
 });

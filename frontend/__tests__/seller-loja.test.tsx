@@ -8,6 +8,7 @@ import { ToastProvider } from '../components/ui/Toast';
 import SellerLoja from '../pages/seller/loja';
 import { ROLE_HOME } from '../lib/navConfig';
 import api from '../lib/api';
+import { mockCanvas, mockImageSize, imageFile } from './helpers/imageMocks';
 
 const mockPush = jest.fn();
 const mockSwitchRole = jest.fn();
@@ -191,22 +192,52 @@ test('direto: Assinatura e Conta Asaas levam às telas do modo direto; sem bloco
   }
 });
 
-test('trocar a capa sobe para /stores/banner?type=cover e recarrega o painel', async () => {
+// A capa e o banner passam pelo recorte: o arquivo tem tamanho de sobra e o "Usar foto" entrega o JPEG.
+const chooseAndCrop = async (label: string, name: string) => {
+  fireEvent.change(screen.getByLabelText(label), { target: { files: [imageFile(name)] } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Usar foto' }));
+};
+
+test('dicas de tamanho vêm do padrão: capa 1200 × 400, logo 400 × 400 e banner da Home 1200 × 600', async () => {
+  mockPanel = { ...mockPanel, store: { ...baseStore, plan: 3 } };
+  await renderPage();
+  expect(screen.getByText('Capa 1200 × 400 · logo 400 × 400 · até 5 MB')).toBeInTheDocument();
+  expect(screen.getByText('Destaque na Home do app · Premium · 1200 × 600')).toBeInTheDocument();
+});
+
+test('"Trocar capa" passa pelo recorte "Enquadrar capa" e sobe para /stores/banner?type=cover', async () => {
+  mockImageSize(2400, 1200);
+  const { drawImage } = mockCanvas();
   (api.post as jest.Mock).mockResolvedValue({ data: { url: '/uploads/capa.png' } });
   await renderPage();
-  const file = new File(['x'], 'capa.png', { type: 'image/png' });
-  fireEvent.change(screen.getByLabelText('Escolher a capa da loja'), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText('Escolher a capa da loja'), { target: { files: [imageFile('capa.png')] } });
+  expect(await screen.findByRole('dialog')).toHaveTextContent('Enquadrar capa');
+  expect(api.post).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Usar foto' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/banner?type=cover', expect.any(FormData)));
+  const sent = ((api.post as jest.Mock).mock.calls[0][1] as FormData).get('banner') as File;
+  expect(sent.type).toBe('image/jpeg');
+  expect(drawImage.mock.calls[0].slice(-2)).toEqual([1200, 400]);
   await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
   expect(await screen.findByText('Capa atualizada')).toBeInTheDocument();
 });
 
-test('capa recusada: mostra a mensagem do servidor', async () => {
-  (api.post as jest.Mock).mockRejectedValue({ response: { status: 400, data: { success: false, error: { message: 'Formato não aceito', statusCode: 400 } } } });
+test('capa menor que 1200 × 400: avisa e não abre o recorte nem envia', async () => {
+  mockImageSize(800, 300);
   await renderPage();
-  const file = new File(['x'], 'capa.png', { type: 'image/png' });
-  fireEvent.change(screen.getByLabelText('Escolher a capa da loja'), { target: { files: [file] } });
-  expect(await screen.findByText('Formato não aceito')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Escolher a capa da loja'), { target: { files: [imageFile('capa.png')] } });
+  expect(await screen.findByText('Imagem pequena demais: precisa de pelo menos 1200 × 400 px (a sua tem 800 × 300).')).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+test('capa recusada: mostra a mensagem do servidor', async () => {
+  mockImageSize(2400, 1200);
+  mockCanvas();
+  (api.post as jest.Mock).mockRejectedValue({ response: { status: 422, data: { error: 'A imagem precisa ter pelo menos 1200 × 400 px, na proporção 3:1.', code: 'IMAGE_SIZE_INVALID' } } });
+  await renderPage();
+  await chooseAndCrop('Escolher a capa da loja', 'capa.png');
+  expect(await screen.findByText('A imagem precisa ter pelo menos 1200 × 400 px, na proporção 3:1.')).toBeInTheDocument();
   expect(mockRefresh).not.toHaveBeenCalled();
 });
 
@@ -215,13 +246,17 @@ test('fora do Premium: sem troca do banner da Home', async () => {
   expect(screen.queryByLabelText('Escolher o banner da Home')).not.toBeInTheDocument();
 });
 
-test('Premium: banner da Home recusado mostra a mensagem do servidor', async () => {
+test('Premium: banner da Home passa pelo recorte 2:1 e, recusado, mostra a mensagem do servidor', async () => {
+  mockImageSize(2400, 1200);
+  const { drawImage } = mockCanvas();
   mockPanel = { ...mockPanel, store: { ...baseStore, plan: 3 } };
   (api.post as jest.Mock).mockRejectedValue({ response: { status: 403, data: { error: 'Banner da Home é só do plano Premium' } } });
   await renderPage();
-  const file = new File(['x'], 'home.png', { type: 'image/png' });
-  fireEvent.change(screen.getByLabelText('Escolher o banner da Home'), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText('Escolher o banner da Home'), { target: { files: [imageFile('home.png')] } });
+  expect(await screen.findByRole('dialog')).toHaveTextContent('Enquadrar banner da Home');
+  fireEvent.click(screen.getByRole('button', { name: 'Usar foto' }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stores/banner?type=featured', expect.any(FormData)));
+  expect(drawImage.mock.calls[0].slice(-2)).toEqual([1200, 600]);
   expect(await screen.findByText('Banner da Home é só do plano Premium')).toBeInTheDocument();
 });
 
