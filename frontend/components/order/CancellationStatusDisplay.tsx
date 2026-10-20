@@ -81,7 +81,7 @@ const CANCELLED_BY_LABELS: Record<string, { label: string; icon: IconName }> = {
   customer: { label: 'Cancelado pelo cliente', icon: 'user' },
   store: { label: 'Rejeitado pela loja', icon: 'lock' },
   motoboy: { label: 'Rejeitado pelo motoboy', icon: 'motorcycle' },
-  admin: { label: 'Cancelado pelo admin', icon: 'settings' },
+  admin: { label: 'Cancelado pelo suporte do DROP', icon: 'settings' },
 };
 
 interface Cancellation {

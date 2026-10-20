@@ -103,7 +103,7 @@ const CANCELLED_BY_LABELS: Record<CancellationInfo['cancelledBy'], { label: stri
   customer: { label: 'Cancelado pelo cliente', icon: User },
   store: { label: 'Rejeitado pela loja', icon: Lock },
   motoboy: { label: 'Rejeitado pelo motoboy', icon: Bike },
-  admin: { label: 'Cancelado pelo admin', icon: Settings },
+  admin: { label: 'Cancelado pelo suporte do DROP', icon: Settings },
 };
 
 /**

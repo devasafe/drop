@@ -4,6 +4,7 @@
  * as ações do admin, itens, dinheiro do pedido e pessoas. O servidor nunca manda PIN, CPF nem e-mail, e a tela só
  * mostra os campos do contrato. Estorno pendente vira aviso no topo, com link para Estornos.
  * Relê sozinha quando o evento admin:order_changed traz este pedido (ou quando o socket volta).
+ * Ações (spec 5): "Reatribuir motoboy" e "Cancelar com estorno", só com allowedActions, cada uma numa AdminSheet.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -13,15 +14,17 @@ import AdminShell from '../../../components/admin/AdminShell';
 import blocks from '../../../components/admin/AdminBlocks.module.css';
 import { LoadError, LoadSkeleton } from '../../../components/admin/LoadState';
 import { StatusTag } from '../../../components/admin/StatusTag';
+import { CancelOrderSheet } from '../../../components/admin/operacao/CancelOrderSheet';
 import ui from '../../../components/admin/operacao/Operacao.module.css';
+import { ReassignSheet } from '../../../components/admin/operacao/ReassignSheet';
 import { Alert } from '../../../components/ui/Alert';
 import { Button } from '../../../components/ui/Button';
 import { useAdminOrderChanged } from '../../../hooks/useAdminOrderChanged';
 import { plural, spTime } from '../../../lib/adminMoney';
 import {
   ADMIN_ACTION_LABEL, FAULT_LABEL, PAYOUT_STATUS_LABEL, RECIPIENT_LABEL, SETTLEMENT_LABEL, TIMELINE_LABEL,
-  adminOrderStatus, cancellationNote, fetchAdminOrder, mergeTimeline, minutesLabel, opsErrorMessage, orderTag,
-  type AdminOrderActionView, type AdminOrderDetail, type TimelineStep,
+  adminOrderStatus, cancelResultText, cancellationNote, fetchAdminOrder, mergeTimeline, minutesLabel, opsErrorMessage,
+  orderTag, type AdminOrderActionView, type AdminOrderDetail, type CancelResult, type TimelineStep,
 } from '../../../lib/adminOps';
 import { formatMoney } from '../../../lib/money';
 import { TRANSFER_STATUS_LABEL } from '../../../lib/transferErrors';
@@ -70,6 +73,24 @@ function PedidoAdmin() {
     if (id && (ids === null || ids.includes(id))) void load(true);
   });
 
+  const [sheet, setSheet] = useState<'cancel' | 'reassign' | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; title: string; estornos: boolean } | null>(null);
+
+  const onCancelled = (r: CancelResult) => {
+    setSheet(null);
+    // Valor 0 (pedido não pago): nada a devolver, sem link para Estornos.
+    const done = r.refundStatus === 'processed' || r.refundAmount <= 0;
+    setNotice({ tone: done ? 'success' : 'warning', title: cancelResultText(r), estornos: !done });
+    void load(true);
+  };
+  const onReassigned = () => {
+    setSheet(null);
+    setNotice({ tone: 'success', title: 'Corrida devolvida à fila', estornos: false });
+    void load(true);
+  };
+  /** 409 numa folha: o pedido mudou; relê sem apagar a tela (a folha fica aberta com a mensagem). */
+  const reloadAfterConflict = () => { void load(true); };
+
   return (
     <AdminShell title={order ? `Pedido ${orderTag(order.shortId)}` : 'Pedido'}>
       <div className={ui.stack}>
@@ -85,10 +106,53 @@ function PedidoAdmin() {
         ) : !order ? (
           <LoadSkeleton lines={8} />
         ) : (
-          <PedidoBody order={order} />
+          <>
+            {notice && (
+              <Alert tone={notice.tone} title={notice.title}>
+                {notice.estornos && <Link href="/admin/estornos" className={ui.link}>Abrir Estornos</Link>}
+              </Alert>
+            )}
+            <OrderActions order={order} onOpen={setSheet} />
+            <PedidoBody order={order} />
+            <CancelOrderSheet
+              open={sheet === 'cancel'}
+              orderId={order.id}
+              orderLabel={orderTag(order.shortId)}
+              onClose={() => setSheet(null)}
+              onCancelled={onCancelled}
+              onStale={reloadAfterConflict}
+            />
+            <ReassignSheet
+              open={sheet === 'reassign'}
+              orderId={order.id}
+              motoboyName={order.motoboy?.name ?? 'o motoboy atual'}
+              onClose={() => setSheet(null)}
+              onReassigned={onReassigned}
+              onStale={reloadAfterConflict}
+            />
+          </>
         )}
       </div>
     </AdminShell>
+  );
+}
+
+/** Ações do admin (spec 5): só as que o servidor liberou em allowedActions (permissão e regra já descontadas). */
+function OrderActions({ order, onOpen }: { order: AdminOrderDetail; onOpen: (s: 'cancel' | 'reassign') => void }) {
+  const canReassign = order.allowedActions.includes('reassign');
+  const canCancel = order.allowedActions.includes('cancel');
+  if (!canReassign && !canCancel) return null;
+  return (
+    <section className={blocks.block} aria-label="Ações">
+      <div className={ui.actions}>
+        {canReassign && (
+          <Button variant="secondary" className={ui.touch} onClick={() => onOpen('reassign')}>Reatribuir motoboy</Button>
+        )}
+        {canCancel && (
+          <Button variant="danger" className={ui.touch} onClick={() => onOpen('cancel')}>Cancelar com estorno</Button>
+        )}
+      </div>
+    </section>
   );
 }
 
