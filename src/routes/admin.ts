@@ -31,6 +31,15 @@ const ALLOWED_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 
 // Papéis administrativos: só um CEO atribui (user:manage_roles é delegável, isso não).
 const ADMIN_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
 
+// Conta antiga pode ter o papel só em `role`/`activeRole`: conta como atual (a tela também marca).
+const currentRolesOf = (t: { roles: string[] | null; role: string | null; activeRole: string | null }): string[] =>
+  Array.from(new Set([...(t.roles || []), t.role, t.activeRole].filter(Boolean).map(String)));
+const isStaffAccount = (roles: string[]) => roles.some((r) => ADMIN_ROLES.includes(r));
+const TARGET_ROLES_SELECT = { roles: true, role: true, activeRole: true } as const;
+
+// user:block é delegável; agir sobre conta da equipe não é (senão um gerente bloqueia o próprio CEO).
+const STAFF_TARGET_FORBIDDEN = { error: 'Somente o CEO pode bloquear ou desconectar alguém da equipe.', code: 'STAFF_TARGET_FORBIDDEN' };
+
 // Campos devolvidos ao painel após alterar um usuário (nunca o hash da senha).
 const SAFE_USER_SELECT = {
   id: true, name: true, email: true, role: true, activeRole: true, roles: true,
@@ -74,10 +83,9 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
       return res.status(400).json({ error: 'Voce nao pode alterar o proprio role. Peca para outro admin.' });
     }
 
-    const target = await prisma.user.findUnique({ where: { id }, select: { roles: true, role: true, activeRole: true } });
+    const target = await prisma.user.findUnique({ where: { id }, select: TARGET_ROLES_SELECT });
     if (!target) return res.status(404).json({ error: 'User not found' });
-    // Conta antiga pode ter o papel só em `role`/`activeRole`: conta como atual (a tela também marca).
-    const currentRoles = Array.from(new Set([...(target.roles || []), target.role, target.activeRole].filter(Boolean).map(String)));
+    const currentRoles = currentRolesOf(target);
     const added = roles.filter((r) => !currentRoles.includes(r));
     const removed = currentRoles.filter((r) => !roles.includes(r));
 
@@ -86,7 +94,7 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
         return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos' });
       }
       // Também não pode mexer em quem já é da equipe administrativa.
-      if (currentRoles.some((r) => ADMIN_ROLES.includes(r))) {
+      if (isStaffAccount(currentRoles)) {
         return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador' });
       }
     }
@@ -150,6 +158,13 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
     let reason: string | null = null;
     if (status === 'blocked') reason = parseRequiredReason(req.body?.reason);
     else reason = parseOptionalReason(req.body?.reason); // active/inactive: motivo opcional, usado se sair de blocked
+
+    // Antes de qualquer escrita: quem não é CEO não mexe no status de conta da equipe.
+    const target = await prisma.user.findUnique({ where: { id }, select: TARGET_ROLES_SELECT });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (activeRoleOf(req.user) !== 'ceo' && isStaffAccount(currentRolesOf(target))) {
+      return res.status(403).json(STAFF_TARGET_FORBIDDEN);
+    }
     const actor = actorFromRequest(req);
 
     const update: any = { status };
@@ -203,8 +218,11 @@ router.post('/users/:id/disconnect', authenticate, authorizePermission('user:blo
       return res.status(400).json({ error: 'Voce nao pode desconectar a propria conta' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: TARGET_ROLES_SELECT });
     if (!user) return res.status(404).json({ error: 'User not found' });
+    if (activeRoleOf(req.user) !== 'ceo' && isStaffAccount(currentRolesOf(user))) {
+      return res.status(403).json(STAFF_TARGET_FORBIDDEN);
+    }
 
     // D3b-2a: registra antes de derrubar a sessão; se o registro falha, ninguém é desconectado.
     const actor = actorFromRequest(req);

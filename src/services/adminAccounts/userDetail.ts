@@ -180,7 +180,8 @@ export async function getAdminUserDetail(userId: string, viewer: UserDetailViewe
   const self = viewer.id === user.id;
   const targetIsStaff = roles.some((r) => (STAFF_ROLES as readonly string[]).includes(r));
   const blocked = user.status === 'blocked';
-  const canBlock = !self && viewer.can('user:block');
+  // Fix round 1: como em PUT /roles, só o CEO bloqueia, desbloqueia ou desconecta conta da equipe.
+  const canBlock = !self && viewer.can('user:block') && (viewer.isCeo || !targetIsStaff);
 
   return {
     profile: {

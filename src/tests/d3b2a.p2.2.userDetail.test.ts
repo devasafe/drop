@@ -9,6 +9,8 @@ import { prisma } from '../lib/prisma';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { createOpsOrder, createOpsStore, grantRolePermissions } from './helpers/d3b1Ops';
 import { addAccountActions, cleanupAccountsFixtures, createDebt, createPerson, daysBefore, randomDigits } from './helpers/d3b2aRead';
+import * as socketEmitter from '../utils/socketEmitter';
+import * as notifier from '../services/notifier';
 
 const DOMAIN = '@d3b2ap22.test';
 const MARK = 'd3b2ap22';
@@ -237,8 +239,9 @@ describe('GET /admin/users/:id · blocos e can', () => {
     const gerente = await createTestUser('gerente_geral', DOMAIN);
     const restore = await grantRolePermissions('gerente_geral', ['user:view_all', 'user:manage_roles', 'user:block', 'user:debt_forgive']);
     try {
+      // Fix round 1: bloquear e desconectar conta da equipe também é só do CEO (STAFF_TARGET_FORBIDDEN).
       expect((await detail(marketing, gerente)).body.can)
-        .toEqual({ block: true, unblock: false, disconnect: true, roles: false, forgiveDebt: true, note: true });
+        .toEqual({ block: false, unblock: false, disconnect: false, roles: false, forgiveDebt: true, note: true });
       expect((await detail(cliente, gerente)).body.can)
         .toEqual({ block: true, unblock: false, disconnect: true, roles: true, forgiveDebt: true, note: true });
       expect((await detail(gerente.userId, gerente)).body.can)
@@ -248,6 +251,20 @@ describe('GET /admin/users/:id · blocos e can', () => {
     }
     expect((await detail(marketing)).body.can)
       .toEqual({ block: true, unblock: false, disconnect: true, roles: true, forgiveDebt: true, note: true });
+  });
+
+  it('conta da equipe bloqueada vista pelo gerente: nem Desbloquear', async () => {
+    const mia = await createPerson(DOMAIN, {
+      name: `${tag} Mia B`, roles: ['cliente', 'marketing'], status: 'blocked', blockReason: 'Teste', blockedBy: ceo.userId, blockedAt: new Date(),
+    });
+    const gerente = await createTestUser('gerente_geral', DOMAIN);
+    const restore = await grantRolePermissions('gerente_geral', ['user:view_all', 'user:block']);
+    try {
+      expect((await detail(mia, gerente)).body.can).toEqual(expect.objectContaining({ block: false, unblock: false, disconnect: false }));
+    } finally {
+      await restore();
+    }
+    expect((await detail(mia)).body.can).toEqual(expect.objectContaining({ block: false, unblock: true, disconnect: true }));
   });
 
   it('pessoa que não existe: 404 USER_NOT_FOUND', async () => {
@@ -294,5 +311,81 @@ describe('GET /admin/users/:id/timeline', () => {
     const missing = await timeline('nao-existe-d3b2a');
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe('USER_NOT_FOUND');
+  });
+});
+
+describe('Fix round 1 · só o CEO bloqueia ou desconecta conta da equipe', () => {
+  const STAFF_FORBIDDEN = { error: 'Somente o CEO pode bloquear ou desconectar alguém da equipe.', code: 'STAFF_TARGET_FORBIDDEN' };
+  const REASON = 'Conduta incompatível com a equipe';
+  let forceLogout: jest.SpyInstance;
+  let dropSocket: jest.SpyInstance;
+  let gerente: TestUser;
+  let restore: () => Promise<void>;
+
+  beforeEach(async () => {
+    forceLogout = jest.spyOn(socketEmitter, 'emitForceLogout').mockImplementation(() => undefined);
+    dropSocket = jest.spyOn(notifier, 'disconnectUser').mockImplementation(() => undefined);
+    gerente = await createTestUser('gerente_geral', DOMAIN);
+    restore = await grantRolePermissions('gerente_geral', ['user:view_all', 'user:block']);
+  });
+  afterEach(async () => {
+    await restore();
+    jest.restoreAllMocks();
+  });
+
+  const putStatus = (by: TestUser, id: string, body: Record<string, unknown>) =>
+    request(app).put(`/api/admin/users/${id}/status`).set('Authorization', bearer(by)).send(body);
+  const disconnect = (by: TestUser, id: string) =>
+    request(app).post(`/api/admin/users/${id}/disconnect`).set('Authorization', bearer(by)).send({});
+  const statusOf = async (id: string) => (await prisma.user.findUniqueOrThrow({ where: { id }, select: { status: true } })).status;
+  const actionsCount = (userId: string) => prisma.adminAccountAction.count({ where: { userId } });
+
+  it('gerente com user:block não bloqueia o CEO: 403, status igual, nada registrado, ninguém derrubado', async () => {
+    const res = await putStatus(gerente, ceo.userId, { status: 'blocked', reason: REASON });
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(STAFF_FORBIDDEN);
+    expect(await statusOf(ceo.userId)).toBe('active');
+    expect(await actionsCount(ceo.userId)).toBe(0);
+    expect(forceLogout).not.toHaveBeenCalled();
+    expect(dropSocket).not.toHaveBeenCalled();
+  });
+
+  it('gerente não desbloqueia nem inativa conta da equipe (papel só em `role`, conta antiga)', async () => {
+    const mia = await createPerson(DOMAIN, {
+      name: `${tag} Mia`, roles: ['cliente'], role: 'marketing', status: 'blocked', blockReason: 'Teste', blockedBy: ceo.userId, blockedAt: new Date(),
+    });
+    for (const status of ['active', 'inactive']) {
+      const res = await putStatus(gerente, mia, { status });
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual(STAFF_FORBIDDEN);
+    }
+    expect(await statusOf(mia)).toBe('blocked');
+    expect(await actionsCount(mia)).toBe(0);
+  });
+
+  it('gerente não desconecta membro da equipe', async () => {
+    const mia = await createPerson(DOMAIN, { name: `${tag} Mia`, roles: ['cliente', 'marketing'] });
+    const res = await disconnect(gerente, mia);
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(STAFF_FORBIDDEN);
+    expect(await actionsCount(mia)).toBe(0);
+    expect(forceLogout).not.toHaveBeenCalled();
+    expect(dropSocket).not.toHaveBeenCalled();
+  });
+
+  it('o CEO segue bloqueando e desconectando membro da equipe', async () => {
+    const mia = await createPerson(DOMAIN, { name: `${tag} Mia`, roles: ['cliente', 'marketing'] });
+    expect((await putStatus(ceo, mia, { status: 'blocked', reason: REASON })).status).toBe(200);
+    expect(await statusOf(mia)).toBe('blocked');
+    expect((await disconnect(ceo, mia)).status).toBe(200);
+    expect(await actionsCount(mia)).toBe(2);
+  });
+
+  it('o gerente segue bloqueando e desconectando cliente comum', async () => {
+    const ana = await createPerson(DOMAIN, { name: `${tag} Ana` });
+    expect((await putStatus(gerente, ana, { status: 'blocked', reason: REASON })).status).toBe(200);
+    expect(await statusOf(ana)).toBe('blocked');
+    expect((await disconnect(gerente, ana)).status).toBe(200);
+    expect(await actionsCount(ana)).toBe(2);
   });
 });
