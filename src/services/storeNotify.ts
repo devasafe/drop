@@ -16,6 +16,8 @@ export const STORE_LINKS = {
   ratings: '/seller/avaliacoes',
   /** D3b-2b: tela da mensalidade (aviso de cancelamento). */
   subscription: '/seller/assinatura',
+  /** D3b-2b: tela do plano (aviso de troca recusada). */
+  plan: '/seller/plano',
 } as const;
 
 export interface StoreNotice {

@@ -27,7 +27,8 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 const cancel = () => request(app).delete('/api/settings/store-subscription/request-change').set('Authorization', bearer(dono));
 const approve = () => request(app).post('/api/settings/approve-plan-change').set('Authorization', bearer(ceo)).send({ subscriptionId: subId });
-const reject = () => request(app).post('/api/settings/reject-plan-change').set('Authorization', bearer(ceo)).send({ subscriptionId: subId, reason: 'não' });
+// D3b-2b: recusar exige motivo de 5 a 500 caracteres.
+const reject = () => request(app).post('/api/settings/reject-plan-change').set('Authorization', bearer(ceo)).send({ subscriptionId: subId, reason: 'Plano não cabe agora' });
 const state = async () => ({
   sub: (await prisma.storeSubscription.findUnique({ where: { storeId } }))!,
   store: (await prisma.store.findUnique({ where: { id: storeId } }))!,

@@ -16,6 +16,9 @@ import {
 } from '../repositories/storeSubscription.repository';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
+import { notifyStore, STORE_LINKS } from '../services/storeNotify';
+import { recordAccountAction } from '../services/adminAccounts/actions';
+import { parseRequiredReason, REASON_MAX, sendAccountActionError } from '../services/adminAccounts/errors';
 import {
   actorFromRequest,
   MoneyActionError,
@@ -235,6 +238,16 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
       return res.status(400).json({ error: 'Plano inválido' });
     }
 
+    // D3b-2b: motivo opcional do lojista (até 500). Vazio vira null; todo pedido novo sobrescreve.
+    const rawReason = req.body?.reason;
+    let requestReason: string | null = null;
+    if (rawReason !== undefined && rawReason !== null) {
+      if (typeof rawReason !== 'string' || rawReason.trim().length > REASON_MAX) {
+        return res.status(400).json({ error: `O motivo pode ter até ${REASON_MAX} caracteres.`, code: 'REASON_TOO_LONG' });
+      }
+      requestReason = rawReason.trim() || null;
+    }
+
     // Encontrar loja do usuário
     const store = await prisma.store.findFirst({ where: { ownerId: userId } });
     if (!store) {
@@ -254,6 +267,7 @@ export const requestPlanChange = async (req: Request & { user?: any }, res: Resp
       requestedPlan: newPlan,
       planChangeStatus: 'pending',
       requestedAt: new Date(),
+      requestReason,
     });
 
     logger.debug('✅ Plan change requested:', { storeId: store.id, newPlan });
@@ -282,7 +296,7 @@ export async function cancelPlanChangeRequest(req: Request & { user?: any }, res
   if (!store) throw new AppError('Loja não encontrada', 404, true, 'STORE_NOT_FOUND');
   const r = await prisma.storeSubscription.updateMany({
     where: { storeId: store.id, planChangeStatus: 'pending' },
-    data: { planChangeStatus: 'none', requestedPlan: null, requestedAt: null },
+    data: { planChangeStatus: 'none', requestedPlan: null, requestedAt: null, requestReason: null },
   });
   if (r.count !== 1) throw new AppError('Não há troca de plano pendente.', 409, true, 'NO_PENDING_PLAN_CHANGE');
   logger.info('[plan] loja cancelou o pedido de troca de plano', { storeId: store.id });
@@ -357,32 +371,55 @@ export const approvePlanChange = async (req: Request & { user?: any }, res: Resp
   }
 };
 
-// ✅ REJECT Plan Change (CEO rejeita)
+const PLAN_LABEL: Record<string, string> = { plan1: 'Plano 1', plan2: 'Plano 2', plan3: 'Plano 3' };
+
+// ✅ REJECT Plan Change (CEO rejeita). D3b-2b: motivo obrigatório (5 a 500), plan_reject na mesma
+// transação e aviso ao lojista. Condicional ao plano lido: se o lojista desistiu e pediu outro no
+// meio, a recusa não pega o pedido novo.
 export const rejectPlanChange = async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { subscriptionId, reason } = req.body;
+    const reason = parseRequiredReason(req.body?.reason);
+    const { subscriptionId } = req.body;
 
     const subscription = await findSubById(subscriptionId);
     if (!subscription) {
       return res.status(404).json({ error: 'Solicitação não encontrada' });
     }
+    const requestedPlan = subscription.requestedPlan as string | null;
 
-    // Transição condicional: se a loja já desistiu (ou o CEO já decidiu), não vira `rejected`.
-    const { count } = await prisma.storeSubscription.updateMany({
-      where: { id: String(subscription.id), planChangeStatus: 'pending' },
-      data: { planChangeStatus: 'rejected', rejectionReason: reason || 'Rejeitado pelo CEO' },
+    await prisma.$transaction(async (tx) => {
+      const { count } = await tx.storeSubscription.updateMany({
+        where: { id: String(subscription.id), planChangeStatus: 'pending', requestedPlan: (requestedPlan ?? undefined) as any },
+        data: { planChangeStatus: 'rejected', rejectionReason: reason },
+      });
+      if (count !== 1) throw new PlanChangeNotPending();
+      await recordAccountAction(tx, {
+        actor: actorFromRequest(req),
+        storeId: String(subscription.storeId),
+        type: 'plan_reject',
+        reason,
+        meta: { subscriptionId: String(subscription.id), requestedPlan, requestReason: subscription.requestReason ?? null },
+      });
     });
-    if (count !== 1) throw new PlanChangeNotPending();
     const updated = await findSubById(subscription.id);
 
-    logger.debug('✅ Plan change rejected:', { subscriptionId, reason });
+    await notifyStore(String(subscription.storeId), {
+      title: 'Troca de plano recusada',
+      message: `O DROP recusou a troca para o ${PLAN_LABEL[requestedPlan ?? ''] ?? 'plano pedido'}. Motivo: ${reason}`,
+      link: STORE_LINKS.plan,
+      entityId: String(subscription.storeId),
+      tag: 'plano-troca',
+    });
+
+    logger.info('[plan] troca de plano recusada', { subscriptionId: subscription.id, requestedPlan });
     return res.json({
       message: 'Solicitação rejeitada',
       subscription: updated,
     });
   } catch (err) {
+    if (sendAccountActionError(res, err)) return undefined;
     if (err instanceof PlanChangeNotPending) return res.status(409).json({ error: PlanChangeNotPending.MESSAGE, code: 'PLAN_CHANGE_NOT_PENDING' });
-    console.error('❌ Error rejecting plan change:', err);
+    logger.error('[plan] falha ao recusar a troca de plano', err as Error);
     return res.status(500).json({ error: 'Erro ao rejeitar mudança' });
   }
 };
