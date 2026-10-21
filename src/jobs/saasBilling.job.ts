@@ -2,8 +2,8 @@ import { CronJob } from 'cron';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
-import { saoPauloToday } from '../services/asaasLoja/charge';
-import { coveredUntil, effectiveFee, shouldPause } from '../services/saasBilling/policy';
+import { effectiveFee, shouldPause } from '../services/saasBilling/policy';
+import { firstDueDate } from '../services/saasBilling/dueDate';
 import { ensureBillingCustomer } from '../services/saasBilling/customer';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { cancelSaasSubscriptions } from '../services/saasBilling/modeSwitch';
@@ -30,18 +30,6 @@ let running = false;
 
 const docApproved = (verification: any) => verification?.document?.status === 'approved';
 const sameCents = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
-
-/**
- * 1º vencimento da assinatura: max(coveredUntil, now) — uma assinatura recriada (ex.: fee voltou
- * a ser > 0) não pode cobrar o período que a loja já pagou. paidUntil é DATA do Asaas gravada em
- * 00:00Z (o dia vale inteiro): usa o dia em UTC. trialEndsAt/now são instantes: dia em São Paulo.
- */
-function firstDueDate(billing: { trialEndsAt: Date; paidUntil: Date | null }, now: Date): string {
-  const covered = coveredUntil(billing);
-  if (covered.getTime() <= now.getTime()) return saoPauloToday(now);
-  if (covered === billing.paidUntil) return covered.toISOString().slice(0, 10);
-  return saoPauloToday(covered);
-}
 
 export async function runSaasBillingCycle(now: Date = new Date()): Promise<void> {
   const cfg = await getSaasConfig();

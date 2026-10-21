@@ -1,4 +1,4 @@
-import asaasClient from './client';
+import asaasClient, { AsaasApiError } from './client';
 
 /**
  * Assinatura recorrente na CONTA-MÃE da DROP (mensalidade SaaS do modo direto).
@@ -74,4 +74,23 @@ export async function listSubscriptionPayments(id: string): Promise<AsaasSubscri
     if (!page?.hasMore) break;
   }
   return out;
+}
+
+/**
+ * D3b-2b · muda o vencimento da PRÓXIMA fatura a ser gerada (`PUT /v3/subscriptions/{id}`).
+ * Pela doc do Asaas, `nextDueDate` não move fatura já gerada (e o Asaas gera com até 40 dias de
+ * antecedência): quem chama apaga as faturas abertas com o vencimento velho (deleteSubscriptionPayment).
+ */
+export async function updateSubscriptionNextDueDate(id: string, nextDueDate: string): Promise<void> {
+  await asaasClient.put(`/subscriptions/${encodeURIComponent(id)}`, { nextDueDate });
+}
+
+/** D3b-2b · apaga uma fatura não paga da assinatura. 404 = já não existe (conta como apagada). */
+export async function deleteSubscriptionPayment(paymentId: string): Promise<void> {
+  try {
+    await asaasClient.delete(`/payments/${encodeURIComponent(paymentId)}`);
+  } catch (err) {
+    if (err instanceof AsaasApiError && err.status === 404) return;
+    throw err;
+  }
 }

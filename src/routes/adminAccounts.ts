@@ -12,6 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
+import { extendTrial } from '../services/adminAccounts/saas';
 import { listUsers, getUser, getUserTimeline, listStores, getStore, getStoreTimeline } from '../controllers/adminAccountsReadController';
 
 const router = Router();
@@ -51,6 +52,15 @@ router.post(
   authenticate,
   authorizePermission('store:edit'),
   handle('falha ao liberar a loja', (req) => unpauseStoreByAdmin(String(req.params.id), actorFromRequest(req), req.body?.reason)),
+);
+
+// D3b-2b · POST /api/admin/stores/:id/saas/extend-trial { days: 7|14|30, reason } — estender o teste (spec 9)
+router.post(
+  '/stores/:id/saas/extend-trial',
+  authenticate,
+  authorizePermission('plan:manage'),
+  handle('falha ao estender o teste da mensalidade', (req) =>
+    extendTrial(String(req.params.id), actorFromRequest(req), req.body?.days, req.body?.reason)),
 );
 
 // POST /api/admin/users/:id/notes { text } — nota interna na ficha da pessoa (só acréscimo)
