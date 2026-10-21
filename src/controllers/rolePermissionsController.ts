@@ -96,6 +96,8 @@ export const ALL_PERMISSIONS: { key: string; label: string; category: string }[]
   // Usuários (administração)
   { key: 'user:manage_roles',           label: 'Alterar cargo de usuários',   category: 'Usuários' },
   { key: 'user:block',                  label: 'Bloquear/desbloquear/desconectar usuários', category: 'Usuários' },
+  // D3b-2a: padrão só CEO (via '*'); concedível em Permissões, como order:admin_cancel. Fora de CEO_ONLY_PERMISSIONS.
+  { key: 'user:debt_forgive',           label: 'Perdoar dívida de cliente (multa de cancelamento)', category: 'Usuários' },
   // Planos e assinaturas
   { key: 'plan:view',                   label: 'Ver assinaturas e mudanças de plano', category: 'Planos' },
   { key: 'plan:approve',                label: 'Aprovar/rejeitar mudança de plano', category: 'Planos' },

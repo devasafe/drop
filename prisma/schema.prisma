@@ -154,6 +154,8 @@ enum WithdrawalRequestStatus {
 enum CustomerDebtStatus {
   pending
   collected
+  // D3b-2a: a loja abriu mão da multa (perdão do admin). Nenhum dinheiro se move.
+  forgiven
 }
 
 enum AppCashboxEntryType {
@@ -347,6 +349,8 @@ model User {
   asaas             Json?
   currentLocation   Json?
   isOnline          Boolean?   @default(false)
+  /// D3b-2a: último acesso autenticado; gravado pelo `authenticate`, no máximo a cada 5 min.
+  lastSeenAt        DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -450,6 +454,11 @@ model Store {
   /// Lojista abriu fora do horário: aberta (ignorando operatingHours) até este instante, se isOpen
   /// e sem pausa. Gravado pelo PUT operating-hours com isOpen=true; vence na leitura, sem job.
   openOverrideUntil    DateTime?
+  /// D3b-2a: pausa pelo admin. Enquanto não nula, some da vitrine, não recebe pedido novo e o
+  /// lojista não reabre. Só o admin libera. Não mexe em isOpen, pausedUntil nem openOverrideUntil.
+  adminPausedAt        DateTime?
+  adminPausedBy        String?
+  adminPauseReason     String?
   isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
@@ -830,6 +839,9 @@ model CustomerDebt {
   reason           String
   createdAt        DateTime           @default(now())
   collectedAt      DateTime?
+  /// D3b-2a: perdão do admin (status forgiven). forgivenBy = id de quem perdoou.
+  forgivenAt       DateTime?
+  forgivenBy       String?
   updatedAt        DateTime           @updatedAt
 
   @@index([customerId, status])
@@ -1531,4 +1543,34 @@ model AdminOrderAction {
   createdAt  DateTime             @default(now())
 
   @@index([orderId, createdAt])
+}
+
+// D3b-2a · Pessoas e lojas: tipos do histórico da conta (a D3b-2b acrescenta os dela).
+enum AdminAccountActionType {
+  block
+  unblock
+  roles_change
+  disconnect
+  debt_forgive
+  store_pause
+  store_unpause
+  note
+}
+
+/// D3b-2a · histórico de UMA pessoa ou de UMA loja: ações do admin e notas internas (só acréscimo).
+/// Exatamente um entre userId e storeId (CHECK "AdminAccountAction_one_target_check" na migration).
+/// actorId = id do User, ou 'system' (job). Sem FK, como AdminOrderAction.
+model AdminAccountAction {
+  id        String                 @id @default(cuid())
+  actorId   String
+  actorRole String
+  userId    String?
+  storeId   String?
+  type      AdminAccountActionType
+  reason    String?
+  meta      Json?
+  createdAt DateTime               @default(now())
+
+  @@index([userId, createdAt])
+  @@index([storeId, createdAt])
 }
