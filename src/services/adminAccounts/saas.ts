@@ -191,18 +191,17 @@ export async function extendTrial(
 }
 
 const alreadyCancelled = () => new AccountActionError(409, 'ALREADY_CANCELLED', 'A mensalidade desta loja já está cancelada.');
-/** Quantas vezes o cancelamento relê a linha quando o job trocou a assinatura no meio. */
-const CANCEL_ATTEMPTS = 3;
-
 const dayMonthSaoPaulo = (d: Date) =>
   new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(d);
 
 /**
- * Cancela a mensalidade (ruling 7): apaga a assinatura no Asaas (404 = já não existe) e, numa
- * transação, grava cancelled + quem/quando, zera a assinatura e registra saas_cancel. A loja vende
- * até o fim do período (sellsUntil); depois, o job pausa pelo admin (runCancelledSaasPauses).
- * A gravação é condicional ao MESMO asaasSubscriptionId lido: se o job criou uma assinatura no meio,
- * relê e apaga a nova também (até CANCEL_ATTEMPTS vezes).
+ * Cancela a mensalidade (ruling 7): apaga a assinatura no Asaas (404 = já não existe) e, na mesma
+ * transação, grava cancelled + quem/quando, zera a assinatura, marca as faturas abertas como
+ * DELETED e registra saas_cancel. A loja vende até o fim do período (sellsUntil); depois, o job
+ * pausa pelo admin (runCancelledSaasPauses).
+ * Tudo sob `FOR UPDATE` na linha da mensalidade (como o estender): cancelar e estender se enfileiram,
+ * e o job não grava assinatura nova no meio (a gravação dele espera o lock e perde para o `cancelled`).
+ * Falha do Asaas lança dentro da transação: rollback, nada muda no DROP.
  */
 export async function cancelSaas(
   storeId: string,
@@ -214,8 +213,9 @@ export async function cancelSaas(
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
   if (!store) throw storeNotFound();
 
-  for (let attempt = 0; attempt < CANCEL_ATTEMPTS; attempt++) {
-    const billing = await prisma.storeSaasBilling.findUnique({ where: { storeId } });
+  const saved = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "StoreSaasBilling" WHERE "storeId" = ${storeId} FOR UPDATE`;
+    const billing = await tx.storeSaasBilling.findUnique({ where: { storeId } });
     if (!billing) throw noSaasBilling();
     if (billing.status === 'cancelled') throw alreadyCancelled();
 
@@ -231,37 +231,39 @@ export async function cancelSaas(
       }
     }
 
-    const saved = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.storeSaasBilling.updateMany({
-        where: { id: billing.id, status: { not: 'cancelled' }, asaasSubscriptionId: subId },
-        data: { status: 'cancelled', cancelledAt: now, cancelledBy: actor.id, asaasSubscriptionId: null, subscriptionValue: null },
-      });
-      if (count !== 1) return null;
-      const row = await tx.storeSaasBilling.findUniqueOrThrow({ where: { id: billing.id } });
-      await recordAccountAction(tx, {
-        actor,
-        storeId,
-        type: 'saas_cancel',
-        reason,
-        meta: { previousStatus: billing.status, asaasSubscriptionId: subId, sellsUntil: sellsUntil(row).toISOString() },
-      });
-      return row;
+    const { count } = await tx.storeSaasBilling.updateMany({
+      where: { id: billing.id, status: { not: 'cancelled' } },
+      data: { status: 'cancelled', cancelledAt: now, cancelledBy: actor.id, asaasSubscriptionId: null, subscriptionValue: null },
     });
-    if (!saved) continue;
-
-    logger.info('[saas] mensalidade cancelada', { storeId, by: actor.id });
-    // Depois do commit e best-effort (notifyStore nunca lança).
-    await notifyStore(storeId, {
-      title: 'Mensalidade cancelada',
-      message: `O DROP cancelou a mensalidade da sua loja. Ela segue vendendo até ${dayMonthSaoPaulo(sellsUntil(saved))}. Motivo: ${reason}`,
-      link: STORE_LINKS.subscription,
-      entityId: storeId,
-      tag: 'mensalidade',
+    if (count !== 1) throw alreadyCancelled();
+    // Sem assinatura não haverá mais cobrança: a fatura aberta some da tela do lojista já (o webhook PAYMENT_DELETED confirma depois).
+    await tx.saasBillingPayment.updateMany({
+      where: { billingId: billing.id, status: { in: SAAS_OPEN_STATUSES } },
+      data: { status: 'DELETED' },
     });
-    return { saas: toSaasState(saved) };
-  }
+    const row = await tx.storeSaasBilling.findUniqueOrThrow({ where: { id: billing.id } });
+    await recordAccountAction(tx, {
+      actor,
+      storeId,
+      type: 'saas_cancel',
+      reason,
+      meta: { previousStatus: billing.status, asaasSubscriptionId: subId, sellsUntil: sellsUntil(row).toISOString() },
+    });
+    return row;
+  }, { timeout: EXTEND_TX_TIMEOUT_MS });
 
-  const last = await prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true } });
-  if (last?.status === 'cancelled') throw alreadyCancelled();
-  throw new Error('cancelSaas: a assinatura mudou durante o cancelamento em todas as tentativas');
+  logger.info('[saas] mensalidade cancelada', { storeId, by: actor.id });
+  const ends = sellsUntil(saved);
+  const coverage = ends.getTime() > now.getTime()
+    ? `Ela segue vendendo até ${dayMonthSaoPaulo(ends)}.`
+    : 'A loja já está fora do período pago e fica pausada.';
+  // Depois do commit e best-effort (notifyStore nunca lança).
+  await notifyStore(storeId, {
+    title: 'Mensalidade cancelada',
+    message: `O DROP cancelou a mensalidade da sua loja. ${coverage} Motivo: ${reason}`,
+    link: STORE_LINKS.subscription,
+    entityId: storeId,
+    tag: 'mensalidade',
+  });
+  return { saas: toSaasState(saved) };
 }

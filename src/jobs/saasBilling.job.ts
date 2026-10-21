@@ -76,7 +76,11 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
       });
       if (count !== 1) {
         logger.warn('[saas-billing] assinatura criada em corrida (outra assinatura, mensalidade cancelada ou teste estendido) — desfazendo no Asaas', { storeId: billing.storeId, subscriptionId: sub.id });
-        await deleteSubscription(sub.id);
+        try {
+          await deleteSubscription(sub.id);
+        } catch (delErr) {
+          logger.error('[saas-billing] assinatura órfã no Asaas, apague manualmente', delErr as Error, { billingId: billing.id, storeId: billing.storeId, subscriptionId: sub.id });
+        }
       }
     } catch (err) {
       logger.error('[saas-billing] falha ao criar assinatura', err as Error, { storeId: billing.storeId });

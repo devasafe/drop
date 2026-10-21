@@ -21,6 +21,7 @@ import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgC
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { grantRolePermissions } from './helpers/d3b1Ops';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
+import logger from '../config/logger';
 import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { reopenSaasTrials } from '../services/saasBilling/modeSwitch';
@@ -349,5 +350,81 @@ describe('coverageEnd, sellsUntil e isCancelledAndExpired (puros)', () => {
     }
     // coverageBounds: as duas fronteiras do primeiro instante
     expect(coverageBounds(at('2026-11-01T03:00:00.000Z'))).toEqual({ paidFrom: at('2026-11-01T00:00:00.000Z'), trialFrom: at('2026-11-01T03:00:00.000Z') });
+  });
+});
+
+describe('correção 1 (revisão da 2.2)', () => {
+  it('tela do lojista: cancelada não recebe pendingReason owner_document', async () => {
+    const { store } = await comMensalidade({ status: 'cancelled', cancelledAt: new Date(), asaasSubscriptionId: null });
+    const res = await request(app).get(`/api/stores/${store.id}/saas-billing`).set('Authorization', bearer(dono));
+    expect(res.status).toBe(200);
+    expect(res.body.data.pendingReason).toBeNull();
+  });
+
+  it('estender e cancelar ao mesmo tempo: sem 500, um vence e o outro responde 409', async () => {
+    const { store } = await comMensalidade({ status: 'trialing', trialEndsAt: new Date(Date.now() + 5 * DAY), paidUntil: null, asaasSubscriptionId: `sub_p22_${rand()}` });
+    const [ext, can] = await Promise.all([
+      request(app).post(`/api/admin/stores/${store.id}/saas/extend-trial`).set('Authorization', bearer(ceo)).send({ days: 7, reason: REASON }),
+      cancel(ceo, store.id),
+    ]);
+    const statuses = [ext.status, can.status];
+    expect(statuses).not.toContain(500);
+    expect(statuses).not.toContain(502);
+    if (can.status === 200) {
+      expect(ext.status === 200 || (ext.status === 409 && ext.body.code === 'NOT_TRIALING')).toBe(true);
+    } else {
+      expect(ext.status).toBe(200);
+      expect(can.status).toBe(409);
+    }
+    expect((await billingOf(store.id)).status === 'cancelled' || can.status === 409).toBe(true);
+  });
+
+  it('job (b): se apagar a assinatura criada em corrida falha, registra a assinatura órfã', async () => {
+    const owner = await createTestUser('lojista', DOMAIN);
+    await prisma.user.update({ where: { id: owner.userId }, data: { cpf: randomCpf() } });
+    const store = await prisma.store.create({ data: { ownerId: owner.userId, name: `Loja p22 ${rand()}`, isOpen: true } });
+    const billing = await prisma.storeSaasBilling.create({ data: { storeId: store.id, status: 'trialing', trialEndsAt: new Date(Date.now() + 10 * DAY) } });
+    const subId = `sub_p22_orfa_${rand()}`;
+    (asaasClient.post as jest.Mock).mockImplementation(async (path: string, body: any) => {
+      if (path === '/customers') return { id: `cus_p22_${rand()}` };
+      if (path === '/subscriptions' && body?.externalReference === `saas-sub:${billing.id}`) {
+        await prisma.storeSaasBilling.update({ where: { id: billing.id }, data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: ceo.userId } });
+        return { id: subId };
+      }
+      return {};
+    });
+    (asaasClient.delete as jest.Mock).mockRejectedValue(new AsaasApiError(500, [{ code: 'x', description: 'fora do ar' }]));
+    const spy = jest.spyOn(logger, 'error').mockImplementation((() => undefined) as any);
+    try {
+      await runSaasBillingCycle(new Date());
+      const orfa = spy.mock.calls.find((c) => String(c[0]).includes('órfã'));
+      expect(orfa).toBeDefined();
+      expect(String(orfa![0])).toContain('apague manualmente');
+      expect((orfa as any[])[2]).toMatchObject({ billingId: billing.id, storeId: store.id, subscriptionId: subId });
+      expect(spy.mock.calls.some((c) => String(c[0]).includes('falha ao criar assinatura'))).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('aviso: cobertura já acabada não diz "segue vendendo"; dentro do período diz', async () => {
+    const { store: vencida } = await comMensalidade({ paidUntil: utcDay(-10) });
+    expect((await cancel(ceo, vencida.id)).status).toBe(200);
+    const aviso = await prisma.notification.findFirst({ where: { userId: dono.userId, entityId: vencida.id, title: 'Mensalidade cancelada' } });
+    expect(aviso!.message).toBe(`O DROP cancelou a mensalidade da sua loja. A loja já está fora do período pago e fica pausada. Motivo: ${REASON}`);
+    expect(aviso!.message).not.toContain('segue vendendo');
+  });
+
+  it('cancelar marca como DELETED as faturas abertas e deixa as pagas', async () => {
+    const { store, billing } = await comMensalidade({ asaasSubscriptionId: `sub_p22_${rand()}` });
+    const mk = (status: string) => prisma.saasBillingPayment.create({
+      data: { billingId: billing.id, asaasPaymentId: `pay_p22_${rand()}`, value: 49.9, dueDate: utcDay(5), status },
+    });
+    const [pend, over, rec] = [await mk('PENDING'), await mk('OVERDUE'), await mk('RECEIVED')];
+    expect((await cancel(ceo, store.id)).status).toBe(200);
+    const st = async (id: string) => (await prisma.saasBillingPayment.findUniqueOrThrow({ where: { id } })).status;
+    expect(await st(pend.id)).toBe('DELETED');
+    expect(await st(over.id)).toBe('DELETED');
+    expect(await st(rec.id)).toBe('RECEIVED');
   });
 });

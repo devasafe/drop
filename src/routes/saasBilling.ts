@@ -129,7 +129,8 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
   });
   const fee = effectiveFee(billing, cfg);
   // Sem assinatura com fee > 0: a fatura só é gerada quando o dono tiver documento aprovado.
-  const pendingReason = !billing.asaasSubscriptionId && fee > 0 ? 'owner_document' : null;
+  // A cancelada nunca terá assinatura nem fatura nova: não há o que pendurar no documento.
+  const pendingReason = billing.status !== 'cancelled' && !billing.asaasSubscriptionId && fee > 0 ? 'owner_document' : null;
   // Faturas pagas (histórico da tela de assinatura): as 12 mais recentes.
   const paid = await prisma.saasBillingPayment.findMany({
     where: { billingId: billing.id, status: { in: SAAS_PAID_STATUSES } },
