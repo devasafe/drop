@@ -16,7 +16,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-const PIX_OFF = 'O Pix automático ao motoboy está desligado em Regras e taxas: os Pix ao motoboy ficam parados na fila e saem todos de uma vez quando ele for ligado. Não pague à mão o que está na fila.';
+const PIX_OFF = 'O Pix automático ao motoboy está desligado em Regras e taxas: os Pix ao motoboy ficam parados na fila e saem sozinhos quando ele for ligado, respeitando o teto diário da loja. Não pague à mão o que está na fila.';
 const REFUND_NOTE = 'Estorno que o Asaas recusar é tentado de novo sozinho; se esgotar as tentativas, fica para o admin em Estornos. Estorno sem resposta do Asaas (timeout, erro 5xx ou de rede) vai direto para o admin em Estornos.';
 
 describe('settlementSwitchPreview("direto")', () => {

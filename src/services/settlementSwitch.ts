@@ -84,7 +84,7 @@ export async function settlementSwitchPreview(to: SettlementMode): Promise<Settl
 
     if (!directTransfersEnabled) {
       risks.push(
-        'O Pix automático ao motoboy está desligado em Regras e taxas: os Pix ao motoboy ficam parados na fila e saem todos de uma vez quando ele for ligado. Não pague à mão o que está na fila.',
+        'O Pix automático ao motoboy está desligado em Regras e taxas: os Pix ao motoboy ficam parados na fila e saem sozinhos quando ele for ligado, respeitando o teto diário da loja. Não pague à mão o que está na fila.',
       );
     }
     // settleDirectRefund pede e executa o estorno; o job directRefunds repete o que o Asaas recusou.
