@@ -10,6 +10,7 @@ import { Skeleton } from '../../ui/Skeleton';
 import api from '../../../lib/api';
 import { cleanRG, maskCNH, maskCPF, maskPlate, maskRG, onlyDigits } from '../../../lib/masks';
 import { kycItems, proximoItemAberto, type KycItem, type KycKey } from '../../../lib/motoboyCadastro';
+import { rejectionLine } from '../../../lib/verificationRejection';
 import styles from './Cadastro.module.css';
 
 const MAX_BYTES = 5 * 1024 * 1024; // mesmo limite do middleware de upload do backend
@@ -181,7 +182,9 @@ export function VerificacaoStep({ onChanged }: { onChanged: () => void }) {
           const Icon = ICON[it.key];
           const [tag, tagCls] = TAG[it.state];
           const canOpen = it.state === 'todo' || it.state === 'rejected' || it.key === 'courier';
-          const sub = it.key === 'email' ? data.email : it.state === 'rejected' ? `Recusada: ${it.reason || 'envie de novo'}` : SUB[it.key];
+          const sub = it.key === 'email'
+              ? data.email
+              : it.state === 'rejected' ? rejectionLine(it.reason, it.resend, { word: 'Recusada', fallback: 'envie de novo' }) : SUB[it.key];
           const icoCls = it.state === 'done' ? blocks.icoOk : it.state === 'rejected' ? blocks.icoErr : open === it.key ? blocks.icoBrand : '';
           const inner = (
             <>

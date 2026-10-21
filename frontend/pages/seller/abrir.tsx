@@ -208,10 +208,10 @@ export default function SellerAbrir() {
     // Em análise: tudo enviado; pode haver item recusado para reenviar.
     const done = data.steps.filter((s) => s.state === 'done').length;
     const rejected = data.steps.find((s) => s.state === 'rejected') || null;
-    const rows: Array<{ key: string; label: string; state: StepState; reason?: string; step: ChecklistStep }> = [];
+    const rows: Array<{ key: string; label: string; state: StepState; reason?: string; resend?: boolean; step: ChecklistStep }> = [];
     for (const s of data.steps) {
-      if (s.items && s.items.length) for (const it of s.items) rows.push({ key: `${s.key}-${it.key}`, label: it.label, state: it.state, reason: it.reason, step: s });
-      else rows.push({ key: s.key, label: s.label, state: s.state, reason: s.reason, step: s });
+      if (s.items && s.items.length) for (const it of s.items) rows.push({ key: `${s.key}-${it.key}`, label: it.label, state: it.state, reason: it.reason, resend: it.resend, step: s });
+      else rows.push({ key: s.key, label: s.label, state: s.state, reason: s.reason, resend: s.resend, step: s });
     }
     content = (
       <>

@@ -11,7 +11,7 @@ import { ICON_STROKE_WIDTH } from '../ui/Icon';
 import styles from './IdentityCheck.module.css';
 
 type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
-interface Ver { email?: { status?: string }; document?: { status?: DocStatus; rejectionReason?: string } }
+interface Ver { email?: { status?: string }; document?: { status?: DocStatus; rejectionReason?: string; resendRequested?: boolean } }
 
 /** Textos por público: o cliente verifica antes de comprar; a loja verifica o dono no cadastro. */
 const COPY = {
@@ -108,7 +108,11 @@ export function IdentityCheck({ onDone, emailResult, audience = 'cliente' }: { o
       {doc === 'pending' && <Alert tone="info" title="Documento em análise">{copy.wait}</Alert>}
       {doc === 'approved' && emailOk && <Alert tone="success" title="Tudo certo">Sua conta está verificada.</Alert>}
       {doc === 'rejected' && !retry && (
-        <Alert tone="error" title="Documento recusado" action={{ label: 'Enviar de novo', onClick: () => setRetry(true) }}>
+        <Alert
+            tone="error"
+            title={ver.document?.resendRequested ? 'Reenvie o documento' : 'Documento recusado'}
+            action={{ label: 'Enviar de novo', onClick: () => setRetry(true) }}
+          >
           {ver.document?.rejectionReason || 'Envie fotos nítidas da frente e do verso.'}
         </Alert>
       )}

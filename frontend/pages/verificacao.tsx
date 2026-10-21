@@ -7,6 +7,7 @@ import { useLojistaRedirect } from '../hooks/useLojistaRedirect';
 import { useAuth } from '../contexts/AuthContext';
 import { contaHref } from '../lib/routes';
 import { maskCPF, maskRG, onlyDigits, cleanRG } from '../lib/masks';
+import { rejectionLine } from '../lib/verificationRejection';
 import OnboardingProgress from '../components/OnboardingProgress';
 import OnboardingFooter from '../components/OnboardingFooter';
 import { Button } from '../components/ui/Button';
@@ -18,7 +19,7 @@ type DocStatus = 'none' | 'pending' | 'approved' | 'rejected';
 interface Verification {
   email: { status: string };
   phone: { status: string };
-  document: { status: DocStatus; rejectionReason?: string; type?: string };
+  document: { status: DocStatus; rejectionReason?: string; resendRequested?: boolean; type?: string };
 }
 
 export default function VerificacaoPage() {
@@ -186,7 +187,9 @@ export default function VerificacaoPage() {
             <p className={styles.hint}><Clock size={14} aria-hidden="true" /> Em análise pela nossa equipe.</p>
           )}
           {docStatus === 'rejected' && (
-            <p className={styles.hintDanger}>Recusado: {v?.document?.rejectionReason || 'reenvie com fotos legíveis.'}</p>
+            <p className={styles.hintDanger}>
+                {rejectionLine(v?.document?.rejectionReason, v?.document?.resendRequested, { fallback: 'reenvie com fotos legíveis.' })}
+              </p>
           )}
           {(docStatus === 'none' || docStatus === 'rejected') && (
             <>

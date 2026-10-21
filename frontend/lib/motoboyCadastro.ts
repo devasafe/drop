@@ -3,7 +3,7 @@ import api from './api';
 /** Estado do cadastro do motoboy (D2 · /motoboy/cadastro e Perfil). A etapa sai sempre do servidor. */
 export type KycKey = 'email' | 'document' | 'facial' | 'courier';
 export type KycState = 'done' | 'pending' | 'rejected' | 'todo';
-export interface KycItem { key: KycKey; label: string; state: KycState; reason?: string }
+export interface KycItem { key: KycKey; label: string; state: KycState; reason?: string; /** O DROP pediu reenvio (D3b-2b). */ resend?: boolean }
 export interface CadastroState { items: KycItem[]; verified: boolean; hasPixKey: boolean; pixKey: string | null }
 export type CadastroEtapa = 'conta' | 'verificacao' | 'recebimento' | 'analise' | 'pronto';
 
@@ -18,9 +18,9 @@ export function kycItems(verMe: any, motoboyMe: any): KycItem[] {
   const courier = motoboyMe?.courier || {};
   return [
     { key: 'email', label: 'E-mail', state: v.email?.status === 'verified' ? 'done' : 'todo' },
-    { key: 'document', label: 'Documento', state: fromStatus(doc.status), reason: doc.rejectionReason || undefined },
-    { key: 'facial', label: 'Selfie', state: fromStatus(facial.status), reason: facial.rejectionReason || undefined },
-    { key: 'courier', label: 'CNH e placa', state: fromStatus(courier.status), reason: courier.rejectionReason || undefined },
+    { key: 'document', label: 'Documento', state: fromStatus(doc.status), reason: doc.rejectionReason || undefined, resend: doc.resendRequested === true ? true : undefined },
+    { key: 'facial', label: 'Selfie', state: fromStatus(facial.status), reason: facial.rejectionReason || undefined, resend: facial.resendRequested === true ? true : undefined },
+    { key: 'courier', label: 'CNH e placa', state: fromStatus(courier.status), reason: courier.rejectionReason || undefined, resend: courier.resendRequested === true ? true : undefined },
   ];
 }
 

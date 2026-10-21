@@ -6,6 +6,7 @@ import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { Camera, Check, Clock, FileText, Hash, TriangleAlert } from 'lucide-react';
 import api from '../../../lib/api';
 import { maskCNPJ } from '../../../lib/masks';
+import { rejectionLine } from '../../../lib/verificationRejection';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
@@ -17,9 +18,9 @@ type St = 'none' | 'pending' | 'approved' | 'rejected';
 export interface StoreVer {
   isVerified: boolean;
   missing?: string[];
-  facial: { status: St; rejectionReason?: string };
-  cnpj: { status: St; razaoSocial?: string; situacao?: string; rejectionReason?: string };
-  address: { status: St; rejectionReason?: string };
+  facial: { status: St; rejectionReason?: string; resendRequested?: boolean };
+  cnpj: { status: St; razaoSocial?: string; situacao?: string; rejectionReason?: string; resendRequested?: boolean };
+  address: { status: St; rejectionReason?: string; resendRequested?: boolean };
 }
 
 interface Props {
@@ -35,10 +36,10 @@ interface Props {
 
 const DOC_CLASS: Record<St, string> = { none: '', pending: styles.docWait, approved: styles.docOk, rejected: styles.docErr };
 
-function statusText(s: St, reason: string | undefined, none: string, ok: string) {
+function statusText(s: St, reason: string | undefined, none: string, ok: string, resend?: boolean) {
   if (s === 'approved') return ok;
   if (s === 'pending') return 'Em análise';
-  if (s === 'rejected') return `Recusado: ${reason || 'veja o que corrigir e envie de novo'}`;
+  if (s === 'rejected') return rejectionLine(reason, resend, { fallback: 'veja o que corrigir e envie de novo' });
   return none;
 }
 
@@ -133,7 +134,7 @@ export function DocumentosStep({ storeId, storeCnpj, onChanged, onEditStore, onO
               <p className={styles.found}><Check size={16} aria-hidden="true" /><span>{`Encontrado: ${ver.cnpj.razaoSocial}`}</span></p>
             )}
             {cnpj !== 'none' && (
-              <p className={cnpj === 'rejected' ? blocks.errText : blocks.meta}>{statusText(cnpj, ver.cnpj?.rejectionReason, '', 'CNPJ aprovado')}</p>
+              <p className={cnpj === 'rejected' ? blocks.errText : blocks.meta}>{statusText(cnpj, ver.cnpj?.rejectionReason, '', 'CNPJ aprovado', ver.cnpj?.resendRequested)}</p>
             )}
             {canSend(cnpj) && (
               <Button variant="secondary" loading={busy === 'cnpj'} onClick={sendCnpj}>Enviar CNPJ para análise</Button>
@@ -157,7 +158,7 @@ export function DocumentosStep({ storeId, storeCnpj, onChanged, onEditStore, onO
         <DocIcon s={facial}><Camera size={18} /></DocIcon>
         <span className={styles.docBody}>
           <b>Foto do seu rosto</b>
-          <span>{selfie ? selfie.name : statusText(facial, ver.facial?.rejectionReason, 'Tire agora com a câmera da frente', 'Aprovada')}</span>
+          <span>{selfie ? selfie.name : statusText(facial, ver.facial?.rejectionReason, 'Tire agora com a câmera da frente', 'Aprovada', ver.facial?.resendRequested)}</span>
         </span>
         {canSend(facial) && <Pick label="Tirar ou escolher a foto do rosto" file={selfie} onChange={setSelfie} capture="user" />}
       </div>
@@ -178,7 +179,7 @@ export function DocumentosStep({ storeId, storeCnpj, onChanged, onEditStore, onO
         <DocIcon s={address}><FileText size={18} /></DocIcon>
         <span className={styles.docBody}>
           <b>Comprovante de endereço</b>
-          <span>{comprovante ? comprovante.name : statusText(address, ver.address?.rejectionReason, 'Conta de luz, água ou internet, até 90 dias', 'Aprovado')}</span>
+          <span>{comprovante ? comprovante.name : statusText(address, ver.address?.rejectionReason, 'Conta de luz, água ou internet, até 90 dias', 'Aprovado', ver.address?.resendRequested)}</span>
         </span>
         {canSend(address) && <Pick label="Escolher o comprovante de endereço" file={comprovante} onChange={setComprovante} />}
       </div>

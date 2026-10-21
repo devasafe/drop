@@ -6,12 +6,15 @@ import { getFlow, type OnboardingStep } from './onboardingFlow';
 import type { SettlementMode } from '../hooks/useSaasConfig';
 
 export type StepState = 'done' | 'review' | 'rejected' | 'todo' | 'unknown';
-export interface ChecklistItem { key: string; label: string; state: StepState; detail?: string; reason?: string }
+/** `resend`: o DROP pediu reenvio do item recusado (D3b-2b); só vem `true` ou ausente. */
+export interface ChecklistItem { key: string; label: string; state: StepState; detail?: string; reason?: string; resend?: boolean }
 export interface ChecklistStep extends OnboardingStep {
   href: string;
   state: StepState;
   detail?: string;
   reason?: string;
+  /** O item recusado da etapa teve reenvio pedido (D3b-2b). */
+  resend?: boolean;
   items?: ChecklistItem[];
 }
 export interface StoreOnboarding {
@@ -65,6 +68,10 @@ export type DashboardRead = { store: any | null; products?: any[] } | null;
  * `dash` (V12): a leitura que o painel já fez, para não repetir o GET. Sem ele (fora do painel, ou
  * painel com erro), lê aqui como sempre.
  */
+/** `true` só quando o servidor pediu reenvio; senão ausente (os testes antigos comparam o item com toEqual). */
+const resendOf = (item: { resendRequested?: unknown } | null | undefined): true | undefined =>
+  (item?.resendRequested === true ? true : undefined);
+
 export async function loadStoreOnboarding(mode: SettlementMode, dash?: DashboardRead): Promise<StoreOnboarding> {
   const flow = getFlow('lojista', mode);
   if (dash === undefined) {
@@ -91,7 +98,7 @@ export async function loadStoreOnboarding(mode: SettlementMode, dash?: Dashboard
   const identidadeItems: ChecklistItem[] = ver
     ? [
         { key: 'email', label: 'E-mail', state: ver.email?.status === 'verified' ? 'done' : 'todo' },
-        { key: 'document', label: 'Documento', state: kyc(ver.document?.status), reason: ver.document?.rejectionReason },
+        { key: 'document', label: 'Documento', state: kyc(ver.document?.status), reason: ver.document?.rejectionReason, resend: resendOf(ver.document) },
       ]
     : [
         { key: 'email', label: 'E-mail', state: 'unknown' },
@@ -100,9 +107,9 @@ export async function loadStoreOnboarding(mode: SettlementMode, dash?: Dashboard
   const noData: StepState = store ? 'unknown' : 'todo';
   const lojaVerifItems: ChecklistItem[] = sv
     ? [
-        { key: 'facial', label: 'Foto do rosto', state: kyc(sv.facial?.status), reason: sv.facial?.rejectionReason },
-        { key: 'cnpj', label: 'CNPJ', state: kyc(sv.cnpj?.status), reason: sv.cnpj?.rejectionReason, detail: sv.cnpj?.razaoSocial },
-        { key: 'address', label: 'Comprovante de endereço', state: kyc(sv.address?.status), reason: sv.address?.rejectionReason },
+        { key: 'facial', label: 'Foto do rosto', state: kyc(sv.facial?.status), reason: sv.facial?.rejectionReason, resend: resendOf(sv.facial) },
+        { key: 'cnpj', label: 'CNPJ', state: kyc(sv.cnpj?.status), reason: sv.cnpj?.rejectionReason, detail: sv.cnpj?.razaoSocial, resend: resendOf(sv.cnpj) },
+        { key: 'address', label: 'Comprovante de endereço', state: kyc(sv.address?.status), reason: sv.address?.rejectionReason, resend: resendOf(sv.address) },
       ]
     : [
         { key: 'facial', label: 'Foto do rosto', state: noData },
@@ -123,6 +130,7 @@ export async function loadStoreOnboarding(mode: SettlementMode, dash?: Dashboard
           ...base, state: st, items: identidadeItems,
           detail: st === 'done' ? 'E-mail e documento aprovados' : 'E-mail e documento do dono',
           reason: identidadeItems.find((i) => i.state === 'rejected')?.reason,
+          resend: identidadeItems.find((i) => i.state === 'rejected')?.resend,
         };
       }
       case 'lojaVerif': {
@@ -131,6 +139,7 @@ export async function loadStoreOnboarding(mode: SettlementMode, dash?: Dashboard
           ...base, state: st, items: lojaVerifItems,
           detail: 'CNPJ, foto do rosto e comprovante',
           reason: lojaVerifItems.find((i) => i.state === 'rejected')?.reason,
+          resend: lojaVerifItems.find((i) => i.state === 'rejected')?.resend,
         };
       }
       case 'pix': {

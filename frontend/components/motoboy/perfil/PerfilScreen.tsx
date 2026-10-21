@@ -17,6 +17,7 @@ import { imageUrl } from '../../../lib/config';
 import { kycItems, kycSummary, type KycItem } from '../../../lib/motoboyCadastro';
 import { monthYear } from '../../../lib/motoboyLevel';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
+import { rejectionLine } from '../../../lib/verificationRejection';
 import { readNightPref, writeNightPref } from '../../../lib/nightTheme';
 import styles from './Perfil.module.css';
 
@@ -95,7 +96,11 @@ export function PerfilScreen() {
               <span className={blocks.tx}>
                 <b>{kyc?.plate ? `Moto · ${kyc.plate}` : 'Moto e CNH'}</b>
                 <span className={courier?.state === 'rejected' ? blocks.err : undefined}>
-                  {!courier ? 'Carregando…' : courier.state === 'rejected' ? `Recusada: ${courier.reason || 'envie de novo'}` : COURIER_SUB[courier.state]}
+                  {!courier
+                    ? 'Carregando…'
+                    : courier.state === 'rejected'
+                      ? rejectionLine(courier.reason, courier.resend, { word: 'Recusada', fallback: 'envie de novo' })
+                      : COURIER_SUB[courier.state]}
                 </span>
               </span>
             </li>

@@ -250,3 +250,19 @@ describe('V12: Abrir a loja usa a leitura do painel', () => {
   });
 });
 
+
+test('D3b-2b: item recusado com reenvio pedido mostra "Reenvie: …" no checklist', async () => {
+  const items = [
+    { key: 'facial', label: 'Foto do rosto', state: 'done' },
+    { key: 'cnpj', label: 'CNPJ', state: 'review' },
+    { key: 'address', label: 'Comprovante de endereço', state: 'rejected', reason: 'Comprovante de endereço não aceito', resend: true },
+  ];
+  const steps = [
+    step('loja', 'Criar loja', 'done'), step('identidade', 'Sua identidade', 'done'),
+    step('lojaVerif', 'Verificar loja', 'rejected', { items, reason: 'Comprovante de endereço não aceito', resend: true }),
+    step('pix', 'Recebimento (PIX)', 'done'), step('plano', 'Plano', 'done'),
+  ];
+  (loadStoreOnboarding as jest.Mock).mockResolvedValue({ mode: 'custodia', store, productsCount: 3, steps, current: steps[2], allSubmitted: false, approved: false });
+  render(<SellerAbrir />);
+  expect(await screen.findByText('Reenvie: Comprovante de endereço não aceito')).toBeInTheDocument();
+});
