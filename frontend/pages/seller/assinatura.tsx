@@ -11,7 +11,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import {
-  formatBRL, saasStatusLabel, saasTrialDaysLeft, saasTrialLabel, saasStatusMessage, SAAS_PENDING_MESSAGE, type SaasBillingView,
+  formatBRL, saasCancelledSellsUntil, saasStatusLabel, saasTrialDaysLeft, saasTrialLabel, saasStatusMessage, SAAS_PENDING_MESSAGE,
+  type SaasBillingView,
 } from '../../lib/saasBilling';
 import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerAssinatura.module.css';
@@ -55,7 +56,9 @@ function Assinatura() {
     return () => { cancelled = true; };
   }, [user?.storeId, panelWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const warn = !!data && (data.status === 'past_due' || data.status === 'paused');
+  // D3b-2b (ruling 8): cancelada dentro do período continua vendendo; só depois vira aviso vermelho.
+  const sellsUntil = data ? saasCancelledSellsUntil(data) : null;
+  const warn = !!data && (data.status === 'past_due' || data.status === 'paused' || (data.status === 'cancelled' && !sellsUntil));
   const pay = data?.nextPayment;
   const payments = Array.isArray(data?.payments) ? data!.payments! : [];
   const daysLeft = data?.status === 'trialing' && data.trialEndsAt
@@ -79,6 +82,13 @@ function Assinatura() {
             )}
             {data.status === 'trialing' && <p className={blocks.sub}>Sem cartão cadastrado: a primeira cobrança chega por Pix ou boleto.</p>}
             {data.status === 'paused' && <p className={blocks.sub}>Pedidos já pagos seguem até o fim. Produtos, pedidos e avaliações estão guardados.</p>}
+            {data.status === 'cancelled' && (
+              <p className={blocks.sub}>
+                {sellsUntil
+                  ? 'A cobrança parou. Depois dessa data a loja sai da vitrine e não recebe pedidos novos. Para continuar, fale com o suporte.'
+                  : 'A loja não recebe pedidos novos. Para voltar a vender, fale com o suporte.'}
+              </p>
+            )}
           </section>
 
           {data.pendingReason === 'owner_document' && (

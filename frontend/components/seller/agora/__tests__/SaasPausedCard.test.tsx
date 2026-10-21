@@ -20,7 +20,7 @@ test('pausada: diz por quê, que os pedidos pagos seguem e oferece pagar pela fa
   expect(screen.getByText(/pedidos já pagos continuam/i)).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Pagar R$ 149,00 e voltar' })).toHaveAttribute('href', 'https://pay/x');
   expect(get).toHaveBeenCalledWith('/stores/s1/saas-billing');
-  expect(onStatus).toHaveBeenCalledWith('paused');
+  expect(onStatus).toHaveBeenCalledWith('paused', true);
 });
 
 test('atrasada sem pausa: âmbar com a data de bloqueio do servidor', async () => {
@@ -45,7 +45,7 @@ test('em dia ou erro: não mostra nada', async () => {
   get.mockRejectedValue(new Error('x'));
   const onStatus = jest.fn();
   const b = render(<SaasPausedCard storeId="s1" onStatus={onStatus} />);
-  await waitFor(() => expect(onStatus).toHaveBeenCalledWith(null));
+  await waitFor(() => expect(onStatus).toHaveBeenCalledWith(null, false));
   expect(b.container).toBeEmptyDOMElement();
 });
 

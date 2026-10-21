@@ -64,6 +64,10 @@ export interface SaasBillingView {
   payments?: Array<{ id: string; value: number; dueDate: string; paidAt: string | null; invoiceUrl: string | null }>;
   /** A partir de quando a loja é pausada se não pagar (fim do dia, Brasília). D1. */
   blockAt?: string | null;
+  /** D3b-2b (P2, nota 5): quando o DROP cancelou a mensalidade. */
+  cancelledAt?: string | null;
+  /** D3b-2b (P2, nota 5): só na cancelada; o último instante em que a loja vende (formatado em Brasília). */
+  sellsUntil?: string | null;
 }
 
 export type SaasPendingReason = 'owner_document' | null;
@@ -73,13 +77,41 @@ export const SAAS_PENDING_MESSAGE: Record<Exclude<SaasPendingReason, null>, stri
   owner_document: 'Para gerar sua fatura, conclua a verificação do seu documento',
 };
 
+type CancelFields = Pick<SaasBillingView, 'status' | 'sellsUntil'>;
+
+/** DD/MM no fuso de São Paulo; '' se vazio ou inválido. */
+export function formatDayMonth(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+}
+
+/**
+ * Mensalidade cancelada ainda dentro do período (D3b-2b, ruling 8): devolve o `sellsUntil` do servidor (o último
+ * instante coberto, a mesma conta da vitrine); fora disso, ou sem o campo, null (a loja conta como bloqueada).
+ */
+export function saasCancelledSellsUntil(b: CancelFields, now: Date = new Date()): string | null {
+  if (b.status !== 'cancelled' || typeof b.sellsUntil !== 'string') return null;
+  const t = Date.parse(b.sellsUntil);
+  return Number.isFinite(t) && t > now.getTime() ? b.sellsUntil : null;
+}
+
+/** A mensalidade bloqueia a loja: pausada, ou cancelada depois do período (ruling 8). Atrasada ainda não. */
+export function saasStoreBlocked(b: CancelFields, now: Date = new Date()): boolean {
+  return b.status === 'paused' || (b.status === 'cancelled' && saasCancelledSellsUntil(b, now) === null);
+}
+
 /** Frase em linguagem simples para o lojista. */
-export function saasStatusMessage(b: Pick<SaasBillingView, 'status' | 'trialEndsAt' | 'paidUntil'>): string {
+export function saasStatusMessage(b: Pick<SaasBillingView, 'status' | 'trialEndsAt' | 'paidUntil' | 'sellsUntil'>, now: Date = new Date()): string {
   switch (b.status) {
     case 'trialing': return `Teste grátis até ${formatBillingDate(b.trialEndsAt)}`;
     case 'active': return `Em dia — pago até ${formatBillingDate(b.paidUntil)}`;
     case 'past_due': return 'Pagamento atrasado — pague a fatura para a sua loja não ser pausada';
     case 'paused': return 'Loja pausada — pague para voltar a receber pedidos';
-    default: return 'Assinatura cancelada';
+    default: {
+      const until = saasCancelledSellsUntil(b, now);
+      return until ? `Cancelada · vende até ${formatDayMonth(until)}` : 'Assinatura cancelada';
+    }
   }
 }

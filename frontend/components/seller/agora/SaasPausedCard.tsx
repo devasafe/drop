@@ -4,6 +4,7 @@ import { PauseCircle, AlertTriangle } from 'lucide-react';
 import api from '../../../lib/api';
 import { formatMoney } from '../../../lib/money';
 import { unwrap, formatFullDate } from '../../../lib/sellerApi';
+import { formatDayMonth, saasCancelledSellsUntil, saasStoreBlocked } from '../../../lib/saasBilling';
 import styles from './SaasPausedCard.module.css';
 
 export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'cancelled';
@@ -11,8 +12,13 @@ export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'can
 /**
  * Mensalidade do modo SaaS no Agora: pausada (vermelho), atrasada (âmbar) ou cancelada.
  * Pedidos já pagos seguem até o fim (services/saasBilling/gate.ts); só a vitrine e o checkout param.
+ * D3b-2b (ruling 8): cancelada dentro do período continua vendendo e o cartão diz até quando. `onStatus` recebe
+ * também `blocked`, que o painel usa para travar a abertura da loja.
  */
-export function SaasPausedCard({ storeId, onStatus }: { storeId: string; onStatus?: (s: BillingStatus | null) => void }) {
+export function SaasPausedCard({ storeId, onStatus }: {
+  storeId: string;
+  onStatus?: (s: BillingStatus | null, blocked: boolean) => void;
+}) {
   const [b, setB] = useState<any>(null);
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
@@ -24,9 +30,9 @@ export function SaasPausedCard({ storeId, onStatus }: { storeId: string; onStatu
         if (off) return;
         const d = unwrap<any>(r) ?? null;
         setB(d);
-        onStatusRef.current?.((d?.status as BillingStatus) ?? null);
+        onStatusRef.current?.((d?.status as BillingStatus) ?? null, d ? saasStoreBlocked(d) : false);
       })
-      .catch(() => { if (!off) onStatusRef.current?.(null); });
+      .catch(() => { if (!off) onStatusRef.current?.(null, false); });
     return () => { off = true; };
   }, [storeId]);
 
@@ -66,6 +72,16 @@ export function SaasPausedCard({ storeId, onStatus }: { storeId: string; onStatu
     );
   }
   if (b.status === 'cancelled') {
+    const until = saasCancelledSellsUntil(b);
+    if (until) {
+      return (
+        <section className={[styles.card, styles.late].join(' ')} aria-label="Mensalidade cancelada">
+          <h2 className={styles.title}><AlertTriangle size={22} aria-hidden="true" /> Mensalidade cancelada</h2>
+          <p className={styles.text}>{`Você vende até ${formatDayMonth(until)}. Depois disso a loja sai da vitrine e não recebe pedidos novos.`}</p>
+          <Link className={styles.pay} href="/suporte">Falar com o suporte</Link>
+        </section>
+      );
+    }
     return (
       <section className={[styles.card, styles.paused].join(' ')} aria-label="Assinatura cancelada">
         <h2 className={styles.title}><PauseCircle size={22} aria-hidden="true" /> Assinatura cancelada</h2>

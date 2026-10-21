@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
+import { REASON_MAX, REASON_MIN, reasonIsValid } from '../../lib/adminAccounts';
 import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
@@ -23,6 +24,8 @@ interface PlanSub {
   planChangeStatus?: string;
   requestedAt?: string;
   rejectionReason?: string | null;
+  /** Motivo que a loja escreveu ao pedir a troca (D3b-2b; opcional). */
+  requestReason?: string | null;
   commissionRate?: number | null;
 }
 
@@ -170,6 +173,7 @@ function PlanosScreen({ canApprove }: { canApprove: boolean }) {
               <dd>{planText(sub.requestedPlan)}</dd>
             </div>
           </dl>
+          {sub.requestReason && <p className={blocks.muted}>{`Motivo da loja: ${sub.requestReason}`}</p>}
           {canApprove && (
             <div className={styles.cardActions}>
               <Button variant="secondary" className={form.touch} disabled={approving === sub._id}
@@ -230,7 +234,7 @@ function PlanosScreen({ canApprove }: { canApprove: boolean }) {
         open={rejecting !== null}
         title="Recusar troca de plano"
         onClose={() => setRejecting(null)}
-        primary={{ label: 'Recusar', tone: 'danger', onClick: reject, disabled: !reason.trim() }}
+        primary={{ label: 'Recusar', tone: 'danger', onClick: reject, disabled: !reasonIsValid(reason) }}
       >
         {rejecting && (
           <p className={form.lead}>
@@ -242,12 +246,13 @@ function PlanosScreen({ canApprove }: { canApprove: boolean }) {
           <textarea
             className={form.textarea}
             rows={3}
+            maxLength={REASON_MAX}
             value={reason}
             placeholder="Ex.: Plano não corresponde ao perfil da loja"
             onChange={(e) => setReason(e.target.value)}
           />
         </label>
-        <p className={blocks.muted}>A loja continua no plano atual e vê o motivo.</p>
+        <p className={blocks.muted}>{`De ${REASON_MIN} a ${REASON_MAX} caracteres. A loja continua no plano atual e vê o motivo no aviso e na tela do plano.`}</p>
       </AdminSheet>
     </div>
   );

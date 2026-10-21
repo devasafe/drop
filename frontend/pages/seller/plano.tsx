@@ -29,6 +29,8 @@ const PLANS = [
   { id: 'plan3', n: 3, name: 'Premium', who: 'Motoboys e banner no Início' },
 ] as const;
 type Plan = (typeof PLANS)[number];
+/** Motivo opcional do pedido de troca (D3b-2b): o DROP vê junto com o pedido. */
+const REQUEST_REASON_MAX = 500;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ddmm = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '');
@@ -58,6 +60,7 @@ function PlanoInner() {
   const [salesFailed, setSalesFailed] = useState(false);
   const [salesTry, setSalesTry] = useState(0);
   const [confirmPlan, setConfirmPlan] = useState<Plan | null>(null);
+  const [changeReason, setChangeReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [bannerBusy, setBannerBusy] = useState(false);
 
@@ -103,7 +106,11 @@ function PlanoInner() {
     if (!confirmPlan) return;
     setBusy(true);
     try {
-      const r = await api.post('/settings/store-subscription/request-change', { newPlan: confirmPlan.id });
+      const why = changeReason.trim();
+      const r = await api.post(
+        '/settings/store-subscription/request-change',
+        why ? { newPlan: confirmPlan.id, reason: why } : { newPlan: confirmPlan.id },
+      );
       setSub(r.data?.subscription ?? payload(r));
       setConfirmPlan(null);
       showToast('Pedido enviado para o DROP', 'success');
@@ -228,7 +235,7 @@ function PlanoInner() {
               ) : isRequested ? (
                 <span className={[blocks.tag, blocks.tagWarn].join(' ')}>em análise</span>
               ) : (
-                <Button size="sm" variant="secondary" aria-label={`Trocar para ${p.name}`} disabled={pending} onClick={() => setConfirmPlan(p)}>Trocar</Button>
+                <Button size="sm" variant="secondary" aria-label={`Trocar para ${p.name}`} disabled={pending} onClick={() => { setChangeReason(''); setConfirmPlan(p); }}>Trocar</Button>
               )}
             </li>
           );
@@ -242,6 +249,16 @@ function PlanoInner() {
             <p className={blocks.sub}>
               {`A comissão passa a ser ${commissionOf(confirmPlan)}% por venda depois que o DROP aprovar. Até lá, segue valendo o plano ${current.name}.`}
             </p>
+            <label htmlFor="motivo-troca" className={blocks.meta}>Motivo para o DROP (opcional)</label>
+            <textarea
+              id="motivo-troca"
+              className={blocks.textarea}
+              maxLength={REQUEST_REASON_MAX}
+              value={changeReason}
+              placeholder="Ex.: quero os motoboys do DROP nas entregas"
+              onChange={(e) => setChangeReason(e.target.value)}
+            />
+            <span className={blocks.meta}>{`Até ${REQUEST_REASON_MAX} caracteres. O DROP vê junto com o pedido.`}</span>
             <Button loading={busy} onClick={requestChange}>Pedir troca</Button>
             <Button variant="tertiary" onClick={() => setConfirmPlan(null)}>Cancelar</Button>
           </div>

@@ -16,7 +16,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { AcceptButton } from '../../components/seller/order/AcceptButton';
 import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
 import { RejectSheet } from '../../components/seller/order/RejectSheet';
-import { SaasPausedCard, type BillingStatus } from '../../components/seller/agora/SaasPausedCard';
+import { SaasPausedCard } from '../../components/seller/agora/SaasPausedCard';
 import { AdminPausedBanner } from '../../components/seller/loja/AdminPausedBanner';
 import { NotificationBell, StoreAvatar } from '../../components/seller/agora/AgoraTop';
 import { AgoraAnalise, analiseTag } from '../../components/seller/agora/AgoraAnalise';
@@ -117,7 +117,8 @@ export default function AgoraPage() {
   const { settlementMode, loading: modeLoading } = useSaasConfig();
   const { products } = useMyStore();
   const online = useOnline();
-  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  // D3b-2b (ruling 8): o cartão diz se a mensalidade bloqueia (pausada, ou cancelada depois do período).
+  const [saasBlocked, setSaasBlocked] = useState(false);
   const [rejecting, setRejecting] = useState<any | null>(null);
   const [rejectDone, setRejectDone] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -255,7 +256,6 @@ export default function AgoraPage() {
   };
 
   const lowStock = (products || []).filter((p: any) => p?.isActive !== false && isLowStock(p));
-  const saasBlocked = billing === 'paused' || billing === 'cancelled';
   // D3b-2a: pausada pelo DROP = fechada, e só o DROP reabre (o servidor recusa com 409 STORE_ADMIN_PAUSED).
   const adminPause = adminPauseOf(store);
   const blocked = saasBlocked || adminPause !== null;
@@ -366,7 +366,7 @@ export default function AgoraPage() {
             {/* 1º bloco no celular (protótipo); no computador fica no topo da coluna lateral. */}
             <div className={styles.open}>
               {adminPause && <AdminPausedBanner reason={adminPause.reason} onSupport={() => router.push(SELLER_ROUTES.ajuda)} />}
-              {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
+              {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={(_status, blocked) => setSaasBlocked(blocked)} />}
               {failClosed && (
                 <Alert tone="warning" title="Não conseguimos conferir o seu cadastro" action={{ label: 'Tentar de novo', onClick: checkApproval }}>
                   Por isso não dá para confirmar agora se a loja recebe pedidos. Tente de novo em instantes.
