@@ -40,7 +40,7 @@ export const ADMIN_LIGHT_ROUTES: string[] = [
   '/admin/coupons', '/admin/dashboard', '/admin/dinheiro',
   '/admin/dinheiro/historico', '/admin/estornos', '/admin/freios', '/admin/lojas-asaas', '/admin/mapa', '/admin/operacao', '/admin/payouts', '/admin/pedidos', '/admin/pedidos/[id]', '/admin/permissoes', '/admin/plan-approvals',
   '/admin/seasonal-theme', '/admin/settings', '/admin/suporte',
-  '/admin/transfers', '/admin/users', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
+  '/admin/transfers', '/admin/users', '/admin/users/[id]', '/admin/verificacoes', '/admin/wallets', '/admin/withdrawals',
 ];
 
 // D2: perfil público do motoboy, visto pelo cliente: sempre claro (/motoboy/[id] em LIGHT_ROUTES). D3a: admin claro.
