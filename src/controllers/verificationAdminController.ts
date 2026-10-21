@@ -4,6 +4,7 @@ import logger from '../config/logger';
 import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { permissionCheckFor } from '../services/adminOps/common';
 import { approveAllForSubject, SubjectKind } from '../services/verification/approveAll';
+import { getVerificationStats } from '../services/verification/stats';
 
 // D3b-2b · POST /api/verification/admin/subject/:kind/:id/approve-all — body { items }.
 // A permissão do tipo é conferida na rota; a de cada item, no service (403 PERMISSION_DENIED).
@@ -20,6 +21,16 @@ export const approveAllSubject = async (req: AuthenticatedRequest, res: Response
   } catch (err) {
     if (sendMoneyActionError(res, err)) return;
     logger.error('Erro ao aprovar tudo da verificação', err as Error, { kind: req.params.kind, id: req.params.id });
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+// D3b-2b · GET /api/verification/admin/stats — média de espera e decisões dos últimos 30 dias.
+export const getVerificationStatsHandler = async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    return res.json(await getVerificationStats(new Date()));
+  } catch (err) {
+    logger.error('Erro ao calcular a espera da verificação', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

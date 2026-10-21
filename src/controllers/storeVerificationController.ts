@@ -86,11 +86,14 @@ export const submitStoreCnpj = async (req: AuthenticatedRequest, res: Response) 
     }
 
     const lookup = await consultarCNPJ(cnpj);
+    // D3b-2b (ruling 5): como documento, facial, CNH e endereço, o CNPJ guarda quando foi enviado
+    // (a média de espera da fila usa). CNPJs enviados antes ficam sem a data e fora da média.
     store.verification!.cnpj = {
       status: 'pending',
       number: onlyDigits(cnpj),
       razaoSocial: lookup?.razaoSocial,
       situacao: lookup?.situacao,
+      submittedAt: new Date(),
     };
     await prisma.store.update({ where: { id: store.id }, data: { verification: store.verification } });
     emitAdminNotification({

@@ -45,7 +45,9 @@ import {
   approveCourier,
   rejectCourier,
 } from '../controllers/courierVerificationController';
-import { approveAllSubject } from '../controllers/verificationAdminController';
+import { approveAllSubject, getVerificationStatsHandler } from '../controllers/verificationAdminController';
+import { permissionCheckFor } from '../services/adminOps/common';
+import logger from '../config/logger';
 import type { SubjectKind } from '../services/verification/approveAll';
 
 const router = Router();
@@ -113,5 +115,24 @@ const subjectReviewers: Record<SubjectKind, ReturnType<typeof authorizePermissio
 };
 const subjectReviewer = (req: any, res: any, next: any) => subjectReviewers[req.params.kind as SubjectKind](req, res, next);
 router.post('/admin/subject/:kind(client|store|motoboy)/:id/approve-all', authenticate, subjectReviewer, approveAllSubject);
+
+// D3b-2b: espera da fila. Quem vê a fila (view_queue) ou decide qualquer tipo (review_*).
+const VERIFICATION_VIEWERS = [
+  'verification:view_queue',
+  'verification:review_clients',
+  'verification:review_stores',
+  'verification:review_motoboys',
+];
+const anyVerificationViewer = async (req: any, res: any, next: any) => {
+  try {
+    const can = await permissionCheckFor(req.user);
+    if (VERIFICATION_VIEWERS.some((p) => can(p))) return next();
+    return res.status(403).json({ error: 'Permissão negada. Você precisa de: verification:view_queue', code: 'PERMISSION_DENIED' });
+  } catch (err) {
+    logger.error('[verification] falha ao conferir permissões da espera', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+router.get('/admin/stats', authenticate, anyVerificationViewer, getVerificationStatsHandler);
 
 export default router;
