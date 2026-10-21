@@ -10,6 +10,7 @@
  * - a fila também lê GET /verification/admin/stats, então as contagens e listas de GET olham só as filas (queueCalls);
  * - o "Aprovar tudo" manda só os itens que o admin decide (o servidor exige a permissão de cada item): o gerente de
  *   motoboys aprova só a CNH no motoboy com selfie (a selfie é review_stores) e não vê o botão sem item decidível.
+ * D3b-2b · P3.3 (porte): aprovar um item e recusar ficam 10 s em espera (relógio falso); fechar a tela dentro dos 10 s manda a recusa por fetch keepalive (não há mais "lote" a interromper); o erro de um item chega como aviso com o nome dele.
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdminVerificacoesPage from '../pages/admin/verificacoes';
@@ -54,7 +55,11 @@ beforeEach(() => {
   post.mockResolvedValue({ data: {} });
   window.prompt = jest.fn();
 });
-afterEach(() => resetViewport());
+afterEach(() => {
+  resetViewport();
+  jest.useRealTimers();
+  delete (global as unknown as { fetch?: unknown }).fetch;
+});
 
 describe('Verificações · lado a lado', () => {
   it('lista por pessoa com abas e os documentos da primeira pessoa lado a lado', async () => {
@@ -78,14 +83,19 @@ describe('Verificações · lado a lado', () => {
     expect(within(screen.getByRole('list', { name: 'Pessoas aguardando' })).getAllByRole('button')).toHaveLength(1);
   });
 
-  it('aprovar um item só: POST e as filas são relidas', async () => {
+  it('aprovar um item só: fica 10 s em espera com "Aprovado · Desfazer"; depois o POST e as filas relidas', async () => {
+    jest.useFakeTimers();
     render(<AdminVerificacoesPage />);
     const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
     const cnpj = within(detail).getByRole('article', { name: 'CNPJ · Eletro Center' });
     fireEvent.click(within(cnpj).getByRole('button', { name: 'Aprovar' }));
+    expect(post).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith('Aprovado', 'success', expect.objectContaining({
+      durationMs: 10_000, action: expect.objectContaining({ label: 'Desfazer' }),
+    }));
+    act(() => { jest.advanceTimersByTime(10_000); });
     await waitFor(() => expect(post).toHaveBeenCalledWith('/verification/admin/store/s1/cnpj/approve'));
     await waitFor(() => expect(queueCalls(get)).toHaveLength(6));
-    expect(mockToast).toHaveBeenCalledWith('Aprovado.', 'success');
   });
 });
 
@@ -112,8 +122,21 @@ describe('Verificações · permissão por item (mesma da rota)', () => {
   });
 });
 
-describe('Verificações · recusa por itens (AdminSheet, sem window.prompt)', () => {
-  it('marca itens, escolhe o motivo de cada um e a mensagem; um POST por item com {reasonCode, message, resend}', async () => {
+describe('Verificações · recusa por itens (AdminSheet, sem window.prompt; D3b-2b: 10 s para desfazer)', () => {
+  const recusarDocECnpj = async () => {
+    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
+    fireEvent.click(within(dialog).getByLabelText('Documento'));
+    fireEvent.click(within(dialog).getByLabelText('CNPJ · Eletro Center'));
+    fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'expired' } });
+    fireEvent.change(within(dialog).getByLabelText('Motivo · CNPJ · Eletro Center'), { target: { value: 'cnpj_invalid' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  };
+
+  it('marca itens, escolhe o motivo e a mensagem; a folha fecha com "Desfazer" e o POST de cada item sai aos 10 s', async () => {
+    jest.useFakeTimers();
     render(<AdminVerificacoesPage />);
     const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
     fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
@@ -127,58 +150,47 @@ describe('Verificações · recusa por itens (AdminSheet, sem window.prompt)', (
     fireEvent.change(within(dialog).getByLabelText('Mensagem para a pessoa'), { target: { value: ' Envie de novo pelo app. ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(post).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith('2 itens recusados', 'success', expect.objectContaining({
+      durationMs: 10_000, action: expect.objectContaining({ label: 'Desfazer' }),
+    }));
+    act(() => { jest.advanceTimersByTime(10_000); });
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
     expect(post.mock.calls).toEqual([
       ['/verification/admin/facial/l2/reject', { reasonCode: 'face_mismatch', message: 'Envie de novo pelo app.', resend: true }],
       ['/verification/admin/store/s1/address/reject', { reasonCode: 'address_unproven', message: 'Envie de novo pelo app.', resend: true }],
     ]);
-    expect(mockToast).toHaveBeenCalledWith('2 itens concluídos', 'success');
     expect(window.prompt).not.toHaveBeenCalled();
   });
 
-  it('fechar a tela no meio da recusa para o lote', async () => {
-    let release!: () => void;
-    post
-      .mockImplementationOnce(() => new Promise((r) => { release = () => r({ data: {} }); }))
-      .mockResolvedValue({ data: {} });
+  it('fechar a tela dentro dos 10 s: a recusa sai na hora por fetch keepalive, uma vez, e o relógio não manda de novo', async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
+    (global as unknown as { fetch: unknown }).fetch = fetchMock;
     const { unmount } = render(<AdminVerificacoesPage />);
-    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
-    fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
-    fireEvent.click(within(dialog).getByLabelText('Documento'));
-    fireEvent.click(within(dialog).getByLabelText('CNPJ · Eletro Center'));
-    fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'expired' } });
-    fireEvent.change(within(dialog).getByLabelText('Motivo · CNPJ · Eletro Center'), { target: { value: 'cnpj_invalid' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await recusarDocECnpj();
+    expect(post).not.toHaveBeenCalled();
     unmount();
-    await act(async () => { release(); });
-    expect(post).toHaveBeenCalledTimes(1);
-    expect(mockToast).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.map((c) => [c[0], JSON.parse(String((c[1] as RequestInit).body))])).toEqual([
+      ['/verification/admin/l2/reject', { reasonCode: 'expired', resend: true }],
+      ['/verification/admin/store/s1/cnpj/reject', { reasonCode: 'cnpj_invalid', resend: true }],
+    ]);
+    act(() => { jest.advanceTimersByTime(10_000); });
+    expect(post).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('item que falha fica marcado com o erro; enviar de novo só reenvia ele', async () => {
+  it('item que falha no envio: aviso com o nome do item e a fila relida', async () => {
+    jest.useFakeTimers();
     post
       .mockResolvedValueOnce({ data: {} })
-      .mockRejectedValueOnce({ response: { status: 500, data: { error: 'Erro interno do servidor' } } })
-      .mockResolvedValue({ data: {} });
+      .mockRejectedValueOnce({ response: { status: 500, data: { error: 'Erro interno do servidor' } } });
     render(<AdminVerificacoesPage />);
-    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
-    fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
-    fireEvent.click(within(dialog).getByLabelText('Documento'));
-    fireEvent.click(within(dialog).getByLabelText('CNPJ · Eletro Center'));
-    fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'expired' } });
-    fireEvent.change(within(dialog).getByLabelText('Motivo · CNPJ · Eletro Center'), { target: { value: 'cnpj_invalid' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
-    expect(await within(dialog).findByText('Erro interno do servidor')).toBeInTheDocument();
-    expect(mockToast).toHaveBeenCalledWith('1 item concluído, 1 com erro', 'error');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 1 item' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(post.mock.calls.map((c) => c[0])).toEqual([
-      '/verification/admin/l2/reject',
-      '/verification/admin/store/s1/cnpj/reject',
-      '/verification/admin/store/s1/cnpj/reject',
-    ]);
+    await recusarDocECnpj();
+    act(() => { jest.advanceTimersByTime(10_000); });
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('CNPJ · Eletro Center: Erro interno do servidor', 'error'));
+    expect(post.mock.calls.map((c) => c[0])).toEqual(['/verification/admin/l2/reject', '/verification/admin/store/s1/cnpj/reject']);
+    await waitFor(() => expect(queueCalls(get)).toHaveLength(9));
   });
 });
 

@@ -1,10 +1,12 @@
 /**
  * Verificações (D3a, telas 2 e 9; D3b-2b, spec 8). Mesma proteção de hoje: verification:view_queue.
- * D3b-2b · P3.2:
+ * D3b-2b:
  * - "Aprovar tudo" é a rota única do servidor (uma chamada por sujeito, approveAllUrl). O 409
  *   VERIFICATION_CHANGED relê e avisa o que está pendente agora;
  * - a recusa usa os motivos padronizados e "Pedir reenvio";
- * - cada item mostra há quanto tempo espera, e a média de espera fica no topo.
+ * - cada item mostra há quanto tempo espera, e a média de espera fica no topo;
+ * - aprovar um item e recusar ficam 10 s em espera, com "Desfazer" no aviso e no cartão (useDeferredDecisions).
+ *   Sair da página manda na hora o que espera.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -19,7 +21,6 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_DESKTOP_MIN, useMinWidth } from '../../hooks/useMinWidth';
 import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
-import { batchSummaryText, runBatch } from '../../lib/runBatch';
 import {
   approveAllUrl,
   avgWaitText,
@@ -44,6 +45,7 @@ import {
   type VerificationStats,
 } from '../../lib/adminVerificacoes';
 import api from '../../lib/api';
+import { DEFER_MS, useDeferredDecisions, type DeferredRequest, type DeferredResult } from '../../lib/useDeferredDecisions';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
 import styles from '../../components/admin/pessoas/Verificacoes.module.css';
@@ -89,26 +91,21 @@ function VerificacoesScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [approvingAll, setApprovingAll] = useState(false);
-  const [busyItem, setBusyItem] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [marked, setMarked] = useState<Record<string, VerificationRejectReason | ''>>({});
   const [mensagem, setMensagem] = useState('');
   const [resend, setResend] = useState(true);
-  const [rejectErrors, setRejectErrors] = useState<Record<string, string>>({});
   const alive = useRef(true);
-  // Leitura nova descarta a resposta atrasada da anterior.
+  // Leitura nova descarta a resposta atrasada da anterior (várias decisões terminam perto uma da outra).
   const loadReq = useRef(0);
   // Contra clique duplo: marcado antes de qualquer setState (um "Aprovar tudo" por vez).
   const approveAllRunning = useRef(false);
-  const rejectAbortRef = useRef<AbortController | null>(null);
+  /** Nome do item de cada decisão em espera, para o aviso de erro depois do envio. */
+  const itemNames = useRef<Record<string, string>>({});
 
-  // Fechar a tela para a recusa em lote e nada mais mexe no estado (spec D3a 6.2).
   useEffect(() => {
     alive.current = true;
-    return () => {
-      alive.current = false;
-      rejectAbortRef.current?.abort();
-    };
+    return () => { alive.current = false; };
   }, []);
 
   // Só lê a fila que o papel pode ler (cada rota exige a sua permissão).
@@ -145,6 +142,18 @@ function VerificacoesScreen() {
     return () => { off = true; };
   }, []);
 
+  // Resultado de cada decisão que saiu aos 10 s: erro avisa com o nome do item; a fila sempre relê.
+  const onSettled = useCallback((r: DeferredResult) => {
+    const name = itemNames.current[r.key] ?? 'Item';
+    if (!r.ok) {
+      if (isVerificationAlreadyDecided(r.error)) showToast(`${name}: já tinha sido decidido.`, 'info');
+      else showToast(`${name}: ${adminErrorMessage(r.error)}`, 'error');
+    }
+    void load();
+  }, [load, showToast]);
+
+  const deferred = useDeferredDecisions(onSettled);
+
   const all = people ?? [];
   const visible = all.filter((p) => filter === 'todos' || p.kind === filter);
   const selected = visible.find((p) => p.id === selectedId) ?? visible[0] ?? null;
@@ -165,21 +174,25 @@ function VerificacoesScreen() {
     return calls.length > 0 && calls.every((c) => can(c.permission)) ? calls : [];
   };
 
-  const approveOne = async (item: VerificationItem) => {
-    setBusyItem(item.key);
-    try {
-      await api.post(item.approveUrl);
-      showToast('Aprovado.', 'success');
-    } catch (err) {
-      if (isVerificationAlreadyDecided(err)) showToast('Esse item já tinha sido decidido.', 'info');
-      else showToast(adminErrorMessage(err), 'error');
-    } finally {
-      setBusyItem(null);
-      await load();
-    }
+  const undoKeys = (keys: string[]) => {
+    const undone = keys.map((k) => deferred.undo(k)).some(Boolean);
+    showToast(undone ? 'Decisão desfeita.' : 'Já foi enviado. Não dá mais para desfazer.', 'info');
   };
 
-  // "Aprovar tudo" começa no clique: uma chamada por sujeito, em ordem; para na primeira falha.
+  const decideLater = (item: VerificationItem, run: DeferredRequest, label: 'Aprovado' | 'Recusado') => {
+    itemNames.current[item.key] = item.label;
+    deferred.schedule(item.key, run, label);
+  };
+
+  const approveOne = (item: VerificationItem) => {
+    decideLater(item, { url: item.approveUrl }, 'Aprovado');
+    showToast('Aprovado', 'success', {
+      action: { label: 'Desfazer', onClick: () => undoKeys([item.key]) },
+      durationMs: DEFER_MS,
+    });
+  };
+
+  // "Aprovar tudo" começa no clique: uma chamada por sujeito, em ordem; para na primeira falha. Não espera 10 s.
   const approveAll = async (calls: ApproveAllCall[]) => {
     if (approveAllRunning.current) return;
     approveAllRunning.current = true;
@@ -210,7 +223,6 @@ function VerificacoesScreen() {
     setMarked(preselect ? { [preselect]: '' } : {});
     setMensagem('');
     setResend(true);
-    setRejectErrors({});
     setRejectOpen(true);
   };
 
@@ -219,32 +231,19 @@ function VerificacoesScreen() {
   const ready = rejectReady(codes, mensagem);
   const needsMessage = codes.includes('other');
 
-  const sendRejects = async () => {
-    if (!selected) return;
-    const p = selected;
-    const ctrl = new AbortController();
-    rejectAbortRef.current = ctrl;
-    const r = await runBatch(
-      markedItems.map((i) => i.key),
-      async (key) => {
-        const item = p.items.find((i) => i.key === key);
-        const code = marked[key];
-        if (item && code) await api.post(item.rejectUrl, buildRejectBody(code, mensagem, resend));
-      },
-      { isAlreadyDone: isVerificationAlreadyDecided, signal: ctrl.signal },
-    );
-    if (ctrl.signal.aborted) return;
-    const summary = batchSummaryText(r, { one: 'item concluído', many: 'itens concluídos' }); // K6
-    if (r.failed.length === 0) {
-      setRejectOpen(false);
-      showToast(summary, 'success');
-    } else {
-      // A folha fica aberta só com os que falharam: enviar de novo não repete o que deu certo.
-      setRejectErrors(r.errors);
-      setMarked((m) => Object.fromEntries(Object.entries(m).filter(([k]) => r.failed.includes(k))));
-      showToast(summary, 'error');
+  // Cada item marcado vira uma decisão em espera (a última do item vence); a folha fecha na hora.
+  const sendRejects = () => {
+    const items = markedItems.filter((i) => marked[i.key] !== '');
+    for (const item of items) {
+      const code = marked[item.key] as VerificationRejectReason;
+      decideLater(item, { url: item.rejectUrl, body: buildRejectBody(code, mensagem, resend) }, 'Recusado');
     }
-    await load();
+    setRejectOpen(false);
+    const keys = items.map((i) => i.key);
+    showToast(keys.length === 1 ? 'Recusado' : `${keys.length} itens recusados`, 'success', {
+      action: { label: 'Desfazer', onClick: () => undoKeys(keys) },
+      durationMs: DEFER_MS,
+    });
   };
 
   const toggleMark = (key: string, on: boolean) =>
@@ -260,6 +259,7 @@ function VerificacoesScreen() {
   const itemCard = (item: VerificationItem) => {
     const titleId = domId(item.key);
     const wait = waitingText(item.submittedAt);
+    const waiting = deferred.pending[item.key];
     return (
       <article key={item.key} className={styles.doc} aria-labelledby={titleId}>
         <h3 id={titleId} className={styles.docTitle}>{item.label}</h3>
@@ -275,14 +275,23 @@ function VerificacoesScreen() {
             ))}
           </div>
         )}
+        {waiting && (
+          <div className={blocks.actions} role="status">
+            <span className={blocks.muted}>{`${waiting} · envia em até 10 s`}</span>
+            <Button size="sm" variant="tertiary" className={form.touch} aria-describedby={titleId}
+              onClick={() => undoKeys([item.key])}>
+              Desfazer
+            </Button>
+          </div>
+        )}
         {can(item.permission) && (
           <div className={blocks.actions}>
             <Button size="sm" variant="secondary" className={form.touch} aria-describedby={titleId}
-              disabled={approvingAll || busyItem !== null} onClick={() => openReject(item.key)}>
+              disabled={approvingAll} onClick={() => openReject(item.key)}>
               Recusar
             </Button>
             <Button size="sm" className={form.touch} aria-describedby={titleId}
-              loading={busyItem === item.key} disabled={approvingAll || busyItem !== null} onClick={() => void approveOne(item)}>
+              disabled={approvingAll || waiting === 'Aprovado'} onClick={() => approveOne(item)}>
               Aprovar
             </Button>
           </div>
@@ -319,6 +328,7 @@ function VerificacoesScreen() {
   );
 
   const selectedCalls = selected ? approveCalls(selected) : [];
+  const personWaiting = selected ? selected.items.some((i) => i.key in deferred.pending) : false;
   const detailView = selected && (
     <section className={styles.detail} aria-labelledby="verificacao-pessoa">
       {!desktop && (
@@ -337,10 +347,13 @@ function VerificacoesScreen() {
             Recusar com motivo
           </Button>
           {selectedCalls.length > 0 && (
-            <Button className={form.touch} loading={approvingAll} disabled={approvingAll || busyItem !== null}
+            <Button className={form.touch} loading={approvingAll} disabled={approvingAll || personWaiting}
               onClick={() => void approveAll(selectedCalls)}>
               Aprovar tudo
             </Button>
+          )}
+          {selectedCalls.length > 0 && personWaiting && (
+            <p className={blocks.muted}>Há decisão em espera nesta pessoa: desfaça ou espere o envio para aprovar tudo.</p>
           )}
         </div>
       )}
@@ -407,7 +420,6 @@ function VerificacoesScreen() {
                   onChange={(v) => setMarked((m) => ({ ...m, [item.key]: v as VerificationRejectReason | '' }))}
                 />
               )}
-              {rejectErrors[item.key] && <p className={blocks.errText}>{rejectErrors[item.key]}</p>}
             </div>
           );
         })}
@@ -428,6 +440,7 @@ function VerificacoesScreen() {
         <p className={blocks.muted}>
           {resend ? 'A pessoa vê “Reenvie: motivo” e manda de novo.' : 'A pessoa vê “Recusado: motivo” e ainda pode mandar de novo.'}
         </p>
+        <p className={blocks.muted}>A recusa espera 10 s antes de ir: dá para desfazer pelo aviso ou pelo cartão.</p>
       </AdminSheet>
     </div>
   );
