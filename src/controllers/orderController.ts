@@ -34,7 +34,7 @@ import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { missingClientVerifications } from '../utils/clientVerification';
-import { findPendingDebt, updateDebt } from '../repositories/customerDebt.repository';
+import { findPendingDebt, claimPendingDebt, releaseDebtClaim, linkCollectedDebt } from '../repositories/customerDebt.repository';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import { findCouponById, incrementCouponUse } from '../repositories/coupon.repository';
@@ -437,6 +437,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     // Cobrar dívida pendente (apenas para pedidos não-COD)
     let pendingDebt: any = null;
     let debtAmount = 0;
+    // D3b-2a: quanto da multa foi DE FATO cobrado (0 se o admin perdoou no meio, ou fora da carteira).
+    let debtCharged = 0;
     if (!isCashOnDelivery) {
       pendingDebt = await findPendingDebt(customerId);
       if (pendingDebt) {
@@ -462,12 +464,20 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         reason: 'Pedido criado', category: 'payment',
         paymentMethod: paymentMethod || 'wallet', relatedId: storeIdStr,
       });
-      if (debtAmount > 0) {
-        await walletService.debit({
-          owner: customerId, ownerType: 'user', amount: debtAmount,
-          reason: 'Cobrança de multa de cancelamento tardio pendente',
-          category: 'penalty', relatedId: String(pendingDebt._id),
-        });
+      // D3b-2a: a multa só é cobrada se a dívida AINDA estiver pendente — o admin pode tê-la
+      // perdoado depois da leitura lá em cima. A baixa condicional decide quem vence.
+      if (debtAmount > 0 && (await claimPendingDebt(String(pendingDebt._id)))) {
+        try {
+          await walletService.debit({
+            owner: customerId, ownerType: 'user', amount: debtAmount,
+            reason: 'Cobrança de multa de cancelamento tardio pendente',
+            category: 'penalty', relatedId: String(pendingDebt._id),
+          });
+        } catch (debtErr) {
+          await releaseDebtClaim(String(pendingDebt._id));
+          throw debtErr;
+        }
+        debtCharged = debtAmount;
       }
 
       // --- Custódia: todo o dinheiro entra no AppCashbox ---
@@ -479,17 +489,16 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       // Garantir a carteira da loja (pra receber o payout).
       await walletService.getOrCreate(storeIdStr, 'store');
 
-      // Dívida pendente: credita a loja de origem e marca como collected.
-      if (pendingDebt && debtAmount > 0) {
+      // Multa cobrada (a baixa para collected já aconteceu acima): credita a loja de origem.
+      if (debtCharged > 0) {
         const debtSourceOrder = await prisma.order.findUnique({ where: { id: String(pendingDebt.sourceOrderId) } });
         if (debtSourceOrder) {
           await walletService.credit({
-            owner: String(debtSourceOrder.storeId), ownerType: 'store', amount: debtAmount,
+            owner: String(debtSourceOrder.storeId), ownerType: 'store', amount: debtCharged,
             reason: 'Reembolso de multa de cancelamento tardio pago pelo cliente',
             category: 'transfer', relatedId: String(pendingDebt._id),
           });
         }
-        pendingDebt = await updateDebt(pendingDebt._id, { status: 'collected', collectedAt: new Date() });
       }
     }
 
@@ -543,7 +552,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         routePolyline: routePolyline || undefined,
         status: 'criado',
         paymentMethod: (paymentMethod || 'money') as any,
-        debtCollected: debtAmount > 0 ? debtAmount : undefined,
+        debtCollected: debtCharged > 0 ? debtCharged : undefined,
         idempotentKey,
         customerAddress: address,
         customerLatitude: latitude ? Number(latitude) : undefined,
@@ -581,8 +590,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         });
       }
 
-      if (pendingDebt && debtAmount > 0) {
-        await updateDebt(pendingDebt._id, { collectedOrderId: createdOrder.id });
+      if (debtCharged > 0) {
+        await linkCollectedDebt(String(pendingDebt._id), createdOrder.id);
       }
 
     } catch (commitErr) {
