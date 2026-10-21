@@ -208,8 +208,9 @@ describe('GET /api/search — lojas', () => {
     const ok = await makeStore({ name: 'Eletrônica Rtyu', latitude: north(2) });
     const semKyc = await makeStore({ name: 'Eletronica Rtyu Sem KYC', isVerified: false });
     const pausada = await makeStore({ name: 'Eletronica Rtyu Pausada' });
+    // D3b-2b, onda final: `cancelled` não esconde mais por status (só a pausa do DROP); a mensalidade que some é a `paused`.
     await prisma.storeSaasBilling.create({
-      data: { storeId: pausada.id, trialEndsAt: new Date(Date.now() - 30 * 86400000), status: 'cancelled' } as any,
+      data: { storeId: pausada.id, trialEndsAt: new Date(Date.now() - 30 * 86400000), status: 'paused', pausedAt: new Date() } as any,
     });
     const res = await search({ q: 'ELETRONICA rtyu', type: 'stores', lat: LAT, lng: LNG });
     expect(res.status).toBe(200);
