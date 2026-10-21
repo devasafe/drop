@@ -212,7 +212,7 @@ export interface StoreDetail {
   };
   /** As 10 avaliações mais novas com nota e comentário. */
   reviews: Array<{ orderId: string; rating: number; comment: string; reply: string | null; createdAt: string }>;
-  /** `detail` = último erro gravado do recebimento. */
+  /** `detail` = último erro gravado do recebimento; só para o CEO (null para os demais). */
   receiving: { status: ReceivingStatus; detail: string | null };
   /** Só leitura na 2a. `saas` = mensalidade (StoreSaasBilling), quando existe. */
   plan: {

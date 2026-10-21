@@ -106,7 +106,7 @@ export const getStore = async (req: AuthenticatedRequest, res: Response) => {
   const id = idParam(req);
   try {
     const can = await permissionCheckFor(req.user);
-    const detail = id ? await getAdminStoreDetail(id, can) : null;
+    const detail = id ? await getAdminStoreDetail(id, { isCeo: activeRoleOf(req.user) === 'ceo', can }) : null;
     if (!detail) return sendReadFailure(res, storeNotFound(), 'a ficha da loja');
     return res.json(detail);
   } catch (err) {

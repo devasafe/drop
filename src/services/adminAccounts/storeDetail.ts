@@ -1,6 +1,7 @@
 /**
  * D3b-2a · ficha da loja (spec 6). Só leitura; a mensalidade só é exibida (as ações são da 2b).
- * A chave Pix e a chave da conta Asaas nunca saem: do recebimento vão só o estado e o último erro.
+ * A chave Pix e a chave da conta Asaas nunca saem: do recebimento vão só o estado e, para o CEO, o
+ * último erro (o texto cru do Asaas é exclusivo do CEO, como em /admin/stores/:id/asaas).
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
@@ -52,7 +53,12 @@ async function storeFaultCancellations(storeId: string, since: Date): Promise<nu
   return rows[0]?.n ?? 0;
 }
 
-export async function getAdminStoreDetail(storeId: string, can: PermissionCheck, now: Date = new Date()): Promise<StoreDetail | null> {
+export interface StoreDetailViewer {
+  isCeo: boolean;
+  can: PermissionCheck;
+}
+
+export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailViewer, now: Date = new Date()): Promise<StoreDetail | null> {
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: STORE_DETAIL_SELECT });
   if (!store) return null;
   const since = new Date(now.getTime() - 30 * DAY_MS);
@@ -81,7 +87,7 @@ export async function getAdminStoreDetail(storeId: string, can: PermissionCheck,
   ]);
 
   const paused = isAdminPaused(store);
-  const canEdit = can('store:edit');
+  const canEdit = viewer.can('store:edit');
   const avg = stats._avg.storeRating;
 
   return {
@@ -115,7 +121,7 @@ export async function getAdminStoreDetail(storeId: string, can: PermissionCheck,
     })),
     receiving: {
       status: receivingStatus(cfg.settlementMode, env.PAYMENT_GATEWAY, store),
-      detail: receivingLastError(cfg.settlementMode, store),
+      detail: viewer.isCeo ? receivingLastError(cfg.settlementMode, store) : null,
     },
     plan: {
       plan: storePlanNumber(subscription?.currentPlan, store.plan),

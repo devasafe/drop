@@ -151,6 +151,26 @@ describe('GET /admin/stores/:id · can e 404', () => {
   });
 });
 
+describe('GET /admin/stores/:id · receiving.detail só para o CEO', () => {
+  const ASAAS_ERROR = 'Asaas 400: invalid_walletId d3b2a-p24';
+
+  it('gerente com store:view_all vê o status do recebimento, sem o texto do erro; o CEO vê o texto', async () => {
+    const id = await createOpsStore(DOMAIN, { name: `${tag} Erro` });
+    await prisma.store.update({ where: { id }, data: { asaas: { status: 'error', lastError: ASAAS_ERROR } } });
+    const gerente = await createTestUser('gerente_geral', DOMAIN);
+    const restore = await grantRolePermissions('gerente_geral', ['store:view_all']);
+    try {
+      const res = await detail(id, gerente);
+      expect(res.status).toBe(200);
+      expect(res.body.receiving).toEqual({ status: 'na', detail: null });
+      expect(JSON.stringify(res.body)).not.toContain(ASAAS_ERROR);
+    } finally {
+      await restore();
+    }
+    expect((await detail(id)).body.receiving).toEqual({ status: 'na', detail: ASAAS_ERROR });
+  });
+});
+
 describe('GET /admin/stores/:id/timeline', () => {
   it('primeira página, mais nova primeiro; loja que não existe responde 404', async () => {
     const id = await createOpsStore(DOMAIN, { name: `${tag} Hist` });
