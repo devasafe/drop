@@ -6,6 +6,26 @@ import { extractTokenFromCookie } from '../utils/cookieManager';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 
+/** D3b-2a: no máximo uma gravação de `User.lastSeenAt` a cada 5 min por usuário. */
+export const LAST_SEEN_EVERY_MS = 5 * 60_000;
+
+/**
+ * Grava o último acesso sem segurar a resposta (sem await). Pula quando o valor que o
+ * `authenticate` acabou de ler é recente, então a maioria das requisições não escreve nada. O
+ * WHERE repete a condição: duas requisições juntas, ou um valor lido velho, não regravam. Erro só
+ * vai para o log.
+ */
+export function touchLastSeen(userId: string, lastSeenAt: Date | null, now: Date = new Date()): void {
+  if (lastSeenAt && now.getTime() - lastSeenAt.getTime() < LAST_SEEN_EVERY_MS) return;
+  const cutoff = new Date(now.getTime() - LAST_SEEN_EVERY_MS);
+  prisma.user
+    .updateMany({
+      where: { id: userId, OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: cutoff } }] },
+      data: { lastSeenAt: now },
+    })
+    .catch((err: unknown) => logger.error('[authenticate] falha ao gravar o último acesso', err as Error, { userId }));
+}
+
 interface JwtPayload {
   id: string;
   role: string;
@@ -85,7 +105,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
   try {
     const account = await prisma.user.findUnique({
       where: { id: String(decoded.id) },
-      select: { status: true, role: true, roles: true, blockReason: true },
+      select: { status: true, role: true, roles: true, blockReason: true, lastSeenAt: true },
     });
     if (!account) return res.status(401).json({ error: 'Invalid token' });
     if (account.status === 'blocked') {
@@ -101,6 +121,8 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
       return res.status(401).json({ error: 'SESSION_ROLE_CHANGED', message: 'Seu acesso mudou. Entre novamente.' });
     }
     dbRoles = (account.roles || []).map(String);
+    // D3b-2a: só depois das checagens (conta recusada não conta como acesso).
+    touchLastSeen(String(decoded.id), account.lastSeenAt);
   } catch (err) {
     console.error('[authenticate] falha ao conferir a conta:', err);
     return res.status(503).json({ error: 'Servico indisponivel' });
