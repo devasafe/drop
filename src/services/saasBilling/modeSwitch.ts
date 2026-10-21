@@ -52,11 +52,12 @@ export async function cancelSaasSubscriptions(): Promise<SaasBillingWarning[]> {
  * Volta ao modo direto: reabre a contagem para ninguém ser pausado pelo tempo em que a
  * mensalidade não existia. trialEndsAt = max(atual, now + saasTrialDays); quem não está
  * `cancelled` volta a `trialing` sem overdueSince/pausedAt. paidUntil fica (período pago vale).
+ * D3b-2b: a cancelada não ganha teste novo (ela vende só até o fim do que já tinha).
  */
 export async function reopenSaasTrials(now: Date, trialDays: number): Promise<void> {
   const trialEndsAt = new Date(now.getTime() + Math.max(0, trialDays) * DAY_MS);
   await prisma.$transaction([
-    prisma.storeSaasBilling.updateMany({ where: { trialEndsAt: { lt: trialEndsAt } }, data: { trialEndsAt } }),
+    prisma.storeSaasBilling.updateMany({ where: { trialEndsAt: { lt: trialEndsAt }, status: { not: 'cancelled' } }, data: { trialEndsAt } }),
     prisma.storeSaasBilling.updateMany({
       where: { status: { not: 'cancelled' } },
       data: { status: 'trialing', overdueSince: null, pausedAt: null },

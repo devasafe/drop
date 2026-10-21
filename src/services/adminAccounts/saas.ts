@@ -1,13 +1,17 @@
 import type { SaasBillingStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
+import { AsaasApiError } from '../asaas/client';
 import {
+  deleteSubscription,
   deleteSubscriptionPayment,
   listSubscriptionPayments,
   updateSubscriptionNextDueDate,
 } from '../asaas/subscription';
 import { SAAS_OPEN_STATUSES } from '../saasBilling/payments';
 import { firstDueDate } from '../saasBilling/dueDate';
+import { sellsUntil } from '../saasBilling/policy';
+import { notifyStore, STORE_LINKS } from '../storeNotify';
 import { recordAccountAction, AccountActor } from './actions';
 import { AccountActionError, parseRequiredReason, storeNotFound } from './errors';
 import type { StoreSaasState } from './types';
@@ -184,4 +188,80 @@ export async function extendTrial(
 
   logger.info('[saas] teste da mensalidade estendido', { storeId, days, by: actor.id });
   return { saas: toSaasState(saved) };
+}
+
+const alreadyCancelled = () => new AccountActionError(409, 'ALREADY_CANCELLED', 'A mensalidade desta loja já está cancelada.');
+/** Quantas vezes o cancelamento relê a linha quando o job trocou a assinatura no meio. */
+const CANCEL_ATTEMPTS = 3;
+
+const dayMonthSaoPaulo = (d: Date) =>
+  new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(d);
+
+/**
+ * Cancela a mensalidade (ruling 7): apaga a assinatura no Asaas (404 = já não existe) e, numa
+ * transação, grava cancelled + quem/quando, zera a assinatura e registra saas_cancel. A loja vende
+ * até o fim do período (sellsUntil); depois, o job pausa pelo admin (runCancelledSaasPauses).
+ * A gravação é condicional ao MESMO asaasSubscriptionId lido: se o job criou uma assinatura no meio,
+ * relê e apaga a nova também (até CANCEL_ATTEMPTS vezes).
+ */
+export async function cancelSaas(
+  storeId: string,
+  actor: AccountActor,
+  rawReason: unknown,
+  now: Date = new Date(),
+): Promise<{ saas: StoreSaasState }> {
+  const reason = parseRequiredReason(rawReason);
+  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
+  if (!store) throw storeNotFound();
+
+  for (let attempt = 0; attempt < CANCEL_ATTEMPTS; attempt++) {
+    const billing = await prisma.storeSaasBilling.findUnique({ where: { storeId } });
+    if (!billing) throw noSaasBilling();
+    if (billing.status === 'cancelled') throw alreadyCancelled();
+
+    const subId = billing.asaasSubscriptionId;
+    if (subId) {
+      try {
+        await deleteSubscription(subId);
+      } catch (err) {
+        if (!(err instanceof AsaasApiError && err.status === 404)) {
+          logger.error('[saas] Asaas recusou o cancelamento da assinatura', err as Error, { storeId });
+          throw new AccountActionError(502, 'SAAS_CANCEL_FAILED', 'Não foi possível cancelar a assinatura no Asaas. Nada foi alterado.');
+        }
+      }
+    }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.storeSaasBilling.updateMany({
+        where: { id: billing.id, status: { not: 'cancelled' }, asaasSubscriptionId: subId },
+        data: { status: 'cancelled', cancelledAt: now, cancelledBy: actor.id, asaasSubscriptionId: null, subscriptionValue: null },
+      });
+      if (count !== 1) return null;
+      const row = await tx.storeSaasBilling.findUniqueOrThrow({ where: { id: billing.id } });
+      await recordAccountAction(tx, {
+        actor,
+        storeId,
+        type: 'saas_cancel',
+        reason,
+        meta: { previousStatus: billing.status, asaasSubscriptionId: subId, sellsUntil: sellsUntil(row).toISOString() },
+      });
+      return row;
+    });
+    if (!saved) continue;
+
+    logger.info('[saas] mensalidade cancelada', { storeId, by: actor.id });
+    // Depois do commit e best-effort (notifyStore nunca lança).
+    await notifyStore(storeId, {
+      title: 'Mensalidade cancelada',
+      message: `O DROP cancelou a mensalidade da sua loja. Ela segue vendendo até ${dayMonthSaoPaulo(sellsUntil(saved))}. Motivo: ${reason}`,
+      link: STORE_LINKS.subscription,
+      entityId: storeId,
+      tag: 'mensalidade',
+    });
+    return { saas: toSaasState(saved) };
+  }
+
+  const last = await prisma.storeSaasBilling.findUnique({ where: { storeId }, select: { status: true } });
+  if (last?.status === 'cancelled') throw alreadyCancelled();
+  throw new Error('cancelSaas: a assinatura mudou durante o cancelamento em todas as tentativas');
 }

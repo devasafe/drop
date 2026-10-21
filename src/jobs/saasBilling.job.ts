@@ -68,12 +68,14 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
         externalReference: `saas-sub:${billing.id}`,
       });
       const { count } = await prisma.storeSaasBilling.updateMany({
-        // trialEndsAt/paidUntil iguais aos lidos: um estender teste no meio deixa a assinatura com o vencimento velho
-        where: { id: billing.id, asaasSubscriptionId: null, trialEndsAt: billing.trialEndsAt, paidUntil: billing.paidUntil },
+        // trialEndsAt/paidUntil iguais aos lidos: um estender teste no meio deixa a assinatura com o vencimento velho.
+        // D3b-2b: e status != cancelled — se o admin cancelou enquanto a assinatura era criada, ela não pode
+        // ficar presa à loja (cobraria quem cancelou).
+        where: { id: billing.id, asaasSubscriptionId: null, status: { not: 'cancelled' }, trialEndsAt: billing.trialEndsAt, paidUntil: billing.paidUntil },
         data: { asaasSubscriptionId: sub.id, subscriptionValue: fee },
       });
       if (count !== 1) {
-        logger.warn('[saas-billing] assinatura criada em corrida — desfazendo a duplicada no Asaas', { storeId: billing.storeId, subscriptionId: sub.id });
+        logger.warn('[saas-billing] assinatura criada em corrida (outra assinatura, mensalidade cancelada ou teste estendido) — desfazendo no Asaas', { storeId: billing.storeId, subscriptionId: sub.id });
         await deleteSubscription(sub.id);
       }
     } catch (err) {

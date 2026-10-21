@@ -31,32 +31,64 @@ export function coveredUntil(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUnt
 // Brasília = UTC-3 FIXO: o Brasil não tem horário de verão desde 2019 (Decreto 9.772/2019).
 const SAO_PAULO_OFFSET_MS = 3 * 60 * 60 * 1000;
 
+/** paidUntil vem do Asaas como DATA ('YYYY-MM-DD' gravada em 00:00Z): o dia em UTC vale inteiro -> D+1 03:00Z. */
+function paidEndMs(paidUntil: Date): number {
+  return Math.floor(paidUntil.getTime() / DAY_MS) * DAY_MS + DAY_MS + SAO_PAULO_OFFSET_MS;
+}
+
+/** trialEndsAt é um instante (now + dias de teste): vale até o fim do dia dele em Brasília -> D+1 03:00Z. */
+function trialEndMs(trialEndsAt: Date): number {
+  return Math.floor((trialEndsAt.getTime() - SAO_PAULO_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS + SAO_PAULO_OFFSET_MS;
+}
+
 /**
- * Instante em que termina a cobertura: o FIM do dia (Brasília) de coveredUntil.
- * - paidUntil vem do Asaas como DATA ('YYYY-MM-DD' gravada em 00:00Z = 21:00 da véspera em
- *   Brasília): o dia é o da data em UTC;
- * - trialEndsAt é um instante (now + dias de teste): o dia é o dele em Brasília.
- * Fim do dia D em Brasília = D+1 00:00 local = D+1 03:00Z.
+ * Instante em que termina a cobertura: o maior entre o fim do dia pago e o fim do dia do teste.
+ * Ex.: coberto até 10/12 (00:00Z) -> 11/12 03:00Z.
+ * D3b-2b: exportado (a cancelada vende até aqui) e calculado como o máximo dos dois fins de dia,
+ * que é o que o filtro da vitrine (gate.billingVisibleWhere + coverageBounds) escreve em SQL. A
+ * conta anterior (maior data, depois o fuso) só diferia quando paidUntil caía nas 3 h antes de
+ * trialEndsAt, e só para menos.
  */
-function coverageEnd(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil'>): number {
-  const covered = coveredUntil(billing);
-  const dayMs = covered === billing.paidUntil ? covered.getTime() : covered.getTime() - SAO_PAULO_OFFSET_MS;
-  const dayStart = Math.floor(dayMs / DAY_MS) * DAY_MS;
-  return dayStart + DAY_MS + SAO_PAULO_OFFSET_MS;
+export function coverageEnd(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil'>): Date {
+  const trial = trialEndMs(billing.trialEndsAt);
+  return new Date(billing.paidUntil ? Math.max(trial, paidEndMs(billing.paidUntil)) : trial);
+}
+
+/** D3b-2b: último instante em que a loja (cancelada) vende: coverageEnd - 1 ms. O dia dele em Brasília é o "vende até". */
+export function sellsUntil(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil'>): Date {
+  return new Date(coverageEnd(billing).getTime() - 1);
+}
+
+/**
+ * D3b-2b (ruling 8): mensalidade cancelada só bloqueia quando a cobertura acabou (now >= coverageEnd).
+ * Sem tolerância: a carência (saasGraceDays) é de quem ainda vai pagar, e a cancelada não paga mais.
+ */
+export function isCancelledAndExpired(billing: BillingLike | null | undefined, now: Date): boolean {
+  return !!billing && billing.status === 'cancelled' && now.getTime() >= coverageEnd(billing).getTime();
+}
+
+/**
+ * Limites da cobertura para o SQL da vitrine (gate.billingVisibleWhere):
+ * coverageEnd(b) > now  <=>  paidUntil >= paidFrom  OU  trialEndsAt >= trialFrom.
+ * (paidEndMs(p) > now <=> dia(p) >= dia(now - 27 h) + 1; o do teste é o mesmo, deslocado 3 h.)
+ */
+export function coverageBounds(now: Date): { paidFrom: Date; trialFrom: Date } {
+  const base = Math.floor((now.getTime() - DAY_MS - SAO_PAULO_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS;
+  return { paidFrom: new Date(base), trialFrom: new Date(base + SAO_PAULO_OFFSET_MS) };
 }
 
 /**
  * A loja deve ser pausada (sumir da vitrine e não receber pedido novo)?
  * - sem linha de cobrança (billing null): NÃO bloqueia. Fail open proposital: a linha é criada
  *   pelo job de assinatura (B2); até lá a loja não pode ser punida por falta de registro.
- * - cancelled: bloqueada.
- * - demais: bloqueada quando now > fim do dia (Brasília) de coveredUntil + graceDays dias.
- *   Ex.: coberto até 10/12 (00:00Z), tolerância 0 → bloqueia só depois de 11/12 03:00Z.
+ * - cancelled: só depois do fim da cobertura (isCancelledAndExpired, D3b-2b).
+ * - demais: bloqueada quando now > fim do dia (Brasília) da cobertura + graceDays dias.
+ *   Ex.: coberto até 10/12 (00:00Z), tolerância 0 -> bloqueia só depois de 11/12 03:00Z.
  */
 export function isBillingBlocked(billing: BillingLike | null | undefined, now: Date, graceDays: number): boolean {
   if (!billing) return false;
-  if (billing.status === 'cancelled') return true;
-  const limit = coverageEnd(billing) + Math.max(0, graceDays) * DAY_MS;
+  if (billing.status === 'cancelled') return isCancelledAndExpired(billing, now);
+  const limit = coverageEnd(billing).getTime() + Math.max(0, graceDays) * DAY_MS;
   return now.getTime() > limit;
 }
 
@@ -81,8 +113,8 @@ export function shouldPause(billing: BillingWithFee | null | undefined, now: Dat
 /**
  * Quando a loja SERÁ pausada pela mensalidade: o instante após o qual `isBillingBlocked`
  * vira true (fim do dia em Brasília da cobertura + graceDays). Mostrado na tela "atrasada".
- * null quando ela nunca será pausada por data: sem linha, `cancelled` (já bloqueada, o
- * `blocked` da resposta cobre), fee ≤ 0 (isenta) ou sem assinatura (sem fatura) — as mesmas
+ * null quando ela nunca será pausada por data: sem linha, `cancelled` (a data dela é a de
+ * sellsUntil, que a tela do lojista recebe à parte), fee ≤ 0 (isenta) ou sem assinatura (sem fatura) — as mesmas
  * condições de `shouldPause`.
  */
 export function billingBlockAt(billing: BillingWithFee | null | undefined, config: BlockConfig): Date | null {
@@ -90,17 +122,17 @@ export function billingBlockAt(billing: BillingWithFee | null | undefined, confi
   if (billing.status === 'cancelled') return null;
   if (!(effectiveFee(billing, config) > 0)) return null;
   if (!billing.asaasSubscriptionId) return null;
-  return new Date(coverageEnd(billing) + Math.max(0, config.saasGraceDays) * DAY_MS);
+  return new Date(coverageEnd(billing).getTime() + Math.max(0, config.saasGraceDays) * DAY_MS);
 }
 
 /**
  * A loja está bloqueada AGORA pela mensalidade (gate de pedido e visões usam esta)?
- * Sem linha → não; cancelled → sempre; fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
+ * Sem linha → não; cancelled → só depois do fim da cobertura (D3b-2b); fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
  * demais → já `paused` ou shouldPause (que exige assinatura) (antes de o job, de 1 em 1 h, gravar a pausa).
  */
 export function isStoreBlocked(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
   if (!billing) return false;
-  if (billing.status === 'cancelled') return true;
+  if (billing.status === 'cancelled') return isCancelledAndExpired(billing, now);
   if (!(effectiveFee(billing, config) > 0)) return false;
   return billing.status === 'paused' || shouldPause(billing, now, config);
 }

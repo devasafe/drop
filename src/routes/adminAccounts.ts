@@ -12,7 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
-import { extendTrial } from '../services/adminAccounts/saas';
+import { cancelSaas, extendTrial } from '../services/adminAccounts/saas';
 import { listUsers, getUser, getUserTimeline, listStores, getStore, getStoreTimeline } from '../controllers/adminAccountsReadController';
 
 const router = Router();
@@ -61,6 +61,15 @@ router.post(
   authorizePermission('plan:manage'),
   handle('falha ao estender o teste da mensalidade', (req) =>
     extendTrial(String(req.params.id), actorFromRequest(req), req.body?.days, req.body?.reason)),
+);
+
+// D3b-2b · POST /api/admin/stores/:id/saas/cancel { reason } — cancelar a mensalidade (spec 9).
+// A confirmação pelo nome da loja é só na tela.
+router.post(
+  '/stores/:id/saas/cancel',
+  authenticate,
+  authorizePermission('plan:manage'),
+  handle('falha ao cancelar a mensalidade', (req) => cancelSaas(String(req.params.id), actorFromRequest(req), req.body?.reason)),
 );
 
 // POST /api/admin/users/:id/notes { text } — nota interna na ficha da pessoa (só acréscimo)

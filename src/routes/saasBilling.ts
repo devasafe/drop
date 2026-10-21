@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { isStoreOwner } from '../utils/storeOwnership';
-import { effectiveFee, isStoreBlocked, billingBlockAt } from '../services/saasBilling/policy';
+import { effectiveFee, isStoreBlocked, billingBlockAt, sellsUntil } from '../services/saasBilling/policy';
 import { SAAS_OPEN_STATUSES, SAAS_PAID_STATUSES } from '../services/saasBilling/payments';
 import { updateSubscriptionValue, deleteSubscription } from '../services/asaas/subscription';
 
@@ -149,6 +149,9 @@ storeSaasBillingRouter.get('/', authenticate, requireSettlement('direto'), catch
       pendingReason,
       payments: paid.map((x) => ({ id: x.id, value: Number(x.value), dueDate: x.dueDate, paidAt: x.paidAt, invoiceUrl: x.invoiceUrl })),
       blockAt: blockAt ? blockAt.toISOString() : null,
+      // D3b-2b: cancelada vende até o fim do período (a tela mostra "Cancelada, vende até DD/MM").
+      cancelledAt: billing.cancelledAt ? billing.cancelledAt.toISOString() : null,
+      sellsUntil: billing.status === 'cancelled' ? sellsUntil(billing).toISOString() : null,
     },
   });
 }));

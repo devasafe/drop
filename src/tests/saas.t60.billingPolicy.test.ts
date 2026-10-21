@@ -47,8 +47,10 @@ describe('t60 — política da mensalidade SaaS (pura)', () => {
     it('pago vencido além da tolerância', () => {
       expect(isBillingBlocked({ status: 'past_due', trialEndsAt: d('2026-09-01'), paidUntil: d('2026-10-01') }, now, 5)).toBe(true);
     });
-    it('cancelada sempre bloqueia', () => {
-      expect(isBillingBlocked({ status: 'cancelled', trialEndsAt: d('2027-01-01'), paidUntil: d('2027-01-01') }, now, 5)).toBe(true);
+    it('cancelada bloqueia só depois do fim do período pago ou do teste (D3b-2b), sem tolerância', () => {
+      expect(isBillingBlocked({ status: 'cancelled', trialEndsAt: d('2027-01-01'), paidUntil: d('2027-01-01') }, now, 5)).toBe(false);
+      expect(isBillingBlocked({ status: 'cancelled', trialEndsAt: d('2026-09-01'), paidUntil: d('2026-10-01') }, now, 5)).toBe(true);
+      expect(isBillingBlocked({ status: 'cancelled', trialEndsAt: d('2026-10-18'), paidUntil: null }, now, 5)).toBe(true);
     });
   });
 

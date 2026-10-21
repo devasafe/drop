@@ -14,6 +14,8 @@ export const STORE_LINKS = {
   verification: '/seller/abrir',
   money: '/seller/dinheiro',
   ratings: '/seller/avaliacoes',
+  /** D3b-2b: tela da mensalidade (aviso de cancelamento). */
+  subscription: '/seller/assinatura',
 } as const;
 
 export interface StoreNotice {
