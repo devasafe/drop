@@ -1,9 +1,13 @@
 /**
- * Ficha da loja (D3b-2a, spec 6 e 7). Permissão store:view_all.
+ * Ficha da loja (D3b-2a, spec 6 e 7; D3b-2b, spec 9). Permissão store:view_all.
  * GET /admin/stores/:id → resumo (com o dono e a pausa do DROP), números de 30 dias, avaliações, recebimento,
- * plano (só leitura na 2a), pedidos, histórico e `can`. "Pausar loja" pede motivo e confirmação; "Liberar loja"
- * só aparece com a loja pausada pelo DROP. O dono abre a ficha da pessoa. Releitura silenciosa depois de cada
- * ação (padrão D3b-1); 409 de estado: a mensagem fica na folha e a ficha relê.
+ * plano, pedidos, histórico e `can`.
+ * - "Pausar loja" pede motivo e confirmação; "Liberar loja" só aparece com a loja pausada pelo DROP.
+ * - D3b-2b: "Estender teste" (7, 14 ou 30 dias, com motivo) e "Cancelar mensalidade" (motivo e o nome da loja
+ *   digitado), conforme `can` e o status da mensalidade. O plano cancelado diz até quando a loja vende, e o CEO vê
+ *   "Conta Asaas · histórico".
+ * - O dono abre a ficha da pessoa. Releitura silenciosa depois de cada ação (padrão D3b-1). No 409 de estado, a
+ *   mensagem fica na folha e a ficha relê.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -15,7 +19,9 @@ import { Kpi } from '../../../components/admin/Kpi';
 import { LoadError, LoadSkeleton } from '../../../components/admin/LoadState';
 import { StatusTag } from '../../../components/admin/StatusTag';
 import ui from '../../../components/admin/accounts/Accounts.module.css';
+import { AsaasHistory } from '../../../components/admin/accounts/AsaasHistory';
 import { ReasonSheet } from '../../../components/admin/accounts/ReasonSheet';
+import { CancelSaasSheet, ExtendTrialSheet } from '../../../components/admin/accounts/SaasSheets';
 import { Timeline } from '../../../components/admin/accounts/Timeline';
 import { Alert } from '../../../components/ui/Alert';
 import { Button } from '../../../components/ui/Button';
@@ -24,11 +30,14 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { shortId } from '../../../lib/adminMoney';
 import { adminOrderStatus } from '../../../lib/adminOps';
 import {
-  RECEIVING_TAG, SAAS_STATUS_LABEL, STORE_MODE_LABEL, STORE_SITUATION, accountErrorMessage, addStoreNote, adminPauseNote,
-  fetchStoreDetail, fetchStoreTimeline, flattenAccountError, isAccountConflict, pauseStore, planLabel, ratingLabel, spDate,
-  unpauseStore, type StoreDetail, type TimelineResponse,
+  RECEIVING_TAG, STORE_MODE_LABEL, STORE_SITUATION, accountErrorMessage, addStoreNote, adminPauseNote, cancelSaas,
+  extendTrial, fetchStoreDetail, fetchStoreTimeline, flattenAccountError, isAccountConflict, pauseStore, planLabel,
+  ratingLabel, saasCoverageEnd, saasPlanText, spDate, unpauseStore, type StoreDetail, type StoreSaas,
+  type TimelineResponse, type TrialDays,
 } from '../../../lib/adminAccounts';
 import { formatMoney } from '../../../lib/money';
+
+type SheetKind = 'pause' | 'unpause' | 'extend' | 'cancelSaas';
 
 export default function AdminLojaFichaPage() {
   return (
@@ -48,7 +57,7 @@ function FichaLoja() {
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [staleError, setStaleError] = useState(false);
-  const [sheet, setSheet] = useState<'pause' | 'unpause' | null>(null);
+  const [sheet, setSheet] = useState<SheetKind | null>(null);
   const req = useRef(0);
   const hasData = useRef(false);
 
@@ -87,7 +96,8 @@ function FichaLoja() {
     });
   };
 
-  const runAction = async (run: () => Promise<void>, done: string) => {
+  /** `done` pode ser uma função: o texto do aviso sai da resposta da ação (ex.: a data nova do teste). */
+  const runAction = async (run: () => Promise<void>, done: string | (() => string)) => {
     try {
       await run();
     } catch (err) {
@@ -95,7 +105,7 @@ function FichaLoja() {
       throw flattenAccountError(err);
     }
     setSheet(null);
-    showToast(done, 'success');
+    showToast(typeof done === 'string' ? done : done(), 'success');
     void load(true);
   };
 
@@ -106,10 +116,22 @@ function FichaLoja() {
   };
 
   const p = detail?.profile;
+  const saas = detail?.plan.saas ?? null;
   const paused = !!p?.adminPause;
   const showPause = !!detail && detail.can.pause && !paused;
   const showUnpause = !!detail && detail.can.unpause && paused;
-  const withBar = showPause || showUnpause;
+  // A tela confere o estado além do `can` (como na 2a): estender só em teste; cancelar só o que não está cancelado.
+  const showExtend = !!detail && detail.can.extendTrial && saas?.status === 'trialing';
+  const showCancelSaas = !!detail && detail.can.cancelSaas && !!saas && saas.status !== 'cancelled';
+  const withBar = showPause || showUnpause || showExtend || showCancelSaas;
+
+  const extend = (storeId: string, days: TrialDays, reason: string) => {
+    let saved: StoreSaas | null = null;
+    return runAction(
+      async () => { saved = await extendTrial(storeId, days, reason); },
+      () => (saved?.trialEndsAt ? `Teste estendido até ${spDate(saved.trialEndsAt)}.` : 'Teste estendido.'),
+    );
+  };
 
   return (
     <AdminShell title={p ? p.name : 'Loja'}>
@@ -154,6 +176,12 @@ function FichaLoja() {
                 )}
                 {showUnpause && (
                   <Button variant="secondary" className={ui.touch} onClick={() => setSheet('unpause')}>Liberar loja</Button>
+                )}
+                {showExtend && (
+                  <Button variant="secondary" className={ui.touch} onClick={() => setSheet('extend')}>Estender teste</Button>
+                )}
+                {showCancelSaas && (
+                  <Button variant="danger" className={ui.touch} onClick={() => setSheet('cancelSaas')}>Cancelar mensalidade</Button>
                 )}
               </div>
             )}
@@ -215,16 +243,19 @@ function FichaLoja() {
                   {detail.receiving.detail && <p className={blocks.muted}>{detail.receiving.detail}</p>}
                 </section>
 
+                {detail.asaasHistory && <AsaasHistory history={detail.asaasHistory} />}
+
                 <section className={blocks.block} aria-label="Plano">
                   <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Plano</h2></div>
                   <dl className={ui.facts}>
                     <div><dt>Modo</dt><dd>{STORE_MODE_LABEL[detail.plan.mode]}</dd></div>
                     {detail.plan.plan !== null && <div><dt>Plano</dt><dd>{planLabel(detail.plan.plan)}</dd></div>}
-                    {detail.plan.saas && (
+                    {saas && (
                       <>
-                        <div><dt>Mensalidade</dt><dd>{SAAS_STATUS_LABEL[detail.plan.saas.status]}</dd></div>
-                        {detail.plan.saas.trialEndsAt && <div><dt>Teste até</dt><dd>{spDate(detail.plan.saas.trialEndsAt)}</dd></div>}
-                        {detail.plan.saas.paidUntil && <div><dt>Pago até</dt><dd>{spDate(detail.plan.saas.paidUntil)}</dd></div>}
+                        <div><dt>Mensalidade</dt><dd>{saasPlanText(saas)}</dd></div>
+                        {saas.cancelledAt && <div><dt>Cancelada em</dt><dd>{spDate(saas.cancelledAt)}</dd></div>}
+                        {saas.trialEndsAt && <div><dt>Teste até</dt><dd>{spDate(saas.trialEndsAt)}</dd></div>}
+                        {saas.paidUntil && <div><dt>Pago até</dt><dd>{spDate(saas.paidUntil)}</dd></div>}
                       </>
                     )}
                   </dl>
@@ -281,6 +312,24 @@ function FichaLoja() {
               onConfirm={(reason) => runAction(() => unpauseStore(p.id, reason), 'Loja liberada.')}
               onClose={() => setSheet(null)}
             />
+            {saas && (
+              <>
+                <ExtendTrialSheet
+                  open={sheet === 'extend'}
+                  storeName={p.name}
+                  trialEndsAt={saas.trialEndsAt}
+                  onConfirm={(days, reason) => extend(p.id, days, reason)}
+                  onClose={() => setSheet(null)}
+                />
+                <CancelSaasSheet
+                  open={sheet === 'cancelSaas'}
+                  storeName={p.name}
+                  coverageEnd={saasCoverageEnd(saas)}
+                  onConfirm={(reason) => runAction(async () => { await cancelSaas(p.id, reason); }, 'Mensalidade cancelada.')}
+                  onClose={() => setSheet(null)}
+                />
+              </>
+            )}
           </>
         )}
       </div>
