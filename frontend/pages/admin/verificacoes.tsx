@@ -1,3 +1,11 @@
+/**
+ * Verificações (D3a, telas 2 e 9; D3b-2b, spec 8). Mesma proteção de hoje: verification:view_queue.
+ * D3b-2b · P3.2:
+ * - "Aprovar tudo" é a rota única do servidor (uma chamada por sujeito, approveAllUrl). O 409
+ *   VERIFICATION_CHANGED relê e avisa o que está pendente agora;
+ * - a recusa usa os motivos padronizados e "Pedir reenvio";
+ * - cada item mostra há quanto tempo espera, e a média de espera fica no topo.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
@@ -6,21 +14,34 @@ import { EmptyNote, LoadError, LoadSkeleton } from '../../components/admin/LoadS
 import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
-import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_DESKTOP_MIN, useMinWidth } from '../../hooks/useMinWidth';
 import { adminErrorMessage, isHttpStatus } from '../../lib/adminErrors';
-import { batchSummaryText, retryFailed, runBatch, type BatchOptions, type BatchResult } from '../../lib/runBatch';
+import { batchSummaryText, runBatch } from '../../lib/runBatch';
 import {
+  approveAllUrl,
+  avgWaitText,
+  buildRejectBody,
   buildVerificationPeople,
-  composeRejectReason,
   isVerificationAlreadyDecided,
+  isVerificationChanged,
+  isVerificationStats,
+  oldestSubmittedAt,
   PERSON_KIND_LABEL,
+  REJECT_MESSAGE_MAX,
+  REJECT_REASONS,
+  rejectReady,
   VERIFICATION_PERMISSIONS,
+  verificationChangedText,
+  waitingText,
+  type ApproveAllCall,
   type PersonKind,
   type VerificationItem,
   type VerificationPerson,
+  type VerificationRejectReason,
+  type VerificationStats,
 } from '../../lib/adminVerificacoes';
 import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
@@ -35,11 +56,11 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'cliente', label: 'Clientes' },
 ];
 
-/** O item saiu da fila desde a leitura: erro com a mensagem, nunca "feito". */
-const MISSING_ITEM = 'Esse item não está mais na fila. Atualize a lista.';
-const missingItemError = () => Object.assign(new Error(MISSING_ITEM), { response: { data: { error: MISSING_ITEM } } });
+/** Primeira opção vazia: o item só pode ser recusado depois de escolher o motivo. */
+const REASON_OPTIONS = [{ value: '', label: 'Escolha o motivo' }, ...REJECT_REASONS];
 
 const itemsWord = (n: number) => (n === 1 ? '1 item' : `${n} itens`);
+const approvedText = (n: number) => (n === 1 ? '1 item aprovado' : `${n} itens aprovados`);
 const domId = (key: string) => `verif-${key.replace(/[^a-z0-9]/gi, '-')}`;
 
 /** Verificações (D3a, telas 2 e 9). Mesma proteção de hoje: verification:view_queue. */
@@ -63,32 +84,36 @@ function VerificacoesScreen() {
 
   const [people, setPeople] = useState<VerificationPerson[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [stats, setStats] = useState<VerificationStats | 'error' | null>(null);
   const [filter, setFilter] = useState<Filter>('todos');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  // O resultado do lote fica preso à pessoa dele: nunca aparece nem é reenviado com outra pessoa aberta.
-  const [batch, setBatch] = useState<{ personId: string; result: BatchResult } | null>(null);
-  const [batchBusy, setBatchBusy] = useState(false);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [busyItem, setBusyItem] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
-  const [marked, setMarked] = useState<Record<string, string>>({});
+  const [marked, setMarked] = useState<Record<string, VerificationRejectReason | ''>>({});
   const [mensagem, setMensagem] = useState('');
+  const [resend, setResend] = useState(true);
   const [rejectErrors, setRejectErrors] = useState<Record<string, string>>({});
-  const abortRef = useRef<AbortController | null>(null);
-  // Contra clique duplo: marcado antes de qualquer setState (um lote por vez).
-  const batchRunning = useRef(false);
-
-  // Recusa em lote tem o próprio controlador (pode rodar enquanto o "Aprovar tudo" de outra pessoa termina).
+  const alive = useRef(true);
+  // Leitura nova descarta a resposta atrasada da anterior.
+  const loadReq = useRef(0);
+  // Contra clique duplo: marcado antes de qualquer setState (um "Aprovar tudo" por vez).
+  const approveAllRunning = useRef(false);
   const rejectAbortRef = useRef<AbortController | null>(null);
 
-  // Fechar a tela no meio do "Aprovar tudo" ou da recusa para o lote (spec 6.2). Abort só na desmontagem.
-  useEffect(() => () => {
-    abortRef.current?.abort();
-    rejectAbortRef.current?.abort();
+  // Fechar a tela para a recusa em lote e nada mais mexe no estado (spec D3a 6.2).
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      rejectAbortRef.current?.abort();
+    };
   }, []);
 
   // Só lê a fila que o papel pode ler (cada rota exige a sua permissão).
   const load = useCallback(async () => {
+    const n = ++loadReq.current;
     setLoadError(null);
     try {
       const [d, s, m] = await Promise.all([
@@ -96,6 +121,7 @@ function VerificacoesScreen() {
         canStores ? api.get('/verification/admin/store-pending') : Promise.resolve(null),
         canMotoboys ? api.get('/verification/admin/motoboy-pending') : Promise.resolve(null),
       ]);
+      if (n !== loadReq.current || !alive.current) return;
       setPeople(buildVerificationPeople({
         docs: d?.data?.items || [],
         stores: s?.data?.stores || [],
@@ -103,18 +129,41 @@ function VerificacoesScreen() {
         motoboys: m?.data?.items || [],
       }));
     } catch (err) {
+      if (n !== loadReq.current || !alive.current) return;
       setLoadError(isHttpStatus(err, 403) ? adminErrorMessage(err) : 'Não deu para carregar as verificações.');
     }
   }, [canClients, canStores, canMotoboys]);
 
   useEffect(() => { void load(); }, [load]);
 
+  // Média de espera (spec 8): leitura à parte; falha ou formato errado não esconde a fila.
+  useEffect(() => {
+    let off = false;
+    api.get('/verification/admin/stats')
+      .then((r) => { if (!off) setStats(isVerificationStats(r?.data) ? r.data : 'error'); })
+      .catch(() => { if (!off) setStats('error'); });
+    return () => { off = true; };
+  }, []);
+
   const all = people ?? [];
   const visible = all.filter((p) => filter === 'todos' || p.kind === filter);
   const selected = visible.find((p) => p.id === selectedId) ?? visible[0] ?? null;
-  const personBatch = batch && selected && batch.personId === selected.id ? batch.result : null;
 
   const decidable = (p: VerificationPerson) => p.items.filter((i) => can(i.permission));
+
+  /**
+   * Chamadas do "Aprovar tudo" só com os itens que o admin decide (o servidor exige a permissão de cada item e
+   * compara só esses com o pendente). Vazio = sem botão: nenhum item decidível ou falta a permissão do sujeito
+   * de alguma chamada (o servidor responderia 403).
+   */
+  const approveCalls = (p: VerificationPerson): ApproveAllCall[] => {
+    const permissionOf = new Map(p.items.map((i) => [i.key, i.permission]));
+    const calls = approveAllUrl(p).map((c) => {
+      const keep = c.keys.map((k, n) => ({ k, kind: c.items[n] })).filter((x) => can(permissionOf.get(x.k) ?? ''));
+      return { ...c, keys: keep.map((x) => x.k), items: keep.map((x) => x.kind) };
+    }).filter((c) => c.items.length > 0);
+    return calls.length > 0 && calls.every((c) => can(c.permission)) ? calls : [];
+  };
 
   const approveOne = async (item: VerificationItem) => {
     setBusyItem(item.key);
@@ -130,49 +179,45 @@ function VerificacoesScreen() {
     }
   };
 
-  // Chave que não é da pessoa nunca conta como feita (falha com aviso, sem POST).
-  const sendApprove = (p: VerificationPerson) => async (key: string) => {
-    const item = p.items.find((i) => i.key === key);
-    if (!item) throw missingItemError();
-    await api.post(item.approveUrl);
-  };
-
-  // O lote começa no clique (nunca num efeito).
-  const approveAll = async (p: VerificationPerson, previous?: BatchResult) => {
-    if (batchRunning.current) return;
-    batchRunning.current = true;
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setBatchBusy(true);
+  // "Aprovar tudo" começa no clique: uma chamada por sujeito, em ordem; para na primeira falha.
+  const approveAll = async (calls: ApproveAllCall[]) => {
+    if (approveAllRunning.current) return;
+    approveAllRunning.current = true;
+    setApprovingAll(true);
+    let approved = 0;
     try {
-      const opts: BatchOptions<string> = {
-        isAlreadyDone: isVerificationAlreadyDecided,
-        onProgress: (r) => { if (!ctrl.signal.aborted) setBatch({ personId: p.id, result: r }); },
-        signal: ctrl.signal,
-      };
-      const r = previous
-        ? await retryFailed(previous, sendApprove(p), opts)
-        : await runBatch(decidable(p).map((i) => i.key), sendApprove(p), opts);
-      if (ctrl.signal.aborted) return;
-      setBatch({ personId: p.id, result: r });
-      setBatchBusy(false);
-      // K6: "concluídos", nunca "aprovados" (o 400 "não está pendente" conta como feito, mas pode ter sido recusa).
-      showToast(batchSummaryText(r, { one: 'concluído', many: 'concluídos' }), r.failed.length > 0 ? 'error' : 'success');
-      await load();
+      for (const call of calls) {
+        await api.post(call.url, { items: call.items });
+        approved += call.items.length;
+      }
+      if (alive.current) showToast(`${approvedText(approved)}.`, 'success');
+    } catch (err) {
+      if (alive.current) {
+        const before = approved > 0 ? `${approvedText(approved)}. ` : '';
+        const why = isVerificationChanged(err) ? verificationChangedText(err) : adminErrorMessage(err);
+        showToast(`${before}${why}`, 'error');
+      }
     } finally {
-      batchRunning.current = false;
+      approveAllRunning.current = false;
+      if (alive.current) {
+        setApprovingAll(false);
+        await load();
+      }
     }
   };
 
   const openReject = (preselect?: string) => {
     setMarked(preselect ? { [preselect]: '' } : {});
     setMensagem('');
+    setResend(true);
     setRejectErrors({});
     setRejectOpen(true);
   };
 
   const markedItems = selected ? decidable(selected).filter((i) => i.key in marked) : [];
-  const rejectReady = markedItems.length > 0 && markedItems.every((i) => marked[i.key].trim() !== '');
+  const codes = markedItems.map((i) => marked[i.key]);
+  const ready = rejectReady(codes, mensagem);
+  const needsMessage = codes.includes('other');
 
   const sendRejects = async () => {
     if (!selected) return;
@@ -183,7 +228,8 @@ function VerificacoesScreen() {
       markedItems.map((i) => i.key),
       async (key) => {
         const item = p.items.find((i) => i.key === key);
-        if (item) await api.post(item.rejectUrl, { reason: composeRejectReason(marked[key], mensagem) });
+        const code = marked[key];
+        if (item && code) await api.post(item.rejectUrl, buildRejectBody(code, mensagem, resend));
       },
       { isAlreadyDone: isVerificationAlreadyDecided, signal: ctrl.signal },
     );
@@ -193,7 +239,7 @@ function VerificacoesScreen() {
       setRejectOpen(false);
       showToast(summary, 'success');
     } else {
-      // A sheet fica aberta só com os que falharam: enviar de novo não repete o que deu certo.
+      // A folha fica aberta só com os que falharam: enviar de novo não repete o que deu certo.
       setRejectErrors(r.errors);
       setMarked((m) => Object.fromEntries(Object.entries(m).filter(([k]) => r.failed.includes(k))));
       showToast(summary, 'error');
@@ -213,12 +259,12 @@ function VerificacoesScreen() {
 
   const itemCard = (item: VerificationItem) => {
     const titleId = domId(item.key);
-    const state = personBatch?.states[item.key];
-    const error = state === 'failed' ? personBatch?.errors[item.key] : undefined;
+    const wait = waitingText(item.submittedAt);
     return (
       <article key={item.key} className={styles.doc} aria-labelledby={titleId}>
         <h3 id={titleId} className={styles.docTitle}>{item.label}</h3>
         {item.detail && <p className={blocks.muted}>{item.detail}</p>}
+        {wait && <p className={blocks.muted}>{`Enviado ${wait}`}</p>}
         {item.images.length > 0 && (
           <div className={styles.thumbs}>
             {item.images.map((img) => (
@@ -229,16 +275,14 @@ function VerificacoesScreen() {
             ))}
           </div>
         )}
-        {state === 'sending' && <p className={blocks.muted} role="status">Enviando…</p>}
-        {error && <p className={blocks.errText}>{error}</p>}
         {can(item.permission) && (
           <div className={blocks.actions}>
             <Button size="sm" variant="secondary" className={form.touch} aria-describedby={titleId}
-              disabled={batchBusy || busyItem !== null} onClick={() => openReject(item.key)}>
+              disabled={approvingAll || busyItem !== null} onClick={() => openReject(item.key)}>
               Recusar
             </Button>
             <Button size="sm" className={form.touch} aria-describedby={titleId}
-              loading={busyItem === item.key} disabled={batchBusy || busyItem !== null} onClick={() => void approveOne(item)}>
+              loading={busyItem === item.key} disabled={approvingAll || busyItem !== null} onClick={() => void approveOne(item)}>
               Aprovar
             </Button>
           </div>
@@ -253,17 +297,20 @@ function VerificacoesScreen() {
     <ul className={styles.people} aria-label="Pessoas aguardando">
       {visible.map((p) => {
         const on = desktop && p.id === selected?.id;
+        const wait = waitingText(oldestSubmittedAt(p));
         return (
           <li key={p.id}>
             <button
               type="button"
               className={on ? `${styles.person} ${styles.personOn}` : styles.person}
               aria-current={on ? 'true' : undefined}
-              disabled={batchBusy}
+              disabled={approvingAll}
               onClick={() => { setSelectedId(p.id); setShowDetail(true); }}
             >
               <span className={styles.personName}>{p.name}</span>
-              <span className={styles.personMeta}>{PERSON_KIND_LABEL[p.kind]} · {itemsWord(p.items.length)}</span>
+              <span className={styles.personMeta}>
+                {[PERSON_KIND_LABEL[p.kind], itemsWord(p.items.length), wait].filter(Boolean).join(' · ')}
+              </span>
             </button>
           </li>
         );
@@ -271,6 +318,7 @@ function VerificacoesScreen() {
     </ul>
   );
 
+  const selectedCalls = selected ? approveCalls(selected) : [];
   const detailView = selected && (
     <section className={styles.detail} aria-labelledby="verificacao-pessoa">
       {!desktop && (
@@ -285,27 +333,31 @@ function VerificacoesScreen() {
       <div className={styles.docs}>{selected.items.map(itemCard)}</div>
       {decidable(selected).length > 0 && (
         <div className={styles.footer}>
-          {personBatch && personBatch.failed.length > 0 && !batchBusy && (
-            <Button variant="secondary" className={form.touch} onClick={() => void approveAll(selected, personBatch)}>
-              Tentar de novo os que falharam
-            </Button>
-          )}
-          <Button variant="secondary" className={form.touch} disabled={batchBusy} onClick={() => openReject()}>
+          <Button variant="secondary" className={form.touch} disabled={approvingAll} onClick={() => openReject()}>
             Recusar com motivo
           </Button>
-          <Button className={form.touch} loading={batchBusy} disabled={batchBusy || busyItem !== null}
-            onClick={() => void approveAll(selected)}>
-            Aprovar tudo
-          </Button>
+          {selectedCalls.length > 0 && (
+            <Button className={form.touch} loading={approvingAll} disabled={approvingAll || busyItem !== null}
+              onClick={() => void approveAll(selectedCalls)}>
+              Aprovar tudo
+            </Button>
+          )}
         </div>
       )}
     </section>
   );
 
   const n = markedItems.length;
+  const rejectLabel = resend
+    ? (n === 0 ? 'Pedir reenvio' : `Pedir reenvio de ${itemsWord(n)}`)
+    : (n === 0 ? 'Recusar' : `Recusar ${itemsWord(n)}`);
+  const statsText = stats === null
+    ? 'Calculando a espera média…'
+    : stats === 'error' ? 'Espera média indisponível agora.' : avgWaitText(stats);
 
   return (
     <div className={styles.page}>
+      <p className={blocks.muted}>{statsText}</p>
       {loadError ? (
         <LoadError message={loadError} onRetry={() => { setPeople(null); void load(); }} />
       ) : people === null ? (
@@ -321,7 +373,7 @@ function VerificacoesScreen() {
               items={FILTERS.map((f) => ({ id: f.id, label: f.label, count: countOf(f.id) }))}
               value={filter}
               onChange={(id) => {
-                if (batchBusy) return; // a pessoa aberta não muda no meio do lote
+                if (approvingAll) return; // a pessoa aberta não muda no meio do "Aprovar tudo"
                 setFilter(id as Filter);
                 setShowDetail(false);
               }}
@@ -339,25 +391,20 @@ function VerificacoesScreen() {
         open={rejectOpen && selected !== null}
         title={selected ? `Recusar ${selected.name}` : 'Recusar'}
         onClose={() => setRejectOpen(false)}
-        primary={{
-          label: n === 0 ? 'Pedir reenvio' : `Pedir reenvio de ${itemsWord(n)}`,
-          tone: 'danger',
-          onClick: sendRejects,
-          disabled: !rejectReady,
-        }}
+        primary={{ label: rejectLabel, tone: 'danger', onClick: sendRejects, disabled: !ready }}
       >
-        <p className={blocks.muted}>Marque só o que precisa ser reenviado. Os itens não marcados continuam aguardando.</p>
+        <p className={blocks.muted}>Marque só o que precisa ser recusado. Os itens não marcados continuam aguardando.</p>
         {selected && decidable(selected).map((item) => {
           const on = item.key in marked;
           return (
             <div key={item.key} className={styles.rejectItem}>
               <Checkbox label={item.label} checked={on} onChange={(c) => toggleMark(item.key, c)} />
               {on && (
-                <Input
+                <Select
                   label={`Motivo · ${item.label}`}
                   value={marked[item.key]}
-                  placeholder="Ex.: foto ilegível, documento vencido, selfie não confere"
-                  onChange={(v) => setMarked((m) => ({ ...m, [item.key]: v }))}
+                  options={REASON_OPTIONS}
+                  onChange={(v) => setMarked((m) => ({ ...m, [item.key]: v as VerificationRejectReason | '' }))}
                 />
               )}
               {rejectErrors[item.key] && <p className={blocks.errText}>{rejectErrors[item.key]}</p>}
@@ -365,10 +412,22 @@ function VerificacoesScreen() {
           );
         })}
         <label className={form.field}>
-          <span className={form.fieldLabel}>Mensagem para a pessoa (opcional)</span>
-          <textarea className={form.textarea} rows={3} value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
+          <span className={form.fieldLabel}>Mensagem para a pessoa</span>
+          <textarea
+            className={form.textarea}
+            rows={3}
+            maxLength={REJECT_MESSAGE_MAX}
+            value={mensagem}
+            onChange={(e) => setMensagem(e.target.value)}
+          />
         </label>
-        <p className={blocks.muted}>Cada item recusado leva o texto “motivo. mensagem”.</p>
+        <p className={needsMessage && mensagem.trim() === '' ? blocks.errText : blocks.muted}>
+          {`${needsMessage ? 'Obrigatória com “Outro motivo”.' : 'Opcional.'} Até ${REJECT_MESSAGE_MAX} caracteres.`}
+        </p>
+        <Checkbox label="Pedir reenvio" checked={resend} onChange={setResend} />
+        <p className={blocks.muted}>
+          {resend ? 'A pessoa vê “Reenvie: motivo” e manda de novo.' : 'A pessoa vê “Recusado: motivo” e ainda pode mandar de novo.'}
+        </p>
       </AdminSheet>
     </div>
   );

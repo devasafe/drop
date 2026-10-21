@@ -28,7 +28,15 @@ export const MOTOBOY = {
   },
 };
 
-export interface QueueFixture { pending?: unknown[]; stores?: unknown[]; facial?: unknown[]; motoboys?: unknown[] }
+/** `stats` (D3b-2b): a resposta de GET /verification/admin/stats, ou um Error para a leitura falhar. */
+export interface QueueFixture { pending?: unknown[]; stores?: unknown[]; facial?: unknown[]; motoboys?: unknown[]; stats?: unknown }
+
+export const STATS_URL = '/verification/admin/stats';
+
+/** Só as leituras das filas (sem a média de espera), na ordem em que foram feitas. */
+export function queueCalls(get: jest.Mock): string[] {
+  return get.mock.calls.map((c) => String(c[0])).filter((u) => u !== STATS_URL);
+}
 
 /** Paulo (lojista: documento, selfie, CNPJ, endereço), Carlos (motoboy: selfie, CNH e placa), Ana (cliente: documento). */
 export const FULL: QueueFixture = { pending: [CLIENTE, PAULO_DOC], stores: [LOJA], facial: [PAULO_FACIAL], motoboys: [MOTOBOY] };
@@ -39,6 +47,11 @@ export function queuesGet(q: QueueFixture) {
     if (url === '/verification/admin/pending') return Promise.resolve({ data: { count: (q.pending ?? []).length, items: q.pending ?? [] } });
     if (url === '/verification/admin/store-pending') return Promise.resolve({ data: { stores: q.stores ?? [], facialPendingOwners: q.facial ?? [] } });
     if (url === '/verification/admin/motoboy-pending') return Promise.resolve({ data: { count: (q.motoboys ?? []).length, items: q.motoboys ?? [] } });
+    if (url === STATS_URL) {
+      return q.stats instanceof Error
+        ? Promise.reject(q.stats)
+        : Promise.resolve({ data: q.stats ?? { avgHoursToDecision: null, decisions30d: 0 } });
+    }
     return Promise.reject(new Error(`GET inesperado: ${url}`));
   };
 }

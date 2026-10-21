@@ -1,12 +1,12 @@
 /**
  * D3a · P3.2 · caracterização de /admin/verificacoes: as três filas lidas e o "Aprovar" de cada tipo de item
  * (POST sem corpo). Escrito contra a página antiga e mantido SEM mudança na nova.
- * A recusa muda de propósito (prompt → AdminSheet com texto composto) e é coberta em admin-verificacoes.test.tsx.
+ * A recusa muda de propósito (prompt → AdminSheet; D3b-2b: motivo padronizado) e é coberta em admin-verificacoes.test.tsx. D3b-2b: a tela também lê a média de espera; aqui contam só as filas.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdminVerificacoesPage from '../pages/admin/verificacoes';
 import api from '../lib/api';
-import { CLIENTE, LOJA, MOTOBOY, PAULO_FACIAL, queuesGet, type QueueFixture } from './helpers/verificacoesFixtures';
+import { CLIENTE, LOJA, MOTOBOY, PAULO_FACIAL, queueCalls, queuesGet, type QueueFixture } from './helpers/verificacoesFixtures';
 
 const mockMe = { _id: 'me', id: 'me', name: 'Marina Rocha', role: 'ceo', activeRole: 'ceo' };
 
@@ -31,8 +31,8 @@ beforeEach(() => {
 test('CEO: lê as três filas', async () => {
   (api.get as jest.Mock).mockImplementation(queuesGet({}));
   render(<AdminVerificacoesPage />);
-  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(3));
-  expect((api.get as jest.Mock).mock.calls.map((c) => c[0]).sort()).toEqual([
+  await waitFor(() => expect(queueCalls(api.get as jest.Mock)).toHaveLength(3));
+  expect(queueCalls(api.get as jest.Mock).sort()).toEqual([
     '/verification/admin/motoboy-pending',
     '/verification/admin/pending',
     '/verification/admin/store-pending',

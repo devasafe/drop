@@ -1,5 +1,5 @@
 import {
-  buildVerificationPeople, composeRejectReason, formatStoreAddress, isVerificationAlreadyDecided,
+  buildVerificationPeople, formatStoreAddress, isVerificationAlreadyDecided,
 } from '../adminVerificacoes';
 import { CLIENTE, FULL, LOJA, MOTOBOY, PAULO_DOC, PAULO_FACIAL } from '../../__tests__/helpers/verificacoesFixtures';
 
@@ -72,14 +72,6 @@ describe('formatStoreAddress', () => {
     expect(formatStoreAddress(LOJA)).toBe('Rua Augusta, 100 — Consolação · São Paulo · SP — CEP 01305-000');
     expect(formatStoreAddress({ address: 'Av. Paulista, 1000' })).toBe('Av. Paulista, 1000');
     expect(formatStoreAddress({})).toBe('');
-  });
-});
-
-describe('composeRejectReason (texto composto no front, spec 5.1)', () => {
-  it('motivo e mensagem viram uma frase só, sem ponto dobrado nem ponto final (o servidor já acrescenta ". Corrija…")', () => {
-    expect(composeRejectReason('Selfie não confere.', 'Envie de novo pelo app.')).toBe('Selfie não confere. Envie de novo pelo app');
-    expect(composeRejectReason('  Foto ilegível  ', '')).toBe('Foto ilegível');
-    expect(composeRejectReason('Documento vencido', '  ')).toBe('Documento vencido');
   });
 });
 

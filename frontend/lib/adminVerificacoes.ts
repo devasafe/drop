@@ -224,17 +224,6 @@ export function buildVerificationPeople({ docs, stores, facialOwners, motoboys }
     .filter((p) => p.items.length > 0);
 }
 
-/**
- * Recusa por item (spec 5.1): o servidor guarda um texto só; motivo e mensagem viram "Motivo. Mensagem".
- * Sem ponto final: o aviso do servidor já acrescenta ". Corrija e envie de novo." (pré-voo F19).
- * A Task 3.2 apaga esta função (a recusa passa a mandar {reasonCode, message?, resend}).
- */
-export function composeRejectReason(motivo: string, mensagem = ''): string {
-  const m = motivo.trim().replace(/[.\s]+$/, '');
-  const msg = mensagem.trim().replace(/[.\s]+$/, '');
-  return msg ? `${m}. ${msg}` : m;
-}
-
 const NOT_PENDING = /não (está|estão) pendentes?/i;
 
 /**
