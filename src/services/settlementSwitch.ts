@@ -14,10 +14,6 @@ export const CONFIRM_PHRASE: Record<SettlementMode, string> = {
   direto: 'TROCAR PARA SAAS',
 };
 
-// Fases do modo direto ainda não implementadas. Virar para true quando a fase entrar.
-const DIRECT_MOTOBOY_PIX_READY = false; // Fase 2
-const DIRECT_REFUND_READY = false; // Fase 3
-
 const IN_FLIGHT = ['criado', 'pago', 'aguardando_motoboy', 'enviado'] as const;
 
 export interface SettlementPreview {
@@ -44,7 +40,7 @@ export async function countOpenCustody(): Promise<{ openPayouts: number; openWit
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export async function settlementSwitchPreview(to: SettlementMode): Promise<SettlementPreview> {
-  const { settlementMode: from } = await getSaasConfig();
+  const { settlementMode: from, directTransfersEnabled } = await getSaasConfig();
   const blockers: string[] = [];
   const risks: string[] = [];
 
@@ -86,12 +82,11 @@ export async function settlementSwitchPreview(to: SettlementMode): Promise<Settl
     const custodyBalance = wallets.reduce((acc, w) => acc + Number(w.balance) + Number(w.blockedBalance), 0);
     Object.assign(counts, { walletsWithBalance: wallets.length, openPayouts, storesWithoutAccount });
 
-    if (!DIRECT_MOTOBOY_PIX_READY) {
-      risks.push('O Pix automático da loja para o motoboy (Fase 2) ainda não existe: o motoboy entrega e não recebe.');
+    if (!directTransfersEnabled) {
+      risks.push('O Pix automático ao motoboy está desligado em Regras e taxas: com ele desligado, a loja paga o motoboy à mão.');
     }
-    if (!DIRECT_REFUND_READY) {
-      risks.push('O estorno pela conta da loja (Fase 3) ainda não existe: todo estorno fica pendente para o admin fazer à mão.');
-    }
+    // settleDirectRefund pede e executa o estorno; o job directRefunds repete o que o Asaas recusou.
+    risks.push('Estorno que o Asaas recusar é tentado de novo sozinho; se esgotar as tentativas, fica para o admin em Estornos.');
     if (wallets.length > 0) {
       risks.push(
         `${wallets.length} carteira(s) com saldo de custódia (${brl(custodyBalance)}): no SaaS o dono continua vendo e sacando esse saldo (menu "Saldo do modo anterior") até zerar.`,
