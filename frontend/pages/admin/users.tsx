@@ -1,97 +1,30 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+/**
+ * Usuários (D3b-2a, spec 6 e 7). Permissão user:view_all (a mesma de antes).
+ * GET /admin/users?q=&tab=&withDebt=1&cursor= → lista paginada do servidor, 30 por página, "Carregar mais".
+ * Busca no servidor 300 ms depois da última tecla: nome ou e-mail em parte, CPF e telefone completos (com ou sem
+ * máscara; quem tira a máscara é o servidor). Abas e "Com dívida" também vão na query.
+ * A lista é só de leitura: a linha abre a ficha (/admin/users/[id]), onde ficam bloquear, desconectar, papéis e
+ * perdoar. Só a última leitura vale (busca, aba e filtro podem se cruzar).
+ */
+import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
-import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
-import { AdminSheet, type AdminSheetPrimary } from '../../components/admin/AdminSheet';
-import { StatusTag } from '../../components/admin/StatusTag';
-import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
-import { SearchField } from '../../components/ui/SearchField';
-import { Checkbox } from '../../components/ui/Checkbox';
-import { Button } from '../../components/ui/Button';
-import { useToast } from '../../components/ui/Toast';
-import { useAuth } from '../../contexts/AuthContext';
-import { adminErrorMessage, isConflictWithCode, isHttpStatus } from '../../lib/adminErrors';
-import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
-import form from '../../components/admin/pessoas/PessoasForm.module.css';
-import styles from '../../components/admin/pessoas/Usuarios.module.css';
+import { AdminTable, type AdminColumn } from '../../components/admin/AdminTable';
+import { StatusTag } from '../../components/admin/StatusTag';
+import ui from '../../components/admin/accounts/Accounts.module.css';
+import { Button } from '../../components/ui/Button';
+import { Chip } from '../../components/ui/Chip';
+import { SearchField } from '../../components/ui/SearchField';
+import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  SEARCH_DEBOUNCE_MS, USER_STATUS, USER_TABS, VERIFICATION_TAG, accountErrorMessage, fetchUsers, lastSeenLabel,
+  rolesText, type UserListItem, type UserTab,
+} from '../../lib/adminAccounts';
+import { formatMoney } from '../../lib/money';
 
-interface AdminUser {
-  _id: string;
-  name: string;
-  email: string;
-  /** Conta antiga: o servidor (D3b-2a) já manda tudo unido em `roles`; o campo pode faltar. */
-  role?: string;
-  roles?: string[];
-  activeRole?: string;
-  status: 'active' | 'inactive' | 'blocked';
-  blockedAt?: string;
-  blockReason?: string;
-  createdAt: string;
-}
-
-/** Papéis que PUT /admin/users/:id/roles aceita (ALLOWED_ROLES do servidor), com o rótulo da tela. */
-const ROLE_OPTIONS = [
-  { value: 'ceo', label: 'CEO' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'gerente_geral', label: 'Gerente geral' },
-  { value: 'gerente_clientes', label: 'Gerente de clientes' },
-  { value: 'gerente_lojistas', label: 'Gerente de lojistas' },
-  { value: 'gerente_motoboys', label: 'Gerente de motoboys' },
-  { value: 'lojista', label: 'Lojista' },
-  { value: 'cliente', label: 'Cliente' },
-  { value: 'motoboy', label: 'Motoboy' },
-];
-
-/** Papéis da equipe (ADMIN_ROLES do servidor): só o CEO atribui e só o CEO mexe em quem tem um deles. */
-const STAFF_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
-
-type UserTab = 'todos' | 'clientes' | 'lojistas' | 'motoboys' | 'equipe' | 'bloqueados';
-const TABS: { id: UserTab; label: string }[] = [
-  { id: 'todos', label: 'Todos' },
-  { id: 'clientes', label: 'Clientes' },
-  { id: 'lojistas', label: 'Lojistas' },
-  { id: 'motoboys', label: 'Motoboys' },
-  { id: 'equipe', label: 'Equipe' },
-  { id: 'bloqueados', label: 'Bloqueados' },
-];
-
-type ActionState =
-  | { type: 'none' }
-  | { type: 'edit-roles'; user: AdminUser; roles: string[]; error?: string }
-  | { type: 'block'; user: AdminUser; reason: string }
-  | { type: 'unblock'; user: AdminUser }
-  | { type: 'disconnect'; user: AdminUser };
-
-/**
- * Todos os papéis da pessoa, na ordem de ROLE_OPTIONS: `roles` mais `role` e `activeRole` se faltarem
- * (conta antiga) e sempre `cliente`. É o que a folha "Papéis" marca ao abrir.
- */
-const ROLE_ORDER = ROLE_OPTIONS.map((r) => r.value);
-const sortRoles = (roles: string[]) =>
-  [...roles].sort((a, b) => (ROLE_ORDER.indexOf(a) + 1 || 99) - (ROLE_ORDER.indexOf(b) + 1 || 99));
-const rolesOf = (u: AdminUser) =>
-  sortRoles(Array.from(new Set([...(u.roles ?? []), u.role, u.activeRole, 'cliente'].filter(Boolean) as string[])));
-/** Papéis além de cliente: o que a coluna mostra e o que tira a pessoa da aba "Clientes". */
-const extraRolesOf = (u: AdminUser) => rolesOf(u).filter((r) => r !== 'cliente');
-const roleLabel = (role?: string) => (role ? ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role : '—');
-const rolesText = (u: AdminUser) => (extraRolesOf(u).length ? extraRolesOf(u) : ['cliente']).map(roleLabel).join(' · ');
-const isStaff = (u: AdminUser) => [...(u.roles ?? []), u.role, u.activeRole].some((r) => !!r && STAFF_ROLES.includes(r));
-const sameRoles = (a: string[], b: string[]) => a.length === b.length && a.every((r) => b.includes(r));
-const createdAtText = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
-
-function inTab(u: AdminUser, tab: UserTab): boolean {
-  switch (tab) {
-    case 'clientes': return extraRolesOf(u).length === 0;
-    case 'lojistas': return rolesOf(u).includes('lojista');
-    case 'motoboys': return rolesOf(u).includes('motoboy');
-    case 'equipe': return rolesOf(u).some((r) => STAFF_ROLES.includes(r));
-    case 'bloqueados': return u.status === 'blocked';
-    default: return true;
-  }
-}
-
-/** Usuários (D3a, tela 10). Mesma proteção de hoje: user:view_all. */
 export default function AdminUsersPage() {
   return (
     <ProtectedRoute required_permission="user:view_all">
@@ -102,299 +35,153 @@ export default function AdminUsersPage() {
   );
 }
 
-/** Teto de páginas de 100 ao juntar a lista inteira; a tela nova (P3) pagina de verdade. */
-const USERS_MAX_PAGES = 50;
-
 function UsuariosScreen() {
-  const { user: me, can } = useAuth();
-  const { showToast } = useToast();
+  const { user: me } = useAuth();
   const myId = String(me?._id || me?.id || '');
-  const isCeo = (me?.activeRole || me?.role) === 'ceo';
-  const canRoles = can('user:manage_roles');
-  const canBlock = can('user:block');
 
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<UserTab>('todos');
   const [search, setSearch] = useState('');
-  const [action, setAction] = useState<ActionState>({ type: 'none' });
+  const [q, setQ] = useState('');
+  const [tab, setTab] = useState<UserTab>('all');
+  const [withDebt, setWithDebt] = useState(false);
+  const [rows, setRows] = useState<UserListItem[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  // Só a última leitura vale: busca, aba e filtro descartam a resposta anterior.
+  const req = useRef(0);
+  // Trava síncrona contra clique duplo em "Carregar mais".
+  const moreInFlight = useRef(false);
+
+  // Busca no servidor só 300 ms depois da última tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
+    const n = ++req.current;
+    moreInFlight.current = false;
+    setRows(null);
+    setCursor(null);
     setError(null);
-    setUsers(null);
+    setMoreError(null);
+    setLoadingMore(false);
     try {
-      const all: AdminUser[] = [];
-      let cursor: string | null = null;
-      for (let pageIndex = 0; pageIndex < USERS_MAX_PAGES; pageIndex++) {
-        const res = await api.get('/admin/users', { params: cursor ? { limit: 100, cursor } : { limit: 100 } });
-        const body = res.data as { items?: unknown; nextCursor?: unknown } | null;
-        if (!body || !Array.isArray(body.items)) throw new Error('resposta inesperada');
-        const items = body.items as Array<Omit<AdminUser, '_id'> & { id: string }>;
-        all.push(...items.map((u) => ({ ...u, _id: String(u.id) })));
-        cursor = typeof body.nextCursor === 'string' && body.nextCursor ? body.nextCursor : null;
-        if (!cursor) break;
+      const page = await fetchUsers({ q, tab, withDebt });
+      if (n !== req.current) return;
+      setRows(page.items);
+      setCursor(page.nextCursor);
+      setNow(Date.now());
+    } catch (err) {
+      if (n !== req.current) return;
+      setError(accountErrorMessage(err, 'Não deu para carregar os usuários.'));
+    }
+  }, [q, tab, withDebt]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const loadMore = async () => {
+    if (!cursor || moreInFlight.current) return;
+    moreInFlight.current = true;
+    const n = req.current;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const page = await fetchUsers({ q, tab, withDebt, cursor });
+      if (n !== req.current) return;
+      setRows((prev) => {
+        const seen = new Set((prev ?? []).map((u) => u.id));
+        return [...(prev ?? []), ...page.items.filter((u) => !seen.has(u.id))];
+      });
+      setCursor(page.nextCursor);
+    } catch (err) {
+      if (n === req.current) setMoreError(accountErrorMessage(err, 'Não deu para carregar mais pessoas.'));
+    } finally {
+      if (n === req.current) {
+        moreInFlight.current = false;
+        setLoadingMore(false);
       }
-      setUsers(all);
-    } catch (err) {
-      setError(isHttpStatus(err, 403) ? adminErrorMessage(err) : 'Não deu para carregar os usuários.');
     }
-  }, []);
-
-  useEffect(() => {
-    // A sessão é por cookie httpOnly: basta haver usuário logado para ler.
-    if (myId) void load();
-  }, [myId, load]);
-
-  const text = search.trim().toLowerCase();
-  const matchesSearch = useCallback(
-    (u: AdminUser) => !text || u.name.toLowerCase().includes(text) || (u.email || '').toLowerCase().includes(text),
-    [text],
-  );
-  const filtered = useMemo(
-    () => (users ?? []).filter((u) => inTab(u, tab) && matchesSearch(u)),
-    [users, tab, matchesSearch],
-  );
-  const tabItems = TABS.map((t) => ({ id: t.id, label: t.label, count: (users ?? []).filter((u) => inTab(u, t.id)).length }));
-
-  const patchUser = (id: string, patch: Partial<AdminUser>) =>
-    setUsers((prev) => prev && prev.map((u) => (u._id === id ? { ...u, ...patch } : u)));
-  const close = () => setAction({ type: 'none' });
-
-  const saveRoles = async () => {
-    if (action.type !== 'edit-roles') return;
-    const { user, roles } = action;
-    let storesClosed = 0;
-    try {
-      const res = await api.put(`/admin/users/${user._id}/roles`, { roles });
-      // O servidor decide o papel ativo e o base: usa o que ele devolveu.
-      const saved = res?.data?.user;
-      patchUser(user._id, saved ? { role: saved.role, activeRole: saved.activeRole, roles: saved.roles } : { roles });
-      storesClosed = Number(res?.data?.storesClosed) || 0;
-    } catch (err) {
-      if (!isConflictWithCode(err, 'ROLE_HAS_OPEN_WORK')) throw err;
-      const data = (err as { response: { data: { role?: string; count?: number } } }).response.data;
-      const error = data.role === 'motoboy'
-        ? `Esta pessoa tem ${data.count} entrega(s) em andamento. Termine ou repasse antes de tirar o papel de Motoboy.`
-        : `Esta pessoa tem ${data.count} pedido(s) em aberto na loja. Termine ou repasse antes de tirar o papel de Lojista.`;
-      setAction({ ...action, error });
-      return;
-    }
-    // Sem lojista ninguém opera a loja: o servidor fecha as lojas da pessoa.
-    const closedText = storesClosed === 1
-      ? ' A loja da pessoa foi fechada.'
-      : storesClosed > 1 ? ` As ${storesClosed} lojas da pessoa foram fechadas.` : '';
-    showToast(`Papéis atualizados.${closedText}`, 'success');
-    close();
   };
 
-  const block = async () => {
-    if (action.type !== 'block') return;
-    const reason = action.reason.trim();
-    await api.put(`/admin/users/${action.user._id}/status`, { status: 'blocked', reason });
-    patchUser(action.user._id, { status: 'blocked', blockReason: reason, blockedAt: new Date().toISOString() });
-    showToast(`${action.user.name} foi bloqueado.`, 'success');
-    close();
-  };
-
-  const unblock = async () => {
-    if (action.type !== 'unblock') return;
-    await api.put(`/admin/users/${action.user._id}/status`, { status: 'active' });
-    patchUser(action.user._id, { status: 'active', blockReason: undefined, blockedAt: undefined });
-    showToast(`${action.user.name} foi desbloqueado.`, 'success');
-    close();
-  };
-
-  const disconnect = async () => {
-    if (action.type !== 'disconnect') return;
-    await api.post(`/admin/users/${action.user._id}/disconnect`);
-    showToast(`${action.user.name} foi desconectado (se estava com o app aberto).`, 'success');
-    close();
-  };
-
-  const canChangeRoleOf = (u: AdminUser) => canRoles && (isCeo || !isStaff(u));
-
-  const columns: AdminColumn<AdminUser>[] = [
+  const columns: AdminColumn<UserListItem>[] = [
     {
       key: 'pessoa',
       header: 'Pessoa',
       primary: true,
       render: (u) => (
-        <span className={styles.person}>
-          <span className={styles.name}>
-            <span>{u.name}</span>
-            {String(u._id) === myId && <span className={styles.you}>Você</span>}
+        <span className={ui.person}>
+          <span className={ui.name}>
+            <Link href={`/admin/users/${encodeURIComponent(u.id)}`} className={ui.link}>{u.name}</Link>
+            {u.id === myId && <span className={ui.you}>Você</span>}
           </span>
-          <span className={styles.email}>{u.email}</span>
+          <span className={ui.sub}>{u.email}</span>
         </span>
       ),
     },
-    { key: 'papel', header: 'Papel', render: rolesText },
+    { key: 'papel', header: 'Papel', render: (u) => rolesText(u.roles) },
     {
       key: 'conta',
       header: 'Conta',
-      render: (u) => {
-        if (u.status === 'blocked') {
-          return (
-            <span className={styles.account}>
-              <StatusTag tone="bad">Bloqueado</StatusTag>
-              {u.blockReason && <span className={styles.reason}>{u.blockReason}</span>}
-            </span>
-          );
-        }
-        return u.status === 'inactive' ? <StatusTag tone="neutral">Inativo</StatusTag> : <StatusTag tone="ok">Ativo</StatusTag>;
-      },
+      render: (u) => (
+        <span className={ui.account}>
+          <StatusTag tone={USER_STATUS[u.status].tone}>{USER_STATUS[u.status].label}</StatusTag>
+          {u.status === 'blocked' && u.blockReason && <span className={ui.reason}>{u.blockReason}</span>}
+        </span>
+      ),
     },
-    { key: 'criado', header: 'Criado em', render: (u) => createdAtText(u.createdAt) },
+    {
+      key: 'verificacao',
+      header: 'Verificação',
+      render: (u) => <StatusTag tone={VERIFICATION_TAG[u.verification].tone}>{VERIFICATION_TAG[u.verification].label}</StatusTag>,
+    },
+    { key: 'acesso', header: 'Último acesso', render: (u) => lastSeenLabel(u.lastSeenAt, now) },
+    { key: 'pedidos', header: 'Pedidos em 90 dias', align: 'right', render: (u) => u.orders90d },
+    { key: 'divida', header: 'Dívida', align: 'right', render: (u) => (u.pendingDebt === null ? '—' : formatMoney(u.pendingDebt)) },
   ];
 
-  const rowAction = (u: AdminUser) => {
-    if (String(u._id) === myId) return <span className={blocks.muted}>Sua conta</span>;
-    const roleBtn = canChangeRoleOf(u);
-    if (!roleBtn && !canBlock) return null;
-    return (
-      <div className={blocks.actions}>
-        {roleBtn && (
-          <Button size="sm" variant="secondary" className={form.touch}
-            onClick={() => setAction({ type: 'edit-roles', user: u, roles: rolesOf(u) })}>
-            Papéis
-          </Button>
-        )}
-        {canBlock && (u.status === 'blocked' ? (
-          <Button size="sm" variant="secondary" className={form.touch} onClick={() => setAction({ type: 'unblock', user: u })}>
-            Desbloquear
-          </Button>
-        ) : (
-          <Button size="sm" variant="secondary" className={form.touch} onClick={() => setAction({ type: 'block', user: u, reason: '' })}>
-            Bloquear
-          </Button>
-        ))}
-        {canBlock && (
-          <Button size="sm" variant="tertiary" className={form.touch} onClick={() => setAction({ type: 'disconnect', user: u })}>
-            Desconectar
-          </Button>
-        )}
-      </div>
-    );
-  };
-
-  let sheetTitle = '';
-  let primary: AdminSheetPrimary | undefined;
-  let body: ReactNode = null;
-  if (action.type === 'edit-roles') {
-    const a = action;
-    const toggle = (role: string, on: boolean) =>
-      setAction({ ...a, error: undefined, roles: sortRoles(on ? [...a.roles, role] : a.roles.filter((r) => r !== role)) });
-    sheetTitle = 'Papéis';
-    primary = { label: 'Salvar', onClick: saveRoles, disabled: sameRoles(a.roles, rolesOf(a.user)) };
-    body = (
-      <>
-        <p className={form.lead}>{a.user.name} ({a.user.email})</p>
-        <div role="group" aria-label="Papéis da pessoa" className={form.field}>
-          {ROLE_OPTIONS.map((r) => (
-            <Checkbox
-              key={r.value}
-              label={r.label}
-              checked={r.value === 'cliente' || a.roles.includes(r.value)}
-              disabled={r.value === 'cliente' || (!isCeo && STAFF_ROLES.includes(r.value))}
-              description={r.value === 'cliente' ? 'Todo mundo pode comprar' : undefined}
-              onChange={(on) => toggle(r.value, on)}
-            />
-          ))}
-        </div>
-        {a.error && <p className={blocks.errText} role="alert">{a.error}</p>}
-        <p className={blocks.muted}>A sessão aberta da pessoa é desconectada para os papéis novos valerem.</p>
-      </>
-    );
-  } else if (action.type === 'block') {
-    const a = action;
-    sheetTitle = 'Bloquear conta';
-    primary = { label: 'Bloquear', tone: 'danger', onClick: block, disabled: !a.reason.trim() };
-    body = (
-      <>
-        <p className={form.lead}>{a.user.name} ({a.user.email})</p>
-        <label className={form.field}>
-          <span className={form.fieldLabel}>Motivo (obrigatório)</span>
-          <textarea
-            className={form.textarea}
-            rows={3}
-            value={a.reason}
-            placeholder="Ex.: fraude detectada, violação dos termos de uso"
-            onChange={(e) => setAction({ ...a, reason: e.target.value })}
-          />
-        </label>
-        <p className={blocks.muted}>
-          Se o app dela estiver aberto, ela sai na hora. Ela não consegue entrar até ser desbloqueada.
-        </p>
-      </>
-    );
-  } else if (action.type === 'unblock') {
-    const a = action;
-    sheetTitle = 'Desbloquear conta';
-    primary = { label: 'Desbloquear', onClick: unblock };
-    body = (
-      <>
-        <p className={form.lead}>{a.user.name} ({a.user.email})</p>
-        <p className={blocks.muted}>Depois de desbloquear, {a.user.name} pode entrar e usar o app normalmente.</p>
-        {a.user.blockReason && <p className={blocks.muted}>Motivo do bloqueio: {a.user.blockReason}</p>}
-      </>
-    );
-  } else if (action.type === 'disconnect') {
-    const a = action;
-    sheetTitle = 'Desconectar sessão';
-    primary = { label: 'Desconectar', onClick: disconnect };
-    body = (
-      <>
-        <p className={form.lead}>{a.user.name} ({a.user.email})</p>
-        <p className={blocks.muted}>
-          Se {a.user.name} estiver com o app aberto, sai na hora e volta para a tela de entrada. A conta continua ativa:
-          dá para entrar de novo normalmente.
-        </p>
-        <p className={blocks.muted}>Se estiver sem conexão, nada acontece.</p>
-      </>
-    );
-  }
-
   return (
-    <div className={styles.page}>
-      <div className={styles.toolbar}>
-        <div className={styles.search}>
+    <div className={ui.stack}>
+      <div className={ui.toolbar}>
+        <div className={ui.search}>
           <SearchField
             value={search}
             onChange={setSearch}
-            placeholder="Buscar por nome ou e-mail"
-            inputProps={{ 'aria-label': 'Buscar por nome ou e-mail' }}
+            placeholder="Nome, e-mail, CPF ou telefone"
+            inputProps={{ 'aria-label': 'Buscar pessoas' }}
           />
         </div>
+        <Chip label="Com dívida" active={withDebt} onClick={() => setWithDebt((v) => !v)} />
+      </div>
+      <p className={blocks.muted}>Nome e e-mail podem ser em parte; CPF e telefone, completos.</p>
+
+      <div className={ui.tabs}>
+        <Tabs label="Filtrar usuários" items={USER_TABS} value={tab} onChange={(id) => setTab(id as UserTab)} idPrefix="usuarios" />
       </div>
 
-      {users && !error && (
-        <div className={styles.tabs}>
-          <Tabs label="Filtrar usuários" items={tabItems} value={tab} onChange={(id) => setTab(id as UserTab)} idPrefix="usuarios" />
-        </div>
-      )}
-
-      <div {...(users && !error ? tabPanelProps(tab, 'usuarios') : {})}>
+      <div {...tabPanelProps(tab, 'usuarios')}>
         <AdminTable
           caption="Usuários"
           columns={columns}
-          rows={users ? filtered : null}
-          rowKey={(u) => String(u._id)}
+          rows={rows}
+          rowKey={(u) => u.id}
           rowLabel={(u) => u.name}
           error={error}
-          onRetry={() => void load()}
-          empty={text ? 'Ninguém encontrado com essa busca' : 'Nenhum usuário nesta aba'}
-          rowAction={rowAction}
+          onRetry={() => { void load(); }}
+          empty={q ? 'Ninguém encontrado com essa busca' : 'Ninguém nesta aba'}
         />
       </div>
 
-      {users && !error && <p className={blocks.muted}>{filtered.length} de {users.length}</p>}
-      <p className={blocks.muted}>
-        Ninguém bloqueia, desconecta nem muda os papéis da própria conta: peça para outra pessoa da equipe.
-      </p>
-
-      <AdminSheet open={action.type !== 'none'} title={sheetTitle} onClose={close} primary={primary}>
-        {body}
-      </AdminSheet>
+      {moreError && <p role="alert" className={blocks.errText}>{moreError}</p>}
+      {rows && !error && cursor && (
+        <div className={ui.loadMore}>
+          <Button variant="secondary" className={ui.touch} loading={loadingMore} onClick={() => { void loadMore(); }}>
+            {moreError ? 'Tentar de novo' : 'Carregar mais'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
