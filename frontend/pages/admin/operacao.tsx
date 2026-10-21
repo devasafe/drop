@@ -55,19 +55,19 @@ function PrecisaDeMim() {
   const hasQueue = useRef(false);
 
   /** `wantSilent`: evento e polling relêem sem apagar o que está na tela (só vale se já há dados). */
-  const loadSummary = useCallback(async (wantSilent = false) => {
+  const loadSummary = useCallback(async (wantSilent = false): Promise<boolean | 'stale'> => {
     const silent = wantSilent && hasSummary.current;
     const n = ++summaryReq.current;
     if (!silent) { hasSummary.current = false; setSummaryError(null); setSummary(null); }
     try {
       const s = await fetchOpsSummary();
-      if (n !== summaryReq.current) return;
+      if (n !== summaryReq.current) return 'stale';
       hasSummary.current = true;
       setSummaryError(null);
       setSummary(s);
       return true;
     } catch (err) {
-      if (n !== summaryReq.current) return;
+      if (n !== summaryReq.current) return 'stale';
       if (silent) setStaleError(true);
       else setSummaryError(serverErrorMessage(err, 'Não deu para carregar os números de hoje.'));
     }
@@ -75,21 +75,21 @@ function PrecisaDeMim() {
   }, []);
 
   /** `wantSilent`: "Tentar de novo" de um tipo, evento e polling relêem sem apagar as linhas que já estão na tela. */
-  const loadQueue = useCallback(async (wantSilent = false) => {
+  const loadQueue = useCallback(async (wantSilent = false, manual = false): Promise<boolean | 'stale'> => {
     const silent = wantSilent && hasQueue.current;
     const n = ++queueReq.current;
     if (!silent) { hasQueue.current = false; setQueueError(null); setGroups(null); }
-    setRetrying(silent);
+    setRetrying(silent && manual);
     try {
       const q = await fetchQueue();
-      if (n !== queueReq.current) return;
+      if (n !== queueReq.current) return 'stale';
       hasQueue.current = true;
       setQueueError(null);
       setGroups(q.groups);
       setNow(Date.now());
       return true;
     } catch (err) {
-      if (n !== queueReq.current) return;
+      if (n !== queueReq.current) return 'stale';
       if (silent) setStaleError(true);
       else setQueueError(serverErrorMessage(err, 'Não deu para carregar a fila de hoje.'));
     } finally {
@@ -101,7 +101,9 @@ function PrecisaDeMim() {
   /** Relê fila e resumo; o aviso de "última leitura" só some quando as duas voltam bem. */
   const refresh = useCallback(async () => {
     const [s, q] = await Promise.all([loadSummary(true), loadQueue(true)]);
-    if (s !== false && q !== false) setStaleError(false);
+    // Leitura descartada (outra mais nova já assumiu): quem manda no aviso é a mais nova.
+    if (s === 'stale' || q === 'stale') return;
+    if (s && q) setStaleError(false);
   }, [loadSummary, loadQueue]);
 
   useEffect(() => { void loadSummary(); }, [loadSummary]);
@@ -155,7 +157,7 @@ function PrecisaDeMim() {
             <EmptyNote text="Nada depende de você agora" />
           ) : (
             <ul className={ui.queue} aria-label="Itens da fila">
-              {rows.map((r) => <QueueLine key={r.key} row={r} now={now} retrying={retrying} onRetry={() => { void loadQueue(true); }} />)}
+              {rows.map((r) => <QueueLine key={r.key} row={r} now={now} retrying={retrying} onRetry={() => { void loadQueue(true, true); }} />)}
             </ul>
           )}
         </section>

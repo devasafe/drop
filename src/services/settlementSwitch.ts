@@ -83,10 +83,14 @@ export async function settlementSwitchPreview(to: SettlementMode): Promise<Settl
     Object.assign(counts, { walletsWithBalance: wallets.length, openPayouts, storesWithoutAccount });
 
     if (!directTransfersEnabled) {
-      risks.push('O Pix automático ao motoboy está desligado em Regras e taxas: com ele desligado, a loja paga o motoboy à mão.');
+      risks.push(
+        'O Pix automático ao motoboy está desligado em Regras e taxas: os Pix ao motoboy ficam parados na fila e saem todos de uma vez quando ele for ligado. Não pague à mão o que está na fila.',
+      );
     }
     // settleDirectRefund pede e executa o estorno; o job directRefunds repete o que o Asaas recusou.
-    risks.push('Estorno que o Asaas recusar é tentado de novo sozinho; se esgotar as tentativas, fica para o admin em Estornos.');
+    risks.push(
+      'Estorno que o Asaas recusar é tentado de novo sozinho; se esgotar as tentativas, fica para o admin em Estornos. Estorno sem resposta do Asaas (timeout, erro 5xx ou de rede) vai direto para o admin em Estornos.',
+    );
     if (wallets.length > 0) {
       risks.push(
         `${wallets.length} carteira(s) com saldo de custódia (${brl(custodyBalance)}): no SaaS o dono continua vendo e sacando esse saldo (menu "Saldo do modo anterior") até zerar.`,

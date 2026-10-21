@@ -24,7 +24,8 @@ import { initSocket } from '../services/notifier';
 import { createTestUser, TestUser } from './helpers/authUser';
 import { criarCorrida, limparCorridas } from './helpers/motoboyRide';
 import { adminReassignDelivery } from '../services/adminOps/reassign';
-import { emitDeliveryCreated } from '../utils/socketEmitter';
+import { emitDeliveryCreated, emitToRoom } from '../utils/socketEmitter';
+import { runDeliveryTimeout } from '../jobs/deliveryTimeout.job';
 
 jest.setTimeout(30000);
 
@@ -107,6 +108,13 @@ it('reassign: o motoboy retirado não recebe o aviso de corrida nova (socket nem
   const dentro = await connect(outro.u.token);
   await settle();
 
+  // Prova de que o excluído ESTÁ na sala motoboys: sem o except, ele receberia.
+  const foraSonda = next(fora, 'sonda');
+  const dentroSonda = next(dentro, 'sonda');
+  emitToRoom('motoboys', 'sonda', { ok: true });
+  expect(await foraSonda).toEqual({ ok: true });
+  expect(await dentroSonda).toEqual({ ok: true });
+
   const foraCreated = next(fora, 'delivery:created');
   const foraAvail = next(fora, 'delivery:available');
   const dentroCreated = next(dentro, 'delivery:created');
@@ -139,4 +147,21 @@ it('entrega sem excluídos: todos os motoboys online recebem socket e push, como
 
   await waitPush(2);
   expect(pushedEndpoints()).toEqual(expect.arrayContaining([a.endpoint, b.endpoint]));
+});
+
+it('fim do prazo de retirada: o aviso de corrida nova (notification) não vai a quem já estava excluído', async () => {
+  const r = await criarCorrida(DOMAIN, { status: 'assigned', updatedAt: new Date(Date.now() - 60 * 60_000) });
+  const excluido = await motoboyOnline('excluido');
+  const outro = await motoboyOnline('outro2');
+  await prisma.delivery.update({ where: { id: r.deliveryId }, data: { excludedMotoboyIds: [excluido.u.userId], updatedAt: new Date(Date.now() - 60 * 60_000) } as any });
+  const cEx = await connect(excluido.u.token);
+  const cOut = await connect(outro.u.token);
+  await settle();
+
+  const gotEx = next(cEx, 'notification');
+  const gotOut = next(cOut, 'notification');
+  await runDeliveryTimeout();
+
+  expect(await gotOut).toMatchObject({ type: 'new_delivery', delivery: { id: r.deliveryId } });
+  expect(await gotEx).toBeNull();
 });

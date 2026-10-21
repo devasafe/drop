@@ -134,6 +134,45 @@ describe('Precisa de mim ao vivo', () => {
     expect(screen.queryByText('Saque velho')).toBeNull();
   });
 
+  it('leitura descartada que chega depois de uma falha não apaga o aviso de última leitura', async () => {
+    await aberta();
+    // P1 (polling): a fila fica lenta.
+    let soltaP1: (v: unknown) => void = () => undefined;
+    routes['/admin/queue'] = () => new Promise((r) => { soltaP1 = r; });
+    await act(async () => { jest.advanceTimersByTime(OPERACAO_POLL_MS); });
+    // R2 (evento): a fila falha e o aviso aparece.
+    routes['/admin/queue'] = fail();
+    await act(async () => { mockHandlers['admin:order_changed']({ orderId: 'o1', status: 'pago', at: '2026-10-20T15:00:00.000Z' }); });
+    await act(async () => { jest.advanceTimersByTime(2_000); });
+    expect(await screen.findByText(/Não deu para atualizar. Mostrando a última leitura./)).toBeInTheDocument();
+    // P1 chega já descartada: o aviso continua.
+    await act(async () => { soltaP1({ data: queue('Saque velho') }); });
+    expect(screen.getByText(/Não deu para atualizar. Mostrando a última leitura./)).toBeInTheDocument();
+    expect(screen.queryByText('Saque velho')).toBeNull();
+  });
+
+  it('releitura silenciosa (polling) não desabilita o "Tentar de novo" da linha de erro; o clique desabilita', async () => {
+    routes['/admin/queue'] = ok({
+      groups: [{ type: 'withdrawal', group: 'person_waiting', count: 0, items: [], error: 'Não deu para carregar os saques' }],
+    });
+    render(<AdminOperacaoPage />);
+    const botao = await screen.findByRole('button', { name: 'Tentar de novo' });
+    let solta: (v: unknown) => void = () => undefined;
+    routes['/admin/queue'] = () => new Promise((r) => { solta = r; });
+    await act(async () => { jest.advanceTimersByTime(OPERACAO_POLL_MS); });
+    expect(botao).not.toBeDisabled();
+    await act(async () => { solta({ data: queue('Saque de Carlos') }); });
+    routes['/admin/queue'] = ok({
+      groups: [{ type: 'withdrawal', group: 'person_waiting', count: 0, items: [], error: 'Não deu para carregar os saques' }],
+    });
+    await act(async () => { jest.advanceTimersByTime(OPERACAO_POLL_MS); });
+    const de_novo = await screen.findByRole('button', { name: 'Tentar de novo' });
+    routes['/admin/queue'] = () => new Promise((r) => { solta = r; });
+    await act(async () => { fireEvent.click(de_novo); });
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeDisabled();
+    await act(async () => { solta({ data: queue('Saque de Carlos') }); });
+  });
+
   it('unmount limpa o polling e o listener do evento', async () => {
     const { unmount } = render(<AdminOperacaoPage />);
     await screen.findByText('Saque de Carlos');

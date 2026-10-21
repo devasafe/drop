@@ -210,14 +210,14 @@ const emitToRoomExceptUsers = (room: string, exceptUserIds: string[], event: str
   if (exceptUserIds.length === 0) return emitToRoom(room, event, data);
   const io = notifier.io;
   if (!io) {
-    console.error(`❌ [SOCKET.EMIT] io não inicializado para sala: ${room}`);
+    logger.error(`[SOCKET.EMIT] io não inicializado para sala: ${room}`);
     return;
   }
   try {
     if (DEBUG) logger.debug(`[SOCKET.EMIT] "${event}" → ${room} (exceto ${exceptUserIds.length})`);
     io.to(room).except(exceptUserIds.map((id) => `user:${id}`)).emit(event, data);
   } catch (err) {
-    console.error(`❌ [SOCKET.EMIT] Erro ao emitir para sala "${room}":`, err);
+    logger.error(`[SOCKET.EMIT] Erro ao emitir para sala "${room}"`, err as Error);
   }
 };
 

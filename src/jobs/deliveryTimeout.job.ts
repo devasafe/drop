@@ -128,7 +128,7 @@ export async function runDeliveryTimeout(): Promise<void> {
               fee: delivery.fee,
               distance: delivery.distance
             }
-          });
+          }, delivery.excludedMotoboyIds ?? []);
           logger.debug(`📱 [DELIVERY TIMEOUT] Motoboys notificados de nova entrega disponível`);
         } catch (e) {
           logger.warn('[DELIVERY TIMEOUT] Erro ao notificar motoboys', { deliveryId: delivery.id, error: String(e) });

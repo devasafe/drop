@@ -44,11 +44,12 @@ export const removeClient = (userId: string, res: Response) => {
   }
 };
 
-export const notifyMotoboys = (payload: any) => {
+/** `excludedUserIds`: motoboys que o admin tirou da corrida (excludedMotoboyIds) não recebem o aviso. */
+export const notifyMotoboys = (payload: any, excludedUserIds: string[] = []) => {
   // If Socket.IO is initialized, broadcast to motoboys room
   if (io) {
     try {
-      io.to('motoboys').emit('notification', payload);
+      io.to('motoboys').except(excludedUserIds.map((id) => `user:${id}`)).emit('notification', payload);
       // eslint-disable-next-line no-console
       logger.debug('[notifier] notification sent to motoboys room');
       return;
@@ -61,7 +62,7 @@ export const notifyMotoboys = (payload: any) => {
 
   // fallback SSE: só para quem poderia estar na sala `motoboys` (antes: todos os clientes SSE)
   for (const [userId, set] of clients.entries()) {
-    if (clientRoles.get(userId) !== 'motoboy') continue;
+    if (clientRoles.get(userId) !== 'motoboy' || excludedUserIds.includes(userId)) continue;
     canJoinMotoboysRoom({ id: userId, role: 'motoboy' })
       .then((ok) => { if (ok) set.forEach((res) => send(res, 'notification', payload)); })
       .catch(() => undefined);
