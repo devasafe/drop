@@ -42,9 +42,11 @@ function errorOf(fn: () => unknown): string | null {
 
 describe('schema da D3b-2a', () => {
   it('enums e campos novos', async () => {
-    expect(Object.values(AdminAccountActionType).sort()).toEqual(
-      ['block', 'debt_forgive', 'disconnect', 'note', 'roles_change', 'store_pause', 'store_unpause', 'unblock'],
-    );
+    // D3b-2b acrescentou verification_decision, trial_extend, saas_cancel e plan_reject.
+    expect(Object.values(AdminAccountActionType).sort()).toEqual([
+      'block', 'debt_forgive', 'disconnect', 'note', 'plan_reject', 'roles_change',
+      'saas_cancel', 'store_pause', 'store_unpause', 'trial_extend', 'unblock', 'verification_decision',
+    ]);
     expect(Object.values(CustomerDebtStatus).sort()).toEqual(['collected', 'forgiven', 'pending']);
 
     const user = await prisma.user.findUniqueOrThrow({ where: { id: alvo.userId } });

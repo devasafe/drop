@@ -1137,6 +1137,8 @@ model StoreSubscription {
   approvedAt       DateTime?
   approvedBy       String?
   rejectionReason  String?
+  /// D3b-2b: motivo opcional do lojista ao pedir a troca (até 500). Um pedido novo sobrescreve.
+  requestReason    String?
   commissionRate   Decimal?              @default(10) @db.Decimal(5, 2)
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
@@ -1435,6 +1437,11 @@ model StoreSaasBilling {
   asaasSubscriptionId String?           @unique
   overdueSince        DateTime?
   pausedAt            DateTime?
+  /// D3b-2b: mensalidade cancelada pelo admin (status cancelled). A loja vende até o fim da
+  /// cobertura (policy.coverageEnd, P2: o maior entre o fim do dia pago e o do teste);
+  /// depois o job a pausa pelo admin.
+  cancelledAt         DateTime?
+  cancelledBy         String?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -1545,7 +1552,7 @@ model AdminOrderAction {
   @@index([orderId, createdAt])
 }
 
-// D3b-2a · Pessoas e lojas: tipos do histórico da conta (a D3b-2b acrescenta os dela).
+// D3b-2a · Pessoas e lojas: tipos do histórico da conta. D3b-2b: verificação e mensalidade.
 enum AdminAccountActionType {
   block
   unblock
@@ -1555,6 +1562,10 @@ enum AdminAccountActionType {
   store_pause
   store_unpause
   note
+  verification_decision
+  trial_extend
+  saas_cancel
+  plan_reject
 }
 
 /// D3b-2a · histórico de UMA pessoa ou de UMA loja: ações do admin e notas internas (só acréscimo).
@@ -1573,4 +1584,6 @@ model AdminAccountAction {
 
   @@index([userId, createdAt])
   @@index([storeId, createdAt])
+  // D3b-2b: média de espera da verificação (type='verification_decision', últimos 30 dias).
+  @@index([type, createdAt])
 }
