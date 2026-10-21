@@ -60,6 +60,21 @@ describe('ReasonSheet', () => {
     expect(p.onClose).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['403 da equipe', 403, { error: 'Somente o CEO pode bloquear ou desconectar alguém da equipe.', code: 'STAFF_TARGET_FORBIDDEN' }, 'Somente o CEO pode bloquear ou desconectar alguém da equipe.'],
+    ['403 do autoperdão', 403, { error: 'Você não pode perdoar a própria dívida.', code: 'SELF_ACTION_FORBIDDEN' }, 'Você não pode perdoar a própria dívida.'],
+    ['403 sem código de regra', 403, { error: 'Permissão negada.' }, 'Você não tem permissão para isso'],
+    ['400 REASON_REQUIRED', 400, { error: 'x', code: 'REASON_REQUIRED' }, 'Escreva o motivo, de 5 a 500 caracteres.'],
+    ['409 DEBT_NOT_PENDING', 409, { error: 'x', code: 'DEBT_NOT_PENDING' }, 'Esta dívida não está mais pendente: já foi cobrada ou perdoada. A ficha foi atualizada.'],
+  ])('erro cru do servidor vira texto em português na folha: %s', async (_n, status, data, text) => {
+    const p = sheetProps({ onConfirm: jest.fn().mockRejectedValue({ response: { status, data } }) });
+    render(<ReasonSheet {...p} />);
+    const dialog = screen.getByRole('dialog', { name: 'Bloquear conta' });
+    fireEvent.change(within(dialog).getByLabelText('Motivo (obrigatório)'), { target: { value: 'Fraude no cupom' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bloquear' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(text);
+  });
+
   it('abrir de novo começa sem motivo', () => {
     const p = sheetProps();
     const { rerender } = render(<ReasonSheet {...p} />);

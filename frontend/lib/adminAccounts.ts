@@ -562,6 +562,9 @@ const CODE_TEXT: Record<string, string> = {
 /**
  * 403 que não é falta de permissão: regra da D3b-2a com texto próprio do servidor (só o CEO mexe na equipe;
  * ninguém perdoa a própria dívida). Qualquer outro 403 continua "Você não tem permissão para isso".
+ * Fontes no servidor: STAFF_TARGET_FORBIDDEN em src/routes/admin.ts e SELF_ACTION_FORBIDDEN em
+ * src/services/adminAccounts/debt.ts. Os mesmos códigos estão em FORBIDDEN_WITH_SERVER_TEXT (adminErrors.ts),
+ * para a AdminSheet não trocar o texto por "sem permissão".
  */
 const FORBIDDEN_TEXT: Record<string, string> = {
   STAFF_TARGET_FORBIDDEN: 'Somente o CEO pode bloquear ou desconectar alguém da equipe.',

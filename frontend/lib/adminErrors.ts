@@ -9,7 +9,7 @@ interface HttpLike {
  * 403 que não é falta de permissão: regra de dinheiro com texto próprio do servidor (D3b-3, spec 4.5).
  * Só estes códigos; qualquer outro 403 (com ou sem código) continua "Você não tem permissão para isso".
  */
-const FORBIDDEN_WITH_SERVER_TEXT = new Set(['CASHBOX_SELF_APPROVAL']);
+const FORBIDDEN_WITH_SERVER_TEXT = new Set(['CASHBOX_SELF_APPROVAL', 'STAFF_TARGET_FORBIDDEN', 'SELF_ACTION_FORBIDDEN']);
 
 export function adminErrorMessage(err: unknown, fallback = 'Não deu certo. Tente de novo.'): string {
   const e = (err ?? {}) as HttpLike;
