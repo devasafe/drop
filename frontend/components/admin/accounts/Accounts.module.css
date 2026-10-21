@@ -1,0 +1,117 @@
+/* Pessoas e lojas do admin (D3b-2a): listas, fichas, folhas de motivo e linha do tempo. Cor só por token. */
+.stack { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.search { flex: 1 1 280px; min-width: 0; max-width: 480px; }
+.tabs { overflow-x: auto; }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.link { color: var(--color-text-link); text-decoration: underline; overflow-wrap: anywhere; }
+.live { margin: 0; font: var(--text-caption); color: var(--color-warning-text); }
+.loadMore { display: flex; justify-content: center; }
+.touch { min-height: 44px; }
+
+/* Linha das listas: nome (link para a ficha) e e-mail ou dono embaixo. */
+.person { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+.sub { font: var(--text-meta); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.you {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+  font: var(--text-caption);
+}
+.account { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.reason { font: var(--text-caption); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+
+/* Ficha: pares rótulo/valor, listas curtas e duas colunas no computador. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.side { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.facts { display: grid; gap: var(--space-2); margin: 0; }
+.facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); min-width: 0; }
+.facts dt { font: var(--text-meta); color: var(--color-text-secondary); }
+.facts dd {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.lines { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.line:first-child { border-top: 0; }
+.lineMain { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; }
+.lineTitle { font: var(--text-label); color: var(--color-text-primary); overflow-wrap: anywhere; }
+.lineMeta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.money { font: var(--text-meta); color: var(--color-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Folhas: texto da confirmação e o valor do perdão bem visível. */
+.sheetText { display: flex; flex-direction: column; gap: var(--space-2); font: var(--text-body); color: var(--color-text-primary); }
+.sheetText p { margin: 0; }
+.amount { font: var(--text-title); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+
+/* Ações da ficha: no computador, uma linha no topo; no celular, barra presa ao pé da tela (spec 7). */
+.actionBar { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.actionBar > * { flex: 1 1 140px; }
+
+/* Linha do tempo: nota no topo, depois as linhas com a barra à esquerda (nota em azul). */
+.timeline { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.noteBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+.noteActions { display: flex; justify-content: flex-end; }
+.tlList { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.tlItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-border-default);
+}
+.tlNote { border-left-color: var(--color-info); }
+.tlHead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.tlLabel { font: var(--text-label); color: var(--color-text-primary); }
+.tlTime { font: var(--text-meta); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.tlActor { font: var(--text-caption); color: var(--color-text-secondary); }
+.tlText { margin: 0; font: var(--text-meta); color: var(--color-text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+@media (max-width: 1023px) {
+  .withBar { padding-bottom: 136px; }
+  .actionBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 800;
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border-default);
+    background: var(--color-surface-default);
+    box-shadow: var(--elevation-3);
+  }
+}
+
+@media (min-width: 1024px) {
+  .split { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .actionBar > * { flex: 0 0 auto; }
+  .touch { min-height: 36px; }
+}
