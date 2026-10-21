@@ -10,7 +10,7 @@ import {
 } from '../utils/socketEmitter';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../utils/cloudinary';
 import logger from '../config/logger';
-import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { publicStoreAvailableWhere, isStoreHiddenFromPublic } from '../services/catalog/visibility';
 import { AppError } from '../utils/AppError';
 import { isStoreOwner } from '../utils/storeOwnership';
 import type { BulkStockInput } from '../validation/productSchemas';
@@ -149,9 +149,8 @@ export const listProducts = async (req: Request<any, any, any, { category?: stri
       and.push({ storeId: { in: verifiedStores.map((st) => st.id) } });
     }
 
-    // Modo direto: produtos de loja pausada/cancelada pela mensalidade somem da vitrine.
-    const billingWhere = await publicStoreBillingWhere();
-    if (billingWhere) and.push({ store: billingWhere });
+    // Produtos de loja fora do ar (mensalidade no modo direto ou pausa do admin) somem da vitrine e da sacola.
+    and.push({ store: await publicStoreAvailableWhere() });
     const filter: any = and.length ? { AND: and } : {};
 
     if (lookupIds) {
@@ -199,8 +198,8 @@ export const getProduct = async (req: AuthenticatedRequest & Request<{ id: strin
     });
     if (!product) return res.status(404).json({ error: 'Product not found' });
     // Fora do ar para o público (link direto incluso), exceto para o próprio dono, que gerencia o catálogo:
-    // produto pausado pelo lojista (D1) ou loja pausada/cancelada pela mensalidade (modo direto).
-    if (!product.isActive || (await isStoreHiddenByBilling(String(product.storeId)))) {
+    // produto pausado pelo lojista (D1), loja pausada/cancelada pela mensalidade (modo direto) ou pausada pelo admin (D3b-2a).
+    if (!product.isActive || (await isStoreHiddenFromPublic(String(product.storeId)))) {
       const owner = req.user?.id
         ? await prisma.store.count({ where: { id: String(product.storeId), ownerId: String(req.user.id) } })
         : 0;

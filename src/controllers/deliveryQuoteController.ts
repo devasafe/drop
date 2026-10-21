@@ -32,7 +32,7 @@ export const quoteStores = async (req: Request, res: Response, next: NextFunctio
         where,
         select: {
           id: true, latitude: true, longitude: true, deliveryRadiusKm: true,
-          prepMinutes: true, isOpen: true, operatingHours: true, pausedUntil: true, openOverrideUntil: true,
+          prepMinutes: true, isOpen: true, operatingHours: true, pausedUntil: true, openOverrideUntil: true, adminPausedAt: true,
         },
       }),
       getDeliveryConfig(),

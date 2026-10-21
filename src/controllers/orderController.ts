@@ -50,6 +50,7 @@ import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee
 import { precheckBuyerCpf } from '../utils/buyerCpf';
 import { AppError } from '../utils/AppError';
 import { isStorePaused } from '../utils/storeOpen';
+import { isAdminPaused, STORE_ADMIN_PAUSED_CUSTOMER_MESSAGE } from '../services/adminAccounts/storePause';
 import { assertProductsActive, pausedProductError } from '../services/catalog/activeProduct';
 import { storeSafeLastError } from '../utils/safeErrorText';
 import { getStorePaymentStatus, getStorePixQrCode } from '../services/asaasLoja/charge';
@@ -174,6 +175,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     const storeForCheck: any = await prisma.store.findUnique({ where: { id: storeIdStr } });
     if (!storeForCheck) {
       return res.status(404).json({ error: 'Loja não encontrada' });
+    }
+    // D3b-2a: loja pausada pelo DROP (admin), nos dois modos e antes de qualquer escrita. Vem antes
+    // da pausa do lojista e do horário: só o admin libera.
+    if (isAdminPaused(storeForCheck)) {
+      return sendAppError(res, new AppError(STORE_ADMIN_PAUSED_CUSTOMER_MESSAGE, 409, true, 'STORE_ADMIN_PAUSED'));
     }
     // D1: loja pausada pelo lojista — a mesma regra da vitrine (utils/storeOpen), nos dois modos,
     // antes de qualquer escrita. Vem antes do "fechada" para o cliente ver o motivo certo.

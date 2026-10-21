@@ -138,13 +138,17 @@ interface VisibleStore {
   operatingHours: any;
   pausedUntil: Date | null;
   openOverrideUntil: Date | null;
+  adminPausedAt: Date | null;
 }
 
-/** Mesmo filtro do `listStores`: KYC (com KYC_ENFORCED) AND mensalidade (modo direto). */
+/** Mesmo filtro do `listStores`: KYC (com KYC_ENFORCED) AND mensalidade (modo direto) AND pausa do admin. */
 async function visibleStores(): Promise<VisibleStore[]> {
   return prisma.store.findMany({
     where: await publicStoreVisibilityWhere(),
-    select: { id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true, pausedUntil: true, openOverrideUntil: true },
+    select: {
+      id: true, latitude: true, longitude: true, isOpen: true, operatingHours: true,
+      pausedUntil: true, openOverrideUntil: true, adminPausedAt: true,
+    },
   });
 }
 

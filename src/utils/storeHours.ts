@@ -30,6 +30,8 @@ export interface StoreHoursInput {
   pausedUntil?: Date | string | null;
   /** Aberta fora do horário até este instante (o lojista abriu na mão). */
   openOverrideUntil?: Date | string | null;
+  /** D3b-2a: pausa do admin; enquanto não nula, fechada (vence tudo, inclusive o override). */
+  adminPausedAt?: Date | string | null;
 }
 
 /** `value` é um instante válido depois de `now`. */
@@ -68,7 +70,8 @@ function isWithinHours(hours: any, dayIndex: number, nowMinutes: number): boolea
 
 /**
  * Decisão pura de aberto/fechado dado o dia (0=domingo) e o minuto do dia (SP), na ordem:
- * pausada → fechada; isOpen=false → fechada; override no futuro → aberta; senão, o horário.
+ * pausada pelo admin → fechada; pausada → fechada; isOpen=false → fechada; override no futuro →
+ * aberta; senão, o horário.
  * `now` é o instante comparado com a pausa e o override (o mesmo de onde saíram dia e minuto).
  * Exportada p/ teste; `isStoreCurrentlyOpen` a chama com o horário do Brasil.
  */
@@ -78,6 +81,7 @@ export function isOpenAt(
   nowMinutes: number,
   now: Date = new Date(),
 ): boolean {
+  if (store.adminPausedAt) return false; // D3b-2a: só o admin libera
   if (isFuture(store.pausedUntil, now)) return false;
   if (!store.isOpen) return false; // toggle manual sobrepõe o horário
   if (isFuture(store.openOverrideUntil, now)) return true; // aberta fora do horário

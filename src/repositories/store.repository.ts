@@ -36,7 +36,9 @@ export function toPublicStore(store: any): any {
  */
 export function toOwnerStore(store: any): any {
   if (!store) return store;
-  const { asaas, ...rest } = store;
+  // D3b-2a: o dono vê que a loja está pausada pelo DROP e o motivo (adminPausedAt/adminPauseReason),
+  // não quem pausou.
+  const { asaas, adminPausedBy: _adminPausedBy, ...rest } = store;
   const a = (asaas || null) as any;
   return {
     ...rest,

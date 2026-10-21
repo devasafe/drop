@@ -18,7 +18,8 @@ import logger from '../config/logger';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { checkImageSpec } from '../utils/imageSpecs';
-import { publicStoreBillingWhere, isStoreHiddenByBilling } from '../services/saasBilling/gate';
+import { publicStoreAvailableWhere, isStoreHiddenFromPublic } from '../services/catalog/visibility';
+import { isAdminPaused, STORE_ADMIN_PAUSED_SELLER_MESSAGE } from '../services/adminAccounts/storePause';
 import { getDeliveryConfig } from '../services/deliveryQuote/config';
 import { toApiProduct } from './productController';
 import { findPublicCouponsForStore } from '../repositories/coupon.repository';
@@ -184,6 +185,13 @@ export const updateOperatingHours = async (req: AuthenticatedRequest, res: Respo
 
     const { operatingHours, isOpen } = req.body;
 
+    // D3b-2a: loja pausada pelo DROP não abre pelo lojista, nem fora do horário. Fechar e mexer só
+    // no horário continuam valendo. A condição também vai no WHERE: na corrida, a pausa do admin vence.
+    const opening = isOpen === true;
+    // O motivo vai junto: a tela do lojista monta "Loja pausada pelo DROP: <motivo>." (P3.5).
+    const adminPausedBody = (reason: string | null) => ({ error: STORE_ADMIN_PAUSED_SELLER_MESSAGE, code: 'STORE_ADMIN_PAUSED', reason });
+    if (opening && isAdminPaused(store)) return res.status(409).json(adminPausedBody(store.adminPauseReason ?? null));
+
     // Abrir (isOpen=true) fora do horário vale até a próxima virada: o servidor calcula o override
     // com o horário que vai ficar gravado. Dentro do horário, ou fechando, o override sai.
     // Sem isOpen no corpo o override fica como está.
@@ -191,14 +199,20 @@ export const updateOperatingHours = async (req: AuthenticatedRequest, res: Respo
       ? { openOverrideUntil: isOpen ? openOverrideUntilFor({ operatingHours: operatingHours || store.operatingHours }) : null }
       : {};
 
-    const updated = await prisma.store.update({
-      where: { id },
+    const { count } = await prisma.store.updateMany({
+      where: opening ? { id, adminPausedAt: null } : { id },
       data: {
         ...(typeof isOpen === 'boolean' ? { isOpen } : {}),
         ...(operatingHours ? { operatingHours } : {}),
         ...override,
       },
     });
+    if (count === 0) {
+      // O admin pausou entre a leitura e a escrita: o motivo vem de uma releitura.
+      const paused = await prisma.store.findUnique({ where: { id }, select: { adminPauseReason: true } });
+      return res.status(409).json(adminPausedBody(paused?.adminPauseReason ?? null));
+    }
+    const updated = await prisma.store.findUniqueOrThrow({ where: { id } });
 
     return res.json({
       success: true,
@@ -457,9 +471,8 @@ export const listStores = async (_req: Request, res: Response) => {
     // ✅ GATE KYC (Fase 2): com KYC_ENFORCED, só lojas verificadas aparecem.
     const filter: any = {};
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
-    // Modo direto: loja pausada/cancelada pela mensalidade some da vitrine.
-    const billingWhere = await publicStoreBillingWhere();
-    if (billingWhere) filter.AND = [billingWhere];
+    // Modo direto: loja pausada/cancelada pela mensalidade some da vitrine; pausada pelo admin também (D3b-2a).
+    filter.AND = [await publicStoreAvailableWhere()];
     const found = await prisma.store.findMany({ where: filter });
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
     return res.json(await withStoreRatings(found.map(toPublicStore)));
@@ -544,8 +557,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
       NOT: { featuredBannerUrl: '' },
     };
     if (process.env.KYC_ENFORCED === 'true') featuredFilter.isVerified = true; // ✅ GATE KYC Fase 2
-    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
-    if (billingWhere) featuredFilter.AND = [billingWhere];
+    featuredFilter.AND = [await publicStoreAvailableWhere()]; // mensalidade (modo direto) e pausa do admin
 
     const rows = await prisma.store.findMany({
       where: featuredFilter,
@@ -585,8 +597,8 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
     });
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
-    // Modo direto: loja pausada/cancelada pela mensalidade está fora do ar → sem top produtos.
-    if (await isStoreHiddenByBilling(store.id)) return res.json({ products: [] });
+    // Loja fora do ar (mensalidade no modo direto ou pausa do admin) → sem top produtos.
+    if (await isStoreHiddenFromPublic(store.id)) return res.json({ products: [] });
 
     // Feature exclusiva de lojas Plano 3 (premium)
     const storePlan = Number(store.plan) || 1;
@@ -655,8 +667,7 @@ export const getTopStores = async (req: Request, res: Response) => {
     const counts = new Map(grouped.map((g) => [g.storeId, g._count._all]));
     const filter: any = { id: { in: grouped.map((g) => g.storeId) } };
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
-    const billingWhere = await publicStoreBillingWhere(); // modo direto: some a loja pausada
-    if (billingWhere) filter.AND = [billingWhere];
+    filter.AND = [await publicStoreAvailableWhere()]; // mensalidade (modo direto) e pausa do admin
     const stores = await prisma.store.findMany({ where: filter });
     const out = stores
       .map((s) => ({ ...toPublicStore(s), salesCount: counts.get(s.id) ?? 0 }))
@@ -683,9 +694,8 @@ export const getTopProducts = async (req: Request, res: Response) => {
     const sold = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
     const products = await prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) }, ...ACTIVE_PRODUCT_WHERE } });
     const storeIds = [...new Set(products.map((p) => p.storeId))];
-    // Modo direto: produto de loja pausada/cancelada pela mensalidade não aparece.
-    const billingWhere = await publicStoreBillingWhere();
-    const storeWhere: Prisma.StoreWhereInput = { id: { in: storeIds }, ...(billingWhere ? { AND: [billingWhere] } : {}) };
+    // Produto de loja fora do ar (mensalidade no modo direto ou pausa do admin) não aparece.
+    const storeWhere: Prisma.StoreWhereInput = { id: { in: storeIds }, AND: [await publicStoreAvailableWhere()] };
     const stores = await prisma.store.findMany({ where: storeWhere, select: { id: true, name: true, plan: true } });
     const storeMap = new Map(stores.map((s) => [s.id, s]));
     const out = products
@@ -719,10 +729,9 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
     if (process.env.KYC_ENFORCED === 'true' && !(store as any).isVerified) {
       return res.status(404).json({ error: 'Store not found' });
     }
-    // Modo direto: loja pausada/cancelada pela mensalidade nao aparece, mas o link/QR dela
-    // ganha uma resposta propria (a tela "Loja indisponivel"), sem dizer o motivo.
-    const billingWhere = await publicStoreBillingWhere();
-    if (billingWhere && (await prisma.store.count({ where: { id: store.id, AND: [billingWhere] } })) === 0) {
+    // Loja pausada/cancelada pela mensalidade (modo direto) ou pausada pelo admin (D3b-2a) nao
+    // aparece, mas o link/QR dela ganha uma resposta propria (a tela "Loja indisponivel"), sem dizer o motivo.
+    if (await isStoreHiddenFromPublic(store.id)) {
       return res.status(404).json({
         error: 'Store not found',
         code: 'STORE_UNAVAILABLE',

@@ -46,6 +46,8 @@ export interface QuoteStore {
   pausedUntil?: Date | null;
   /** Aberta fora do horário até este instante (o lojista abriu na mão). */
   openOverrideUntil?: Date | null;
+  /** D3b-2a: pausa do admin; enquanto não nula, a cotação vem fechada e sem hora de volta. */
+  adminPausedAt?: Date | null;
 }
 
 export interface LatLngPoint {
@@ -100,6 +102,8 @@ function etaFrom(prepMinutes: number, travelMinutes: number): [number, number] {
 const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 function openState(store: QuoteStore, now: Date): { open: boolean; opensAt?: string } {
+  // D3b-2a: pausada pelo admin não tem hora de volta (só o admin libera).
+  if (store.adminPausedAt) return { open: false };
   // D1: loja pausada = fechada até `pausedUntil`. A volta é a hora da pausa, se o horário estiver
   // aberto nesse momento; senão, o próximo horário de abertura a partir dali.
   const paused = isStorePaused({ pausedUntil: store.pausedUntil ?? null }, now);

@@ -17,14 +17,17 @@ export function isStorePaused(store: { pausedUntil?: Date | null }, now: Date = 
   return Number.isFinite(until) && until > now.getTime();
 }
 
-/** "Aberta agora" da spec: `isOpen && (pausedUntil == null || pausedUntil <= agora)`. */
-export function isStoreOpenNow(store: { isOpen: boolean; pausedUntil?: Date | null }, now: Date = new Date()): boolean {
-  return !!store.isOpen && !isStorePaused(store, now);
+/** "Aberta agora" da spec: `isOpen && (pausedUntil == null || pausedUntil <= agora)` e, desde a D3b-2a, sem pausa do admin. */
+export function isStoreOpenNow(
+  store: { isOpen: boolean; pausedUntil?: Date | null; adminPausedAt?: Date | null },
+  now: Date = new Date(),
+): boolean {
+  return !!store.isOpen && !store.adminPausedAt && !isStorePaused(store, now);
 }
 
 /** `isStoreOpenNow` + horário de funcionamento (fuso de São Paulo) e o override de abrir fora do horário. É o `isOpenNow` do GET público da loja. */
 export function isStoreOpenWithHoursNow(
-  store: { isOpen: boolean; pausedUntil?: Date | null; operatingHours?: any; openOverrideUntil?: Date | null },
+  store: { isOpen: boolean; pausedUntil?: Date | null; operatingHours?: any; openOverrideUntil?: Date | null; adminPausedAt?: Date | null },
   now: Date = new Date(),
 ): boolean {
   if (!isStoreOpenNow(store, now)) return false;
