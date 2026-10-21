@@ -16,6 +16,8 @@ import { z } from 'zod';
 import logger from '../config/logger';
 import { actorFromRequest, sendMoneyActionError, MoneyActionError } from '../services/adminMoneyAction.service';
 import { adjustWalletBalance, WalletAdjustInput } from '../services/walletAdjust.service';
+import { recordAccountAction } from '../services/adminAccounts/actions';
+import { parseOptionalReason, parseRequiredReason, sendAccountActionError } from '../services/adminAccounts/errors';
 
 const router = Router();
 
@@ -122,6 +124,7 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
     const activeRole = roles.includes(currentActive) && !isTeamRole(currentActive) ? currentActive : 'cliente';
     const role = roles.includes(String(target.role)) ? String(target.role) : BASE_ROLE_ORDER.find((r) => roles.includes(r))!;
 
+    const actor = actorFromRequest(req);
     // Checagem de trabalho aberto e gravação juntas: nada entra entre uma e outra.
     const result = await prisma.$transaction(async (tx) => {
       const openWork = await openWorkFor(tx, id, removed);
@@ -135,6 +138,13 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
         data: { role: role as any, activeRole: activeRole as any, roles: roles as any },
         select: SAFE_USER_SELECT,
       });
+      // D3b-2a: histórico da pessoa, na mesma transação. Sem papel entrando ou saindo, nada a registrar.
+      if (added.length > 0 || removed.length > 0) {
+        await recordAccountAction(tx, {
+          actor, userId: id, type: 'roles_change',
+          meta: { before: [...currentRoles].sort(), after: [...roles].sort() },
+        });
+      }
       return { user, storesClosed };
     });
     if ('openWork' in result) return res.status(409).json({ ...result.openWork, code: 'ROLE_HAS_OPEN_WORK' });
@@ -149,10 +159,12 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
 });
 
 // PUT /admin/users/:id/status - Bloquear/Desbloquear usuário
+// D3b-2a: bloquear exige motivo (5 a 500); desbloquear aceita motivo opcional. block/unblock vão
+// para AdminAccountAction na mesma transação da mudança de status.
 router.put('/users/:id/status', authenticate, authorizePermission('user:block'), async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const { status } = req.body;
 
     if (!['active', 'blocked', 'inactive'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
@@ -163,18 +175,33 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
       return res.status(400).json({ error: 'Voce nao pode bloquear a propria conta' });
     }
 
+    let reason: string | null = null;
+    if (status === 'blocked') reason = parseRequiredReason(req.body?.reason);
+    else if (status === 'active') reason = parseOptionalReason(req.body?.reason);
+    const actor = actorFromRequest(req);
+
     const update: any = { status };
     if (status === 'blocked') {
       update.blockedAt = new Date();
       update.blockedBy = String(req.user.id);
-      update.blockReason = (reason || '').trim() || 'Sem motivo informado';
+      update.blockReason = reason;
     } else if (status === 'active') {
       update.blockedAt = null;
       update.blockedBy = null;
       update.blockReason = null;
     }
 
-    const user = await prisma.user.update({ where: { id }, data: update, select: SAFE_USER_SELECT }).catch(() => null);
+    const user = await prisma.$transaction(async (tx) => {
+      const before = await tx.user.findUnique({ where: { id }, select: { status: true } });
+      if (!before) return null;
+      const saved = await tx.user.update({ where: { id }, data: update, select: SAFE_USER_SELECT });
+      if (status === 'blocked') {
+        await recordAccountAction(tx, { actor, userId: id, type: 'block', reason, meta: { before: before.status } });
+      } else if (status === 'active' && before.status === 'blocked') {
+        await recordAccountAction(tx, { actor, userId: id, type: 'unblock', reason });
+      }
+      return saved;
+    });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Ao bloquear, emite force_logout via socket (best-effort). Se o user estiver
@@ -186,7 +213,8 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
 
     res.json({ message: 'Status updated successfully', user });
   } catch (err) {
-    console.error('Erro ao atualizar status:', err);
+    if (sendAccountActionError(res, err)) return;
+    logger.error('Erro ao atualizar status', err as Error);
     res.status(500).json({ error: 'Failed to update status' });
   }
 });
@@ -203,12 +231,16 @@ router.post('/users/:id/disconnect', authenticate, authorizePermission('user:blo
     const user = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // D3b-2a: registra antes de derrubar a sessão; se o registro falha, ninguém é desconectado.
+    const actor = actorFromRequest(req);
+    await prisma.$transaction((tx) => recordAccountAction(tx, { actor, userId: id, type: 'disconnect' }));
+
     emitForceLogout(String(id), 'admin_disconnect');
     disconnectUser(String(id));
 
     res.json({ message: 'Disconnect event emitted', userId: id });
   } catch (err) {
-    console.error('Erro ao desconectar usuario:', err);
+    logger.error('Erro ao desconectar usuario', err as Error);
     res.status(500).json({ error: 'Failed to disconnect user' });
   }
 });
