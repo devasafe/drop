@@ -34,7 +34,7 @@ import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import { getDefaultAddress } from '../utils/userHelpers';
 import { missingClientVerifications } from '../utils/clientVerification';
-import { findPendingDebt, claimPendingDebt, releaseDebtClaim, linkCollectedDebt } from '../repositories/customerDebt.repository';
+import { findPendingDebt, claimPendingDebt, linkCollectedDebt } from '../repositories/customerDebt.repository';
 import { isStoreCurrentlyOpen } from './storeController';
 import { computeCouponDiscount } from './couponController';
 import { findCouponById, incrementCouponUse } from '../repositories/coupon.repository';
@@ -465,19 +465,21 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         paymentMethod: paymentMethod || 'wallet', relatedId: storeIdStr,
       });
       // D3b-2a: a multa só é cobrada se a dívida AINDA estiver pendente — o admin pode tê-la
-      // perdoado depois da leitura lá em cima. A baixa condicional decide quem vence.
-      if (debtAmount > 0 && (await claimPendingDebt(String(pendingDebt._id)))) {
-        try {
+      // perdoado depois da leitura lá em cima. A baixa condicional decide quem vence, e ela e o
+      // débito da multa vão na mesma transação: ou os dois acontecem, ou nenhum (um perdão
+      // concorrente espera o lock da linha e, depois do commit, não acha mais `pending`).
+      if (debtAmount > 0) {
+        const debtId = String(pendingDebt._id);
+        const charged = await prisma.$transaction(async (tx) => {
+          if (!(await claimPendingDebt(debtId, tx))) return false;
           await walletService.debit({
             owner: customerId, ownerType: 'user', amount: debtAmount,
             reason: 'Cobrança de multa de cancelamento tardio pendente',
-            category: 'penalty', relatedId: String(pendingDebt._id),
-          });
-        } catch (debtErr) {
-          await releaseDebtClaim(String(pendingDebt._id));
-          throw debtErr;
-        }
-        debtCharged = debtAmount;
+            category: 'penalty', relatedId: debtId,
+          }, tx);
+          return true;
+        }, { maxWait: 15_000, timeout: 20_000 }); // as mesmas folgas do walletService (pool sob concorrência)
+        if (charged) debtCharged = debtAmount;
       }
 
       // --- Custódia: todo o dinheiro entra no AppCashbox ---

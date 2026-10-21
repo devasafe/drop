@@ -7,6 +7,14 @@ jest.mock('../services/routeService', () => {
   const actual = jest.requireActual('../services/routeService');
   return { __esModule: true, ...actual, getRoute: jest.fn() };
 });
+// Fluxo Asaas sem rede (mesmo mock de asaasOrderPayment.test.ts).
+jest.mock('../services/asaas/payment', () => ({
+  __esModule: true,
+  ensureAsaasCustomer: jest.fn(async () => 'cus_test'),
+  createPixCharge: jest.fn(async () => ({
+    paymentId: 'pay_p13', status: 'PENDING', qrCodePayload: '000201-pix-copia-e-cola', qrCodeImage: 'base64img',
+  })),
+}));
 
 import request from 'supertest';
 import app from '../app';
@@ -16,6 +24,7 @@ import { getRoute } from '../services/routeService';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import * as debtRepo from '../repositories/customerDebt.repository';
 import * as actions from '../services/adminAccounts/actions';
+import walletService from '../services/wallet.prisma.service';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { createWallet } from './helpers/financePg';
@@ -250,5 +259,88 @@ describe('corrida com a cobrança no próximo pedido (custódia, carteira)', () 
       expect(penalties).toBe(1);
       expect(forgiveRows).toBe(0);
     }
+  });
+
+  it('o débito da multa falha depois da baixa: a dívida segue pending (nem por um instante collected), sem penalty e sem pedido', async () => {
+    const { cliente, store, product, debt } = await cenario();
+    const realDebit = walletService.debit.bind(walletService);
+    let statusDuranteODebito: string | null = null;
+    jest.spyOn(walletService, 'debit').mockImplementation(async (params, tx) => {
+      if (params.category === 'penalty') {
+        // Visto de fora da cobrança: a baixa não pode aparecer antes de a multa ser paga.
+        statusDuranteODebito = (await debtOf(debt.id)).status;
+        throw new Error('falha no débito da multa');
+      }
+      return realDebit(params, tx);
+    });
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(pedido(store.id, product.id));
+    expect(res.status).toBe(500);
+    expect(statusDuranteODebito).toBe('pending');
+    const saved = await debtOf(debt.id);
+    expect(saved.status).toBe('pending');
+    expect(saved.collectedAt).toBeNull();
+    expect(saved.collectedOrderId).toBeNull();
+    expect(await entriesOf(cliente.userId, 'penalty')).toBe(0);
+    expect(await entriesOf(store.id, 'transfer')).toBe(0);
+    expect(await prisma.order.count({ where: { storeId: store.id, NOT: { id: debt.sourceOrderId } } })).toBe(0);
+
+    // E o perdão continua possível.
+    expect((await forgive(ceo, cliente.userId, debt.id)).status).toBe(200);
+  });
+  it('o perdão que chega durante a cobrança espera o lock da dívida e responde 409', async () => {
+    const { cliente, store, product, debt } = await cenario();
+    const realDebit = walletService.debit.bind(walletService);
+    let perdao: Promise<request.Response> | null = null;
+    let respondeuAntesDoCommit = false;
+    jest.spyOn(walletService, 'debit').mockImplementation(async (params, tx) => {
+      if (params.category === 'penalty') {
+        // A baixa já pegou a linha nesta transação: o perdão tem que ficar esperando.
+        let pronto = false;
+        perdao = forgive(ceo, cliente.userId, debt.id).then((r) => { pronto = true; return r; });
+        await new Promise((r) => setTimeout(r, 400));
+        respondeuAntesDoCommit = pronto;
+      }
+      return realDebit(params, tx);
+    });
+
+    const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send(pedido(store.id, product.id));
+    expect(res.status).toBe(201);
+    expect(perdao).not.toBeNull();
+    const tarde = await perdao!;
+    expect(respondeuAntesDoCommit).toBe(false);
+    expect(tarde.status).toBe(409);
+    expect(tarde.body.code).toBe('DEBT_NOT_PENDING');
+    const saved = await debtOf(debt.id);
+    expect(saved.status).toBe('collected');
+    expect(saved.forgivenAt).toBeNull();
+    expect(await entriesOf(cliente.userId, 'penalty')).toBe(1);
+    expect(await prisma.adminAccountAction.count({ where: { userId: cliente.userId } })).toBe(0);
+  });
+});
+
+describe('fluxo Asaas: a multa não é cobrada no pedido', () => {
+  it('o pedido não leva debtCollected, a dívida segue pending sem collectedOrderId e nada é debitado', async () => {
+    const { cliente, store, product, debt } = await cenario();
+    await prisma.user.update({ where: { id: cliente.userId }, data: { cpf: '39053344705' } }); // Pix no Asaas pede CPF
+    (env as any).PAYMENT_GATEWAY = 'asaas';
+    try {
+      const res = await request(app).post('/api/orders').set('Authorization', bearer(cliente)).send({
+        storeId: store.id, products: [{ productId: product.id, quantity: 1 }], paymentMethod: 'pix', deliveryDistanceKm: 0,
+        address: 'Rua X, 1 - Centro', latitude: -22.95, longitude: -43.25,
+      });
+      expect(res.status).toBe(201);
+      expect(res.body.pix).toBeTruthy();
+    } finally {
+      (env as any).PAYMENT_GATEWAY = 'none';
+    }
+    const order = await prisma.order.findFirstOrThrow({ where: { storeId: store.id, NOT: { id: debt.sourceOrderId } } });
+    expect(order.debtCollected).toBeNull();
+    const saved = await debtOf(debt.id);
+    expect(saved.status).toBe('pending');
+    expect(saved.collectedAt).toBeNull();
+    expect(saved.collectedOrderId).toBeNull();
+    expect(await entriesOf(cliente.userId, 'penalty')).toBe(0);
+    expect(await balanceOf(cliente.userId)).toBe(1000);
   });
 });

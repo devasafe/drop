@@ -45,6 +45,7 @@ export async function updateDebt(id: string, data: Record<string, any>, tx?: Pri
 /**
  * D3b-2a · baixa condicional na cobrança: só passa de pending para collected se a dívida AINDA
  * estiver pending. false = alguém mudou antes (o admin perdoou) e a multa não deve ser cobrada.
+ * Quem cobra passa `tx` e debita a multa na mesma transação: se o débito falhar, a baixa volta junto.
  */
 export async function claimPendingDebt(id: string, tx?: Prisma.TransactionClient): Promise<boolean> {
   const db = tx ?? prisma;
@@ -53,15 +54,6 @@ export async function claimPendingDebt(id: string, tx?: Prisma.TransactionClient
     data: { status: 'collected', collectedAt: new Date() },
   });
   return count === 1;
-}
-
-/** Desfaz a baixa quando o débito da multa falha logo depois dela (a dívida volta a pending). */
-export async function releaseDebtClaim(id: string, tx?: Prisma.TransactionClient): Promise<void> {
-  const db = tx ?? prisma;
-  await db.customerDebt.updateMany({
-    where: { id: String(id), status: 'collected', collectedOrderId: null },
-    data: { status: 'pending', collectedAt: null },
-  });
 }
 
 /** Liga a dívida ao pedido que a cobrou (só se ela foi mesmo cobrada). */
