@@ -70,7 +70,7 @@ export function IdentityCheck({ onDone, emailResult, audience = 'cliente' }: { o
     setVer((v) => ({ ...v, document: { status: 'pending' } })); setRetry(false);
   });
 
-  const docLabel = doc === 'approved' ? 'Verificado' : doc === 'pending' ? 'Em análise' : doc === 'rejected' ? 'Recusado' : 'Agora';
+  const docLabel = doc === 'approved' ? 'Verificado' : doc === 'pending' ? 'Em análise' : doc === 'rejected' ? (ver.document?.resendRequested ? 'Reenvie' : 'Recusado') : 'Agora';
   const uploads: Array<[string, File | null, (f: File | null) => void]> = [['Frente', front, setFront], ['Verso', back, setBack]];
 
   return (
@@ -109,10 +109,10 @@ export function IdentityCheck({ onDone, emailResult, audience = 'cliente' }: { o
       {doc === 'approved' && emailOk && <Alert tone="success" title="Tudo certo">Sua conta está verificada.</Alert>}
       {doc === 'rejected' && !retry && (
         <Alert
-            tone="error"
-            title={ver.document?.resendRequested ? 'Reenvie o documento' : 'Documento recusado'}
-            action={{ label: 'Enviar de novo', onClick: () => setRetry(true) }}
-          >
+          tone="error"
+          title={ver.document?.resendRequested ? 'Reenvie o documento' : 'Documento recusado'}
+          action={{ label: 'Enviar de novo', onClick: () => setRetry(true) }}
+        >
           {ver.document?.rejectionReason || 'Envie fotos nítidas da frente e do verso.'}
         </Alert>
       )}

@@ -119,7 +119,9 @@ it('motoboy (perfil): CNH e placa com reenvio pedido', async () => {
     '/deliveries/motoboy/m1/ratings': [],
   };
   render(<PerfilScreen />);
-  expect(await screen.findByText('Reenvie: Foto ilegível')).toBeInTheDocument();
+  // a linha da CNH e o resumo da verificação dizem o mesmo (Correção 1)
+  expect(await screen.findAllByText('Reenvie: Foto ilegível')).toHaveLength(2);
+  expect(screen.getByText('Reenvie a CNH e a placa')).toBeInTheDocument();
 });
 
 it('identidade (IdentityCheck): título "Reenvie o documento" quando o DROP pediu reenvio', async () => {
@@ -146,4 +148,22 @@ it('/verificacao: "Reenvie: …" no documento com reenvio pedido', async () => {
   };
   render(<VerificacaoPage />);
   expect(await screen.findByText('Reenvie: Foto ilegível')).toBeInTheDocument();
+});
+
+it('identidade (IdentityCheck): o selo também diz "Reenvie" quando o DROP pediu reenvio; sem pedido, "Recusado"', async () => {
+  data = {
+    '/verification/me': {
+      verification: { email: { status: 'verified' }, document: { status: 'rejected', rejectionReason: 'Foto ilegível', resendRequested: true } },
+    },
+    '/user/me': { cpf: '' },
+  };
+  const a = render(<IdentityCheck />);
+  expect(await screen.findByText('Reenvie')).toBeInTheDocument();
+  a.unmount();
+  data['/verification/me'] = {
+    verification: { email: { status: 'verified' }, document: { status: 'rejected', rejectionReason: 'Foto ilegível' } },
+  };
+  render(<IdentityCheck />);
+  expect(await screen.findByText('Documento recusado')).toBeInTheDocument();
+  expect(screen.getByText('Recusado')).toBeInTheDocument();
 });

@@ -183,8 +183,8 @@ export function VerificacaoStep({ onChanged }: { onChanged: () => void }) {
           const [tag, tagCls] = TAG[it.state];
           const canOpen = it.state === 'todo' || it.state === 'rejected' || it.key === 'courier';
           const sub = it.key === 'email'
-              ? data.email
-              : it.state === 'rejected' ? rejectionLine(it.reason, it.resend, { word: 'Recusada', fallback: 'envie de novo' }) : SUB[it.key];
+            ? data.email
+            : it.state === 'rejected' ? rejectionLine(it.reason, it.resend, { word: 'Recusada', fallback: 'envie de novo' }) : SUB[it.key];
           const icoCls = it.state === 'done' ? blocks.icoOk : it.state === 'rejected' ? blocks.icoErr : open === it.key ? blocks.icoBrand : '';
           const inner = (
             <>

@@ -1,4 +1,5 @@
 import api from './api';
+import { rejectionLine } from './verificationRejection';
 
 /** Estado do cadastro do motoboy (D2 · /motoboy/cadastro e Perfil). A etapa sai sempre do servidor. */
 export type KycKey = 'email' | 'document' | 'facial' | 'courier';
@@ -59,6 +60,8 @@ export function proximoItemAberto(items: KycItem[]): KycKey | null {
   return (items.find((i) => i.state === 'rejected') ?? items.find((i) => i.state === 'todo'))?.key ?? null;
 }
 
+const REENVIE_TITLE: Record<KycKey, string> = { email: 'Reenvie o e-mail', document: 'Reenvie o documento', facial: 'Reenvie a selfie', courier: 'Reenvie a CNH e a placa' };
+
 const FALTA_LABEL: Record<KycKey, string> = { email: 'e-mail', document: 'documento', facial: 'selfie', courier: 'CNH e placa' };
 
 export interface KycSummary { tone: 'ok' | 'warn' | 'err' | 'info'; title: string; sub: string; action: 'refazer' | 'continuar' | null }
@@ -67,6 +70,9 @@ export interface KycSummary { tone: 'ok' | 'warn' | 'err' | 'info'; title: strin
 export function kycSummary(items: KycItem[], verified: boolean): KycSummary {
   if (verified) return { tone: 'ok', title: 'Verificação completa', sub: 'Documento, selfie, CNH e placa', action: null };
   const rejected = items.find((i) => i.state === 'rejected');
+  if (rejected?.resend) {
+    return { tone: 'err', title: REENVIE_TITLE[rejected.key], sub: rejectionLine(rejected.reason, true, { fallback: 'envie de novo' }), action: 'refazer' };
+  }
   if (rejected) return { tone: 'err', title: 'Verificação recusada', sub: `${rejected.label}: ${rejected.reason || 'envie de novo'}`, action: 'refazer' };
   const todo = items.filter((i) => i.state === 'todo');
   if (todo.length) return { tone: 'warn', title: 'Verificação pendente', sub: `Falta: ${todo.map((i) => FALTA_LABEL[i.key]).join(', ')}`, action: 'continuar' };

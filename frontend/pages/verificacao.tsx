@@ -188,8 +188,8 @@ export default function VerificacaoPage() {
           )}
           {docStatus === 'rejected' && (
             <p className={styles.hintDanger}>
-                {rejectionLine(v?.document?.rejectionReason, v?.document?.resendRequested, { fallback: 'reenvie com fotos legíveis.' })}
-              </p>
+              {rejectionLine(v?.document?.rejectionReason, v?.document?.resendRequested, { fallback: 'reenvie com fotos legíveis.' })}
+            </p>
           )}
           {(docStatus === 'none' || docStatus === 'rejected') && (
             <>

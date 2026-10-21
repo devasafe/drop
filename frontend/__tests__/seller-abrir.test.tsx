@@ -250,7 +250,6 @@ describe('V12: Abrir a loja usa a leitura do painel', () => {
   });
 });
 
-
 test('D3b-2b: item recusado com reenvio pedido mostra "Reenvie: …" no checklist', async () => {
   const items = [
     { key: 'facial', label: 'Foto do rosto', state: 'done' },

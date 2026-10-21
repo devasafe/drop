@@ -64,3 +64,16 @@ test('loadCadastroState lê as três rotas e falha fechado se qualquer uma falha
   get.mockImplementation((url: string) => (url === '/onboarding/status' ? Promise.reject(new Error('rede')) : Promise.resolve({ data: {} })));
   await expect(loadCadastroState()).rejects.toThrow();
 });
+
+test('kycSummary: item recusado com reenvio pedido vira "Reenvie …"; sem reenvio, como antes', () => {
+  const com = kycItems(
+    { verification: { email: { status: 'verified' }, document: { status: 'rejected', rejectionReason: 'Documento vencido', resendRequested: true } } },
+    { facial: { status: 'approved' }, courier: { status: 'none' } },
+  );
+  expect(kycSummary(com, false)).toEqual({ tone: 'err', title: 'Reenvie o documento', sub: 'Reenvie: Documento vencido', action: 'refazer' });
+  const sem = kycItems(
+    { verification: { email: { status: 'verified' }, document: { status: 'rejected', rejectionReason: 'Documento vencido' } } },
+    { facial: { status: 'approved' }, courier: { status: 'none' } },
+  );
+  expect(kycSummary(sem, false)).toEqual({ tone: 'err', title: 'Verificação recusada', sub: 'Documento: Documento vencido', action: 'refazer' });
+});
