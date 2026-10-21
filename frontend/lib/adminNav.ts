@@ -91,6 +91,8 @@ export const ADMIN_AREAS: AdminArea[] = [
   {
     key: 'lojas', group: 'Pessoas', label: 'Lojas', icon: 'store',
     tabs: [
+      // D3b-2a: lista e fichas de lojas em qualquer modo (store:view_all); a ficha (/admin/lojas/[id]) fica fora do menu.
+      { key: 'lojas', label: 'Todas as lojas', href: '/admin/lojas', permission: 'store:view_all' },
       { key: 'planos', label: 'Planos', href: '/admin/plan-approvals', permission: 'plan:view', custodyOnly: true },
       { key: 'asaas', label: 'Asaas e mensalidades', href: '/admin/lojas-asaas', ceoOnly: true, directOnly: true },
     ],

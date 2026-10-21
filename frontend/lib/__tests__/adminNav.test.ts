@@ -82,7 +82,7 @@ const CEO_CUSTODIA = {
   numeros: ['visao-geral'],
   verificacoes: ['verificacoes'],
   usuarios: ['usuarios'],
-  lojas: ['planos'],
+  lojas: ['lojas', 'planos'],
   dinheiro: ['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico'],
   suporte: ['atendimento'],
   comunicacao: ['broadcasts', 'avisos', 'cupons'],
@@ -103,19 +103,19 @@ describe('menu por papel e por modo (permissões padrão)', () => {
   });
 
   it('CEO no direto: Asaas, Estornos e Pix; sem Planos, Repasses, Saques, Carteiras e Caixa', () => {
-    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['visao-geral', 'estornos', 'pix', 'historico'] });
+    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'estornos', 'pix', 'historico'] });
   });
 
   it('CEO no direto com custódia em aberto: Repasses e Saques voltam (whileCustodyOpen); Carteiras e Caixa não', () => {
     expect(menu('ceo', 'direto', true)).toEqual({
-      ...CEO_CUSTODIA, lojas: ['asaas'], dinheiro: ['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'historico'],
+      ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'historico'],
     });
   });
 
-  it('modo desconhecido (carregando ou erro): nenhuma aba de modo aparece, nem com custódia em aberto (D3b-3: só Visão geral e Histórico)', () => {
+  it('modo desconhecido (carregando ou erro): nenhuma aba de modo aparece, nem com custódia em aberto (D3b-3: só Visão geral e Histórico; D3b-2a: Lojas só com a lista)', () => {
     for (const open of [false, true]) {
       const m = menu('ceo', null, open);
-      expect(m.lojas).toBeUndefined();
+      expect(m.lojas).toEqual(['lojas']);
       expect(m.dinheiro).toEqual(['visao-geral', 'historico']);
       expect(m.usuarios).toEqual(['usuarios']);
     }
@@ -125,26 +125,29 @@ describe('menu por papel e por modo (permissões padrão)', () => {
     expect(menu('marketing', mode)).toEqual({ tema: ['tema'] });
   });
 
-  it('gerente geral na custódia: Números (sem Análises), Verificações, Usuários e Dinheiro · Carteiras', () => {
+  it('gerente geral na custódia: Números (sem Análises), Verificações, Usuários, Lojas e Dinheiro · Carteiras', () => {
     expect(menu('gerente_geral', 'custodia')).toEqual({
-      numeros: ['visao-geral'], verificacoes: ['verificacoes'], usuarios: ['usuarios'], dinheiro: ['carteiras'],
+      numeros: ['visao-geral'], verificacoes: ['verificacoes'], usuarios: ['usuarios'], lojas: ['lojas'], dinheiro: ['carteiras'],
     });
   });
 
   it('gerente geral no direto: Carteiras some, e o Dinheiro inteiro some com ela', () => {
     for (const open of [false, true]) {
       expect(menu('gerente_geral', 'direto', open)).toEqual({
-        numeros: ['visao-geral'], verificacoes: ['verificacoes'], usuarios: ['usuarios'],
+        numeros: ['visao-geral'], verificacoes: ['verificacoes'], usuarios: ['usuarios'], lojas: ['lojas'],
       });
     }
   });
 
   it.each([
     ['gerente_clientes', 'custodia'], ['gerente_clientes', 'direto'],
-    ['gerente_lojistas', 'custodia'], ['gerente_lojistas', 'direto'],
     ['gerente_motoboys', 'custodia'], ['gerente_motoboys', 'direto'],
   ] as const)('%s (%s): só Verificações', (role, mode) => {
     expect(menu(role, mode)).toEqual({ verificacoes: ['verificacoes'] });
+  });
+
+  it.each(['custodia', 'direto'] as const)('gerente_lojistas (%s): Verificações e a lista de Lojas (store:view_all)', (mode) => {
+    expect(menu('gerente_lojistas', mode)).toEqual({ verificacoes: ['verificacoes'], lojas: ['lojas'] });
   });
 
   it('papel sem nenhuma permissão: menu vazio', () => {
@@ -157,13 +160,13 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
 
   it('custódia: ganha Planos, Repasses, Saques e Atendimento', () => {
     expect(menu('gerente_lojistas', 'custodia', false, extra)).toEqual({
-      verificacoes: ['verificacoes'], lojas: ['planos'], dinheiro: ['repasses', 'saques'], suporte: ['atendimento'],
+      verificacoes: ['verificacoes'], lojas: ['lojas', 'planos'], dinheiro: ['repasses', 'saques'], suporte: ['atendimento'],
     });
   });
 
   it('direto: Estornos e Pix (payout:view); Asaas continua só do CEO', () => {
     expect(menu('gerente_lojistas', 'direto', false, extra)).toEqual({
-      verificacoes: ['verificacoes'], dinheiro: ['estornos', 'pix'], suporte: ['atendimento'],
+      verificacoes: ['verificacoes'], lojas: ['lojas'], dinheiro: ['estornos', 'pix'], suporte: ['atendimento'],
     });
   });
 
@@ -176,7 +179,7 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     expect(m.permissoes).toBeUndefined();
     expect(m.comunicacao).toEqual(['broadcasts']);
     expect(m.dinheiro).toEqual(['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico']);
-    expect(menu('marketing', 'direto', false, ['*']).lojas).toBeUndefined();
+    expect(menu('marketing', 'direto', false, ['*']).lojas).toEqual(['lojas']); // Asaas continua só do CEO
   });
 
   it('a área aponta para a primeira aba visível ao papel', () => {
@@ -186,7 +189,7 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     expect(adminAreaHref(ceoDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/dinheiro');
     const pagadorDireto = visibleAdminAreas(ctxFor('gerente_lojistas', 'direto', false, ['payout:view']));
     expect(adminAreaHref(pagadorDireto.find((a) => a.key === 'dinheiro')!)).toBe('/admin/estornos');
-    expect(adminAreaHref(ceoDireto.find((a) => a.key === 'lojas')!)).toBe('/admin/lojas-asaas');
+    expect(adminAreaHref(ceoDireto.find((a) => a.key === 'lojas')!)).toBe('/admin/lojas');
   });
 
   it('Modo da plataforma: só o CEO, em qualquer modo de liquidação (inclusive desconhecido)', () => {
@@ -216,6 +219,7 @@ describe('rotas, abas ativas e títulos', () => {
   it('adminAreaForPath: a página pertence à área da aba dela', () => {
     expect(adminAreaForPath('/admin/withdrawals')).toBe('dinheiro');
     expect(adminAreaForPath('/admin/plan-approvals')).toBe('lojas');
+    expect(adminAreaForPath('/admin/lojas')).toBe('lojas');
     expect(adminAreaForPath('/admin/conversas')).toBeNull(); // virou filtro de /admin/suporte (redirect na P5)
     expect(adminAreaForPath('/admin/suporte')).toBe('suporte');
     expect(adminAreaForPath('/admin/ranking-config')).toBeNull(); // virou /admin/settings?aba=ranking (redirect na P5)
@@ -243,6 +247,7 @@ describe('rotas, abas ativas e títulos', () => {
   it('adminScreenTitle: "Área · Aba" quando a área tem abas; senão o nome da área', () => {
     expect(adminScreenTitle('/admin/payouts')).toBe('Dinheiro · Repasses');
     expect(adminScreenTitle('/admin/lojas-asaas')).toBe('Lojas · Asaas e mensalidades');
+    expect(adminScreenTitle('/admin/lojas')).toBe('Lojas · Todas as lojas');
     expect(adminScreenTitle('/admin/freios')).toBe('Freios');
     expect(adminScreenTitle('/admin/verificacoes')).toBe('Verificações');
     expect(adminScreenTitle('/admin/pricing-config')).toBe('Administração'); // virou redirect (P5.2)

@@ -80,18 +80,18 @@ describe('AdminShell · menu', () => {
     expect(screen.getByRole('button', { name: 'Conta' })).toBeInTheDocument();
   });
 
-  it('CEO no direto: Dinheiro abre a Visão geral e Lojas abre Asaas', () => {
+  it('CEO no direto: Dinheiro abre a Visão geral e Lojas abre a lista de lojas (D3b-2a)', () => {
     mockSaas = { ...mockSaas, settlementMode: 'direto' };
     renderShell();
     expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/dinheiro');
-    expect(within(menu()).getByRole('link', { name: 'Lojas' })).toHaveAttribute('href', '/admin/lojas-asaas');
+    expect(within(menu()).getByRole('link', { name: 'Lojas' })).toHaveAttribute('href', '/admin/lojas');
   });
 
-  it('modo carregando: Lojas não aparece e Dinheiro só abre a Visão geral (nunca presume custódia)', () => {
+  it('modo carregando: Lojas só com a lista (sem modo) e Dinheiro só abre a Visão geral (nunca presume custódia)', () => {
     mockSaas = { ...mockSaas, loading: true };
     renderShell();
     expect(within(menu()).getByRole('link', { name: 'Dinheiro' })).toHaveAttribute('href', '/admin/dinheiro');
-    expect(within(menu()).queryByRole('link', { name: 'Lojas' })).toBeNull();
+    expect(within(menu()).getByRole('link', { name: 'Lojas' })).toHaveAttribute('href', '/admin/lojas');
     expect(within(menu()).queryByRole('alert')).toBeNull();
   });
 
