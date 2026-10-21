@@ -643,11 +643,14 @@ export function timelineDetail(item: TimelineItem): string | null {
 /** "Aprovado: Documento, CNPJ" ou "Recusado: Selfie (Selfie não confere com o documento, pediu reenvio)". */
 function verificationDecisionDetail(m: Record<string, unknown>): string | null {
   if ((m.decision !== 'approve' && m.decision !== 'reject') || !Array.isArray(m.items)) return null;
+  // Só chaves próprias: "constructor" ou "toString" no meta não podem virar função no texto.
+  const own = (map: Record<string, string>, k: string): string | null =>
+    (Object.prototype.hasOwnProperty.call(map, k) ? map[k] : null);
   const kinds = VERIFICATION_KIND_SHORT as Record<string, string>;
   const reasons = REJECT_REASON_LABEL as Record<string, string>;
   const parts = m.items.filter(isObj).map((i) => {
-    const kind = isStr(i.kind) ? kinds[i.kind] ?? i.kind : 'Item';
-    const extra = [isStr(i.reasonCode) ? reasons[i.reasonCode] : null, i.resend === true ? 'pediu reenvio' : null]
+    const kind = isStr(i.kind) ? own(kinds, i.kind) ?? i.kind : 'Item';
+    const extra = [isStr(i.reasonCode) ? own(reasons, i.reasonCode) : null, i.resend === true ? 'pediu reenvio' : null]
       .filter(Boolean).join(', ');
     return extra ? `${kind} (${extra})` : kind;
   });
@@ -668,7 +671,8 @@ const CODE_TEXT: Record<string, string> = {
   DEBT_NOT_FOUND: 'Dívida não encontrada.',
   NOT_TRIALING: 'A loja não está mais em teste. A ficha foi atualizada.',
   ALREADY_CANCELLED: 'A mensalidade já estava cancelada. A ficha foi atualizada.',
-  NO_SAAS_BILLING: 'Esta loja não tem mensalidade para cancelar.',
+  NO_SAAS_BILLING: 'Esta loja não tem mensalidade.',
+  SAAS_NOT_DIRECT: 'A mensalidade só existe no modo direto.',
   INVALID_DAYS: 'Escolha 7, 14 ou 30 dias.',
   ASAAS_UPDATE_FAILED: 'O Asaas não aceitou a nova data da cobrança. Nada mudou: tente de novo em alguns minutos.',
   SAAS_CANCEL_FAILED: 'Não deu para cancelar a assinatura no Asaas. Nada mudou: tente de novo em alguns minutos.',

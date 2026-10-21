@@ -135,6 +135,33 @@ describe('"Aprovar tudo" pela rota única', () => {
   });
 });
 
+describe('onda final (D3, D4): sair da tela e voltar do bfcache', () => {
+  it('"Aprovar tudo" de duas lojas: a tela desmonta no meio e a segunda chamada não sai', async () => {
+    const loja2 = { ...LOJA, _id: 's2', name: 'Eletro Norte', verification: { cnpj: LOJA.verification.cnpj } };
+    get.mockImplementation(queuesGet({ pending: [PAULO_DOC], stores: [LOJA, loja2] }));
+    let release!: () => void;
+    post.mockImplementationOnce(() => new Promise((r) => { release = () => r({ data: { approved: [] } }); }));
+    const { unmount } = render(<AdminVerificacoesPage />);
+    const detail = await screen.findByRole('region', { name: 'Paulo Henrique' });
+    fireEvent.click(within(detail).getByRole('button', { name: 'Aprovar tudo' }));
+    expect(post).toHaveBeenCalledTimes(1);
+    unmount();
+    await act(async () => { release(); });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('voltar do bfcache (pageshow persisted) relê a fila', async () => {
+    render(<AdminVerificacoesPage />);
+    await screen.findByRole('region', { name: 'Paulo Henrique' });
+    await waitFor(() => expect(queueCalls(get)).toHaveLength(3));
+    const ev = new Event('pageshow');
+    Object.defineProperty(ev, 'persisted', { value: true });
+    act(() => { window.dispatchEvent(ev); });
+    await waitFor(() => expect(queueCalls(get)).toHaveLength(6));
+  });
+});
+
 describe('"Aprovar tudo" respeita a permissão de cada item', () => {
   it('gerente de lojistas: a chamada da loja leva só selfie, CNPJ e endereço (o documento é de review_clients)', async () => {
     setRole('gerente_lojistas', ['verification:view_queue', 'verification:review_stores']);

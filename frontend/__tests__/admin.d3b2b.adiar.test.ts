@@ -240,4 +240,46 @@ describe('correção 1', () => {
     expect(result.current.pending).toEqual({});
     expect(result.current.sending).toEqual({});
   });
+
+  // Onda final (D4): o envio em voo com decisão nova da mesma chave não conta como "enviando".
+  it('em voo e com nova decisão da mesma chave: sending sai, pending fica com a nova', async () => {
+    let done!: (v: unknown) => void;
+    post.mockImplementationOnce(() => new Promise((res) => { done = res; }));
+    const { result } = renderHook(() => useDeferredDecisions());
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => { jest.advanceTimersByTime(DEFER_MS); });
+    act(() => result.current.schedule('document:l2', REJECT, 'Recusado'));
+    expect(result.current.sending).toEqual({});
+    expect(result.current.pending).toEqual({ 'document:l2': 'Recusado' });
+    await act(async () => { done({ data: {} }); });
+    expect(result.current.pending).toEqual({ 'document:l2': 'Recusado' });
+  });
+});
+
+describe('onda final: pagehide e volta do bfcache', () => {
+  it('pagehide com post em voo: reenvia por keepalive e a tela deixa de mostrar "enviando"', () => {
+    post.mockImplementationOnce(() => new Promise(() => {}));
+    const { result } = renderHook(() => useDeferredDecisions());
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => { jest.advanceTimersByTime(DEFER_MS); });
+    expect(result.current.sending).toEqual({ 'document:l2': 'Aprovado' });
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.sending).toEqual({});
+    expect(result.current.pending).toEqual({});
+  });
+
+  it('pageshow vindo do bfcache (persisted) chama o onRestored; pageshow comum não', () => {
+    const onRestored = jest.fn();
+    renderHook(() => useDeferredDecisions(undefined, undefined, onRestored));
+    const show = (persisted: boolean) => {
+      const ev = new Event('pageshow');
+      Object.defineProperty(ev, 'persisted', { value: persisted });
+      act(() => { window.dispatchEvent(ev); });
+    };
+    show(false);
+    expect(onRestored).not.toHaveBeenCalled();
+    show(true);
+    expect(onRestored).toHaveBeenCalledTimes(1);
+  });
 });

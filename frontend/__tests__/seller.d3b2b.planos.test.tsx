@@ -1,8 +1,9 @@
 /**
  * D3b-2b · P3.5 — lojista:
  * - /seller/plano: o pedido de troca aceita um motivo opcional (até 500), que vai aparado e só quando escrito;
- * - mensalidade cancelada (ruling 8): /seller/assinatura e o cartão do Agora dizem até quando a loja vende. Dentro
- *   do período a loja não fica bloqueada (onStatus(..., false)); depois, o cartão de hoje (bloqueada);
+ * - mensalidade cancelada (ruling 8): /seller/assinatura e o cartão do Agora dizem até quando a loja vende. A
+ *   mensalidade nunca bloqueia a cancelada (onStatus(..., false)): depois do período o texto é só informativo
+ *   ("Mensalidade cancelada · vendeu até DD/MM"); quem tira a loja do ar é a pausa do DROP (onda final);
  * - lib/saasBilling: "vende até" (o `sellsUntil` que o servidor manda; a tela não recalcula a cobertura) e bloqueio.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -99,11 +100,14 @@ describe('mensalidade cancelada no lojista', () => {
     )).toBeInTheDocument();
   });
 
-  it('/seller/assinatura depois do período: "Assinatura cancelada"', async () => {
+  // Onda final: depois do período o aviso é informativo (sem bloqueio); a pausa do DROP tem a faixa própria.
+  it('/seller/assinatura depois do período: "Mensalidade cancelada · vendeu até DD/MM", sem o aviso vermelho', async () => {
     mockBilling = billing({ status: 'cancelled', paidUntil: '2026-01-10T00:00:00.000Z', sellsUntil: '2026-01-11T02:59:59.999Z' });
     render(<SellerAssinatura />);
-    expect(await screen.findByText('Assinatura cancelada')).toBeInTheDocument();
-    expect(screen.getByText('A loja não recebe pedidos novos. Para voltar a vender, fale com o suporte.')).toBeInTheDocument();
+    expect(await screen.findByText('Mensalidade cancelada · vendeu até 10/01')).toBeInTheDocument();
+    expect(screen.queryByText('A loja não recebe pedidos novos. Para voltar a vender, fale com o suporte.')).not.toBeInTheDocument();
+    expect(screen.getByText('A cobrança parou. Para continuar, fale com o suporte.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Situação').className).not.toMatch(/blkDanger/);
   });
 
   it('Agora, dentro do período: avisa até quando vende e não bloqueia a loja', async () => {
@@ -116,12 +120,14 @@ describe('mensalidade cancelada no lojista', () => {
     expect(onStatus).toHaveBeenCalledWith('cancelled', false);
   });
 
-  it('Agora, depois do período: o cartão de hoje e a loja bloqueada', async () => {
+  it('Agora, depois do período: aviso informativo "vendeu até" e a mensalidade não bloqueia a loja', async () => {
     mockBilling = { status: 'cancelled', trialEndsAt: '2026-01-01T12:00:00.000Z', paidUntil: '2026-02-01T00:00:00.000Z', sellsUntil: '2026-02-02T02:59:59.999Z' };
     const onStatus = jest.fn();
     render(<SaasPausedCard storeId="s1" onStatus={onStatus} />);
-    expect(await screen.findByText('Assinatura cancelada')).toBeInTheDocument();
-    expect(onStatus).toHaveBeenCalledWith('cancelled', true);
+    expect(await screen.findByText('Mensalidade cancelada · vendeu até 01/02')).toBeInTheDocument();
+    expect(screen.queryByText('Assinatura cancelada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fale com a DROP para voltar a vender.')).not.toBeInTheDocument();
+    expect(onStatus).toHaveBeenCalledWith('cancelled', false);
   });
 });
 
@@ -132,13 +138,17 @@ it('lib/saasBilling: "vende até" pelo sellsUntil do servidor, bloqueio e DD/MM'
   expect(saasCancelledSellsUntil({ status: 'cancelled', sellsUntil: '2026-10-11T02:59:59.999Z' }, now)).toBeNull();
   expect(saasCancelledSellsUntil({ status: 'cancelled' }, now)).toBeNull(); // sem o campo: bloqueada, como hoje
   expect(saasCancelledSellsUntil({ status: 'active', sellsUntil: null }, now)).toBeNull();
-  expect(saasStoreBlocked({ status: 'cancelled', sellsUntil: '2026-11-18T02:59:59.999Z' }, now)).toBe(false);
-  expect(saasStoreBlocked({ status: 'cancelled', sellsUntil: null }, now)).toBe(true);
-  expect(saasStoreBlocked({ status: 'paused', sellsUntil: null }, now)).toBe(true);
-  expect(saasStoreBlocked({ status: 'past_due', sellsUntil: null }, now)).toBe(false);
+  expect(saasStoreBlocked({ status: 'cancelled', sellsUntil: '2026-11-18T02:59:59.999Z' })).toBe(false);
+  // onda final: só `paused` bloqueia; a cancelada vencida não (o bloqueio dela é a pausa do DROP)
+  expect(saasStoreBlocked({ status: 'cancelled', sellsUntil: null })).toBe(false);
+  expect(saasStoreBlocked({ status: 'cancelled', sellsUntil: '2026-10-11T02:59:59.999Z' })).toBe(false);
+  expect(saasStoreBlocked({ status: 'paused', sellsUntil: null })).toBe(true);
+  expect(saasStoreBlocked({ status: 'past_due', sellsUntil: null })).toBe(false);
   expect(formatDayMonth('2026-10-16T03:00:00.000Z')).toBe('16/10');
   expect(formatDayMonth(null)).toBe('');
   expect(saasStatusMessage({ status: 'cancelled', paidUntil: '2026-11-17T00:00:00.000Z', trialEndsAt: null, sellsUntil: '2026-11-18T02:59:59.999Z' }, now))
     .toBe('Cancelada · vende até 17/11');
-  expect(saasStatusMessage({ status: 'cancelled', paidUntil: null, trialEndsAt: null, sellsUntil: null }, now)).toBe('Assinatura cancelada');
+  expect(saasStatusMessage({ status: 'cancelled', paidUntil: null, trialEndsAt: null, sellsUntil: '2026-10-11T02:59:59.999Z' }, now))
+    .toBe('Mensalidade cancelada · vendeu até 10/10');
+  expect(saasStatusMessage({ status: 'cancelled', paidUntil: null, trialEndsAt: null, sellsUntil: null }, now)).toBe('Mensalidade cancelada');
 });

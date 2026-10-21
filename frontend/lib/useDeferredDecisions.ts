@@ -9,6 +9,7 @@
  * O envio que já saiu da tela (keepalive, ou o post em voo quando a tela desmonta) lê a resposta: se falhar (menos o
  * 409, que é "já decidido"), avisa por onLostError, que deve usar um aviso global (o da tela morre com ela).
  * Ao fechar a aba não há onde avisar: a falha fica sem aviso.
+ * Voltar do bfcache (pageshow com `persisted`) chama onRestored: a tela relê a lista, que pode ter ficado velha.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
@@ -25,7 +26,10 @@ export interface DeferredLost { key: string; label: string }
 export interface DeferredDecisions {
   /** chave → rótulo ("Aprovado", "Recusado") das decisões em espera. */
   pending: Record<string, string>;
-  /** Subconjunto de `pending`: já saiu pelo relógio e espera a resposta (não dá mais para desfazer). */
+  /**
+   * Subconjunto de `pending`: já saiu pelo relógio e espera a resposta (não dá mais para desfazer). A chave com
+   * decisão nova em espera não conta: o que vale na tela é a nova, que ainda dá para desfazer.
+   */
   sending: Record<string, string>;
   schedule: (key: string, run: DeferredRequest, label: string) => void;
   /** true se havia decisão em espera (e ela foi cancelada); false se já foi enviada ou não existe. */
@@ -62,6 +66,7 @@ export function sendKeepalive(run: DeferredRequest, onFail?: () => void): void {
 export function useDeferredDecisions(
   onSettled?: (r: DeferredResult) => void,
   onLostError?: (r: DeferredLost) => void,
+  onRestored?: () => void,
 ): DeferredDecisions {
   const router = useRouter();
   const events = router?.events;
@@ -74,12 +79,14 @@ export function useDeferredDecisions(
   settledRef.current = onSettled;
   const lostRef = useRef(onLostError);
   lostRef.current = onLostError;
+  const restoredRef = useRef(onRestored);
+  restoredRef.current = onRestored;
   const alive = useRef(true);
 
   const sync = useCallback(() => {
     if (!alive.current) return;
     const out = Array.from(inflight.current.values()).map((f): [string, string] => [f.key, f.label]);
-    setSending(Object.fromEntries(out));
+    setSending(Object.fromEntries(out.filter(([k]) => !entries.current.has(k))));
     // Em voo conta como ocupado até a resposta; uma decisão nova da mesma chave vale mais.
     setPending({ ...Object.fromEntries(out), ...Object.fromEntries(Array.from(entries.current, ([k, e]) => [k, e.label])) });
   }, []);
@@ -145,19 +152,23 @@ export function useDeferredDecisions(
       // o servidor responde 409 VERIFICATION_NOT_PENDING e nada se aplica duas vezes.
       inflight.current.forEach((f, run) => sendKeepalive(run, () => lostRef.current?.({ key: f.key, label: f.label })));
       inflight.current.clear();
+      sync();
     };
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) restoredRef.current?.(); };
     window.addEventListener('beforeunload', onUnload);
     // Celular e bfcache nem sempre disparam beforeunload. O mapa já vazio impede o segundo envio.
     window.addEventListener('pagehide', onUnload);
+    window.addEventListener('pageshow', onShow);
     events?.on('routeChangeStart', flushAll);
     return () => {
       alive.current = false;
       window.removeEventListener('beforeunload', onUnload);
-    window.removeEventListener('pagehide', onUnload);
+      window.removeEventListener('pagehide', onUnload);
+      window.removeEventListener('pageshow', onShow);
       events?.off('routeChangeStart', flushAll);
       flushAll();
     };
-  }, [events, flushAll]);
+  }, [events, flushAll, sync]);
 
   return { pending, sending, schedule, undo, flushAll };
 }

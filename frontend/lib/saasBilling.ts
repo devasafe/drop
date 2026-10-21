@@ -89,7 +89,7 @@ export function formatDayMonth(iso?: string | null): string {
 
 /**
  * Mensalidade cancelada ainda dentro do período (D3b-2b, ruling 8): devolve o `sellsUntil` do servidor (o último
- * instante coberto, a mesma conta da vitrine); fora disso, ou sem o campo, null (a loja conta como bloqueada).
+ * instante coberto, a mesma conta do job); fora disso, ou sem o campo, null.
  */
 export function saasCancelledSellsUntil(b: CancelFields, now: Date = new Date()): string | null {
   if (b.status !== 'cancelled' || typeof b.sellsUntil !== 'string') return null;
@@ -97,9 +97,25 @@ export function saasCancelledSellsUntil(b: CancelFields, now: Date = new Date())
   return Number.isFinite(t) && t > now.getTime() ? b.sellsUntil : null;
 }
 
-/** A mensalidade bloqueia a loja: pausada, ou cancelada depois do período (ruling 8). Atrasada ainda não. */
-export function saasStoreBlocked(b: CancelFields, now: Date = new Date()): boolean {
-  return b.status === 'paused' || (b.status === 'cancelled' && saasCancelledSellsUntil(b, now) === null);
+/** Mensalidade cancelada cujo período já acabou: o `sellsUntil` (o "vendeu até"); senão null. */
+export function saasCancelledSoldUntil(b: CancelFields, now: Date = new Date()): string | null {
+  if (b.status !== 'cancelled' || typeof b.sellsUntil !== 'string') return null;
+  const t = Date.parse(b.sellsUntil);
+  return Number.isFinite(t) && t <= now.getTime() ? b.sellsUntil : null;
+}
+
+/**
+ * A mensalidade bloqueia a loja: só pausada. Atrasada ainda não; a cancelada nunca (D3b-2b, onda final): no fim do
+ * período o DROP pausa a loja, e quem informa essa pausa é a faixa da pausa pelo DROP.
+ */
+export function saasStoreBlocked(b: CancelFields): boolean {
+  return b.status === 'paused';
+}
+
+/** "Mensalidade cancelada · vendeu até DD/MM" (sem a data quando o servidor não mandou). */
+export function saasCancelledEndedMessage(b: CancelFields, now: Date = new Date()): string {
+  const sold = saasCancelledSoldUntil(b, now);
+  return sold ? `Mensalidade cancelada · vendeu até ${formatDayMonth(sold)}` : 'Mensalidade cancelada';
 }
 
 /** Frase em linguagem simples para o lojista. */
@@ -111,7 +127,7 @@ export function saasStatusMessage(b: Pick<SaasBillingView, 'status' | 'trialEnds
     case 'paused': return 'Loja pausada — pague para voltar a receber pedidos';
     default: {
       const until = saasCancelledSellsUntil(b, now);
-      return until ? `Cancelada · vende até ${formatDayMonth(until)}` : 'Assinatura cancelada';
+      return until ? `Cancelada · vende até ${formatDayMonth(until)}` : saasCancelledEndedMessage(b, now);
     }
   }
 }

@@ -7,6 +7,7 @@
 }
 .paused { background: var(--color-error-subtle); }
 .late { background: var(--color-warning-subtle); }
+.info { background: var(--color-info-subtle); }
 .title {
   display: flex;
   align-items: center;
@@ -16,6 +17,7 @@
 }
 .paused .title { color: var(--color-error-text); }
 .late .title { color: var(--color-warning-text); }
+.info .title { color: var(--color-info-text); }
 .text {
   margin: 0;
   font: var(--text-body);

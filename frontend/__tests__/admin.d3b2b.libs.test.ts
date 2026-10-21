@@ -277,6 +277,11 @@ describe('textos da ficha', () => {
       meta: { decision: 'reject', subject: { kind: 'client', id: 'c1' }, items: [{ kind: 'facial', userId: 'c1', submittedAt: null, reasonCode: 'face_mismatch', resend: true }] },
     })).toBe('Recusado: Selfie (Selfie não confere com o documento, pediu reenvio)');
     expect(timelineDetail({ ...base, type: 'verification_decision', meta: { decision: 'reject', items: 'x' } })).toBeNull();
+    // onda final: nome que é chave do Object.prototype não vira função no texto
+    expect(timelineDetail({
+      ...base, type: 'verification_decision',
+      meta: { decision: 'reject', items: [{ kind: 'constructor', reasonCode: 'toString' }] },
+    })).toBe('Recusado: constructor');
     expect(timelineDetail({
       ...base, type: 'trial_extend',
       meta: { days: 14, from: '2030-11-01T12:00:00.000Z', to: '2030-11-15T12:00:00.000Z', nextDueDate: '2030-11-15', removedPayments: [] },
@@ -287,7 +292,9 @@ describe('textos da ficha', () => {
   it('códigos novos em português; NOT_TRIALING e ALREADY_CANCELLED fazem a ficha reler', () => {
     expect(accountErrorMessage(http(409, { error: 'x', code: 'NOT_TRIALING' }))).toBe('A loja não está mais em teste. A ficha foi atualizada.');
     expect(accountErrorMessage(http(409, { error: 'x', code: 'ALREADY_CANCELLED' }))).toBe('A mensalidade já estava cancelada. A ficha foi atualizada.');
-    expect(accountErrorMessage(http(409, { error: 'x', code: 'NO_SAAS_BILLING' }))).toBe('Esta loja não tem mensalidade para cancelar.');
+    // onda final: o mesmo texto vale para estender e cancelar
+    expect(accountErrorMessage(http(409, { error: 'x', code: 'NO_SAAS_BILLING' }))).toBe('Esta loja não tem mensalidade.');
+    expect(accountErrorMessage(http(409, { error: 'x', code: 'SAAS_NOT_DIRECT' }))).toBe('A mensalidade só existe no modo direto.');
     expect(accountErrorMessage(http(400, { error: 'x', code: 'INVALID_DAYS' }))).toBe('Escolha 7, 14 ou 30 dias.');
     expect(accountErrorMessage(http(502, { error: 'x', code: 'ASAAS_UPDATE_FAILED' }))).toBe(
       'O Asaas não aceitou a nova data da cobrança. Nada mudou: tente de novo em alguns minutos.',

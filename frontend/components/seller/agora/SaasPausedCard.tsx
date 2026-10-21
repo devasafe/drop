@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { PauseCircle, AlertTriangle } from 'lucide-react';
+import { PauseCircle, AlertTriangle, Info } from 'lucide-react';
 import api from '../../../lib/api';
 import { formatMoney } from '../../../lib/money';
 import { unwrap, formatFullDate } from '../../../lib/sellerApi';
-import { formatDayMonth, saasCancelledSellsUntil, saasStoreBlocked } from '../../../lib/saasBilling';
+import { formatDayMonth, saasCancelledEndedMessage, saasCancelledSellsUntil, saasStoreBlocked } from '../../../lib/saasBilling';
 import styles from './SaasPausedCard.module.css';
 
 export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'cancelled';
@@ -12,8 +12,9 @@ export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'can
 /**
  * Mensalidade do modo SaaS no Agora: pausada (vermelho), atrasada (âmbar) ou cancelada.
  * Pedidos já pagos seguem até o fim (services/saasBilling/gate.ts); só a vitrine e o checkout param.
- * D3b-2b (ruling 8): cancelada dentro do período continua vendendo e o cartão diz até quando. `onStatus` recebe
- * também `blocked`, que o painel usa para travar a abertura da loja.
+ * D3b-2b (ruling 8): cancelada dentro do período continua vendendo e o cartão diz até quando. Depois do período o
+ * cartão só informa ("vendeu até"): a loja é pausada pelo DROP, e quem avisa é a faixa dessa pausa. `onStatus`
+ * recebe também `blocked` (só `paused`), que o painel usa para travar a abertura da loja.
  */
 export function SaasPausedCard({ storeId, onStatus }: {
   storeId: string;
@@ -83,9 +84,8 @@ export function SaasPausedCard({ storeId, onStatus }: {
       );
     }
     return (
-      <section className={[styles.card, styles.paused].join(' ')} aria-label="Assinatura cancelada">
-        <h2 className={styles.title}><PauseCircle size={22} aria-hidden="true" /> Assinatura cancelada</h2>
-        <p className={styles.text}>Fale com a DROP para voltar a vender.</p>
+      <section className={[styles.card, styles.info].join(' ')} aria-label="Mensalidade cancelada">
+        <h2 className={styles.title}><Info size={22} aria-hidden="true" /> {saasCancelledEndedMessage(b)}</h2>
         <Link className={styles.pay} href="/suporte">Falar com o suporte</Link>
       </section>
     );

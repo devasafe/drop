@@ -160,7 +160,8 @@ function VerificacoesScreen() {
     showToast(`${name}: a decisão não foi registrada. Abra Verificações e decida de novo.`, 'error');
   }, [showToast]);
 
-  const deferred = useDeferredDecisions(onSettled, onLostError);
+  // Voltar do bfcache relê a fila (as decisões enviadas na saída já mudaram o servidor).
+  const deferred = useDeferredDecisions(onSettled, onLostError, load);
 
   const all = people ?? [];
   const visible = all.filter((p) => filter === 'todos' || p.kind === filter);
@@ -217,6 +218,8 @@ function VerificacoesScreen() {
     let approved = 0;
     try {
       for (const call of calls) {
+        // A tela saiu: a série para (a chamada em voo termina sozinha).
+        if (!alive.current) return;
         await api.post(call.url, { items: call.items });
         approved += call.items.length;
       }

@@ -56,9 +56,10 @@ function Assinatura() {
     return () => { cancelled = true; };
   }, [user?.storeId, panelWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // D3b-2b (ruling 8): cancelada dentro do período continua vendendo; só depois vira aviso vermelho.
+  // D3b-2b: a cancelada não é aviso vermelho, nem depois do período (onda final): o texto só informa até quando
+  // vendeu, e a pausa pelo DROP tem a faixa própria.
   const sellsUntil = data ? saasCancelledSellsUntil(data) : null;
-  const warn = !!data && (data.status === 'past_due' || data.status === 'paused' || (data.status === 'cancelled' && !sellsUntil));
+  const warn = !!data && (data.status === 'past_due' || data.status === 'paused');
   const pay = data?.nextPayment;
   const payments = Array.isArray(data?.payments) ? data!.payments! : [];
   const daysLeft = data?.status === 'trialing' && data.trialEndsAt
@@ -86,7 +87,7 @@ function Assinatura() {
               <p className={blocks.sub}>
                 {sellsUntil
                   ? 'A cobrança parou. Depois dessa data a loja sai da vitrine e não recebe pedidos novos. Para continuar, fale com o suporte.'
-                  : 'A loja não recebe pedidos novos. Para voltar a vender, fale com o suporte.'}
+                  : 'A cobrança parou. Para continuar, fale com o suporte.'}
               </p>
             )}
           </section>

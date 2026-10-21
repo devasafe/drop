@@ -117,7 +117,7 @@ export default function AgoraPage() {
   const { settlementMode, loading: modeLoading } = useSaasConfig();
   const { products } = useMyStore();
   const online = useOnline();
-  // D3b-2b (ruling 8): o cartão diz se a mensalidade bloqueia (pausada, ou cancelada depois do período).
+  // D3b-2b: o cartão diz se a mensalidade bloqueia (só pausada; a cancelada é bloqueada pela pausa do DROP).
   const [saasBlocked, setSaasBlocked] = useState(false);
   const [rejecting, setRejecting] = useState<any | null>(null);
   const [rejectDone, setRejectDone] = useState(false);
