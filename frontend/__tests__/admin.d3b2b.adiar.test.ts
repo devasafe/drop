@@ -159,3 +159,85 @@ it('sendKeepalive sem fetch no ambiente: não quebra', () => {
   delete (global as unknown as { fetch?: unknown }).fetch;
   expect(() => sendKeepalive(APPROVE)).not.toThrow();
 });
+
+describe('correção 1', () => {
+  it('pagehide e depois beforeunload: um único keepalive', () => {
+    const { result } = renderHook(() => useDeferredDecisions());
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    act(() => { window.dispatchEvent(new Event('beforeunload')); });
+    expect(fetchMock.mock.calls).toEqual([keepalive(APPROVE.url)]);
+  });
+
+  it('routeChangeStart e depois beforeunload: um único keepalive', () => {
+    const { result } = renderHook(() => useDeferredDecisions());
+    act(() => result.current.schedule('document:l2', REJECT, 'Recusado'));
+    act(() => emitRoute());
+    act(() => { window.dispatchEvent(new Event('beforeunload')); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('troca de rota com fetch 500: avisa por onLostError; com 409, não', async () => {
+    const lost = jest.fn();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500 } as never);
+    const { result } = renderHook(() => useDeferredDecisions(undefined, lost));
+    act(() => result.current.schedule('document:l2', REJECT, 'Recusado'));
+    act(() => emitRoute());
+    await waitFor(() => expect(lost).toHaveBeenCalledWith({ key: 'document:l2', label: 'Recusado' }));
+
+    lost.mockClear();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 409 } as never);
+    act(() => result.current.schedule('facial:l2', APPROVE, 'Aprovado'));
+    act(() => emitRoute());
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(lost).not.toHaveBeenCalled();
+  });
+
+  it('keepalive com falha de rede: avisa', async () => {
+    const lost = jest.fn();
+    fetchMock.mockRejectedValueOnce(new Error('net'));
+    const { result } = renderHook(() => useDeferredDecisions(undefined, lost));
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => emitRoute());
+    await waitFor(() => expect(lost).toHaveBeenCalledTimes(1));
+  });
+
+  it('desmontar com o post em voo: não reenvia, não chama onSettled, mas o erro chega por onLostError (409 não)', async () => {
+    let fail!: (e: unknown) => void;
+    post.mockImplementationOnce(() => new Promise((_, rej) => { fail = rej; }));
+    const settled = jest.fn();
+    const lost = jest.fn();
+    const { result, unmount } = renderHook(() => useDeferredDecisions(settled, lost));
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => { jest.advanceTimersByTime(DEFER_MS); });
+    unmount();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => { fail({ response: { status: 500 } }); });
+    expect(settled).not.toHaveBeenCalled();
+    expect(lost).toHaveBeenCalledWith({ key: 'document:l2', label: 'Aprovado' });
+
+    lost.mockClear();
+    let fail409!: (e: unknown) => void;
+    post.mockImplementationOnce(() => new Promise((_, rej) => { fail409 = rej; }));
+    const second = renderHook(() => useDeferredDecisions(settled, lost));
+    act(() => second.result.current.schedule('facial:l2', APPROVE, 'Aprovado'));
+    act(() => { jest.advanceTimersByTime(DEFER_MS); });
+    second.unmount();
+    await act(async () => { fail409({ response: { status: 409, data: { code: 'VERIFICATION_NOT_PENDING' } } }); });
+    expect(lost).not.toHaveBeenCalled();
+  });
+
+  it('em voo a chave continua ocupada (pending e sending) até a resposta', async () => {
+    let done!: (v: unknown) => void;
+    post.mockImplementationOnce(() => new Promise((res) => { done = res; }));
+    const { result } = renderHook(() => useDeferredDecisions());
+    act(() => result.current.schedule('document:l2', APPROVE, 'Aprovado'));
+    act(() => { jest.advanceTimersByTime(DEFER_MS); });
+    expect(result.current.pending).toEqual({ 'document:l2': 'Aprovado' });
+    expect(result.current.sending).toEqual({ 'document:l2': 'Aprovado' });
+    expect(result.current.undo('document:l2')).toBe(false);
+    await act(async () => { done({ data: {} }); });
+    expect(result.current.pending).toEqual({});
+    expect(result.current.sending).toEqual({});
+  });
+});

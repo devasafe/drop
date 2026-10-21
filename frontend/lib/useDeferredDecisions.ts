@@ -6,19 +6,27 @@
  *   base e a mesma autenticação do `api`. A auth é o cookie httpOnly (credentials 'include'); o header
  *   Authorization só vai se o `api` tiver um.
  * A decisão sai da espera antes de qualquer envio: nunca vai duas vezes pelo cliente.
+ * O envio que já saiu da tela (keepalive, ou o post em voo quando a tela desmonta) lê a resposta: se falhar (menos o
+ * 409, que é "já decidido"), avisa por onLostError, que deve usar um aviso global (o da tela morre com ela).
+ * Ao fechar a aba não há onde avisar: a falha fica sem aviso.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from './api';
+import { isVerificationAlreadyDecided } from './adminVerificacoes';
 
 export const DEFER_MS = 10_000;
 
 /** O que enviar: POST na URL relativa do `api`, com corpo JSON opcional (aprovar vai sem corpo). */
 export interface DeferredRequest { url: string; body?: unknown }
 export interface DeferredResult { key: string; label: string; ok: boolean; error?: unknown }
+/** Envio que não voltou à tela (ela já saiu) e falhou. */
+export interface DeferredLost { key: string; label: string }
 export interface DeferredDecisions {
   /** chave → rótulo ("Aprovado", "Recusado") das decisões em espera. */
   pending: Record<string, string>;
+  /** Subconjunto de `pending`: já saiu pelo relógio e espera a resposta (não dá mais para desfazer). */
+  sending: Record<string, string>;
   schedule: (key: string, run: DeferredRequest, label: string) => void;
   /** true se havia decisão em espera (e ela foi cancelada); false se já foi enviada ou não existe. */
   undo: (key: string) => boolean;
@@ -26,11 +34,11 @@ export interface DeferredDecisions {
   flushAll: () => void;
 }
 
-interface Entry { run: DeferredRequest; label: string; timer: ReturnType<typeof setTimeout> }
+interface Entry { key: string; run: DeferredRequest; label: string; timer: ReturnType<typeof setTimeout> }
 interface ApiDefaults { defaults?: { baseURL?: unknown; headers?: { common?: Record<string, unknown> } } }
 
 /** POST que sobrevive à saída da página (fetch keepalive), com a base e a autenticação do `api`. */
-export function sendKeepalive(run: DeferredRequest): void {
+export function sendKeepalive(run: DeferredRequest, onFail?: () => void): void {
   if (typeof fetch !== 'function') return;
   const defaults = (api as unknown as ApiDefaults).defaults;
   const base = typeof defaults?.baseURL === 'string' ? defaults.baseURL : '';
@@ -45,26 +53,35 @@ export function sendKeepalive(run: DeferredRequest): void {
       credentials: 'include',
       headers,
       body: run.body === undefined ? undefined : JSON.stringify(run.body),
-    }).catch(() => undefined);
+    }).then((res) => { if (res && !res.ok && res.status !== 409) onFail?.(); }).catch(() => onFail?.());
   } catch {
-    // A página está saindo: não há onde avisar.
+    onFail?.();
   }
 }
 
-export function useDeferredDecisions(onSettled?: (r: DeferredResult) => void): DeferredDecisions {
+export function useDeferredDecisions(
+  onSettled?: (r: DeferredResult) => void,
+  onLostError?: (r: DeferredLost) => void,
+): DeferredDecisions {
   const router = useRouter();
   const events = router?.events;
   const entries = useRef(new Map<string, Entry>());
   /** Enviadas pelo relógio e ainda sem resposta: a aba pode fechar no meio. */
-  const inflight = useRef(new Set<DeferredRequest>());
+  const inflight = useRef(new Map<DeferredRequest, { key: string; label: string }>());
   const [pending, setPending] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<Record<string, string>>({});
   const settledRef = useRef(onSettled);
   settledRef.current = onSettled;
+  const lostRef = useRef(onLostError);
+  lostRef.current = onLostError;
   const alive = useRef(true);
 
   const sync = useCallback(() => {
     if (!alive.current) return;
-    setPending(Object.fromEntries(Array.from(entries.current, ([k, e]) => [k, e.label])));
+    const out = Array.from(inflight.current.values()).map((f): [string, string] => [f.key, f.label]);
+    setSending(Object.fromEntries(out));
+    // Em voo conta como ocupado até a resposta; uma decisão nova da mesma chave vale mais.
+    setPending({ ...Object.fromEntries(out), ...Object.fromEntries(Array.from(entries.current, ([k, e]) => [k, e.label])) });
   }, []);
 
   const send = useCallback(async (key: string) => {
@@ -72,24 +89,31 @@ export function useDeferredDecisions(onSettled?: (r: DeferredResult) => void): D
     if (!e) return;
     // Sai da espera antes do POST: a saída da página não manda de novo.
     entries.current.delete(key);
-    inflight.current.add(e.run);
+    inflight.current.set(e.run, { key, label: e.label });
     sync();
+    let failure: unknown;
+    let failed = false;
     try {
       if (e.run.body === undefined) await api.post(e.run.url);
       else await api.post(e.run.url, e.run.body);
-      if (alive.current) settledRef.current?.({ key, label: e.label, ok: true });
     } catch (error) {
-      if (alive.current) settledRef.current?.({ key, label: e.label, ok: false, error });
-    } finally {
-      inflight.current.delete(e.run);
+      failed = true;
+      failure = error;
     }
+    if (alive.current) {
+      settledRef.current?.(failed ? { key, label: e.label, ok: false, error: failure } : { key, label: e.label, ok: true });
+    } else if (failed && !isVerificationAlreadyDecided(failure)) {
+      lostRef.current?.({ key, label: e.label });
+    }
+    inflight.current.delete(e.run);
+    sync();
   }, [sync]);
 
   const schedule = useCallback((key: string, run: DeferredRequest, label: string) => {
     const prev = entries.current.get(key);
     if (prev) clearTimeout(prev.timer);
     const timer = setTimeout(() => { void send(key); }, DEFER_MS);
-    entries.current.set(key, { run, label, timer });
+    entries.current.set(key, { key, run, label, timer });
     sync();
   }, [send, sync]);
 
@@ -108,7 +132,7 @@ export function useDeferredDecisions(onSettled?: (r: DeferredResult) => void): D
     entries.current.clear();
     for (const e of list) {
       clearTimeout(e.timer);
-      sendKeepalive(e.run);
+      sendKeepalive(e.run, () => lostRef.current?.({ key: e.key, label: e.label }));
     }
     sync();
   }, [sync]);
@@ -119,18 +143,21 @@ export function useDeferredDecisions(onSettled?: (r: DeferredResult) => void): D
       flushAll();
       // Pedido em voo: o navegador pode cortá-lo ao fechar a aba. Vai de novo por keepalive; se o primeiro chegou,
       // o servidor responde 409 VERIFICATION_NOT_PENDING e nada se aplica duas vezes.
-      inflight.current.forEach((run) => sendKeepalive(run));
+      inflight.current.forEach((f, run) => sendKeepalive(run, () => lostRef.current?.({ key: f.key, label: f.label })));
       inflight.current.clear();
     };
     window.addEventListener('beforeunload', onUnload);
+    // Celular e bfcache nem sempre disparam beforeunload. O mapa já vazio impede o segundo envio.
+    window.addEventListener('pagehide', onUnload);
     events?.on('routeChangeStart', flushAll);
     return () => {
       alive.current = false;
       window.removeEventListener('beforeunload', onUnload);
+    window.removeEventListener('pagehide', onUnload);
       events?.off('routeChangeStart', flushAll);
       flushAll();
     };
   }, [events, flushAll]);
 
-  return { pending, schedule, undo, flushAll };
+  return { pending, sending, schedule, undo, flushAll };
 }

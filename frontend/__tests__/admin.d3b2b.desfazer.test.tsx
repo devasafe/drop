@@ -170,3 +170,59 @@ it('item já decidido por outra pessoa: aviso com o nome; "Desfazer" depois do e
   act(() => toastAction('Aprovado').onClick());
   expect(mockToast).toHaveBeenLastCalledWith('Já foi enviado. Não dá mais para desfazer.', 'info');
 });
+
+it('correção 1: o "Desfazer" do aviso antigo não desfaz a decisão nova do mesmo item', async () => {
+  render(<AdminVerificacoesPage />);
+  const detail = await paulo();
+  fireEvent.click(within(detail).getByRole('button', { name: 'Recusar com motivo' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
+  fireEvent.click(within(dialog).getByLabelText('Documento'));
+  fireEvent.click(within(dialog).getByLabelText('CNPJ · Eletro Center'));
+  fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'expired' } });
+  fireEvent.change(within(dialog).getByLabelText('Motivo · CNPJ · Eletro Center'), { target: { value: 'cnpj_invalid' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 2 itens' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  fireEvent.click(within(card('CNPJ · Eletro Center')).getByRole('button', { name: 'Aprovar' }));
+  act(() => toastAction('2 itens recusados').onClick());
+  expect(within(card('Documento')).queryByRole('status')).toBeNull();
+  expect(within(card('CNPJ · Eletro Center')).getByRole('status')).toHaveTextContent('Aprovado · envia em até 10 s');
+  act(() => { jest.advanceTimersByTime(10_000); });
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  expect(post.mock.calls).toEqual([['/verification/admin/store/s1/cnpj/approve']]);
+});
+
+it('correção 1: troca de rota com a recusa pendente e fetch 500: avisa; com 409, não', async () => {
+  fetchMock.mockResolvedValueOnce({ ok: false, status: 500 } as never);
+  render(<AdminVerificacoesPage />);
+  await paulo();
+  fireEvent.click(within(card('Documento')).getByRole('button', { name: 'Recusar' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Recusar Paulo Henrique' });
+  fireEvent.change(within(dialog).getByLabelText('Motivo · Documento'), { target: { value: 'illegible' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir reenvio de 1 item' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  act(() => emitRoute());
+  await waitFor(() => expect(mockToast).toHaveBeenCalledWith(
+    'Documento: a decisão não foi registrada. Abra Verificações e decida de novo.', 'error'));
+
+  fetchMock.mockResolvedValueOnce({ ok: false, status: 409 } as never);
+  fireEvent.click(within(card('CNPJ · Eletro Center')).getByRole('button', { name: 'Aprovar' }));
+  mockToast.mockClear();
+  act(() => emitRoute());
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect(mockToast).not.toHaveBeenCalled();
+});
+
+it('correção 1: com o pedido em voo, "Aprovar" do item e "Aprovar tudo" ficam desabilitados até a resposta', async () => {
+  let done!: (v: unknown) => void;
+  post.mockImplementationOnce(() => new Promise((res) => { done = res; }));
+  render(<AdminVerificacoesPage />);
+  const detail = await paulo();
+  fireEvent.click(within(card('Documento')).getByRole('button', { name: 'Aprovar' }));
+  act(() => { jest.advanceTimersByTime(10_000); });
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(within(detail).getByRole('button', { name: 'Aprovar tudo' })).toBeDisabled();
+  expect(within(card('Documento')).getByRole('button', { name: 'Aprovar' })).toBeDisabled();
+  expect(within(card('Documento')).queryByRole('button', { name: 'Desfazer' })).toBeNull();
+  await act(async () => { done({ data: {} }); });
+  await waitFor(() => expect(within(detail).getByRole('button', { name: 'Aprovar tudo' })).toBeEnabled());
+});

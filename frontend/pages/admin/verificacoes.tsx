@@ -45,7 +45,7 @@ import {
   type VerificationStats,
 } from '../../lib/adminVerificacoes';
 import api from '../../lib/api';
-import { DEFER_MS, useDeferredDecisions, type DeferredRequest, type DeferredResult } from '../../lib/useDeferredDecisions';
+import { DEFER_MS, useDeferredDecisions, type DeferredRequest, type DeferredLost, type DeferredResult } from '../../lib/useDeferredDecisions';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
 import styles from '../../components/admin/pessoas/Verificacoes.module.css';
@@ -102,6 +102,8 @@ function VerificacoesScreen() {
   const approveAllRunning = useRef(false);
   /** Nome do item de cada decisão em espera, para o aviso de erro depois do envio. */
   const itemNames = useRef<Record<string, string>>({});
+  /** Geração de cada item: cada decisão nova sobe; o "Desfazer" de um aviso antigo não desfaz a decisão nova. */
+  const generations = useRef<Record<string, number>>({});
 
   useEffect(() => {
     alive.current = true;
@@ -152,7 +154,13 @@ function VerificacoesScreen() {
     void load();
   }, [load, showToast]);
 
-  const deferred = useDeferredDecisions(onSettled);
+  // Envio que saiu da tela e falhou (o aviso é o global do _app, que sobrevive à troca de rota).
+  const onLostError = useCallback((r: DeferredLost) => {
+    const name = itemNames.current[r.key] ?? 'Item';
+    showToast(`${name}: a decisão não foi registrada. Abra Verificações e decida de novo.`, 'error');
+  }, [showToast]);
+
+  const deferred = useDeferredDecisions(onSettled, onLostError);
 
   const all = people ?? [];
   const visible = all.filter((p) => filter === 'todos' || p.kind === filter);
@@ -174,20 +182,29 @@ function VerificacoesScreen() {
     return calls.length > 0 && calls.every((c) => can(c.permission)) ? calls : [];
   };
 
-  const undoKeys = (keys: string[]) => {
-    const undone = keys.map((k) => deferred.undo(k)).some(Boolean);
+  /** `snapshot` = gerações do aviso: só desfaz a chave cuja decisão ainda é a daquele aviso. */
+  const undoKeys = (keys: string[], snapshot?: Record<string, number>) => {
+    const current = keys.filter((k) => !snapshot || generations.current[k] === snapshot[k]);
+    if (current.length === 0) {
+      showToast('Esse item já tem uma decisão mais recente.', 'info');
+      return;
+    }
+    const undone = current.map((k) => deferred.undo(k)).some(Boolean);
     showToast(undone ? 'Decisão desfeita.' : 'Já foi enviado. Não dá mais para desfazer.', 'info');
   };
 
+  const snapshotOf = (keys: string[]) => Object.fromEntries(keys.map((k) => [k, generations.current[k]]));
+
   const decideLater = (item: VerificationItem, run: DeferredRequest, label: 'Aprovado' | 'Recusado') => {
     itemNames.current[item.key] = item.label;
+    generations.current[item.key] = (generations.current[item.key] ?? 0) + 1;
     deferred.schedule(item.key, run, label);
   };
 
   const approveOne = (item: VerificationItem) => {
     decideLater(item, { url: item.approveUrl }, 'Aprovado');
     showToast('Aprovado', 'success', {
-      action: { label: 'Desfazer', onClick: () => undoKeys([item.key]) },
+      action: { label: 'Desfazer', onClick: () => undoKeys([item.key], snapshotOf([item.key])) },
       durationMs: DEFER_MS,
     });
   };
@@ -240,8 +257,9 @@ function VerificacoesScreen() {
     }
     setRejectOpen(false);
     const keys = items.map((i) => i.key);
+    const snapshot = snapshotOf(keys);
     showToast(keys.length === 1 ? 'Recusado' : `${keys.length} itens recusados`, 'success', {
-      action: { label: 'Desfazer', onClick: () => undoKeys(keys) },
+      action: { label: 'Desfazer', onClick: () => undoKeys(keys, snapshot) },
       durationMs: DEFER_MS,
     });
   };
@@ -260,6 +278,7 @@ function VerificacoesScreen() {
     const titleId = domId(item.key);
     const wait = waitingText(item.submittedAt);
     const waiting = deferred.pending[item.key];
+    const sendingNow = item.key in deferred.sending;
     return (
       <article key={item.key} className={styles.doc} aria-labelledby={titleId}>
         <h3 id={titleId} className={styles.docTitle}>{item.label}</h3>
@@ -277,11 +296,13 @@ function VerificacoesScreen() {
         )}
         {waiting && (
           <div className={blocks.actions} role="status">
-            <span className={blocks.muted}>{`${waiting} · envia em até 10 s`}</span>
-            <Button size="sm" variant="tertiary" className={form.touch} aria-describedby={titleId}
-              onClick={() => undoKeys([item.key])}>
-              Desfazer
-            </Button>
+            <span className={blocks.muted}>{`${waiting} · ${sendingNow ? 'enviando…' : 'envia em até 10 s'}`}</span>
+            {!sendingNow && (
+              <Button size="sm" variant="tertiary" className={form.touch} aria-describedby={titleId}
+                onClick={() => undoKeys([item.key])}>
+                Desfazer
+              </Button>
+            )}
           </div>
         )}
         {can(item.permission) && (
