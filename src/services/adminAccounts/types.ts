@@ -201,6 +201,34 @@ export interface StoreListResponse {
 
 // ── Ficha da loja (P2.4) ─────────────────────────────────────────────────
 
+/** D3b-2b · bloco "Conta Asaas · histórico" da ficha da loja (só o CEO recebe). */
+export interface StoreAsaasHistory {
+  /** StoreAsaasAudit, até 20, os mais novos primeiro. `actor.name` é null quando o autor não é usuário. */
+  audits: Array<{ action: string; apiKeyLast4: string | null; actor: { id: string; name: string | null }; createdAt: string }>;
+  /** O último aceite do termo (StoreAsaasConsent), sem o userAgent; null se nunca aceitou. */
+  consent: { termsVersion: string; ip: string | null; acceptedAt: string; actorRole: string } | null;
+}
+
+/**
+ * D3b-2b · mensalidade na ficha: o estado das ações mais `coveredUntil`, o último instante coberto
+ * (`policy.sellsUntil` = `coverageEnd − 1 ms`), em qualquer status. A tela formata em Brasília
+ * ("vende até DD/MM" da cancelada; prévia da folha de cancelar). O front não recalcula a cobertura.
+ */
+export interface StoreDetailSaas extends StoreSaasState {
+  coveredUntil: string;
+}
+
+/** O que a pessoa pode fazer na ficha da loja (os botões só aparecem com `true`). */
+export interface StoreDetailCan {
+  pause: boolean;
+  unpause: boolean;
+  note: boolean;
+  /** D3b-2b: plan:manage e mensalidade em `trialing`. */
+  extendTrial: boolean;
+  /** D3b-2b: plan:manage e mensalidade existente e não `cancelled`. */
+  cancelSaas: boolean;
+}
+
 export interface StoreDetail {
   profile: {
     id: string;
@@ -222,14 +250,16 @@ export interface StoreDetail {
   reviews: Array<{ orderId: string; rating: number; comment: string; reply: string | null; createdAt: string }>;
   /** `detail` = último erro gravado do recebimento; só para o CEO (null para os demais). */
   receiving: { status: ReceivingStatus; detail: string | null };
-  /** Só leitura na 2a. `saas` = mensalidade (StoreSaasBilling), quando existe. */
+  /** `saas` = mensalidade (StoreSaasBilling), quando existe. As ações (estender, cancelar) são da 2b. */
   plan: {
     plan: number;
     mode: StoreMode;
-    saas: { status: SaasBillingStatus; trialEndsAt: string; paidUntil: string | null } | null;
+    saas: StoreDetailSaas | null;
   };
   /** Os 20 pedidos mais novos. */
   orders: Array<{ id: string; shortId: string; status: string; total: number; customerName: string; createdAt: string }>;
   timeline: TimelineResponse;
-  can: { pause: boolean; unpause: boolean; note: boolean };
+  can: StoreDetailCan;
+  /** D3b-2b: só para o CEO. Para os outros, a chave não existe no JSON. */
+  asaasHistory?: StoreAsaasHistory;
 }

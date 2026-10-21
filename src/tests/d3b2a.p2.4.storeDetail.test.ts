@@ -104,13 +104,13 @@ describe('GET /admin/stores/:id · CEO', () => {
     expect(res.body.reviews.map((r: { orderId: string }) => r.orderId)).not.toContain(recent[2]);
     expect(res.body.reviews.map((r: { orderId: string }) => r.orderId)).not.toContain(recent[5]);
     expect(res.body.receiving).toEqual({ status: 'na', detail: null });
-    expect(res.body.plan).toEqual({ plan: 2, mode: 'custodia', saas: { status: 'trialing', trialEndsAt: trialEndsAt.toISOString(), paidUntil: null } });
+    expect(res.body.plan).toEqual({ plan: 2, mode: 'custodia', saas: { status: 'trialing', trialEndsAt: trialEndsAt.toISOString(), paidUntil: null, cancelledAt: null, coveredUntil: expect.any(String) } });
     expect(res.body.orders).toHaveLength(20);
     expect(res.body.orders[0]).toEqual({
       id: recent[5], shortId: recent[5].slice(-6), status: 'cancelado', total: 30, customerName: `${tag} Cliente`, createdAt: expect.any(String),
     });
     expect(res.body.timeline.items).toHaveLength(3);
-    expect(res.body.can).toEqual({ pause: false, unpause: true, note: true });
+    expect(res.body.can).toEqual({ pause: false, unpause: true, note: true, extendTrial: true, cancelSaas: true });
   });
 });
 
@@ -122,10 +122,10 @@ describe('GET /admin/stores/:id · can e 404', () => {
     try {
       const semEdit = await detail(id, gerente);
       expect(semEdit.status).toBe(200);
-      expect(semEdit.body.can).toEqual({ pause: false, unpause: false, note: true });
+      expect(semEdit.body.can).toEqual({ pause: false, unpause: false, note: true, extendTrial: false, cancelSaas: false });
       expect(semEdit.body.profile).toEqual(expect.objectContaining({ situation: 'open', adminPause: null }));
       await grantRolePermissions('gerente_geral', ['store:view_all', 'store:edit']);
-      expect((await detail(id, gerente)).body.can).toEqual({ pause: true, unpause: false, note: true });
+      expect((await detail(id, gerente)).body.can).toEqual({ pause: true, unpause: false, note: true, extendTrial: false, cancelSaas: false });
     } finally {
       await restore();
     }

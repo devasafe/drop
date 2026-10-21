@@ -19,11 +19,14 @@ import {
   storePlanNumber,
   storeSituation,
 } from './storeStatus';
-import { StoreDetail, TimelineResponse } from './types';
+import { sellsUntil } from '../saasBilling/policy';
+import { toSaasState } from './saas';
+import { StoreAsaasHistory, StoreDetail, TimelineResponse } from './types';
 
 const DAY_MS = 86_400_000;
 const ORDERS_IN_DETAIL = 20;
 const REVIEWS_IN_DETAIL = 10;
+const ASAAS_AUDITS_IN_DETAIL = 20;
 
 const money = (v: unknown): number => Math.round(Number(v ?? 0) * 100) / 100;
 
@@ -38,7 +41,7 @@ const STORE_DETAIL_SELECT = Prisma.validator<Prisma.StoreSelect>()({
   ...STORE_SITUATION_SELECT,
   ...RECEIVING_SELECT,
   owner: { select: { id: true, name: true } },
-  saasBilling: { select: { status: true, trialEndsAt: true, paidUntil: true } },
+  saasBilling: { select: { status: true, trialEndsAt: true, paidUntil: true, cancelledAt: true } },
 });
 
 /** Decisão 15: cancelamentos dos últimos 30 dias que contam contra a loja (mesma culpa de faultStats). */
@@ -53,6 +56,38 @@ async function storeFaultCancellations(storeId: string, since: Date): Promise<nu
   return rows[0]?.n ?? 0;
 }
 
+/** D3b-2b · "Conta Asaas · histórico" (ruling 11): auditoria da chave e o último aceite do termo. Só CEO. */
+async function storeAsaasHistory(storeId: string): Promise<StoreAsaasHistory> {
+  const [audits, consent] = await Promise.all([
+    prisma.storeAsaasAudit.findMany({
+      where: { storeId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: ASAAS_AUDITS_IN_DETAIL,
+    }),
+    prisma.storeAsaasConsent.findFirst({
+      where: { storeId },
+      orderBy: [{ acceptedAt: 'desc' }, { id: 'desc' }],
+      select: { termsVersion: true, ip: true, acceptedAt: true, actorRole: true },
+    }),
+  ]);
+  const actorIds = [...new Set(audits.map((a) => a.actorId))];
+  const users = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    : [];
+  const names = new Map(users.map((u) => [u.id, u.name]));
+  return {
+    audits: audits.map((a) => ({
+      action: a.action,
+      apiKeyLast4: a.apiKeyLast4 ?? null,
+      actor: { id: a.actorId, name: names.get(a.actorId) ?? null },
+      createdAt: a.createdAt.toISOString(),
+    })),
+    consent: consent
+      ? { termsVersion: consent.termsVersion, ip: consent.ip ?? null, acceptedAt: consent.acceptedAt.toISOString(), actorRole: consent.actorRole }
+      : null,
+  };
+}
+
 export interface StoreDetailViewer {
   isCeo: boolean;
   can: PermissionCheck;
@@ -63,7 +98,7 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
   if (!store) return null;
   const since = new Date(now.getTime() - 30 * DAY_MS);
 
-  const [cfg, subscription, stats, faultCancellations, reviews, orders, pausedBy, timeline] = await Promise.all([
+  const [cfg, subscription, stats, faultCancellations, reviews, orders, pausedBy, timeline, asaasHistory] = await Promise.all([
     getSaasConfig(),
     prisma.storeSubscription.findUnique({ where: { storeId }, select: { currentPlan: true } }),
     prisma.order.aggregate({ where: { storeId, createdAt: { gte: since } }, _count: { _all: true }, _avg: { storeRating: true } }),
@@ -84,10 +119,13 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       ? prisma.user.findUnique({ where: { id: store.adminPausedBy }, select: { name: true } })
       : null,
     listTimeline({ storeId }),
+    viewer.isCeo ? storeAsaasHistory(storeId) : Promise.resolve(null),
   ]);
 
   const paused = isAdminPaused(store);
   const canEdit = viewer.can('store:edit');
+  const canPlan = viewer.can('plan:manage');
+  const saasStatus = store.saasBilling?.status ?? null;
   const avg = stats._avg.storeRating;
 
   return {
@@ -126,12 +164,9 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
     plan: {
       plan: storePlanNumber(subscription?.currentPlan, store.plan),
       mode: storeModeOf(cfg.settlementMode),
+      // coveredUntil: o último instante coberto, pela MESMA conta da vitrine e do job (policy.sellsUntil).
       saas: store.saasBilling
-        ? {
-            status: store.saasBilling.status,
-            trialEndsAt: store.saasBilling.trialEndsAt.toISOString(),
-            paidUntil: store.saasBilling.paidUntil ? store.saasBilling.paidUntil.toISOString() : null,
-          }
+        ? { ...toSaasState(store.saasBilling), coveredUntil: sellsUntil(store.saasBilling).toISOString() }
         : null,
     },
     orders: orders.map((o) => ({
@@ -143,7 +178,15 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       createdAt: o.createdAt.toISOString(),
     })),
     timeline,
-    can: { pause: canEdit && !paused, unpause: canEdit && paused, note: true },
+    can: {
+      pause: canEdit && !paused,
+      unpause: canEdit && paused,
+      note: true,
+      extendTrial: canPlan && saasStatus === 'trialing',
+      cancelSaas: canPlan && saasStatus !== null && saasStatus !== 'cancelled',
+    },
+    // Ruling 11: só o CEO; para os outros a chave não existe.
+    ...(asaasHistory ? { asaasHistory } : {}),
   };
 }
 
