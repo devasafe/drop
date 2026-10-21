@@ -63,6 +63,7 @@ async function storeAsaasHistory(storeId: string): Promise<StoreAsaasHistory> {
       where: { storeId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: ASAAS_AUDITS_IN_DETAIL,
+      select: { action: true, apiKeyLast4: true, actorId: true, createdAt: true },
     }),
     prisma.storeAsaasConsent.findFirst({
       where: { storeId },
@@ -124,7 +125,8 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
 
   const paused = isAdminPaused(store);
   const canEdit = viewer.can('store:edit');
-  const canPlan = viewer.can('plan:manage');
+  // Estender e cancelar a mensalidade só no modo direto (a mesma regra das ações em saas.ts).
+  const canSaas = viewer.can('plan:manage') && cfg.settlementMode === 'direto';
   const saasStatus = store.saasBilling?.status ?? null;
   const avg = stats._avg.storeRating;
 
@@ -182,8 +184,8 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       pause: canEdit && !paused,
       unpause: canEdit && paused,
       note: true,
-      extendTrial: canPlan && saasStatus === 'trialing',
-      cancelSaas: canPlan && saasStatus !== null && saasStatus !== 'cancelled',
+      extendTrial: canSaas && saasStatus === 'trialing',
+      cancelSaas: canSaas && saasStatus !== null && saasStatus !== 'cancelled',
     },
     // Ruling 11: só o CEO; para os outros a chave não existe.
     ...(asaasHistory ? { asaasHistory } : {}),

@@ -26,6 +26,8 @@ function asaasDate(d?: string | null): Date | null {
  *    Loja `cancelled` só tem o período estendido; o status não volta sozinho.
  *  - OVERDUE → past_due (se não estiver paused/cancelled) e overdueSince = dueDate se vazio.
  *  - DELETED (o webhook manda `status: 'DELETED'` no PAYMENT_DELETED) → só o status da fatura.
+ *    Fatura local já DELETED e o Asaas mandando PENDING/OVERDUE (a reconciliação ainda vê a
+ *    fatura aberta): não regrava nem marca past_due; só loga. Apagada não volta a ser cobrada.
  *  - REFUNDED → status da fatura + warn. NÃO recua paidUntil: o período já liberado fica, e o
  *    estorno de mensalidade é decisão manual da plataforma (o admin vê a fatura estornada).
  */
@@ -40,6 +42,12 @@ export async function applySaasPayment(billingId: string, payment: AsaasSubscrip
       select: { status: true, billingId: true },
     });
     if (prev && prev.billingId !== billingId) throw new Error('Fatura SaaS pertence a outra cobrança');
+    if (prev?.status === 'DELETED' && SAAS_OPEN_STATUSES.includes(payment.status)) {
+      logger.info('[saas-billing] fatura apagada no DROP segue aberta no Asaas — mantida apagada', {
+        billingId, asaasPaymentId: payment.id, asaasStatus: payment.status,
+      });
+      return;
+    }
 
     const data = {
       value: Number(payment.value) || 0,

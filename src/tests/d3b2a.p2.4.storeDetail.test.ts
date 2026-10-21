@@ -110,7 +110,8 @@ describe('GET /admin/stores/:id · CEO', () => {
       id: recent[5], shortId: recent[5].slice(-6), status: 'cancelado', total: 30, customerName: `${tag} Cliente`, createdAt: expect.any(String),
     });
     expect(res.body.timeline.items).toHaveLength(3);
-    expect(res.body.can).toEqual({ pause: false, unpause: true, note: true, extendTrial: true, cancelSaas: true });
+    // D3b-2b, onda final: na custódia não há mensalidade, então a ficha não oferece estender nem cancelar.
+    expect(res.body.can).toEqual({ pause: false, unpause: true, note: true, extendTrial: false, cancelSaas: false });
   });
 });
 

@@ -21,6 +21,7 @@ import { updatePlatformConfig } from '../repositories/platformConfig.repository'
 import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import * as storePause from '../services/adminAccounts/storePause';
 import { AccountActionError } from '../services/adminAccounts/errors';
+import * as saasActions from '../services/adminAccounts/saas';
 
 const DOMAIN = '@d3b2bp23.test';
 const DAY = 86_400_000;
@@ -156,5 +157,31 @@ describe('job da mensalidade · pausa por cancelamento', () => {
     expect((await storeOf(a.id)).adminPausedAt).toBeNull();
     const logged = (errorLog.mock.calls as unknown[][]).filter(([msg]) => String(msg).includes('mensalidade cancelada'));
     expect(logged.map(([, , meta]) => (meta as any)?.storeId)).toEqual([a.id]);
+  });
+
+  it('o passo 0 que lança exceção não derruba o ciclo: o log é chamado e os passos seguintes rodam', async () => {
+    jest.spyOn(saasActions, 'runCancelledSaasPauses').mockRejectedValue(new Error('banco fora no passo 0'));
+    const errorLog = jest.spyOn(logger, 'error');
+    // loja sem linha de mensalidade: o backfill (passo a) cria a linha se o ciclo seguiu
+    const semLinha = await prisma.store.create({ data: { ownerId: dono.userId, name: `Loja p23 ${rand()}`, isOpen: true } });
+
+    await expect(runSaasBillingCycle(new Date())).resolves.toBeUndefined();
+    expect(errorLog.mock.calls.some(([msg]) => String(msg).includes('passo de pausa por cancelamento'))).toBe(true);
+    expect(await prisma.storeSaasBilling.findUnique({ where: { storeId: semLinha.id } })).not.toBeNull();
+  });
+
+  it('recancelar com um cancelledAt novo depois de uma liberação volta a permitir a pausa', async () => {
+    const store = await cancelada({ cancelledAt: new Date(Date.now() - 20 * DAY) });
+    await runSaasBillingCycle(new Date());
+    await storePause.unpauseStoreByAdmin(store.id, { id: ceo.userId, role: 'ceo' }, 'Combinado com o lojista');
+    await runSaasBillingCycle(new Date());
+    expect((await storeOf(store.id)).adminPausedAt).toBeNull();
+
+    // o admin reativa e cancela de novo (cancelledAt posterior à primeira pausa)
+    await prisma.storeSaasBilling.update({ where: { storeId: store.id }, data: { cancelledAt: new Date(), cancelledBy: ceo.userId } });
+    await runSaasBillingCycle(new Date());
+    const s = await storeOf(store.id);
+    expect(s.adminPauseReason).toBe(MOTIVO);
+    expect(await pausesOf(store.id)).toHaveLength(2);
   });
 });

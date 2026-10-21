@@ -222,12 +222,13 @@ describe('t64 — loja pausada não vende e some da vitrine (modo direto)', () =
     expect(list.status).toBe(200);
     const ids = list.body.map((s: any) => s._id ?? s.id);
     expect(ids).not.toContain(paused.id);
-    expect(ids).not.toContain(cancelled.id);
+    // D3b-2b, onda final: a cancelada não some por status (só pela pausa do DROP, que o job grava).
+    expect(ids).toContain(cancelled.id);
     expect(ids).toContain(semLinha.id);
     expect(ids).toContain(emDia.id);
 
     expect((await request(app).get(`/api/stores/${paused.id}`)).status).toBe(404);
-    expect((await request(app).get(`/api/stores/${cancelled.id}`)).status).toBe(404);
+    expect((await request(app).get(`/api/stores/${cancelled.id}`)).status).toBe(200);
     expect((await request(app).get(`/api/stores/${semLinha.id}`)).status).toBe(200);
   });
 

@@ -16,7 +16,8 @@ import app from '../app';
 import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { prisma } from '../lib/prisma';
 import * as actions from '../services/adminAccounts/actions';
-import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
+import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
+import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { saoPauloToday } from '../services/asaasLoja/charge';
 
@@ -29,6 +30,14 @@ let payments: Record<string, any[]>;
 
 const rand = () => Math.random().toString(36).slice(2, 10);
 const calls = (fn: unknown) => (fn as jest.Mock).mock.calls;
+
+// D3b-2b, onda final: estender e cancelar a mensalidade só valem no modo direto.
+let restoreConfig: () => Promise<void>;
+beforeAll(async () => {
+  restoreConfig = await snapshotPlatformConfig();
+  await updatePlatformConfig({ settlementMode: 'direto' } as any, 'd3b2b-p21c');
+});
+afterAll(async () => { await restoreConfig(); });
 
 beforeEach(async () => {
   jest.clearAllMocks();

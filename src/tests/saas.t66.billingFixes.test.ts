@@ -74,13 +74,13 @@ describe('F1 — loja com mensalidade 0 nunca é pausada', () => {
   const cfg = (fee: number) => ({ saasMonthlyFee: fee, saasGraceDays: 5 });
   const vencida = { status: 'trialing', trialEndsAt: new Date(NOW.getTime() - 30 * DAY), paidUntil: null, asaasSubscriptionId: 'sub_x' };
 
-  it('política: fee efetivo 0 (padrão 0 ou isenta) não bloqueia; fee > 0 bloqueia; cancelada sempre bloqueia', () => {
+  it('política: fee efetivo 0 (padrão 0 ou isenta) não bloqueia; fee > 0 bloqueia; cancelada nunca (D3b-2b: o bloqueio dela é a pausa do DROP)', () => {
     expect(isStoreBlocked(vencida, NOW, cfg(0))).toBe(false);
     expect(isStoreBlocked({ ...vencida, customFee: 0 }, NOW, cfg(49.9))).toBe(false);
     expect(isStoreBlocked({ ...vencida, status: 'paused' }, NOW, cfg(0))).toBe(false);
     expect(isStoreBlocked(vencida, NOW, cfg(49.9))).toBe(true);
     expect(isStoreBlocked({ ...vencida, customFee: 10 }, NOW, cfg(0))).toBe(true);
-    expect(isStoreBlocked({ ...vencida, status: 'cancelled' }, NOW, cfg(0))).toBe(true);
+    expect(isStoreBlocked({ ...vencida, status: 'cancelled' }, NOW, cfg(0))).toBe(false);
     expect(isStoreBlocked(null, NOW, cfg(49.9))).toBe(false);
   });
 

@@ -26,8 +26,7 @@ import { runSaasBillingCycle } from '../jobs/saasBilling.job';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { reopenSaasTrials } from '../services/saasBilling/modeSwitch';
 import { isStoreBillingBlocked } from '../services/saasBilling/gate';
-import { coverageBounds, coverageEnd, isBillingBlocked, isCancelledAndExpired, isStoreBlocked, sellsUntil } from '../services/saasBilling/policy';
-import { billingVisibleWhere } from '../services/saasBilling/gate';
+import { coverageEnd, isBillingBlocked, isCancelledAndExpired, isStoreBlocked, sellsUntil } from '../services/saasBilling/policy';
 
 const DOMAIN = '@d3b2bp22.test';
 const REASON = 'Loja pediu para sair do DROP';
@@ -208,29 +207,28 @@ describe('POST /admin/stores/:id/saas/cancel', () => {
 });
 
 describe('cancelada dentro do período continua vendendo (Review Focus 1, um teste por lugar)', () => {
-  it('política: isBillingBlocked e isStoreBlocked só bloqueiam a cancelada depois do fim, sem tolerância', () => {
+  // Onda final (ruling do controlador): a cancelada não bloqueia pela política nem depois do fim da
+  // cobertura; o bloqueio dela é a pausa do DROP que o job grava (d3b2b.final.fixes, ponta a ponta).
+  it('política: isBillingBlocked e isStoreBlocked não bloqueiam a cancelada, dentro ou depois do fim', () => {
     const now = new Date('2026-10-20T12:00:00.000Z');
     const cfg = { saasMonthlyFee: 49.9, saasGraceDays: 5 };
     const dentro = { status: 'cancelled', trialEndsAt: new Date('2026-09-01T12:00:00.000Z'), paidUntil: new Date('2026-10-25T00:00:00.000Z'), asaasSubscriptionId: null, customFee: null };
     const fora = { ...dentro, paidUntil: new Date('2026-10-10T00:00:00.000Z') };
-    // pago até 19/10: acabou 20/10 03:00Z; às 12:00Z já bloqueia (a tolerância de 5 dias não vale para cancelada).
-    const ontem = { ...dentro, paidUntil: new Date('2026-10-19T00:00:00.000Z') };
     expect(isBillingBlocked(dentro, now, 5)).toBe(false);
     expect(isStoreBlocked(dentro, now, cfg)).toBe(false);
-    expect(isBillingBlocked(fora, now, 5)).toBe(true);
-    expect(isStoreBlocked(fora, now, cfg)).toBe(true);
-    expect(isBillingBlocked(ontem, now, 5)).toBe(true);
-    // teste ainda correndo, sem período pago: vale o fim do teste.
+    expect(isBillingBlocked(fora, now, 5)).toBe(false);
+    expect(isStoreBlocked(fora, now, cfg)).toBe(false);
+    // teste ainda correndo, sem período pago
     expect(isStoreBlocked({ ...dentro, paidUntil: null, trialEndsAt: new Date('2026-10-22T12:00:00.000Z') }, now, cfg)).toBe(false);
   });
 
-  it('vitrine e pedido novo: a cancelada no período aparece (GET /stores/:id 200) e não está bloqueada; a vencida some', async () => {
+  it('vitrine e pedido novo: sem a pausa do DROP, a cancelada aparece e não está bloqueada, no período ou depois', async () => {
     const { store: dentro } = await comMensalidade({ status: 'cancelled', cancelledAt: new Date(), paidUntil: utcDay(10) });
     const { store: fora } = await comMensalidade({ status: 'cancelled', cancelledAt: new Date(), paidUntil: utcDay(-10) });
     expect((await request(app).get(`/api/stores/${dentro.id}`)).status).toBe(200);
-    expect((await request(app).get(`/api/stores/${fora.id}`)).status).toBe(404);
+    expect((await request(app).get(`/api/stores/${fora.id}`)).status).toBe(200);
     expect(await isStoreBillingBlocked(dentro.id)).toBe(false);
-    expect(await isStoreBillingBlocked(fora.id)).toBe(true);
+    expect(await isStoreBillingBlocked(fora.id)).toBe(false);
   });
 
   it('tela do lojista: blocked false, cancelledAt e sellsUntil; loja ativa sem os dois', async () => {
@@ -323,33 +321,6 @@ describe('coverageEnd, sellsUntil e isCancelledAndExpired (puros)', () => {
     expect(isCancelledAndExpired(b, at('2026-11-01T03:00:00.000Z'))).toBe(true);
     expect(isCancelledAndExpired({ ...b, status: 'active' }, at('2027-01-01T00:00:00.000Z'))).toBe(false);
     expect(isCancelledAndExpired(null, at('2027-01-01T00:00:00.000Z'))).toBe(false);
-  });
-
-  it('a vitrine (billingVisibleWhere + coverageBounds) concorda com isCancelledAndExpired nas fronteiras', async () => {
-    const casos = [
-      { trialEndsAt: at('2026-11-01T00:00:00.000Z'), paidUntil: null },
-      { trialEndsAt: at('2026-11-01T03:00:00.000Z'), paidUntil: null },
-      { trialEndsAt: at('2026-11-01T02:59:59.999Z'), paidUntil: null },
-      { trialEndsAt: at('2026-10-01T12:00:00.000Z'), paidUntil: at('2026-10-31T00:00:00.000Z') },
-      { trialEndsAt: at('2026-10-01T12:00:00.000Z'), paidUntil: at('2026-11-01T00:00:00.000Z') },
-      { trialEndsAt: at('2026-11-01T01:00:00.000Z'), paidUntil: at('2026-11-01T00:00:00.000Z') },
-    ];
-    const lojas: Array<{ id: string; b: { status: string; trialEndsAt: Date; paidUntil: Date | null } }> = [];
-    for (const c of casos) {
-      const store = await loja();
-      await prisma.storeSaasBilling.create({ data: { storeId: store.id, status: 'cancelled', cancelledAt: at('2026-10-01T00:00:00.000Z'), ...c } });
-      lojas.push({ id: store.id, b: { status: 'cancelled', ...c } });
-    }
-    const agoras = ['2026-11-01T02:59:59.999Z', '2026-11-01T03:00:00.000Z', '2026-11-02T02:59:59.999Z', '2026-11-02T03:00:00.000Z'];
-    for (const iso of agoras) {
-      const now = at(iso);
-      for (const l of lojas) {
-        const visivel = (await prisma.store.count({ where: { id: l.id, AND: [billingVisibleWhere(now)] } })) === 1;
-        expect({ iso, caso: l.b, visivel }).toEqual({ iso, caso: l.b, visivel: !isCancelledAndExpired(l.b, now) });
-      }
-    }
-    // coverageBounds: as duas fronteiras do primeiro instante
-    expect(coverageBounds(at('2026-11-01T03:00:00.000Z'))).toEqual({ paidFrom: at('2026-11-01T00:00:00.000Z'), trialFrom: at('2026-11-01T03:00:00.000Z') });
   });
 });
 

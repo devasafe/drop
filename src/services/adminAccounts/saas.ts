@@ -11,6 +11,7 @@ import {
 import { SAAS_OPEN_STATUSES } from '../saasBilling/payments';
 import { firstDueDate } from '../saasBilling/dueDate';
 import { isCancelledAndExpired, sellsUntil } from '../saasBilling/policy';
+import { getSaasConfig } from '../../utils/settlement';
 import { notifyStore, STORE_LINKS } from '../storeNotify';
 import { recordAccountAction, AccountActor } from './actions';
 import { AccountActionError, parseRequiredReason, storeNotFound } from './errors';
@@ -50,6 +51,13 @@ export function parseExtendDays(raw: unknown): ExtendTrialDays {
     throw new AccountActionError(400, 'INVALID_DAYS', 'Escolha 7, 14 ou 30 dias.');
   }
   return raw as ExtendTrialDays;
+}
+
+const notDirect = () => new AccountActionError(409, 'SAAS_NOT_DIRECT', 'A mensalidade só existe no modo direto.');
+
+/** Estender e cancelar só valem no modo direto (a mesma fonte do job: getSaasConfig). */
+async function assertDirectMode(): Promise<void> {
+  if ((await getSaasConfig()).settlementMode !== 'direto') throw notDirect();
 }
 
 const noSaasBilling = () => new AccountActionError(409, 'NO_SAAS_BILLING', 'Esta loja não tem mensalidade.');
@@ -125,6 +133,7 @@ export async function extendTrial(
   const days = parseExtendDays(rawDays);
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
   if (!store) throw storeNotFound();
+  await assertDirectMode();
 
   let touched = null as AsaasTouch | null;
   let saved;
@@ -213,6 +222,7 @@ export async function cancelSaas(
   const reason = parseRequiredReason(rawReason);
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
   if (!store) throw storeNotFound();
+  await assertDirectMode();
 
   const saved = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "StoreSaasBilling" WHERE "storeId" = ${storeId} FOR UPDATE`;

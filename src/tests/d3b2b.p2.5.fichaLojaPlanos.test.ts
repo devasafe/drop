@@ -1,18 +1,27 @@
 /**
  * D3b-2b · P2.5 — ficha da loja (GET /admin/stores/:id): bloco "Conta Asaas · histórico" só para o
- * CEO (a chave nem existe para os outros), `can.extendTrial` (plan:manage + trialing),
- * `can.cancelSaas` (plan:manage + mensalidade não cancelada) e `plan.saas.cancelledAt`.
+ * CEO (a chave nem existe para os outros), `can.extendTrial` (modo direto + plan:manage + trialing),
+ * `can.cancelSaas` (modo direto + plan:manage + mensalidade não cancelada) e `plan.saas.cancelledAt`.
  */
 import request from 'supertest';
 import app from '../app';
 import { prisma } from '../lib/prisma';
-import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
+import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
+import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { grantRolePermissions } from './helpers/d3b1Ops';
 
 const DOMAIN = '@d3b2bp25.test';
 let ceo: TestUser;
 let dono: TestUser;
+
+// D3b-2b, onda final: estender e cancelar a mensalidade só valem no modo direto.
+let restoreConfig: () => Promise<void>;
+beforeAll(async () => {
+  restoreConfig = await snapshotPlatformConfig();
+  await updatePlatformConfig({ settlementMode: 'direto' } as any, 'd3b2b-p25');
+});
+afterAll(async () => { await restoreConfig(); });
 
 beforeEach(async () => {
   ceo = await createTestUser('ceo', DOMAIN);

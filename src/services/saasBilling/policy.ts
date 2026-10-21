@@ -44,10 +44,9 @@ function trialEndMs(trialEndsAt: Date): number {
 /**
  * Instante em que termina a cobertura: o maior entre o fim do dia pago e o fim do dia do teste.
  * Ex.: coberto até 10/12 (00:00Z) -> 11/12 03:00Z.
- * D3b-2b: exportado (a cancelada vende até aqui) e calculado como o máximo dos dois fins de dia,
- * que é o que o filtro da vitrine (gate.billingVisibleWhere + coverageBounds) escreve em SQL. A
- * conta anterior (maior data, depois o fuso) só diferia quando paidUntil caía nas 3 h antes de
- * trialEndsAt, e só para menos.
+ * D3b-2b: exportado (a cancelada vende até aqui; o job pausa a loja pelo DROP a partir daqui) e
+ * calculado como o máximo dos dois fins de dia. A conta anterior (maior data, depois o fuso) só
+ * diferia quando paidUntil caía nas 3 h antes de trialEndsAt, e só para menos.
  */
 export function coverageEnd(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil'>): Date {
   const trial = trialEndMs(billing.trialEndsAt);
@@ -60,34 +59,27 @@ export function sellsUntil(billing: Pick<BillingLike, 'trialEndsAt' | 'paidUntil
 }
 
 /**
- * D3b-2b (ruling 8): mensalidade cancelada só bloqueia quando a cobertura acabou (now >= coverageEnd).
+ * D3b-2b (ruling 8): a cobertura da mensalidade cancelada acabou (now >= coverageEnd)?
  * Sem tolerância: a carência (saasGraceDays) é de quem ainda vai pagar, e a cancelada não paga mais.
+ * NÃO é bloqueio: é o gatilho do passo 0 do job (runCancelledSaasPauses), que pausa a loja pelo DROP.
+ * A pausa é o único bloqueio da cancelada, e só o admin a libera (ruling do controlador, spec 9).
  */
 export function isCancelledAndExpired(billing: BillingLike | null | undefined, now: Date): boolean {
   return !!billing && billing.status === 'cancelled' && now.getTime() >= coverageEnd(billing).getTime();
 }
 
 /**
- * Limites da cobertura para o SQL da vitrine (gate.billingVisibleWhere):
- * coverageEnd(b) > now  <=>  paidUntil >= paidFrom  OU  trialEndsAt >= trialFrom.
- * (paidEndMs(p) > now <=> dia(p) >= dia(now - 27 h) + 1; o do teste é o mesmo, deslocado 3 h.)
- */
-export function coverageBounds(now: Date): { paidFrom: Date; trialFrom: Date } {
-  const base = Math.floor((now.getTime() - DAY_MS - SAO_PAULO_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS;
-  return { paidFrom: new Date(base), trialFrom: new Date(base + SAO_PAULO_OFFSET_MS) };
-}
-
-/**
  * A loja deve ser pausada (sumir da vitrine e não receber pedido novo)?
  * - sem linha de cobrança (billing null): NÃO bloqueia. Fail open proposital: a linha é criada
  *   pelo job de assinatura (B2); até lá a loja não pode ser punida por falta de registro.
- * - cancelled: só depois do fim da cobertura (isCancelledAndExpired, D3b-2b).
+ * - cancelled: nunca. No fim da cobertura o job pausa a loja pelo DROP (isCancelledAndExpired), e
+ *   essa pausa é o único bloqueio dela: quando o admin libera, a loja volta a vender (D3b-2b).
  * - demais: bloqueada quando now > fim do dia (Brasília) da cobertura + graceDays dias.
  *   Ex.: coberto até 10/12 (00:00Z), tolerância 0 -> bloqueia só depois de 11/12 03:00Z.
  */
 export function isBillingBlocked(billing: BillingLike | null | undefined, now: Date, graceDays: number): boolean {
   if (!billing) return false;
-  if (billing.status === 'cancelled') return isCancelledAndExpired(billing, now);
+  if (billing.status === 'cancelled') return false;
   const limit = coverageEnd(billing).getTime() + Math.max(0, graceDays) * DAY_MS;
   return now.getTime() > limit;
 }
@@ -127,12 +119,12 @@ export function billingBlockAt(billing: BillingWithFee | null | undefined, confi
 
 /**
  * A loja está bloqueada AGORA pela mensalidade (gate de pedido e visões usam esta)?
- * Sem linha → não; cancelled → só depois do fim da cobertura (D3b-2b); fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
+ * Sem linha → não; cancelled → nunca (o bloqueio dela é a pausa do DROP, ver isBillingBlocked); fee ≤ 0 → nunca (mesmo `paused`, que o job despausa);
  * demais → já `paused` ou shouldPause (que exige assinatura) (antes de o job, de 1 em 1 h, gravar a pausa).
  */
 export function isStoreBlocked(billing: BillingWithFee | null | undefined, now: Date, config: BlockConfig): boolean {
   if (!billing) return false;
-  if (billing.status === 'cancelled') return isCancelledAndExpired(billing, now);
+  if (billing.status === 'cancelled') return false;
   if (!(effectiveFee(billing, config) > 0)) return false;
   return billing.status === 'paused' || shouldPause(billing, now, config);
 }
