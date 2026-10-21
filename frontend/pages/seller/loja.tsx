@@ -7,6 +7,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
 import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { PauseSheet, isPaused, pausedUntilLabel, resumeStore } from '../../components/seller/loja/PauseSheet';
+import { AdminPausedBanner } from '../../components/seller/loja/AdminPausedBanner';
 import { IdentitySheet, uploadStoreImage } from '../../components/seller/loja/IdentitySheet';
 import { useImagePicker } from '../../components/image/useImagePicker';
 import { NavRow } from '../../components/seller/ui/NavRow';
@@ -29,6 +30,7 @@ import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import { openStatus } from '../../lib/storeHours';
 import { summarizeHours } from '../../lib/sellerHours';
 import { payload, apiErrorMessage } from '../../lib/sellerApi';
+import { adminPauseOf, adminPausedText, storeAdminPausedError } from '../../lib/storeAdminPause';
 import blocks from '../../components/panel/PanelBlocks.module.css';
 import styles from './SellerLoja.module.css';
 
@@ -95,6 +97,8 @@ export default function SellerLoja() {
   const commission = custom ?? planCommission;
 
   const paused = isPaused(pausedUntil);
+  // D3b-2a: pausada pelo DROP: só o DROP reabre; pausar e reabrir ficam desligados.
+  const adminPause = adminPauseOf(store);
   const st = store ? openStatus(store) : null;
 
   // Capa: todos os planos. Banner da Home (featured): só Premium; quem decide é o servidor.
@@ -128,7 +132,13 @@ export default function SellerLoja() {
       refresh();
       showToast('Loja reaberta', 'success');
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Não foi possível reabrir agora. Tente de novo.'), 'error');
+      const byDrop = storeAdminPausedError(err);
+      if (byDrop) {
+        showToast(adminPausedText(byDrop.reason), 'error');
+        refresh();
+      } else {
+        showToast(apiErrorMessage(err, 'Não foi possível reabrir agora. Tente de novo.'), 'error');
+      }
     } finally {
       setResuming(false);
     }
@@ -157,6 +167,7 @@ export default function SellerLoja() {
         actions={<a className={blocks.link} href={`/loja/${store.slug || store._id}`}>Ver como cliente</a>}
       >
         <div className={blocks.body}>
+          {adminPause && <AdminPausedBanner reason={adminPause.reason} onSupport={go(SELLER_ROUTES.ajuda)} />}
           <section className={blocks.blk} aria-label="Cara da loja">
             <div className={blocks.head}>
               <h2 className={blocks.headTitle}>Cara da loja</h2>
@@ -196,14 +207,16 @@ export default function SellerLoja() {
           </section>
 
           <div className={[blocks.blk, blocks.blkRow].join(' ')}>
-            <span className={[blocks.ico, paused ? blocks.icoWarn : st?.open ? blocks.icoOk : ''].filter(Boolean).join(' ')} aria-hidden="true"><Store size={20} /></span>
+            <span className={[blocks.ico, adminPause || paused ? blocks.icoWarn : st?.open ? blocks.icoOk : ''].filter(Boolean).join(' ')} aria-hidden="true"><Store size={20} /></span>
             <span className={blocks.tx}>
-              <b>{paused ? pausedUntilLabel(pausedUntil as string) : st?.open ? 'Aberta agora' : 'Fechada agora'}</b>
-              <span>{paused ? 'Reabre sozinha nesse horário' : 'Pausa rápida num aperto, com hora de volta'}</span>
+              <b>{adminPause ? 'Pausada pelo DROP' : paused ? pausedUntilLabel(pausedUntil as string) : st?.open ? 'Aberta agora' : 'Fechada agora'}</b>
+              <span>{adminPause ? adminPausedText(adminPause.reason) : paused ? 'Reabre sozinha nesse horário' : 'Pausa rápida num aperto, com hora de volta'}</span>
             </span>
-            {paused
-              ? <Button size="sm" variant="secondary" loading={resuming} onClick={resume}>Reabrir agora</Button>
-              : <Button size="sm" variant="secondary" leftIcon={<CirclePause size={16} />} onClick={() => setPauseOpen(true)}>Pausar</Button>}
+            {adminPause
+              ? <Button size="sm" variant="secondary" disabled>{paused ? 'Reabrir agora' : 'Pausar'}</Button>
+              : paused
+                ? <Button size="sm" variant="secondary" loading={resuming} onClick={resume}>Reabrir agora</Button>
+                : <Button size="sm" variant="secondary" leftIcon={<CirclePause size={16} />} onClick={() => setPauseOpen(true)}>Pausar</Button>}
           </div>
 
           <div className={blocks.kpis}>

@@ -4,6 +4,7 @@ import { Button } from '../../ui/Button';
 import { useToast } from '../../ui/Toast';
 import api from '../../../lib/api';
 import { payload, apiErrorMessage, formatHour, formatDayMonth, formatFullDate } from '../../../lib/sellerApi';
+import { adminPausedText, storeAdminPausedError } from '../../../lib/storeAdminPause';
 import blocks from '../../panel/PanelBlocks.module.css';
 
 export type PauseChoice = { minutes: 30 | 60 | 120 } | { untilTomorrow: true };
@@ -60,7 +61,15 @@ export function PauseSheet({ open, onClose, storeId, onChanged, activeOrders = 0
       showToast(until ? pausedUntilLabel(until) : 'Loja pausada', 'success');
       onClose();
     } catch (e) {
-      showToast(apiErrorMessage(e, 'Não foi possível pausar agora. Tente de novo.'), 'error');
+      const byDrop = storeAdminPausedError(e);
+      if (byDrop) {
+        // O DROP pausou a loja: a pausa do lojista não vale; a tela relê e mostra a faixa.
+        showToast(adminPausedText(byDrop.reason), 'error');
+        onChanged(null);
+        onClose();
+      } else {
+        showToast(apiErrorMessage(e, 'Não foi possível pausar agora. Tente de novo.'), 'error');
+      }
     } finally {
       sending.current = false;
       setBusy(null);

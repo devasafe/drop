@@ -17,6 +17,7 @@ import { AcceptButton } from '../../components/seller/order/AcceptButton';
 import { AcceptCountdown } from '../../components/seller/order/AcceptCountdown';
 import { RejectSheet } from '../../components/seller/order/RejectSheet';
 import { SaasPausedCard, type BillingStatus } from '../../components/seller/agora/SaasPausedCard';
+import { AdminPausedBanner } from '../../components/seller/loja/AdminPausedBanner';
 import { NotificationBell, StoreAvatar } from '../../components/seller/agora/AgoraTop';
 import { AgoraAnalise, analiseTag } from '../../components/seller/agora/AgoraAnalise';
 import { loadStoreOnboarding, type StoreOnboarding } from '../../lib/storeOnboarding';
@@ -34,6 +35,7 @@ import { shortOrderCode } from '../../lib/customerOrder';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import { hasPendingReturn, isAwaitingAccept, isCancelled, itemsSummary, orderStage, sortOngoing, isLowStock } from '../../lib/sellerOrders';
 import { apiError, formatHour, todayISO } from '../../lib/sellerApi';
+import { adminPauseOf, adminPausedText, storeAdminPausedError } from '../../lib/storeAdminPause';
 import styles from './Agora.module.css';
 
 const HINT_KEY = 'drop.loja.dicaPrimeiroPedido';
@@ -254,13 +256,16 @@ export default function AgoraPage() {
 
   const lowStock = (products || []).filter((p: any) => p?.isActive !== false && isLowStock(p));
   const saasBlocked = billing === 'paused' || billing === 'cancelled';
+  // D3b-2a: pausada pelo DROP = fechada, e só o DROP reabre (o servidor recusa com 409 STORE_ADMIN_PAUSED).
+  const adminPause = adminPauseOf(store);
+  const blocked = saasBlocked || adminPause !== null;
   const hours: ReturnType<typeof openStatus> = store ? openStatus(store) : { open: false, closesAt: null, opensAt: null };
   const pausedUntil = store?.pausedUntil && Date.parse(store.pausedUntil) > Date.now() ? store.pausedUntil : null;
   // Aberta de verdade = a regra do cliente (openStatus). A pausa tem o próprio aviso: com ela,
   // a chave segue o interruptor manual, como antes.
-  const isOpen = !saasBlocked && (pausedUntil ? store?.isOpen !== false : hours.open);
+  const isOpen = !blocked && (pausedUntil ? store?.isOpen !== false : hours.open);
   // Interruptor ligado, sem pausa, mas fora do horário cadastrado.
-  const closedByHours = !isOpen && !saasBlocked && !pausedUntil && store?.isOpen !== false;
+  const closedByHours = !isOpen && !blocked && !pausedUntil && store?.isOpen !== false;
 
   const toggleOpen = async (next: boolean) => {
     if (!store?._id) return;
@@ -270,7 +275,14 @@ export default function AgoraPage() {
       await api.put(`/stores/${store._id}/operating-hours`, { isOpen: next });
       await refresh();
     } catch (err) {
-      setToggleError(apiError(err).message || 'Não deu para mudar agora. Tente de novo.');
+      const byDrop = storeAdminPausedError(err);
+      if (byDrop) {
+        // O DROP pausou depois da leitura: mostra o motivo e relê (a faixa aparece).
+        setToggleError(adminPausedText(byDrop.reason));
+        void refresh();
+      } else {
+        setToggleError(apiError(err).message || 'Não deu para mudar agora. Tente de novo.');
+      }
     } finally {
       setToggling(false);
     }
@@ -282,7 +294,13 @@ export default function AgoraPage() {
       await api.delete(`/stores/${store._id}/pause`);
       await refresh();
     } catch (err) {
-      setToggleError(apiError(err).message || 'Não deu para voltar agora. Tente de novo.');
+      const byDrop = storeAdminPausedError(err);
+      if (byDrop) {
+        setToggleError(adminPausedText(byDrop.reason));
+        void refresh();
+      } else {
+        setToggleError(apiError(err).message || 'Não deu para voltar agora. Tente de novo.');
+      }
     }
   };
 
@@ -307,7 +325,9 @@ export default function AgoraPage() {
     refresh();
   };
 
-  const switchDescription = saasBlocked
+  const switchDescription = adminPause
+    ? adminPausedText(adminPause.reason)
+    : saasBlocked
     ? 'Abre sozinha quando o pagamento cair'
     : isOpen
       ? hours.overrideUntil
@@ -345,6 +365,7 @@ export default function AgoraPage() {
           <div className={styles.grid}>
             {/* 1º bloco no celular (protótipo); no computador fica no topo da coluna lateral. */}
             <div className={styles.open}>
+              {adminPause && <AdminPausedBanner reason={adminPause.reason} onSupport={() => router.push(SELLER_ROUTES.ajuda)} />}
               {settlementMode === 'direto' && store?._id && <SaasPausedCard storeId={String(store._id)} onStatus={setBilling} />}
               {failClosed && (
                 <Alert tone="warning" title="Não conseguimos conferir o seu cadastro" action={{ label: 'Tentar de novo', onClick: checkApproval }}>
@@ -368,18 +389,18 @@ export default function AgoraPage() {
                       label={isOpen ? 'Loja aberta' : 'Loja fechada'}
                       description={switchDescription}
                       checked={isOpen}
-                      disabled={toggling || saasBlocked || !store?._id}
+                      disabled={toggling || blocked || !store?._id}
                       onChange={toggleOpen}
                     />
                     {toggleError && <p role="alert" className={styles.error}>{toggleError}</p>}
                   </div>
 
-                  {pausedUntil && (
+                  {pausedUntil && !adminPause && (
                     <Alert tone="info" title={`Pausada até ${formatHour(pausedUntil)}`} action={{ label: 'Voltar agora', onClick: resume }}>
                       Clientes não conseguem comprar enquanto a pausa durar.
                     </Alert>
                   )}
-                  {!isOpen && !saasBlocked && (
+                  {!isOpen && !blocked && (
                     <Alert
                       tone="warning"
                       title={closedByHours ? 'Fechada pelo horário' : 'Você está fechada'}
