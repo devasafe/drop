@@ -9,7 +9,8 @@ import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
 import { sendAccountActionError, userNotFound } from '../services/adminAccounts/errors';
 import { listAdminUsers, USER_LIST_TABS } from '../services/adminAccounts/users';
-import { UserListTab } from '../services/adminAccounts/types';
+import { StoreListFilter, UserListTab } from '../services/adminAccounts/types';
+import { listAdminStores, STORE_LIST_FILTERS } from '../services/adminAccounts/stores';
 import { activeRoleOf } from './rolePermissionsController';
 import { permissionCheckFor } from '../services/adminOps/common';
 import { getAdminUserDetail, userTimeline } from '../services/adminAccounts/userDetail';
@@ -77,5 +78,24 @@ export const getUserTimeline = async (req: AuthenticatedRequest, res: Response) 
     return res.json(page);
   } catch (err) {
     return sendReadFailure(res, err, 'o histórico da pessoa');
+  }
+};
+
+// GET /api/admin/stores?q=&filter=&cursor=&limit= — lista de lojas (spec 6)
+export const listStores = async (req: AuthenticatedRequest, res: Response) => {
+  const rawFilter = req.query.filter;
+  const filter = rawFilter === undefined || rawFilter === '' ? 'all' : rawFilter;
+  if (typeof filter !== 'string' || !(STORE_LIST_FILTERS as readonly string[]).includes(filter)) return invalidFilter(res);
+  const rawQ = req.query.q;
+  if (rawQ !== undefined && typeof rawQ !== 'string') return invalidFilter(res);
+  try {
+    return res.json(await listAdminStores({
+      q: typeof rawQ === 'string' ? rawQ : '',
+      filter: filter as StoreListFilter,
+      cursor: queryText(req.query.cursor),
+      limit: queryText(req.query.limit),
+    }));
+  } catch (err) {
+    return sendReadFailure(res, err, 'as lojas');
   }
 };

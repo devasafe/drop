@@ -12,7 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
-import { listUsers, getUser, getUserTimeline } from '../controllers/adminAccountsReadController';
+import { listUsers, getUser, getUserTimeline, listStores } from '../controllers/adminAccountsReadController';
 
 const router = Router();
 
@@ -75,5 +75,10 @@ router.get('/users', authenticate, authorizePermission('user:view_all'), listUse
 // D3b-2a · P2.2 — ficha e histórico da pessoa (spec 6)
 router.get('/users/:id/timeline', authenticate, authorizePermission('user:view_all'), getUserTimeline);
 router.get('/users/:id', authenticate, authorizePermission('user:view_all'), getUser);
+
+// D3b-2a · P2.3 — lista de lojas: atenção primeiro, cursor composto (spec 6).
+// /stores/saas-billing e /stores/asaas são servidos antes, pelos routers montados em
+// /api/admin/stores (app.ts:124 e :126); d3b2a.p2.3.storesList.test.ts cobra isso.
+router.get('/stores', authenticate, authorizePermission('store:view_all'), listStores);
 
 export default router;

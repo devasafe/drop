@@ -159,3 +159,33 @@ export interface UserDetail {
   timeline: TimelineResponse;
   can: UserDetailCan;
 }
+
+// ── Lista de lojas (P2.3) ────────────────────────────────────────────────
+
+export type StoreListFilter = 'all' | 'admin_paused' | 'attention' | 'trial';
+
+/** Modo de liquidação da plataforma visto pela loja: 'direto' aparece como 'saas'. */
+export type StoreMode = 'custodia' | 'saas';
+
+export type ReceivingStatus = 'ok' | 'pending' | 'problem' | 'na';
+
+export interface StoreListItem {
+  id: string;
+  name: string;
+  ownerName: string;
+  plan: number;
+  mode: StoreMode;
+  /** Média de Order.storeRating dos últimos 90 dias (1 casa); null sem avaliação. */
+  rating90d: number | null;
+  /** Cancelados ÷ pedidos dos últimos 30 dias (0 a 1, 3 casas); null com menos de 5 pedidos. */
+  cancelRate30d: number | null;
+  receiving: ReceivingStatus;
+  situation: StoreSituation;
+  /** Pausada pelo admin, recebimento com problema ou cancelamento acima de 10%. */
+  attention: boolean;
+}
+
+export interface StoreListResponse {
+  items: StoreListItem[];
+  nextCursor: string | null;
+}
