@@ -11,6 +11,7 @@ import { actorFromRequest } from '../services/adminMoneyAction.service';
 import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
+import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
 
 const router = Router();
 
@@ -49,6 +50,22 @@ router.post(
   authenticate,
   authorizePermission('store:edit'),
   handle('falha ao liberar a loja', (req) => unpauseStoreByAdmin(String(req.params.id), actorFromRequest(req), req.body?.reason)),
+);
+
+// POST /api/admin/users/:id/notes { text } — nota interna na ficha da pessoa (só acréscimo)
+router.post(
+  '/users/:id/notes',
+  authenticate,
+  authorizePermission('user:view_all'),
+  handle('falha ao gravar a nota da pessoa', (req) => addUserNote(String(req.params.id), actorFromRequest(req), req.body?.text), 201),
+);
+
+// POST /api/admin/stores/:id/notes { text } — nota interna na ficha da loja (só acréscimo)
+router.post(
+  '/stores/:id/notes',
+  authenticate,
+  authorizePermission('store:view_all'),
+  handle('falha ao gravar a nota da loja', (req) => addStoreNote(String(req.params.id), actorFromRequest(req), req.body?.text), 201),
 );
 
 export default router;
