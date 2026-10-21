@@ -1,9 +1,12 @@
 /**
- * Fila de verificações do admin (D3a · P3.2, telas 2 e 9): junta as três filas do servidor por pessoa,
- * com a MESMA regra da página antiga (pages/admin/verificacoes.tsx em 91a9597), e descreve cada item
- * pendente com as rotas de aprovar/recusar e a permissão que a rota exige.
+ * Fila de verificações do admin (D3a · P3.2, telas 2 e 9; D3b-2b · P3.1): junta as três filas do servidor por
+ * pessoa, com a MESMA regra da página antiga (pages/admin/verificacoes.tsx em 91a9597), e descreve cada item
+ * pendente com as rotas de aprovar/recusar, a permissão da rota, o alvo (userId ou storeId) e a data de envio.
+ * D3b-2b: motivos padronizados da recusa (os mesmos de src/services/verification/rejectReasons.ts), "há quanto
+ * tempo espera", média de espera e "Aprovar tudo" pela rota única do servidor (uma chamada por sujeito).
  */
 import { isConflictWithCode, isHttpStatus } from './adminErrors';
+import { ageLabel } from './adminOps';
 
 export type PersonKind = 'lojista' | 'motoboy' | 'cliente';
 export type VerificationKind = 'document' | 'facial' | 'courier' | 'cnpj' | 'address';
@@ -28,6 +31,10 @@ export interface VerificationItem {
   approveUrl: string;
   rejectUrl: string;
   permission: string;
+  /** userId (documento, selfie, CNH e placa) ou storeId (CNPJ, endereço). */
+  targetId: string;
+  /** Quando a pessoa enviou (ISO); null quando o servidor não gravou (CNPJ enviado antes da D3b-2b). */
+  submittedAt: string | null;
 }
 
 export interface VerificationPerson {
@@ -68,6 +75,8 @@ const imagesOf = (pairs: [unknown, string][]): VerificationImage[] =>
     .filter(([url]) => typeof url === 'string' && url !== '')
     .map(([url, label]) => ({ url: url as string, label }));
 
+const isoOrNull = (v: unknown): string | null => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
+
 function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
   const items: VerificationItem[] = [];
   const P = VERIFICATION_PERMISSIONS;
@@ -81,6 +90,8 @@ function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
       approveUrl: `/verification/admin/${u.id}/approve`,
       rejectUrl: `/verification/admin/${u.id}/reject`,
       permission: P.clients,
+      targetId: u.id,
+      submittedAt: isoOrNull(u.doc.submittedAt),
     });
   }
   // A página antiga mostrava só o documento do cliente.
@@ -95,6 +106,8 @@ function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
       approveUrl: `/verification/admin/facial/${u.id}/approve`,
       rejectUrl: `/verification/admin/facial/${u.id}/reject`,
       permission: P.stores,
+      targetId: u.id,
+      submittedAt: isoOrNull(u.facial.submittedAt),
     });
   }
   if (kind === 'motoboy' && u.courier) {
@@ -107,6 +120,8 @@ function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
       approveUrl: `/verification/admin/motoboy/${u.id}/approve`,
       rejectUrl: `/verification/admin/motoboy/${u.id}/reject`,
       permission: P.motoboys,
+      targetId: u.id,
+      submittedAt: isoOrNull(u.courier.submittedAt),
     });
   }
   if (kind === 'lojista') {
@@ -123,6 +138,8 @@ function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
           approveUrl: `/verification/admin/store/${sid}/cnpj/approve`,
           rejectUrl: `/verification/admin/store/${sid}/cnpj/reject`,
           permission: P.stores,
+          targetId: sid,
+          submittedAt: isoOrNull(c.submittedAt),
         });
       }
       if (s.verification?.address?.status === 'pending') {
@@ -135,6 +152,8 @@ function itemsOf(u: Agg, kind: PersonKind): VerificationItem[] {
           approveUrl: `/verification/admin/store/${sid}/address/approve`,
           rejectUrl: `/verification/admin/store/${sid}/address/reject`,
           permission: P.stores,
+          targetId: sid,
+          submittedAt: isoOrNull(s.verification.address.submittedAt),
         });
       }
     }
@@ -208,6 +227,7 @@ export function buildVerificationPeople({ docs, stores, facialOwners, motoboys }
 /**
  * Recusa por item (spec 5.1): o servidor guarda um texto só; motivo e mensagem viram "Motivo. Mensagem".
  * Sem ponto final: o aviso do servidor já acrescenta ". Corrija e envie de novo." (pré-voo F19).
+ * A Task 3.2 apaga esta função (a recusa passa a mandar {reasonCode, message?, resend}).
  */
 export function composeRejectReason(motivo: string, mensagem = ''): string {
   const m = motivo.trim().replace(/[.\s]+$/, '');
@@ -227,4 +247,147 @@ export function isVerificationAlreadyDecided(err: unknown): boolean {
   if (!isHttpStatus(err, 400)) return false;
   const data = (err as { response?: { data?: { error?: unknown } } }).response?.data;
   return typeof data?.error === 'string' && NOT_PENDING.test(data.error);
+}
+
+/* ---------- D3b-2b: recusa padronizada ---------- */
+
+export type VerificationRejectReason =
+  | 'illegible' | 'face_mismatch' | 'expired' | 'data_mismatch' | 'cnpj_invalid' | 'address_unproven' | 'other';
+
+/** Os 7 motivos, na ordem e com os rótulos de src/services/verification/rejectReasons.ts (plano mestre). */
+export const REJECT_REASONS: { value: VerificationRejectReason; label: string }[] = [
+  { value: 'illegible', label: 'Foto ilegível' },
+  { value: 'face_mismatch', label: 'Selfie não confere com o documento' },
+  { value: 'expired', label: 'Documento vencido' },
+  { value: 'data_mismatch', label: 'Dados não conferem' },
+  { value: 'cnpj_invalid', label: 'CNPJ inválido ou inativo' },
+  { value: 'address_unproven', label: 'Comprovante de endereço não aceito' },
+  { value: 'other', label: 'Outro motivo' },
+];
+
+export const REJECT_REASON_LABEL = Object.fromEntries(REJECT_REASONS.map((r) => [r.value, r.label])) as Record<
+  VerificationRejectReason,
+  string
+>;
+
+/** Limite da mensagem livre (o servidor recusa acima disso). */
+export const REJECT_MESSAGE_MAX = 300;
+
+/** Rótulo curto de cada tipo de item: aviso do 409 e linha do tempo da ficha. */
+export const VERIFICATION_KIND_SHORT: Record<VerificationKind, string> = {
+  document: 'Documento',
+  facial: 'Selfie',
+  courier: 'CNH e placa',
+  cnpj: 'CNPJ',
+  address: 'Endereço',
+};
+
+export interface RejectBody { reasonCode: VerificationRejectReason; resend: boolean; message?: string }
+
+/** Corpo das rotas de recusa: a mensagem vai aparada e só quando há texto; `resend` sempre vai. */
+export function buildRejectBody(reasonCode: VerificationRejectReason, message: string, resend: boolean): RejectBody {
+  const m = message.trim();
+  return m ? { reasonCode, message: m, resend } : { reasonCode, resend };
+}
+
+/** A folha pode enviar: cada item marcado tem motivo; "Outro motivo" exige a mensagem; mensagem até 300. */
+export function rejectReady(codes: (VerificationRejectReason | '')[], message: string): boolean {
+  const m = message.trim();
+  if (codes.length === 0 || codes.some((c) => c === '')) return false;
+  if (m.length > REJECT_MESSAGE_MAX) return false;
+  return !codes.includes('other') || m !== '';
+}
+
+/* ---------- D3b-2b: espera ---------- */
+
+/** "há 3 h", "há 2 d", "agora"; null quando o servidor não mandou a data (o item não mostra nada). */
+export function waitingText(submittedAt: string | null | undefined, now: number = Date.now()): string | null {
+  if (!submittedAt || !Number.isFinite(Date.parse(submittedAt))) return null;
+  return ageLabel(submittedAt, now);
+}
+
+/** Envio mais antigo da pessoa (a linha da lista mostra quanto ela espera). */
+export function oldestSubmittedAt(p: Pick<VerificationPerson, 'items'>): string | null {
+  let best: string | null = null;
+  for (const i of p.items) {
+    if (i.submittedAt && (best === null || Date.parse(i.submittedAt) < Date.parse(best))) best = i.submittedAt;
+  }
+  return best;
+}
+
+export interface VerificationStats { avgHoursToDecision: number | null; decisions30d: number }
+
+export function isVerificationStats(d: unknown): d is VerificationStats {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return false;
+  const o = d as Record<string, unknown>;
+  const avg = o.avgHoursToDecision;
+  const n = o.decisions30d;
+  const avgOk = avg === null || (typeof avg === 'number' && Number.isFinite(avg) && avg >= 0);
+  return avgOk && typeof n === 'number' && Number.isInteger(n) && n >= 0;
+}
+
+const decimal1 = (n: number): string => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+/** Linha do topo da fila: horas até 48 h, depois dias. */
+export function avgWaitText(s: VerificationStats): string {
+  if (s.avgHoursToDecision === null) return 'Espera média: nenhuma decisão com data de envio nos últimos 30 dias';
+  const h = s.avgHoursToDecision;
+  const value = h >= 48 ? `${decimal1(h / 24)} d` : `${decimal1(h)} h`;
+  const n = s.decisions30d === 1 ? '1 decisão' : `${s.decisions30d} decisões`;
+  return `Espera média até a decisão: ${value} · ${n} em 30 dias`;
+}
+
+/* ---------- D3b-2b: "Aprovar tudo" ---------- */
+
+export type ApproveAllSubject = 'client' | 'store' | 'motoboy';
+
+/** Uma chamada à rota única: `items` é a lista que o admin viu (o servidor confere e responde 409 se mudou). */
+export interface ApproveAllCall { url: string; items: VerificationKind[]; keys: string[]; permission: string }
+
+const SUBJECT_PERMISSION: Record<ApproveAllSubject, string> = {
+  client: VERIFICATION_PERMISSIONS.clients,
+  store: VERIFICATION_PERMISSIONS.stores,
+  motoboy: VERIFICATION_PERMISSIONS.motoboys,
+};
+const isStoreKind = (k: VerificationKind): boolean => k === 'cnpj' || k === 'address';
+
+function approveCall(subject: ApproveAllSubject, id: string, items: VerificationItem[]): ApproveAllCall {
+  return {
+    url: `/verification/admin/subject/${subject}/${encodeURIComponent(id)}/approve-all`,
+    items: items.map((i) => i.kind),
+    keys: items.map((i) => i.key),
+    permission: SUBJECT_PERMISSION[subject],
+  };
+}
+
+/**
+ * Chamadas do "Aprovar tudo" de uma pessoa (nota 3 da P3): cliente e motoboy pelo userId; lojista por loja, com o
+ * documento e a selfie do dono na primeira; lojista sem item de loja na fila, pelo userId como cliente.
+ */
+export function approveAllUrl(person: Pick<VerificationPerson, 'id' | 'kind' | 'items'>): ApproveAllCall[] {
+  if (person.items.length === 0) return [];
+  if (person.kind === 'cliente') return [approveCall('client', person.id, person.items)];
+  if (person.kind === 'motoboy') return [approveCall('motoboy', person.id, person.items)];
+  const owner = person.items.filter((i) => !isStoreKind(i.kind));
+  const storeIds = Array.from(new Set(person.items.filter((i) => isStoreKind(i.kind)).map((i) => i.targetId)));
+  if (storeIds.length === 0) return [approveCall('client', person.id, owner)];
+  return storeIds.map((sid, n) => approveCall('store', sid, [
+    ...(n === 0 ? owner : []),
+    ...person.items.filter((i) => isStoreKind(i.kind) && i.targetId === sid),
+  ]));
+}
+
+export const isVerificationChanged = (err: unknown): boolean => isConflictWithCode(err, 'VERIFICATION_CHANGED');
+
+const isKind = (k: unknown): k is VerificationKind =>
+  typeof k === 'string' && Object.prototype.hasOwnProperty.call(VERIFICATION_KIND_SHORT, k);
+
+/** Aviso do 409 VERIFICATION_CHANGED, com o que está pendente agora (`currentPending`, quando o servidor manda). */
+export function verificationChangedText(err: unknown): string {
+  const raw = (err as { response?: { data?: { currentPending?: unknown } } } | null)?.response?.data?.currentPending;
+  const kinds = Array.isArray(raw) ? raw.filter(isKind) : [];
+  const base = 'A verificação mudou enquanto você olhava, e estes itens não foram aprovados.';
+  return kinds.length > 0
+    ? `${base} Pendentes agora: ${kinds.map((k) => VERIFICATION_KIND_SHORT[k]).join(', ')}. Confira antes de aprovar.`
+    : `${base} A lista foi atualizada.`;
 }

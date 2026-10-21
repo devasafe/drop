@@ -34,10 +34,10 @@ const DETAIL = {
   stats30d: { orders: 120, cancelledByStore: 3, rating: 4.7 },
   reviews: [{ orderId: 'o1', rating: 5, comment: 'Chegou rápido', createdAt: '2026-10-19T12:00:00.000Z' }],
   receiving: { status: 'pending', detail: 'Conta Asaas em análise' },
-  plan: { plan: null, mode: 'saas', saas: { status: 'trialing', trialEndsAt: '2026-11-01T12:00:00.000Z', paidUntil: null } },
+  plan: { plan: null, mode: 'saas', saas: { status: 'trialing', trialEndsAt: '2026-11-01T12:00:00.000Z', paidUntil: null, cancelledAt: null } },
   orders: [{ id: 'ord00000d4e5f6', status: 'cancelado', total: 99.9, createdAt: '2026-10-18T12:00:00.000Z' }],
   timeline: { items: [], nextCursor: null },
-  can: { pause: true, unpause: false, note: true },
+  can: { pause: true, unpause: false, note: true, extendTrial: false, cancelSaas: false },
 };
 const PAUSADA = {
   ...DETAIL,
@@ -46,7 +46,7 @@ const PAUSADA = {
     adminPause: { at: '2026-10-20T12:00:00.000Z', reason: 'Documentos vencidos', by: { id: 'u1', name: 'Marina Rocha' } },
   },
   timeline: { items: [{ id: 't1', type: 'store_pause', reason: 'Documentos vencidos', meta: null, createdAt: '2026-10-20T12:00:00.000Z', actor: { id: 'u1', name: 'Marina Rocha', role: 'ceo' } }], nextCursor: null },
-  can: { pause: false, unpause: true, note: true },
+  can: { pause: false, unpause: true, note: true, extendTrial: false, cancelSaas: false },
 };
 
 const renderFicha = (auth = adminAuth('ceo')) => renderAdminPage(<AdminLojaFichaPage />, auth);
@@ -158,7 +158,7 @@ describe('ficha da loja · Pausar e Liberar', () => {
   });
 
   it('sem store:edit (can falso): nenhuma ação', async () => {
-    get.mockResolvedValue({ data: { ...DETAIL, can: { pause: false, unpause: false, note: true } } });
+    get.mockResolvedValue({ data: { ...DETAIL, can: { pause: false, unpause: false, note: true, extendTrial: false, cancelSaas: false } } });
     renderFicha();
     await screen.findByRole('region', { name: 'Loja' });
     expect(screen.queryByRole('group', { name: 'Ações da loja' })).toBeNull();

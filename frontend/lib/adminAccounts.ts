@@ -9,8 +9,9 @@
  */
 import type { StatusTone } from '../components/admin/StatusTag';
 import { adminErrorMessage } from './adminErrors';
-import { actorLabel } from './adminMoney';
+import { actorLabel, spTime } from './adminMoney';
 import { ageLabel } from './adminOps';
+import { REJECT_REASON_LABEL, VERIFICATION_KIND_SHORT } from './adminVerificacoes';
 import api from './api';
 import { formatMoney } from './money';
 
@@ -28,7 +29,8 @@ export type StoreMode = 'custodia' | 'saas';
 export type StoreFilter = 'all' | 'admin_paused' | 'attention' | 'trial';
 export type SaasStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'cancelled';
 export type AccountActionType =
-  | 'block' | 'unblock' | 'roles_change' | 'disconnect' | 'debt_forgive' | 'store_pause' | 'store_unpause' | 'note';
+  | 'block' | 'unblock' | 'roles_change' | 'disconnect' | 'debt_forgive' | 'store_pause' | 'store_unpause' | 'note'
+  | 'verification_decision' | 'trial_extend' | 'saas_cancel' | 'plan_reject';
 
 export interface ActorRef { id: string; name: string | null }
 
@@ -120,7 +122,22 @@ export interface StoreListItem {
   attention: boolean;
 }
 export interface StoreListResponse { items: StoreListItem[]; nextCursor: string | null }
-export interface StoreCan { pause: boolean; unpause: boolean; note: boolean }
+export interface StoreCan { pause: boolean; unpause: boolean; note: boolean; extendTrial: boolean; cancelSaas: boolean }
+/**
+ * Mensalidade (SaaS) da loja; `cancelledAt` é quando o admin cancelou (D3b-2b). `coveredUntil` (só na ficha, P2.5) é o
+ * último instante coberto, calculado no servidor pela mesma conta da vitrine; as respostas das ações não trazem.
+ */
+export interface StoreSaas {
+  status: SaasStatus;
+  trialEndsAt: string | null;
+  paidUntil: string | null;
+  cancelledAt: string | null;
+  coveredUntil?: string | null;
+}
+export interface StoreAsaasAudit { action: string; apiKeyLast4: string | null; actor: ActorRef; createdAt: string }
+export interface StoreAsaasConsent { termsVersion: string; ip: string | null; acceptedAt: string; actorRole: string }
+/** Conta Asaas própria da loja: alterações (até 20, mais novas primeiro) e o último aceite do termo. Só o CEO recebe. */
+export interface StoreAsaasHistory { audits: StoreAsaasAudit[]; consent: StoreAsaasConsent | null }
 export interface StoreAdminPause { at: string; reason: string; by: ActorRef | null }
 export interface StoreDetail {
   profile: {
@@ -138,11 +155,13 @@ export interface StoreDetail {
   plan: {
     plan: number | null;
     mode: StoreMode;
-    saas: { status: SaasStatus; trialEndsAt: string | null; paidUntil: string | null } | null;
+    saas: StoreSaas | null;
   };
   orders: AccountOrder[];
   timeline: TimelineResponse;
   can: StoreCan;
+  /** Só o CEO recebe (ruling 11); para os outros a chave não vem. */
+  asaasHistory?: StoreAsaasHistory | null;
 }
 
 /* ---------- checagem do formato (fail closed) ---------- */
@@ -235,6 +254,16 @@ export function isStoreListResponse(d: unknown): d is StoreListResponse {
   return isPage(d, isStoreListItem);
 }
 
+const isStoreSaas = (s: unknown): s is StoreSaas => isObj(s) && oneOf(s.status, SAAS_STATUSES)
+  && isIsoOrNull(s.trialEndsAt) && isIsoOrNull(s.paidUntil) && isIsoOrNull(s.cancelledAt) && optional(s.coveredUntil, isIso);
+const isAsaasAudit = (a: unknown): boolean => isObj(a) && isStr(a.action) && isStrOrNull(a.apiKeyLast4)
+  && isObj(a.actor) && isStr(a.actor.id) && isStrOrNull(a.actor.name) && isIso(a.createdAt);
+const isAsaasConsent = (c: unknown): boolean => isObj(c) && isStr(c.termsVersion) && isStrOrNull(c.ip)
+  && isIso(c.acceptedAt) && isStr(c.actorRole);
+/** As duas chaves sempre vêm: `audits` (lista) e `consent` (o último aceite, ou null). */
+const isAsaasHistory = (h: unknown): boolean =>
+  isObj(h) && listOf(h.audits, isAsaasAudit) && (h.consent === null || isAsaasConsent(h.consent));
+
 export function isStoreDetail(d: unknown): d is StoreDetail {
   if (!isObj(d)) return false;
   const { profile: p, stats30d: st, receiving: r, plan, can } = d;
@@ -248,10 +277,11 @@ export function isStoreDetail(d: unknown): d is StoreDetail {
     && listOf(d.reviews, (x) => isObj(x) && isStr(x.orderId) && isNum(x.rating) && isStr(x.comment) && isIso(x.createdAt))
     && oneOf(r.status, RECEIVINGS) && isStrOrNull(r.detail)
     && isNumOrNull(plan.plan) && oneOf(plan.mode, MODES)
-    && (saas === null || (isObj(saas) && oneOf(saas.status, SAAS_STATUSES) && isIsoOrNull(saas.trialEndsAt) && isIsoOrNull(saas.paidUntil)))
+    && (saas === null || isStoreSaas(saas))
     && listOf(d.orders, isAccountOrder)
     && isTimelineResponse(d.timeline)
-    && allBool(can, ['pause', 'unpause', 'note']);
+    && allBool(can, ['pause', 'unpause', 'note', 'extendTrial', 'cancelSaas'])
+    && optional(d.asaasHistory, isAsaasHistory);
 }
 
 function shaped<T>(data: unknown, ok: (d: unknown) => d is T): T {
@@ -350,6 +380,25 @@ export async function unpauseStore(id: string, reason: string): Promise<void> {
 
 export async function addStoreNote(id: string, text: string): Promise<void> {
   await api.post(`${storePath(id)}/notes`, { text });
+}
+
+export const TRIAL_DAYS = [7, 14, 30] as const;
+export type TrialDays = (typeof TRIAL_DAYS)[number];
+
+/** Mensalidade devolvida pela ação ({ saas }); null fora do formato (a ficha relê de qualquer jeito). */
+const saasFrom = (data: unknown): StoreSaas | null => {
+  const s = isObj(data) ? data.saas : null;
+  return isStoreSaas(s) ? s : null;
+};
+
+export async function extendTrial(storeId: string, days: TrialDays, reason: string): Promise<StoreSaas | null> {
+  const res = await api.post(`${storePath(storeId)}/saas/extend-trial`, { days, reason });
+  return saasFrom(res?.data);
+}
+
+export async function cancelSaas(storeId: string, reason: string): Promise<StoreSaas | null> {
+  const res = await api.post(`${storePath(storeId)}/saas/cancel`, { reason });
+  return saasFrom(res?.data);
 }
 
 /* ---------- regras de texto ---------- */
@@ -494,6 +543,10 @@ export const ACTION_LABEL: Record<AccountActionType, string> = {
   store_pause: 'Loja pausada pelo DROP',
   store_unpause: 'Loja liberada',
   note: 'Nota',
+  verification_decision: 'Decisão de verificação',
+  trial_extend: 'Teste estendido',
+  saas_cancel: 'Mensalidade cancelada',
+  plan_reject: 'Troca de plano recusada',
 };
 
 export const actionLabel = (type: string): string => ACTION_LABEL[type as AccountActionType] ?? 'Ação da equipe';
@@ -519,6 +572,45 @@ export const ratingLabel = (n: number | null): string =>
 export const rateLabel = (r: number | null): string =>
   (r === null ? 'Poucos pedidos' : `${(r * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`);
 
+const spDayMonth = (iso: string): string =>
+  new Date(iso).toLocaleDateString('pt-BR', { timeZone: SP, day: '2-digit', month: '2-digit' });
+
+/** Até quando a loja tem direito: o `coveredUntil` que o servidor manda (policy.sellsUntil); sem ele, null. */
+export const saasCoverageEnd = (s: Pick<StoreSaas, 'coveredUntil'>): string | null => s.coveredUntil ?? null;
+
+/** Mensalidade na ficha: o rótulo do status; cancelada diz até quando vende (ruling 8). */
+export function saasPlanText(s: StoreSaas, now: number = Date.now()): string {
+  if (s.status !== 'cancelled') return SAAS_STATUS_LABEL[s.status];
+  const end = saasCoverageEnd(s);
+  if (!end || !Number.isFinite(Date.parse(end))) return 'Cancelada';
+  return Date.parse(end) > now ? `Cancelada · vende até ${spDayMonth(end)}` : `Cancelada · vendeu até ${spDayMonth(end)}`;
+}
+
+/** Novo fim do teste: o fim atual (ou agora, se já passou) mais os dias (ruling 6). */
+export function trialEndPreview(trialEndsAt: string | null, days: number, now: number = Date.now()): string {
+  const end = trialEndsAt ? Date.parse(trialEndsAt) : NaN;
+  const from = Number.isFinite(end) ? Math.max(end, now) : now;
+  return spDate(new Date(from + days * DAY_MS).toISOString());
+}
+
+const normName = (s: string): string => s.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
+/** Confirmação do cancelamento: o nome digitado confere sem diferença de maiúscula e de espaços. */
+export const storeNameMatches = (typed: string, name: string): boolean =>
+  normName(typed) !== '' && normName(typed) === normName(name);
+
+const ASAAS_AUDIT_LABEL: Record<string, string> = {
+  connect: 'Conta conectada',
+  replace: 'Chave trocada',
+  disconnect: 'Conta desconectada',
+};
+export const asaasAuditLabel = (action: string): string => ASAAS_AUDIT_LABEL[action] ?? 'Alteração na conta';
+
+/** "Termo 2026-09 aceito em 30/09/2026 às 09:00 · IP 200.1.2.3 · pelo lojista". */
+export function consentText(c: StoreAsaasConsent): string {
+  const who = c.actorRole === 'admin' ? 'assinado com o DROP' : 'pelo lojista';
+  return `Termo ${c.termsVersion} aceito em ${spDate(c.acceptedAt)} às ${spTime(c.acceptedAt)} · IP ${c.ip ?? 'não registrado'} · ${who}`;
+}
+
 const byName = (by: ActorRef): string => (by.id === 'system' ? 'pelo sistema' : `por ${by.name ?? 'Pessoa removida'}`);
 
 /** "Motivo: … · por Marina Rocha · em 19/10/2026" (o que faltar some). */
@@ -543,7 +635,24 @@ export function timelineDetail(item: TimelineItem): string | null {
   if (!m) return null;
   if (item.type === 'roles_change' && isStrArr(m.before) && isStrArr(m.after)) return `${rolesText(m.before)} → ${rolesText(m.after)}`;
   if (item.type === 'debt_forgive' && isNum(m.amount)) return formatMoney(m.amount);
+  if (item.type === 'verification_decision') return verificationDecisionDetail(m);
+  if (item.type === 'trial_extend' && isNum(m.days) && isIso(m.to)) return `+${m.days} dias · até ${spDate(m.to)}`;
   return null;
+}
+
+/** "Aprovado: Documento, CNPJ" ou "Recusado: Selfie (Selfie não confere com o documento, pediu reenvio)". */
+function verificationDecisionDetail(m: Record<string, unknown>): string | null {
+  if ((m.decision !== 'approve' && m.decision !== 'reject') || !Array.isArray(m.items)) return null;
+  const kinds = VERIFICATION_KIND_SHORT as Record<string, string>;
+  const reasons = REJECT_REASON_LABEL as Record<string, string>;
+  const parts = m.items.filter(isObj).map((i) => {
+    const kind = isStr(i.kind) ? kinds[i.kind] ?? i.kind : 'Item';
+    const extra = [isStr(i.reasonCode) ? reasons[i.reasonCode] : null, i.resend === true ? 'pediu reenvio' : null]
+      .filter(Boolean).join(', ');
+    return extra ? `${kind} (${extra})` : kind;
+  });
+  if (parts.length === 0) return null;
+  return `${m.decision === 'approve' ? 'Aprovado' : 'Recusado'}: ${parts.join(', ')}`;
 }
 
 /* ---------- erros ---------- */
@@ -557,6 +666,12 @@ const CODE_TEXT: Record<string, string> = {
   USER_NOT_FOUND: 'Pessoa não encontrada.',
   STORE_NOT_FOUND: 'Loja não encontrada.',
   DEBT_NOT_FOUND: 'Dívida não encontrada.',
+  NOT_TRIALING: 'A loja não está mais em teste. A ficha foi atualizada.',
+  ALREADY_CANCELLED: 'A mensalidade já estava cancelada. A ficha foi atualizada.',
+  NO_SAAS_BILLING: 'Esta loja não tem mensalidade para cancelar.',
+  INVALID_DAYS: 'Escolha 7, 14 ou 30 dias.',
+  ASAAS_UPDATE_FAILED: 'O Asaas não aceitou a nova data da cobrança. Nada mudou: tente de novo em alguns minutos.',
+  SAAS_CANCEL_FAILED: 'Não deu para cancelar a assinatura no Asaas. Nada mudou: tente de novo em alguns minutos.',
 };
 
 /**
@@ -572,7 +687,7 @@ const FORBIDDEN_TEXT: Record<string, string> = {
 };
 
 /** 409 que diz "o estado mudou": a ficha relê. */
-const CONFLICT_CODES = new Set(['DEBT_NOT_PENDING', 'ALREADY_PAUSED', 'NOT_PAUSED']);
+const CONFLICT_CODES = new Set(['DEBT_NOT_PENDING', 'ALREADY_PAUSED', 'NOT_PAUSED', 'NOT_TRIALING', 'ALREADY_CANCELLED']);
 
 interface HttpLike { response?: { status?: number; data?: unknown } }
 const statusOf = (err: unknown): number | undefined => ((err ?? {}) as HttpLike).response?.status;

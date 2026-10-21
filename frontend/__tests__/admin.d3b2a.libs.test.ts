@@ -63,10 +63,10 @@ const STORE_DETAIL = {
   stats30d: { orders: 120, cancelledByStore: 3, rating: 4.7 },
   reviews: [{ orderId: 'o1', rating: 5, comment: 'Chegou rápido', createdAt: '2026-10-19T12:00:00.000Z' }],
   receiving: { status: 'pending', detail: 'Conta Asaas em análise' },
-  plan: { plan: null, mode: 'saas', saas: { status: 'trialing', trialEndsAt: '2026-11-01T12:00:00.000Z', paidUntil: null } },
+  plan: { plan: null, mode: 'saas', saas: { status: 'trialing', trialEndsAt: '2026-11-01T12:00:00.000Z', paidUntil: null, cancelledAt: null } },
   orders: [{ id: 'o2', status: 'cancelado', total: 99.9, createdAt: '2026-10-18T12:00:00.000Z' }],
   timeline: { items: [], nextCursor: null },
-  can: { pause: false, unpause: true, note: true },
+  can: { pause: false, unpause: true, note: true, extendTrial: false, cancelSaas: false },
 };
 
 beforeEach(() => jest.clearAllMocks());
@@ -238,7 +238,7 @@ describe('papéis, rótulos e textos curtos', () => {
     expect(actionLabel('block')).toBe('Conta bloqueada');
     expect(actionLabel('store_pause')).toBe('Loja pausada pelo DROP');
     expect(actionLabel('note')).toBe('Nota');
-    expect(actionLabel('trial_extend')).toBe('Ação da equipe');
+    expect(actionLabel('tipo_novo')).toBe('Ação da equipe');
     expect(timelineActor({ id: 'system', name: null, role: 'system' })).toBe('Sistema');
     expect(timelineActor({ id: 'a1', name: 'Marina Rocha', role: 'ceo' })).toBe('Marina Rocha · CEO');
     expect(timelineActor({ id: 'a2', name: null, role: 'gerente_geral' })).toBe('Pessoa removida · Gerente geral');
