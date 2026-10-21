@@ -55,8 +55,9 @@ const asObject = (v: unknown): Record<string, unknown> =>
 
 /**
  * Decisão 12. Direto: a conta Asaas da própria loja (inválida = problema; válida com webhook de
- * pagamento, IP liberado e webhook de autorização = ok). Custódia: o repasse sai por Pix para
- * Store.asaas.pixKey (asaasGateway); sem gateway Asaas, não se aplica.
+ * pagamento, IP liberado e webhook de autorização = ok). Custódia: o repasse (asaasGateway) sai da
+ * subconta (Store.asaas.apiKeyEncrypted) por Pix para Store.asaas.pixKey, então só fica ok com as duas;
+ * sem gateway Asaas, não se aplica.
  */
 export function receivingStatus(mode: SettlementMode, gateway: string, store: ReceivingInput): ReceivingStatus {
   if (mode === 'direto') {
@@ -68,7 +69,8 @@ export function receivingStatus(mode: SettlementMode, gateway: string, store: Re
   if (gateway !== 'asaas') return 'na';
   const sub = asObject(store.asaas);
   if (sub.status === 'error') return 'problem';
-  return typeof sub.pixKey === 'string' && sub.pixKey.trim() ? 'ok' : 'pending';
+  const filled = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  return filled(sub.pixKey) && filled(sub.apiKeyEncrypted) ? 'ok' : 'pending';
 }
 
 /** Último erro gravado do recebimento, para a ficha. */

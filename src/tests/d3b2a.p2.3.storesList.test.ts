@@ -127,9 +127,15 @@ describe('GET /admin/stores · colunas', () => {
 });
 
 describe('GET /admin/stores · recebimento', () => {
-  it('custódia com gateway Asaas: chave Pix = ok, erro na subconta = problema e atenção, nada = pendente', async () => {
+  it('custódia com gateway Asaas: chave Pix e subconta = ok, erro na subconta = problema e atenção, só a chave ou nada = pendente', async () => {
+    // O repasse (asaasGateway) exige a subconta (asaas.apiKeyEncrypted) e a chave Pix (asaas.pixKey).
     const ok = await store('r-ok');
-    await prisma.store.update({ where: { id: ok }, data: { asaas: { status: 'active', pixKey: 'pix-da-loja-d3b2a@x.com', pixKeyType: 'email' } } });
+    await prisma.store.update({
+      where: { id: ok },
+      data: { asaas: { status: 'active', apiKeyEncrypted: 'subconta-cifrada-d3b2a', pixKey: 'pix-da-loja-d3b2a@x.com', pixKeyType: 'email' } },
+    });
+    const soPix = await store('r-so-pix');
+    await prisma.store.update({ where: { id: soPix }, data: { asaas: { status: 'active', pixKey: 'pix-sem-subconta-d3b2a@x.com', pixKeyType: 'email' } } });
     const erro = await store('r-erro');
     await prisma.store.update({ where: { id: erro }, data: { asaas: { status: 'error', lastError: 'Faltam dados p/ subconta' } } });
     const nada = await store('r-nada');
@@ -141,8 +147,11 @@ describe('GET /admin/stores · recebimento', () => {
       const by = byId(res);
       expect(by.get(ok)).toEqual(expect.objectContaining({ receiving: 'ok', attention: false }));
       expect(by.get(erro)).toEqual(expect.objectContaining({ receiving: 'problem', attention: true }));
+      expect(by.get(soPix)).toEqual(expect.objectContaining({ receiving: 'pending', attention: false }));
       expect(by.get(nada)).toEqual(expect.objectContaining({ receiving: 'pending', attention: false }));
       expect(JSON.stringify(res.body)).not.toContain('pix-da-loja-d3b2a');
+      expect(JSON.stringify(res.body)).not.toContain('pix-sem-subconta-d3b2a');
+      expect(JSON.stringify(res.body)).not.toContain('subconta-cifrada-d3b2a');
     } finally {
       env.PAYMENT_GATEWAY = original;
     }
