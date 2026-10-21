@@ -2,6 +2,7 @@
  * D3b-2a · tipos das leituras de Pessoas e Lojas (spec 6). Fonte única dos nomes: o frontend espelha
  * em frontend/lib/adminAccounts.ts (P3.1). Datas em ISO 8601 UTC; valores em reais como number (2 casas).
  */
+import type { SaasBillingStatus } from '@prisma/client';
 import type { TimelineItem } from './actions';
 
 // ── Lista de pessoas (P2.1) ──────────────────────────────────────────────
@@ -188,4 +189,39 @@ export interface StoreListItem {
 export interface StoreListResponse {
   items: StoreListItem[];
   nextCursor: string | null;
+}
+
+// ── Ficha da loja (P2.4) ─────────────────────────────────────────────────
+
+export interface StoreDetail {
+  profile: {
+    id: string;
+    name: string;
+    cnpj: string | null;
+    owner: { id: string; name: string };
+    city: string | null;
+    situation: StoreSituation;
+    /** Pausa do admin; `by.name` é null quando foi o sistema ('system'). */
+    adminPause: { at: string; by: { id: string; name: string | null }; reason: string } | null;
+  };
+  stats30d: {
+    orders: number;
+    /** Cancelamentos dos últimos 30 dias que contam contra a loja (dela ou do admin com culpa da loja). */
+    cancelledByStore: number;
+    rating: number | null;
+  };
+  /** As 10 avaliações mais novas com nota e comentário. */
+  reviews: Array<{ orderId: string; rating: number; comment: string; reply: string | null; createdAt: string }>;
+  /** `detail` = último erro gravado do recebimento. */
+  receiving: { status: ReceivingStatus; detail: string | null };
+  /** Só leitura na 2a. `saas` = mensalidade (StoreSaasBilling), quando existe. */
+  plan: {
+    plan: number;
+    mode: StoreMode;
+    saas: { status: SaasBillingStatus; trialEndsAt: string; paidUntil: string | null } | null;
+  };
+  /** Os 20 pedidos mais novos. */
+  orders: Array<{ id: string; shortId: string; status: string; total: number; customerName: string; createdAt: string }>;
+  timeline: TimelineResponse;
+  can: { pause: boolean; unpause: boolean; note: boolean };
 }

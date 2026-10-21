@@ -7,13 +7,14 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
-import { sendAccountActionError, userNotFound } from '../services/adminAccounts/errors';
+import { sendAccountActionError, storeNotFound, userNotFound } from '../services/adminAccounts/errors';
 import { listAdminUsers, USER_LIST_TABS } from '../services/adminAccounts/users';
 import { StoreListFilter, UserListTab } from '../services/adminAccounts/types';
 import { listAdminStores, STORE_LIST_FILTERS } from '../services/adminAccounts/stores';
 import { activeRoleOf } from './rolePermissionsController';
 import { permissionCheckFor } from '../services/adminOps/common';
 import { getAdminUserDetail, userTimeline } from '../services/adminAccounts/userDetail';
+import { getAdminStoreDetail, storeTimeline } from '../services/adminAccounts/storeDetail';
 
 /** Erro de entrada conhecido (< 500) → status + { error, code }; o resto → 500 com log. */
 function sendReadFailure(res: Response, err: unknown, what: string) {
@@ -97,5 +98,30 @@ export const listStores = async (req: AuthenticatedRequest, res: Response) => {
     }));
   } catch (err) {
     return sendReadFailure(res, err, 'as lojas');
+  }
+};
+
+// GET /api/admin/stores/:id — ficha da loja (spec 6)
+export const getStore = async (req: AuthenticatedRequest, res: Response) => {
+  const id = idParam(req);
+  try {
+    const can = await permissionCheckFor(req.user);
+    const detail = id ? await getAdminStoreDetail(id, can) : null;
+    if (!detail) return sendReadFailure(res, storeNotFound(), 'a ficha da loja');
+    return res.json(detail);
+  } catch (err) {
+    return sendReadFailure(res, err, 'a ficha da loja');
+  }
+};
+
+// GET /api/admin/stores/:id/timeline?cursor= — histórico da loja (spec 6)
+export const getStoreTimeline = async (req: AuthenticatedRequest, res: Response) => {
+  const id = idParam(req);
+  try {
+    const page = id ? await storeTimeline(id, queryText(req.query.cursor)) : null;
+    if (!page) return sendReadFailure(res, storeNotFound(), 'o histórico da loja');
+    return res.json(page);
+  } catch (err) {
+    return sendReadFailure(res, err, 'o histórico da loja');
   }
 };

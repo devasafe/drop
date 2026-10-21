@@ -12,7 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
-import { listUsers, getUser, getUserTimeline, listStores } from '../controllers/adminAccountsReadController';
+import { listUsers, getUser, getUserTimeline, listStores, getStore, getStoreTimeline } from '../controllers/adminAccountsReadController';
 
 const router = Router();
 
@@ -80,5 +80,10 @@ router.get('/users/:id', authenticate, authorizePermission('user:view_all'), get
 // /stores/saas-billing e /stores/asaas são servidos antes, pelos routers montados em
 // /api/admin/stores (app.ts:124 e :126); d3b2a.p2.3.storesList.test.ts cobra isso.
 router.get('/stores', authenticate, authorizePermission('store:view_all'), listStores);
+
+// D3b-2a · P2.4 — ficha e histórico da loja (spec 6). Não capturam /stores/saas-billing nem
+// /stores/asaas: esses são servidos antes, em app.ts:124 e :126 (teste em d3b2a.p2.4).
+router.get('/stores/:id/timeline', authenticate, authorizePermission('store:view_all'), getStoreTimeline);
+router.get('/stores/:id', authenticate, authorizePermission('store:view_all'), getStore);
 
 export default router;
