@@ -2,6 +2,7 @@
  * D3b-2a · tipos das leituras de Pessoas e Lojas (spec 6). Fonte única dos nomes: o frontend espelha
  * em frontend/lib/adminAccounts.ts (P3.1). Datas em ISO 8601 UTC; valores em reais como number (2 casas).
  */
+import type { TimelineItem } from './actions';
 
 // ── Lista de pessoas (P2.1) ──────────────────────────────────────────────
 
@@ -35,4 +36,126 @@ export interface UserListItem {
 export interface UserListResponse {
   items: UserListItem[];
   nextCursor: string | null;
+}
+
+// ── Histórico (P2.2) ─────────────────────────────────────────────────────
+
+export type { TimelineItem };
+
+/** Uma página do histórico (`listTimeline`, P1): 50 por página, mais nova primeiro. */
+export interface TimelineResponse {
+  items: TimelineItem[];
+  nextCursor: string | null;
+}
+
+// ── Ficha da pessoa (P2.2) ───────────────────────────────────────────────
+
+/** Situação da loja agora: pausa do admin > pausa do lojista > aberta pelo horário > fechada. */
+export type StoreSituation = 'open' | 'closed' | 'paused' | 'admin_paused';
+
+/** Situação de um item na ficha (decisão 21): `verified` do e-mail vira `approved`; o que não espera o admin, `none`. */
+export type VerificationEntryStatus = 'pending' | 'approved' | 'rejected' | 'none';
+
+export interface UserVerificationEntry {
+  kind: UserVerificationKey;
+  status: VerificationEntryStatus;
+  /** Motivo da recusa, quando recusado. */
+  reason: string | null;
+  /** Data da decisão, da confirmação do e-mail ou do envio, nessa ordem. */
+  at: string | null;
+}
+
+export interface UserDetailOrder {
+  id: string;
+  shortId: string;
+  status: string;
+  total: number;
+  store: { id: string; name: string };
+  createdAt: string;
+}
+
+export type DebtStatus = 'pending' | 'collected' | 'forgiven';
+
+export interface UserDetailDebt {
+  id: string;
+  amount: number;
+  status: DebtStatus;
+  reason: string;
+  sourceOrderId: string;
+  createdAt: string;
+  collectedAt: string | null;
+  forgivenAt: string | null;
+}
+
+export interface UserDetailMotoboy {
+  /** CNH e placa como estão na verificação (`verification.courier`). */
+  cnh: string | null;
+  plate: string | null;
+  courierStatus: string;
+  /** A chave nunca sai: o "Ver chave" auditado da D3b-1 é o único caminho. */
+  hasPixKey: boolean;
+  deliveries30d: number;
+  /** Só com payout:view ou money:overview; sem a permissão, a chave nem existe no JSON. */
+  earnings30d?: number;
+}
+
+export interface UserDetailStore {
+  id: string;
+  name: string;
+  situation: StoreSituation;
+}
+
+/** Uma carteira (decisão 9). */
+export interface UserDetailWallet {
+  balance: number;
+  available: number;
+  pending: number;
+  blocked: number;
+}
+
+/** Carteiras da pessoa, separadas: `user` (compras) e `motoboy` (entregas); null quando a pessoa não tem aquela. */
+export interface UserDetailWallets {
+  cliente: UserDetailWallet | null;
+  motoboy: UserDetailWallet | null;
+}
+
+export interface UserDetailCan {
+  /** Bloquear: user:block, não é a própria conta e a conta não está bloqueada. */
+  block: boolean;
+  /** Desbloquear: user:block, não é a própria conta e a conta está bloqueada. */
+  unblock: boolean;
+  /** Desconectar: user:block e não é a própria conta. */
+  disconnect: boolean;
+  roles: boolean;
+  forgiveDebt: boolean;
+  note: boolean;
+}
+
+export interface UserDetail {
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    /** Só os 4 últimos dígitos ("1234"); null sem telefone. */
+    phoneLast4: string | null;
+    roles: string[];
+    activeRole: string;
+    status: AccountStatus;
+    /** Só com a conta bloqueada: motivo, data e autor. */
+    block: { reason: string | null; at: string | null; by: { id: string; name: string | null } | null } | null;
+    createdAt: string;
+    lastSeenAt: string | null;
+  };
+  verification: UserVerificationEntry[];
+  /** Os 20 pedidos mais novos feitos como cliente. */
+  orders: UserDetailOrder[];
+  debts: UserDetailDebt[];
+  /** Só para quem tem o papel motoboy. */
+  motoboy?: UserDetailMotoboy;
+  /** Só para quem tem o papel lojista. */
+  stores?: UserDetailStore[];
+  /** Só com payout:view ou money:overview. */
+  wallets?: UserDetailWallets;
+  timeline: TimelineResponse;
+  can: UserDetailCan;
 }

@@ -12,7 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
-import { listUsers } from '../controllers/adminAccountsReadController';
+import { listUsers, getUser, getUserTimeline } from '../controllers/adminAccountsReadController';
 
 const router = Router();
 
@@ -71,5 +71,9 @@ router.post(
 
 // D3b-2a · P2.1 — lista de pessoas: busca no servidor, abas, "Com dívida" e cursor (spec 6)
 router.get('/users', authenticate, authorizePermission('user:view_all'), listUsers);
+
+// D3b-2a · P2.2 — ficha e histórico da pessoa (spec 6)
+router.get('/users/:id/timeline', authenticate, authorizePermission('user:view_all'), getUserTimeline);
+router.get('/users/:id', authenticate, authorizePermission('user:view_all'), getUser);
 
 export default router;

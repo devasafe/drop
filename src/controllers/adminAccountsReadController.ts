@@ -7,9 +7,12 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
-import { sendAccountActionError } from '../services/adminAccounts/errors';
+import { sendAccountActionError, userNotFound } from '../services/adminAccounts/errors';
 import { listAdminUsers, USER_LIST_TABS } from '../services/adminAccounts/users';
 import { UserListTab } from '../services/adminAccounts/types';
+import { activeRoleOf } from './rolePermissionsController';
+import { permissionCheckFor } from '../services/adminOps/common';
+import { getAdminUserDetail, userTimeline } from '../services/adminAccounts/userDetail';
 
 /** Erro de entrada conhecido (< 500) → status + { error, code }; o resto → 500 com log. */
 function sendReadFailure(res: Response, err: unknown, what: string) {
@@ -42,5 +45,37 @@ export const listUsers = async (req: AuthenticatedRequest, res: Response) => {
     }));
   } catch (err) {
     return sendReadFailure(res, err, 'as pessoas');
+  }
+};
+
+const idParam = (req: AuthenticatedRequest): string | null => {
+  const id = String(req.params.id ?? '');
+  return id && id.length <= 64 ? id : null;
+};
+
+// GET /api/admin/users/:id — ficha da pessoa (spec 6)
+export const getUser = async (req: AuthenticatedRequest, res: Response) => {
+  const id = idParam(req);
+  try {
+    const can = await permissionCheckFor(req.user);
+    const detail = id
+      ? await getAdminUserDetail(id, { id: String(req.user?.id ?? ''), isCeo: activeRoleOf(req.user) === 'ceo', can })
+      : null;
+    if (!detail) return sendReadFailure(res, userNotFound(), 'a ficha da pessoa');
+    return res.json(detail);
+  } catch (err) {
+    return sendReadFailure(res, err, 'a ficha da pessoa');
+  }
+};
+
+// GET /api/admin/users/:id/timeline?cursor= — histórico da pessoa (spec 6)
+export const getUserTimeline = async (req: AuthenticatedRequest, res: Response) => {
+  const id = idParam(req);
+  try {
+    const page = id ? await userTimeline(id, queryText(req.query.cursor)) : null;
+    if (!page) return sendReadFailure(res, userNotFound(), 'o histórico da pessoa');
+    return res.json(page);
+  } catch (err) {
+    return sendReadFailure(res, err, 'o histórico da pessoa');
   }
 };
