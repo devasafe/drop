@@ -10,10 +10,11 @@ import {
 } from '../asaas/subscription';
 import { SAAS_OPEN_STATUSES } from '../saasBilling/payments';
 import { firstDueDate } from '../saasBilling/dueDate';
-import { sellsUntil } from '../saasBilling/policy';
+import { isCancelledAndExpired, sellsUntil } from '../saasBilling/policy';
 import { notifyStore, STORE_LINKS } from '../storeNotify';
 import { recordAccountAction, AccountActor } from './actions';
 import { AccountActionError, parseRequiredReason, storeNotFound } from './errors';
+import { pauseStoreByAdmin } from './storePause';
 import type { StoreSaasState } from './types';
 
 /**
@@ -266,4 +267,46 @@ export async function cancelSaas(
     tag: 'mensalidade',
   });
   return { saas: toSaasState(saved) };
+}
+
+export const SAAS_CANCELLED_PAUSE_REASON = 'Mensalidade cancelada';
+const SYSTEM_ACTOR: AccountActor = { id: 'system', role: 'system' };
+
+/**
+ * Passo do job da mensalidade (ruling 9), em QUALQUER modo: loja `cancelled` cuja cobertura acabou
+ * (isCancelledAndExpired) e que não está pausada pelo admin → pauseStoreByAdmin com o ator system e
+ * "Mensalidade cancelada". Idempotente: a pausa já feita tira a loja da seleção (adminPausedAt).
+ * Respeita o admin: se o job já pausou a loja por este cancelamento (store_pause do system com este
+ * motivo, depois do cancelledAt) e ela está solta, alguém liberou de propósito → não pausa de novo.
+ * ALREADY_PAUSED (corrida) não é erro; o erro de uma loja vai ao log e não para as outras.
+ */
+export async function runCancelledSaasPauses(now: Date = new Date()): Promise<{ paused: number }> {
+  const rows = await prisma.storeSaasBilling.findMany({
+    where: { status: 'cancelled', store: { adminPausedAt: null } },
+    select: { storeId: true, status: true, trialEndsAt: true, paidUntil: true, cancelledAt: true },
+  });
+  let paused = 0;
+  for (const b of rows) {
+    if (!isCancelledAndExpired(b, now)) continue;
+    try {
+      const alreadyPausedOnce = await prisma.adminAccountAction.findFirst({
+        where: {
+          storeId: b.storeId,
+          type: 'store_pause',
+          actorId: SYSTEM_ACTOR.id,
+          reason: SAAS_CANCELLED_PAUSE_REASON,
+          ...(b.cancelledAt ? { createdAt: { gt: b.cancelledAt } } : {}),
+        },
+        select: { id: true },
+      });
+      if (alreadyPausedOnce) continue;
+      await pauseStoreByAdmin(b.storeId, SYSTEM_ACTOR, SAAS_CANCELLED_PAUSE_REASON);
+      paused += 1;
+      logger.info('[saas-billing] loja pausada pelo fim do período da mensalidade cancelada', { storeId: b.storeId });
+    } catch (err) {
+      if (err instanceof AccountActionError && err.code === 'ALREADY_PAUSED') continue;
+      logger.error('[saas-billing] falha ao pausar loja com mensalidade cancelada', err as Error, { storeId: b.storeId });
+    }
+  }
+  return { paused };
 }

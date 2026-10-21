@@ -8,11 +8,14 @@ import { ensureBillingCustomer } from '../services/saasBilling/customer';
 import { applySaasPayment } from '../services/saasBilling/payments';
 import { cancelSaasSubscriptions } from '../services/saasBilling/modeSwitch';
 import { createSubscription, deleteSubscription, listSubscriptionPayments, updateSubscriptionValue } from '../services/asaas/subscription';
+import { runCancelledSaasPauses } from '../services/adminAccounts/saas';
 
 /**
  * JOB: mensalidade SaaS do modo direto (a cada 1 h). Fora do modo direto só reapaga no Asaas
  * as assinaturas que sobraram da troca de modo (cancelSaasSubscriptions).
  * Cada passo é idempotente e isolado por loja (erro de uma não para as outras):
+ *  0) (D3b-2b, qualquer modo) mensalidade cancelada cuja cobertura acabou → pausa do admin com
+ *     "Mensalidade cancelada" (runCancelledSaasPauses); o admin que liberar essa pausa manda;
  *  a) backfill: loja sem StoreSaasBilling ganha linha `trialing` (fim do teste = now + saasTrialDays);
  *  b) assinatura: dono com documento aprovado e fee > 0 → customer dedicado + assinatura na
  *     conta-mãe, 1º vencimento = max(coveredUntil, now) (ver firstDueDate). Gravação condicional
@@ -32,6 +35,13 @@ const docApproved = (verification: any) => verification?.document?.status === 'a
 const sameCents = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
 
 export async function runSaasBillingCycle(now: Date = new Date()): Promise<void> {
+  // 0) Antes do retorno da custódia: a pausa da cancelada vale em qualquer modo (ruling 9).
+  try {
+    await runCancelledSaasPauses(now);
+  } catch (err) {
+    logger.error('[saas-billing] falha no passo de pausa por cancelamento', err as Error);
+  }
+
   const cfg = await getSaasConfig();
   if (cfg.settlementMode !== 'direto') {
     // Custódia: a mensalidade não existe. Repete com segurança o cancelamento das assinaturas
