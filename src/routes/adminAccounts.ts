@@ -10,6 +10,7 @@ import logger from '../config/logger';
 import { actorFromRequest } from '../services/adminMoneyAction.service';
 import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
+import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 
 const router = Router();
 
@@ -32,6 +33,22 @@ router.post(
   authorizePermission('user:debt_forgive'),
   handle('falha ao perdoar a dívida', (req) =>
     forgiveDebt(String(req.params.id), String(req.params.debtId), actorFromRequest(req), req.body?.reason)),
+);
+
+// POST /api/admin/stores/:id/pause { reason } — pausar a loja (spec 5.4)
+router.post(
+  '/stores/:id/pause',
+  authenticate,
+  authorizePermission('store:edit'),
+  handle('falha ao pausar a loja', (req) => pauseStoreByAdmin(String(req.params.id), actorFromRequest(req), req.body?.reason)),
+);
+
+// POST /api/admin/stores/:id/unpause { reason? } — liberar a loja (spec 5.4)
+router.post(
+  '/stores/:id/unpause',
+  authenticate,
+  authorizePermission('store:edit'),
+  handle('falha ao liberar a loja', (req) => unpauseStoreByAdmin(String(req.params.id), actorFromRequest(req), req.body?.reason)),
 );
 
 export default router;
