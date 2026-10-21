@@ -51,22 +51,57 @@ const noSaasBilling = () => new AccountActionError(409, 'NO_SAAS_BILLING', 'Esta
 const notTrialing = () => new AccountActionError(409, 'NOT_TRIALING', 'Só dá para estender o teste de uma loja que ainda está em teste.');
 
 /**
- * Leva o 1º vencimento da assinatura para `nextDueDate`: o PUT muda a próxima fatura a ser gerada;
- * as faturas ABERTAS já geradas com vencimento anterior são apagadas (o Asaas não as move).
- * PUT antes do DELETE: ao contrário, uma falha no PUT deixaria a loja sem fatura para pagar.
- * Devolve os ids apagados.
+ * Apaga as faturas ABERTAS já geradas com vencimento anterior a `nextDueDate` (o PUT do
+ * nextDueDate não as move). O PUT vem antes, por quem chama: ao contrário, uma falha nele deixaria
+ * a loja sem fatura para pagar. Os ids apagados vão sendo acrescentados a `removed`, para quem
+ * chama saber o que já foi feito mesmo se um DELETE falhar no meio.
  */
-async function moveFirstDueDate(subscriptionId: string, nextDueDate: string): Promise<string[]> {
-  await updateSubscriptionNextDueDate(subscriptionId, nextDueDate);
+async function removeOldOpenPayments(subscriptionId: string, nextDueDate: string, removed: string[]): Promise<void> {
   const list = await listSubscriptionPayments(subscriptionId);
-  const removed: string[] = [];
   for (const p of list) {
     if (!SAAS_OPEN_STATUSES.includes(p.status)) continue;
     if (String(p.dueDate).slice(0, 10) >= nextDueDate) continue;
     await deleteSubscriptionPayment(p.id);
     removed.push(p.id);
   }
-  return removed;
+}
+
+const asaasUpdateFailed = () =>
+  new AccountActionError(502, 'ASAAS_UPDATE_FAILED', 'Não foi possível atualizar a assinatura no Asaas. Nada foi alterado.');
+const asaasPartial = () =>
+  new AccountActionError(502, 'ASAAS_PARTIAL', 'O Asaas ficou parcialmente atualizado. Tente de novo para concluir.');
+
+/** O que o estender já mexeu no Asaas, para desfazer se o resto falhar. */
+interface AsaasTouch {
+  subscriptionId: string;
+  previousDueDate: string;
+  removed: string[];
+  /** a falha veio de uma chamada ao Asaas (e não do banco) */
+  fromAsaas: boolean;
+}
+
+/**
+ * Falha depois do PUT: devolve o vencimento anterior (best-effort, sem engolir o erro original).
+ * Nenhuma fatura apagada e a volta deu certo: o Asaas ficou como estava, então o erro é o honesto
+ * "nada foi alterado" (falha do Asaas) ou o próprio erro original (falha do banco ou conflito).
+ * Senão: ASAAS_PARTIAL, e o log diz o que foi feito.
+ */
+async function compensateExtend(storeId: string, original: unknown, touched: AsaasTouch | null): Promise<unknown> {
+  if (!touched) return original;
+  let restored = true;
+  try {
+    await updateSubscriptionNextDueDate(touched.subscriptionId, touched.previousDueDate);
+  } catch (err) {
+    restored = false;
+    logger.error('[saas] não foi possível devolver o vencimento anterior da assinatura', err as Error, {
+      storeId, subscriptionId: touched.subscriptionId, previousDueDate: touched.previousDueDate,
+    });
+  }
+  if (restored && touched.removed.length === 0) return touched.fromAsaas ? asaasUpdateFailed() : original;
+  logger.error('[saas] Asaas parcialmente atualizado no estender teste', original as Error, {
+    storeId, subscriptionId: touched.subscriptionId, restored, removedPayments: touched.removed,
+  });
+  return asaasPartial();
 }
 
 /**
@@ -86,45 +121,66 @@ export async function extendTrial(
   const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
   if (!store) throw storeNotFound();
 
-  const saved = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT "id" FROM "StoreSaasBilling" WHERE "storeId" = ${storeId} FOR UPDATE`;
-    const billing = await tx.storeSaasBilling.findUnique({ where: { storeId } });
-    if (!billing) throw noSaasBilling();
-    if (billing.status !== 'trialing') throw notTrialing();
+  let touched = null as AsaasTouch | null;
+  let saved;
+  try {
+    saved = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "StoreSaasBilling" WHERE "storeId" = ${storeId} FOR UPDATE`;
+      const billing = await tx.storeSaasBilling.findUnique({ where: { storeId } });
+      if (!billing) throw noSaasBilling();
+      if (billing.status !== 'trialing') throw notTrialing();
 
-    const trialEndsAt = new Date(Math.max(billing.trialEndsAt.getTime(), now.getTime()) + days * DAY_MS);
-    let nextDueDate: string | null = null;
-    let removedPayments: string[] = [];
-    if (billing.asaasSubscriptionId) {
-      nextDueDate = firstDueDate({ trialEndsAt, paidUntil: billing.paidUntil }, now);
-      try {
-        removedPayments = await moveFirstDueDate(billing.asaasSubscriptionId, nextDueDate);
-      } catch (err) {
-        logger.error('[saas] Asaas recusou o novo vencimento do teste estendido', err as Error, { storeId });
-        throw new AccountActionError(502, 'ASAAS_UPDATE_FAILED', 'Não foi possível atualizar a assinatura no Asaas. Nada foi alterado.');
+      const trialEndsAt = new Date(Math.max(billing.trialEndsAt.getTime(), now.getTime()) + days * DAY_MS);
+      let nextDueDate: string | null = null;
+      const removedPayments: string[] = [];
+      if (billing.asaasSubscriptionId) {
+        const subscriptionId = billing.asaasSubscriptionId;
+        nextDueDate = firstDueDate({ trialEndsAt, paidUntil: billing.paidUntil }, now);
+        try {
+          await updateSubscriptionNextDueDate(subscriptionId, nextDueDate);
+        } catch (err) {
+          logger.error('[saas] Asaas recusou o novo vencimento do teste estendido', err as Error, { storeId });
+          throw asaasUpdateFailed();
+        }
+        touched = {
+          subscriptionId,
+          previousDueDate: firstDueDate({ trialEndsAt: billing.trialEndsAt, paidUntil: billing.paidUntil }, now),
+          removed: removedPayments,
+          fromAsaas: false,
+        };
+        try {
+          await removeOldOpenPayments(subscriptionId, nextDueDate, removedPayments);
+        } catch (err) {
+          touched.fromAsaas = true;
+          logger.error('[saas] Asaas falhou ao apagar a fatura com o vencimento velho', err as Error, { storeId });
+          throw err;
+        }
+        if (removedPayments.length > 0) {
+          await tx.saasBillingPayment.updateMany({
+            where: { billingId: billing.id, asaasPaymentId: { in: removedPayments } },
+            data: { status: 'DELETED' },
+          });
+        }
       }
-      if (removedPayments.length > 0) {
-        await tx.saasBillingPayment.updateMany({
-          where: { billingId: billing.id, asaasPaymentId: { in: removedPayments } },
-          data: { status: 'DELETED' },
-        });
-      }
-    }
 
-    const { count } = await tx.storeSaasBilling.updateMany({
-      where: { id: billing.id, status: 'trialing' },
-      data: { trialEndsAt },
-    });
-    if (count !== 1) throw notTrialing();
-    await recordAccountAction(tx, {
-      actor,
-      storeId,
-      type: 'trial_extend',
-      reason,
-      meta: { days, from: billing.trialEndsAt.toISOString(), to: trialEndsAt.toISOString(), nextDueDate, removedPayments },
-    });
-    return { ...billing, trialEndsAt };
-  }, { timeout: EXTEND_TX_TIMEOUT_MS });
+      const { count } = await tx.storeSaasBilling.updateMany({
+        where: { id: billing.id, status: 'trialing' },
+        data: { trialEndsAt },
+      });
+      if (count !== 1) throw notTrialing();
+      await recordAccountAction(tx, {
+        actor,
+        storeId,
+        type: 'trial_extend',
+        reason,
+        meta: { days, from: billing.trialEndsAt.toISOString(), to: trialEndsAt.toISOString(), nextDueDate, removedPayments },
+      });
+      return { ...billing, trialEndsAt };
+    }, { timeout: EXTEND_TX_TIMEOUT_MS });
+  } catch (err) {
+    // o TS não enxerga a atribuição feita dentro da transação
+    throw await compensateExtend(storeId, err, touched as AsaasTouch | null);
+  }
 
   logger.info('[saas] teste da mensalidade estendido', { storeId, days, by: actor.id });
   return { saas: toSaasState(saved) };

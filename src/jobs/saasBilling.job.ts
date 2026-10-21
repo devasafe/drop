@@ -68,7 +68,8 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
         externalReference: `saas-sub:${billing.id}`,
       });
       const { count } = await prisma.storeSaasBilling.updateMany({
-        where: { id: billing.id, asaasSubscriptionId: null },
+        // trialEndsAt/paidUntil iguais aos lidos: um estender teste no meio deixa a assinatura com o vencimento velho
+        where: { id: billing.id, asaasSubscriptionId: null, trialEndsAt: billing.trialEndsAt, paidUntil: billing.paidUntil },
         data: { asaasSubscriptionId: sub.id, subscriptionValue: fee },
       });
       if (count !== 1) {
@@ -134,7 +135,7 @@ export async function runSaasBillingCycle(now: Date = new Date()): Promise<void>
       const blocked = shouldPause(billing, now, cfg);
       if (blocked && billing.status !== 'paused') {
         const { count } = await prisma.storeSaasBilling.updateMany({
-          where: { id: billing.id, status: { notIn: ['paused', 'cancelled'] } },
+          where: { id: billing.id, status: { notIn: ['paused', 'cancelled'] }, trialEndsAt: billing.trialEndsAt, paidUntil: billing.paidUntil },
           data: { status: 'paused', pausedAt: now },
         });
         if (count === 1) logger.warn('[saas-billing] loja pausada', { storeId: billing.storeId });

@@ -3,6 +3,7 @@
  * em frontend/lib/adminAccounts.ts (P3.1). Datas em ISO 8601 UTC; valores em reais como number (2 casas).
  */
 import type { SaasBillingStatus } from '@prisma/client';
+import type { TimelineItem } from './actions';
 
 /** D3b-2b · mensalidade da loja como sai nas ações (estender, cancelar) e na ficha (plan.saas). Datas ISO. */
 export interface StoreSaasState {
@@ -11,7 +12,6 @@ export interface StoreSaasState {
   paidUntil: string | null;
   cancelledAt: string | null;
 }
-import type { TimelineItem } from './actions';
 
 // ── Lista de pessoas (P2.1) ──────────────────────────────────────────────
 
