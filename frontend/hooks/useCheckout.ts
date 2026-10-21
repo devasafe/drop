@@ -394,7 +394,7 @@ export function useCheckout() {
       }
       return { ok: false, error: d?.detail ? `${d.error || 'Erro'} — ${d.detail}` : (d?.error || 'Falha ao criar pedido. Tente novamente.'),
         // Só os códigos que a Sacola traduz em tela (loja pausada no modo direto); os demais seguem só com a mensagem.
-        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'PRODUCT_PAUSED' || d?.code === 'STORE_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
+        ...(d?.code === 'STORE_BILLING_PAUSED' || d?.code === 'STORE_ADMIN_PAUSED' || d?.code === 'PRODUCT_PAUSED' || d?.code === 'STORE_PAUSED' || d?.code === 'STORE_PAYMENTS_NOT_READY' ? { code: d.code } : {}) };
     } finally {
       setPlacing(false);
     }

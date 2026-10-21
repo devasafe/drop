@@ -100,4 +100,12 @@ describe('RolesSheet', () => {
     fireEvent.click(salvar());
     expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Lista de papéis inválida');
   });
+
+  it('403 STAFF_TARGET_FORBIDDEN do PUT de papéis: o texto do servidor dentro da folha', async () => {
+    put.mockRejectedValue({ response: { status: 403, data: { error: 'Somente o CEO pode atribuir papéis administrativos', code: 'STAFF_TARGET_FORBIDDEN' } } });
+    renderSheet(['cliente'], false);
+    fireEvent.click(box('Motoboy'));
+    fireEvent.click(salvar());
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Somente o CEO pode atribuir papéis administrativos');
+  });
 });

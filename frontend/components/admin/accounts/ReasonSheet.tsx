@@ -1,7 +1,7 @@
 /**
  * Confirmação com motivo (D3b-2a): bloquear, desbloquear, perdoar dívida, pausar e liberar loja.
  * - `required`: motivo de 5 a 500 caracteres sem contar os espaços das pontas (o servidor confere de novo e
- *   responde 400 REASON_REQUIRED); sem `required`, o motivo é opcional e vai '' quando ninguém escreveu.
+ *   responde 400 REASON_REQUIRED); sem `required`, o motivo é opcional: vazio (vai '') ou também de 5 a 500; de 1 a 4 caracteres o botão fica desabilitado.
  * - Erro do `onConfirm` (cru ou já achatado) aparece dentro da folha em português (flattenAccountError); ela continua aberta; quem fecha no sucesso é a tela.
  * - Abrir de novo começa sem motivo (a mesma folha serve a várias dívidas).
  */
@@ -35,7 +35,9 @@ export function ReasonSheet({
   }, [open]);
 
   const text = reason.trim();
-  const valid = required ? reasonIsValid(text) : text.length <= REASON_MAX;
+  // Opcional: vazio ou de 5 a 500; 1 a 4 caracteres o servidor recusa (400 REASON_REQUIRED).
+  const valid = required ? reasonIsValid(text) : text === '' || reasonIsValid(text);
+  const tooShort = !required && text !== '' && !valid;
 
   /** A AdminSheet mostra `data.error`: o erro cru do servidor sai daqui já em português, com status e código. */
   const confirm = async () => {
@@ -61,7 +63,9 @@ export function ReasonSheet({
         rows={3}
         hint={required
           ? `De ${REASON_MIN} a ${REASON_MAX} caracteres. Fica no histórico da ficha.`
-          : `Até ${REASON_MAX} caracteres. Fica no histórico da ficha.`}
+          : tooShort
+            ? `Escreva de ${REASON_MIN} a ${REASON_MAX} caracteres, ou deixe em branco.`
+            : `Até ${REASON_MAX} caracteres. Fica no histórico da ficha.`}
       />
     </AdminSheet>
   );

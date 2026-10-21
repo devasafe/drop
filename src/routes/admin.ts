@@ -91,11 +91,11 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
 
     if (activeRoleOf(req.user) !== 'ceo') {
       if ([...added, ...removed].some((r) => ADMIN_ROLES.includes(r))) {
-        return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos' });
+        return res.status(403).json({ error: 'Somente o CEO pode atribuir papéis administrativos', code: 'STAFF_TARGET_FORBIDDEN' });
       }
       // Também não pode mexer em quem já é da equipe administrativa.
       if (isStaffAccount(currentRoles)) {
-        return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador' });
+        return res.status(403).json({ error: 'Somente o CEO pode alterar o papel de um administrador', code: 'STAFF_TARGET_FORBIDDEN' });
       }
     }
 

@@ -265,6 +265,7 @@ describe('PUT /admin/users/:id/roles — quem não é CEO', () => {
     const res = await putRoles(gerente, alvo.id, ['cliente', 'marketing']);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Somente o CEO pode atribuir papéis administrativos');
+    expect(res.body.code).toBe('STAFF_TARGET_FORBIDDEN');
     expect((await prisma.user.findUnique({ where: { id: alvo.id } }))?.roles).toEqual(['cliente']);
   });
 
@@ -274,6 +275,7 @@ describe('PUT /admin/users/:id/roles — quem não é CEO', () => {
     const res = await putRoles(gerente, alvo.id, ['cliente', 'gerente_motoboys', 'motoboy']);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Somente o CEO pode alterar o papel de um administrador');
+    expect(res.body.code).toBe('STAFF_TARGET_FORBIDDEN');
   });
 
   it('papel base continua delegável', async () => {

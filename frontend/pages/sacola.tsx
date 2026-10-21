@@ -45,7 +45,7 @@ const PAUSE_MESSAGES: Record<string, string> = {
   PRODUCT_PAUSED: 'Este produto foi pausado pela loja',
   STORE_PAUSED: 'A loja pausou os pedidos agora',
 };
-const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
+const STORE_UNAVAILABLE_CODES = ['STORE_BILLING_PAUSED', 'STORE_ADMIN_PAUSED', 'STORE_PAYMENTS_NOT_READY'];
 const STORE_GONE_MSG = 'Esta loja não está mais disponível';
 const STORE_LOOKUP_FAILED_MSG = 'Não deu para carregar a loja';
 const PRICES_CHECKING_MSG = 'Conferindo os preços…';

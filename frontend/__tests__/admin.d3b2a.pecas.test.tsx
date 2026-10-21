@@ -48,6 +48,23 @@ describe('ReasonSheet', () => {
     await waitFor(() => expect(p.onConfirm).toHaveBeenCalledWith(''));
   });
 
+  it('opcional: 1 a 4 caracteres desabilita o botão e avisa; 5 ou mais libera', async () => {
+    const p = sheetProps({ title: 'Desbloquear conta', confirmLabel: 'Desbloquear', required: false });
+    render(<ReasonSheet {...p} />);
+    const dialog = screen.getByRole('dialog', { name: 'Desbloquear conta' });
+    const campo = within(dialog).getByLabelText('Motivo (opcional)');
+    const ok = within(dialog).getByRole('button', { name: 'Desbloquear' });
+    fireEvent.change(campo, { target: { value: 'abc' } });
+    expect(ok).toBeDisabled();
+    expect(within(dialog).getByText(/Escreva de 5 a 500 caracteres, ou deixe em branco/)).toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: '  abc  ' } });
+    expect(ok).toBeDisabled();
+    fireEvent.change(campo, { target: { value: 'abcde' } });
+    expect(ok).toBeEnabled();
+    fireEvent.click(ok);
+    await waitFor(() => expect(p.onConfirm).toHaveBeenCalledWith('abcde'));
+  });
+
   it('erro do onConfirm aparece dentro da folha, que continua aberta', async () => {
     const p = sheetProps({
       onConfirm: jest.fn().mockRejectedValue({ response: { status: 409, data: { error: 'Esta dívida não está mais pendente.' } } }),

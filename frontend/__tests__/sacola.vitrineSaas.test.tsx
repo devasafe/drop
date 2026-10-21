@@ -65,3 +65,14 @@ test('modo direto: loja pausou com a sacola aberta → Alert e pagamento travado
   await waitFor(() => expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled());
   expect(showToast).not.toHaveBeenCalled();
 });
+
+test('modo direto: loja pausada pelo DROP (STORE_ADMIN_PAUSED) → mesmo Alert da cobrança pausada, sem o motivo interno', async () => {
+  mockSaas = { settlementMode: 'direto', directCardEnabled: false, loading: false };
+  placeOrder.mockResolvedValue({ ok: false, error: 'Esta loja está temporariamente indisponível.', code: 'STORE_ADMIN_PAUSED' });
+  mocked.mockReturnValue(hook({ store: { _id: 's1', name: 'Eletro Center', plan: 2 } }));
+  render(<SacolaPage />);
+  fireEvent.click(screen.getByRole('button', { name: /^Pagar/ }));
+  expect(await screen.findByText('A Eletro Center não está recebendo pedidos agora')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Pagar/ })).toBeDisabled());
+  expect(showToast).not.toHaveBeenCalled();
+});
