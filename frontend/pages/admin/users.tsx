@@ -20,7 +20,8 @@ interface AdminUser {
   _id: string;
   name: string;
   email: string;
-  role: string;
+  /** Conta antiga: o servidor (D3b-2a) já manda tudo unido em `roles`; o campo pode faltar. */
+  role?: string;
   roles?: string[];
   activeRole?: string;
   status: 'active' | 'inactive' | 'blocked';
@@ -101,6 +102,9 @@ export default function AdminUsersPage() {
   );
 }
 
+/** Teto de páginas de 100 ao juntar a lista inteira; a tela nova (P3) pagina de verdade. */
+const USERS_MAX_PAGES = 50;
+
 function UsuariosScreen() {
   const { user: me, can } = useAuth();
   const { showToast } = useToast();
@@ -119,9 +123,18 @@ function UsuariosScreen() {
     setError(null);
     setUsers(null);
     try {
-      const res = await api.get('/admin/users');
-      if (!Array.isArray(res.data)) throw new Error('resposta inesperada');
-      setUsers(res.data as AdminUser[]);
+      const all: AdminUser[] = [];
+      let cursor: string | null = null;
+      for (let pageIndex = 0; pageIndex < USERS_MAX_PAGES; pageIndex++) {
+        const res = await api.get('/admin/users', { params: cursor ? { limit: 100, cursor } : { limit: 100 } });
+        const body = res.data as { items?: unknown; nextCursor?: unknown } | null;
+        if (!body || !Array.isArray(body.items)) throw new Error('resposta inesperada');
+        const items = body.items as Array<Omit<AdminUser, '_id'> & { id: string }>;
+        all.push(...items.map((u) => ({ ...u, _id: String(u.id) })));
+        cursor = typeof body.nextCursor === 'string' && body.nextCursor ? body.nextCursor : null;
+        if (!cursor) break;
+      }
+      setUsers(all);
     } catch (err) {
       setError(isHttpStatus(err, 403) ? adminErrorMessage(err) : 'Não deu para carregar os usuários.');
     }

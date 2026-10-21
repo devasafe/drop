@@ -25,35 +25,7 @@ const router = Router();
 // 👥 GERENCIAR USUÁRIOS
 // ═══════════════════════════════════════════════════════════
 
-// GET /admin/users - Listar todos os usuários
-router.get('/users', authenticate, authorizePermission('user:view_all'), async (req: any, res: Response) => {
-  try {
-    const found = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        roles: true,
-        activeRole: true,
-        permissions: true,
-        status: true,
-        blockedAt: true,
-        blockReason: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    // `_id` junto de `id`: o painel admin ainda lê `_id`.
-    const users = found.map((u) => ({ ...u, _id: u.id }));
-
-    res.json(users);
-  } catch (err) {
-    console.error('Erro ao listar usuários:', err);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
+// GET /admin/users (lista) mora em routes/adminAccounts.ts desde a D3b-2a (busca no servidor e cursor).
 
 const ALLOWED_ROLES = ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'];
 // Papéis administrativos: só um CEO atribui (user:manage_roles é delegável, isso não).

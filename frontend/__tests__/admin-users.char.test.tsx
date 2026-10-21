@@ -28,6 +28,11 @@ const USERS = [
   { _id: 'u2', name: 'Bruno Alves', email: 'bruno@x.com', role: 'cliente', status: 'blocked', blockReason: 'Fraude', createdAt: '2026-08-01T12:00:00Z' },
 ];
 
+/** Resposta paginada de GET /admin/users (D3b-2a): itens com `id` e o cursor da próxima página. */
+const page = (list: Array<{ _id: string }>, nextCursor: string | null = null) => ({
+  data: { items: list.map((u) => ({ ...u, id: u._id })), nextCursor },
+});
+
 /** O botão de confirmar é o último com aquele nome (o modal/sheet vem depois da tabela no DOM). */
 const last = (name: string | RegExp) => {
   const all = screen.getAllByRole('button', { name });
@@ -36,15 +41,26 @@ const last = (name: string | RegExp) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (api.get as jest.Mock).mockResolvedValue({ data: USERS });
+  (api.get as jest.Mock).mockResolvedValue(page(USERS));
   (api.put as jest.Mock).mockResolvedValue({ data: { user: { roles: ['lojista'] } } });
   (api.post as jest.Mock).mockResolvedValue({ data: {} });
 });
 
-test('carrega a lista com GET /admin/users', async () => {
+test('carrega a lista com GET /admin/users, 100 por página', async () => {
   render(<AdminUsersPage />);
   expect(await screen.findByText('Ana Souza')).toBeInTheDocument();
-  expect(api.get).toHaveBeenCalledWith('/admin/users');
+  expect(api.get).toHaveBeenCalledWith('/admin/users', { params: { limit: 100 } });
+});
+
+test('segue o nextCursor até a última página', async () => {
+  (api.get as jest.Mock)
+    .mockResolvedValueOnce(page([USERS[0]], 'c1'))
+    .mockResolvedValueOnce(page([USERS[1]]));
+  render(<AdminUsersPage />);
+  expect(await screen.findByText('Bruno Alves')).toBeInTheDocument();
+  expect(screen.getByText('Ana Souza')).toBeInTheDocument();
+  expect(api.get).toHaveBeenCalledTimes(2);
+  expect(api.get).toHaveBeenNthCalledWith(2, '/admin/users', { params: { limit: 100, cursor: 'c1' } });
 });
 
 test('papéis: PUT /admin/users/:id/roles { roles } com a lista marcada', async () => {

@@ -42,6 +42,11 @@ const USERS = [
   { _id: 'u4', name: 'Lia Legado', email: 'lia@x.com', role: 'lojista', activeRole: 'motoboy', roles: [], status: 'active', createdAt: '2026-06-01T12:00:00Z' },
 ];
 
+/** Resposta paginada de GET /admin/users (D3b-2a): itens com `id` e o cursor da próxima página. */
+const page = (list: Array<{ _id: string }>, nextCursor: string | null = null) => ({
+  data: { items: list.map((u) => ({ ...u, id: u._id })), nextCursor },
+});
+
 const rowOf = (name: string) => screen.getByText(name).closest('tr') as HTMLElement;
 const box = (dialog: HTMLElement, label: string) => within(dialog).getByRole('checkbox', { name: new RegExp(`^${label}`) }) as HTMLInputElement;
 const checkedLabels = (dialog: HTMLElement) =>
@@ -57,7 +62,7 @@ async function openPapeis(name: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   setRole('ceo');
-  (api.get as jest.Mock).mockResolvedValue({ data: USERS });
+  (api.get as jest.Mock).mockResolvedValue(page(USERS));
   (api.put as jest.Mock).mockResolvedValue({ data: {} });
 });
 
@@ -124,9 +129,9 @@ describe('Usuários · folha "Papéis"', () => {
 
   it('fora do CEO: sem botão "Papéis" para conta com papel de equipe só em activeRole', async () => {
     setRole('gerente_geral', ['user:view_all', 'user:manage_roles']);
-    (api.get as jest.Mock).mockResolvedValue({
-      data: [...USERS, { _id: 'u9', name: 'Ivo Antigo', email: 'ivo@x.com', role: 'cliente', activeRole: 'marketing', roles: ['cliente'], status: 'active', createdAt: '2026-05-01T12:00:00Z' }],
-    });
+    (api.get as jest.Mock).mockResolvedValue(
+      page([...USERS, { _id: 'u9', name: 'Ivo Antigo', email: 'ivo@x.com', role: 'cliente', activeRole: 'marketing', roles: ['cliente'], status: 'active', createdAt: '2026-05-01T12:00:00Z' }]),
+    );
     render(<AdminUsersPage />);
     await screen.findByText('Ivo Antigo');
     expect(within(rowOf('Ivo Antigo')).queryByRole('button', { name: 'Papéis' })).toBeNull();

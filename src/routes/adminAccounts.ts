@@ -12,6 +12,7 @@ import { sendAccountActionError } from '../services/adminAccounts/errors';
 import { forgiveDebt } from '../services/adminAccounts/debt';
 import { pauseStoreByAdmin, unpauseStoreByAdmin } from '../services/adminAccounts/storePause';
 import { addStoreNote, addUserNote } from '../services/adminAccounts/notes';
+import { listUsers } from '../controllers/adminAccountsReadController';
 
 const router = Router();
 
@@ -67,5 +68,8 @@ router.post(
   authorizePermission('store:view_all'),
   handle('falha ao gravar a nota da loja', (req) => addStoreNote(String(req.params.id), actorFromRequest(req), req.body?.text), 201),
 );
+
+// D3b-2a · P2.1 — lista de pessoas: busca no servidor, abas, "Com dívida" e cursor (spec 6)
+router.get('/users', authenticate, authorizePermission('user:view_all'), listUsers);
 
 export default router;

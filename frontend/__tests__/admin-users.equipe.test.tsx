@@ -44,12 +44,17 @@ const USERS = [
   { _id: 'u6', name: 'Mia Marketing', email: 'mia@drop.app', role: 'marketing', activeRole: 'cliente', roles: ['cliente', 'marketing'], status: 'active', createdAt: '2026-04-01T12:00:00Z' },
 ];
 
+/** Resposta paginada de GET /admin/users (D3b-2a): itens com `id` e o cursor da próxima página. */
+const page = (list: Array<{ _id: string }>, nextCursor: string | null = null) => ({
+  data: { items: list.map((u) => ({ ...u, id: u._id })), nextCursor },
+});
+
 const rowOf = (name: string) => screen.getByText(name).closest('tr') as HTMLElement;
 
 beforeEach(() => {
   jest.clearAllMocks();
   setRole('ceo');
-  (api.get as jest.Mock).mockResolvedValue({ data: USERS });
+  (api.get as jest.Mock).mockResolvedValue(page(USERS));
   (api.put as jest.Mock).mockResolvedValue({ data: {} });
 });
 
