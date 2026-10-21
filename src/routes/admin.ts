@@ -177,7 +177,7 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
 
     let reason: string | null = null;
     if (status === 'blocked') reason = parseRequiredReason(req.body?.reason);
-    else if (status === 'active') reason = parseOptionalReason(req.body?.reason);
+    else reason = parseOptionalReason(req.body?.reason); // active/inactive: motivo opcional, usado se sair de blocked
     const actor = actorFromRequest(req);
 
     const update: any = { status };
@@ -185,20 +185,23 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
       update.blockedAt = new Date();
       update.blockedBy = String(req.user.id);
       update.blockReason = reason;
-    } else if (status === 'active') {
+    } else {
+      // active/inactive: se vier de blocked, o bloqueio sai (o registro 'unblock' é gravado abaixo).
       update.blockedAt = null;
       update.blockedBy = null;
       update.blockReason = null;
     }
 
     const user = await prisma.$transaction(async (tx) => {
-      const before = await tx.user.findUnique({ where: { id }, select: { status: true } });
+      // Trava a linha: o status anterior lido aqui é o que decide o registro, sem corrida.
+      const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "User" WHERE id = ${id} FOR UPDATE`;
+      const before = rows[0];
       if (!before) return null;
       const saved = await tx.user.update({ where: { id }, data: update, select: SAFE_USER_SELECT });
       if (status === 'blocked') {
         await recordAccountAction(tx, { actor, userId: id, type: 'block', reason, meta: { before: before.status } });
-      } else if (status === 'active' && before.status === 'blocked') {
-        await recordAccountAction(tx, { actor, userId: id, type: 'unblock', reason });
+      } else if (before.status === 'blocked') {
+        await recordAccountAction(tx, { actor, userId: id, type: 'unblock', reason, meta: { after: status } });
       }
       return saved;
     });

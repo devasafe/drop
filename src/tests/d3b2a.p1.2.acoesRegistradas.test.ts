@@ -80,6 +80,20 @@ describe('PUT /admin/users/:id/status', () => {
     ]);
   });
 
+  it('sair de blocked para inactive também grava unblock (meta.after) e limpa o bloqueio', async () => {
+    await putStatus(ceo, alvo.userId, { status: 'blocked', reason: REASON });
+    const res = await putStatus(ceo, alvo.userId, { status: 'inactive', reason: ' Conta encerrada a pedido ' });
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ status: 'inactive', blockReason: null, blockedAt: null });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: alvo.userId }, select: { blockedBy: true } })).toEqual({ blockedBy: null });
+    const rows = await actionsOf(alvo.userId);
+    expect(rows.map((r) => r.type)).toEqual(['block', 'unblock']);
+    expect(rows[1]).toMatchObject({ reason: 'Conta encerrada a pedido', actorId: ceo.userId, meta: { after: 'inactive' } });
+    // inactive -> active, vindo de conta que já não estava bloqueada: sem registro novo
+    expect((await putStatus(ceo, alvo.userId, { status: 'active' })).status).toBe(200);
+    expect(await actionsOf(alvo.userId)).toHaveLength(2);
+  });
+
   it('desbloquear com motivo curto: 400 e a conta continua bloqueada', async () => {
     await putStatus(ceo, alvo.userId, { status: 'blocked', reason: REASON });
     const res = await putStatus(ceo, alvo.userId, { status: 'active', reason: 'ok' });
