@@ -9,8 +9,9 @@ import logger from '../config/logger';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import env from '../config/env';
 import { ensureMotoboySubaccount } from '../services/asaas/subaccount';
-import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { decideUserVerificationItem } from '../services/verificationDecision.service';
+import { parseRejectBody } from '../services/verification/rejectReasons';
 
 const ensureV = (u: any) => {
   if (!u.verification) u.verification = { email: { status: 'pending' }, phone: { status: 'pending' }, document: { status: 'none' } };
@@ -130,10 +131,11 @@ export const listPendingCourier = async (_req: AuthenticatedRequest, res: Respon
 async function decideCourier(req: AuthenticatedRequest, res: Response, approved: boolean) {
   try {
     const { userId } = req.params;
+    const rejection = approved ? undefined : parseRejectBody(req.body);
     const result = await decideUserVerificationItem(String(userId), 'courier', {
       approved,
-      reviewerId: String(req.user?.id),
-      rejectionReason: approved ? undefined : (req.body?.reason || 'Dados não aprovados'),
+      reviewer: actorFromRequest(req),
+      rejection,
     });
     if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
     // Ao aprovar o motoboy, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).

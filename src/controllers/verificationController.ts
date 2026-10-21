@@ -11,8 +11,9 @@ import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
 import { recomputeStoresForOwner } from '../utils/storeVerification';
 import { emitAdminNotification } from '../utils/socketEmitter';
-import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { decideUserVerificationItem } from '../services/verificationDecision.service';
+import { parseRejectBody } from '../services/verification/rejectReasons';
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const ensureVerification = (user: any) => {
@@ -288,17 +289,18 @@ export const listPendingVerifications = async (_req: AuthenticatedRequest, res: 
 
 // D3b-3 (spec 4.4): decisão condicional por item — trava a linha, confere pending e grava só
 // o documento. Não pendente → 409 VERIFICATION_NOT_PENDING.
+// D3b-2b: recusa padronizada (parseRejectBody → 400 antes de travar) e verification_decision no service.
 async function decideDocument(req: AuthenticatedRequest, res: Response, approved: boolean) {
   try {
     const { userId } = req.params;
-    const reason = approved ? undefined : (req.body?.reason || 'Documento não aprovado');
+    const rejection = approved ? undefined : parseRejectBody(req.body);
     const result = await decideUserVerificationItem(String(userId), 'document', {
       approved,
-      reviewerId: String(req.user?.id),
-      rejectionReason: reason,
+      reviewer: actorFromRequest(req),
+      rejection,
     });
     if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
-    logger.info(`[verification][AUDIT] documento ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id, reason });
+    logger.info(`[verification][AUDIT] documento ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id, reasonCode: rejection?.reasonCode });
     await recomputeOwnerStoresSafe(userId);
     return res.json({ message: approved ? 'Documento aprovado' : 'Documento rejeitado' });
   } catch (err) {

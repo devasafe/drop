@@ -15,8 +15,9 @@ import logger from '../config/logger';
 import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
-import { sendMoneyActionError } from '../services/adminMoneyAction.service';
+import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { decideStoreVerificationItem, decideUserVerificationItem } from '../services/verificationDecision.service';
+import { parseRejectBody, rejectionNoticeText } from '../services/verification/rejectReasons';
 import { staffRolesOf } from './rolePermissionsController';
 
 const ensureUserVerification = (u: any) => {
@@ -209,10 +210,11 @@ export const listPendingStoreVerifications = async (_req: AuthenticatedRequest, 
 async function decideUserFacial(req: AuthenticatedRequest, res: Response, approved: boolean) {
   try {
     const { userId } = req.params;
+    const rejection = approved ? undefined : parseRejectBody(req.body);
     const result = await decideUserVerificationItem(
       String(userId),
       'facial',
-      { approved, reviewerId: String(req.user?.id), rejectionReason: approved ? undefined : (req.body?.reason || 'Selfie não aprovada') },
+      { approved, reviewer: actorFromRequest(req), rejection },
       // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (foto do rosto,
       // verificada). Cliente não usa a facial como avatar (a foto de perfil dele é livre).
       (user, decided) => {
@@ -236,26 +238,26 @@ export const approveFacial = (req: AuthenticatedRequest, res: Response) => decid
 export const rejectFacial = (req: AuthenticatedRequest, res: Response) => decideUserFacial(req, res, false);
 
 // D3b-3 (spec 4.4): CNPJ e endereço vivem no mesmo JSON da loja — mesma decisão condicional.
+// D3b-2b: recusa padronizada; o aviso diz "Reenvie: …" (resend) ou "Recusado: …".
 async function decideStoreItem(req: AuthenticatedRequest, res: Response, item: 'cnpj' | 'address', approved: boolean) {
   try {
     const { storeId } = req.params;
+    const rejection = approved ? undefined : parseRejectBody(req.body);
     const result = await decideStoreVerificationItem(String(storeId), item, {
       approved,
-      reviewerId: String(req.user?.id),
-      rejectionReason: approved ? undefined : (req.body?.reason || 'Não aprovado'),
+      reviewer: actorFromRequest(req),
+      rejection,
     });
     if (!result.found) return res.status(404).json({ error: 'Loja não encontrada' });
     await recomputeStoreVerification(storeId);
-    logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id });
+    logger.info(`[verification][AUDIT] ${item} da loja ${approved ? 'aprovado' : 'rejeitado'}`, { storeId, by: req.user?.id, reasonCode: rejection?.reasonCode });
 
     // Aviso ao dono (sino + push): a tela "Em análise" (/seller/abrir) mostra a etapa e o motivo.
     const label = item === 'cnpj' ? 'CNPJ' : 'Endereço';
-    const reason = String(result.item.rejectionReason || 'Não aprovado').slice(0, 300);
+    const what = item === 'cnpj' ? 'o CNPJ' : 'o comprovante de endereço';
     await notifyStore(result.store.id, {
-      title: `${label} ${approved ? 'aprovado' : 'recusado'}`,
-      message: approved
-        ? `O DROP aprovou o ${item === 'cnpj' ? 'CNPJ' : 'comprovante de endereço'} da sua loja.`
-        : `Motivo: ${reason}. Corrija e envie de novo.`,
+      title: !rejection ? `${label} aprovado` : rejection.resend ? `Reenvie ${what}` : `${label} recusado`,
+      message: !rejection ? `O DROP aprovou ${what} da sua loja.` : rejectionNoticeText(rejection),
       link: STORE_LINKS.verification,
       entityId: result.store.id,
       type: 'system',

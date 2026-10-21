@@ -47,12 +47,14 @@ describe('P4.5 — aviso da verificação da loja', () => {
     expect(n!.message).toContain('Comprovante ilegível');
   });
 
-  it('recusa sem motivo usa "Não aprovado"', async () => {
+  // D3b-2b: sem motivo nenhum, a recusa responde 400 (spec 8: `other` exige mensagem) e ninguém é avisado.
+  it('recusa sem motivo → 400 REJECT_MESSAGE_REQUIRED, sem aviso', async () => {
     const { ceo, dono, store } = await setup();
-    await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/reject`).set('Authorization', bearer(ceo)).send({});
+    const r = await request(app).post(`/api/verification/admin/store/${store.id}/cnpj/reject`).set('Authorization', bearer(ceo)).send({});
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('REJECT_MESSAGE_REQUIRED');
     const n = await prisma.notification.findFirst({ where: { userId: dono.userId, entityId: store.id } });
-    expect(n).toMatchObject({ title: 'CNPJ recusado' });
-    expect(n!.message).toContain('Não aprovado');
+    expect(n).toBeNull();
   });
 
   it('item que não estava pendente (409) não gera aviso', async () => {
