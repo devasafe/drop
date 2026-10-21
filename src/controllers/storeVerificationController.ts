@@ -12,6 +12,7 @@ import {
   recomputeStoresForOwner,
 } from '../utils/storeVerification';
 import logger from '../config/logger';
+import { facialAvatarData } from '../services/verification/sideEffects';
 import { getSaasConfig } from '../utils/settlement';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
@@ -215,14 +216,8 @@ async function decideUserFacial(req: AuthenticatedRequest, res: Response, approv
       String(userId),
       'facial',
       { approved, reviewer: actorFromRequest(req), rejection },
-      // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (foto do rosto,
-      // verificada). Cliente não usa a facial como avatar (a foto de perfil dele é livre).
-      (user, decided) => {
-        const roles: string[] = user.roles?.length ? user.roles : (user.role ? [user.role] : []);
-        const selfieUrl = typeof decided.selfieUrl === 'string' ? decided.selfieUrl : '';
-        const facialViraAvatar = approved && !!selfieUrl && (roles.includes('motoboy') || roles.includes('lojista'));
-        return facialViraAvatar ? { photo: selfieUrl } : {};
-      },
+      // Motoboy/lojista: ao aprovar a facial, ela vira o avatar da conta (sideEffects.facialAvatarData).
+      (user, decided) => facialAvatarData(user, decided),
     );
     if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
     await recomputeStoresForOwner(userId);

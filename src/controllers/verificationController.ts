@@ -9,7 +9,7 @@ import { uploadToCloudinary, kycFolder, bucketForRole } from '../utils/cloudinar
 import { isValidCPF, isValidRG, toE164BR } from '../utils/documentValidation';
 import { missingClientVerifications } from '../utils/clientVerification';
 import logger from '../config/logger';
-import { recomputeStoresForOwner } from '../utils/storeVerification';
+import { recomputeOwnerStoresSafe } from '../services/verification/sideEffects';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { decideUserVerificationItem } from '../services/verificationDecision.service';
@@ -84,15 +84,6 @@ export const resendEmailVerification = async (req: AuthenticatedRequest, res: Re
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
-
-// Mudou o KYC do dono → recalcula as lojas dele. Falha aqui não pode quebrar a resposta.
-async function recomputeOwnerStoresSafe(userId: string) {
-  try {
-    await recomputeStoresForOwner(String(userId));
-  } catch (err) {
-    logger.error('Falha ao recalcular lojas do dono após verificação', err as Error, { userId });
-  }
-}
 
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
   try {

@@ -45,6 +45,8 @@ import {
   approveCourier,
   rejectCourier,
 } from '../controllers/courierVerificationController';
+import { approveAllSubject } from '../controllers/verificationAdminController';
+import type { SubjectKind } from '../services/verification/approveAll';
 
 const router = Router();
 
@@ -100,5 +102,16 @@ const courierReviewers = authorizePermission('verification:review_motoboys');
 router.get('/admin/motoboy-pending', authenticate, courierReviewers, listPendingCourier);
 router.post('/admin/motoboy/:userId/approve', authenticate, courierReviewers, syncSocketsAfter, approveCourier);
 router.post('/admin/motoboy/:userId/reject', authenticate, courierReviewers, syncSocketsAfter, rejectCourier);
+
+// ===================== D3b-2b: APROVAR TUDO =====================
+// Permissão do tipo aqui; a de cada item (a facial é review_stores) no service. Sem syncSocketsAfter:
+// o service ajusta a sala motoboys depois do commit, só se aprovou item da pessoa.
+const subjectReviewers: Record<SubjectKind, ReturnType<typeof authorizePermission>> = {
+  client: reviewClients,
+  store: storeReviewers,
+  motoboy: courierReviewers,
+};
+const subjectReviewer = (req: any, res: any, next: any) => subjectReviewers[req.params.kind as SubjectKind](req, res, next);
+router.post('/admin/subject/:kind(client|store|motoboy)/:id/approve-all', authenticate, subjectReviewer, approveAllSubject);
 
 export default router;

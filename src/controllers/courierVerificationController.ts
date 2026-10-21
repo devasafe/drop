@@ -7,8 +7,7 @@ import { isValidCNH, isValidPlate, normalizePlate, onlyDigits } from '../utils/d
 import { missingMotoboyVerifications } from '../utils/courierVerification';
 import logger from '../config/logger';
 import { emitAdminNotification } from '../utils/socketEmitter';
-import env from '../config/env';
-import { ensureMotoboySubaccount } from '../services/asaas/subaccount';
+import { ensureCourierSubaccountSafe } from '../services/verification/sideEffects';
 import { actorFromRequest, sendMoneyActionError } from '../services/adminMoneyAction.service';
 import { decideUserVerificationItem } from '../services/verificationDecision.service';
 import { parseRejectBody } from '../services/verification/rejectReasons';
@@ -139,13 +138,7 @@ async function decideCourier(req: AuthenticatedRequest, res: Response, approved:
     });
     if (!result.found) return res.status(404).json({ error: 'Usuário não encontrado' });
     // Ao aprovar o motoboy, cria a subconta Asaas (gated — inerte até PAYMENT_GATEWAY=asaas).
-    if (approved && env.PAYMENT_GATEWAY === 'asaas') {
-      try {
-        await ensureMotoboySubaccount(userId);
-      } catch (err) {
-        logger.error('Falha ao garantir subconta do motoboy na aprovação', err as Error, { userId });
-      }
-    }
+    if (approved) await ensureCourierSubaccountSafe(userId);
     logger.info(`[verification][AUDIT] motoboy ${approved ? 'aprovado' : 'rejeitado'}`, { userId, by: req.user?.id });
     return res.json({ message: approved ? 'Motoboy aprovado' : 'Motoboy rejeitado' });
   } catch (err) {
