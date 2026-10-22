@@ -138,6 +138,16 @@ describe('matriz (computador)', () => {
 });
 
 describe('avisos que cada papel pode enviar', () => {
+  // Rodada final (M2): "Criar notificação" saiu da lista; só "Enviar broadcast" libera escolher para quem avisar.
+  it('só "Enviar broadcast" libera os alvos; "Criar notificação" sozinha não', async () => {
+    renderAdminPage(<AdminPermissoes />);
+    await screen.findByRole('table', { name: 'Avisos por papel' });
+    expect(screen.getByText('Vale para o papel que tem “Enviar broadcast”.')).toBeInTheDocument();
+    expect(screen.queryByText(/Criar notificação” ou/)).toBeNull();
+    // Marketing, no fixture, tem só notification:create.
+    expect(screen.getByRole('checkbox', { name: 'Avisar Motoboy · Marketing' })).toBeDisabled();
+  });
+
   it('só habilita a coluna do papel que pode notificar (como hoje), e o alvo vai no PUT', async () => {
     renderAdminPage(<AdminPermissoes />);
     await screen.findByRole('table', { name: 'Avisos por papel' });

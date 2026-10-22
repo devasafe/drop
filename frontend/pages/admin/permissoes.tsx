@@ -58,8 +58,8 @@ interface RoleDraft { permissions: string[]; notificationTargets: string[] }
 
 /** Não delegável: o servidor recusa no PUT (rolePermissionsController, CEO_ONLY_PERMISSIONS). */
 const CEO_ONLY = ['wallet:credit'];
-/** Quem tem uma destas pode escolher para quem envia avisos (mesma regra da tela antiga). */
-const NOTIFY_PERMS = ['notification:create', 'broadcast:send'];
+/** Quem tem esta pode escolher para quem envia avisos (o envio é o broadcast; notification:* saiu da lista). */
+const NOTIFY_PERMS = ['broadcast:send'];
 const EXTRA_LABELS: Record<string, string> = { lojista: 'Lojista', cliente: 'Cliente', motoboy: 'Motoboy' };
 const roleLabel = (role: string) => EXTRA_LABELS[role] ?? adminRoleLabel(role);
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -446,7 +446,7 @@ function PermissoesBody() {
 
       <section className={blocks.block} aria-labelledby="perm-notify-title">
         <h2 id="perm-notify-title" className={blocks.blockTitle}>Pode enviar avisos para</h2>
-        <p className={blocks.muted}>Vale para o papel que tem “Criar notificação” ou “Enviar broadcast”.</p>
+        <p className={blocks.muted}>Vale para o papel que tem “Enviar broadcast”.</p>
         {desktop ? (
           <div className={styles.matrixWrap}>
             <table className={styles.matrix}>

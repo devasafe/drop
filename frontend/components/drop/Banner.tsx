@@ -25,7 +25,7 @@ export function Banner({ items, label = 'Destaques' }: { items: BannerItem[]; la
   return (
     <div className={`${styles.track} ${multi ? styles.multi : ''}`} role="region" aria-label={label}>
       {items.map((it) => {
-        const external = !!it.href && /^https?:\/\//.test(it.href);
+        const external = !!it.href && /^https?:\/\//i.test(it.href);
         const tone = it.tone === 'neutral' ? styles.neutral : styles.brand;
         const cls = `${styles.item} ${tone} ${it.imageUrl ? styles.hasImage : ''}`;
         const content = (
