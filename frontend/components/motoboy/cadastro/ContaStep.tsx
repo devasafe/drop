@@ -9,26 +9,18 @@ import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useMotoboyRules } from '../../../hooks/useMotoboyRules';
-import { useSaasConfig } from '../../../hooks/useSaasConfig';
 import api from '../../../lib/api';
 import { LEGAL_VERSIONS } from '../../../lib/legalDocs';
 import { maskPhone, onlyDigits } from '../../../lib/masks';
-import { formatMoney } from '../../../lib/money';
-import { exampleRide } from '../../../lib/motoboyRules';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 import { passwordStrength } from '../../../lib/passwordStrength';
 import { ROUTES, authHref } from '../../../lib/routes';
 import styles from './Cadastro.module.css';
 
-const EXAMPLE_KM = 3.4;
-const pct = (n: number) => String(n).replace('.', ',');
-
 /** Etapa 1 do cadastro (protótipo 9). Mesmas regras do /register; o papel motoboy vai fixo e o servidor confere. */
 export function ContaStep() {
   const router = useRouter();
   const auth = useAuth() || ({} as any);
-  const saas = useSaasConfig();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -38,12 +30,7 @@ export function ContaStep() {
   const [error, setError] = useState<{ title: string; body?: string; exists?: boolean } | null>(null);
   const strength = passwordStrength(password);
   const loginHref = authHref(ROUTES.login, MOTOBOY_ROUTES.cadastro);
-
-  const { rules, failed } = useMotoboyRules();
-  // Sem modo confirmado, config falha ou, no direto, sem percentual: sem número (K5/K6, nada de 80% presumido).
-  const ex = rules && !failed && !saas.loading && !saas.error && (saas.settlementMode === 'custodia' || saas.settlementMode === 'direto')
-    ? exampleRide(rules, EXAMPLE_KM, saas.settlementMode)
-    : null;
+  // Sem "Quanto você ganha" aqui: o repasse ao motoboy vai mudar (porcentagem). A conta de cada corrida fica em Ganhos.
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -69,23 +56,6 @@ export function ContaStep() {
 
   return (
     <form onSubmit={submit} className={blocks.stack} noValidate>
-      <section className={[blocks.blk, blocks.blkBrand].join(' ')} aria-label="Quanto você ganha">
-        <span className={blocks.cap}>Quanto você ganha</span>
-        {rules && ex ? (
-          <>
-            <b className={styles.mid}>
-              {ex.sharePercent === 100 ? 'O valor inteiro de cada taxa de entrega' : `${pct(ex.sharePercent)}% de cada taxa de entrega`}
-            </b>
-            <p className={blocks.sub}>
-              {`Taxa = ${formatMoney(rules.basePerDelivery)} + ${formatMoney(rules.perKm)} por km da rota. Numa corrida de ${pct(EXAMPLE_KM)} km, você recebe ${formatMoney(ex.mine)}.`}
-            </p>
-            <p className={blocks.meta}>Exemplo ilustrativo: o valor real de cada corrida pode ser diferente.</p>
-          </>
-        ) : (
-          <p className={blocks.sub}>Você recebe por cada entrega concluída. A conta de cada corrida aparece em Ganhos.</p>
-        )}
-      </section>
-
       <Input id="mb-nome" label="Nome completo" value={name} onChange={setName} autoComplete="name" required />
       <Input id="mb-email" label="E-mail" type="email" value={email} onChange={setEmail} autoComplete="email" hint="Você confirma por um código de 6 dígitos." required />
       <Input id="mb-cel" label="Celular (WhatsApp)" type="tel" value={telefone} onChange={(v) => setTelefone(maskPhone(v))} autoComplete="tel" />

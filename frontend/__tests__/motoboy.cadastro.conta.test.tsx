@@ -35,53 +35,16 @@ function preencher() {
   fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'abcdefgh12' } });
 }
 
-test('custódia: quanto ganha com os números da config', async () => {
+// Ajuste (fix/motoboy-sem-ganhos): os 5 testes de "Quanto você ganha" saíram. O bloco foi tirado da
+// etapa 1 a pedido do usuário (os valores vão mudar quando o motoboy passar a pagar porcentagem).
+test('etapa 1 sem "Quanto você ganha": nenhum valor nem percentual, e não lê a config', async () => {
   render(<ContaStep />);
-  expect(await screen.findByText('80% de cada taxa de entrega')).toBeInTheDocument();
-  expect(screen.getByText('Taxa = R$ 5,00 + R$ 1,00 por km da rota. Numa corrida de 3,4 km, você recebe R$ 6,72.')).toBeInTheDocument();
-  expect(screen.getByText('Exemplo ilustrativo: o valor real de cada corrida pode ser diferente.')).toBeInTheDocument();
-  expect(get).toHaveBeenCalledWith('/settings/platform-config');
-});
-
-test('direto: o frete inteiro é do motoboy', async () => {
-  mockSaas = { settlementMode: 'direto', loading: false, error: false };
-  render(<ContaStep />);
-  expect(await screen.findByText('O valor inteiro de cada taxa de entrega')).toBeInTheDocument();
-  expect(screen.getByText(/você recebe R\$ 8,40/)).toBeInTheDocument();
-  expect(screen.queryByText(/80%/)).toBeNull();
-});
-
-test('direto sem percentual na config: só texto, sem número e sem 80%', async () => {
-  mockSaas = { settlementMode: 'direto', loading: false, error: false };
-  const { motoboyShareDirect, ...semDireto } = CFG;
-  get.mockResolvedValue({ data: semDireto });
-  render(<ContaStep />);
-  await waitFor(() => expect(get).toHaveBeenCalled());
-  expect(await screen.findByText(/Você recebe por cada entrega concluída/)).toBeInTheDocument();
-  expect(screen.queryByText(/R\$/)).toBeNull();
-  expect(screen.queryByText(/80%/)).toBeNull();
-});
-
-test('modo ainda carregando: sem número', async () => {
-  mockSaas = { settlementMode: undefined, loading: true, error: false };
-  render(<ContaStep />);
-  await waitFor(() => expect(get).toHaveBeenCalled());
+  await settle();
+  expect(screen.queryByText('Quanto você ganha')).toBeNull();
+  expect(screen.queryByLabelText('Quanto você ganha')).toBeNull();
   expect(screen.queryByText(/R\$/)).toBeNull();
   expect(screen.queryByText(/%/)).toBeNull();
-});
-
-test('config ou modo com erro: sem número inventado', async () => {
-  get.mockRejectedValue(new Error('rede'));
-  const { unmount } = render(<ContaStep />);
-  await waitFor(() => expect(get).toHaveBeenCalled());
-  expect(screen.getByText(/Você recebe por cada entrega concluída/)).toBeInTheDocument();
-  expect(screen.queryByText(/R\$/)).toBeNull();
-  unmount();
-  get.mockResolvedValue({ data: CFG });
-  mockSaas = { settlementMode: 'custodia', loading: false, error: true };
-  render(<ContaStep />);
-  await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-  expect(screen.queryByText(/R\$/)).toBeNull();
+  expect(get).not.toHaveBeenCalledWith('/settings/platform-config');
 });
 
 test('cria a conta com o papel fixo e entra (a página abre a Verificação)', async () => {
