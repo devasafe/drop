@@ -151,7 +151,8 @@ describe('actorFromRequest e MoneyActionError', () => {
 describe('permissão money:overview', () => {
   it('está no catálogo, só o CEO tem por padrão e não é exclusiva do CEO', async () => {
     const entry = ALL_PERMISSIONS.find((p) => p.key === 'money:overview');
-    expect(entry).toEqual({ key: 'money:overview', label: 'Ver a visão geral do dinheiro e o histórico de ações', category: 'Financeiro — Visão geral' });
+    // Permissões por público (22/10): o catálogo ganhou kind/area/requires (o que a caixinha libera); confere só os campos de antes.
+    expect(entry).toMatchObject({ key: 'money:overview', label: 'Ver a visão geral do dinheiro e o histórico de ações', category: 'Financeiro — Visão geral' });
     expect(hasPermission('ceo', 'money:overview')).toBe(true);
     for (const role of ['marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy']) {
       expect(hasPermission(role, 'money:overview')).toBe(false);

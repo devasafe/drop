@@ -121,7 +121,8 @@ describe('cleanupUsersByEmailDomain', () => {
 
 describe('permissões da Operação', () => {
   it('estão no catálogo no grupo "Operação", só o CEO tem por padrão e são delegáveis', () => {
-    expect(ALL_PERMISSIONS.filter((p) => p.category === 'Operação')).toEqual([
+    // Permissões por público (22/10): o catálogo ganhou kind/area/requires (o que a caixinha libera); confere só os campos de antes.
+    expect(ALL_PERMISSIONS.filter((p) => p.category === 'Operação')).toMatchObject([
       { key: 'operation:view', label: 'Ver a operação ao vivo (fila, pedidos e mapa)', category: 'Operação' },
       { key: 'order:admin_cancel', label: 'Cancelar pedido com estorno, escolhendo a culpa', category: 'Operação' },
       { key: 'order:reassign', label: 'Reatribuir o motoboy de um pedido antes da retirada', category: 'Operação' },

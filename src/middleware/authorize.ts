@@ -19,6 +19,15 @@ const ADMIN_ROLES = ['ceo', 'gerente_geral'];
  * Verifica primeiro no DB (permissões customizadas pelo CEO), depois usa a matriz estática.
  */
 export function authorizePermission(requiredPermission: string) {
+  return authorizeAnyPermission([requiredPermission]);
+}
+
+/**
+ * Como authorizePermission, mas QUALQUER uma das permissões basta (telas por público: "qualquer
+ * user:view_*"). O filtro do público fica com a rota.
+ */
+export function authorizeAnyPermission(requiredPermissions: string[]) {
+  const needed = requiredPermissions.join(' ou ');
   return async (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
 
@@ -32,22 +41,22 @@ export function authorizePermission(requiredPermission: string) {
     // Papel ativo + papéis de equipe da conta (união): equipe é acréscimo, não área.
     try {
       const permissions = await getAccountPermissions(user);
-      const granted = permissions.includes('*') || permissions.includes(requiredPermission);
+      const granted = permissions.includes('*') || requiredPermissions.some((p) => permissions.includes(p));
       if (!granted) {
         return res.status(403).json({
-          error: `Permissão negada. Você precisa de: ${requiredPermission}`
+          error: `Permissão negada. Você precisa de: ${needed}`
         });
       }
       return next();
     } catch (err) {
       // Falha ao consultar permissões customizadas do DB: fallback para a matriz estática,
       // checando a MESMA união de papéis. Permissão exclusiva do CEO nunca passa por aqui.
-      const isStaticPermission =
-        !CEO_ONLY_PERMISSIONS.includes(requiredPermission) &&
-        staffRolesOf(user).some((r) => hasPermission(r, requiredPermission));
+      const isStaticPermission = requiredPermissions.some((p) =>
+        !CEO_ONLY_PERMISSIONS.includes(p) &&
+        staffRolesOf(user).some((r) => hasPermission(r, p)));
       if (!isStaticPermission) {
         return res.status(403).json({
-          error: `Permissão negada. Você precisa de: ${requiredPermission}`
+          error: `Permissão negada. Você precisa de: ${needed}`
         });
       }
       // Só usa o fallback estático quando o DB falha E a permissão existe na matriz padrão.

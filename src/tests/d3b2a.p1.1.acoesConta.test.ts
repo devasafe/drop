@@ -220,9 +220,10 @@ describe('motivo e nota', () => {
 
 describe('permissão user:debt_forgive', () => {
   it('está no catálogo (Usuários), só o CEO tem por padrão e é delegável', () => {
-    expect(ALL_PERMISSIONS).toContainEqual({
+    // Permissões por público (22/10): o catálogo ganhou kind/area/requires (o que a caixinha libera); confere só os campos de antes.
+    expect(ALL_PERMISSIONS).toContainEqual(expect.objectContaining({
       key: 'user:debt_forgive', label: 'Perdoar dívida de cliente (multa de cancelamento)', category: 'Usuários',
-    });
+    }));
     expect(hasPermission('ceo', 'user:debt_forgive')).toBe(true);
     for (const role of Object.keys(rolePermissions).filter((r) => r !== 'ceo')) {
       expect(rolePermissions[role]).not.toContain('user:debt_forgive');

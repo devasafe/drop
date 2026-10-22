@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app';
 import { prisma } from '../lib/prisma';
 import { ALL_PERMISSIONS } from '../controllers/rolePermissionsController';
+import { RETIRED_PERMISSIONS } from '../services/permissions/catalog';
 import { hasPermission } from '../utils/walletCalculations';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
@@ -28,8 +29,11 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 const del = (u: TestUser, id: string) => request(app).delete(`/api/admin/ratings/${id}/reply`).set('Authorization', bearer(u));
 
-it('a permissão está no catálogo e na matriz padrão só de quem modera loja', () => {
-  expect(ALL_PERMISSIONS.map((p) => p.key)).toContain('reviews:moderate');
+it('a permissão saiu da lista do painel, mas segue válida e na matriz padrão só de quem modera loja', () => {
+  // Permissões por público (22/10): não há tela de moderação no admin, então a caixinha saiu da lista
+  // (RETIRED_PERMISSIONS). A rota continua exigindo a chave, e a linha do banco que a tem continua valendo.
+  expect(ALL_PERMISSIONS.map((p) => p.key)).not.toContain('reviews:moderate');
+  expect(RETIRED_PERMISSIONS).toContain('reviews:moderate');
   expect(hasPermission('gerente_geral', 'reviews:moderate')).toBe(true);
   expect(hasPermission('gerente_lojistas', 'reviews:moderate')).toBe(true);
   for (const role of ['marketing', 'gerente_clientes', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy']) {

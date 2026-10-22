@@ -28,6 +28,8 @@ export interface ListAdminUsersInput {
   withDebt: boolean;
   cursor?: string;
   limit?: string;
+  /** Por público (22/10): só estes públicos e nunca conta da equipe. Ausente = sem filtro (chave "de tudo"). */
+  audiences?: Array<'cliente' | 'lojista' | 'motoboy' | 'equipe'>;
 }
 
 /** Todos os papéis da conta: `roles` mais `role` e `activeRole` (conta antiga pode ter o papel só ali). */
@@ -125,6 +127,10 @@ export async function listAdminUsers(input: ListAdminUsersInput, now: Date = new
     { defaultLimit: USERS_PAGE_DEFAULT, maxLimit: USERS_PAGE_MAX },
   );
   const and: Prisma.UserWhereInput[] = [tabWhere(input.tab), await searchWhere(input.q)];
+  if (input.audiences) {
+    and.push({ OR: input.audiences.filter((a) => a !== 'equipe').map((a) => tabWhere(a)) });
+    and.push({ NOT: hasAnyRole([...STAFF_ROLES]) });
+  }
   if (input.withDebt) and.push({ id: { in: await pendingDebtorIds() } });
   if (Object.keys(page.where).length > 0) and.push(page.where as Prisma.UserWhereInput);
 

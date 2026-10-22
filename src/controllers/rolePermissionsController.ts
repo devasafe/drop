@@ -6,122 +6,22 @@ import { prisma } from '../lib/prisma';
 export type AppRole = 'ceo' | 'marketing' | 'gerente_geral' | 'gerente_clientes' | 'gerente_lojistas' | 'gerente_motoboys' | 'lojista' | 'cliente' | 'motoboy';
 import { rolePermissions } from '../utils/walletCalculations';
 import logger from '../config/logger';
+import { ALL_PERMISSIONS, RETIRED_PERMISSIONS } from '../services/permissions/catalog';
 
 export const ALL_ROLES: AppRole[] = [
   'ceo', 'marketing', 'gerente_geral', 'gerente_clientes',
   'gerente_lojistas', 'gerente_motoboys', 'lojista', 'cliente', 'motoboy'
 ];
 
-// Todas as permissões existentes no sistema (para exibir no painel)
-export const ALL_PERMISSIONS: { key: string; label: string; category: string }[] = [
-  // Notificações
-  { key: 'notification:create',         label: 'Criar notificação',           category: 'Notificações' },
-  { key: 'notification:approve',        label: 'Aprovar notificação',         category: 'Notificações' },
-  { key: 'notification:reject',         label: 'Rejeitar notificação',        category: 'Notificações' },
-  { key: 'broadcast:send',              label: 'Enviar broadcast',            category: 'Notificações' },
-  // Usuários
-  { key: 'user:view_all',               label: 'Ver todos os usuários',       category: 'Usuários' },
-  { key: 'user:view_clients',           label: 'Ver clientes',                category: 'Usuários' },
-  { key: 'user:edit_clients',           label: 'Editar clientes',             category: 'Usuários' },
-  { key: 'user:view_motoboys',          label: 'Ver motoboys',                category: 'Usuários' },
-  { key: 'user:edit_motoboys',          label: 'Editar motoboys',             category: 'Usuários' },
-  // Lojas
-  { key: 'store:view_all',              label: 'Ver todas as lojas',          category: 'Lojas' },
-  { key: 'store:edit',                  label: 'Editar lojas',                category: 'Lojas' },
-  { key: 'store:view_own',              label: 'Ver própria loja',            category: 'Lojas' },
-  { key: 'store:edit_own',              label: 'Editar própria loja',         category: 'Lojas' },
-  // Produtos
-  { key: 'product:create_own',          label: 'Criar produto',               category: 'Produtos' },
-  { key: 'product:edit_own',            label: 'Editar produto',              category: 'Produtos' },
-  { key: 'product:delete_own',          label: 'Excluir produto',             category: 'Produtos' },
-  // Pedidos
-  { key: 'order:create',                label: 'Criar pedido',                category: 'Pedidos' },
-  { key: 'order:view_own',              label: 'Ver próprios pedidos',        category: 'Pedidos' },
-  { key: 'order:cancel_own',            label: 'Cancelar próprio pedido',     category: 'Pedidos' },
-  // Carteira
-  { key: 'wallet:view_all',             label: 'Ver todas as carteiras',      category: 'Carteira' },
-  { key: 'wallet:view_clients',         label: 'Ver carteiras de clientes',   category: 'Carteira' },
-  { key: 'wallet:view_stores',          label: 'Ver carteiras de lojas',      category: 'Carteira' },
-  { key: 'wallet:view_motoboys',        label: 'Ver carteiras de motoboys',   category: 'Carteira' },
-  { key: 'wallet:view_own',             label: 'Ver própria carteira',        category: 'Carteira' },
-  { key: 'wallet:credit',               label: 'Creditar carteira (somente CEO, não delegável)', category: 'Carteira' },
-  { key: 'wallet:transfer',             label: 'Transferir da carteira',      category: 'Carteira' },
-  { key: 'wallet:request_access',       label: 'Solicitar acesso a carteiras de clientes', category: 'Carteira' },
-  // Dashboard
-  { key: 'dashboard:view_all',          label: 'Ver dashboard completo',      category: 'Dashboard' },
-  { key: 'dashboard:view_client_metrics',  label: 'Ver métricas de clientes', category: 'Dashboard' },
-  { key: 'dashboard:view_store_metrics',   label: 'Ver métricas de lojas',    category: 'Dashboard' },
-  { key: 'dashboard:view_motoboy_metrics', label: 'Ver métricas de motoboys', category: 'Dashboard' },
-  // Entregas
-  { key: 'delivery:view_own',           label: 'Ver próprias entregas',       category: 'Entregas' },
-  { key: 'delivery:accept',             label: 'Aceitar entrega',             category: 'Entregas' },
-  { key: 'delivery:complete',           label: 'Completar entrega',           category: 'Entregas' },
-  // Gamificação
-  { key: 'gamification:redeem_benefit', label: 'Resgatar benefício',          category: 'Gamificação' },
-  // Marketing
-  { key: 'banner:manage',               label: 'Gerenciar banners',           category: 'Marketing' },
-  { key: 'theme:edit',                  label: 'Editar temas sazonais',       category: 'Marketing' },
-  // Suporte
-  { key: 'support:attend',              label: 'Atender tickets de suporte',  category: 'Suporte' },
-  // Verificação (KYC)
-  { key: 'verification:view_queue',     label: 'Ver fila de verificações',     category: 'Verificação (KYC)' },
-  { key: 'verification:review_clients', label: 'Verificar documentos de clientes', category: 'Verificação (KYC)' },
-  { key: 'verification:review_stores',  label: 'Verificar lojas (CNPJ/endereço/facial)', category: 'Verificação (KYC)' },
-  { key: 'verification:review_motoboys',label: 'Verificar motoboys (CNH/placa)', category: 'Verificação (KYC)' },
-  // Cupons
-  { key: 'coupon:create_global',        label: 'Criar cupons globais',        category: 'Cupons' },
-  // Avaliações
-  { key: 'reviews:moderate',            label: 'Apagar resposta de loja em avaliação', category: 'Avaliações' },
-  // Conversas
-  { key: 'conversations:view_all',      label: 'Ver todas as conversas',      category: 'Conversas' },
-  // Endereço
-  { key: 'address:manage_own',          label: 'Gerenciar endereços',         category: 'Endereços' },
-  // Financeiro — Repasses (payouts)
-  { key: 'payout:view',                 label: 'Ver repasses e obrigações',   category: 'Financeiro — Repasses' },
-  { key: 'payout:release',              label: 'Liberar repasse',             category: 'Financeiro — Repasses' },
-  { key: 'payout:block',                label: 'Bloquear/desbloquear repasse', category: 'Financeiro — Repasses' },
-  { key: 'payout:mark_paid',            label: 'Marcar repasse como pago',    category: 'Financeiro — Repasses' },
-  { key: 'payout:config',               label: 'Configurar aprovação automática de repasses', category: 'Financeiro — Repasses' },
-  // Financeiro — Caixa do app
-  { key: 'cashbox:view',                label: 'Ver caixa do app e extrato',  category: 'Financeiro — Caixa do app' },
-  { key: 'cashbox:deposit',             label: 'Registrar depósito no caixa', category: 'Financeiro — Caixa do app' },
-  { key: 'cashbox:withdraw',            label: 'Solicitar saque do caixa',    category: 'Financeiro — Caixa do app' },
-  { key: 'cashbox:approve_withdrawal',  label: 'Aprovar/rejeitar saque do caixa', category: 'Financeiro — Caixa do app' },
-  // Financeiro — Saques de recebedores
-  { key: 'withdrawal:view',             label: 'Ver saques de lojas/motoboys', category: 'Financeiro — Saques' },
-  { key: 'withdrawal:approve',          label: 'Aprovar/rejeitar saques de lojas/motoboys', category: 'Financeiro — Saques' },
-  { key: 'withdrawal:config',           label: 'Configurar aprovação automática de saques', category: 'Financeiro — Saques' },
-  // Financeiro — Gateway (Asaas)
-  { key: 'gateway:manage',              label: 'Gerenciar subcontas/chaves do gateway', category: 'Financeiro — Gateway' },
-  // Usuários (administração)
-  { key: 'user:manage_roles',           label: 'Alterar cargo de usuários',   category: 'Usuários' },
-  { key: 'user:block',                  label: 'Bloquear/desbloquear/desconectar usuários', category: 'Usuários' },
-  // D3b-2a: padrão só CEO (via '*'); concedível em Permissões, como order:admin_cancel. Fora de CEO_ONLY_PERMISSIONS.
-  { key: 'user:debt_forgive',           label: 'Perdoar dívida de cliente (multa de cancelamento)', category: 'Usuários' },
-  // Planos e assinaturas
-  { key: 'plan:view',                   label: 'Ver assinaturas e mudanças de plano', category: 'Planos' },
-  { key: 'plan:approve',                label: 'Aprovar/rejeitar mudança de plano', category: 'Planos' },
-  { key: 'plan:manage',                 label: 'Alterar plano de loja / planos de preço', category: 'Planos' },
-  // Configurações da plataforma
-  { key: 'settings:manage',             label: 'Editar configurações da plataforma', category: 'Configurações' },
-  { key: 'ranking:manage',              label: 'Configurar prêmios de ranking', category: 'Configurações' },
-  // Pedidos (administração)
-  { key: 'order:manage_payment',        label: 'Alterar status de pagamento de pedidos', category: 'Pedidos' },
-  // Analytics
-  { key: 'analytics:view_platform',     label: 'Ver analytics da plataforma', category: 'Analytics' },
-  // Financeiro — Visão geral (D3b-3): padrão só CEO (via '*'); concedível em Permissões.
-  { key: 'money:overview',              label: 'Ver a visão geral do dinheiro e o histórico de ações', category: 'Financeiro — Visão geral' },
-  // Operação (D3b-1): padrão só CEO (via '*'); concedíveis em Permissões. Fora de CEO_ONLY_PERMISSIONS.
-  { key: 'operation:view',              label: 'Ver a operação ao vivo (fila, pedidos e mapa)', category: 'Operação' },
-  { key: 'order:admin_cancel',          label: 'Cancelar pedido com estorno, escolhendo a culpa', category: 'Operação' },
-  { key: 'order:reassign',              label: 'Reatribuir o motoboy de um pedido antes da retirada', category: 'Operação' },
-];
+// Catálogo das permissões (tipo, área e o que cada caixinha libera): src/services/permissions/catalog.ts.
+export { ALL_PERMISSIONS };
 
 // Permissões que movem dinheiro sem lastro: exclusivas do CEO (via '*'), nunca
 // delegáveis. Mesmo que apareçam numa linha antiga de RolePermissions, são
 // descartadas em runtime (defesa em profundidade além da migration).
 export const CEO_ONLY_PERMISSIONS = ['wallet:credit'];
-const PERMISSION_KEYS = new Set(ALL_PERMISSIONS.map((p) => p.key));
+// Caixinha que saiu da lista continua válida no PUT: a linha do banco pode trazê-la de volta.
+const PERMISSION_KEYS = new Set([...ALL_PERMISSIONS.map((p) => p.key), ...RETIRED_PERMISSIONS]);
 
 const stripCeoOnly = (perms: string[]) => perms.filter((p) => !CEO_ONLY_PERMISSIONS.includes(p));
 

@@ -14,6 +14,7 @@ import { listTimeline } from './actions';
 import { STAFF_ROLES, accountRoles } from './users';
 import { STORE_SITUATION_SELECT, storeSituation } from './storeStatus';
 import { requiredVerificationItems, verificationItem } from './userVerification';
+import { allowedAudiences, canReachUser, familyKeys } from '../permissions/catalog';
 import {
   DebtStatus,
   TimelineResponse,
@@ -181,7 +182,9 @@ export async function getAdminUserDetail(userId: string, viewer: UserDetailViewe
   const targetIsStaff = roles.some((r) => (STAFF_ROLES as readonly string[]).includes(r));
   const blocked = user.status === 'blocked';
   // Fix round 1: como em PUT /roles, só o CEO bloqueia, desbloqueia ou desconecta conta da equipe.
-  const canBlock = !self && viewer.can('user:block') && (viewer.isCeo || !targetIsStaff);
+  // Por público (22/10): user:block vale para todos; user:edit_<público>, só para o público dele.
+  const editAccess = allowedAudiences(familyKeys('userEdit').filter((k) => viewer.can(k)), 'userEdit');
+  const canBlock = !self && canReachUser(editAccess, roles) && (viewer.isCeo || !targetIsStaff);
 
   return {
     profile: {

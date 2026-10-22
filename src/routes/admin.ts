@@ -1,7 +1,7 @@
 import { requireSettlement } from '../middleware/requireSettlement';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
-import { authorizePermission } from '../middleware/authorize';
+import { authorizeAnyPermission, authorizePermission } from '../middleware/authorize';
 import { activeRoleOf, isTeamRole } from '../controllers/rolePermissionsController';
 import { catchAsync } from '../middleware/errorHandler';
 import { deleteStoreRatingReply } from '../controllers/storeRatingReplyController';
@@ -18,6 +18,8 @@ import { actorFromRequest, sendMoneyActionError, MoneyActionError } from '../ser
 import { adjustWalletBalance, WalletAdjustInput } from '../services/walletAdjust.service';
 import { recordAccountAction } from '../services/adminAccounts/actions';
 import { parseOptionalReason, parseRequiredReason, sendAccountActionError } from '../services/adminAccounts/errors';
+import { audienceAccessOf } from '../services/adminAccounts/audience';
+import { AUDIENCE_FORBIDDEN, WALLET_OWNER_AUDIENCE, canReachUser, familyKeys } from '../services/permissions/catalog';
 
 const router = Router();
 
@@ -39,6 +41,10 @@ const TARGET_ROLES_SELECT = { roles: true, role: true, activeRole: true } as con
 
 // user:block é delegável; agir sobre conta da equipe não é (senão um gerente bloqueia o próprio CEO).
 const STAFF_TARGET_FORBIDDEN = { error: 'Somente o CEO pode bloquear ou desconectar alguém da equipe.', code: 'STAFF_TARGET_FORBIDDEN' };
+// Por público (22/10): user:block vale para todos; user:edit_clients/user:edit_motoboys, só para o público da chave.
+const anyUserEdit = authorizeAnyPermission(familyKeys('userEdit'));
+const USER_AUDIENCE_FORBIDDEN = { error: 'Esta pessoa está fora do público que você pode bloquear ou desconectar.', code: AUDIENCE_FORBIDDEN };
+const WALLET_AUDIENCE_FORBIDDEN = { error: 'Esta carteira está fora do público que você pode ver.', code: AUDIENCE_FORBIDDEN };
 
 // Campos devolvidos ao painel após alterar um usuário (nunca o hash da senha).
 const SAFE_USER_SELECT = {
@@ -141,7 +147,7 @@ router.put('/users/:id/roles', authenticate, authorizePermission('user:manage_ro
 // PUT /admin/users/:id/status - Bloquear/Desbloquear usuário
 // D3b-2a: bloquear exige motivo (5 a 500); desbloquear aceita motivo opcional. block/unblock vão
 // para AdminAccountAction na mesma transação da mudança de status.
-router.put('/users/:id/status', authenticate, authorizePermission('user:block'), async (req: any, res: Response) => {
+router.put('/users/:id/status', authenticate, anyUserEdit, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -164,6 +170,9 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
     if (!target) return res.status(404).json({ error: 'User not found' });
     if (activeRoleOf(req.user) !== 'ceo' && isStaffAccount(currentRolesOf(target))) {
       return res.status(403).json(STAFF_TARGET_FORBIDDEN);
+    }
+    if (!canReachUser(await audienceAccessOf(req.user, 'userEdit'), currentRolesOf(target))) {
+      return res.status(403).json(USER_AUDIENCE_FORBIDDEN);
     }
     const actor = actorFromRequest(req);
 
@@ -210,7 +219,7 @@ router.put('/users/:id/status', authenticate, authorizePermission('user:block'),
 });
 
 // POST /admin/users/:id/disconnect - Força logout via socket sem bloquear a conta
-router.post('/users/:id/disconnect', authenticate, authorizePermission('user:block'), async (req: any, res: Response) => {
+router.post('/users/:id/disconnect', authenticate, anyUserEdit, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -222,6 +231,9 @@ router.post('/users/:id/disconnect', authenticate, authorizePermission('user:blo
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (activeRoleOf(req.user) !== 'ceo' && isStaffAccount(currentRolesOf(user))) {
       return res.status(403).json(STAFF_TARGET_FORBIDDEN);
+    }
+    if (!canReachUser(await audienceAccessOf(req.user, 'userEdit'), currentRolesOf(user))) {
+      return res.status(403).json(USER_AUDIENCE_FORBIDDEN);
     }
 
     // D3b-2a: registra antes de derrubar a sessão; se o registro falha, ninguém é desconectado.
@@ -333,15 +345,22 @@ router.get('/dashboard', authenticate, authorizePermission('dashboard:view_all')
 // 💰 GERENCIAR CARTEIRAS
 // ═══════════════════════════════════════════════════════════
 
+// Carteiras por público (22/10): qualquer wallet:view_* abre; o tipo de carteira é filtrado na rota.
+const anyWalletView = authorizeAnyPermission(familyKeys('wallet'));
+const WALLET_OWNER_TYPES = ['user', 'store', 'motoboy'] as const;
+
 // GET /admin/wallets - Listar carteiras de TODOS os papéis (clientes, lojistas, motoboys).
 // Carteira de cliente continua protegida: saldo só aparece com acesso aprovado vigente.
 // Carteiras de loja/motoboy são contas operacionais de recebimento → o admin vê o saldo direto.
-router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
+// Por público: só os tipos das chaves da conta, e nunca a carteira pessoal de alguém da equipe.
+router.get('/wallets', authenticate, anyWalletView, async (req: any, res: Response) => {
   try {
     const { hasValidWalletAccess } = require('../controllers/walletAccessController');
+    const access = await audienceAccessOf(req.user, 'wallet');
+    const ownerTypes = WALLET_OWNER_TYPES.filter((t) => access.audiences.includes(WALLET_OWNER_AUDIENCE[t]));
 
     const wallets = await prisma.wallet.findMany({
-      where: { ownerType: { in: ['user', 'store', 'motoboy'] } },
+      where: { ownerType: { in: [...ownerTypes] } },
       orderBy: { updatedAt: 'desc' },
     });
     const requesterId = String(req.user?.id);
@@ -364,7 +383,8 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
           ownerEmail = owner?.email || 'N/A';
         }
       } else {
-        const userData = await prisma.user.findUnique({ where: { id: String(w.owner) }, select: { name: true, email: true, role: true } });
+        const userData = await prisma.user.findUnique({ where: { id: String(w.owner) }, select: { name: true, email: true, role: true, roles: true, activeRole: true } });
+        if (!access.all && userData && isStaffAccount(currentRolesOf(userData))) return null;
         ownerName = userData?.name || 'Usuário Desconhecido';
         ownerEmail = userData?.email || 'N/A';
         userRole = w.ownerType === 'motoboy' ? 'motoboy' : (userData?.role || 'cliente');
@@ -396,7 +416,7 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
       };
     }));
 
-    res.json(formattedWallets);
+    res.json(formattedWallets.filter((w) => w !== null));
   } catch (err) {
     console.error('Erro ao listar carteiras:', err);
     res.status(500).json({ error: 'Failed to fetch wallets' });
@@ -404,13 +424,23 @@ router.get('/wallets', authenticate, authorizePermission('wallet:view_all'), asy
 });
 
 // GET /admin/wallets/:id/transactions - Listar transações de uma carteira
-router.get('/wallets/:id/transactions', authenticate, authorizePermission('wallet:view_all'), async (req: any, res: Response) => {
+router.get('/wallets/:id/transactions', authenticate, anyWalletView, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
 
     const wallet = await prisma.wallet.findUnique({ where: { id: String(id) } });
     if (!wallet) {
       return res.status(404).json({ error: 'Wallet not found' });
+    }
+
+    // Por público: carteira de outro tipo, ou pessoal de alguém da equipe, fica fora.
+    const access = await audienceAccessOf(req.user, 'wallet');
+    if (!access.all) {
+      if (!access.audiences.includes(WALLET_OWNER_AUDIENCE[wallet.ownerType])) return res.status(403).json(WALLET_AUDIENCE_FORBIDDEN);
+      if (wallet.ownerType !== 'store') {
+        const owner = await prisma.user.findUnique({ where: { id: String(wallet.owner) }, select: TARGET_ROLES_SELECT });
+        if (owner && isStaffAccount(currentRolesOf(owner))) return res.status(403).json(WALLET_AUDIENCE_FORBIDDEN);
+      }
     }
 
     // Gating: precisa ter acesso aprovado vigente para ver transações

@@ -15,6 +15,7 @@ import { activeRoleOf } from './rolePermissionsController';
 import { permissionCheckFor } from '../services/adminOps/common';
 import { getAdminUserDetail, userTimeline } from '../services/adminAccounts/userDetail';
 import { getAdminStoreDetail, storeTimeline } from '../services/adminAccounts/storeDetail';
+import { assertUserInAudience, audienceAccessOf, audienceForbidden } from '../services/adminAccounts/audience';
 
 /** Erro de entrada conhecido (< 500) → status + { error, code }; o resto → 500 com log. */
 function sendReadFailure(res: Response, err: unknown, what: string) {
@@ -38,9 +39,15 @@ export const listUsers = async (req: AuthenticatedRequest, res: Response) => {
   const rawQ = req.query.q;
   if (rawQ !== undefined && typeof rawQ !== 'string') return invalidFilter(res);
   try {
+    // Por público: só "todos" (forçado ao público) e as abas do público; o resto é 403.
+    const access = await audienceAccessOf(req.user, 'user');
+    if (!access.all && tab !== 'all' && !(access.audiences as string[]).includes(tab)) {
+      throw audienceForbidden('Esta aba está fora do público que você pode ver.');
+    }
     return res.json(await listAdminUsers({
       q: typeof rawQ === 'string' ? rawQ : '',
       tab: tab as UserListTab,
+      ...(access.all ? {} : { audiences: access.audiences }),
       withDebt: req.query.withDebt === '1',
       cursor: queryText(req.query.cursor),
       limit: queryText(req.query.limit),
@@ -59,6 +66,7 @@ const idParam = (req: AuthenticatedRequest): string | null => {
 export const getUser = async (req: AuthenticatedRequest, res: Response) => {
   const id = idParam(req);
   try {
+    if (id) await assertUserInAudience(req.user, id, 'user');
     const can = await permissionCheckFor(req.user);
     const detail = id
       ? await getAdminUserDetail(id, { id: String(req.user?.id ?? ''), isCeo: activeRoleOf(req.user) === 'ceo', can })
@@ -74,6 +82,7 @@ export const getUser = async (req: AuthenticatedRequest, res: Response) => {
 export const getUserTimeline = async (req: AuthenticatedRequest, res: Response) => {
   const id = idParam(req);
   try {
+    if (id) await assertUserInAudience(req.user, id, 'user');
     const page = id ? await userTimeline(id, queryText(req.query.cursor)) : null;
     if (!page) return sendReadFailure(res, userNotFound(), 'o histórico da pessoa');
     return res.json(page);
@@ -105,6 +114,7 @@ export const listStores = async (req: AuthenticatedRequest, res: Response) => {
 export const getStore = async (req: AuthenticatedRequest, res: Response) => {
   const id = idParam(req);
   try {
+    if (id) await assertUserInAudience(req.user, id, 'user');
     const can = await permissionCheckFor(req.user);
     const detail = id ? await getAdminStoreDetail(id, { isCeo: activeRoleOf(req.user) === 'ceo', can }) : null;
     if (!detail) return sendReadFailure(res, storeNotFound(), 'a ficha da loja');
