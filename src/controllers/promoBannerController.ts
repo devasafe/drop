@@ -2,9 +2,18 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { checkImageSpec } from '../utils/imageSpecs';
+import { AppError } from '../utils/AppError';
+import { parseBannerImage, parseBannerLink } from '../utils/bannerLinks';
 
 const withId = (b: any) => ({ ...b, _id: b.id });
 const ORDER = [{ sortOrder: 'asc' as const }, { createdAt: 'desc' as const }];
+
+/** Link ou imagem recusados (bannerLinks.ts): 400 { error, code }. */
+const sendInvalid = (res: Response, err: unknown): boolean => {
+  if (!(err instanceof AppError) || err.statusCode !== 400) return false;
+  res.status(400).json({ error: err.message, code: err.code });
+  return true;
+};
 
 /** Público — banners de aviso ativos, na ordem de exibição (carrossel da home). */
 export const listActiveBanners = async (_req: Request, res: Response) => {
@@ -35,8 +44,8 @@ export const createBanner = async (req: Request, res: Response) => {
     if (!imageUrl) return res.status(400).json({ error: 'imageUrl é obrigatório' });
     const banner = await prisma.promoBanner.create({
       data: {
-        imageUrl,
-        linkUrl: linkUrl || null,
+        imageUrl: parseBannerImage(imageUrl),
+        linkUrl: parseBannerLink(linkUrl),
         title: title || null,
         active: active !== false,
         sortOrder: Number(sortOrder) || 0,
@@ -44,6 +53,7 @@ export const createBanner = async (req: Request, res: Response) => {
     });
     return res.status(201).json(withId(banner));
   } catch (err) {
+    if (sendInvalid(res, err)) return undefined;
     console.error('[promoBanner.create] error:', err);
     return res.status(500).json({ error: 'Erro ao criar aviso' });
   }
@@ -55,14 +65,15 @@ export const updateBanner = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { imageUrl, linkUrl, title, active, sortOrder } = req.body || {};
     const data: any = {};
-    if (imageUrl !== undefined) data.imageUrl = imageUrl;
-    if (linkUrl !== undefined) data.linkUrl = linkUrl || null;
+    if (imageUrl !== undefined) data.imageUrl = parseBannerImage(imageUrl);
+    if (linkUrl !== undefined) data.linkUrl = parseBannerLink(linkUrl);
     if (title !== undefined) data.title = title || null;
     if (active !== undefined) data.active = !!active;
     if (sortOrder !== undefined) data.sortOrder = Number(sortOrder) || 0;
     const banner = await prisma.promoBanner.update({ where: { id }, data });
     return res.json(withId(banner));
   } catch (err) {
+    if (sendInvalid(res, err)) return undefined;
     console.error('[promoBanner.update] error:', err);
     return res.status(500).json({ error: 'Erro ao atualizar aviso' });
   }

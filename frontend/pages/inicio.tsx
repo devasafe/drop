@@ -10,6 +10,7 @@ import { useStoreQuotes } from '../hooks/useStoreQuotes';
 import { useOffers, useNearbyStores } from '../hooks/useCatalogHome';
 import { useAddToCart } from '../hooks/useAddToCart';
 import { imageUrl } from '../lib/config';
+import { safeBannerHref } from '../lib/safeLink';
 import { mapStore } from '../lib/mapStore';
 import { repeatItems, type RepeatItem } from '../lib/repeatItems';
 import { fetchCurrentProduct, priceDiffers } from '../lib/currentProduct';
@@ -48,7 +49,7 @@ export default function Inicio() {
 
   // Um Banner por tela (spec §4 regra 12): avisos da DROP primeiro, depois lojas em destaque.
   const bannerItems = useMemo(() => [
-    ...banners.map((b: any) => ({ id: b._id, title: b.title || '', imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined, href: b.linkUrl || undefined, hideCaption: true })),
+    ...banners.map((b: any) => ({ id: b._id, title: b.title || '', imageUrl: imageUrl(b.imageUrl, { w: 1600 }) || undefined, href: safeBannerHref(b.linkUrl), hideCaption: true })),
     ...featured.map((s: any) => ({ id: s._id, title: s.name, subtitle: s.neighborhood, imageUrl: imageUrl(s.featuredBannerUrl, { w: 1600 }) || undefined, href: lojaHref(s._id) })),
   ], [banners, featured]);
 
