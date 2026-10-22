@@ -63,7 +63,9 @@ describe('matriz (computador)', () => {
     const heads = within(table).getAllByRole('columnheader').map((h) => h.textContent ?? '');
     expect(heads[0]).toBe('Pode…');
     expect(heads.some((h) => h.startsWith('Gerente de lojistas'))).toBe(true);
-    expect(heads.some((h) => h.startsWith('Motoboy'))).toBe(true);
+    // Parte 2 (22/10): cliente, lojista e motoboy saíram da tela (padrão fixo do app; o servidor recusa editá-los).
+    expect(heads.some((h) => h.startsWith('Gerente de motoboys'))).toBe(true);
+    expect(heads.some((h) => h.startsWith('Motoboy') || h.startsWith('Cliente') || h.startsWith('Lojista'))).toBe(false);
     expect(heads.some((h) => h.startsWith('CEO'))).toBe(false);
     expect(heads.find((h) => h.startsWith('Marketing'))).toContain('Customizado');
     expect(screen.getByRole('heading', { name: 'Permissões' })).toBeInTheDocument();
@@ -72,7 +74,8 @@ describe('matriz (computador)', () => {
   it('"Creditar carteira" fica travado em todas as colunas (não delegável)', async () => {
     renderAdminPage(<AdminPermissoes />);
     await screen.findByRole('table', { name: 'Permissões por papel' });
-    for (const r of ['Marketing', 'Gerente geral', 'Cliente']) {
+    // Parte 2 (22/10): só as colunas da equipe (Cliente saiu da tela).
+    for (const r of ['Marketing', 'Gerente geral', 'Gerente de motoboys']) {
       expect(screen.getByRole('checkbox', { name: `Creditar carteira (somente CEO, não delegável) · ${r}` })).toBeDisabled();
     }
   });

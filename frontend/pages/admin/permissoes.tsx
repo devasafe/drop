@@ -24,6 +24,8 @@ import styles from '../../components/admin/permissoes/Permissoes.module.css';
  * DELETE /role-permissions/:role (restaurar padrão).
  * 22/10: cada caixinha diz o que libera (o catálogo vem em `allPermissions`: kind, area, tab, audience, requires), a
  * caixinha de ação sem a chave que abre a tela avisa, e a prévia do menu do papel usa a função do menu.
+ * Parte 2: só os papéis da equipe (o CEO fixo; cliente, lojista e motoboy usam o padrão do app e o servidor recusa
+ * editá-los), caixinhas agrupadas pelo menu e um "?" por permissão e por papel (textos do catálogo do backend).
  */
 
 interface PermissionDef {
@@ -36,9 +38,22 @@ interface PermissionDef {
   tab?: string;
   audience?: string;
   requires?: string[];
+  /** Subgrupo dentro de Dinheiro (Repasses, Saques…). */
+  subgroup?: string;
+  /** O "?": o que abre ou permite e o que não permite. */
+  description?: string;
 }
 interface RoleData { role: string; permissions: string[]; notificationTargets: string[]; isCustom: boolean }
-interface ListResponse { roles: RoleData[]; allPermissions: PermissionDef[]; allRoles: string[] }
+interface ListResponse {
+  roles: RoleData[];
+  allPermissions: PermissionDef[];
+  /** Papéis editáveis (Parte 2: só a equipe). */
+  allRoles: string[];
+  /** Quem pode receber aviso: todos os papéis. Servidor antigo não manda; cai em allRoles. */
+  notificationTargetRoles?: string[];
+  roleDescriptions?: Record<string, string>;
+}
+interface HelpState { title: string; text: string[] }
 interface RoleDraft { permissions: string[]; notificationTargets: string[] }
 
 /** Não delegável: o servidor recusa no PUT (rolePermissionsController, CEO_ONLY_PERMISSIONS). */
@@ -49,6 +64,26 @@ const EXTRA_LABELS: Record<string, string> = { lojista: 'Lojista', cliente: 'Cli
 const roleLabel = (role: string) => EXTRA_LABELS[role] ?? adminRoleLabel(role);
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 const LOOSE_ACTION = 'Sozinha não aparece no painel';
+/** Parte 2: só estes papéis aparecem e são editáveis (o servidor responde 400 ROLE_NOT_EDITABLE para os outros). */
+const TEAM_ROLES = ['marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys'];
+
+/** Permissões de um grupo, em blocos por subgrupo (só Dinheiro tem subgrupo), na ordem do catálogo. */
+function bySubgroup(perms: PermissionDef[]): { subgroup: string | null; perms: PermissionDef[] }[] {
+  const out: { subgroup: string | null; perms: PermissionDef[] }[] = [];
+  for (const p of perms) {
+    const sub = p.subgroup ?? null;
+    const last = out[out.length - 1];
+    if (last && last.subgroup === sub) last.perms.push(p);
+    else out.push({ subgroup: sub, perms: [p] });
+  }
+  return out;
+}
+
+function HelpButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className={styles.helpBtn} aria-label={`O que é ${label}?`} onClick={onClick}>?</button>
+  );
+}
 
 /** "Usuários", "Lojas · Todas as lojas": a aba só entra quando a área tem mais de uma (como o título da tela). */
 function screenLabel(areaKey?: string, tabKey?: string): string {
@@ -144,6 +179,7 @@ function PermissoesBody() {
   const [resetRole, setResetRole] = useState<string | null>(null);
   const [mobileRole, setMobileRole] = useState('marketing');
   const [previewRole, setPreviewRole] = useState('marketing');
+  const [help, setHelp] = useState<HelpState | null>(null);
   const alive = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -182,7 +218,10 @@ function PermissoesBody() {
     );
   }
 
-  const roles = data.allRoles.filter((r) => r !== 'ceo');
+  const roles = data.allRoles.filter((r) => TEAM_ROLES.includes(r));
+  const targets = (data.notificationTargetRoles ?? data.allRoles).filter((r) => r !== 'ceo');
+  // Parte 2: as chaves de uso no app não são do painel (o servidor já não manda; servidor antigo, a tela filtra).
+  const panelPerms = data.allPermissions.filter((p) => p.kind !== 'app');
   const saved = (role: string): RoleDraft => {
     const r = data.roles.find((x) => x.role === role);
     return { permissions: r?.permissions ?? [], notificationTargets: r?.notificationTargets ?? [] };
@@ -195,7 +234,8 @@ function PermissoesBody() {
     return !sameSet(d.permissions, s.permissions) || !sameSet(d.notificationTargets, s.notificationTargets);
   };
   const dirtyRoles = roles.filter(isDirty);
-  const categories = Array.from(new Set(data.allPermissions.map((p) => p.category)));
+  const categories = Array.from(new Set(panelPerms.map((p) => p.category)));
+  const groupBlocks = (cat: string) => bySubgroup(panelPerms.filter((p) => p.category === cat));
   const canNotify = (role: string) => current(role).permissions.some((p) => NOTIFY_PERMS.includes(p));
   const permChanged = (role: string, key: string) => saved(role).permissions.includes(key) !== current(role).permissions.includes(key);
   const targetChanged = (role: string, t: string) =>
@@ -210,6 +250,10 @@ function PermissoesBody() {
     return p.kind === 'action' && perms.includes(p.key) && !(p.requires ?? []).some((r) => perms.includes(r)) ? LOOSE_ACTION : null;
   };
   const chooseMobileRole = (r: string) => { setMobileRole(r); setPreviewRole(r); };
+  const roleDescription = (r: string) => data.roleDescriptions?.[r] ?? roleLabel(r);
+  const showPermHelp = (p: PermissionDef) =>
+    setHelp({ title: p.label, text: [p.description, hintOf(p)].filter((t): t is string => !!t) });
+  const showRoleHelp = (r: string) => setHelp({ title: roleLabel(r), text: [roleDescription(r)] });
 
   const togglePerm = (role: string, key: string) => {
     const base = current(role);
@@ -278,9 +322,17 @@ function PermissoesBody() {
 
   return (
     <div className={styles.page}>
-      <Alert tone="info" title="O CEO pode tudo e não aparece aqui">
-        Cada marca vale para todas as pessoas daquele papel. “Creditar carteira” é só do CEO e não pode ser delegada.
-      </Alert>
+      <section className={`${blocks.block} ${styles.ceoCard}`} aria-label="CEO">
+        <div className={styles.roleHead}>
+          <span className={styles.roleName}>CEO</span>
+          <HelpButton label="CEO" onClick={() => setHelp({ title: 'CEO', text: [roleDescription('ceo')] })} />
+        </div>
+        <p className={blocks.muted}>Tem todas as permissões.</p>
+        <p className={blocks.muted}>
+          Cada marca vale para todas as pessoas daquele papel da equipe. “Creditar carteira” é só do CEO e não pode ser
+          delegada. Cliente, lojista e motoboy usam o padrão do app e não aparecem aqui.
+        </p>
+      </section>
 
       {failed.length > 0 && (
         <Alert tone="error" title="Algumas mudanças não foram salvas">
@@ -304,7 +356,10 @@ function PermissoesBody() {
                 <th scope="col" className={styles.permCol}>Pode…</th>
                 {roles.map((r) => (
                   <th scope="col" key={r} className={styles.roleCol}>
-                    <span className={styles.roleName}>{roleLabel(r)}</span>
+                    <span className={styles.roleHead}>
+                      <span className={styles.roleName}>{roleLabel(r)}</span>
+                      <HelpButton label={roleLabel(r)} onClick={() => showRoleHelp(r)} />
+                    </span>
                     {data.roles.find((x) => x.role === r)?.isCustom && <span className={styles.customTag}>Customizado</span>}
                     {resetButton(r)}
                   </th>
@@ -315,10 +370,18 @@ function PermissoesBody() {
               {categories.map((cat) => (
                 <Fragment key={cat}>
                   <tr className={styles.catRow}><th scope="colgroup" colSpan={roles.length + 1}>{cat}</th></tr>
-                  {data.allPermissions.filter((p) => p.category === cat).map((p) => (
+                  {groupBlocks(cat).map((block) => (
+                  <Fragment key={block.subgroup ?? '-'}>
+                  {block.subgroup && (
+                    <tr className={styles.subRow}><th scope="colgroup" colSpan={roles.length + 1}>{block.subgroup}</th></tr>
+                  )}
+                  {block.perms.map((p) => (
                     <tr key={p.key}>
                       <th scope="row" className={styles.permCell}>
-                        <span className={styles.permLabel}>{p.label}</span>
+                        <span className={styles.permHead}>
+                          <span className={styles.permLabel}>{p.label}</span>
+                          <HelpButton label={p.label} onClick={() => showPermHelp(p)} />
+                        </span>
                         {hintOf(p) && <span className={styles.permHint}>{hintOf(p)}</span>}
                       </th>
                       {roles.map((r) => (
@@ -335,6 +398,8 @@ function PermissoesBody() {
                       ))}
                     </tr>
                   ))}
+                  </Fragment>
+                  ))}
                 </Fragment>
               ))}
             </tbody>
@@ -344,14 +409,20 @@ function PermissoesBody() {
         <div className={`${blocks.block} ${styles.mobileList}`}>
           <div className={styles.mobileHead}>
             <Select label="Papel" value={mRole} onChange={chooseMobileRole} options={roles.map((r) => ({ value: r, label: roleLabel(r) }))} />
-            {resetButton(mRole)}
+            <div className={styles.roleHead}>
+              <HelpButton label={roleLabel(mRole)} onClick={() => showRoleHelp(mRole)} />
+              {resetButton(mRole)}
+            </div>
           </div>
           {categories.map((cat) => (
             <section key={cat} className={styles.mobileCat}>
               <h3 className={styles.catTitle}>{cat}</h3>
-              {data.allPermissions.filter((p) => p.category === cat).map((p) => (
+              {groupBlocks(cat).map((block) => (
+              <Fragment key={block.subgroup ?? '-'}>
+              {block.subgroup && <h4 className={styles.subTitle}>{block.subgroup}</h4>}
+              {block.perms.map((p) => (
+                <div key={p.key} className={styles.mobileRow}>
                 <PermCheck
-                  key={p.key}
                   text={p.label}
                   hint={hintOf(p)}
                   warning={looseWarning(mRole, p)}
@@ -361,6 +432,10 @@ function PermissoesBody() {
                   disabled={CEO_ONLY.includes(p.key) || saving}
                   onToggle={() => togglePerm(mRole, p.key)}
                 />
+                <HelpButton label={p.label} onClick={() => showPermHelp(p)} />
+                </div>
+              ))}
+              </Fragment>
               ))}
             </section>
           ))}
@@ -383,7 +458,7 @@ function PermissoesBody() {
                 </tr>
               </thead>
               <tbody>
-                {roles.map((t) => (
+                {targets.map((t) => (
                   <tr key={t}>
                     <th scope="row" className={styles.permCell}><span className={styles.permLabel}>{roleLabel(t)}</span></th>
                     {roles.map((r) => (
@@ -404,7 +479,7 @@ function PermissoesBody() {
           </div>
         ) : (
           <div className={styles.mobileCat}>
-            {roles.map((t) => (
+            {targets.map((t) => (
               <PermCheck
                 key={t}
                 text={roleLabel(t)}
@@ -426,6 +501,10 @@ function PermissoesBody() {
           {n === 0 ? 'Salvar' : `Salvar ${n} ${n === 1 ? 'papel' : 'papéis'}`}
         </Button>
       </div>
+
+      <AdminSheet open={help !== null} title={help?.title ?? ''} onClose={() => setHelp(null)} secondaryLabel="Fechar">
+        {help?.text.map((t) => <p key={t} className={blocks.muted}>{t}</p>)}
+      </AdminSheet>
 
       <AdminSheet
         open={resetRole !== null}

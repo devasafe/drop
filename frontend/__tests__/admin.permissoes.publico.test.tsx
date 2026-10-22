@@ -71,7 +71,8 @@ describe('o que cada caixinha libera', () => {
     expect(screen.getByText('Abre: Dinheiro · Carteiras (motoboys)')).toBeInTheDocument();
     expect(screen.getByText('Ação em: Lojas · precisa de Ver todas as lojas')).toBeInTheDocument();
     expect(screen.getByText('Ação em: Usuários (motoboys) · precisa de Ver motoboys ou Ver todos os usuários')).toBeInTheDocument();
-    expect(screen.getByText('Uso no app (fora do painel)')).toBeInTheDocument();
+    // Parte 2 (22/10): as chaves de uso no app saíram da tela (admin.permissoes.parte2.test.tsx).
+    expect(screen.queryByText('Uso no app (fora do painel)')).toBeNull();
   });
 
   it('caixinha de ação sem a chave que abre a tela: "Sozinha não aparece no painel"; some ao marcar a que abre', async () => {
@@ -118,7 +119,8 @@ describe('prévia do menu deste papel', () => {
   it('papel sem nenhuma tela: "Nada no painel"', async () => {
     renderAdminPage(<AdminPermissoes />);
     await screen.findByRole('table', { name: 'Permissões por papel' });
-    fireEvent.change(within(preview()).getByLabelText('Papel da prévia'), { target: { value: 'cliente' } });
+    // Parte 2 (22/10): Cliente saiu da tela; um papel da equipe sem nenhuma caixinha.
+    fireEvent.change(within(preview()).getByLabelText('Papel da prévia'), { target: { value: 'gerente_clientes' } });
     expect(within(preview()).getByText('Nada no painel')).toBeInTheDocument();
   });
 });
