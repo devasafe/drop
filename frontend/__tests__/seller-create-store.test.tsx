@@ -20,6 +20,12 @@ jest.mock('../components/MapPicker', () => ({
   },
 }));
 jest.mock('next/dynamic', () => () => require('../components/MapPicker').default);
+const mockPanelRefresh = jest.fn(() => Promise.resolve());
+// O painel da loja (/seller/*) é montado uma vez no _app; aqui ele está 'dentro do painel'.
+jest.mock('../components/seller/panel/SellerPanelProvider', () => ({
+  ...jest.requireActual('../components/seller/panel/SellerPanelProvider'),
+  useSellerPanel: () => ({ inPanel: true, refresh: mockPanelRefresh }),
+}));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(), put: jest.fn() } }));
 
 const notFound = () => Promise.reject(Object.assign(new Error('404'), { response: { status: 404 } }));
@@ -115,4 +121,34 @@ test('com a loja já criada, não abre o cadastro de novo: volta ao checklist na
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/seller/abrir?etapa=loja'));
   expect(screen.queryByLabelText('Nome da loja')).not.toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
+});
+
+// fix/criar-loja-painel: o painel lia /stores/dashboard uma vez (sem loja) e não era relido depois de
+// criar. O checklist abria o cadastro de novo e a 2ª tentativa dava "User already has a store".
+async function criarLojaDireto() {
+  mockMode = 'direto';
+  render(<CreateStore />);
+  await screen.findByLabelText('Nome da loja');
+  set('Nome da loja', 'Teste');
+  set('CEP', '01305100');
+  set('Número', '41');
+  await screen.findByText('Rua Augusta · Consolação · São Paulo/SP');
+  fireEvent.click(screen.getByRole('button', { name: 'Criar a loja' }));
+}
+
+test('depois de criar, relê o painel ANTES de voltar ao checklist', async () => {
+  const ordem: string[] = [];
+  mockPanelRefresh.mockImplementation(() => { ordem.push('refresh'); return Promise.resolve(); });
+  mockPush.mockImplementation((url: string) => { ordem.push(`push ${url}`); });
+  await criarLojaDireto();
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/seller/abrir'));
+  expect(ordem).toEqual(['refresh', 'push /seller/abrir']);
+});
+
+test('loja já existe (409 STORE_EXISTS): conta como etapa feita, sem erro na tela', async () => {
+  (api.post as jest.Mock).mockRejectedValue({ response: { status: 409, data: { error: 'Você já tem uma loja.', code: 'STORE_EXISTS' } } });
+  await criarLojaDireto();
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/seller/abrir'));
+  expect(mockPanelRefresh).toHaveBeenCalled();
+  expect(screen.queryByText('Você já tem uma loja.')).toBeNull();
 });

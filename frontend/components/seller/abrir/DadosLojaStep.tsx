@@ -130,6 +130,8 @@ export function DadosLojaStep({ store, cnpjRequired, onDone }: Props) {
         onDone();
       }
     } catch (err: any) {
+      // A loja já existe (a tela estava com a leitura velha): a etapa está feita, segue em frente.
+      if (!editing && err?.response?.data?.code === 'STORE_EXISTS') { onDone(); return; }
       setError(err?.response?.data?.error || (editing ? 'Não foi possível salvar os dados da loja.' : 'Não foi possível criar a loja.'));
     } finally {
       setBusy(false);

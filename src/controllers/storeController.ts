@@ -299,7 +299,8 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
     if (!name) return res.status(400).json({ error: 'Missing name' });
     // Prevent creating more than one store per user
     const existing = await prisma.store.findFirst({ where: { ownerId } });
-    if (existing) return res.status(400).json({ error: 'User already has a store' });
+    // 409 com code: a tela que tentou criar de novo (leitura velha) trata como etapa já feita.
+    if (existing) return res.status(409).json({ error: 'Você já tem uma loja.', code: 'STORE_EXISTS' });
 
     // ✅ CNPJ único entre lojas
     const { onlyDigits } = require('../utils/documentValidation');

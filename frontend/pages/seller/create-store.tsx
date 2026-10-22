@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
+import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvider';
 import { DadosLojaStep } from '../../components/seller/abrir/DadosLojaStep';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -18,6 +19,7 @@ type State = 'loading' | 'new' | 'exists' | 'error';
 export default function CreateStore() {
   const router = useRouter();
   const { settlementMode } = useSaasConfig();
+  const panel = useSellerPanel();
   const [state, setState] = useState<State>('loading');
 
   const check = () => {
@@ -29,9 +31,17 @@ export default function CreateStore() {
   useEffect(check, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (state === 'exists') router.replace('/seller/abrir?etapa=loja'); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // O painel (/seller/*) leu /stores/dashboard ao entrar, ainda sem loja. Relê antes de voltar ao
+  // checklist, que lê a loja de lá: sem isso a etapa "Criar loja" reaparecia como pendente.
+  const created = () => {
+    const go = () => router.push('/seller/abrir');
+    if (panel.inPanel && panel.refresh) panel.refresh().then(go, go);
+    else go();
+  };
+
   let content: JSX.Element;
   if (state === 'new') {
-    content = <DadosLojaStep cnpjRequired={settlementMode !== 'direto'} onDone={() => router.push('/seller/abrir')} />;
+    content = <DadosLojaStep cnpjRequired={settlementMode !== 'direto'} onDone={created} />;
   } else if (state === 'error') {
     content = <EmptyState variant="error" icon={<Store />} title="Não carregamos o seu cadastro" onRetry={check} />;
   } else {
