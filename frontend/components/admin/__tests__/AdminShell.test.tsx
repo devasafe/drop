@@ -106,14 +106,16 @@ describe('AdminShell · menu', () => {
     expect(mockSaas.retry).toHaveBeenCalledTimes(1);
   });
 
-  it('gerente de motoboys: só Verificações, com o contador; rodapé com nome e papel', () => {
+  // Permissões por público (22/10): a regra mudou de propósito; user:view_motoboys passou a abrir Usuários.
+  it('gerente de motoboys: Verificações, com o contador, e Usuários; rodapé com nome e papel', () => {
     mockUser = GERENTE_MOTOBOYS;
     mockPerms = ['notification:create', 'user:view_motoboys', 'verification:view_queue', 'verification:review_motoboys'];
     mockPath = '/admin/verificacoes';
     mockAsPath = '/admin/verificacoes';
     mockBadges = { verifications: 3, storeOrders: 0, deliveries: 0 };
     renderShell();
-    expect(links()).toHaveLength(1);
+    expect(links()).toHaveLength(2);
+    expect(within(menu()).getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/users');
     const v = within(menu()).getByRole('link', { name: /Verificações/ });
     expect(v).toHaveAttribute('aria-current', 'page');
     expect(within(v).getByText('3')).toBeInTheDocument();

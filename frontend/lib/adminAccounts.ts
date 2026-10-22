@@ -469,6 +469,17 @@ export const USER_TABS: { id: UserTab; label: string }[] = [
   { id: 'bloqueados', label: 'Bloqueados' },
 ];
 
+/**
+ * Abas de Usuários que a conta abre (22/10): todas com user:view_all; por público, só as do público, com "Todos"
+ * na frente quando há mais de uma. Equipe, Lojistas e Bloqueados ficam com a chave "de tudo" (o servidor confere).
+ */
+export function userTabsFor(can: (p: string) => boolean): { id: UserTab; label: string }[] {
+  if (can('user:view_all')) return USER_TABS;
+  const own = USER_TABS.filter((t) =>
+    (t.id === 'cliente' && can('user:view_clients')) || (t.id === 'motoboy' && can('user:view_motoboys')));
+  return own.length > 1 ? [USER_TABS[0], ...own] : own;
+}
+
 export const STORE_FILTERS: { key: StoreFilter; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'admin_paused', label: 'Pausadas pelo DROP' },

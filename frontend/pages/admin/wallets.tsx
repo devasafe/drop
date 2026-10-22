@@ -59,6 +59,10 @@ const ROLE_OPTIONS = [
   { value: 'motoboy', label: 'Motoboys' },
   { value: 'ceo', label: 'CEOs' },
 ];
+/** Por público (22/10): o filtro oferece só os tipos das chaves da conta; o servidor já manda só esses. */
+const ROLE_PERMISSION: Record<string, string> = {
+  cliente: 'wallet:view_clients', lojista: 'wallet:view_stores', motoboy: 'wallet:view_motoboys', ceo: 'wallet:view_all',
+};
 const ROLE_LABEL: Record<string, string> = { cliente: 'Cliente', lojista: 'Loja', motoboy: 'Motoboy', ceo: 'CEO' };
 const HIDDEN = '••••';
 
@@ -192,6 +196,7 @@ export default function AdminWalletsPage() {
     await loadTransactions({ ...target, balance: adjustment.balanceAfter });
   };
 
+  const roleOptions = ROLE_OPTIONS.filter((o) => o.value === 'all' || can('wallet:view_all') || can(ROLE_PERMISSION[o.value]));
   const term = search.trim().toLowerCase();
   const visible = wallets === null ? null : wallets.filter((w) => {
     const matchRole = role === 'all' || w.userRole === role;
@@ -262,7 +267,7 @@ export default function AdminWalletsPage() {
   ];
 
   return (
-    <ProtectedRoute required_permission="wallet:view_all">
+    <ProtectedRoute required_permission={['wallet:view_all', 'wallet:view_clients', 'wallet:view_stores', 'wallet:view_motoboys']}>
       <AdminShell title="Dinheiro · Carteiras" tabs="dinheiro">
         <div className={ui.stack}>
           <p className={blocks.muted}>
@@ -281,7 +286,7 @@ export default function AdminWalletsPage() {
             <section className={blocks.block} aria-label="Carteiras">
               <div className={ui.toolbar}>
                 <Input label="Buscar" value={search} onChange={setSearch} placeholder="Nome ou e-mail" />
-                <Select label="Papel" value={role} onChange={setRole} options={ROLE_OPTIONS} />
+                <Select label="Papel" value={role} onChange={setRole} options={roleOptions} />
               </div>
               <AdminTable
                 columns={columns}

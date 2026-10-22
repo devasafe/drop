@@ -64,7 +64,8 @@ beforeEach(() => {
 it('lê todos os papéis numa chamada só', async () => {
   renderAdminPage(<AdminPermissoes />);
   await screen.findAllByRole('checkbox');
-  expect(api.get).toHaveBeenCalledTimes(1);
+  // 22/10: a prévia do menu também lê o modo da plataforma (/settings/saas); os papéis continuam numa chamada só.
+  expect((api.get as jest.Mock).mock.calls.filter((c) => c[0] === '/role-permissions')).toHaveLength(1);
   expect(api.get).toHaveBeenCalledWith('/role-permissions');
 });
 

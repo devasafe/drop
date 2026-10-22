@@ -65,10 +65,15 @@ const itemsWord = (n: number) => (n === 1 ? '1 item' : `${n} itens`);
 const approvedText = (n: number) => (n === 1 ? '1 item aprovado' : `${n} itens aprovados`);
 const domId = (key: string) => `verif-${key.replace(/[^a-z0-9]/gi, '-')}`;
 
-/** Verificações (D3a, telas 2 e 9). Mesma proteção de hoje: verification:view_queue. */
+/**
+ * Verificações (D3a, telas 2 e 9). Abre com verification:view_queue ou com qualquer review_* (22/10): quem só tem
+ * um review_* vê só a fila do seu tipo, porque as filas já são lidas pelo can de cada tipo.
+ */
 export default function AdminVerificacoesPage() {
   return (
-    <ProtectedRoute required_permission="verification:view_queue">
+    <ProtectedRoute
+      required_permission={['verification:view_queue', 'verification:review_clients', 'verification:review_stores', 'verification:review_motoboys']}
+    >
       <AdminShell title="Verificações">
         <VerificacoesScreen />
       </AdminShell>

@@ -1,5 +1,6 @@
 /**
- * Usuários (D3b-2a, spec 6 e 7). Permissão user:view_all (a mesma de antes).
+ * Usuários (D3b-2a, spec 6 e 7). Permissão user:view_all, ou as por público (22/10): user:view_clients e
+ * user:view_motoboys mostram só as abas do público (o servidor recusa o resto com 403 AUDIENCE_FORBIDDEN).
  * GET /admin/users?q=&tab=&withDebt=1&cursor= → lista paginada do servidor, 30 por página, "Carregar mais".
  * Busca no servidor 300 ms depois da última tecla: nome ou e-mail em parte, CPF e telefone completos (com ou sem
  * máscara; quem tira a máscara é o servidor). Abas e "Com dívida" também vão na query.
@@ -20,14 +21,14 @@ import { SearchField } from '../../components/ui/SearchField';
 import { Tabs, tabPanelProps } from '../../components/ui/Tabs';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  SEARCH_DEBOUNCE_MS, USER_STATUS, USER_TABS, VERIFICATION_TAG, accountErrorMessage, fetchUsers, lastSeenLabel,
-  rolesText, type UserListItem, type UserTab,
+  SEARCH_DEBOUNCE_MS, USER_STATUS, VERIFICATION_TAG, accountErrorMessage, fetchUsers, lastSeenLabel,
+  rolesText, userTabsFor, type UserListItem, type UserTab,
 } from '../../lib/adminAccounts';
 import { formatMoney } from '../../lib/money';
 
 export default function AdminUsersPage() {
   return (
-    <ProtectedRoute required_permission="user:view_all">
+    <ProtectedRoute required_permission={['user:view_all', 'user:view_clients', 'user:view_motoboys']}>
       <AdminShell title="Usuários">
         <UsuariosScreen />
       </AdminShell>
@@ -36,12 +37,13 @@ export default function AdminUsersPage() {
 }
 
 function UsuariosScreen() {
-  const { user: me } = useAuth();
+  const { user: me, can } = useAuth();
   const myId = String(me?._id || me?.id || '');
+  const tabs = userTabsFor(can);
 
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
-  const [tab, setTab] = useState<UserTab>('all');
+  const [tab, setTab] = useState<UserTab>(() => tabs[0]?.id ?? 'all');
   const [withDebt, setWithDebt] = useState(false);
   const [rows, setRows] = useState<UserListItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -158,7 +160,7 @@ function UsuariosScreen() {
       <p className={blocks.muted}>Nome e e-mail podem ser em parte; CPF e telefone, completos.</p>
 
       <div className={ui.tabs}>
-        <Tabs label="Filtrar usuários" items={USER_TABS} value={tab} onChange={(id) => setTab(id as UserTab)} idPrefix="usuarios" />
+        <Tabs label="Filtrar usuários" items={tabs} value={tab} onChange={(id) => setTab(id as UserTab)} idPrefix="usuarios" />
       </div>
 
       <div {...tabPanelProps(tab, 'usuarios')}>

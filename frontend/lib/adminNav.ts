@@ -56,6 +56,17 @@ export interface AdminNavContext {
   custodyOpen: boolean;
 }
 
+/**
+ * Permissões por público (22/10): as chaves "de tudo" e as por público abrem a mesma tela; a tela e o servidor
+ * filtram pelo público da chave (src/services/permissions/catalog.ts).
+ */
+export const USER_VIEW_PERMISSIONS = ['user:view_all', 'user:view_clients', 'user:view_motoboys'];
+export const WALLET_VIEW_PERMISSIONS = ['wallet:view_all', 'wallet:view_clients', 'wallet:view_stores', 'wallet:view_motoboys'];
+/** Cada review_* abre Verificações só com a fila do seu tipo (a tela lê as filas pelo can de cada tipo). */
+export const VERIFICATION_VIEW_PERMISSIONS = [
+  'verification:view_queue', 'verification:review_clients', 'verification:review_stores', 'verification:review_motoboys',
+];
+
 export const ADMIN_GROUPS: AdminGroup[] = ['Operação', 'Pessoas', 'Dinheiro', 'Comunicação', 'Configuração'];
 
 export const ADMIN_AREAS: AdminArea[] = [
@@ -82,11 +93,11 @@ export const ADMIN_AREAS: AdminArea[] = [
   },
   {
     key: 'verificacoes', group: 'Pessoas', label: 'Verificações', icon: 'shield', badge: 'verifications',
-    tabs: [{ key: 'verificacoes', label: 'Verificações', href: '/admin/verificacoes', permission: 'verification:view_queue' }],
+    tabs: [{ key: 'verificacoes', label: 'Verificações', href: '/admin/verificacoes', permission: VERIFICATION_VIEW_PERMISSIONS }],
   },
   {
     key: 'usuarios', group: 'Pessoas', label: 'Usuários', icon: 'users',
-    tabs: [{ key: 'usuarios', label: 'Usuários', href: '/admin/users', permission: 'user:view_all' }],
+    tabs: [{ key: 'usuarios', label: 'Usuários', href: '/admin/users', permission: USER_VIEW_PERMISSIONS }],
   },
   {
     key: 'lojas', group: 'Pessoas', label: 'Lojas', icon: 'store',
@@ -105,7 +116,7 @@ export const ADMIN_AREAS: AdminArea[] = [
       { key: 'repasses', label: 'Repasses', href: '/admin/payouts', permission: 'payout:view', custodyOnly: true, whileCustodyOpen: true },
       { key: 'saques', label: 'Saques', href: '/admin/withdrawals', permission: 'withdrawal:view', custodyOnly: true, whileCustodyOpen: true },
       { key: 'estornos', label: 'Estornos', href: '/admin/estornos', permission: 'payout:view', directOnly: true },
-      { key: 'carteiras', label: 'Carteiras', href: '/admin/wallets', permission: 'wallet:view_all', custodyOnly: true },
+      { key: 'carteiras', label: 'Carteiras', href: '/admin/wallets', permission: WALLET_VIEW_PERMISSIONS, custodyOnly: true },
       { key: 'caixa', label: 'Caixa', href: '/admin/app-cashbox', permission: 'cashbox:view', custodyOnly: true },
       { key: 'pix', label: 'Pix aos motoboys', href: '/admin/transfers', permission: 'payout:view', directOnly: true },
       { key: 'historico', label: 'Histórico', href: '/admin/dinheiro/historico', permission: 'money:overview' },
@@ -122,7 +133,8 @@ export const ADMIN_AREAS: AdminArea[] = [
     key: 'comunicacao', group: 'Comunicação', label: 'Avisos e broadcasts', icon: 'megaphone',
     tabs: [
       { key: 'broadcasts', label: 'Broadcasts', href: '/admin/broadcasts', permission: 'broadcast:send' },
-      { key: 'avisos', label: 'Avisos da home', href: '/admin/avisos', ceoOnly: true },
+      // 22/10: os banners da home abrem com banner:manage (o servidor também confere).
+      { key: 'avisos', label: 'Avisos da home', href: '/admin/avisos', permission: 'banner:manage' },
       { key: 'cupons', label: 'Cupons', href: '/admin/coupons', ceoOnly: true },
     ],
   },

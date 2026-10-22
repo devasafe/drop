@@ -36,7 +36,7 @@ import { formatMoney } from '../../../lib/money';
 
 export default function AdminUserFichaPage() {
   return (
-    <ProtectedRoute required_permission="user:view_all">
+    <ProtectedRoute required_permission={['user:view_all', 'user:view_clients', 'user:view_motoboys']}>
       <FichaPessoa />
     </ProtectedRoute>
   );

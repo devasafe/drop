@@ -10,7 +10,9 @@ import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { ADMIN_DESKTOP_MIN, useMinWidth } from '../../hooks/useMinWidth';
-import { adminRoleLabel } from '../../lib/adminNav';
+import { ADMIN_AREAS, adminRoleLabel, visibleAdminAreas } from '../../lib/adminNav';
+import { useSaasConfig } from '../../hooks/useSaasConfig';
+import { useAdminCustodyOpen } from '../../hooks/useAdminCustodyOpen';
 import { adminErrorMessage } from '../../lib/adminErrors';
 import { batchSummaryText, runBatch } from '../../lib/runBatch';
 import blocks from '../../components/admin/AdminBlocks.module.css';
@@ -19,10 +21,22 @@ import styles from '../../components/admin/permissoes/Permissoes.module.css';
 /**
  * Permissões (D3a, tela 24; só o CEO). Matriz papéis × permissões sobre os endpoints de sempre:
  * GET /role-permissions, PUT /role-permissions/:role (um por papel alterado, em sequência) e
- * DELETE /role-permissions/:role (restaurar padrão). Nada novo no servidor.
+ * DELETE /role-permissions/:role (restaurar padrão).
+ * 22/10: cada caixinha diz o que libera (o catálogo vem em `allPermissions`: kind, area, tab, audience, requires), a
+ * caixinha de ação sem a chave que abre a tela avisa, e a prévia do menu do papel usa a função do menu.
  */
 
-interface PermissionDef { key: string; label: string; category: string }
+interface PermissionDef {
+  key: string;
+  label: string;
+  category: string;
+  /** opens = abre um item do menu; action = ação numa tela (precisa de `requires`); app = uso no app. */
+  kind?: 'opens' | 'action' | 'app';
+  area?: string;
+  tab?: string;
+  audience?: string;
+  requires?: string[];
+}
 interface RoleData { role: string; permissions: string[]; notificationTargets: string[]; isCustom: boolean }
 interface ListResponse { roles: RoleData[]; allPermissions: PermissionDef[]; allRoles: string[] }
 interface RoleDraft { permissions: string[]; notificationTargets: string[] }
@@ -34,6 +48,24 @@ const NOTIFY_PERMS = ['notification:create', 'broadcast:send'];
 const EXTRA_LABELS: Record<string, string> = { lojista: 'Lojista', cliente: 'Cliente', motoboy: 'Motoboy' };
 const roleLabel = (role: string) => EXTRA_LABELS[role] ?? adminRoleLabel(role);
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+const LOOSE_ACTION = 'Sozinha não aparece no painel';
+
+/** "Usuários", "Lojas · Todas as lojas": a aba só entra quando a área tem mais de uma (como o título da tela). */
+function screenLabel(areaKey?: string, tabKey?: string): string {
+  const area = ADMIN_AREAS.find((a) => a.key === areaKey);
+  if (!area) return areaKey ?? '';
+  const tab = tabKey ? area.tabs.find((t) => t.key === tabKey) : undefined;
+  return tab && area.tabs.length > 1 ? `${area.label} · ${tab.label}` : area.label;
+}
+
+/** O que a caixinha libera: "Abre: …", "Ação em: … · precisa de …" ou "Uso no app (fora do painel)". */
+function permissionHint(p: PermissionDef, labelOf: (key: string) => string): string | null {
+  const where = `${screenLabel(p.area, p.tab)}${p.audience ? ` (${p.audience})` : ''}`;
+  if (p.kind === 'opens') return `Abre: ${where}`;
+  if (p.kind === 'action') return `Ação em: ${where} · precisa de ${(p.requires ?? []).map(labelOf).join(' ou ')}`;
+  if (p.kind === 'app') return 'Uso no app (fora do painel)';
+  return null;
+}
 
 export default function AdminPermissoes() {
   useRequireAuth(['ceo']);
@@ -46,15 +78,58 @@ export default function AdminPermissoes() {
   );
 }
 
-function PermCheck({ label, text, checked, changed, disabled, onToggle }: {
-  label: string; text?: string; checked: boolean; changed: boolean; disabled?: boolean; onToggle: () => void;
+function PermCheck({ label, text, hint, warning, checked, changed, disabled, onToggle }: {
+  label: string; text?: string; hint?: string | null; warning?: string | null; checked: boolean; changed: boolean;
+  disabled?: boolean; onToggle: () => void;
 }) {
   return (
-    <label className={[styles.check, changed && styles.changed, disabled && styles.locked].filter(Boolean).join(' ')}>
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={onToggle} aria-label={label} />
-      {text && <span className={styles.checkText}>{text}</span>}
-      {changed && <span className={styles.changedTag}>alterado</span>}
-    </label>
+    <span className={styles.checkWrap}>
+      <label className={[styles.check, changed && styles.changed, disabled && styles.locked].filter(Boolean).join(' ')}>
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={onToggle} aria-label={label} />
+        {text && (
+          <span className={styles.checkText}>
+            {text}
+            {hint && <span className={styles.permHint}>{hint}</span>}
+          </span>
+        )}
+        {changed && <span className={styles.changedTag}>alterado</span>}
+      </label>
+      {warning && <span className={styles.looseWarn}>{warning}</span>}
+    </span>
+  );
+}
+
+/**
+ * Prévia do menu do papel: a mesma função do menu (visibleAdminAreas), com as permissões ainda não salvas e o modo
+ * da plataforma de agora. Assim uma caixinha marcada sem querer (ex.: Tema sazonal) aparece antes de salvar.
+ */
+function MenuPreview({ roles, role, onRole, permissions }: {
+  roles: string[]; role: string; onRole: (r: string) => void; permissions: string[];
+}) {
+  const saas = useSaasConfig();
+  const custodyOpen = useAdminCustodyOpen();
+  const settlementMode = saas.loading || saas.error ? null : saas.settlementMode;
+  const can = (p: string) => permissions.includes('*') || permissions.includes(p);
+  const items = visibleAdminAreas({ can, isCeo: false, settlementMode, custodyOpen }).flatMap((area) => {
+    const total = ADMIN_AREAS.find((a) => a.key === area.key)?.tabs.length ?? 1;
+    return area.tabs.map((t) => ({ key: `${area.key}/${t.key}`, text: total > 1 ? `${area.label} · ${t.label}` : area.label }));
+  });
+  return (
+    <section className={blocks.block} aria-labelledby="perm-preview-title">
+      <h2 id="perm-preview-title" className={blocks.blockTitle}>Prévia do menu deste papel</h2>
+      <Select label="Papel da prévia" value={role} onChange={onRole} options={roles.map((r) => ({ value: r, label: roleLabel(r) }))} />
+      <p className={blocks.muted}>O que a pessoa com este papel vai ver no painel, contando as mudanças ainda não salvas.</p>
+      {settlementMode === null && (
+        <p className={blocks.muted}>O modo da plataforma não carregou: as abas presas ao modo ficam de fora da prévia.</p>
+      )}
+      {items.length === 0 ? (
+        <p className={blocks.muted}>Nada no painel</p>
+      ) : (
+        <ul className={styles.previewList}>
+          {items.map((i) => <li key={i.key}>{i.text}</li>)}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -68,6 +143,7 @@ function PermissoesBody() {
   const [failures, setFailures] = useState<Record<string, string>>({});
   const [resetRole, setResetRole] = useState<string | null>(null);
   const [mobileRole, setMobileRole] = useState('marketing');
+  const [previewRole, setPreviewRole] = useState('marketing');
   const alive = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -125,6 +201,15 @@ function PermissoesBody() {
   const targetChanged = (role: string, t: string) =>
     saved(role).notificationTargets.includes(t) !== current(role).notificationTargets.includes(t);
   const mRole = roles.includes(mobileRole) ? mobileRole : roles[0];
+  const pRole = roles.includes(previewRole) ? previewRole : roles[0];
+  const labelOf = (key: string) => data.allPermissions.find((p) => p.key === key)?.label ?? key;
+  const hintOf = (p: PermissionDef) => permissionHint(p, labelOf);
+  /** Ação marcada sem nenhuma das chaves que abrem a tela dela. */
+  const looseWarning = (role: string, p: PermissionDef) => {
+    const perms = current(role).permissions;
+    return p.kind === 'action' && perms.includes(p.key) && !(p.requires ?? []).some((r) => perms.includes(r)) ? LOOSE_ACTION : null;
+  };
+  const chooseMobileRole = (r: string) => { setMobileRole(r); setPreviewRole(r); };
 
   const togglePerm = (role: string, key: string) => {
     const base = current(role);
@@ -132,6 +217,7 @@ function PermissoesBody() {
       ? base.permissions.filter((p) => p !== key)
       : [...base.permissions, key];
     setDraft((prev) => ({ ...prev, [role]: { ...base, permissions } }));
+    setPreviewRole(role);
   };
 
   const toggleTarget = (role: string, target: string) => {
@@ -233,6 +319,7 @@ function PermissoesBody() {
                     <tr key={p.key}>
                       <th scope="row" className={styles.permCell}>
                         <span className={styles.permLabel}>{p.label}</span>
+                        {hintOf(p) && <span className={styles.permHint}>{hintOf(p)}</span>}
                       </th>
                       {roles.map((r) => (
                         <td key={r} className={styles.cell}>
@@ -240,6 +327,7 @@ function PermissoesBody() {
                             label={`${p.label} · ${roleLabel(r)}`}
                             checked={current(r).permissions.includes(p.key)}
                             changed={permChanged(r, p.key)}
+                            warning={looseWarning(r, p)}
                             disabled={CEO_ONLY.includes(p.key) || saving}
                             onToggle={() => togglePerm(r, p.key)}
                           />
@@ -255,7 +343,7 @@ function PermissoesBody() {
       ) : (
         <div className={`${blocks.block} ${styles.mobileList}`}>
           <div className={styles.mobileHead}>
-            <Select label="Papel" value={mRole} onChange={setMobileRole} options={roles.map((r) => ({ value: r, label: roleLabel(r) }))} />
+            <Select label="Papel" value={mRole} onChange={chooseMobileRole} options={roles.map((r) => ({ value: r, label: roleLabel(r) }))} />
             {resetButton(mRole)}
           </div>
           {categories.map((cat) => (
@@ -265,6 +353,8 @@ function PermissoesBody() {
                 <PermCheck
                   key={p.key}
                   text={p.label}
+                  hint={hintOf(p)}
+                  warning={looseWarning(mRole, p)}
                   label={`${p.label} · ${roleLabel(mRole)}`}
                   checked={current(mRole).permissions.includes(p.key)}
                   changed={permChanged(mRole, p.key)}
@@ -276,6 +366,8 @@ function PermissoesBody() {
           ))}
         </div>
       )}
+
+      <MenuPreview roles={roles} role={pRole} onRole={setPreviewRole} permissions={current(pRole).permissions} />
 
       <section className={blocks.block} aria-labelledby="perm-notify-title">
         <h2 id="perm-notify-title" className={blocks.blockTitle}>Pode enviar avisos para</h2>

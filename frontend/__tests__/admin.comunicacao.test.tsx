@@ -147,10 +147,19 @@ describe('Broadcasts', () => {
 });
 
 describe('Avisos da home', () => {
-  it('só o CEO abre (como hoje): outro papel, mesmo com "*", sai e nada é lido', async () => {
-    renderAdminPage(<AdminAvisos />, adminAuth('gerente_geral', ['*']));
+  // Permissões por público (22/10): a regra mudou de propósito. Avisos da home deixou de ser só do CEO e abre com
+  // banner:manage (o servidor confere a mesma chave em /banners/*).
+  it('sem banner:manage, sai e nada é lido', async () => {
+    renderAdminPage(<AdminAvisos />, adminAuth('gerente_geral', ['theme:edit']));
     await waitFor(() => expect(mockRouter.push).toHaveBeenCalled());
     expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it('com banner:manage, abre e lê os avisos', async () => {
+    renderAdminPage(<AdminAvisos />, adminAuth('marketing', ['banner:manage']));
+    expect(await screen.findByText('1º · ativo')).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith('/banners/all');
+    expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
   it('cartões na ordem do carrossel, com situação e interruptor', async () => {

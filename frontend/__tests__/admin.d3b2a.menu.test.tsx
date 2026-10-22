@@ -62,7 +62,13 @@ describe('menu (spec 7)', () => {
     expect(hrefs.some((h) => h.startsWith('/admin/lojas/') || h.startsWith('/admin/users/'))).toBe(false);
     expect(read('pages/admin/lojas.tsx')).toMatch(/required_permission="store:view_all"/);
     expect(read('pages/admin/lojas/[id].tsx')).toMatch(/required_permission="store:view_all"/);
-    expect(read('pages/admin/users/[id].tsx')).toMatch(/required_permission="user:view_all"/);
+    // 22/10: a ficha abre com a mesma lista da página Usuários (user:view_all ou as chaves por público).
+    expect(read('pages/admin/users/[id].tsx')).toMatch(
+      /required_permission=\{\['user:view_all', 'user:view_clients', 'user:view_motoboys'\]\}/,
+    );
+    expect(read('pages/admin/users.tsx')).toMatch(
+      /required_permission=\{\['user:view_all', 'user:view_clients', 'user:view_motoboys'\]\}/,
+    );
   });
 
   it('as três páginas novas estão na lista clara do admin', () => {

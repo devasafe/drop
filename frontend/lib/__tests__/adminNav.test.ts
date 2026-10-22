@@ -121,8 +121,10 @@ describe('menu por papel e por modo (permissões padrão)', () => {
     }
   });
 
-  it.each(['custodia', 'direto'] as const)('marketing (%s): só Tema sazonal', (mode) => {
-    expect(menu('marketing', mode)).toEqual({ tema: ['tema'] });
+  // Permissões por público (22/10): a regra mudou de propósito; cada caixinha por público abre a tela dela
+  // (user:view_* → Usuários, wallet:view_* → Carteiras) e banner:manage abre Avisos da home.
+  it.each(['custodia', 'direto'] as const)('marketing (%s): Avisos da home (banner:manage) e Tema sazonal', (mode) => {
+    expect(menu('marketing', mode)).toEqual({ comunicacao: ['avisos'], tema: ['tema'] });
   });
 
   it('gerente geral na custódia: Números (sem Análises), Verificações, Usuários, Lojas e Dinheiro · Carteiras', () => {
@@ -139,15 +141,22 @@ describe('menu por papel e por modo (permissões padrão)', () => {
     }
   });
 
-  it.each([
-    ['gerente_clientes', 'custodia'], ['gerente_clientes', 'direto'],
-    ['gerente_motoboys', 'custodia'], ['gerente_motoboys', 'direto'],
-  ] as const)('%s (%s): só Verificações', (role, mode) => {
-    expect(menu(role, mode)).toEqual({ verificacoes: ['verificacoes'] });
+  // Permissões por público (22/10): a regra mudou de propósito; cada caixinha por público abre a tela dela
+  // (user:view_* → Usuários, wallet:view_* → Carteiras) e banner:manage abre Avisos da home.
+  it.each(['gerente_clientes', 'gerente_motoboys'])('%s na custódia: Verificações, Usuários e Dinheiro · Carteiras', (role) => {
+    expect(menu(role, 'custodia')).toEqual({ verificacoes: ['verificacoes'], usuarios: ['usuarios'], dinheiro: ['carteiras'] });
   });
 
-  it.each(['custodia', 'direto'] as const)('gerente_lojistas (%s): Verificações e a lista de Lojas (store:view_all)', (mode) => {
-    expect(menu('gerente_lojistas', mode)).toEqual({ verificacoes: ['verificacoes'], lojas: ['lojas'] });
+  it.each(['gerente_clientes', 'gerente_motoboys'])('%s no direto: Carteiras some (custodyOnly), Usuários fica', (role) => {
+    expect(menu(role, 'direto')).toEqual({ verificacoes: ['verificacoes'], usuarios: ['usuarios'] });
+  });
+
+  it('gerente_lojistas na custódia: Verificações, Lojas e Dinheiro · Carteiras (wallet:view_stores)', () => {
+    expect(menu('gerente_lojistas', 'custodia')).toEqual({ verificacoes: ['verificacoes'], lojas: ['lojas'], dinheiro: ['carteiras'] });
+  });
+
+  it('gerente_lojistas no direto: Verificações e a lista de Lojas (store:view_all)', () => {
+    expect(menu('gerente_lojistas', 'direto')).toEqual({ verificacoes: ['verificacoes'], lojas: ['lojas'] });
   });
 
   it('papel sem nenhuma permissão: menu vazio', () => {
@@ -159,8 +168,9 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
   const extra = [...DEFAULT_PERMISSIONS.gerente_lojistas, 'plan:view', 'payout:view', 'withdrawal:view', 'support:attend'];
 
   it('custódia: ganha Planos, Repasses, Saques e Atendimento', () => {
+    // 22/10: Carteiras já vinha de wallet:view_stores (padrão do gerente de lojistas).
     expect(menu('gerente_lojistas', 'custodia', false, extra)).toEqual({
-      verificacoes: ['verificacoes'], lojas: ['lojas', 'planos'], dinheiro: ['repasses', 'saques'], suporte: ['atendimento'],
+      verificacoes: ['verificacoes'], lojas: ['lojas', 'planos'], dinheiro: ['repasses', 'saques', 'carteiras'], suporte: ['atendimento'],
     });
   });
 
@@ -177,7 +187,8 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
   it("'*' libera toda permissão delegável, mas nunca o que é só do CEO", () => {
     const m = menu('marketing', 'custodia', false, ['*']);
     expect(m.permissoes).toBeUndefined();
-    expect(m.comunicacao).toEqual(['broadcasts']);
+    // 22/10: Avisos da home deixou de ser só do CEO (banner:manage, delegável); Cupons continua.
+    expect(m.comunicacao).toEqual(['broadcasts', 'avisos']);
     expect(m.dinheiro).toEqual(['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico']);
     expect(menu('marketing', 'direto', false, ['*']).lojas).toEqual(['lojas']); // Asaas continua só do CEO
   });
@@ -355,9 +366,35 @@ describe('fora do painel (Nav): quem abre o admin e por onde entra', () => {
     expect(adminHomeHref(() => true, true)).toBe('/admin/operacao'); // D3b-1: o CEO tem operation:view
     expect(adminHomeHref(canOf('gerente_geral'), false)).toBe('/admin/dashboard');
     expect(adminHomeHref(canOf('gerente_clientes'), false)).toBe('/admin/verificacoes');
-    expect(adminHomeHref(canOf('marketing'), false)).toBe('/admin/seasonal-theme');
+    // 22/10: banner:manage abre Avisos da home, que vem antes de Tema sazonal na tabela.
+    expect(adminHomeHref(canOf('marketing'), false)).toBe('/admin/avisos');
     // só abas presas a modo: a primeira delas (o modo é decidido dentro do painel)
     expect(adminHomeHref(canOf('gerente_lojistas', ['payout:view']), false)).toBe('/admin/payouts');
     expect(adminHomeHref(() => false, false)).toBeNull();
+  });
+});
+
+describe('permissões por público (22/10): cada caixinha abre a tela do público dela', () => {
+  const GERENTE_MOTOBOYS = ['user:view_motoboys', 'wallet:view_motoboys', 'verification:review_motoboys'];
+
+  it('Ver motoboys, Ver carteiras de motoboys e Verificar motoboys: Usuários, Dinheiro · Carteiras e Verificações; nada de Tema nem Suporte', () => {
+    const m = menu('gerente_motoboys', 'custodia', false, GERENTE_MOTOBOYS);
+    expect(m).toEqual({ verificacoes: ['verificacoes'], usuarios: ['usuarios'], dinheiro: ['carteiras'] });
+    expect(m.tema).toBeUndefined();
+    expect(m.suporte).toBeUndefined();
+  });
+
+  it('cada chave por público abre a sua tela sozinha', () => {
+    expect(menu('gerente_clientes', 'custodia', false, ['user:view_clients'])).toEqual({ usuarios: ['usuarios'] });
+    expect(menu('gerente_lojistas', 'custodia', false, ['wallet:view_stores'])).toEqual({ dinheiro: ['carteiras'] });
+    expect(menu('gerente_lojistas', 'custodia', false, ['verification:review_stores'])).toEqual({ verificacoes: ['verificacoes'] });
+  });
+
+  it('banner:manage abre Avisos da home', () => {
+    expect(menu('marketing', 'custodia', false, ['banner:manage'])).toEqual({ comunicacao: ['avisos'] });
+  });
+
+  it('chave de ação sozinha não abre nada (user:edit_motoboys, store:edit)', () => {
+    expect(menu('gerente_motoboys', 'custodia', false, ['user:edit_motoboys', 'store:edit'])).toEqual({});
   });
 });

@@ -42,6 +42,12 @@
 }
 .permCell { text-align: left; font-weight: 400; }
 .permLabel { display: block; color: var(--color-text-primary); }
+/* 22/10: o que a caixinha libera e o aviso da ação solta. */
+.permHint { display: block; font: var(--text-caption); color: var(--color-text-secondary); }
+.checkWrap { display: inline-flex; flex-direction: column; align-items: center; }
+.mobileCat .checkWrap { display: flex; align-items: stretch; }
+.looseWarn { font: var(--text-caption); color: var(--color-warning-text); }
+.previewList { margin: 0; padding-left: var(--space-5); color: var(--color-text-primary); font: var(--text-meta); }
 .cell { text-align: center; }
 
 .check {

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { ArrowDown, ArrowUp, Trash2, Upload } from 'lucide-react';
 import api from '../../lib/api';
-import useRequireAuth from '../../hooks/useRequireAuth';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import AdminShell from '../../components/admin/AdminShell';
 import { AdminSheet } from '../../components/admin/AdminSheet';
@@ -31,9 +30,9 @@ interface Banner {
 }
 
 export default function AdminAvisos() {
-  useRequireAuth(['ceo']);
+  // 22/10: banner:manage (delegável em Permissões); o CEO passa por ser CEO. O servidor confere de novo.
   return (
-    <ProtectedRoute required_role="ceo">
+    <ProtectedRoute required_permission="banner:manage">
       <AdminShell title="Avisos e broadcasts · Avisos da home" tabs="comunicacao">
         <AvisosBody />
       </AdminShell>
