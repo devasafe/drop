@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma';
 export type AppRole = 'ceo' | 'marketing' | 'gerente_geral' | 'gerente_clientes' | 'gerente_lojistas' | 'gerente_motoboys' | 'lojista' | 'cliente' | 'motoboy';
 import { rolePermissions } from '../utils/walletCalculations';
 import logger from '../config/logger';
-import { ALL_PERMISSIONS, RETIRED_PERMISSIONS } from '../services/permissions/catalog';
+import { ALL_PERMISSIONS, PANEL_PERMISSIONS, RETIRED_PERMISSIONS, ROLE_DESCRIPTIONS } from '../services/permissions/catalog';
 
 export const ALL_ROLES: AppRole[] = [
   'ceo', 'marketing', 'gerente_geral', 'gerente_clientes',
@@ -25,10 +25,32 @@ const PERMISSION_KEYS = new Set([...ALL_PERMISSIONS.map((p) => p.key), ...RETIRE
 
 const stripCeoOnly = (perms: string[]) => perms.filter((p) => !CEO_ONLY_PERMISSIONS.includes(p));
 
-// Retorna permissões de um role: primeiro tenta no DB, depois usa padrão estático
+/**
+ * Parte 2 (22/10): cliente, lojista e motoboy não aparecem em Permissões e usam SEMPRE o padrão estático.
+ * Uma linha antiga no banco para eles não dá nem tira acesso; é avisada no log uma vez por processo.
+ */
+export const FIXED_ROLES: AppRole[] = ['cliente', 'lojista', 'motoboy'];
+const fixedRowsChecked = new Set<string>();
+
+async function warnFixedRowOnce(role: string): Promise<void> {
+  if (fixedRowsChecked.has(role)) return;
+  fixedRowsChecked.add(role);
+  try {
+    const row = await prisma.rolePermissions.findUnique({ where: { role: role as any }, select: { role: true } });
+    if (row) logger.warn(`[permissões] linha antiga de RolePermissions para "${role}" ignorada: esse papel usa o padrão estático`);
+  } catch (err) {
+    logger.error('[permissões] falha ao conferir linha antiga de papel fixo', err as Error);
+  }
+}
+
+// Retorna permissões de um role: equipe tenta no DB e cai no padrão estático; cliente, lojista e motoboy, só o padrão.
 export async function getEffectivePermissions(role: string): Promise<{ permissions: string[]; notificationTargets: string[] }> {
   if (role === 'ceo') {
     return { permissions: ['*'], notificationTargets: ALL_ROLES };
+  }
+  if (FIXED_ROLES.includes(role as AppRole)) {
+    await warnFixedRowOnce(role);
+    return { permissions: stripCeoOnly(rolePermissions[role] || []), notificationTargets: [] };
   }
   const custom = await prisma.rolePermissions.findUnique({ where: { role: role as any } });
   if (custom) {
@@ -102,10 +124,8 @@ export const listAllRoles = async (req: AuthenticatedRequest, res: Response) => 
     const customMap: Record<string, any> = {};
     for (const c of customs) customMap[c.role] = c;
 
-    const result = ALL_ROLES.map(role => {
-      if (role === 'ceo') {
-        return { role, permissions: ['*'], notificationTargets: ALL_ROLES, isCustom: false };
-      }
+    // Parte 2: a tela é só da equipe (o CEO aparece fixo; cliente, lojista e motoboy não são editáveis).
+    const result = TEAM_ROLES.map(role => {
       const custom = customMap[role];
       if (custom) {
         return { role, permissions: stripCeoOnly(custom.permissions), notificationTargets: custom.notificationTargets, isCustom: true };
@@ -113,7 +133,14 @@ export const listAllRoles = async (req: AuthenticatedRequest, res: Response) => 
       return { role, permissions: rolePermissions[role] || [], notificationTargets: [], isCustom: false };
     });
 
-    return res.json({ roles: result, allPermissions: ALL_PERMISSIONS, allRoles: ALL_ROLES });
+    return res.json({
+      roles: result,
+      allPermissions: PANEL_PERMISSIONS,
+      allRoles: TEAM_ROLES,
+      // Quem recebe aviso continua sendo qualquer papel (cliente, lojista e motoboy recebem broadcast).
+      notificationTargetRoles: ALL_ROLES,
+      roleDescriptions: ROLE_DESCRIPTIONS,
+    });
   } catch (err) {
     logger.error('Erro ao listar permissões', err as Error);
     return res.status(500).json({ error: 'Erro interno' });
@@ -128,7 +155,7 @@ export const getRolePermissions = async (req: AuthenticatedRequest, res: Respons
       return res.status(404).json({ error: 'Role não encontrado' });
     }
     const effective = await getEffectivePermissions(role);
-    return res.json({ role, ...effective, allPermissions: ALL_PERMISSIONS, allRoles: ALL_ROLES });
+    return res.json({ role, ...effective, allPermissions: PANEL_PERMISSIONS, allRoles: TEAM_ROLES });
   } catch (err) {
     logger.error('Erro ao buscar permissões do role', err as Error);
     return res.status(500).json({ error: 'Erro interno' });
@@ -141,12 +168,12 @@ export const updateRolePermissions = async (req: AuthenticatedRequest, res: Resp
     const { role } = req.params as { role: AppRole };
     const userId = req.user?.id;
 
-    if (role === 'ceo') {
-      return res.status(400).json({ error: 'Não é possível modificar permissões do CEO' });
-    }
-
     if (!ALL_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Role inválida' });
+    }
+    // Parte 2: só os papéis da equipe são editáveis; CEO tem tudo e os papéis do app usam o padrão.
+    if (!TEAM_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Esse papel não tem permissões editáveis.', code: 'ROLE_NOT_EDITABLE' });
     }
 
     const { permissions, notificationTargets } = req.body;
