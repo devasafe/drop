@@ -17,7 +17,7 @@ const MAX_BYTES = 5 * 1024 * 1024; // mesmo limite do middleware de upload do ba
 const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } };
 const TAG: Record<KycItem['state'], [string, string]> = {
   done: ['Feito', blocks.tagOk],
-  pending: ['Em análise', blocks.tagInfo],
+  pending: ['Em análise', blocks.tagWarn],
   rejected: ['Refazer', blocks.tagErr],
   todo: ['Falta enviar', ''],
 };

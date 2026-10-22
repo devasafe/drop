@@ -4,7 +4,7 @@ import type { StepState } from '../../../lib/storeOnboarding';
 import { rejectionLine } from '../../../lib/verificationRejection';
 import blocks from '../../panel/PanelBlocks.module.css';
 
-export const STEP_ICON_CLASS: Record<StepState, string> = { done: blocks.icoOk, review: blocks.icoInfo, rejected: blocks.icoErr, todo: '', unknown: '' };
+export const STEP_ICON_CLASS: Record<StepState, string> = { done: blocks.icoOk, review: blocks.icoWarn, rejected: blocks.icoErr, todo: '', unknown: '' };
 
 export function stepStateIcon(state: StepState, index: number) {
   if (state === 'done') return <Check size={18} />;

@@ -105,7 +105,7 @@ export function IdentityCheck({ onDone, emailResult, audience = 'cliente' }: { o
         </div>
       )}
 
-      {doc === 'pending' && <Alert tone="info" title="Documento em análise">{copy.wait}</Alert>}
+      {doc === 'pending' && <Alert tone="warning" title="Documento em análise">{copy.wait}</Alert>}
       {doc === 'approved' && emailOk && <Alert tone="success" title="Tudo certo">Sua conta está verificada.</Alert>}
       {doc === 'rejected' && !retry && (
         <Alert

@@ -50,7 +50,7 @@ test('kycSummary: completa, recusada, pendente e em análise', () => {
     .toEqual({ tone: 'err', title: 'Verificação recusada', sub: 'CNH e placa: Placa ilegível', action: 'refazer' });
   expect(kycSummary(kycItems(VER('verified', 'approved'), MB('none', 'none')), false))
     .toEqual({ tone: 'warn', title: 'Verificação pendente', sub: 'Falta: selfie, CNH e placa', action: 'continuar' });
-  expect(kycSummary(kycItems(VER('verified', 'pending'), MB('pending', 'pending')), false)).toMatchObject({ tone: 'info', title: 'Verificação em análise', action: null });
+  expect(kycSummary(kycItems(VER('verified', 'pending'), MB('pending', 'pending')), false)).toMatchObject({ tone: 'warn', title: 'Verificação em análise', action: null }); // em análise = amarelo (pedido do usuário, 22/10)
 });
 
 test('loadCadastroState lê as três rotas e falha fechado se qualquer uma falhar', async () => {

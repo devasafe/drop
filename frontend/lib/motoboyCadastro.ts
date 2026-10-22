@@ -76,5 +76,5 @@ export function kycSummary(items: KycItem[], verified: boolean): KycSummary {
   if (rejected) return { tone: 'err', title: 'Verificação recusada', sub: `${rejected.label}: ${rejected.reason || 'envie de novo'}`, action: 'refazer' };
   const todo = items.filter((i) => i.state === 'todo');
   if (todo.length) return { tone: 'warn', title: 'Verificação pendente', sub: `Falta: ${todo.map((i) => FALTA_LABEL[i.key]).join(', ')}`, action: 'continuar' };
-  return { tone: 'info', title: 'Verificação em análise', sub: 'A equipe confere em até 1 dia útil', action: null };
+  return { tone: 'warn', title: 'Verificação em análise', sub: 'A equipe confere em até 1 dia útil', action: null };
 }

@@ -44,7 +44,7 @@ function statusText(s: St, reason: string | undefined, none: string, ok: string,
 }
 
 function DocIcon({ s, children }: { s: St; children: JSX.Element }) {
-  const cls = s === 'approved' ? blocks.icoOk : s === 'pending' ? blocks.icoInfo : s === 'rejected' ? blocks.icoErr : blocks.icoBrand;
+  const cls = s === 'approved' ? blocks.icoOk : s === 'pending' ? blocks.icoWarn : s === 'rejected' ? blocks.icoErr : blocks.icoBrand;
   const icon = s === 'approved' ? <Check size={18} /> : s === 'pending' ? <Clock size={18} /> : s === 'rejected' ? <TriangleAlert size={18} /> : children;
   return <span className={[blocks.ico, cls].join(' ')} aria-hidden="true">{icon}</span>;
 }

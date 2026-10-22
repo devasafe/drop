@@ -39,7 +39,7 @@
   min-width: 0;
 }
 .docOk { border-style: solid; border-color: var(--color-success); background: var(--color-success-subtle); }
-.docWait { border-style: solid; border-color: var(--color-border-default); background: var(--color-info-subtle); }
+.docWait { border-style: solid; border-color: var(--color-warning); background: var(--color-warning-subtle); }
 .docErr { border-style: solid; border-color: var(--color-error); background: var(--color-error-subtle); }
 .docBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .docBody > b { font: var(--text-label); color: var(--color-text-primary); }

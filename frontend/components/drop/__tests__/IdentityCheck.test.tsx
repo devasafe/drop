@@ -50,6 +50,8 @@ test('em análise: sem formulário; recusado: motivo e "Enviar de novo"', async 
   backend({ email: { status: 'verified' }, document: { status: 'pending' } });
   const { unmount } = render(<IdentityCheck />);
   expect(await screen.findByText('Documento em análise')).toBeInTheDocument();
+  // Em análise = amarelo (pedido do usuário, 22/10).
+  expect(screen.getByText('Documento em análise').closest('[role="status"]')).toHaveClass('warning');
   expect(screen.queryByLabelText('CPF')).toBeNull();
   unmount();
   backend({ email: { status: 'verified' }, document: { status: 'rejected', rejectionReason: 'Foto ilegível' } });
