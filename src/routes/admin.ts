@@ -19,7 +19,7 @@ import { adjustWalletBalance, WalletAdjustInput } from '../services/walletAdjust
 import { recordAccountAction } from '../services/adminAccounts/actions';
 import { parseOptionalReason, parseRequiredReason, sendAccountActionError } from '../services/adminAccounts/errors';
 import { audienceAccessOf } from '../services/adminAccounts/audience';
-import { AUDIENCE_FORBIDDEN, WALLET_OWNER_AUDIENCE, canReachUser, familyKeys } from '../services/permissions/catalog';
+import { AUDIENCE_FORBIDDEN, WALLET_OWNER_AUDIENCE, canReachUser, familyKeys, userAudiences } from '../services/permissions/catalog';
 
 const router = Router();
 
@@ -45,6 +45,12 @@ const STAFF_TARGET_FORBIDDEN = { error: 'Somente o CEO pode bloquear ou desconec
 const anyUserEdit = authorizeAnyPermission(familyKeys('userEdit'));
 const USER_AUDIENCE_FORBIDDEN = { error: 'Esta pessoa está fora do público que você pode bloquear ou desconectar.', code: AUDIENCE_FORBIDDEN };
 const WALLET_AUDIENCE_FORBIDDEN = { error: 'Esta carteira está fora do público que você pode ver.', code: AUDIENCE_FORBIDDEN };
+/**
+ * Por público, o dono da carteira tem de ser do público dela: a pessoal ('user') só de quem é cliente (sem papel
+ * de loja, motoboy nem equipe, o critério de userAudiences); a de motoboy, de quem não é da equipe.
+ */
+const walletOwnerInAudience = (ownerType: string, roles: string[]): boolean =>
+  ownerType === 'user' ? userAudiences(roles).includes('cliente') : !isStaffAccount(roles);
 
 // Campos devolvidos ao painel após alterar um usuário (nunca o hash da senha).
 const SAFE_USER_SELECT = {
@@ -384,7 +390,7 @@ router.get('/wallets', authenticate, anyWalletView, async (req: any, res: Respon
         }
       } else {
         const userData = await prisma.user.findUnique({ where: { id: String(w.owner) }, select: { name: true, email: true, role: true, roles: true, activeRole: true } });
-        if (!access.all && userData && isStaffAccount(currentRolesOf(userData))) return null;
+        if (!access.all && userData && !walletOwnerInAudience(w.ownerType, currentRolesOf(userData))) return null;
         ownerName = userData?.name || 'Usuário Desconhecido';
         ownerEmail = userData?.email || 'N/A';
         userRole = w.ownerType === 'motoboy' ? 'motoboy' : (userData?.role || 'cliente');
@@ -439,7 +445,7 @@ router.get('/wallets/:id/transactions', authenticate, anyWalletView, async (req:
       if (!access.audiences.includes(WALLET_OWNER_AUDIENCE[wallet.ownerType])) return res.status(403).json(WALLET_AUDIENCE_FORBIDDEN);
       if (wallet.ownerType !== 'store') {
         const owner = await prisma.user.findUnique({ where: { id: String(wallet.owner) }, select: TARGET_ROLES_SELECT });
-        if (owner && isStaffAccount(currentRolesOf(owner))) return res.status(403).json(WALLET_AUDIENCE_FORBIDDEN);
+        if (owner && !walletOwnerInAudience(wallet.ownerType, currentRolesOf(owner))) return res.status(403).json(WALLET_AUDIENCE_FORBIDDEN);
       }
     }
 

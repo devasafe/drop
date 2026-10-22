@@ -33,7 +33,7 @@ describe('catálogo de permissões', () => {
     const keys = ALL_PERMISSIONS.map((p) => p.key);
     for (const k of [
       'dashboard:view_client_metrics', 'dashboard:view_store_metrics', 'dashboard:view_motoboy_metrics',
-      'coupon:create_global', 'reviews:moderate',
+      'coupon:create_global',
       'notification:create', 'notification:approve', 'notification:reject',
     ]) {
       expect(RETIRED_PERMISSIONS).toContain(k);
@@ -64,7 +64,10 @@ describe('público permitido', () => {
     expect(allowedAudiences(['user:view_motoboys'], 'user')).toEqual({ all: false, audiences: ['motoboy'] });
     expect(allowedAudiences(['user:view_clients', 'user:view_motoboys'], 'user').audiences).toEqual(['cliente', 'motoboy']);
     expect(allowedAudiences(['wallet:view_stores'], 'wallet').audiences).toEqual(['lojista']);
-    expect(allowedAudiences(['user:edit_motoboys'], 'userEdit').audiences).toEqual(['motoboy']);
+    // Rodada final (M3): editar um público só vale com a chave de ver o mesmo público.
+    expect(allowedAudiences(['user:edit_motoboys'], 'userEdit').audiences).toEqual([]);
+    expect(allowedAudiences(['user:edit_motoboys', 'user:view_motoboys'], 'userEdit').audiences).toEqual(['motoboy']);
+    expect(allowedAudiences(['user:edit_motoboys', 'user:view_all'], 'userEdit').audiences).toEqual(['motoboy']);
     expect(allowedAudiences(['user:block'], 'userEdit').all).toBe(true);
     expect(allowedAudiences(['theme:edit'], 'user').audiences).toEqual([]);
   });

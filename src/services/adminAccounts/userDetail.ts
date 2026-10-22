@@ -183,7 +183,7 @@ export async function getAdminUserDetail(userId: string, viewer: UserDetailViewe
   const blocked = user.status === 'blocked';
   // Fix round 1: como em PUT /roles, só o CEO bloqueia, desbloqueia ou desconecta conta da equipe.
   // Por público (22/10): user:block vale para todos; user:edit_<público>, só para o público dele.
-  const editAccess = allowedAudiences(familyKeys('userEdit').filter((k) => viewer.can(k)), 'userEdit');
+  const editAccess = allowedAudiences([...familyKeys('userEdit'), ...familyKeys('user')].filter((k) => viewer.can(k)), 'userEdit');
   const canBlock = !self && canReachUser(editAccess, roles) && (viewer.isCeo || !targetIsStaff);
 
   return {

@@ -203,15 +203,15 @@ describe('gerente de motoboys com as caixinhas por público', () => {
 });
 
 describe('PUT /role-permissions e o catálogo', () => {
-  it('caixinha que saiu da lista é aceita sem erro; chave inexistente continua 400', async () => {
+  // Rodada final (I1): a aposentada continua aceita sem erro, mas a linha é gravada sem ela.
+  it('caixinha que saiu da lista é aceita sem erro e não é gravada; chave inexistente continua 400', async () => {
     const restore = await grantRolePermissions('gerente_motoboys', []);
     try {
       const ok = await request(app).put('/api/role-permissions/gerente_motoboys').set(as(ceo))
         .send({ permissions: ['user:view_motoboys', 'dashboard:view_motoboy_metrics'] });
       expect(ok.status).toBe(200);
       const row = await prisma.rolePermissions.findUnique({ where: { role: 'gerente_motoboys' } });
-      // Não apaga a chave antiga da linha: só deixa de mostrá-la.
-      expect(row?.permissions).toEqual(['user:view_motoboys', 'dashboard:view_motoboy_metrics']);
+      expect(row?.permissions).toEqual(['user:view_motoboys']);
 
       const bad = await request(app).put('/api/role-permissions/gerente_motoboys').set(as(ceo)).send({ permissions: ['nao:existe'] });
       expect(bad.status).toBe(400);

@@ -114,7 +114,6 @@ export const listStores = async (req: AuthenticatedRequest, res: Response) => {
 export const getStore = async (req: AuthenticatedRequest, res: Response) => {
   const id = idParam(req);
   try {
-    if (id) await assertUserInAudience(req.user, id, 'user');
     const can = await permissionCheckFor(req.user);
     const detail = id ? await getAdminStoreDetail(id, { isCeo: activeRoleOf(req.user) === 'ceo', can }) : null;
     if (!detail) return sendReadFailure(res, storeNotFound(), 'a ficha da loja');

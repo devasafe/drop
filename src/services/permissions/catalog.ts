@@ -108,6 +108,9 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
     'Aprova ou recusa o pedido de troca de plano da loja. Precisa de Ver assinaturas e mudanças de plano.'),
   action('plan:manage', 'Alterar plano de loja / planos de preço', STORES, 'lojas', ['store:view_all'],
     'Na ficha da loja: estende o teste e cancela a mensalidade. Precisa de Ver todas as lojas.'),
+  // Rodada final: volta à tela (a rota DELETE /admin/ratings/:orderId/reply exige a chave).
+  action('reviews:moderate', 'Apagar resposta de loja em avaliação', STORES, 'lojas', ['store:view_all'],
+    'Apaga a resposta que a loja deu a uma avaliação de cliente. A nota e o comentário do cliente ficam. Precisa de Ver todas as lojas.'),
   // Dinheiro · Visão geral (D3b-3): padrão só CEO (via '*'); concedível em Permissões.
   opens('money:overview', 'Ver a visão geral do dinheiro e o histórico de ações', MONEY, 'dinheiro',
     'Abre Dinheiro · Visão geral e Histórico: quanto entrou, quanto saiu e quem fez cada ação. Só leitura.',
@@ -206,17 +209,18 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
- * Caixinhas sem tela no painel: saem da lista, mas continuam válidas no PUT e nas linhas do banco.
+ * Caixinhas sem tela no painel: saem da lista. O PUT aceita sem erro, mas grava a linha SEM elas, e a leitura das
+ * permissões da equipe também as descarta: uma chave que não aparece não pode continuar valendo escondida.
+ * Consequência: gateway:manage e order:manage_payment ficam só com o CEO (via '*').
  *  - métricas por público: "Números do negócio" é um bloco único (dashboard:view_all);
  *  - notification:*: não há rota de criar, aprovar ou rejeitar notificação (o envio é o broadcast);
  *  - coupon:create_global: a tela e a rota de cupons são do CEO por papel, não por permissão;
- *  - reviews:moderate: a rota de moderação existe, mas não há tela no admin;
  *  - gateway:manage e order:manage_payment: só rotas, sem tela; wallet:transfer: nenhuma rota usa.
  */
 export const RETIRED_PERMISSIONS: string[] = [
   'dashboard:view_client_metrics', 'dashboard:view_store_metrics', 'dashboard:view_motoboy_metrics',
   'notification:create', 'notification:approve', 'notification:reject',
-  'coupon:create_global', 'reviews:moderate',
+  'coupon:create_global',
   'gateway:manage', 'order:manage_payment', 'wallet:transfer',
 ];
 
@@ -244,7 +248,9 @@ export interface AudienceAccess {
 export function allowedAudiences(perms: string[], family: AudienceFamily): AudienceAccess {
   const f = FAMILY[family];
   if (perms.includes('*') || perms.includes(f.all)) return { all: true, audiences: [...AUDIENCES] };
-  return { all: false, audiences: AUDIENCES.filter((a) => !!f.by[a] && perms.includes(f.by[a] as string)) };
+  // Editar um público só vale com a chave de ver o mesmo público (como o `requires` do catálogo).
+  const sees = (a: Audience) => family !== 'userEdit' || allowedAudiences(perms, 'user').audiences.includes(a);
+  return { all: false, audiences: AUDIENCES.filter((a) => !!f.by[a] && perms.includes(f.by[a] as string) && sees(a)) };
 }
 
 /** As chaves de uma família (para a guarda "qualquer uma"). */

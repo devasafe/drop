@@ -23,7 +23,9 @@ export const CEO_ONLY_PERMISSIONS = ['wallet:credit'];
 // Caixinha que saiu da lista continua válida no PUT: a linha do banco pode trazê-la de volta.
 const PERMISSION_KEYS = new Set([...ALL_PERMISSIONS.map((p) => p.key), ...RETIRED_PERMISSIONS]);
 
-const stripCeoOnly = (perms: string[]) => perms.filter((p) => !CEO_ONLY_PERMISSIONS.includes(p));
+// Rodada final: as aposentadas também não valem (não aparecem na tela, então não podem valer escondidas).
+const stripCeoOnly = (perms: string[]) =>
+  perms.filter((p) => !CEO_ONLY_PERMISSIONS.includes(p) && !RETIRED_PERMISSIONS.includes(p));
 
 /**
  * Parte 2 (22/10): cliente, lojista e motoboy não aparecem em Permissões e usam SEMPRE o padrão estático.
@@ -194,13 +196,15 @@ export const updateRolePermissions = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ error: 'notificationTargets inválido' });
     }
 
+    // Aceita as aposentadas sem erro, mas grava sem elas.
+    const toSave = permissions.filter((p: string) => !RETIRED_PERMISSIONS.includes(p));
     await prisma.rolePermissions.upsert({
       where: { role: role as any },
-      create: { role: role as any, permissions, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
-      update: { permissions, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
+      create: { role: role as any, permissions: toSave, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
+      update: { permissions: toSave, notificationTargets: (notificationTargets || []) as any, updatedBy: String(userId) },
     });
 
-    return res.json({ success: true, role, permissions, notificationTargets: notificationTargets || [] });
+    return res.json({ success: true, role, permissions: toSave, notificationTargets: notificationTargets || [] });
   } catch (err) {
     logger.error('Erro ao atualizar permissões', err as Error);
     return res.status(500).json({ error: 'Erro interno' });

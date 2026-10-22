@@ -9,7 +9,7 @@ import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { cleanupUsersByEmailDomain } from './helpers/pgCleanup';
 import { rolePermissions } from '../utils/walletCalculations';
 import { getEffectivePermissions } from '../controllers/rolePermissionsController';
-import { ALL_PERMISSIONS, ROLE_DESCRIPTIONS } from '../services/permissions/catalog';
+import { ALL_PERMISSIONS, RETIRED_PERMISSIONS, ROLE_DESCRIPTIONS } from '../services/permissions/catalog';
 
 const DOMAIN = '@permissoes-parte2.test';
 const FIXED = ['cliente', 'lojista', 'motoboy'] as const;
@@ -70,7 +70,7 @@ describe('cliente, lojista e motoboy: sempre o padrão estático', () => {
     const lojista = await createTestUser('lojista', DOMAIN);
     const me = await request(app).get('/api/role-permissions/me').set('Authorization', bearer(lojista));
     expect(me.status).toBe(200);
-    expect([...me.body.permissions].sort()).toEqual([...rolePermissions.lojista].sort());
+    expect([...me.body.permissions].sort()).toEqual(rolePermissions.lojista.filter((p) => !RETIRED_PERMISSIONS.includes(p)).sort());
     const settings = await request(app).get('/api/admin/settings').set('Authorization', bearer(lojista));
     expect(settings.status).toBe(403);
   });
@@ -82,7 +82,8 @@ describe('cliente, lojista e motoboy: sempre o padrão estático', () => {
       update: { permissions: [] },
     });
     const eff = await getEffectivePermissions(role);
-    expect(eff.permissions).toEqual(rolePermissions[role] || []);
+    // Rodada final (I1): o padrão estático também perde as aposentadas (ex.: wallet:transfer do motoboy).
+    expect(eff.permissions).toEqual((rolePermissions[role] || []).filter((p) => !RETIRED_PERMISSIONS.includes(p)));
   });
 });
 
