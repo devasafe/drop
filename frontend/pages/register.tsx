@@ -14,16 +14,28 @@ import { PasswordField } from '../components/drop/PasswordField';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
+import { Tabs, tabPanelProps } from '../components/ui/Tabs';
 import styles from './Register.module.css';
 
 type Papel = 'cliente' | 'lojista' | 'motoboy';
 const TITULO: Record<Papel, string> = { cliente: 'Criar conta', lojista: 'Venda na DROP', motoboy: 'Entregue com a DROP' };
+const LEAD: Record<'cliente' | 'lojista', string> = {
+  cliente: 'Leva menos de 1 minuto. O documento a gente pede só na primeira compra.',
+  lojista: 'Leva menos de 1 minuto. Depois você monta a loja e envia os documentos.',
+};
+// Tipo de conta escolhido aqui mesmo: "Entregar" vai ao cadastro próprio do motoboy.
+const TIPOS = [
+  { id: 'cliente', label: 'Comprar' },
+  { id: 'lojista', label: 'Vender' },
+  { id: 'motoboy', label: 'Entregar' },
+];
 
 export default function RegisterPage() {
   const router = useRouter();
   const auth = useAuth();
   const q = router.query.papel;
-  const papel: Papel = q === 'lojista' || q === 'motoboy' ? q : 'cliente';
+  const [escolhido, setEscolhido] = useState<Papel | null>(null);
+  const papel: Papel = escolhido ?? (q === 'lojista' || q === 'motoboy' ? q : 'cliente');
   const next = safeNext(router.query.next);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -62,13 +74,25 @@ export default function RegisterPage() {
     }
   };
 
+  const escolher = (id: string) => {
+    if (id === 'motoboy') { router.push(MOTOBOY_ROUTES.cadastro); return; }
+    const novo = id as Papel;
+    setEscolhido(novo);
+    // A URL guarda a escolha (voltar e recarregar mantêm o tipo); o next continua.
+    const { papel: _antigo, ...resto } = router.query;
+    router.replace({ pathname: '/register', query: novo === 'lojista' ? { ...resto, papel: 'lojista' } : resto }, undefined, { shallow: true });
+  };
+
   if (papel === 'motoboy') return null;
 
   return (
     <main className={styles.page}>
       <ScreenHeader title={TITULO[papel]} onBack={() => router.back()} />
-      <form onSubmit={submit} className={styles.form} noValidate>
-        <p className={styles.lead}>Leva menos de 1 minuto. O documento a gente pede só na primeira compra.</p>
+      <div className={styles.tipo}>
+        <Tabs label="Tipo de conta" items={TIPOS} value={papel} onChange={escolher} idPrefix="tipo-conta" />
+      </div>
+      <form onSubmit={submit} className={styles.form} noValidate {...tabPanelProps(papel, 'tipo-conta')} tabIndex={-1}>
+        <p className={styles.lead}>{LEAD[papel]}</p>
         <Input id="cad-nome" label="Nome completo" value={name} onChange={setName} autoComplete="name" required />
         <Input id="cad-email" label="E-mail" type="email" value={email} onChange={setEmail} autoComplete="email" required />
         <Input id="cad-cel" label="Celular" type="tel" value={telefone} onChange={(v) => setTelefone(maskPhone(v))}

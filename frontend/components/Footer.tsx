@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useSaasConfig } from '../hooks/useSaasConfig';
 import { ROUTES, buscarHref } from '../lib/routes';
+import { MOTOBOY_ROUTES } from '../lib/motoboyRoutes';
 import styles from './Footer.module.css';
 
 export default function Footer() {
@@ -36,7 +37,7 @@ export default function Footer() {
 
           <div className={styles.col}>
             <div className={styles.colTitle}>Para Motoboys</div>
-            <Link href="/register" className={styles.link}>Cadastrar-se</Link>
+            <Link href={MOTOBOY_ROUTES.cadastro} className={styles.link}>Cadastrar-se</Link>
             <Link href="/motoboy" className={styles.link}>Painel do Motoboy</Link>
           </div>
 

@@ -88,3 +88,8 @@
   color: var(--color-text-link);
   font-weight: 600;
 }
+
+/* Tipo de conta (Comprar · Vender · Entregar), logo abaixo do título. */
+.tipo {
+  padding: 0 var(--space-4) var(--space-4);
+}
