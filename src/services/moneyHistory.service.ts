@@ -44,7 +44,7 @@ export interface AdminMoneyActionPage {
 }
 
 /** 'YYYY-MM-DD' válido → 00:00 em SP; data inexistente (ex.: 31/02) → 400. */
-function saoPauloDateStart(value: string, field: 'from' | 'to'): Date {
+export function saoPauloDateStart(value: string, field: 'from' | 'to'): Date {
   const start = SP_DATE_RE.test(value) ? saoPauloDayStartOf(value) : new Date(Number.NaN);
   const year = Number(value.slice(0, 4));
   if (Number.isNaN(start.getTime()) || saoPauloToday(start) !== value || year < MIN_YEAR || year > MAX_YEAR) {

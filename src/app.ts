@@ -30,6 +30,7 @@ import debtsRoutes from './routes/debts';
 import withdrawalsRoutes from './routes/withdrawals'; // ✅ NOVO - Withdrawal/Payout management
 import adminRoutes from './routes/admin'; // ✅ NOVO - Admin routes
 import adminMoneyRoutes from './routes/adminMoney'; // D3b-3: Visão geral do Dinheiro e Histórico
+import adminRulesRoutes from './routes/adminRules'; // D3b-4a: histórico de regras
 import adminOpsRoutes from './routes/adminOps'; // D3b-1: Operação ao vivo (fila, pedidos, mapa)
 import adminAccountsRoutes from './routes/adminAccounts'; // D3b-2a: Pessoas e lojas
 import pricingPlanRoutes from './routes/pricingPlanRoutes'; // ✅ NOVO - Pricing Plans
@@ -134,6 +135,7 @@ app.use('/api/wallets', walletsRoutes);
 app.use('/api/debts', debtsRoutes);
 app.use('/api/withdrawals', withdrawalsRoutes);
 app.use('/api/admin/money', adminMoneyRoutes);
+app.use('/api/admin/rules', adminRulesRoutes);
 app.use('/api/admin', adminOpsRoutes);
 app.use('/api/admin', adminAccountsRoutes);
 app.use('/api/admin', adminRoutes);
