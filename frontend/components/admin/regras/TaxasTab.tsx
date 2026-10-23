@@ -370,7 +370,7 @@ export function TaxasTab() {
           <Input label="Motivo (opcional)" value={reason} onChange={setReason} maxLength={500} />
         )}
         <div className={styles.saveRow}>
-          <Button variant="secondary" onClick={() => { setEdit(config); setSaveError(null); }} disabled={n === 0 || saving}>Descartar</Button>
+          <Button variant="secondary" onClick={() => { setEdit(config); setSaveError(null); setReason(''); }} disabled={n === 0 || saving}>Descartar</Button>
           <Button onClick={save} loading={saving} disabled={n === 0 || invalid.length > 0}>
             {n === 0 ? 'Nenhuma mudança' : n === 1 ? 'Salvar 1 mudança' : `Salvar ${n} mudanças`}
           </Button>

@@ -142,6 +142,19 @@ describe('Taxas e tempos', () => {
     expect(screen.getByRole('button', { name: 'Nenhuma mudança' })).toBeDisabled();
   });
 
+  it('"Descartar" também limpa o motivo: a próxima edição começa sem motivo e o PUT não leva changeReason', async () => {
+    renderAdminPage(<AdminSettings />, GERENTE);
+    const km = await screen.findByLabelText('Por km de rota (R$)');
+    fireEvent.change(km, { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Motivo (opcional)'), { target: { value: 'teste' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+    fireEvent.change(km, { target: { value: '3' } });
+    expect((screen.getByLabelText('Motivo (opcional)') as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    expect((api.put as jest.Mock).mock.calls[0][1]).not.toHaveProperty('changeReason');
+  });
+
   it('campo vazio: "Preencha um número" e não deixa salvar', async () => {
     renderAdminPage(<AdminSettings />, GERENTE);
     fireEvent.change(await screen.findByLabelText('Por km de rota (R$)'), { target: { value: '' } });
