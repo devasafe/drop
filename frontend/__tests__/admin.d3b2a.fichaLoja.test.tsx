@@ -32,6 +32,8 @@ const DETAIL = {
     situation: 'open', adminPause: null,
   },
   stats30d: { orders: 120, cancelledByStore: 3, rating: 4.7 },
+  nearbyCouriers: { online: 3, free: 1 },
+  nearbyRadiusKm: 12,
   reviews: [{ orderId: 'o1', rating: 5, comment: 'Chegou rápido', createdAt: '2026-10-19T12:00:00.000Z' }],
   receiving: { status: 'pending', detail: 'Conta Asaas em análise' },
   plan: { plan: null, mode: 'saas', saas: { status: 'trialing', trialEndsAt: '2026-11-01T12:00:00.000Z', paidUntil: null, cancelledAt: null } },

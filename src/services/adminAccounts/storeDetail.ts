@@ -8,6 +8,9 @@ import { prisma } from '../../lib/prisma';
 import env from '../../config/env';
 import { getSaasConfig } from '../../utils/settlement';
 import { PermissionCheck, round1, shortOrderId } from '../adminOps/common';
+import { couriersNearStores } from '../adminOps/couriersNear';
+import { storeCoord } from '../adminOps/map';
+import { DISPATCH_MAX_KM } from '../dispatch';
 import { listTimeline } from './actions';
 import { isAdminPaused } from './storePause';
 import {
@@ -35,6 +38,8 @@ const STORE_DETAIL_SELECT = Prisma.validator<Prisma.StoreSelect>()({
   name: true,
   cnpj: true,
   city: true,
+  latitude: true,
+  longitude: true,
   plan: true,
   adminPausedBy: true,
   adminPauseReason: true,
@@ -99,7 +104,7 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
   if (!store) return null;
   const since = new Date(now.getTime() - 30 * DAY_MS);
 
-  const [cfg, subscription, stats, faultCancellations, reviews, orders, pausedBy, timeline, asaasHistory] = await Promise.all([
+  const [cfg, subscription, stats, faultCancellations, reviews, orders, pausedBy, timeline, asaasHistory, near] = await Promise.all([
     getSaasConfig(),
     prisma.storeSubscription.findUnique({ where: { storeId }, select: { currentPlan: true } }),
     prisma.order.aggregate({ where: { storeId, createdAt: { gte: since } }, _count: { _all: true }, _avg: { storeRating: true } }),
@@ -121,6 +126,7 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       : null,
     listTimeline({ storeId }),
     viewer.isCeo ? storeAsaasHistory(storeId) : Promise.resolve(null),
+    couriersNearStores([{ id: store.id, lat: storeCoord(store.latitude), lng: storeCoord(store.longitude) }], now),
   ]);
 
   const paused = isAdminPaused(store);
@@ -187,6 +193,8 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       extendTrial: canSaas && saasStatus === 'trialing',
       cancelSaas: canSaas && saasStatus !== null && saasStatus !== 'cancelled',
     },
+    nearbyCouriers: near.get(store.id) ?? null,
+    nearbyRadiusKm: DISPATCH_MAX_KM,
     // Ruling 11: só o CEO; para os outros a chave não existe.
     ...(asaasHistory ? { asaasHistory } : {}),
   };

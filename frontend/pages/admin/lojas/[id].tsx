@@ -6,6 +6,7 @@
  * - D3b-2b: "Estender teste" (7, 14 ou 30 dias, com motivo) e "Cancelar mensalidade" (motivo e o nome da loja
  *   digitado), conforme `can` e o status da mensalidade. O plano cancelado diz até quando a loja vende, e o CEO vê
  *   "Conta Asaas · histórico".
+ * - D3b-4b: bloco "Motoboys por perto" (online e livres a até o raio do despacho, que vem do servidor).
  * - O dono abre a ficha da pessoa. Releitura silenciosa depois de cada ação (padrão D3b-1). No 409 de estado, a
  *   mensagem fica na folha e a ficha relê.
  */
@@ -31,7 +32,8 @@ import { shortId } from '../../../lib/adminMoney';
 import { adminOrderStatus } from '../../../lib/adminOps';
 import {
   RECEIVING_TAG, STORE_MODE_LABEL, STORE_SITUATION, accountErrorMessage, addStoreNote, adminPauseNote, cancelSaas,
-  extendTrial, fetchStoreDetail, fetchStoreTimeline, flattenAccountError, isAccountConflict, pauseStore, planLabel,
+  extendTrial, fetchStoreDetail, fetchStoreTimeline, flattenAccountError, isAccountConflict, nearbyCouriersText,
+  pauseStore, planLabel,
   ratingLabel, saasCoverageEnd, saasPlanText, spDate, unpauseStore, type StoreDetail, type StoreSaas,
   type TimelineResponse, type TrialDays,
 } from '../../../lib/adminAccounts';
@@ -241,6 +243,15 @@ function FichaLoja() {
                     <StatusTag tone={RECEIVING_TAG[detail.receiving.status].tone}>{RECEIVING_TAG[detail.receiving.status].label}</StatusTag>
                   </div>
                   {detail.receiving.detail && <p className={blocks.muted}>{detail.receiving.detail}</p>}
+                </section>
+
+                <section className={blocks.block} aria-label="Motoboys por perto">
+                  <div className={blocks.blockHead}><h2 className={blocks.blockTitle}>Motoboys por perto</h2></div>
+                  {detail.nearbyCouriers ? (
+                    <p className={ui.lineTitle}>{nearbyCouriersText(detail.nearbyCouriers, detail.nearbyRadiusKm)}</p>
+                  ) : (
+                    <p className={blocks.muted}>A loja não tem ponto no mapa</p>
+                  )}
                 </section>
 
                 {detail.asaasHistory && <AsaasHistory history={detail.asaasHistory} />}

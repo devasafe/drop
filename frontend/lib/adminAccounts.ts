@@ -10,7 +10,7 @@
 import type { StatusTone } from '../components/admin/StatusTag';
 import { adminErrorMessage } from './adminErrors';
 import { actorLabel, spTime } from './adminMoney';
-import { ageLabel } from './adminOps';
+import { ageLabel, kmLabel } from './adminOps';
 import { REJECT_REASON_LABEL, VERIFICATION_KIND_SHORT } from './adminVerificacoes';
 import api from './api';
 import { formatMoney } from './money';
@@ -139,6 +139,9 @@ export interface StoreAsaasConsent { termsVersion: string; ip: string | null; ac
 /** Conta Asaas própria da loja: alterações (até 20, mais novas primeiro) e o último aceite do termo. Só o CEO recebe. */
 export interface StoreAsaasHistory { audits: StoreAsaasAudit[]; consent: StoreAsaasConsent | null }
 export interface StoreAdminPause { at: string; reason: string; by: ActorRef | null }
+/** D3b-4b: motoboys online (posição recente) e livres a até o raio do despacho. */
+export interface NearbyCouriers { online: number; free: number }
+
 export interface StoreDetail {
   profile: {
     id: string;
@@ -160,6 +163,10 @@ export interface StoreDetail {
   orders: AccountOrder[];
   timeline: TimelineResponse;
   can: StoreCan;
+  /** D3b-4b: null = a loja não tem ponto no mapa. */
+  nearbyCouriers: NearbyCouriers | null;
+  /** O raio do despacho, vindo do servidor (nunca escrito à mão na tela). */
+  nearbyRadiusKm: number;
   /** Só o CEO recebe (ruling 11); para os outros a chave não vem. */
   asaasHistory?: StoreAsaasHistory | null;
 }
@@ -264,6 +271,14 @@ const isAsaasConsent = (c: unknown): boolean => isObj(c) && isStr(c.termsVersion
 const isAsaasHistory = (h: unknown): boolean =>
   isObj(h) && listOf(h.audits, isAsaasAudit) && (h.consent === null || isAsaasConsent(h.consent));
 
+export const isNearbyCouriersOrNull = (v: unknown): v is NearbyCouriers | null =>
+  v === null || (isObj(v) && isNum(v.online) && isNum(v.free));
+
+/** "4 online a até 12 km agora, 1 livre". */
+export function nearbyCouriersText(n: NearbyCouriers, radiusKm: number): string {
+  return `${n.online} online a até ${kmLabel(radiusKm)} agora, ${n.free} ${n.free === 1 ? 'livre' : 'livres'}`;
+}
+
 export function isStoreDetail(d: unknown): d is StoreDetail {
   if (!isObj(d)) return false;
   const { profile: p, stats30d: st, receiving: r, plan, can } = d;
@@ -281,7 +296,8 @@ export function isStoreDetail(d: unknown): d is StoreDetail {
     && listOf(d.orders, isAccountOrder)
     && isTimelineResponse(d.timeline)
     && allBool(can, ['pause', 'unpause', 'note', 'extendTrial', 'cancelSaas'])
-    && optional(d.asaasHistory, isAsaasHistory);
+    && optional(d.asaasHistory, isAsaasHistory)
+    && isNearbyCouriersOrNull(d.nearbyCouriers) && isNum(d.nearbyRadiusKm);
 }
 
 function shaped<T>(data: unknown, ok: (d: unknown) => d is T): T {

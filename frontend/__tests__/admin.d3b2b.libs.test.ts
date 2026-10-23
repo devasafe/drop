@@ -171,6 +171,8 @@ const STORE = {
     situation: 'open', adminPause: null,
   },
   stats30d: { orders: 120, cancelledByStore: 3, rating: 4.7 },
+  nearbyCouriers: { online: 3, free: 1 },
+  nearbyRadiusKm: 12,
   reviews: [],
   receiving: { status: 'ok', detail: null },
   plan: { plan: null, mode: 'saas', saas: SAAS },

@@ -4,6 +4,7 @@
  */
 import type { SaasBillingStatus } from '@prisma/client';
 import type { TimelineItem } from './actions';
+import type { NearbyCouriers } from '../adminOps/couriersNear';
 
 /** D3b-2b · mensalidade da loja como sai nas ações (estender, cancelar) e na ficha (plan.saas). Datas ISO. */
 export interface StoreSaasState {
@@ -260,6 +261,10 @@ export interface StoreDetail {
   orders: Array<{ id: string; shortId: string; status: string; total: number; customerName: string; createdAt: string }>;
   timeline: TimelineResponse;
   can: StoreDetailCan;
+  /** D3b-4b: motoboys online e livres a até `nearbyRadiusKm` da loja; null = a loja não tem ponto no mapa. */
+  nearbyCouriers: NearbyCouriers | null;
+  /** O raio do despacho (DISPATCH_MAX_KM): a tela mostra este número, nunca um escrito à mão. */
+  nearbyRadiusKm: number;
   /** D3b-2b: só para o CEO. Para os outros, a chave não existe no JSON. */
   asaasHistory?: StoreAsaasHistory;
 }
