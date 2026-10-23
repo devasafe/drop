@@ -22,18 +22,20 @@ const num = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : NaN;
 };
+// Ausente (undefined/null/'') cai no padrão do servidor; 0 vale 0; inválido segue NaN (fail closed).
+const numOr = (v: unknown, fallback: number): number => (v === null || v === undefined || v === '' ? fallback : num(v));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function parseMotoboyRules(cfg: any): MotoboyRules | null {
   if (!cfg || typeof cfg !== 'object') return null;
-  const base = num(cfg.motoboyCutPerDelivery);
-  const perKm = num(cfg.motoboyCutPerKm);
-  const commission = num(cfg.motoboyCommissionPercent);
+  const base = numOr(cfg.motoboyCutPerDelivery, 5);
+  const perKm = numOr(cfg.motoboyCutPerKm, 1);
+  const commission = numOr(cfg.motoboyCommissionPercent, 20);
   const r = {
-    // Mesma regra de walletCalculations/finalizarEntrega no servidor: 0 vale o padrão (`|| 5`, `|| 1`, `|| 20`).
-    basePerDelivery: Number.isNaN(base) ? NaN : base || 5,
-    perKm: Number.isNaN(perKm) ? NaN : perKm || 1,
-    commissionPercent: Number.isNaN(commission) ? NaN : commission || 20,
+    // Mesma regra do servidor (`??`): 0 vale 0; só ausente cai no padrão (5, 1, 20).
+    basePerDelivery: base,
+    perKm,
+    commissionPercent: commission,
     minimumWithdraw: num(cfg.motoboyMinimumWithdraw),
     customerAbsentWaitMin: num(cfg.customerAbsentWaitMin),
     lateCancellationMotoboyShare: num(cfg.lateCancellationMotoboyShare),

@@ -14,8 +14,14 @@ it('lê os números do PlatformConfig (Decimal em string)', () => {
   });
 });
 
-it('mesma regra do servidor: base, km e comissão zerados valem o padrão (5, 1, 20)', () => {
+it('mesma regra do servidor: base, km e comissão zerados valem zero', () => {
   const r = parseMotoboyRules({ ...CFG, motoboyCutPerDelivery: 0, motoboyCutPerKm: '0', motoboyCommissionPercent: 0 })!;
+  expect([r.basePerDelivery, r.perKm, r.commissionPercent]).toEqual([0, 0, 0]);
+});
+
+it('base, km e comissão ausentes caem no padrão (5, 1, 20)', () => {
+  const { motoboyCutPerDelivery, motoboyCutPerKm, motoboyCommissionPercent, ...resto } = CFG;
+  const r = parseMotoboyRules(resto)!;
   expect([r.basePerDelivery, r.perKm, r.commissionPercent]).toEqual([5, 1, 20]);
 });
 
