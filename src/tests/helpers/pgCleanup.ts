@@ -56,6 +56,7 @@ export async function cleanupUsersByEmailDomain(domain: string): Promise<void> {
   await prisma.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
   // D3b-3: linhas do registro de ações de dinheiro feitas pelos usuários da suíte (actorId é String, sem FK).
   await prisma.adminMoneyAction.deleteMany({ where: { actorId: { in: ids } } });
+  await prisma.platformRuleChange.deleteMany({ where: { actorId: { in: ids } } });
   // D3b-2a: histórico e notas das contas da suíte (alvo pessoa ou loja, ou feitos por alguém da suíte; sem FK).
   await prisma.adminAccountAction.deleteMany({
     where: { OR: [{ userId: { in: ids } }, { storeId: { in: storeIds } }, { actorId: { in: ids } }] },

@@ -1517,6 +1517,30 @@ model AdminMoneyAction {
   @@index([type, createdAt])
 }
 
+/// D3b-4a: histórico de regras. Uma linha por campo alterado; um salvamento = um batchId.
+enum PlatformRuleSource {
+  rules    // PUT /settings/platform-config
+  switches // PUT /admin/switches
+}
+
+model PlatformRuleChange {
+  id        String             @id @default(cuid())
+  batchId   String
+  source    PlatformRuleSource
+  field     String
+  before    Json?
+  after     Json?
+  actorId   String
+  actorRole String
+  reason    String?
+  meta      Json?
+  createdAt DateTime           @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([field, createdAt])
+  @@index([actorId, createdAt])
+}
+
 // D3b-1: quem paga a MotoboyTransfer (a loja, como hoje, ou o DROP).
 enum TransferPayer {
   store
