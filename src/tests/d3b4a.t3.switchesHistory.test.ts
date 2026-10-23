@@ -47,7 +47,14 @@ it('motoboyShareDirect diferente de 100 → 400 MOTOBOY_SHARE_DIRECT_LOCKED; 100
 
 it('só o motivo, sem campo → 400 como hoje; motivo > 500 → 400', async () => {
   expect((await put({ changeReason: 'nada' })).status).toBe(400);
-  expect((await put({ rankingPrizesEnabled: true, changeReason: 'x'.repeat(501) })).status).toBe(400);
+  const longo = await put({ rankingPrizesEnabled: true, changeReason: 'x'.repeat(501) });
+  expect(longo.status).toBe(400);
+  expect(longo.body).toMatchObject({ code: 'INVALID_FIELD', field: 'changeReason', error: 'O motivo pode ter até 500 caracteres' });
+  // 500 caracteres úteis + espaços nas pontas passa (conta o texto aparado)
+  expect((await put({ rankingPrizesEnabled: true, changeReason: ` ${'x'.repeat(500)} ` })).status).toBe(200);
+  const naoTexto = await put({ rankingPrizesEnabled: false, changeReason: 123 });
+  expect(naoTexto.status).toBe(400);
+  expect(naoTexto.body).toMatchObject({ code: 'INVALID_FIELD', field: 'changeReason', error: 'Motivo inválido' });
 });
 
 it('histórico falhou → nada muda', async () => {

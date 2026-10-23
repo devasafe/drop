@@ -917,7 +917,7 @@ const switchesSchema = z
     courierAvgSpeedKmh: z.number().min(5).max(80),
     routeDetourFactor: z.number().min(1).max(3),
     confirmSettlement: z.string().max(60),
-    changeReason: z.string().max(500),
+    changeReason: z.unknown(),
   })
   .partial()
   .strict();
@@ -983,7 +983,15 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
   try {
     const parsed = switchesSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ error: 'Configuração inválida' });
-    const { confirmSettlement, changeReason, ...patch } = parsed.data as Record<string, any>;
+    const { confirmSettlement, changeReason: rawReason, ...patch } = parsed.data as Record<string, any>;
+    if (rawReason !== undefined && rawReason !== null && typeof rawReason !== 'string') {
+      return res.status(400).json({ error: 'Motivo inválido', code: 'INVALID_FIELD', field: 'changeReason' });
+    }
+    const trimmedReason = typeof rawReason === 'string' ? rawReason.trim() : '';
+    if (trimmedReason.length > 500) {
+      return res.status(400).json({ error: 'O motivo pode ter até 500 caracteres', code: 'INVALID_FIELD', field: 'changeReason' });
+    }
+    const changeReason = trimmedReason || null;
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
     // Decisão do usuário (22/10): no modo direto o motoboy fica com 100% do frete.
     if ('motoboyShareDirect' in patch && Number(patch.motoboyShareDirect) !== 100) {
