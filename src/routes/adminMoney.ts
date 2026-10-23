@@ -1,5 +1,5 @@
 /**
- * D3b-3 · Visão geral do Dinheiro e Histórico (spec 7 e 8). Só leitura, permissão money:overview.
+ * D3b-3 · Visão geral do Dinheiro e Histórico (spec 7 e 8); D3b-4b · Mensalidades (spec 6.1). Só leitura, permissão money:overview.
  * Montado em /api/admin/money (src/app.ts).
  */
 import { Router, Response } from 'express';
@@ -11,6 +11,7 @@ import { ValidationError } from '../utils/AppError';
 import logger from '../config/logger';
 import { getMoneySummary, listMoneyMovements, MONEY_MOVEMENT_TYPES } from '../services/moneyOverview.service';
 import { listAdminMoneyActions, SP_DATE_RE } from '../services/moneyHistory.service';
+import { getSaasRevenue } from '../services/saasRevenue.service';
 
 const router = Router();
 
@@ -27,6 +28,12 @@ const actionsQuery = z.object({
   type: z.preprocess(emptyToUndefined, z.nativeEnum(AdminMoneyActionType).optional()),
   from: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE_RE).optional()),
   to: z.preprocess(emptyToUndefined, z.string().regex(SP_DATE_RE).optional()),
+  cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
+});
+
+const saasQuery = z.object({
+  // O formato AAAA-MM e a faixa de anos são conferidos no serviço (400 "Mês inválido (use AAAA-MM)").
+  month: z.preprocess(emptyToUndefined, z.string().max(20).optional()),
   cursor: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
 });
 
@@ -65,6 +72,17 @@ router.get('/actions', authenticate, authorizePermission('money:overview'), asyn
     return res.json(await listAdminMoneyActions(parsed.data));
   } catch (err) {
     return sendReadFailure(res, err, 'o histórico de ações de dinheiro');
+  }
+});
+
+// GET /api/admin/money/saas?month=AAAA-MM&cursor= — aba Mensalidades (D3b-4b, spec 6.1); custódia → { mode: 'custodia' }
+router.get('/saas', authenticate, authorizePermission('money:overview'), async (req: any, res: Response) => {
+  const parsed = saasQuery.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'Filtro inválido', details: parsed.error.flatten().fieldErrors });
+  try {
+    return res.json(await getSaasRevenue(parsed.data));
+  } catch (err) {
+    return sendReadFailure(res, err, 'as mensalidades');
   }
 });
 

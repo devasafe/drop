@@ -113,7 +113,7 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
     'Apaga a resposta que a loja deu a uma avaliação de cliente. A nota e o comentário do cliente ficam. Precisa de Ver todas as lojas.'),
   // Dinheiro · Visão geral (D3b-3): padrão só CEO (via '*'); concedível em Permissões.
   opens('money:overview', 'Ver a visão geral do dinheiro e o histórico de ações', MONEY, 'dinheiro',
-    'Abre Dinheiro · Visão geral e Histórico: quanto entrou, quanto saiu e quem fez cada ação. Só leitura.',
+    'Abre Dinheiro · Visão geral, Mensalidades (modo direto) e Histórico: quanto entrou, quanto saiu, a receita das mensalidades e quem fez cada ação. Só leitura.',
     { tab: 'visao-geral', subgroup: 'Visão geral' }),
   // Dinheiro · Repasses
   opens('payout:view', 'Ver repasses e obrigações', MONEY, 'dinheiro',
