@@ -102,13 +102,13 @@ describe('menu por papel e por modo (permissões padrão)', () => {
     expect(menu('ceo', 'custodia', true)).toEqual(CEO_CUSTODIA);
   });
 
-  it('CEO no direto: Asaas, Estornos e Pix; sem Planos, Repasses, Saques, Carteiras e Caixa', () => {
-    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'estornos', 'pix', 'historico'] });
+  it('CEO no direto: Asaas, Estornos, Pix e Mensalidades; sem Planos, Repasses, Saques, Carteiras e Caixa', () => {
+    expect(menu('ceo', 'direto')).toEqual({ ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'estornos', 'pix', 'mensalidades', 'historico'] });
   });
 
   it('CEO no direto com custódia em aberto: Repasses e Saques voltam (whileCustodyOpen); Carteiras e Caixa não', () => {
     expect(menu('ceo', 'direto', true)).toEqual({
-      ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'historico'],
+      ...CEO_CUSTODIA, lojas: ['lojas', 'asaas'], dinheiro: ['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'mensalidades', 'historico'],
     });
   });
 

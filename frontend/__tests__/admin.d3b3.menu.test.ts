@@ -20,8 +20,8 @@ const GERENTE_GERAL = ['user:view_all', 'store:view_all', 'wallet:view_all', 'da
 describe('tabela', () => {
   const area = ADMIN_AREAS.find((a) => a.key === 'dinheiro')!;
 
-  it('Visão geral primeiro, Histórico por último, as abas de operação no meio na ordem de antes', () => {
-    expect(area.tabs.map((t) => t.key)).toEqual(['visao-geral', 'repasses', 'saques', 'estornos', 'carteiras', 'caixa', 'pix', 'historico']);
+  it('Visão geral primeiro, Histórico por último, as abas de operação no meio na ordem de antes (D3b-4b: Mensalidades antes do Histórico)', () => {
+    expect(area.tabs.map((t) => t.key)).toEqual(['visao-geral', 'repasses', 'saques', 'estornos', 'carteiras', 'caixa', 'pix', 'mensalidades', 'historico']);
   });
 
   it('as duas abas novas: money:overview, sem filtro de modo, sem ceoOnly', () => {
@@ -40,8 +40,8 @@ describe('tabela', () => {
 describe('por papel e por modo', () => {
   it('CEO: Visão geral e Histórico nos dois modos e com o modo desconhecido', () => {
     expect(dinheiroTabs(ctx([], 'custodia', true))).toEqual(['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico']);
-    expect(dinheiroTabs(ctx([], 'direto', true))).toEqual(['visao-geral', 'estornos', 'pix', 'historico']);
-    expect(dinheiroTabs(ctx([], 'direto', true, true))).toEqual(['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'historico']);
+    expect(dinheiroTabs(ctx([], 'direto', true))).toEqual(['visao-geral', 'estornos', 'pix', 'mensalidades', 'historico']);
+    expect(dinheiroTabs(ctx([], 'direto', true, true))).toEqual(['visao-geral', 'repasses', 'saques', 'estornos', 'pix', 'mensalidades', 'historico']);
     expect(dinheiroTabs(ctx([], null, true))).toEqual(['visao-geral', 'historico']);
   });
 
@@ -58,7 +58,7 @@ describe('por papel e por modo', () => {
   it('money:overview concedida em Permissões: as duas abas aparecem e o item abre a Visão geral', () => {
     const perms = [...GERENTE_GERAL, 'money:overview'];
     expect(dinheiroTabs(ctx(perms, 'custodia'))).toEqual(['visao-geral', 'carteiras', 'historico']);
-    expect(dinheiroTabs(ctx(perms, 'direto'))).toEqual(['visao-geral', 'historico']);
+    expect(dinheiroTabs(ctx(perms, 'direto'))).toEqual(['visao-geral', 'mensalidades', 'historico']);
     expect(dinheiroHref(ctx(perms, 'custodia'))).toBe('/admin/dinheiro');
   });
 

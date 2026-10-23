@@ -59,12 +59,12 @@ describe('AdminTabs', () => {
     expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', inline: 'center' });
   });
 
-  it('Dinheiro no direto com custódia em aberto: Visão geral, Repasses, Saques, Estornos, Pix e Histórico', () => {
+  it('Dinheiro no direto com custódia em aberto: Visão geral, Repasses, Saques, Estornos, Pix, Mensalidades e Histórico', () => {
     mockSaas = { ...mockSaas, settlementMode: 'direto' };
     mockCustodyOpen = true;
     mockPath = '/admin/transfers';
     render(<AdminTabs area="dinheiro" />);
-    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Visão geral', 'Repasses', 'Saques', 'Estornos', 'Pix aos motoboys', 'Histórico']);
+    expect(tabs('Abas de Dinheiro').map((a) => a.textContent)).toEqual(['Visão geral', 'Repasses', 'Saques', 'Estornos', 'Pix aos motoboys', 'Mensalidades', 'Histórico']);
     expect(screen.getByRole('link', { name: 'Pix aos motoboys' })).toHaveAttribute('aria-current', 'page');
   });
 

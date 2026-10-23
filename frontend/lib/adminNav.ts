@@ -119,6 +119,8 @@ export const ADMIN_AREAS: AdminArea[] = [
       { key: 'carteiras', label: 'Carteiras', href: '/admin/wallets', permission: WALLET_VIEW_PERMISSIONS, custodyOnly: true },
       { key: 'caixa', label: 'Caixa', href: '/admin/app-cashbox', permission: 'cashbox:view', custodyOnly: true },
       { key: 'pix', label: 'Pix aos motoboys', href: '/admin/transfers', permission: 'payout:view', directOnly: true },
+      // D3b-4b: Mensalidades (MRR) só existe no modo direto; money:overview como Visão geral e Histórico (padrão só o CEO).
+      { key: 'mensalidades', label: 'Mensalidades', href: '/admin/dinheiro/mensalidades', permission: 'money:overview', directOnly: true },
       { key: 'historico', label: 'Histórico', href: '/admin/dinheiro/historico', permission: 'money:overview' },
     ],
   },
