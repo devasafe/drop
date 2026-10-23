@@ -58,6 +58,9 @@ describe('faixas (spec 5.2)', () => {
 
   it('chave desconhecida → 400; coluna da config que não se edita aqui é ignorada (aba velha)', async () => {
     expect((await put({ inventado: 1 })).body).toMatchObject({ code: 'INVALID_FIELD', field: 'inventado' });
+    const proto = await put({ constructor: 1 });
+    expect(proto.status).toBe(400);
+    expect(proto.body).toMatchObject({ code: 'INVALID_FIELD', field: 'constructor', error: 'Campo desconhecido: constructor' });
     const atual = (await request(app).get('/api/settings/platform-config')).body;
     const r = await put({ ...atual, poolTimeoutMin: 30 });
     expect(r.status).toBe(200);

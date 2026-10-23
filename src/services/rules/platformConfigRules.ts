@@ -99,7 +99,7 @@ export function parsePlatformConfigBody(body: unknown): {
   let changeReason: string | null = null;
   for (const [key, raw] of Object.entries(input)) {
     if (raw === undefined) continue;
-    if (key in PLATFORM_CONFIG_RULES) {
+    if (Object.prototype.hasOwnProperty.call(PLATFORM_CONFIG_RULES, key)) {
       patch[key] = parseRuleNumber(key as PlatformConfigRuleField, raw);
     } else if (key === 'seasonalTheme') {
       if (typeof raw !== 'string' || !THEMES.includes(raw)) throw new RuleFieldError(key, 'Tema sazonal inválido');
