@@ -390,7 +390,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     // --- NOVO FLUXO: Criar payout do motoboy + release de todos os payouts do pedido ---
     try {
       const config = await getPlatformConfig();
-      const motoboyCommissionPercent = config?.motoboyCommissionPercent || 20;
+      const motoboyCommissionPercent = config?.motoboyCommissionPercent ?? 20;
       const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
       const motoboyAmount = delivery.fee * (1 - motoboyCommissionDecimal);
 

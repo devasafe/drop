@@ -117,8 +117,8 @@ export async function calculateMotoboyEarningsWithConfig(
 ): Promise<number> {
   try {
     const config = await getPlatformConfig();
-    const baseValue = config?.motoboyCutPerDelivery || 5;
-    const perKmValue = config?.motoboyCutPerKm || 1;
+    const baseValue = config?.motoboyCutPerDelivery ?? 5;
+    const perKmValue = config?.motoboyCutPerKm ?? 1;
     const distanceEarning = distanceKm * perKmValue;
 
     let ratingBonus = 0;
@@ -144,8 +144,8 @@ export async function calculateMotoboyEarningsWithConfig(
 export async function calculateDeliveryFeeWithConfig(distanceKm: number): Promise<number> {
   try {
     const config = await getPlatformConfig();
-    const base = config?.motoboyCutPerDelivery || 5;
-    const perKm = config?.motoboyCutPerKm || 1;
+    const base = config?.motoboyCutPerDelivery ?? 5;
+    const perKm = config?.motoboyCutPerKm ?? 1;
     return base + perKm * Math.max(0, distanceKm);
   } catch (err) {
     console.error('❌ Erro ao calcular taxa de entrega com config:', err);
@@ -181,7 +181,7 @@ export async function calculateOrderDistribution(
     const config = await getPlatformConfig();
     const planCommissionPercent = await getStorePlanFee(storeId);
     const planCommissionDecimal = planCommissionPercent / 100;
-    const motoboyCommissionPercent = config?.motoboyCommissionPercent || 20;
+    const motoboyCommissionPercent = config?.motoboyCommissionPercent ?? 20;
     const motoboyCommissionDecimal = motoboyCommissionPercent / 100;
 
     // ✅ [Plan1] Verificar se a loja é Plano 1 (Vitrine): sem entrega integrada

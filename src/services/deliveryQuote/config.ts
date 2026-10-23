@@ -19,8 +19,8 @@ export async function getDeliveryConfig(): Promise<DeliveryConfig> {
     defaultPrepMinutes: Number(c?.defaultPrepMinutes ?? 15),
     avgSpeedKmh: Number(c?.courierAvgSpeedKmh ?? 25),
     detourFactor: Number(c?.routeDetourFactor ?? 1.3),
-    base: Number(c?.motoboyCutPerDelivery || 5),
-    perKm: Number(c?.motoboyCutPerKm || 1),
+    base: Number(c?.motoboyCutPerDelivery ?? 5),
+    perKm: Number(c?.motoboyCutPerKm ?? 1),
   };
 }
 

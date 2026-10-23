@@ -739,8 +739,8 @@ export const getMyWallet = async (req: Request, res: Response) => {
         logger.debug('🔄 Buscando PlatformConfig...');
         const config = await getPlatformConfig();
         responseData.motoboy.minimumWithdraw = config?.motoboyMinimumWithdraw ?? 10;
-        responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery || 5;
-        responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm || 1;
+        responseData.motoboy.motoboyCutPerDelivery = config?.motoboyCutPerDelivery ?? 5;
+        responseData.motoboy.motoboyCutPerKm = config?.motoboyCutPerKm ?? 1;
         logger.debug('✅ PlatformConfig encontrado');
       } catch (configErr: any) {
         console.warn('⚠️ Erro ao buscar PlatformConfig (continuando):', configErr.message);
