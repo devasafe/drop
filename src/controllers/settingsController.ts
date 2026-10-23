@@ -14,6 +14,10 @@ import {
   CommissionPlan,
   CommissionSyncChoice,
 } from '../repositories/storeSubscription.repository';
+import { Prisma } from '@prisma/client';
+import * as ruleChanges from '../services/rules/ruleChanges';
+import { diffRules } from '../services/rules/ruleChanges';
+import { parsePlatformConfigBody, RuleFieldError } from '../services/rules/platformConfigRules';
 import logger from '../config/logger';
 import { AppError } from '../utils/AppError';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
@@ -59,47 +63,18 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
   try {
     const userId = req.user?.id || (req as any).userId;
 
-    const {
-      commissionPlan1,
-      commissionPlan2,
-      commissionPlan3,
-      commissionSync,
-      motoboyCutPerDelivery,
-      motoboyCutPerKm,
-      motoboyMinimumWithdraw,
-      storeMinimumWithdraw,
-      motoboyCommissionPercent,
-      lateCancellationFeePercent,
-      lateCancellationMotoboyShare,
-      cancelFeeCustomerPercent, cancelFeeStorePercent, cancelFeeMotoboyPercent,
-      storeAcceptTimeoutMin, poolTimeoutMin, customerAbsentWaitMin,
-      seasonalTheme,
-      cardFeePercent, cardFeeFixed, cardAnticipationMonthlyRate, cardInstallmentMaxCount, cardInstallmentMinValue,
-    } = req.body;
-
-    // Saque mínimo (D1): número >= 0 e <= 100.000; texto numérico vira número; o resto é recusado.
-    const minimums: Record<string, unknown> = { motoboyMinimumWithdraw, storeMinimumWithdraw };
-    for (const [field, value] of Object.entries(minimums)) {
-      if (value === undefined) continue;
-      const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
-      if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 100000) {
-        return res.status(400).json({
-          error: 'O saque mínimo precisa ser um valor entre R$ 0 e R$ 100.000',
-          code: 'INVALID_MINIMUM_WITHDRAW',
-          field,
-        });
-      }
-      minimums[field] = n;
+    let parsed: ReturnType<typeof parsePlatformConfigBody>;
+    try {
+      parsed = parsePlatformConfigBody(req.body);
+    } catch (err) {
+      if (err instanceof RuleFieldError) return res.status(400).json({ error: err.message, code: err.code, field: err.field });
+      throw err;
     }
+    const { patch, commissionSync, changeReason } = parsed;
 
-    // Comissão por plano (D3b-3): número entre 0 e 100, duas casas.
     const commissions: Partial<Record<CommissionPlan, number>> = {};
-    const commissionInput: Record<CommissionPlan, unknown> = { plan1: commissionPlan1, plan2: commissionPlan2, plan3: commissionPlan3 };
     for (const [plan, field] of COMMISSION_FIELDS) {
-      if (commissionInput[plan] === undefined) continue;
-      const n = parsePercent(commissionInput[plan]);
-      if (n === null) return res.status(400).json({ error: 'A comissão precisa ser um número entre 0 e 100', field });
-      commissions[plan] = n;
+      if (patch[field] !== undefined) commissions[plan] = patch[field] as number;
     }
 
     // Escolha por plano: objeto estrito { plan1?|plan2?|plan3?: 'keep_special' | 'all' }.
@@ -111,31 +86,6 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
       if (!ok) return res.status(400).json({ error: 'Escolha de sincronização inválida' });
       choices = commissionSync as Partial<Record<CommissionPlan, CommissionSyncChoice>>;
     }
-
-    // Só grava os campos enviados (patch parcial), preservando o resto da config.
-    const patch: Record<string, any> = {};
-    for (const [plan, field] of COMMISSION_FIELDS) {
-      if (commissions[plan] !== undefined) patch[field] = commissions[plan];
-    }
-    if (motoboyCutPerDelivery !== undefined) patch.motoboyCutPerDelivery = motoboyCutPerDelivery;
-    if (motoboyCutPerKm !== undefined) patch.motoboyCutPerKm = motoboyCutPerKm;
-    if (motoboyMinimumWithdraw !== undefined) patch.motoboyMinimumWithdraw = minimums.motoboyMinimumWithdraw;
-    if (storeMinimumWithdraw !== undefined) patch.storeMinimumWithdraw = minimums.storeMinimumWithdraw;
-    if (motoboyCommissionPercent !== undefined) patch.motoboyCommissionPercent = motoboyCommissionPercent;
-    if (lateCancellationFeePercent !== undefined) patch.lateCancellationFeePercent = lateCancellationFeePercent;
-    if (lateCancellationMotoboyShare !== undefined) patch.lateCancellationMotoboyShare = lateCancellationMotoboyShare;
-    if (cancelFeeCustomerPercent !== undefined) patch.cancelFeeCustomerPercent = cancelFeeCustomerPercent;
-    if (cancelFeeStorePercent !== undefined) patch.cancelFeeStorePercent = cancelFeeStorePercent;
-    if (cancelFeeMotoboyPercent !== undefined) patch.cancelFeeMotoboyPercent = cancelFeeMotoboyPercent;
-    if (storeAcceptTimeoutMin !== undefined) patch.storeAcceptTimeoutMin = storeAcceptTimeoutMin;
-    if (poolTimeoutMin !== undefined) patch.poolTimeoutMin = poolTimeoutMin;
-    if (customerAbsentWaitMin !== undefined) patch.customerAbsentWaitMin = customerAbsentWaitMin;
-    if (seasonalTheme !== undefined) patch.seasonalTheme = seasonalTheme;
-    if (cardFeePercent !== undefined) patch.cardFeePercent = cardFeePercent;
-    if (cardFeeFixed !== undefined) patch.cardFeeFixed = cardFeeFixed;
-    if (cardAnticipationMonthlyRate !== undefined) patch.cardAnticipationMonthlyRate = cardAnticipationMonthlyRate;
-    if (cardInstallmentMaxCount !== undefined) patch.cardInstallmentMaxCount = cardInstallmentMaxCount;
-    if (cardInstallmentMinValue !== undefined) patch.cardInstallmentMinValue = cardInstallmentMinValue;
 
     const actor = actorFromRequest(req);
     const { config, commissionSync: synced } = await prisma.$transaction(async (tx) => {
@@ -157,6 +107,7 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
           'Escolha o que fazer com as lojas dos planos com comissão alterada', { plans: missing });
       }
 
+      const ruleDiff = diffRules(locked as unknown as Record<string, unknown>, patch);
       const saved = await savePlatformConfig(patch, userId, tx);
       const results: Array<{ plan: CommissionPlan; oldValue: number; newValue: number; choice: CommissionSyncChoice; storesUpdated: number }> = [];
       for (const c of changes) {
@@ -172,11 +123,17 @@ export const updatePlatformConfig = async (req: Request & { user?: any }, res: R
         });
         results.push({ ...c, choice, storesUpdated });
       }
+      const meta: Record<string, Prisma.InputJsonValue> = {};
+      for (const r of results) {
+        const field = COMMISSION_FIELDS.find(([p]) => p === r.plan)![1];
+        meta[field] = { choice: r.choice, storesUpdated: r.storesUpdated };
+      }
+      await ruleChanges.recordRuleChanges(tx, { actor, source: 'rules', reason: changeReason, changes: ruleDiff, meta });
       return { config: saved, commissionSync: results };
     }, { maxWait: 15_000, timeout: 20_000 });
 
     // Notificar todos os clientes sobre mudança de tema sazonal (depois do commit)
-    if (seasonalTheme !== undefined) {
+    if (patch.seasonalTheme !== undefined) {
       emitToAll('theme:updated', { seasonalTheme: config.seasonalTheme });
     }
 

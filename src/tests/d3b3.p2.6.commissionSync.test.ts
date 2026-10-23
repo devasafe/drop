@@ -163,6 +163,15 @@ describe('PUT /settings/platform-config com comissão', () => {
     expect(await taxa(s.outroPlano.id)).toBe(15);
   });
 
+  it('comissão alterada grava histórico de regras com a escolha e as lojas atualizadas (D3b-4a)', async () => {
+    await cenario();
+    const r = await salvar(ceo, { commissionPlan3: 4.44, commissionSync: { plan3: 'all' } });
+    expect(r.status).toBe(200);
+    const row = await prisma.platformRuleChange.findFirst({ where: { actorId: ceo.userId, field: 'commissionPlan3' } });
+    expect(row).not.toBeNull();
+    expect(row!.meta).toEqual({ choice: 'all', storesUpdated: r.body.commissionSync[0].storesUpdated });
+  });
+
   it('falha ao gravar a linha desfaz o salvamento da config e das lojas', async () => {
     const s = await cenario();
     jest.spyOn(moneyActions, 'recordAdminMoneyAction').mockRejectedValueOnce(new Error('falha ao gravar a linha'));
@@ -178,7 +187,7 @@ describe('PUT /settings/platform-config com comissão', () => {
     expect((await salvar(ceo, { commissionPlan3: 4.44, commissionSync: { plan4: 'all' } })).status).toBe(400);
     const r = await salvar(ceo, { commissionPlan3: 150, commissionSync: { plan3: 'all' } });
     expect(r.status).toBe(400);
-    expect(r.body).toEqual({ error: 'A comissão precisa ser um número entre 0 e 100', field: 'commissionPlan3' });
+    expect(r.body).toEqual({ error: 'A comissão precisa ser um número entre 0 e 100', code: 'INVALID_FIELD', field: 'commissionPlan3' });
     expect((await config()).p3).toBe(3.33);
   });
 
