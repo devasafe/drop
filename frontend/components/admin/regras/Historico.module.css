@@ -1,0 +1,18 @@
+/* Regras e taxas · Histórico (D3b-4a): um cartão por salvamento (lote). Só tokens. */
+.groups { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; }
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+.head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.who { font: var(--text-label); color: var(--color-text-primary); overflow-wrap: anywhere; }
+.when { font: var(--text-caption); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.reason { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.rows { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.rows li { font: var(--text-body); color: var(--color-text-primary); overflow-wrap: anywhere; }

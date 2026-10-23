@@ -81,3 +81,10 @@ export function formatRuleValue(field: string, value: unknown): string {
     default: return n2(v);
   }
 }
+
+const SP_SHORT = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+});
+
+/** "22/10 14:03" em horário de São Paulo (sem a vírgula que alguns ICU colocam). */
+export const spShortDateTime = (iso: string): string => SP_SHORT.format(new Date(iso)).replace(',', '');

@@ -146,6 +146,7 @@ export const ADMIN_AREAS: AdminArea[] = [
       { key: 'ranking', label: 'Ranking', href: '/admin/settings?aba=ranking', permission: 'ranking:manage' },
       // D4: a troca de modo sai de Freios; só o CEO (o servidor também confere: CEO_ONLY).
       { key: 'modo', label: 'Modo da plataforma', href: '/admin/settings?aba=modo', ceoOnly: true },
+      { key: 'historico', label: 'Histórico', href: '/admin/settings?aba=historico', permission: 'settings:manage' },
     ],
   },
   {

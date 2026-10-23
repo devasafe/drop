@@ -28,6 +28,7 @@ export function SettlementModeCard({ mode, onChanged }: { mode: SettlementMode; 
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
+  const [reason, setReason] = useState('');
   const [warnings, setWarnings] = useState(0);
 
   const start = async () => {
@@ -35,6 +36,7 @@ export function SettlementModeCard({ mode, onChanged }: { mode: SettlementMode; 
     setPreview(null);
     setPreviewError(null);
     setTyped('');
+    setReason('');
     try {
       const r = await api.get('/admin/switches/settlement-preview', { params: { to: target } });
       setPreview(r.data);
@@ -44,7 +46,9 @@ export function SettlementModeCard({ mode, onChanged }: { mode: SettlementMode; 
   };
 
   const confirm = async () => {
-    const r = await api.put('/admin/switches', { settlementMode: target, confirmSettlement: typed });
+    const r = await api.put('/admin/switches', {
+      settlementMode: target, confirmSettlement: typed, ...(reason.trim() ? { changeReason: reason.trim() } : {}),
+    });
     const w = r.data?.saasBillingWarnings;
     setWarnings(Array.isArray(w) ? w.length : 0);
     setOpen(false);
@@ -96,6 +100,7 @@ export function SettlementModeCard({ mode, onChanged }: { mode: SettlementMode; 
               onChange={setTyped}
               autoComplete="off"
             />
+            <Input label="Motivo (opcional)" value={reason} onChange={setReason} maxLength={500} />
           </>
         )}
       </AdminSheet>

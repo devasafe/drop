@@ -86,7 +86,7 @@ const CEO_CUSTODIA = {
   dinheiro: ['visao-geral', 'repasses', 'saques', 'carteiras', 'caixa', 'historico'],
   suporte: ['atendimento'],
   comunicacao: ['broadcasts', 'avisos', 'cupons'],
-  regras: ['taxas', 'ranking', 'modo'],
+  regras: ['taxas', 'ranking', 'modo', 'historico'],
   freios: ['freios'],
   permissoes: ['permissoes'],
   tema: ['tema'],
@@ -207,8 +207,8 @@ describe('menu com permissões customizadas (/admin/permissoes)', () => {
     expect(menu('ceo', 'custodia').regras).toContain('modo');
     expect(menu('ceo', 'direto').regras).toContain('modo');
     expect(menu('ceo', null).regras).toContain('modo');
-    expect(menu('gerente_lojistas', 'custodia', false, ['settings:manage', 'ranking:manage']).regras).toEqual(['taxas', 'ranking']);
-    expect(menu('marketing', 'direto', false, ['*']).regras).toEqual(['taxas', 'ranking']);
+    expect(menu('gerente_lojistas', 'custodia', false, ['settings:manage', 'ranking:manage']).regras).toEqual(['taxas', 'ranking', 'historico']);
+    expect(menu('marketing', 'direto', false, ['*']).regras).toEqual(['taxas', 'ranking', 'historico']);
   });
 
   it('Números do negócio abre com analytics:view_platform sozinha (página fundida, D1)', () => {

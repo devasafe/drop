@@ -26,6 +26,7 @@ export function SaasFeeCard({ initial, onSaved }: { initial: SaasFeeValues; onSa
   const [trial, setTrial] = useState('');
   const [grace, setGrace] = useState('');
   const [pix, setPix] = useState(false);
+  const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
 
@@ -58,7 +59,9 @@ export function SaasFeeCard({ initial, onSaved }: { initial: SaasFeeValues; onSa
     try {
       const r = await api.put('/admin/switches', {
         saasMonthlyFee: feeN, saasTrialDays: trialN, saasGraceDays: graceN, directTransfersEnabled: pix,
+        ...(reason.trim() ? { changeReason: reason.trim() } : {}),
       });
+      setReason('');
       onSaved(r.data);
       setMsg({ tone: 'success', text: 'Mensalidade salva.' });
     } catch (err) {
@@ -81,6 +84,7 @@ export function SaasFeeCard({ initial, onSaved }: { initial: SaasFeeValues; onSa
         <Input label="Dias de tolerância" value={grace} onChange={setGrace} inputMode="numeric" />
       </div>
       <Checkbox label="Pix automático ao motoboy" checked={pix} onChange={setPix} />
+      <Input label="Motivo (opcional)" value={reason} onChange={setReason} maxLength={500} />
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
       <div className={styles.actions}>
         <Button onClick={save} loading={saving}>Salvar mensalidade</Button>
