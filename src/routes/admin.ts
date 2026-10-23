@@ -917,6 +917,7 @@ const switchesSchema = z
     courierAvgSpeedKmh: z.number().min(5).max(80),
     routeDetourFactor: z.number().min(1).max(3),
     confirmSettlement: z.string().max(60),
+    changeReason: z.string().max(500),
   })
   .partial()
   .strict();
@@ -982,8 +983,12 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
   try {
     const parsed = switchesSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ error: 'Configuração inválida' });
-    const { confirmSettlement, ...patch } = parsed.data as Record<string, any>;
+    const { confirmSettlement, changeReason, ...patch } = parsed.data as Record<string, any>;
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nenhum freio válido informado' });
+    // Decisão do usuário (22/10): no modo direto o motoboy fica com 100% do frete.
+    if ('motoboyShareDirect' in patch && Number(patch.motoboyShareDirect) !== 100) {
+      return res.status(400).json({ error: 'No modo direto o motoboy fica com 100% do frete.', code: 'MOTOBOY_SHARE_DIRECT_LOCKED' });
+    }
     // Modo de liquidação e cartão direto decidem para onde vai o dinheiro dos pedidos:
     // só o CEO (activeRole), mesmo que outro papel tenha settings:manage delegado.
     const CEO_ONLY_SWITCHES = ['settlementMode', 'directCardEnabled', 'saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled', 'defaultDeliveryRadiusKm', 'defaultPrepMinutes', 'courierAvgSpeedKmh', 'routeDetourFactor'];
@@ -1013,8 +1018,19 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
         settlementChange = { from, to: patch.settlementMode };
       }
     }
-    const { updatePlatformConfig } = await import('../repositories/platformConfig.repository');
-    const cfg = await updatePlatformConfig(patch, req.user?.id || 'system');
+    const { updatePlatformConfig, ensurePlatformConfig } = await import('../repositories/platformConfig.repository');
+    const { diffRules } = await import('../services/rules/ruleChanges');
+    const ruleChanges = await import('../services/rules/ruleChanges');
+    const actor = actorFromRequest(req);
+    const cfg = await prisma.$transaction(async (tx) => {
+      const current = await ensurePlatformConfig(req.user?.id || 'system', tx);
+      await tx.$queryRaw`SELECT id FROM "PlatformConfig" WHERE id = ${current.id} FOR UPDATE`;
+      const locked = await tx.platformConfig.findUniqueOrThrow({ where: { id: current.id } });
+      const changes = diffRules(locked as unknown as Record<string, unknown>, patch);
+      const saved = await updatePlatformConfig(patch, req.user?.id || 'system', tx);
+      await ruleChanges.recordRuleChanges(tx, { actor, source: 'switches', reason: changeReason ?? null, changes });
+      return saved;
+    }, { maxWait: 15_000, timeout: 20_000 });
     const billingKeys = ['saasMonthlyFee', 'saasTrialDays', 'saasGraceDays', 'directTransfersEnabled'];
     if (billingKeys.some((k) => k in patch)) {
       const billingPatch = Object.fromEntries(Object.entries(patch).filter(([k]) => billingKeys.includes(k)));

@@ -44,9 +44,9 @@ describe('t1.1 — configuração do modo SaaS', () => {
   it('aceita billingModel, motoboyShareDirect, directCardEnabled e transferBlockHours válidos', async () => {
     const ceo = await createTestUser('ceo', DOMAIN);
     const put = await request(app).put('/api/admin/switches').set('Authorization', bearer(ceo))
-      .send({ billingModel: 'ambos', motoboyShareDirect: 80, directCardEnabled: true, transferBlockHours: 48 });
+      .send({ billingModel: 'ambos', motoboyShareDirect: 100, directCardEnabled: true, transferBlockHours: 48 });
     expect(put.status).toBe(200);
     const { getSaasConfig } = await import('../utils/settlement');
-    expect(await getSaasConfig()).toMatchObject({ billingModel: 'ambos', motoboyShareDirect: 80, directCardEnabled: true, transferBlockHours: 48 });
+    expect(await getSaasConfig()).toMatchObject({ billingModel: 'ambos', motoboyShareDirect: 100, directCardEnabled: true, transferBlockHours: 48 });
   });
 });

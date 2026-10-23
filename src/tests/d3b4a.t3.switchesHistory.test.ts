@@ -1,0 +1,58 @@
+/** D3b-4a · T3: PUT /admin/switches grava histórico, aceita motivo e trava motoboyShareDirect em 100. */
+import request from 'supertest';
+import app from '../app';
+import { prisma } from '../lib/prisma';
+import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
+import { createTestUser, bearer, TestUser } from './helpers/authUser';
+import * as ruleChanges from '../services/rules/ruleChanges';
+
+const DOMAIN = '@d3b4at3.test';
+let restore: () => Promise<void>;
+let ceo: TestUser;
+beforeAll(async () => { restore = await snapshotPlatformConfig(); });
+afterAll(async () => { await restore(); });
+beforeEach(async () => {
+  ceo = await createTestUser('ceo', DOMAIN);
+  const cfg = (await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } }))
+    ?? (await prisma.platformConfig.create({ data: { updatedBy: 'test' } }));
+  await prisma.platformConfig.update({ where: { id: cfg.id }, data: { rankingPrizesEnabled: false, saasTrialDays: 14, motoboyShareDirect: 100 } });
+});
+afterEach(async () => { jest.restoreAllMocks(); await cleanupUsersByEmailDomain(DOMAIN); });
+
+const put = (body: Record<string, unknown>) =>
+  request(app).put('/api/admin/switches').set('Authorization', bearer(ceo)).send(body);
+const linhas = () => prisma.platformRuleChange.findMany({ where: { actorId: ceo.userId }, orderBy: { createdAt: 'asc' } });
+
+it('cada campo alterado vira uma linha source=switches com o motivo; igual não grava', async () => {
+  expect((await put({ rankingPrizesEnabled: true, saasTrialDays: 14, changeReason: 'campanha' })).status).toBe(200);
+  const rows = await linhas();
+  expect(rows.map((r) => [r.field, r.before, r.after, r.source, r.reason])).toEqual([
+    ['rankingPrizesEnabled', false, true, 'switches', 'campanha'],
+  ]);
+});
+
+it('dois salvamentos seguidos encadeiam before/after', async () => {
+  await put({ saasTrialDays: 20 });
+  await put({ saasTrialDays: 30 });
+  expect((await linhas()).map((r) => [r.before, r.after])).toEqual([[14, 20], [20, 30]]);
+});
+
+it('motoboyShareDirect diferente de 100 → 400 MOTOBOY_SHARE_DIRECT_LOCKED; 100 passa', async () => {
+  const r = await put({ motoboyShareDirect: 80 });
+  expect(r.status).toBe(400);
+  expect(r.body.code).toBe('MOTOBOY_SHARE_DIRECT_LOCKED');
+  expect((await put({ motoboyShareDirect: 100 })).status).toBe(200);
+  expect(await linhas()).toHaveLength(0);
+});
+
+it('só o motivo, sem campo → 400 como hoje; motivo > 500 → 400', async () => {
+  expect((await put({ changeReason: 'nada' })).status).toBe(400);
+  expect((await put({ rankingPrizesEnabled: true, changeReason: 'x'.repeat(501) })).status).toBe(400);
+});
+
+it('histórico falhou → nada muda', async () => {
+  jest.spyOn(ruleChanges, 'recordRuleChanges').mockRejectedValueOnce(new Error('falha forçada'));
+  expect((await put({ rankingPrizesEnabled: true })).status).toBe(500);
+  const c = await prisma.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
+  expect(c!.rankingPrizesEnabled).toBe(false);
+});
