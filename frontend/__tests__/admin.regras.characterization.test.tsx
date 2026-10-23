@@ -19,7 +19,11 @@ const CONFIG = {
   motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10,
   motoboyCommissionPercent: 20, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15, seasonalTheme: 'none',
+  lateCancellationFeePercent: 20, lateCancellationMotoboyShare: 50, cardFeePercent: 2.99, cardFeeFixed: 0.39,
+  cardAnticipationMonthlyRate: 1.5, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5,
 };
+// D3b-4a: o PUT manda só os campos editáveis (sem _id, updatedAt nem seasonalTheme)
+const { _id: _omitId, updatedAt: _omitUpd, seasonalTheme: _omitTheme, ...LEAN } = { ...CONFIG } as Record<string, unknown>;
 const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 
 beforeEach(() => {
@@ -30,7 +34,7 @@ beforeEach(() => {
   );
 });
 
-it('lê a config e salva a config inteira com a edição', async () => {
+it('lê a config e salva só os campos editáveis com a edição', async () => {
   (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, storeMinimumWithdraw: 15 }, message: 'ok' } });
   renderAdminPage(<AdminSettings />);
   await screen.findByLabelText('Saque mínimo da loja (R$)');
@@ -38,7 +42,7 @@ it('lê a config e salva a config inteira com a edição', async () => {
   fireEvent.change(field('Saque mínimo da loja (R$)'), { target: { value: '15' } });
   fireEvent.click(screen.getByRole('button', { name: /^Salvar/ }));
   await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
-  expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...CONFIG, storeMinimumWithdraw: 15 });
+  expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...LEAN, storeMinimumWithdraw: 15 });
   await waitFor(() => expect(field('Saque mínimo da loja (R$)').value).toBe('15'));
 });
 
@@ -48,7 +52,7 @@ it('erro do servidor aparece na tela', async () => {
   });
   renderAdminPage(<AdminSettings />);
   await screen.findByLabelText('Saque mínimo da loja (R$)');
-  fireEvent.change(field('Saque mínimo da loja (R$)'), { target: { value: '200000' } });
+  fireEvent.change(field('Saque mínimo da loja (R$)'), { target: { value: '15' } }); // D3b-4a: 200000 agora é barrado na tela (faixa 0 a 100.000); o erro do servidor vem com valor válido
   fireEvent.click(screen.getByRole('button', { name: /^Salvar/ }));
   expect(await screen.findByText('O saque mínimo precisa ser um valor entre R$ 0 e R$ 100.000')).toBeInTheDocument();
 });

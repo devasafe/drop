@@ -26,7 +26,11 @@ const CONFIG = {
   motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10,
   motoboyCommissionPercent: 20, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15, updatedAt: '2026-09-22T12:00:00.000Z',
+  lateCancellationFeePercent: 20, lateCancellationMotoboyShare: 50, cardFeePercent: 2.99, cardFeeFixed: 0.39,
+  cardAnticipationMonthlyRate: 1.5, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5,
 };
+// D3b-4a: o PUT manda só os campos editáveis (sem _id, updatedAt nem seasonalTheme)
+const { _id: _omitId, updatedAt: _omitUpd, seasonalTheme: _omitTheme, ...LEAN } = { ...CONFIG } as Record<string, unknown>;
 const GERENTE = adminAuth('gerente_geral', ['settings:manage']);
 const IMPACT: Record<string, unknown> = {
   '/settings/commission-impact?plan=plan2&value=12': {
@@ -61,12 +65,12 @@ it('o aviso antigo "salvar iguala todas" saiu', async () => {
   expect(screen.queryByText(/inclusive às que tinham uma especial/)).toBeNull();
 });
 
-it('salvar sem mudar comissão: PUT da config inteira, sem commissionSync e sem ler impacto', async () => {
+it('salvar sem mudar comissão: PUT só com os campos editáveis, sem commissionSync e sem ler impacto', async () => {
   put.mockResolvedValue({ data: { config: { ...CONFIG, motoboyCutPerKm: 2 }, message: 'ok' } });
   renderAdminPage(<AdminSettings />, GERENTE);
   await changePlan('Por km de rota (R$)', '2');
   fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
-  await waitFor(() => expect(put).toHaveBeenCalledWith('/settings/platform-config', { ...CONFIG, motoboyCutPerKm: 2 }));
+  await waitFor(() => expect(put).toHaveBeenCalledWith('/settings/platform-config', { ...LEAN, motoboyCutPerKm: 2 }));
   expect(get.mock.calls.some(([u]) => String(u).startsWith('/settings/commission-impact'))).toBe(false);
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(mockToast).toHaveBeenCalledWith('Regras salvas', 'success');
@@ -90,7 +94,7 @@ it('Plano 2 alterado: mostra o impacto, exige a escolha e salva com "Manter as e
   expect(ok).toBeEnabled();
   fireEvent.click(ok);
   await waitFor(() => expect(put).toHaveBeenCalledWith('/settings/platform-config', {
-    ...CONFIG, commissionPlan2: 12, commissionSync: { plan2: 'keep_special' },
+    ...LEAN, commissionPlan2: 12, commissionSync: { plan2: 'keep_special' },
   }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(mockToast).toHaveBeenCalledWith('Regras salvas · 4 lojas atualizadas', 'success');
@@ -127,7 +131,7 @@ it('dois planos: o sem especiais não pede escolha; o outro pede', async () => {
   fireEvent.click(within(s).getByRole('radio', { name: /Igualar todas/ }));
   fireEvent.click(ok);
   await waitFor(() => expect(put).toHaveBeenCalledWith('/settings/platform-config', {
-    ...CONFIG, commissionPlan1: 9, commissionPlan2: 12, commissionSync: { plan1: 'keep_special', plan2: 'all' },
+    ...LEAN, commissionPlan1: 9, commissionPlan2: 12, commissionSync: { plan1: 'keep_special', plan2: 'all' },
   }));
 });
 
@@ -177,7 +181,7 @@ it('409 COMMISSION_SYNC_CHOICE_REQUIRED num salvar sem comissão local: abre a f
   expect(get).toHaveBeenCalledWith('/settings/commission-impact?plan=plan1&value=10');
   fireEvent.click(within(s).getByRole('button', { name: 'Salvar e aplicar' }));
   await waitFor(() => expect(put).toHaveBeenLastCalledWith('/settings/platform-config', {
-    ...CONFIG, motoboyCutPerKm: 2, commissionSync: { plan1: 'keep_special' },
+    ...LEAN, motoboyCutPerKm: 2, commissionSync: { plan1: 'keep_special' },
   }));
   expect(mockToast).toHaveBeenCalledWith('Regras salvas · 2 lojas atualizadas', 'success');
 });
@@ -199,7 +203,7 @@ it('409 com mais um plano dentro da folha: avisa, acrescenta o plano e o próxim
   expect(await within(s).findByText('Plano 3: 6% → 5%')).toBeInTheDocument();
   fireEvent.click(within(s).getByRole('button', { name: 'Salvar e aplicar' }));
   await waitFor(() => expect(put).toHaveBeenLastCalledWith('/settings/platform-config', {
-    ...CONFIG, commissionPlan2: 12, commissionSync: { plan2: 'keep_special', plan3: 'keep_special' },
+    ...LEAN, commissionPlan2: 12, commissionSync: { plan2: 'keep_special', plan3: 'keep_special' },
   }));
   expect(mockToast).toHaveBeenCalledWith('Regras salvas · 5 lojas atualizadas', 'success');
 });

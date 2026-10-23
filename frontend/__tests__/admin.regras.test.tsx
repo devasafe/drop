@@ -20,7 +20,11 @@ const CONFIG = {
   motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10,
   motoboyCommissionPercent: 20, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15, updatedAt: '2026-09-22T12:00:00.000Z',
+  lateCancellationFeePercent: 20, lateCancellationMotoboyShare: 50, cardFeePercent: 2.99, cardFeeFixed: 0.39,
+  cardAnticipationMonthlyRate: 1.5, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5,
 };
+// D3b-4a: o PUT manda só os campos editáveis (sem _id, updatedAt nem seasonalTheme)
+const { _id: _omitId, updatedAt: _omitUpd, seasonalTheme: _omitTheme, ...LEAN } = { ...CONFIG } as Record<string, unknown>;
 const SW = {
   rankingPrizesEnabled: false, benefitsRedeemEnabled: false, gamificationPointsEnabled: false,
   settlementMode: 'direto', saasMonthlyFee: 49.9, saasTrialDays: 14, saasGraceDays: 5, directTransfersEnabled: false,
@@ -145,13 +149,13 @@ describe('Taxas e tempos', () => {
     expect(screen.getByRole('button', { name: 'Salvar 1 mudança' })).toBeDisabled();
   });
 
-  it('salvar sem mudar comissão: PUT com a config inteira, toast e volta a "Nenhuma mudança"', async () => {
+  it('salvar sem mudar comissão: PUT só com os campos editáveis, toast e volta a "Nenhuma mudança"', async () => {
     (api.put as jest.Mock).mockResolvedValue({ data: { config: { ...CONFIG, motoboyCutPerKm: 2 }, message: 'ok' } });
     renderAdminPage(<AdminSettings />, GERENTE);
     fireEvent.change(await screen.findByLabelText('Por km de rota (R$)'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar 1 mudança' }));
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Regras salvas', 'success'));
-    expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...CONFIG, motoboyCutPerKm: 2 });
+    expect(api.put).toHaveBeenCalledWith('/settings/platform-config', { ...LEAN, motoboyCutPerKm: 2 });
     expect(screen.getByRole('button', { name: 'Nenhuma mudança' })).toBeDisabled();
   });
 

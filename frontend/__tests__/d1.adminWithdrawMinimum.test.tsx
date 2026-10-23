@@ -20,7 +20,11 @@ const CONFIG = {
   motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10,
   motoboyCommissionPercent: 20, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15,
+  lateCancellationFeePercent: 20, lateCancellationMotoboyShare: 50, cardFeePercent: 2.99, cardFeeFixed: 0.39,
+  cardAnticipationMonthlyRate: 1.5, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 5,
 };
+// D3b-4a: o PUT manda só os campos editáveis (sem _id, updatedAt nem seasonalTheme)
+const { _id: _omitId, updatedAt: _omitUpd, seasonalTheme: _omitTheme, ...LEAN } = { ...CONFIG } as Record<string, unknown>;
 
 beforeEach(() => {
   jest.clearAllMocks();

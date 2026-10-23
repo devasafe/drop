@@ -1,9 +1,9 @@
 /**
  * Simulação de um pedido na tela Regras e taxas (D3a, tela 22), com a fórmula de hoje do servidor
  * (src/utils/walletCalculations.ts):
- * - taxa de entrega = (motoboyCutPerDelivery || 5) + (motoboyCutPerKm || 1) × km  (calculateDeliveryFeeWithConfig);
+ * - taxa de entrega = (motoboyCutPerDelivery ?? 5) + (motoboyCutPerKm ?? 1) × km  (calculateDeliveryFeeWithConfig);
  * - plano 1 (vitrine) não tem entrega;
- * - loja = produtos × (1 − comissão do plano); DROP = comissão do plano + (motoboyCommissionPercent || 20)% da entrega;
+ * - loja = produtos × (1 − comissão do plano); DROP = comissão do plano + (motoboyCommissionPercent ?? 20)% da entrega;
  * - motoboy = entrega − a parte do DROP (calculateOrderDistribution). Tudo arredondado a centavos.
  * É o modo App (custódia); o custo do cartão não entra.
  */
@@ -33,9 +33,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function simulateOrder(cfg: SimulationConfig, input: SimulationInput): SimulationResult {
   const planKey = `commissionPlan${input.plan}` as const;
   const pct = Number(cfg[planKey]) || 0;
-  const base = cfg.motoboyCutPerDelivery || 5;
-  const perKm = cfg.motoboyCutPerKm || 1;
-  const motoboyCommission = cfg.motoboyCommissionPercent || 20;
+  const base = cfg.motoboyCutPerDelivery ?? 5;
+  const perKm = cfg.motoboyCutPerKm ?? 1;
+  const motoboyCommission = cfg.motoboyCommissionPercent ?? 20;
 
   const fee = input.plan === 1 ? 0 : round2(base + perKm * Math.max(0, input.distanceKm));
   const storeReceives = round2(input.productTotal * (1 - pct / 100));

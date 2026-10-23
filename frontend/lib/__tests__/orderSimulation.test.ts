@@ -26,11 +26,19 @@ describe('simulateOrder (mesma conta de walletCalculations.ts)', () => {
     });
   });
 
-  it('valores zerados ou ausentes caem nos padrões do servidor (5 fixo, 1 por km, 20%)', () => {
-    const r = simulateOrder({ commissionPlan2: 15, motoboyCutPerDelivery: 0, motoboyCutPerKm: 0, motoboyCommissionPercent: 0 },
-      { productTotal: 100, distanceKm: 3, plan: 2 });
+  it('valores ausentes caem nos padrões do servidor (5 fixo, 1 por km, 20%)', () => {
+    const r = simulateOrder({ commissionPlan2: 15 }, { productTotal: 100, distanceKm: 3, plan: 2 });
     expect(r.deliveryFee).toBe(8);
     expect(r.motoboySharePercent).toBe(80);
+  });
+
+  // D3b-4a: 0 vale 0 (antes o || trocava por 5, 1 e 20)
+  it('valores zerados valem zero', () => {
+    const r = simulateOrder({ commissionPlan2: 15, motoboyCutPerDelivery: 0, motoboyCutPerKm: 0, motoboyCommissionPercent: 0 },
+      { productTotal: 100, distanceKm: 3, plan: 2 });
+    expect(r.deliveryFee).toBe(0);
+    expect(r.motoboyReceives).toBe(0);
+    expect(r.motoboySharePercent).toBe(100);
   });
 
   it('distância negativa conta como zero', () => {

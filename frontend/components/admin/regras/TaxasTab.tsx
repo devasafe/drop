@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import api from '../../../lib/api';
 import { adminErrorMessage, isConflictWithCode } from '../../../lib/adminErrors';
 import { formatMoney } from '../../../lib/money';
+import { RULE_FIELDS } from '../../../lib/ruleFields';
 import { simulateOrder, type SimulationConfig } from '../../../lib/orderSimulation';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
@@ -17,14 +18,16 @@ import {
 
 /**
  * Regras e taxas · Taxas e tempos (D3a, tela 22). GET /settings/platform-config e
- * PUT /settings/platform-config com a config INTEIRA editada (igual à tela antiga; o servidor grava só os campos que conhece).
+ * PUT /settings/platform-config só com os campos editáveis desta aba (o servidor recusa chave desconhecida).
  */
 type ConfigKey =
   | 'commissionPlan1' | 'commissionPlan2' | 'commissionPlan3'
   | 'motoboyCutPerDelivery' | 'motoboyCutPerKm' | 'motoboyCommissionPercent'
   | 'motoboyMinimumWithdraw' | 'storeMinimumWithdraw'
   | 'cancelFeeCustomerPercent' | 'cancelFeeStorePercent' | 'cancelFeeMotoboyPercent'
-  | 'storeAcceptTimeoutMin' | 'poolTimeoutMin' | 'customerAbsentWaitMin';
+  | 'storeAcceptTimeoutMin' | 'poolTimeoutMin' | 'customerAbsentWaitMin'
+  | 'lateCancellationFeePercent' | 'lateCancellationMotoboyShare' | 'cardFeePercent' | 'cardFeeFixed'
+  | 'cardAnticipationMonthlyRate' | 'cardInstallmentMaxCount' | 'cardInstallmentMinValue';
 
 type PlatformConfig = Partial<Record<ConfigKey, number>> & { updatedAt?: string } & Record<string, unknown>;
 
@@ -33,7 +36,7 @@ interface FieldDef {
   label: string;
   /** Nome curto no aviso "de → para". */
   short: string;
-  unit: 'money' | 'percent' | 'minutes';
+  unit: 'money' | 'percent' | 'minutes' | 'count';
   step: string;
   int?: boolean;
   hint?: (v: number) => string;
@@ -74,6 +77,18 @@ const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
     ],
   },
   {
+    title: 'Cartão e cancelamento tardio',
+    fields: [
+      { key: 'lateCancellationFeePercent', label: 'Multa por cancelamento tardio (%)', short: 'Multa tardia', unit: 'percent', step: '0.01', hint: () => 'Cobrada quando o pedido é cancelado depois do prazo' },
+      { key: 'lateCancellationMotoboyShare', label: 'Parte da multa para o motoboy (%)', short: 'Parte da multa do motoboy', unit: 'percent', step: '0.01', hint: (v) => `O DROP fica com ${fmtNum(100 - v)}% da multa` },
+      { key: 'cardFeePercent', label: 'Taxa do cartão (%)', short: 'Taxa do cartão', unit: 'percent', step: '0.01', hint: () => 'Repassada ao cliente que paga no cartão' },
+      { key: 'cardFeeFixed', label: 'Taxa fixa do cartão (R$)', short: 'Taxa fixa do cartão', unit: 'money', step: '0.01', hint: () => 'Somada à taxa % em cada pagamento no cartão' },
+      { key: 'cardAnticipationMonthlyRate', label: 'Juros da antecipação (% ao mês)', short: 'Juros da antecipação', unit: 'percent', step: '0.01', hint: () => 'Usado no parcelado' },
+      { key: 'cardInstallmentMaxCount', label: 'Parcelas máximas', short: 'Parcelas máximas', unit: 'count', step: '1', int: true, hint: (v) => `Até ${v}x` },
+      { key: 'cardInstallmentMinValue', label: 'Valor mínimo da parcela (R$)', short: 'Parcela mínima', unit: 'money', step: '0.01', hint: () => 'Abaixo disso a parcela não aparece' },
+    ],
+  },
+  {
     title: 'Tempos',
     fields: [
       { key: 'storeAcceptTimeoutMin', label: 'Prazo para a loja aceitar (min)', short: 'Prazo da loja', unit: 'minutes', step: '1', int: true },
@@ -89,7 +104,17 @@ const fmtUnit = (f: FieldDef, v: number | undefined) => {
   if (v === undefined || !Number.isFinite(v)) return '—';
   if (f.unit === 'money') return formatMoney(v);
   if (f.unit === 'percent') return `${fmtNum(v)}%`;
+  if (f.unit === 'count') return fmtNum(v);
   return `${fmtNum(v)} min`;
+};
+const problem = (f: FieldDef, v: number | undefined): string | null => {
+  if (v === undefined || !Number.isFinite(v)) return 'Preencha um número';
+  const info = RULE_FIELDS[f.key];
+  if (info?.int && !Number.isInteger(v)) return 'Use um número inteiro';
+  if (info && ((info.min !== undefined && v < info.min) || (info.max !== undefined && v > info.max))) {
+    return `Use um valor de ${fmtNum(info.min ?? 0)} a ${fmtNum(info.max ?? 0)}`;
+  }
+  return null;
 };
 const sameNum = (a: number | undefined, b: number | undefined) => a === b || (Number.isNaN(a) && Number.isNaN(b));
 const toSimNumber = (s: string) => {
@@ -131,6 +156,7 @@ export function TaxasTab() {
   const [simKm, setSimKm] = useState('3');
   const [simPlan, setSimPlan] = useState<1 | 2 | 3>(2);
   const [syncReload, setSyncReload] = useState(0);
+  const [reason, setReason] = useState('');
   const [syncChanges, setSyncChanges] = useState<CommissionChange[] | null>(null);
 
   const load = useCallback(async () => {
@@ -166,11 +192,11 @@ export function TaxasTab() {
 
   const num = (c: PlatformConfig, k: ConfigKey) => c[k] as number | undefined;
   const changes = FIELDS.filter((f) => !sameNum(num(config, f.key), num(edit, f.key)));
-  const invalid = FIELDS.filter((f) => !Number.isFinite(num(edit, f.key) as number));
+  const invalid = FIELDS.filter((f) => problem(f, num(edit, f.key)) !== null);
   const n = changes.length;
 
   const setField = (f: FieldDef, raw: string) => {
-    const v = f.int ? parseInt(raw, 10) : parseFloat(raw);
+    const v = raw.trim() === '' ? NaN : Number(raw);
     setSaveError(null);
     setEdit((prev) => (prev ? { ...prev, [f.key]: v } : prev));
   };
@@ -181,6 +207,7 @@ export function TaxasTab() {
     const savedConfig = (data.config ?? raw) as PlatformConfig;
     setConfig(savedConfig);
     setEdit(savedConfig);
+    setReason('');
     const synced = Array.isArray(data.commissionSync) ? data.commissionSync : [];
     const stores = synced.reduce((s, x) => s + (Number(x.storesUpdated) || 0), 0);
     showToast(
@@ -191,6 +218,12 @@ export function TaxasTab() {
 
   const changesFor = (plans: CommissionPlanKey[]): CommissionChange[] =>
     plans.map((p) => ({ plan: p, newValue: edit[PLAN_FIELDS[p]] as number }));
+
+  const bodyFor = (extra: Record<string, unknown> = {}) => ({
+    ...Object.fromEntries(FIELDS.map((f) => [f.key, edit[f.key]])),
+    ...(reason.trim() ? { changeReason: reason.trim() } : {}),
+    ...extra,
+  });
 
   const save = async () => {
     const pending = commissionChanges(config, edit);
@@ -203,7 +236,7 @@ export function TaxasTab() {
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await api.put('/settings/platform-config', edit);
+      const res = await api.put('/settings/platform-config', bodyFor());
       applySaved(res.data);
     } catch (err) {
       const plans = plansMissingChoice(err);
@@ -218,7 +251,7 @@ export function TaxasTab() {
   const confirmSync = async (choices: CommissionSyncChoices) => {
     let data: unknown;
     try {
-      data = (await api.put('/settings/platform-config', { ...edit, commissionSync: choices })).data;
+      data = (await api.put('/settings/platform-config', bodyFor({ commissionSync: choices }))).data;
     } catch (err) {
       const missing = plansMissingChoice(err).filter((p) => !(syncChanges ?? []).some((c) => c.plan === p));
       if (missing.length > 0) {
@@ -264,7 +297,9 @@ export function TaxasTab() {
                 const v = num(edit, f.key);
                 const was = num(config, f.key);
                 const changed = !sameNum(was, v);
-                const bad = !Number.isFinite(v as number);
+                const issue = problem(f, v);
+                const bad = issue !== null;
+                const info = RULE_FIELDS[f.key];
                 const id = `cfg-${f.key}`;
                 return (
                   <div key={f.key} className={[styles.field, changed && styles.fieldChanged].filter(Boolean).join(' ')}>
@@ -272,7 +307,8 @@ export function TaxasTab() {
                     <input
                       id={id}
                       type="number"
-                      min="0"
+                      min={String(info?.min ?? 0)}
+                      max={info?.max !== undefined ? String(info.max) : undefined}
                       step={f.step}
                       className={styles.input}
                       value={v !== undefined && Number.isFinite(v) ? String(v) : ''}
@@ -281,7 +317,7 @@ export function TaxasTab() {
                       aria-describedby={`${id}-hint`}
                     />
                     <span id={`${id}-hint`} className={bad ? styles.err : changed ? styles.changedHint : styles.hint}>
-                      {bad ? 'Preencha um número' : changed ? `Era ${fmtUnit(f, was)}` : (f.hint && v !== undefined ? f.hint(v) : '')}
+                      {bad ? issue : changed ? `Era ${fmtUnit(f, was)}` : (f.hint && v !== undefined ? f.hint(v) : '')}
                     </span>
                   </div>
                 );
@@ -330,6 +366,9 @@ export function TaxasTab() {
         )}
         {saveError && <Alert tone="error" title="Não salvou">{saveError}</Alert>}
 
+        {n > 0 && (
+          <Input label="Motivo (opcional)" value={reason} onChange={setReason} maxLength={500} />
+        )}
         <div className={styles.saveRow}>
           <Button variant="secondary" onClick={() => { setEdit(config); setSaveError(null); }} disabled={n === 0 || saving}>Descartar</Button>
           <Button onClick={save} loading={saving} disabled={n === 0 || invalid.length > 0}>
