@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, Package, Zap } from 'lucide-react';
 
 import api from '../../lib/api';
-import { imageUrl } from '../../lib/config';
 import { useProducts, useStores } from '../../hooks/useSync';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import { useCardFeeConfig } from '../../hooks/useCardFeeConfig';
@@ -26,11 +25,12 @@ import { Rating, formatRating } from '../../components/ui/Rating';
 import { QuantitySelector } from '../../components/ui/QuantitySelector';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { ICON_STROKE_WIDTH, ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
+import { ICON_BUTTON_STROKE_WIDTH } from '../../components/ui/Icon';
 import { ProductCard } from '../../components/drop/ProductCard';
 import { PriceDisplay } from '../../components/drop/PriceDisplay';
 import { DeliveryBadge } from '../../components/drop/DeliveryBadge';
 import { DeliveryAddressControl } from '../../components/drop/DeliveryAddressControl';
+import { ProductGallery } from '../../components/drop/ProductGallery';
 import HtmlContent from '../../components/HtmlContent';
 
 import styles from './Produto.module.css';
@@ -58,7 +58,6 @@ export default function ProductPage() {
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [descExpanded, setDescExpanded] = useState(false);
   const [reviews, setReviews] = useState<ReviewsData>({ average: 0, count: 0, reviews: [] });
   const [barMode, setBarMode] = useState<'ssr' | 'mobile' | 'desktop'>('ssr');
@@ -74,7 +73,6 @@ export default function ProductPage() {
   }, [id]);
 
   useEffect(() => {
-    setActiveImageIdx(0);
     setQuantity(1);
     setDescExpanded(false);
   }, [id]);
@@ -209,8 +207,6 @@ export default function ProductPage() {
   const allImages: string[] = product.images?.length
     ? product.images
     : (product.image ? [product.image] : []);
-  const safeIdx = Math.min(activeImageIdx, Math.max(0, allImages.length - 1));
-  const heroImageUrl = allImages.length ? imageUrl(allImages[safeIdx]) : '';
 
   const actionBar = (
     <div className={styles.actionBar}>
@@ -243,19 +239,7 @@ export default function ProductPage() {
     <main className={styles.page}>
       <div className={styles.top}>
         <div className={styles.media}>
-          <section className={styles.hero} aria-label={`Foto de ${product.name}`}>
-            <span
-              className={styles.heroImage}
-              style={heroImageUrl ? { backgroundImage: `url(${heroImageUrl})` } : undefined}
-              aria-hidden="true"
-            >
-              {!heroImageUrl && <Package size={40} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />}
-            </span>
-            {allImages.length > 1 && (
-              <span className={styles.dots} aria-hidden="true">
-                {allImages.map((_: string, i: number) => <i key={i} className={i === safeIdx ? styles.dotOn : undefined} />)}
-              </span>
-            )}
+          <ProductGallery images={allImages} name={product.name} className={styles.hero}>
             <span className={styles.backBtn}>
               <IconButton
                 icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
@@ -269,24 +253,7 @@ export default function ProductPage() {
                 <span className={styles.soldOutPill}>Esgotado</span>
               </span>
             )}
-          </section>
-
-          {allImages.length > 1 && (
-            <div className={styles.thumbsRow}>
-              {allImages.map((img: string, idx: number) => (
-                <button
-                  key={img + idx}
-                  type="button"
-                  className={[styles.thumb, idx === safeIdx && styles.thumbActive].filter(Boolean).join(' ')}
-                  onClick={() => setActiveImageIdx(idx)}
-                  aria-label={`Ver foto ${idx + 1} de ${product.name}`}
-                  aria-pressed={idx === safeIdx}
-                >
-                  <img src={imageUrl(img)} alt="" />
-                </button>
-              ))}
-            </div>
-          )}
+          </ProductGallery>
         </div>
 
         {/* Breadcrumb só no desktop (spec §7.2) */}

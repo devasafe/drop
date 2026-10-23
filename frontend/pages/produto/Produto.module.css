@@ -27,25 +27,7 @@
   justify-content: center;
 }
 
-/* ---- galeria ---- */
-.hero {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: var(--color-surface-sunken);
-}
-
-.heroImage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  background-position: center;
-  background-size: cover;
-  color: var(--color-text-muted);
-}
-
+/* ---- galeria: foto grande, miniaturas e tela cheia em components/drop/ProductGallery ---- */
 .backBtn {
   position: absolute;
   top: var(--space-4);
@@ -60,6 +42,8 @@
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--color-surface-default) 70%, transparent);
+  /* o toque passa para a foto: esgotado também abre a tela cheia */
+  pointer-events: none;
 }
 
 .soldOutPill {
@@ -68,46 +52,6 @@
   background: var(--color-surface-default);
   color: var(--color-text-secondary);
   font: var(--text-label);
-}
-
-.thumbsRow {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.thumbsRow::-webkit-scrollbar {
-  height: 0;
-}
-
-.thumb {
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.thumb:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.thumbActive {
-  border-color: var(--color-action-primary);
 }
 
 /* ---- breadcrumb: só no desktop ---- */
@@ -186,26 +130,6 @@
   margin: 0;
   font: var(--text-meta);
   color: var(--color-text-muted);
-}
-
-.dots {
-  position: absolute;
-  bottom: var(--space-3);
-  left: 50%;
-  display: flex;
-  gap: 5px;
-  transform: translateX(-50%);
-}
-
-.dots i {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-border-strong);
-}
-
-.dots i.dotOn {
-  background: var(--color-text-primary);
 }
 
 .srOnly {

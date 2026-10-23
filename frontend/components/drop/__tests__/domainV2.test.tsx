@@ -53,7 +53,7 @@ describe('Banner', () => {
     expect(css).toMatch(/\.hasImage\s*\{[^}]*aspect-ratio:\s*2\s*\/\s*1/);
   });
 
-  it('não tem autoplay nem dots', () => {
+  it('não tem dots (o autoplay está em Banner.autoplay.test)', () => {
     render(<Banner items={items} />);
     expect(screen.queryByRole('tab')).toBeNull();
   });

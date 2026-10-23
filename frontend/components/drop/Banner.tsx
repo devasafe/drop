@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import styles from './Banner.module.css';
 
 export interface BannerItem {
@@ -12,18 +13,65 @@ export interface BannerItem {
   hideCaption?: boolean;
 }
 
+/** Tempo de cada banner na tela antes de passar para o próximo. */
+export const BANNER_AUTOPLAY_MS = 5000;
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 /**
  * Banner único do DS v2 (avisos da DROP e lojas em destaque). Um por tela,
- * em faixa de rolagem horizontal com snap; sem autoplay (respeita
- * prefers-reduced-motion por construção). Fundo sólido ou imagem, sem
- * gradiente. Cada item com `href` é um único link; sem `href` é só aviso.
+ * em faixa de rolagem horizontal com snap. Com mais de um item passa sozinho
+ * a cada BANNER_AUTOPLAY_MS e, no último, volta ao primeiro. Para enquanto a
+ * pessoa toca, arrasta, passa o mouse ou foca um banner, e não passa sozinho
+ * em prefers-reduced-motion. Fundo sólido ou imagem, sem gradiente. Cada item
+ * com `href` é um único link; sem `href` é só aviso.
  */
 export function Banner({ items, label = 'Destaques' }: { items: BannerItem[]; label?: string }) {
-  if (items.length === 0) return null;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
   const multi = items.length > 1;
 
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!multi || paused || !track || prefersReducedMotion()) return;
+    const timer = window.setInterval(() => {
+      const slides = Array.from(track.children) as HTMLElement[];
+      if (slides.length < 2) return;
+      // Banner atual = o mais perto da borda esquerda da faixa (a rolagem pode ter vindo do dedo).
+      const pos = track.scrollLeft;
+      let current = 0;
+      slides.forEach((s, i) => {
+        if (Math.abs(s.offsetLeft - slides[0].offsetLeft - pos) < Math.abs(slides[current].offsetLeft - slides[0].offsetLeft - pos)) current = i;
+      });
+      const next = (current + 1) % slides.length;
+      const left = slides[next].offsetLeft - slides[0].offsetLeft;
+      if (typeof track.scrollTo === 'function') track.scrollTo({ left, behavior: 'smooth' });
+      else track.scrollLeft = left;
+    }, BANNER_AUTOPLAY_MS);
+    return () => window.clearInterval(timer);
+  }, [multi, paused, items.length]);
+
+  if (items.length === 0) return null;
+
+  const pause = () => setPaused(true);
+  const resume = () => setPaused(false);
+
   return (
-    <div className={`${styles.track} ${multi ? styles.multi : ''}`} role="region" aria-label={label}>
+    <div
+      ref={trackRef}
+      className={`${styles.track} ${multi ? styles.multi : ''}`}
+      role="region"
+      aria-label={label}
+      // Só mouse de verdade: no celular o navegador simula "mouse em cima" depois do toque e travaria a faixa.
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') pause(); }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') resume(); }}
+      onTouchStart={pause}
+      onTouchEnd={resume}
+      onTouchCancel={resume}
+      onFocus={pause}
+      onBlur={resume}
+    >
       {items.map((it) => {
         const external = !!it.href && /^https?:\/\//i.test(it.href);
         const tone = it.tone === 'neutral' ? styles.neutral : styles.brand;

@@ -1,4 +1,4 @@
-/* Banner v2: faixa com scroll-snap horizontal, fundo sólido ou imagem, sem gradiente. */
+/* Banner v2: faixa com scroll-snap horizontal que passa sozinha (ver Banner.tsx), fundo sólido ou imagem, sem gradiente. */
 .track {
   display: flex;
   gap: var(--space-3);

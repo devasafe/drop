@@ -1,0 +1,215 @@
+/* Fotos do produto (DS v2): faixa com snap que se arrasta e tela cheia. Só tokens semânticos; sem hex, gradiente ou glow. */
+
+.hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+}
+
+.track,
+.viewerTrack {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.track::-webkit-scrollbar,
+.viewerTrack::-webkit-scrollbar {
+  display: none;
+}
+
+.slide {
+  flex: 0 0 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  cursor: zoom-in;
+}
+
+.slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.slide:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.dots {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  display: flex;
+  gap: 5px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.dots i.dotOn {
+  background: var(--color-text-primary);
+}
+
+.thumbsRow {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.thumbsRow::-webkit-scrollbar {
+  height: 0;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.thumbActive {
+  border-color: var(--color-action-primary);
+}
+
+/* ---- tela cheia ---- */
+/* acima da TabBar (30) e dos sheets (1000) */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: rgb(0 0 0 / 94%);
+  color: var(--color-on-action);
+}
+
+.viewerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+}
+
+.counter {
+  font: var(--text-meta);
+}
+
+.viewerTrack {
+  flex: 1;
+  min-height: 0;
+}
+
+.viewerSlide {
+  flex: 0 0 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.viewerSlide img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.viewerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 14%);
+  color: inherit;
+  cursor: pointer;
+}
+
+.viewerBtn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.viewerBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* setas: no celular arrasta-se; a partir do tablet elas ajudam quem usa mouse */
+.prev,
+.next {
+  position: absolute;
+  top: 50%;
+  display: none;
+  transform: translateY(-50%);
+}
+
+.prev {
+  left: var(--space-4);
+}
+
+.next {
+  right: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .prev,
+  .next {
+    display: inline-flex;
+  }
+}
