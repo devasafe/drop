@@ -101,6 +101,49 @@ describe('storesWithoutCourier', () => {
   });
 });
 
+describe('storesWithoutCourier: visibilidade da vitrine (R5) e horário', () => {
+  it('loja não verificada (KYC) fica de fora', async () => {
+    const visivel = await lojaEm('P23 Visível', 1);
+    const naoVerificada = await lojaEm('P23 Não Verificada', 1.5);
+    await prisma.store.update({ where: { id: naoVerificada }, data: { isVerified: false } });
+
+    const ids = (await storesWithoutCourier(new Date())).map((s) => s.id);
+    expect(ids).toContain(visivel);
+    expect(ids).not.toContain(naoVerificada);
+  });
+
+  it('loja escondida pela mensalidade no modo direto fica de fora (e volta na custódia)', async () => {
+    const visivel = await lojaEm('P23 Visível', 1);
+    const escondida = await lojaEm('P23 Mensalidade Pausada', 1.5);
+    await prisma.storeSaasBilling.create({
+      data: { storeId: escondida, status: 'paused', trialEndsAt: new Date(Date.now() - 30 * 86_400_000), pausedAt: new Date() },
+    });
+
+    await updatePlatformConfig({ settlementMode: 'direto' } as any, 'd3b4b-p23');
+    const direto = (await storesWithoutCourier(new Date())).map((s) => s.id);
+    expect(direto).toContain(visivel);
+    expect(direto).not.toContain(escondida);
+
+    await updatePlatformConfig({ settlementMode: 'custodia' }, 'd3b4b-p23');
+    expect((await storesWithoutCourier(new Date())).map((s) => s.id)).toContain(escondida);
+  });
+
+  it('fora do horário, mas com openOverrideUntil no futuro, aparece', async () => {
+    const now = new Date();
+    const foraDoHorario = await lojaEm('P23 Fora do Horário', 1);
+    const comOverride = await lojaEm('P23 Override', 1.5);
+    await prisma.store.update({ where: { id: foraDoHorario }, data: { operatingHours: CLOSED_ALL_WEEK } });
+    await prisma.store.update({
+      where: { id: comOverride },
+      data: { operatingHours: CLOSED_ALL_WEEK, openOverrideUntil: new Date(now.getTime() + 60 * 60_000) },
+    });
+
+    const ids = (await storesWithoutCourier(now)).map((s) => s.id);
+    expect(ids).toContain(comOverride);
+    expect(ids).not.toContain(foraDoHorario);
+  });
+});
+
 describe('GET /api/admin/ops/map', () => {
   it('traz storesWithoutCourier ao lado das chaves de antes', async () => {
     const semNinguem = await lojaEm('P23 Sem Ninguém', 1);
