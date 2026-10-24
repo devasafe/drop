@@ -142,3 +142,24 @@ it('desmontar remove todos os marcadores e pinos', () => {
   unmount();
   mockMarkers.forEach((m) => expect(m.remove).toHaveBeenCalled());
 });
+
+it('D3b-4b: pino de alerta da loja sem motoboy por perto, ao lado do pino de pedido aguardando', () => {
+  render(withMap(
+    <OpsMarkersLayer
+      motoboys={[]}
+      stores={[
+        { id: 'o1', name: 'Sabor da Vila', lat: -23.54, lng: -46.62 },
+        { id: 'sem-motoboy:s1', name: 'Pizzaria Sol', lat: -23.6, lng: -46.7, kind: 'noCourier' },
+      ]}
+      onSelect={jest.fn()}
+    />,
+  ));
+  expect(mockMarkers).toHaveLength(2);
+  expect(mockMarkers[0].element).toHaveAttribute('data-kind', 'waiting');
+  expect(mockMarkers[0].element).toHaveAttribute('aria-label', 'Sabor da Vila · aguardando motoboy');
+  expect(mockMarkers[0].element.querySelector('.storePinAlert')).toBeNull();
+  expect(mockMarkers[1].element).toHaveAttribute('data-kind', 'noCourier');
+  expect(mockMarkers[1].element).toHaveAttribute('aria-label', 'Pizzaria Sol · sem motoboy por perto');
+  expect(mockMarkers[1].element.querySelector('.storePinAlert')).not.toBeNull();
+  expect(mockMarkers[1].element).toHaveTextContent('Pizzaria Sol');
+});

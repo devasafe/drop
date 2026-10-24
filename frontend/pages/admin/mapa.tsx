@@ -5,6 +5,8 @@
  * (entrega assigned/picked) ou Sem sinal (posição com mais de 2 min, conferida também aqui entre leituras). Lojas
  * com pedido aguardando viram pino. Tocar no ponto mostra nome, estado e pedido. Se o mapa não carregar, as
  * listas continuam ("Mapa indisponível"). No celular o mapa fica acima das listas.
+ * D3b-4b: interruptor "Lojas sem motoboy por perto" (desligado por padrão). Ligado, cada loja de storesWithoutCourier
+ * vira um pino de alerta, e a legenda mostra a contagem. O raio do texto é o dispatch.maxKm do servidor.
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +21,7 @@ import type { OpsMapPoint, OpsStorePin } from '../../components/admin/mapa/OpsMa
 import ui from '../../components/admin/operacao/Operacao.module.css';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
+import { Switch } from '../../components/ui/Switch';
 import { useAdminOrderChanged } from '../../hooks/useAdminOrderChanged';
 import {
   MAP_STATE_LABEL, OPS_MAP_POLL_MS, STAGE_LABEL, ageLabel, fetchOpsMap, kmLabel, motoboyMapState, motoboyOrder,
@@ -41,6 +44,8 @@ function MapaAoVivo() {
   const [data, setData] = useState<OpsMapResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // D3b-4b: lojas sem motoboy por perto; desligado por padrão.
+  const [showNoCourier, setShowNoCourier] = useState(false);
   // Releitura silenciosa que falhou: o mapa fica na tela, com aviso.
   const [staleError, setStaleError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -86,6 +91,10 @@ function MapaAoVivo() {
   const pins: OpsStorePin[] = useMemo(() => (data ? data.waiting
     .filter((w) => w.storeLat !== null && w.storeLng !== null)
     .map((w) => ({ id: w.orderId, name: w.storeName, lat: w.storeLat as number, lng: w.storeLng as number })) : []), [data]);
+  // Id próprio: o pino do pedido aguardando usa o id do pedido, e os dois nunca colidem.
+  const noCourierPins: OpsStorePin[] = useMemo(() => (data ? data.storesWithoutCourier
+    .map((s) => ({ id: `sem-motoboy:${s.id}`, name: s.name, lat: s.lat, lng: s.lng, kind: 'noCourier' as const })) : []), [data]);
+  const storePins = useMemo(() => (showNoCourier ? [...pins, ...noCourierPins] : pins), [showNoCourier, pins, noCourierPins]);
 
   if (error) return <LoadError message={error} onRetry={() => { void load(); }} />;
   if (!data) return <LoadSkeleton lines={6} />;
@@ -111,6 +120,12 @@ function MapaAoVivo() {
               {`${MAP_STATE_LABEL[s]} · ${counts[s]}`}
             </li>
           ))}
+          {showNoCourier && (
+            <li>
+              <span className={`${mapUi.dot} ${mapUi.noCourier}`} aria-hidden="true" />
+              {`Sem motoboy por perto · ${data.storesWithoutCourier.length}`}
+            </li>
+          )}
         </ul>
       </div>
 
@@ -118,7 +133,13 @@ function MapaAoVivo() {
 
       <div className={mapUi.layout}>
         <section className={mapUi.mapCol} aria-label="Mapa">
-          <OpsMapPanel motoboys={points} stores={pins} onSelect={setSelected} />
+          <Switch
+            label="Lojas sem motoboy por perto"
+            description={`Abertas agora, sem ninguém online a até ${kmLabel(data.dispatch.maxKm)}`}
+            checked={showNoCourier}
+            onChange={setShowNoCourier}
+          />
+          <OpsMapPanel motoboys={points} stores={storePins} onSelect={setSelected} />
           {picked && (
             <div className={mapUi.selected} role="status" aria-label="Motoboy selecionado">
               <span>{`${picked.name} · ${MAP_STATE_LABEL[picked.state]} · ${picked.detail ?? 'sem pedido agora'}`}</span>

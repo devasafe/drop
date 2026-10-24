@@ -58,6 +58,7 @@ const MAP: OpsMapResponse = {
   }],
   inDelivery: [{ orderId: 'o2', shortId: 'd4e5f6', motoboyName: 'Carlos Lima', stage: 'levando' }],
   dispatch: { initialKm: 3, stepKm: 1.5, stepSeconds: 60, maxKm: 12, poolTimeoutMin: 8 },
+  storesWithoutCourier: [],
 };
 const PREVIEW = {
   fault: 'customer', customerRefund: 80, feeCharged: 20, motoboyCompensation: 7,

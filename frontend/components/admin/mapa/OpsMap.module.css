@@ -55,6 +55,9 @@
   border-radius: var(--radius-sm);
   background: var(--color-warning);
 }
+/* D3b-4b: loja aberta sem motoboy por perto (pino de alerta e o ponto da legenda). */
+.storePinAlert { border-radius: var(--radius-pill); background: var(--color-error); }
+.noCourier { background: var(--color-error); }
 .storeLabel {
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);

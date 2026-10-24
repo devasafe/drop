@@ -1,6 +1,7 @@
 /**
  * Pontos do Mapa ao vivo (D3b-1, spec 3.4). Cria um marcador por motoboy online, com a cor do estado (Livre,
- * Em entrega, Sem sinal), e um pino por loja com pedido aguardando motoboy. São marcadores DOM do MapLibre, como
+ * Em entrega, Sem sinal), e um pino por loja com pedido aguardando motoboy (D3b-4b: ou, com o interruptor ligado,
+ * um pino de alerta por loja aberta sem motoboy por perto). São marcadores DOM do MapLibre, como
  * os da MarkersLayer do app, atualizados no lugar: posição nova só move, e quem saiu é removido. Nome e texto
  * entram por textContent e aria-label (nunca innerHTML), porque vêm do banco. Enquadra os pontos uma vez só, para
  * não brigar com o zoom de quem está olhando.
@@ -12,7 +13,10 @@ import { MAP_STATE_LABEL, type MotoboyMapState } from '../../../lib/adminOps';
 import styles from './OpsMap.module.css';
 
 export interface OpsMapPoint { id: string; name: string; lat: number; lng: number; state: MotoboyMapState; detail: string | null }
-export interface OpsStorePin { id: string; name: string; lat: number; lng: number }
+/** `kind`: 'waiting' (padrão) = loja com pedido aguardando; 'noCourier' = loja aberta sem motoboy por perto. */
+export interface OpsStorePin { id: string; name: string; lat: number; lng: number; kind?: StorePinKind }
+type StorePinKind = 'waiting' | 'noCourier';
+const STORE_PIN_TEXT: Record<StorePinKind, string> = { waiting: 'aguardando motoboy', noCourier: 'sem motoboy por perto' };
 export interface OpsMarkersLayerProps { motoboys: OpsMapPoint[]; stores: OpsStorePin[]; onSelect: (id: string) => void }
 
 function paintPoint(el: HTMLButtonElement, p: OpsMapPoint) {
@@ -25,13 +29,14 @@ function paintPoint(el: HTMLButtonElement, p: OpsMapPoint) {
   el.title = label;
 }
 
-function storeEl(name: string): HTMLDivElement {
+function storeEl(name: string, kind: StorePinKind): HTMLDivElement {
   const el = document.createElement('div');
   el.classList.add(styles.store);
+  el.dataset.kind = kind;
   el.setAttribute('role', 'img');
-  el.setAttribute('aria-label', `${name} · aguardando motoboy`);
+  el.setAttribute('aria-label', `${name} · ${STORE_PIN_TEXT[kind]}`);
   const pin = document.createElement('span');
-  pin.className = styles.storePin;
+  pin.className = kind === 'noCourier' ? `${styles.storePin} ${styles.storePinAlert}` : styles.storePin;
   const label = document.createElement('span');
   label.className = styles.storeLabel;
   label.textContent = name;
@@ -83,7 +88,7 @@ export function OpsMarkersLayer({ motoboys, stores, onSelect }: OpsMarkersLayerP
         cur.setLngLat([s.lng, s.lat]);
         return;
       }
-      pins.current.set(s.id, new Marker({ element: storeEl(s.name), anchor: 'bottom' }).setLngLat([s.lng, s.lat]).addTo(map));
+      pins.current.set(s.id, new Marker({ element: storeEl(s.name, s.kind ?? 'waiting'), anchor: 'bottom' }).setLngLat([s.lng, s.lat]).addTo(map));
     });
     pins.current.forEach((marker, id) => {
       if (seen.has(id)) return;

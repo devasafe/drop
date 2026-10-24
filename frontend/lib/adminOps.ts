@@ -93,7 +93,10 @@ export interface OpsMapResponse {
              since: string; radiusKm: number | null; customerDeciding: boolean }[];
   inDelivery: { orderId: string; shortId: string; motoboyName: string; stage: 'indo_para_loja' | 'levando' }[];
   dispatch: { initialKm: number; stepKm: number; stepSeconds: number; maxKm: number; poolTimeoutMin: number };
+  /** D3b-4b: lojas abertas, com ponto e sem nenhum motoboy online a até dispatch.maxKm. */
+  storesWithoutCourier: OpsMapStorePoint[];
 }
+export interface OpsMapStorePoint { id: string; name: string; lat: number; lng: number }
 
 export type CancelFault = 'customer' | 'store' | 'motoboy' | 'platform';
 export interface CancelPreview {
@@ -205,7 +208,9 @@ export function isOpsMapResponse(d: unknown): d is OpsMapResponse {
       && isNumOrNull(w.storeLat) && isNumOrNull(w.storeLng) && isIso(w.since) && isNumOrNull(w.radiusKm)
       && typeof w.customerDeciding === 'boolean')
     && d.inDelivery.every((x) => isObj(x) && isStr(x.orderId) && isStr(x.shortId) && isStr(x.motoboyName)
-      && oneOf(x.stage, ['indo_para_loja', 'levando']));
+      && oneOf(x.stage, ['indo_para_loja', 'levando']))
+    && Array.isArray(d.storesWithoutCourier)
+    && d.storesWithoutCourier.every((s) => isObj(s) && isStr(s.id) && isStr(s.name) && isNum(s.lat) && isNum(s.lng));
 }
 
 export function isCancelPreview(d: unknown): d is CancelPreview {
