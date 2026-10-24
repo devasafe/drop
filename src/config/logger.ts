@@ -103,6 +103,19 @@ const developmentTransports = [
   }),
 ];
 
+/**
+ * Exceção que derruba o processo também vai para o stdout (Runtime Logs do Coolify): o arquivo
+ * logs/exceptions.log fica preso no container e some a cada deploy. Mensagem e pilha mascaradas.
+ */
+export function exceptionStdoutTransport(): winston.transport {
+  const mask = winston.format((info: any) => {
+    if (info.message !== undefined) info.message = maskCredentials(info.message);
+    if (info.stack !== undefined) info.stack = maskCredentials(info.stack);
+    return info;
+  });
+  return new winston.transports.Console({ format: combine(mask(), json()) });
+}
+
 // Criar logger
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
@@ -116,6 +129,7 @@ const logger = winston.createLogger({
     process.env.NODE_ENV === 'production' ? productionTransports : developmentTransports,
   exceptionHandlers: [
     new winston.transports.File({ filename: path.join('logs', 'exceptions.log') }),
+    exceptionStdoutTransport(),
   ],
   // Sem rejectionHandlers: o do winston (com exitOnError) encerrava o processo a cada promessa
   // rejeitada sem tratamento — ex.: a promessa interna do SDK do Cloudinary num 401 (V15) — e

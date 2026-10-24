@@ -54,6 +54,7 @@ import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de 
 import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
 import pushRoutes from './routes/push'; // Web Push (notificações com o app fechado)
 import searchRoutes from './routes/search'; // Busca da vitrine (produtos/lojas) + sugestões
+import { prisma } from './lib/prisma';
 
 const app = express();
 
@@ -102,7 +103,16 @@ if (env.NODE_ENV !== 'production') {
 }
 
 // Health check endpoint
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+// Health check: confere o banco (SELECT 1). O HEALTHCHECK do Dockerfile usa esta rota para o
+// Coolify não trocar a versão no ar por uma que não fala com o Postgres. Sem detalhe do erro.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return res.json({ ok: true, db: true });
+  } catch {
+    return res.status(503).json({ ok: false, db: false });
+  }
+});
 
 // ✅ SEGURANÇA: rate limit geral em toda a API (100/min por usuário ou, sem usuário, por IP). Os limites
 // específicos de login/registro e criação de pedido já vivem nas suas rotas.

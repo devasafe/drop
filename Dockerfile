@@ -49,5 +49,9 @@ COPY --from=build /app/dist ./dist
 # O server escuta em 0.0.0.0:PORT (default 4000). Coolify injeta as envs.
 EXPOSE 4000
 
+# /api/health confere o banco (SELECT 1). O Coolify só troca a versão no ar quando esta ficar
+# saudável; start-period cobre o `prisma migrate deploy` do boot. Node 20 tem fetch nativo.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 # Aplica migrations pendentes e sobe o servidor.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
