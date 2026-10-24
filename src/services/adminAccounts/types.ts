@@ -172,7 +172,8 @@ export interface UserDetail {
 
 // ── Lista de lojas (P2.3) ────────────────────────────────────────────────
 
-export type StoreListFilter = 'all' | 'admin_paused' | 'attention' | 'trial';
+/** D3b-4b: no_courier = abertas agora (regra da vitrine), com ponto no mapa e 0 motoboy online no raio. */
+export type StoreListFilter = 'all' | 'admin_paused' | 'attention' | 'trial' | 'no_courier';
 
 /** Modo de liquidação da plataforma visto pela loja: 'direto' aparece como 'saas'. */
 export type StoreMode = 'custodia' | 'saas';
@@ -191,13 +192,17 @@ export interface StoreListItem {
   cancelRate30d: number | null;
   receiving: ReceivingStatus;
   situation: StoreSituation;
-  /** Pausada pelo admin, recebimento com problema ou cancelamento acima de 10%. */
+  /** Campo gravado Store.needsAttention: pausada pelo admin, recebimento com problema ou cancelamento acima de 10%. */
   attention: boolean;
+  /** D3b-4b: motoboys online e livres a até DISPATCH_MAX_KM; null quando a loja não tem ponto no mapa. */
+  nearbyCouriers: NearbyCouriers | null;
 }
 
 export interface StoreListResponse {
   items: StoreListItem[];
   nextCursor: string | null;
+  /** DISPATCH_MAX_KM: o raio de "por perto", para a tela não escrever o número. */
+  nearbyRadiusKm: number;
 }
 
 // ── Ficha da loja (P2.4) ─────────────────────────────────────────────────

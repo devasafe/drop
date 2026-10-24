@@ -1,17 +1,24 @@
 /**
- * D3b-2a · lista de lojas do admin (spec 6).
+ * D3b-2a · lista de lojas do admin (spec 6); D3b-4b · paginada no banco (spec 8 e 7.2).
  *
- * Ordem (decisão 13): quem pede atenção primeiro, depois o nome, depois o id. A atenção depende de
- * métricas calculadas, então a lista lê as lojas do filtro, agrega as métricas com dois groupBy sobre
- * Order (sem N+1), ordena em memória e pagina por um cursor opaco [atenção, nome, id]: a página seguinte
- * começa no primeiro item maior que o cursor, sem repetir nem pular.
+ * Ordem (decisão 13): quem pede atenção primeiro, depois o nome, depois o id. A atenção é o campo gravado
+ * Store.needsAttention (storeAttention.ts), então a ordem, o cursor keyset [atenção, nome, id] e os filtros
+ * attention/admin_paused/trial saem do banco. O nome segue a collation do banco. Os números da linha (nota de
+ * 90 dias, cancelamento de 30 dias, plano e motoboys por perto) são calculados só para as lojas da página.
+ * O filtro no_courier usa as mesmas lojas do alerta do mapa (openStoresWithCoords, R5 do mestre): calcula sobre
+ * elas e pagina no banco com `id in`.
  */
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import env from '../../config/env';
 import { AppError } from '../../utils/AppError';
 import { getSaasConfig } from '../../utils/settlement';
-import { CANCELLED_ORDER_STATUSES, round1 } from '../adminOps/common';
+import { round1 } from '../adminOps/common';
+import { storeCoord } from '../adminOps/map';
+import * as couriersNear from '../adminOps/couriersNear';
+import type { NearbyCouriers } from '../adminOps/couriersNear';
+import { DISPATCH_MAX_KM } from '../dispatch';
+import { CancelTotals, cancelRateOf, cancelTotals30d } from './storeAttention';
 import {
   RECEIVING_SELECT,
   STORE_SITUATION_SELECT,
@@ -22,11 +29,9 @@ import {
 } from './storeStatus';
 import { StoreListFilter, StoreListItem, StoreListResponse } from './types';
 
-export const STORE_LIST_FILTERS: readonly StoreListFilter[] = ['all', 'admin_paused', 'attention', 'trial'];
+export const STORE_LIST_FILTERS: readonly StoreListFilter[] = ['all', 'admin_paused', 'attention', 'trial', 'no_courier'];
 export const STORES_PAGE_DEFAULT = 30;
 export const STORES_PAGE_MAX = 100;
-export const CANCEL_RATE_MIN_ORDERS = 5;
-export const CANCEL_RATE_ATTENTION = 0.1;
 const DAY_MS = 86_400_000;
 const CNPJ_LIKE = /^[\d\s./-]+$/;
 
@@ -47,19 +52,20 @@ const STORE_LIST_SELECT = Prisma.validator<Prisma.StoreSelect>()({
   id: true,
   name: true,
   plan: true,
+  needsAttention: true,
+  latitude: true,
+  longitude: true,
   ...STORE_SITUATION_SELECT,
   ...RECEIVING_SELECT,
   owner: { select: { name: true } },
 });
 
-function compareKeys(a: SortKey, b: SortKey): number {
-  if (a.attention !== b.attention) return a.attention ? -1 : 1;
-  const byName = a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
-  if (byName !== 0) return byName;
-  if (a.name !== b.name) return a.name < b.name ? -1 : 1;
-  if (a.id === b.id) return 0;
-  return a.id < b.id ? -1 : 1;
-}
+type StoreRow = Prisma.StoreGetPayload<{ select: typeof STORE_LIST_SELECT }>;
+
+/** A ordem da lista; o índice Store(needsAttention DESC, name, id) a cobre. */
+const STORE_ORDER: Prisma.StoreOrderByWithRelationInput[] = [{ needsAttention: 'desc' }, { name: 'asc' }, { id: 'asc' }];
+
+const keyOf = (s: StoreRow): SortKey => ({ attention: s.needsAttention, name: s.name, id: s.id });
 
 function encodeStoreCursor(k: SortKey): string {
   return Buffer.from(JSON.stringify([k.attention ? 1 : 0, k.name, k.id]), 'utf8').toString('base64url');
@@ -102,57 +108,101 @@ async function searchWhere(q: string): Promise<Prisma.StoreWhereInput> {
   return { id: { in: rows.map((r) => r.id) } };
 }
 
+/** no_courier não tem `where` próprio: a página filtra pelos ids de pageWithoutCourier. */
 function filterWhere(filter: StoreListFilter): Prisma.StoreWhereInput {
   if (filter === 'admin_paused') return { adminPausedAt: { not: null } };
   if (filter === 'trial') return { saasBilling: { is: { status: 'trialing' } } };
+  if (filter === 'attention') return { needsAttention: true };
   return {};
 }
 
-/** Nota de 90 dias e pedidos/cancelados de 30 dias de todas as lojas: dois groupBy, sem N+1. */
-async function storeAggregates(now: Date) {
-  const [ratings, counts] = await Promise.all([
+/** Keyset: o que vem depois de `after` na ordem (atenção desc, nome, id). Nome igual: o id desempata. */
+function afterWhere(after: SortKey | null): Prisma.StoreWhereInput {
+  if (!after) return {};
+  const same = { needsAttention: after.attention };
+  const next: Prisma.StoreWhereInput[] = [
+    { ...same, name: { gt: after.name } },
+    { ...same, name: after.name, id: { gt: after.id } },
+  ];
+  if (after.attention) next.push({ needsAttention: false });
+  return { OR: next };
+}
+
+/** Ponto da loja para couriersNearStores (a entrada que a P2 documenta); texto vazio ou inválido = null. */
+const pointOf = (s: StoreRow) => ({ id: s.id, lat: storeCoord(s.latitude), lng: storeCoord(s.longitude) });
+
+interface PageResult {
+  page: StoreRow[];
+  hasMore: boolean;
+  nearby: Map<string, NearbyCouriers | null>;
+}
+
+async function plainPage(where: Prisma.StoreWhereInput, limit: number, now: Date): Promise<PageResult> {
+  const rows = await prisma.store.findMany({ where, orderBy: STORE_ORDER, take: limit + 1, select: STORE_LIST_SELECT });
+  const page = rows.slice(0, limit);
+  const nearby = page.length > 0
+    ? await couriersNear.couriersNearStores(page.map(pointOf), now)
+    : new Map<string, NearbyCouriers | null>();
+  return { page, hasMore: rows.length > limit, nearby };
+}
+
+/**
+ * Spec 7.2: as lojas do alerta do mapa (R5 do mestre). openStoresWithCoords (P2) dá as visíveis na vitrine,
+ * abertas com horário e com ponto; couriersNearStores conta os motoboys; ficam as com 0 online. As abertas são
+ * poucas: calcula sobre elas e pagina no banco (`id in`), com a mesma ordem e o mesmo cursor dos outros filtros.
+ */
+async function pageWithoutCourier(where: Prisma.StoreWhereInput, limit: number, now: Date): Promise<PageResult> {
+  const open = await couriersNear.openStoresWithCoords(now);
+  const nearby = open.length > 0 ? await couriersNear.couriersNearStores(open, now) : new Map<string, NearbyCouriers | null>();
+  const ids = open.filter((s) => nearby.get(s.id)?.online === 0).map((s) => s.id);
+  if (ids.length === 0) return { page: [], hasMore: false, nearby };
+  const rows = await prisma.store.findMany({
+    where: { AND: [where, { id: { in: ids } }] },
+    orderBy: STORE_ORDER,
+    take: limit + 1,
+    select: STORE_LIST_SELECT,
+  });
+  return { page: rows.slice(0, limit), hasMore: rows.length > limit, nearby };
+}
+
+/** Nota de 90 dias e pedidos/cancelados de 30 dias, só das lojas da página. */
+async function pageAggregates(storeIds: string[], now: Date) {
+  if (storeIds.length === 0) {
+    return { rating: new Map<string, number | null>(), totals: new Map<string, CancelTotals>() };
+  }
+  const [ratings, totals] = await Promise.all([
     prisma.order.groupBy({
       by: ['storeId'],
-      where: { storeRating: { not: null }, createdAt: { gte: new Date(now.getTime() - 90 * DAY_MS) } },
+      where: { storeId: { in: storeIds }, storeRating: { not: null }, createdAt: { gte: new Date(now.getTime() - 90 * DAY_MS) } },
       _avg: { storeRating: true },
     }),
-    prisma.order.groupBy({
-      by: ['storeId', 'status'],
-      where: { createdAt: { gte: new Date(now.getTime() - 30 * DAY_MS) } },
-      _count: { _all: true },
-    }),
+    cancelTotals30d(storeIds, now),
   ]);
-  const rating = new Map(ratings.map((r) => [r.storeId, r._avg.storeRating]));
-  const totals = new Map<string, { orders: number; cancelled: number }>();
-  for (const c of counts) {
-    const t = totals.get(c.storeId) ?? { orders: 0, cancelled: 0 };
-    t.orders += c._count._all;
-    if ((CANCELLED_ORDER_STATUSES as string[]).includes(c.status)) t.cancelled += c._count._all;
-    totals.set(c.storeId, t);
-  }
-  return { rating, totals };
+  return { rating: new Map<string, number | null>(ratings.map((r) => [r.storeId, r._avg.storeRating])), totals };
 }
 
 export async function listAdminStores(input: ListAdminStoresInput, now: Date = new Date()): Promise<StoreListResponse> {
   const limit = pageLimit(input.limit);
   const after = input.cursor ? decodeStoreCursor(input.cursor) : null;
-  const where: Prisma.StoreWhereInput = { AND: [filterWhere(input.filter), await searchWhere(input.q)] };
+  const where: Prisma.StoreWhereInput = {
+    AND: [filterWhere(input.filter), await searchWhere(input.q), afterWhere(after)],
+  };
+  const { page, hasMore, nearby } = input.filter === 'no_courier'
+    ? await pageWithoutCourier(where, limit, now)
+    : await plainPage(where, limit, now);
 
-  const [stores, aggregates, subscriptions, cfg] = await Promise.all([
-    prisma.store.findMany({ where, select: STORE_LIST_SELECT }),
-    storeAggregates(now),
-    prisma.storeSubscription.findMany({ select: { storeId: true, currentPlan: true } }),
+  const ids = page.map((s) => s.id);
+  const [aggregates, subscriptions, cfg] = await Promise.all([
+    pageAggregates(ids, now),
+    prisma.storeSubscription.findMany({ where: { storeId: { in: ids } }, select: { storeId: true, currentPlan: true } }),
     getSaasConfig(),
   ]);
   const planBy = new Map(subscriptions.map((s) => [s.storeId, s.currentPlan]));
   const mode = storeModeOf(cfg.settlementMode);
 
-  const all = stores.map((s): StoreListItem => {
-    const totals = aggregates.totals.get(s.id);
-    const rate = totals && totals.orders >= CANCEL_RATE_MIN_ORDERS ? totals.cancelled / totals.orders : null;
+  const items = page.map((s): StoreListItem => {
+    const rate = cancelRateOf(aggregates.totals.get(s.id));
     const avg = aggregates.rating.get(s.id);
-    const receiving = receivingStatus(cfg.settlementMode, env.PAYMENT_GATEWAY, s);
-    const situation = storeSituation(s, now);
     return {
       id: s.id,
       name: s.name,
@@ -161,19 +211,17 @@ export async function listAdminStores(input: ListAdminStoresInput, now: Date = n
       mode,
       rating90d: avg == null ? null : round1(avg),
       cancelRate30d: rate == null ? null : Math.round(rate * 1000) / 1000,
-      receiving,
-      situation,
-      attention: situation === 'admin_paused' || receiving === 'problem' || (rate !== null && rate > CANCEL_RATE_ATTENTION),
+      receiving: receivingStatus(cfg.settlementMode, env.PAYMENT_GATEWAY, s),
+      situation: storeSituation(s, now),
+      attention: s.needsAttention,
+      nearbyCouriers: nearby.get(s.id) ?? null,
     };
   });
 
-  const rows = (input.filter === 'attention' ? all.filter((s) => s.attention) : all).sort(compareKeys);
-  let start = 0;
-  if (after) {
-    const index = rows.findIndex((r) => compareKeys(r, after) > 0);
-    start = index === -1 ? rows.length : index;
-  }
-  const items = rows.slice(start, start + limit);
-  const nextCursor = start + limit < rows.length ? encodeStoreCursor(items[items.length - 1]) : null;
-  return { items, nextCursor };
+  const last = page[page.length - 1];
+  return {
+    items,
+    nextCursor: hasMore && last ? encodeStoreCursor(keyOf(last)) : null,
+    nearbyRadiusKm: DISPATCH_MAX_KM,
+  };
 }

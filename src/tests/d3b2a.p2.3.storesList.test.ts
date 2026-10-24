@@ -12,6 +12,8 @@ import { createOpsOrder, createOpsStore, grantRolePermissions } from './helpers/
 import { snapshotPlatformConfig } from './helpers/pgCleanup';
 import { DAY_MS, cleanupAccountsFixtures, createPerson, daysBefore, randomDigits } from './helpers/d3b2aRead';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
+import { computeStoreAttention } from '../services/adminAccounts/storeAttention';
+import { DISPATCH_MAX_KM } from '../services/dispatch';
 
 const DOMAIN = '@d3b2ap23.test';
 const MARK = 'd3b2ap23';
@@ -36,8 +38,15 @@ afterEach(async () => {
   await cleanupAccountsFixtures(DOMAIN, MARK);
 });
 
-const list = (query: Record<string, string>, who: TestUser = ceo) =>
-  request(app).get('/api/admin/stores').query(query).set('Authorization', bearer(who));
+/** D3b-4b: a atenção é gravada (gatilhos e job); os fixtures escrevem direto no banco, então recalcula antes de ler. */
+async function recheckTagged() {
+  const stores = await prisma.store.findMany({ where: { name: { startsWith: tag } }, select: { id: true } });
+  for (const s of stores) await computeStoreAttention(s.id);
+}
+const list = async (query: Record<string, string>, who: TestUser = ceo) => {
+  await recheckTagged();
+  return request(app).get('/api/admin/stores').query(query).set('Authorization', bearer(who));
+};
 const idsOf = (res: request.Response): string[] => {
   expect(res.body).toEqual(expect.objectContaining({ items: expect.any(Array) }));
   return res.body.items.map((s: { id: string }) => s.id);
@@ -79,8 +88,10 @@ describe('GET /admin/stores · colunas', () => {
         receiving: 'na',
         situation: 'open',
         attention: false,
+        nearbyCouriers: null,
       }],
       nextCursor: null,
+      nearbyRadiusKm: DISPATCH_MAX_KM,
     });
   });
 
@@ -255,7 +266,7 @@ describe('GET /admin/stores · permissão', () => {
       await grantRolePermissions('gerente_geral', ['store:view_all']);
       const ok = await list({ q: tag }, gerente);
       expect(ok.status).toBe(200);
-      expect(ok.body).toEqual({ items: [], nextCursor: null });
+      expect(ok.body).toEqual({ items: [], nextCursor: null, nearbyRadiusKm: DISPATCH_MAX_KM });
     } finally {
       await restore();
     }
