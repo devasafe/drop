@@ -140,6 +140,23 @@ describe('tela', () => {
     expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
   });
 
+  it('"Carregar mais" usa o mês da página carregada, não o do seletor, quando os dois divergem', async () => {
+    // O servidor respondeu outro mês para o pedido (ex.: normalizou o mês): o cursor é desse mês.
+    routes['/admin/money/saas?month=2026-09'] = ok({
+      ...DIRETO, month: '2026-08', invoices: { items: [INV('y', { dueDate: '2026-08-10' })], nextCursor: 'c2' },
+    });
+    routes['/admin/money/saas?month=2026-08&cursor=c2'] = ok({
+      ...DIRETO, month: '2026-08', invoices: { items: [INV('x', { dueDate: '2026-08-20' })], nextCursor: null },
+    });
+    render(<AdminDinheiroMensalidadesPage />);
+    await screen.findByRole('table', { name: 'Faturas do mês' });
+    fireEvent.change(screen.getByLabelText('Mês'), { target: { value: '2026-09' } });
+    expect(await screen.findByRole('link', { name: 'Loja y' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
+    expect(await screen.findByRole('link', { name: 'Loja x' })).toBeInTheDocument();
+    expect(get).toHaveBeenLastCalledWith('/admin/money/saas?month=2026-08&cursor=c2');
+  });
+
   it('cursor recusado (400) no "Carregar mais": recarrega do começo com aviso', async () => {
     routes['/admin/money/saas'] = ok({ ...DIRETO, invoices: { ...DIRETO.invoices, nextCursor: 'velho' } });
     routes['/admin/money/saas?month=2026-10&cursor=velho'] = fail(400, 'Cursor inválido');

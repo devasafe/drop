@@ -60,7 +60,7 @@ function Mensalidades() {
 
   const urlFor = useCallback((c?: string, pageMonth?: string) => {
     const p = new URLSearchParams();
-    const m = month || pageMonth;
+    const m = pageMonth ?? month;
     if (m) p.set('month', m);
     if (c) p.set('cursor', c);
     const qs = p.toString();
