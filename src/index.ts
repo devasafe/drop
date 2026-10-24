@@ -22,6 +22,7 @@ import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 import { startSaasBillingJob } from './jobs/saasBilling.job';
 import { startStoreAttentionJob } from './jobs/storeAttention.job';
+import { productionConfigWarnings } from './config/productionCheck';
 
 // Promessa rejeitada sem tratamento: loga e segue no ar (V15). Exceção síncrona ainda encerra.
 installUnhandledRejectionHandler();
@@ -43,6 +44,13 @@ connectDB().then(() => {
     console.error('❌ [CLIENT ERROR]', err.message);
     socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
   });
+
+  // Operação real: em produção, lista o que falta na configuração (só avisa; ver productionCheck).
+  if (env.NODE_ENV === 'production') {
+    const warnings = productionConfigWarnings(process.env);
+    for (const w of warnings) logger.error(`[config] ${w.key}: ${w.message}`);
+    if (!warnings.length) logger.info('[config] configuração de produção completa para operar com dinheiro real');
+  }
 
   // Webhook do Asaas é fail-closed: sem o token, nenhum pagamento é confirmado por webhook.
   if (env.PAYMENT_GATEWAY === 'asaas' && !env.ASAAS_WEBHOOK_TOKEN) {
