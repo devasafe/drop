@@ -14,7 +14,6 @@ import logger from '../../config/logger';
 import { getSaasConfig } from '../../utils/settlement';
 import { CANCELLED_ORDER_STATUSES } from '../adminOps/common';
 import { RECEIVING_SELECT, receivingStatus } from './storeStatus';
-import { isAdminPaused } from './storePause';
 import type { ReceivingStatus } from './types';
 
 export const CANCEL_RATE_MIN_ORDERS = 5;
@@ -53,7 +52,7 @@ export function cancelRateOf(t: CancelTotals | undefined): number | null {
 }
 
 export function attentionOf(input: { adminPausedAt: Date | null; receiving: ReceivingStatus; cancelRate: number | null }): boolean {
-  return isAdminPaused(input)
+  return input.adminPausedAt != null
     || input.receiving === 'problem'
     || (input.cancelRate !== null && input.cancelRate > CANCEL_RATE_ATTENTION);
 }

@@ -3,10 +3,13 @@
  * (pausa do admin, recebimento com problema, cancelamento acima de 10% em 30 dias com ao menos 5 pedidos),
  * grava sem mexer em updatedAt, e a pausa e a liberação pelo admin recalculam na mesma transação.
  */
+import fs from 'fs';
+import path from 'path';
 import request from 'supertest';
 import app from '../app';
 import env from '../config/env';
 import logger from '../config/logger';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { createOpsOrder, createOpsStore } from './helpers/d3b1Ops';
@@ -148,5 +151,38 @@ describe('pausa e liberação pelo admin recalculam na hora', () => {
     jest.spyOn(logger, 'error').mockImplementation((() => logger) as any);
     expect((await pause(id)).status).toBe(500);
     expect(await stored(id)).toEqual(expect.objectContaining({ adminPausedAt: null, needsAttention: false }));
+  });
+
+  it('se o recálculo falha na liberação, a loja continua pausada e a rota responde 500', async () => {
+    const id = await createOpsStore(DOMAIN, { name: 'p31 falha libera' });
+    expect((await pause(id)).status).toBe(200);
+    jest.spyOn(attention, 'computeStoreAttention').mockRejectedValueOnce(new Error('falha simulada no recálculo'));
+    jest.spyOn(logger, 'error').mockImplementation((() => logger) as any);
+    expect((await unpause(id)).status).toBe(500);
+    expect(await stored(id)).toEqual(expect.objectContaining({ needsAttention: true }));
+    expect((await stored(id)).adminPausedAt).not.toBeNull();
+  });
+});
+
+describe('preenchimento inicial da migration', () => {
+  const migration = fs.readFileSync(
+    path.join(__dirname, '../../prisma/migrations/20261024120000_d3b4b_lojas_atencao/migration.sql'),
+    'utf8',
+  );
+  const backfill = migration.slice(migration.indexOf('UPDATE "Store"'));
+
+  it('custódia com loja sem asaas e sem outro motivo grava false (nunca NULL)', async () => {
+    const limpa = await createOpsStore(DOMAIN, { name: 'p31 backfill limpa' });
+    const pausada = await createOpsStore(DOMAIN, { name: 'p31 backfill pausada' });
+    await prisma.store.update({ where: { id: pausada }, data: { adminPausedAt: new Date(), adminPausedBy: ceo.userId, adminPauseReason: 'Teste' } });
+    const comErro = await createOpsStore(DOMAIN, { name: 'p31 backfill erro' });
+    await prisma.store.update({ where: { id: comErro }, data: { asaas: { status: 'error' } } });
+    await prisma.store.update({ where: { id: limpa }, data: { asaas: Prisma.DbNull } });
+
+    await prisma.$executeRawUnsafe(backfill);
+
+    expect((await stored(limpa)).needsAttention).toBe(false);
+    expect((await stored(pausada)).needsAttention).toBe(true);
+    expect((await stored(comErro)).needsAttention).toBe(true);
   });
 });

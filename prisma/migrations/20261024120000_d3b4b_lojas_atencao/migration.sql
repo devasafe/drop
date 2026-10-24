@@ -12,12 +12,12 @@ CREATE INDEX "Order_storeId_status_createdAt_idx" ON "Order"("storeId", "status"
 -- "attentionCheckedAt" fica NULL: a primeira rodada do job (ao subir o servidor) recalcula todas com a
 -- regra exata.
 UPDATE "Store" AS s
-SET "needsAttention" = (
+SET "needsAttention" = COALESCE((
   s."adminPausedAt" IS NOT NULL
   OR (cfg.mode = 'direto' AND EXISTS (
     SELECT 1 FROM "StoreAsaasAccount" a WHERE a."storeId" = s."id" AND a."status" <> 'valid'
   ))
-  OR (cfg.mode <> 'direto' AND s."asaas"->>'status' = 'error')
+  OR (cfg.mode <> 'direto' AND COALESCE(s."asaas"->>'status', '') = 'error')
   OR (
     SELECT CASE
       WHEN COUNT(*) >= 5
@@ -27,7 +27,7 @@ SET "needsAttention" = (
     FROM "Order" o
     WHERE o."storeId" = s."id" AND o."createdAt" >= NOW() - INTERVAL '30 days'
   )
-)
+), false)
 FROM (
   SELECT COALESCE(
     (SELECT "settlementMode"::text FROM "PlatformConfig" ORDER BY "updatedAt" ASC LIMIT 1),
