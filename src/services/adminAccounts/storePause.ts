@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma';
 import { notifyStore, STORE_LINKS } from '../storeNotify';
 import { recordAccountAction, AccountActor } from './actions';
 import { AccountActionError, parseOptionalReason, parseRequiredReason, storeNotFound } from './errors';
+import { computeStoreAttention } from './storeAttention';
 
 /**
  * D3b-2a · pausa da loja pelo admin (spec 5.4). Só o admin libera. Enquanto `adminPausedAt` não
@@ -9,6 +10,7 @@ import { AccountActionError, parseOptionalReason, parseRequiredReason, storeNotF
  * `isOpen`, `pausedUntil` e os pedidos em andamento não são tocados: ao liberar, a loja volta ao
  * estado que o lojista deixou. As duas escritas são condicionais (idempotentes, com 409).
  * O ator pode ser `{ id: 'system', role: 'system' }` (job da mensalidade cancelada, D3b-2b).
+ * D3b-4b: as duas recalculam `Store.needsAttention` na mesma transação (a ordem da lista muda na hora).
  */
 
 export const STORE_ADMIN_PAUSED_SELLER_MESSAGE = 'Sua loja está pausada pelo DROP. Fale com o suporte.';
@@ -41,6 +43,7 @@ export async function pauseStoreByAdmin(
     });
     if (count === 0) throw new AccountActionError(409, 'ALREADY_PAUSED', 'A loja já está pausada pelo DROP.');
     await recordAccountAction(tx, { actor, storeId, type: 'store_pause', reason });
+    await computeStoreAttention(storeId, tx);
   });
 
   // Depois do commit e best-effort (notifyStore nunca lança).
@@ -76,6 +79,7 @@ export async function unpauseStoreByAdmin(
       actor, storeId, type: 'store_unpause', reason,
       meta: { pausedAt: store.adminPausedAt ? store.adminPausedAt.toISOString() : null, pauseReason: store.adminPauseReason },
     });
+    await computeStoreAttention(storeId, tx);
   });
 
   await notifyStore(storeId, {

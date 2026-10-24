@@ -459,6 +459,12 @@ model Store {
   adminPausedAt        DateTime?
   adminPausedBy        String?
   adminPauseReason     String?
+  /// D3b-4b (spec 8): "precisa de atenção" gravado. Pausa do admin, recebimento com problema ou mais de
+  /// 10% de cancelamento em 30 dias (com ao menos 5 pedidos). Mantido por computeStoreAttention (pausa,
+  /// liberação, recebimento) e pelo job storeAttention a cada 10 min. É a ordem da lista de lojas do admin.
+  needsAttention       Boolean   @default(false)
+  /// Último cálculo de needsAttention; nulo = nunca calculado (o job pega na próxima rodada).
+  attentionCheckedAt   DateTime?
   isVerified           Boolean   @default(false)
   verification         Json?
   asaas                Json?
@@ -480,6 +486,7 @@ model Store {
   @@index([ownerId])
   @@index([plan])
   @@index([isVerified])
+  @@index([needsAttention(sort: Desc), name, id])
 }
 
 /// Chave de API de máquina por loja (integração de estoque). Guarda só o HASH;
@@ -626,6 +633,7 @@ model Order {
   items    OrderItem[]
 
   @@index([storeId, createdAt])
+  @@index([storeId, status, createdAt])
   @@index([status, createdAt])
   @@index([customerId, createdAt])
   @@index([asaasPaymentId])
