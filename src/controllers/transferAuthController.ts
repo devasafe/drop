@@ -195,6 +195,11 @@ export const handleTransferAuthorization = async (req: Request, res: Response) =
   }
   try {
     const tokenOk = await verifyStoreWebhookToken(storeId, req.header('asaas-access-token'), 'auth');
+    if (tokenOk && !isAsaasSandbox()) {
+      // Operação real: os formatos "CONFIRMAR NO SANDBOX" são conferidos no primeiro Pix de verdade.
+      // Só com o token da loja conferido (ninguém de fora escreve no log); corpo mascarado.
+      logger.info('[transfer-auth] corpo recebido', { storeId, body: authPayloadShape(req.body) });
+    }
     if (!tokenOk) {
       decision = refuse('INVALID_TOKEN');
     } else if (req.body && typeof req.body === 'object' && typeof req.body.event === 'string') {

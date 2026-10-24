@@ -1,7 +1,9 @@
 /**
  * Sandbox: o corpo do pedido de autorização do Asaas vai para o log (só os nomes dos campos,
  * ids e valores — chave Pix, documento e conta mascarados), para conferir o formato real.
- * Com a URL de produção do Asaas, nada é logado.
+ * Com a URL de produção do Asaas, o mesmo formato mascarado vai para o log só depois que o token
+ * da loja confere (operação real: os formatos marcados "CONFIRMAR NO SANDBOX" são conferidos no
+ * primeiro Pix de verdade; sem token ninguém de fora escreve no log).
  */
 import request from 'supertest';
 import app from '../app';
@@ -85,10 +87,30 @@ describe('t56 — corpo da autorização no log do sandbox', () => {
     expect(alert).not.toHaveBeenCalled();
   });
 
-  it('com ASAAS_API_URL de produção, não loga o corpo', async () => {
+  const prodCalls = (spy: jest.SpyInstance) => spy.mock.calls.filter((c) => c[0] === '[transfer-auth] corpo recebido');
+
+  it('com ASAAS_API_URL de produção e sem token válido, não loga o corpo', async () => {
     (env as any).ASAAS_API_URL = 'https://api.asaas.com/v3';
     const spy = jest.spyOn(logger as any, 'info');
     await request(app).post('/webhooks/asaas/loja/loja-inexistente/autorizacao').send(BODY);
+    expect(sandboxCalls(spy).length).toBe(0);
+    expect(prodCalls(spy).length).toBe(0);
+  });
+
+  it('com ASAAS_API_URL de produção e token da loja válido, loga o formato mascarado', async () => {
+    (env as any).ASAAS_API_URL = 'https://api.asaas.com/v3';
+    const TOKEN = 'p'.repeat(48);
+    const s = await prisma.store.create({ data: { ownerId: await ownerIdForStore(DOMAIN), name: 'Loja T56 prod', isOpen: true } });
+    await prisma.storeAsaasAccount.create({
+      data: { storeId: s.id, apiKeyEncrypted: encryptSensitiveData('$aact_prod_X56'), apiKeyLast4: 'X56P', environment: 'production', status: 'valid', authWebhookTokenHash: sha256Hex(TOKEN) },
+    });
+    const spy = jest.spyOn(logger as any, 'info');
+    await request(app).post(`/webhooks/asaas/loja/${s.id}/autorizacao`).set('asaas-access-token', TOKEN).send(BODY);
+    const calls = prodCalls(spy);
+    expect(calls.length).toBe(1);
+    expect(calls[0][1]).toMatchObject({ storeId: s.id, body: { type: 'TRANSFER', transfer: { id: 'tra_abc123', value: 12.5 } } });
+    expect(JSON.stringify(calls)).not.toContain('cliente-a00001');
+    expect(JSON.stringify(calls)).not.toContain('12345678909');
     expect(sandboxCalls(spy).length).toBe(0);
   });
 });
