@@ -105,6 +105,8 @@ export const PLATFORM_MANUAL_PIX = 'PLATFORM_MANUAL_PIX';
 /**
  * Cria a MotoboyTransfer da entrega (1 por delivery, unique em deliveryId).
  * Deve ser chamada DENTRO da transação da trava picked→delivered.
+ * Valor ≤ R$ 0 (frete zero, parte do motoboy em 0%): não há o que pagar e o Asaas recusaria
+ * um Pix de valor zero, então nenhuma linha nasce e a função devolve null.
  */
 export async function createTransferForDelivery(
   tx: Prisma.TransactionClient,
@@ -113,13 +115,17 @@ export async function createTransferForDelivery(
   reason: TransferReason = 'delivery',
   amountOverride?: number,
   payer: 'store' | 'platform' = 'store',
-): Promise<MotoboyTransfer> {
+): Promise<MotoboyTransfer | null> {
   // Config lida pelo `tx` (mesma conexão/snapshot da transação que grava a linha).
   const pc: any = await tx.platformConfig.findFirst({ orderBy: { updatedAt: 'asc' } });
   const maxAmount = Number(pc?.directTransferMaxAmount ?? DEFAULT_MAX_AMOUNT);
   const motoboyShareDirect = Number(pc?.motoboyShareDirect ?? 100);
   const base = amountOverride != null ? Number(amountOverride) : (Number(delivery.fee) * motoboyShareDirect) / 100;
   const amount = Math.round(base * 100) / 100;
+  if (!(amount > 0)) {
+    logger.info('[motoboyTransfer] repasse de R$ 0 — nenhum Pix criado', { deliveryId: delivery.id, orderId: order.id, reason });
+    return null;
+  }
 
   const { pixKey, pixKeyType } = await motoboyPixSnapshot(tx, delivery.motoboyId);
 
