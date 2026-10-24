@@ -9,7 +9,8 @@ import { ATTENTION_WINDOW_DAYS, computeStoreAttention } from '../services/adminA
  *  - as lojas com pedido nos últimos 30 dias (a taxa de cancelamento muda com os pedidos);
  *  - as marcadas (para desmarcar quando o motivo some, inclusive quando os pedidos envelhecem);
  *  - as nunca calculadas (attentionCheckedAt nulo): loja nova, o preenchimento da migration e a troca
- *    do modo de liquidação.
+ *    do modo de liquidação;
+ *  - as calculadas há mais de 24 h: rede de segurança para um gatilho que não disparou.
  * Uma loja que falha vai para o log e o ciclo segue; o valor antigo fica até a próxima rodada (spec 9).
  */
 
@@ -25,6 +26,7 @@ export async function storesToRecheck(now: Date = new Date()): Promise<string[]>
         { needsAttention: true },
         { attentionCheckedAt: null },
         { orders: { some: { createdAt: { gte: since } } } },
+        { attentionCheckedAt: { lt: new Date(now.getTime() - DAY_MS) } },
       ],
     },
     select: { id: true },
@@ -33,12 +35,23 @@ export async function storesToRecheck(now: Date = new Date()): Promise<string[]>
   return rows.map((r) => r.id);
 }
 
+/**
+ * Recalcula uma loja com a linha travada (FOR UPDATE): uma pausa ou uma troca de modo em andamento termina
+ * antes, e o cálculo lê o estado já gravado em vez de sobrescrevê-lo com um valor velho.
+ */
+export async function recheckStore(storeId: string, now: Date = new Date()): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "Store" WHERE "id" = ${storeId} FOR UPDATE`;
+    return computeStoreAttention(storeId, tx, now);
+  });
+}
+
 export async function runStoreAttentionCycle(now: Date = new Date()): Promise<{ checked: number; failed: number }> {
   const ids = await storesToRecheck(now);
   let failed = 0;
   for (const storeId of ids) {
     try {
-      await computeStoreAttention(storeId, undefined, now);
+      await recheckStore(storeId, now);
     } catch (err) {
       failed += 1;
       logger.error('[store-attention] falha ao recalcular a loja', err as Error, { storeId });
