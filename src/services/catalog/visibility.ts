@@ -1,18 +1,22 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { publicStoreBillingWhere } from '../saasBilling/gate';
+import { asaasServerEnvironment } from '../../utils/asaasEnv';
 
 /** D3b-2a: loja pausada pelo admin some de toda a vitrine, nos dois modos. */
 export const NOT_ADMIN_PAUSED_WHERE: Prisma.StoreWhereInput = { adminPausedAt: null };
 
 /**
- * Modo direto: a loja só cobra com a conta Asaas `valid` e o termo aceito (isStorePaymentsReady).
- * Sem isso ela fica fora da vitrine, em vez de o cliente descobrir no checkout.
+ * Modo direto: a loja só cobra com a conta Asaas `valid`, do mesmo ambiente do servidor, e o termo
+ * aceito (isStorePaymentsReady). Sem isso ela fica fora da vitrine, em vez de o cliente descobrir
+ * no checkout — inclusive as chaves de sandbox depois que o servidor passa para produção.
  */
-export const DIRECT_PAYMENTS_READY_WHERE: Prisma.StoreWhereInput = {
-  asaasAccount: { is: { status: 'valid' } },
-  asaasConsents: { some: {} },
-};
+export function directPaymentsReadyWhere(): Prisma.StoreWhereInput {
+  return {
+    asaasAccount: { is: { status: 'valid', environment: asaasServerEnvironment() } },
+    asaasConsents: { some: {} },
+  };
+}
 
 /**
  * Mensalidade e conta pronta para cobrar (modo direto) AND pausa do admin. É o filtro das listagens
@@ -21,7 +25,7 @@ export const DIRECT_PAYMENTS_READY_WHERE: Prisma.StoreWhereInput = {
  */
 export async function publicStoreAvailableWhere(): Promise<Prisma.StoreWhereInput> {
   const billingWhere = await publicStoreBillingWhere();
-  const directWhere = billingWhere ? [billingWhere, DIRECT_PAYMENTS_READY_WHERE] : [];
+  const directWhere = billingWhere ? [billingWhere, directPaymentsReadyWhere()] : [];
   return { AND: [NOT_ADMIN_PAUSED_WHERE, ...directWhere] };
 }
 

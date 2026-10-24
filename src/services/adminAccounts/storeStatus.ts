@@ -8,6 +8,7 @@ import { isStoreOpenWithHoursNow, isStorePaused } from '../../utils/storeOpen';
 import { SettlementMode } from '../../utils/settlement';
 import { isAdminPaused } from './storePause';
 import { ReceivingStatus, StoreMode, StoreSituation } from './types';
+import { asaasServerEnvironment } from '../../utils/asaasEnv';
 
 export const STORE_SITUATION_SELECT = Prisma.validator<Prisma.StoreSelect>()({
   isOpen: true,
@@ -35,7 +36,7 @@ export function storeSituation(store: StoreSituationInput, now: Date = new Date(
 export const RECEIVING_SELECT = Prisma.validator<Prisma.StoreSelect>()({
   asaas: true,
   asaasAccount: {
-    select: { status: true, paymentWebhookId: true, ipWhitelistConfirmedAt: true, authWebhookConfirmedAt: true, lastError: true },
+    select: { status: true, environment: true, paymentWebhookId: true, ipWhitelistConfirmedAt: true, authWebhookConfirmedAt: true, lastError: true },
   },
 });
 
@@ -43,6 +44,7 @@ export interface ReceivingInput {
   asaas: Prisma.JsonValue | null;
   asaasAccount: {
     status: string;
+    environment: string;
     paymentWebhookId: string | null;
     ipWhitelistConfirmedAt: Date | null;
     authWebhookConfirmedAt: Date | null;
@@ -54,7 +56,7 @@ const asObject = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
 /**
- * Decisão 12. Direto: a conta Asaas da própria loja (inválida = problema; válida com webhook de
+ * Decisão 12. Direto: a conta Asaas da própria loja (inválida ou de outro ambiente = problema; válida com webhook de
  * pagamento, IP liberado e webhook de autorização = ok). Custódia: o repasse (asaasGateway) sai da
  * subconta (Store.asaas.apiKeyEncrypted) por Pix para Store.asaas.pixKey, então só fica ok com as duas;
  * sem gateway Asaas, não se aplica.
@@ -63,7 +65,8 @@ export function receivingStatus(mode: SettlementMode, gateway: string, store: Re
   if (mode === 'direto') {
     const account = store.asaasAccount;
     if (!account) return 'pending';
-    if (account.status !== 'valid') return 'problem';
+    // Chave de outro ambiente (ex.: sandbox com o servidor em produção) não cobra.
+    if (account.status !== 'valid' || account.environment !== asaasServerEnvironment()) return 'problem';
     return account.paymentWebhookId && account.ipWhitelistConfirmedAt && account.authWebhookConfirmedAt ? 'ok' : 'pending';
   }
   if (gateway !== 'asaas') return 'na';

@@ -9,6 +9,7 @@ import logger from '../../config/logger';
 import { registerPaymentWebhook, repairPaymentWebhook, storeWebhookUrl } from './webhook';
 import { STORE_ASAAS_TERMS_VERSION } from '../../legal/storeAsaasTerms';
 import { refreshStoreAttention } from '../adminAccounts/storeAttention';
+import { asaasServerEnvironment } from '../../utils/asaasEnv';
 
 /**
  * Conta Asaas própria da loja (modo SaaS "direto").
@@ -53,9 +54,7 @@ export class StoreAsaasNotReadyError extends AppError {
   }
 }
 
-function serverEnvironment(): 'sandbox' | 'production' {
-  return String(env.ASAAS_API_URL || '').includes('sandbox') ? 'sandbox' : 'production';
-}
+const serverEnvironment = asaasServerEnvironment;
 
 function toStatus(row: any | null, consent: { version: string; acceptedAt: Date } | null = null): StoreAsaasStatus {
   const consentOut = consent ? { version: consent.version, acceptedAt: consent.acceptedAt.toISOString() } : null;
@@ -66,16 +65,18 @@ function toStatus(row: any | null, consent: { version: string; acceptedAt: Date 
       consent: consentOut, termsVersion: STORE_ASAAS_TERMS_VERSION,
     };
   }
+  // Chave de outro ambiente (conectada no sandbox, servidor já em produção) não cobra: reconectar.
+  const usable = row.status === 'valid' && row.environment === serverEnvironment();
   return {
     consent: consentOut,
     termsVersion: STORE_ASAAS_TERMS_VERSION,
-    status: row.status === 'valid' ? 'valid' : 'invalid',
+    status: usable ? 'valid' : 'invalid',
     environment: row.environment as 'sandbox' | 'production',
     lastCheckedAt: row.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
     walletId: row.walletId ?? null,
     apiKeyLast4: row.apiKeyLast4 ?? null,
     checklist: {
-      apiKey: row.status === 'valid',
+      apiKey: usable,
       paymentWebhook: !!row.paymentWebhookId,
       ipWhitelistConfirmed: !!row.ipWhitelistConfirmedAt,
       authWebhookConfirmed: !!row.authWebhookConfirmedAt,

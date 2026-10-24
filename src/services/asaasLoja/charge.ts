@@ -8,6 +8,7 @@ import { decryptSensitiveData } from '../../utils/encryption';
 import type { ChargeResult } from '../paymentProvider/types';
 import { buyerDocument, CpfRequiredError } from '../../utils/buyerCpf';
 import { refreshStoreAttention } from '../adminAccounts/storeAttention';
+import { asaasServerEnvironment } from '../../utils/asaasEnv';
 
 // Regra do CPF de cobrança vive em utils/buyerCpf (compartilhada com a custódia).
 export { buyerDocument, resolveBuyerCpf, CpfRequiredError } from '../../utils/buyerCpf';
@@ -51,8 +52,9 @@ export async function storeKey(storeId: string): Promise<string> {
  * Checagem barata, sem decifrar a chave.
  */
 export async function isStorePaymentsReady(storeId: string): Promise<boolean> {
-  const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId }, select: { status: true } });
-  if (row?.status !== 'valid') return false;
+  const row = await prisma.storeAsaasAccount.findUnique({ where: { storeId }, select: { status: true, environment: true } });
+  // Chave de outro ambiente (ex.: conectada no sandbox, servidor já em produção) não cobra.
+  if (row?.status !== 'valid' || row.environment !== asaasServerEnvironment()) return false;
   const consent = await prisma.storeAsaasConsent.findFirst({ where: { storeId }, select: { id: true } });
   return !!consent;
 }

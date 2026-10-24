@@ -14,7 +14,7 @@ export async function grantStoreConsent(storeId: string, actorId = 'actor-test')
 /**
  * Dados aninhados de `prisma.store.create/update` que deixam a loja pronta para cobrar no modo
  * direto (conta Asaas `valid` + termo aceito). A vitrine do modo SaaS só mostra loja assim
- * (DIRECT_PAYMENTS_READY_WHERE); a chave é fictícia, para suítes que não chegam a cobrar.
+ * (directPaymentsReadyWhere); a chave é fictícia, para suítes que não chegam a cobrar.
  */
 export function paymentsReadyStoreData() {
   return {
