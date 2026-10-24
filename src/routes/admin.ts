@@ -800,6 +800,12 @@ router.get('/asaas/balance', authenticate, authorizePermission('cashbox:view'), 
   }
 });
 
+// As ferramentas de abastecer mandam dinheiro da conta-mãe sem lançamento contábil: só no sandbox.
+const sandboxOnly = (_req: any, res: Response, next: () => void) => {
+  if (String(env.ASAAS_API_URL || '').includes('sandbox')) return next();
+  return res.status(403).json({ error: 'Ferramenta de teste: só funciona com o Asaas de sandbox', code: 'SANDBOX_ONLY' });
+};
+
 // Resolve o walletId da subconta do recebedor (auto-cria se faltar).
 async function resolveSubaccountWalletId(recipientType: 'store' | 'motoboy', recipientId: string): Promise<string | null> {
   if (recipientType === 'store') {
@@ -834,7 +840,7 @@ async function readSubaccountBalance(recipientType: 'store' | 'motoboy', recipie
 
 // POST /admin/asaas/fund-subaccount — transfere conta-mãe → subconta (DEV/teste)
 // body: { recipientType: 'store'|'motoboy', recipientId, amount }
-router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
+router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:credit'), sandboxOnly, async (req: any, res: Response) => {
   try {
     const { recipientType, recipientId, amount } = req.body || {};
     if (!['store', 'motoboy'].includes(recipientType)) return res.status(400).json({ error: 'recipientType deve ser store ou motoboy' });
@@ -855,7 +861,7 @@ router.post('/asaas/fund-subaccount', authenticate, authorizePermission('wallet:
 
 // POST /admin/asaas/fund-for-withdrawal — abastece a subconta do recebedor de UM saque
 // pendente (deriva recebedor pelos payouts do saque). body: { withdrawalId }
-router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wallet:credit'), async (req: any, res: Response) => {
+router.post('/asaas/fund-for-withdrawal', authenticate, authorizePermission('wallet:credit'), sandboxOnly, async (req: any, res: Response) => {
   try {
     const { withdrawalId } = req.body || {};
     if (!withdrawalId) return res.status(400).json({ error: 'withdrawalId obrigatório' });
