@@ -118,6 +118,28 @@ describe('executeDirectRefund', () => {
     expect(o!.asaasChargeStatus).toBe('refunded');
   });
 
+  it('operação real: a resposta do estorno vai para o log só com status, chaves e refunds (sem dados do cliente)', async () => {
+    const logger = require('../config/logger').default;
+    const info = jest.spyOn(logger, 'info');
+    const s = await setup();
+    const r = await req(s, 50);
+    postAs.mockResolvedValue({
+      id: 'pay_x', status: 'REFUNDED', value: 50, customer: 'cus_123', pixQrCodeId: 'qr', description: 'Pedido de Fulano',
+      refunds: [{ id: 'ref_1', status: 'DONE', value: 50, description: 'Estorno', endToEndIdentifier: 'E123' }],
+    });
+    await executeDirectRefund(r.id);
+    const calls = info.mock.calls.filter((c: any[]) => c[0] === '[asaasLoja] resposta do estorno');
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({
+      refundId: r.id,
+      response: { status: 'REFUNDED', keys: expect.arrayContaining(['id', 'status', 'refunds']), refunds: [{ id: 'ref_1', status: 'DONE', value: 50 }] },
+    });
+    const dump = JSON.stringify(calls);
+    expect(dump).not.toContain('cus_123');
+    expect(dump).not.toContain('Fulano');
+    info.mockRestore();
+  });
+
   it('concorrencia: dois execute em paralelo -> postAs 1 vez', async () => {
     const s = await setup();
     const r = await req(s);

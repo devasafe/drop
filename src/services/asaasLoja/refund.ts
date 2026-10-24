@@ -49,6 +49,18 @@ export function refundResponseInProgress(response: any): boolean {
   return REFUND_IN_PROGRESS_STATUSES.has(up(response?.status));
 }
 
+/** Formato da resposta de POST /payments/{id}/refund para o log: sem dados do cliente. */
+export function refundResponseShape(response: any) {
+  const isObj = response && typeof response === 'object';
+  return {
+    status: isObj ? response.status ?? null : null,
+    keys: isObj ? Object.keys(response) : [],
+    refunds: isObj && Array.isArray(response.refunds)
+      ? response.refunds.map((r: any) => ({ id: r?.id ?? null, status: r?.status ?? null, value: r?.value ?? null }))
+      : null,
+  };
+}
+
 /** Cria (ou devolve) o estorno do pedido direto. Idempotente por pedido. */
 export async function requestDirectRefund(params: {
   orderId: string;
@@ -251,6 +263,10 @@ export async function executeDirectRefund(refundId: string): Promise<DirectRefun
     notify(storeId, 'refund:uncertain', orderId, refundId, ['admin']);
     return 'uncertain';
   }
+
+  // Operação real: o formato da resposta ainda é "CONFIRMAR NO SANDBOX". Loga só o status, os
+  // nomes dos campos e os itens de refunds[] (id, status, valor) — nada do cliente.
+  logger.info('[asaasLoja] resposta do estorno', { refundId, orderId, storeId, response: refundResponseShape(response) });
 
   if (refundResponseInProgress(response)) {
     // Aceito, mas ainda em andamento no Asaas (a trava de autorização pode nem ter sido
