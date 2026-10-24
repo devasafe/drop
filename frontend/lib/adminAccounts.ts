@@ -26,7 +26,7 @@ export type DebtStatus = 'pending' | 'collected' | 'forgiven';
 export type StoreSituation = 'open' | 'closed' | 'paused' | 'admin_paused';
 export type ReceivingStatus = 'ok' | 'pending' | 'problem' | 'na';
 export type StoreMode = 'custodia' | 'saas';
-export type StoreFilter = 'all' | 'admin_paused' | 'attention' | 'trial';
+export type StoreFilter = 'all' | 'admin_paused' | 'attention' | 'trial' | 'no_courier';
 export type SaasStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'cancelled';
 export type AccountActionType =
   | 'block' | 'unblock' | 'roles_change' | 'disconnect' | 'debt_forgive' | 'store_pause' | 'store_unpause' | 'note'
@@ -120,8 +120,11 @@ export interface StoreListItem {
   receiving: ReceivingStatus;
   situation: StoreSituation;
   attention: boolean;
+  /** Motoboys online e livres no raio do despacho; null quando a loja não tem ponto no mapa. */
+  nearbyCouriers: NearbyCouriers | null;
 }
-export interface StoreListResponse { items: StoreListItem[]; nextCursor: string | null }
+/** D3b-4b: `nearbyRadiusKm` é o DISPATCH_MAX_KM do servidor; a tela nunca escreve o número. */
+export interface StoreListResponse { items: StoreListItem[]; nextCursor: string | null; nearbyRadiusKm: number }
 export interface StoreCan { pause: boolean; unpause: boolean; note: boolean; extendTrial: boolean; cancelSaas: boolean }
 /**
  * Mensalidade (SaaS) da loja; `cancelledAt` é quando o admin cancelou (D3b-2b). `coveredUntil` (só na ficha, P2.5) é o
@@ -255,11 +258,22 @@ export function isUserDetail(d: unknown): d is UserDetail {
 
 const isStoreListItem = (s: unknown): boolean => isObj(s) && isStr(s.id) && isStr(s.name) && isStr(s.ownerName)
   && isNumOrNull(s.plan) && oneOf(s.mode, MODES) && isNumOrNull(s.rating90d) && isNumOrNull(s.cancelRate30d)
-  && oneOf(s.receiving, RECEIVINGS) && oneOf(s.situation, SITUATIONS) && isBool(s.attention);
+  && oneOf(s.receiving, RECEIVINGS) && oneOf(s.situation, SITUATIONS) && isBool(s.attention)
+  && isNearbyCouriersOrNull(s.nearbyCouriers);
 
 export function isStoreListResponse(d: unknown): d is StoreListResponse {
-  return isPage(d, isStoreListItem);
+  return isPage(d, isStoreListItem) && isObj(d) && isNum(d.nearbyRadiusKm);
 }
+
+/** "3 online · 2 livres"; "—" quando a loja não tem ponto no mapa. */
+export function nearbyCouriersLabel(n: NearbyCouriers | null): string {
+  if (!n) return '—';
+  return `${n.online} online · ${n.free} ${n.free === 1 ? 'livre' : 'livres'}`;
+}
+
+/** Explica o filtro "Sem motoboy por perto" com o raio que veio do servidor. */
+export const noCourierHint = (km: number): string =>
+  `Só lojas abertas agora, sem nenhum motoboy online a até ${kmLabel(km)}.`;
 
 const isStoreSaas = (s: unknown): s is StoreSaas => isObj(s) && oneOf(s.status, SAAS_STATUSES)
   && isIsoOrNull(s.trialEndsAt) && isIsoOrNull(s.paidUntil) && isIsoOrNull(s.cancelledAt) && optional(s.coveredUntil, isIso);
@@ -501,6 +515,7 @@ export const STORE_FILTERS: { key: StoreFilter; label: string }[] = [
   { key: 'admin_paused', label: 'Pausadas pelo DROP' },
   { key: 'attention', label: 'Precisam de atenção' },
   { key: 'trial', label: 'Em teste' },
+  { key: 'no_courier', label: 'Sem motoboy por perto' },
 ];
 
 export const USER_STATUS: Record<UserStatus, Tag> = {

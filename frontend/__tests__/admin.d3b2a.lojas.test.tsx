@@ -23,9 +23,9 @@ jest.mock('../components/admin/AdminShell', () => require('./helpers/adminShellM
 const get = api.get as jest.Mock;
 const loja = (over: Record<string, unknown> = {}) => ({
   id: 's1', name: 'Eletro Center', ownerName: 'Renato Nunes', plan: 2, mode: 'custodia', rating90d: 4.8,
-  cancelRate30d: 0.125, receiving: 'ok', situation: 'open', attention: false, ...over,
+  cancelRate30d: 0.125, receiving: 'ok', situation: 'open', attention: false, nearbyCouriers: { online: 0, free: 0 }, ...over,
 });
-const page = (items: unknown[], nextCursor: string | null = null) => ({ data: { items, nextCursor } });
+const page = (items: unknown[], nextCursor: string | null = null) => ({ data: { items, nextCursor, nearbyRadiusKm: 12 } });
 const renderList = () => renderAdminPage(<AdminLojasPage />, adminAuth('gerente_lojistas', ['store:view_all']));
 const rowOf = (name: string) => screen.getByRole('link', { name }).closest('tr') as HTMLElement;
 
@@ -68,7 +68,7 @@ describe('Lojas · lista do servidor', () => {
     await screen.findByRole('link', { name: 'Eletro Center' });
     const filtros = screen.getByRole('group', { name: 'Filtrar lojas' });
     expect(within(filtros).getAllByRole('button').map((b) => b.textContent))
-      .toEqual(['Todas', 'Pausadas pelo DROP', 'Precisam de atenção', 'Em teste']);
+      .toEqual(['Todas', 'Pausadas pelo DROP', 'Precisam de atenção', 'Em teste', 'Sem motoboy por perto']);
     fireEvent.click(within(filtros).getByRole('button', { name: 'Pausadas pelo DROP' }));
     await waitFor(() => expect(get).toHaveBeenLastCalledWith('/admin/stores?filter=admin_paused'));
     fireEvent.click(within(filtros).getByRole('button', { name: 'Precisam de atenção' }));
@@ -108,7 +108,7 @@ describe('Lojas · lista do servidor', () => {
   });
 
   it('fora do formato: erro com "Tentar de novo"', async () => {
-    get.mockResolvedValueOnce({ data: { items: [loja({ situation: 'sumida' })], nextCursor: null } }).mockResolvedValueOnce(page([loja()]));
+    get.mockResolvedValueOnce({ data: { items: [loja({ situation: 'sumida' })], nextCursor: null, nearbyRadiusKm: 12 } }).mockResolvedValueOnce(page([loja()]));
     renderList();
     expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para carregar as lojas.');
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));

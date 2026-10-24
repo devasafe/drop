@@ -3,6 +3,8 @@
  * GET /admin/stores?q=&filter=&cursor= → lista do servidor (primeiro as que precisam de atenção, depois o nome),
  * "Carregar mais" pelo cursor. Busca 300 ms depois da última tecla: nome em parte ou CNPJ completo (com ou sem
  * máscara). Só leitura: a linha abre a ficha (/admin/lojas/[id]), onde ficam Pausar e Liberar.
+ * D3b-4b: coluna "Motoboys por perto" e filtro "Sem motoboy por perto" (lojas abertas agora sem motoboy online no
+ * raio do despacho, que vem do servidor em nearbyRadiusKm).
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,7 +19,7 @@ import { Chip } from '../../components/ui/Chip';
 import { SearchField } from '../../components/ui/SearchField';
 import {
   RECEIVING_TAG, SEARCH_DEBOUNCE_MS, STORE_FILTERS, STORE_MODE_LABEL, STORE_SITUATION, accountErrorMessage, fetchStores,
-  planLabel, rateLabel, ratingLabel, type StoreFilter, type StoreListItem,
+  nearbyCouriersLabel, noCourierHint, planLabel, rateLabel, ratingLabel, type StoreFilter, type StoreListItem,
 } from '../../lib/adminAccounts';
 
 export default function AdminLojasPage() {
@@ -36,6 +38,7 @@ function LojasScreen() {
   const [filter, setFilter] = useState<StoreFilter>('all');
   const [rows, setRows] = useState<StoreListItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [moreError, setMoreError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -60,6 +63,7 @@ function LojasScreen() {
       if (n !== req.current) return;
       setRows(page.items);
       setCursor(page.nextCursor);
+      setRadiusKm(page.nearbyRadiusKm);
     } catch (err) {
       if (n !== req.current) return;
       setError(accountErrorMessage(err, 'Não deu para carregar as lojas.'));
@@ -121,6 +125,7 @@ function LojasScreen() {
       header: 'Situação',
       render: (s) => <StatusTag tone={STORE_SITUATION[s.situation].tone}>{STORE_SITUATION[s.situation].label}</StatusTag>,
     },
+    { key: 'motoboys', header: 'Motoboys por perto', render: (s) => nearbyCouriersLabel(s.nearbyCouriers) },
   ];
 
   return (
@@ -140,6 +145,7 @@ function LojasScreen() {
           <Chip key={f.key} label={f.label} active={filter === f.key} onClick={() => setFilter(f.key)} />
         ))}
       </div>
+      {filter === 'no_courier' && radiusKm !== null && <p className={blocks.muted}>{noCourierHint(radiusKm)}</p>}
 
       <AdminTable
         caption="Lojas"
@@ -149,7 +155,11 @@ function LojasScreen() {
         rowLabel={(s) => s.name}
         error={error}
         onRetry={() => { void load(); }}
-        empty={q ? 'Nenhuma loja com essa busca' : 'Nenhuma loja com esse filtro'}
+        empty={
+          q ? 'Nenhuma loja com essa busca'
+            : filter === 'no_courier' ? 'Toda loja aberta tem motoboy por perto agora'
+              : 'Nenhuma loja com esse filtro'
+        }
       />
 
       {moreError && <p role="alert" className={blocks.errText}>{moreError}</p>}

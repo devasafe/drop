@@ -53,7 +53,7 @@ const USER_DETAIL = {
 };
 const STORE_ITEM = {
   id: 's1', name: 'Eletro Center', ownerName: 'Renato Nunes', plan: 2, mode: 'custodia', rating90d: 4.8,
-  cancelRate30d: 0.125, receiving: 'ok', situation: 'open', attention: false,
+  cancelRate30d: 0.125, receiving: 'ok', situation: 'open', attention: false, nearbyCouriers: { online: 0, free: 0 },
 };
 const STORE_DETAIL = {
   profile: {
@@ -85,7 +85,7 @@ describe('chamadas (rotas do plano mestre)', () => {
   });
 
   it('lista de lojas: q e filtro; "all" não vai', async () => {
-    get.mockResolvedValue({ data: { items: [STORE_ITEM], nextCursor: null } });
+    get.mockResolvedValue({ data: { items: [STORE_ITEM], nextCursor: null, nearbyRadiusKm: 12 } });
     await fetchStores({ q: 'Eletro Center', filter: 'admin_paused' });
     expect(get).toHaveBeenLastCalledWith('/admin/stores?q=Eletro+Center&filter=admin_paused');
     await fetchStores({ filter: 'all', cursor: 'c9' });
@@ -157,10 +157,10 @@ describe('checagem do formato (fail closed)', () => {
     expect(isUserListResponse({ items: [USER_ITEM] })).toBe(false);
     expect(isUserListResponse({ items: [{ ...USER_ITEM, status: 'banido' }], nextCursor: null })).toBe(false);
     expect(isUserListResponse({ items: [{ ...USER_ITEM, pendingDebt: '12' }], nextCursor: null })).toBe(false);
-    expect(isStoreListResponse({ items: [STORE_ITEM], nextCursor: 'c1' })).toBe(true);
-    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, cancelRate30d: null, rating90d: null, plan: null }], nextCursor: null })).toBe(true);
-    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, situation: 'sumida' }], nextCursor: null })).toBe(false);
-    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, attention: 'sim' }], nextCursor: null })).toBe(false);
+    expect(isStoreListResponse({ items: [STORE_ITEM], nextCursor: 'c1', nearbyRadiusKm: 12 })).toBe(true);
+    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, cancelRate30d: null, rating90d: null, plan: null }], nextCursor: null, nearbyRadiusKm: 12 })).toBe(true);
+    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, situation: 'sumida' }], nextCursor: null, nearbyRadiusKm: 12 })).toBe(false);
+    expect(isStoreListResponse({ items: [{ ...STORE_ITEM, attention: 'sim' }], nextCursor: null, nearbyRadiusKm: 12 })).toBe(false);
   });
 
   it('ficha da pessoa: blocos opcionais ausentes ou null passam; se vieram, no formato', () => {
