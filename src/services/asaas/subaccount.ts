@@ -3,6 +3,7 @@ import { encryptSensitiveData } from '../../utils/encryption';
 import logger from '../../config/logger';
 import userRepository from '../../repositories/user.repository';
 import { prisma } from '../../lib/prisma';
+import { refreshStoreAttention } from '../adminAccounts/storeAttention';
 
 
 /**
@@ -251,14 +252,23 @@ export async function ensureMotoboySubaccount(userId: string): Promise<void> {
   }
 }
 
-/** Cria/garante a subconta da LOJA (no Store, pela CNPJ ou CPF do dono). */
+/**
+ * D3b-4b: a subconta com status 'error' é "recebimento com problema" na lista de lojas do admin. Só recalcula
+ * a atenção quando gravou algo: o caminho "subconta já pronta" é chamado a cada repasse e não paga as consultas.
+ */
 export async function ensureStoreSubaccount(storeId: string): Promise<void> {
+  const wrote = await createOrRepairStoreSubaccount(storeId);
+  if (wrote) await refreshStoreAttention(String(storeId));
+}
+
+/** Cria ou conserta a subconta da loja; devolve true quando gravou `Store.asaas`. */
+async function createOrRepairStoreSubaccount(storeId: string): Promise<boolean> {
   const store = await prisma.store.findUnique({ where: { id: String(storeId) } }) as any;
-  if (!store) return;
-  if (store.asaas?.accountId && store.asaas?.apiKeyEncrypted) return;
+  if (!store) return false;
+  if (store.asaas?.accountId && store.asaas?.apiKeyEncrypted) return false;
 
   const owner = await userRepository.findByIdWithAddresses(String(store.ownerId)) as any;
-  if (!owner) return;
+  if (!owner) return false;
 
   // CNPJ da loja se houver; senão CPF do dono (MEI / autônomo).
   const cnpj = onlyDigits(store.cnpj);
@@ -282,7 +292,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
       store.asaas.lastError = 'Não foi possível gerar a chave da subconta. No painel Asaas: habilite "Gerenciamento de chaves de API de subcontas" e adicione o IP do servidor na whitelist (Mecanismos de Segurança).';
     }
     await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
-    return;
+    return true;
   }
   const addr =
     store.street
@@ -303,7 +313,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
     store.asaas!.lastError = `Faltam dados p/ subconta: ${missing.join(', ')}`;
     await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
     logger.warn('Subconta loja não criada — dados faltando', { storeId, missing });
-    return;
+    return true;
   }
 
   try {
@@ -343,7 +353,7 @@ export async function ensureStoreSubaccount(storeId: string): Promise<void> {
         store.asaas!.lastError = key ? undefined : 'Subconta recuperada, mas sem chave de API — habilite o gerenciamento de chaves + IP whitelist no Asaas.';
         await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
         logger.info('Subconta da loja recuperada após "já existe"', { storeId, accountId: found.id });
-        return;
+        return true;
       }
     }
     store.asaas!.status = 'error';

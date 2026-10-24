@@ -1053,6 +1053,14 @@ router.put('/switches', authenticate, authorizePermission('settings:manage'), as
       } catch (err) {
         logger.error('Falha ao recalcular lojas após troca de modo', err as Error);
       }
+      // D3b-4b: o "recebimento com problema" depende do modo. Marca todas e o job storeAttention
+      // recalcula em até 10 min (recalcular todas aqui atrasaria a resposta ao CEO).
+      try {
+        const { markAllStoresForAttentionRecheck } = await import('../services/adminAccounts/storeAttention');
+        await markAllStoresForAttentionRecheck();
+      } catch (err) {
+        logger.error('[store-attention] falha ao marcar as lojas para recalcular após troca de modo', err as Error);
+      }
       // Mensalidade SaaS: na custódia ela não existe → apaga as assinaturas no Asaas (falha vira
       // aviso para o CEO; o job tenta de novo). De volta ao direto → reabre a contagem do teste.
       let saasBillingWarnings: Array<{ storeId: string; error: string }> | undefined;

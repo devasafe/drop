@@ -7,6 +7,7 @@ import { isValidCPF, isValidCNPJ } from '../../utils/documentValidation';
 import { decryptSensitiveData } from '../../utils/encryption';
 import type { ChargeResult } from '../paymentProvider/types';
 import { buyerDocument, CpfRequiredError } from '../../utils/buyerCpf';
+import { refreshStoreAttention } from '../adminAccounts/storeAttention';
 
 // Regra do CPF de cobrança vive em utils/buyerCpf (compartilhada com a custódia).
 export { buyerDocument, resolveBuyerCpf, CpfRequiredError } from '../../utils/buyerCpf';
@@ -66,6 +67,7 @@ async function markKeyRevoked(storeId: string): Promise<StorePaymentsNotReadyErr
     where: { storeId },
     data: { status: 'invalid', lastCheckedAt: new Date(), lastError: 'Chave recusada pelo Asaas ao cobrar' },
   }).catch((err) => logger.error('[asaasLoja] falha ao marcar conta invalid', err as Error, { storeId }));
+  await refreshStoreAttention(storeId);
   return new StorePaymentsNotReadyError();
 }
 

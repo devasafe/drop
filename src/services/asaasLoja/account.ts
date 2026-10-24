@@ -8,6 +8,7 @@ import { AppError } from '../../utils/AppError';
 import logger from '../../config/logger';
 import { registerPaymentWebhook, repairPaymentWebhook, storeWebhookUrl } from './webhook';
 import { STORE_ASAAS_TERMS_VERSION } from '../../legal/storeAsaasTerms';
+import { refreshStoreAttention } from '../adminAccounts/storeAttention';
 
 /**
  * Conta Asaas própria da loja (modo SaaS "direto").
@@ -253,6 +254,8 @@ export async function connectStoreAsaas(
       });
     }
   }
+  // D3b-4b: conta válida de novo tira o "recebimento com problema" da lista de lojas do admin.
+  await refreshStoreAttention(storeId);
   return getStoreAsaasStatus(storeId);
 }
 
@@ -295,6 +298,7 @@ export async function disconnectStoreAsaas(storeId: string, actorId: string): Pr
       data: { storeId, actorId, action: 'disconnect', apiKeyLast4: existing.apiKeyLast4 },
     });
   });
+  await refreshStoreAttention(storeId);
   return toStatus(null);
 }
 
@@ -338,6 +342,7 @@ export async function testStoreAsaas(storeId: string): Promise<StoreAsaasStatus>
       ? { status: 'valid', lastCheckedAt: new Date(), lastError: null }
       : { status: 'invalid', lastCheckedAt: new Date(), lastError: 'Chave recusada pelo Asaas' },
   });
+  await refreshStoreAttention(storeId);
 
   let paymentWebhook = false;
   if (apiKeyOk && row.paymentWebhookId) {
