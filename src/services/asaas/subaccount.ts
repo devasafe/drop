@@ -341,6 +341,7 @@ async function createOrRepairStoreSubaccount(storeId: string): Promise<boolean> 
     store.asaas!.lastError = undefined;
     await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
     logger.info('Subconta Asaas da loja criada', { storeId, accountId: acc.id });
+    return true;
   } catch (err: any) {
     if (isAlreadyExistsError(err)) {
       const found = await findExistingAsaasAccount(doc);
@@ -360,6 +361,7 @@ async function createOrRepairStoreSubaccount(storeId: string): Promise<boolean> 
     store.asaas!.lastError = err?.message?.slice(0, 300);
     await prisma.store.update({ where: { id: store.id }, data: { asaas: store.asaas } });
     logger.error('Falha ao criar subconta da loja', err as Error, { storeId });
+    return true;
   }
 }
 

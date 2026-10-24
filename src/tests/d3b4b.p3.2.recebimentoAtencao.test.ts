@@ -18,6 +18,7 @@ import { connectStoreAsaas, disconnectStoreAsaas, testStoreAsaas } from '../serv
 import { translate } from '../services/asaasLoja/charge';
 import { ensureStoreSubaccount } from '../services/asaas/subaccount';
 import { computeStoreAttention } from '../services/adminAccounts/storeAttention';
+import logger from '../config/logger';
 import env from '../config/env';
 import { prisma } from '../lib/prisma';
 import { encryptSensitiveData } from '../utils/encryption';
@@ -101,6 +102,48 @@ describe('custódia: a subconta da loja', () => {
     expect(after.needsAttention).toBe(true);
   });
 
+  /** Loja com CNPJ e endereço e dono com e-mail: passa da checagem de dados e chama o Asaas. */
+  const readyForAsaas = (asaas?: object) =>
+    prisma.store.update({
+      where: { id: storeId },
+      data: {
+        cnpj: '12.345.678/0001-99', street: 'Rua p32', number: '10', neighborhood: 'Centro', zip: '01001-000',
+        ...(asaas ? { asaas } : {}),
+      },
+    });
+
+  it('o Asaas recusa a criação da subconta: grava o erro e marca na hora', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' }, 'd3b4b-p32');
+    (env as any).PAYMENT_GATEWAY = 'asaas';
+    await readyForAsaas();
+    expect(await computeStoreAttention(storeId)).toBe(false); // sem subconta ainda: "pendente"
+    const post = jest.spyOn(asaasClient, 'post').mockRejectedValueOnce(new Error('Erro interno no Asaas'));
+    try {
+      await ensureStoreSubaccount(storeId);
+    } finally {
+      post.mockRestore();
+    }
+    const after = await row();
+    expect(after.asaas).toEqual(expect.objectContaining({ status: 'error', lastError: 'Erro interno no Asaas' }));
+    expect(after.needsAttention).toBe(true);
+  });
+
+  it('a subconta é criada: sai do erro e a atenção é tirada na hora', async () => {
+    await updatePlatformConfig({ settlementMode: 'custodia' }, 'd3b4b-p32');
+    (env as any).PAYMENT_GATEWAY = 'asaas';
+    await readyForAsaas({ status: 'error', lastError: 'falha anterior' });
+    expect(await computeStoreAttention(storeId)).toBe(true);
+    const post = jest.spyOn(asaasClient, 'post').mockResolvedValueOnce({ id: 'acc-p32', walletId: 'wal-p32', apiKey: '$aact_p32' });
+    try {
+      await ensureStoreSubaccount(storeId);
+    } finally {
+      post.mockRestore();
+    }
+    const after = await row();
+    expect(after.asaas).toEqual(expect.objectContaining({ status: 'active', accountId: 'acc-p32' }));
+    expect(after.needsAttention).toBe(false);
+  });
+
   it('subconta já pronta: nada é gravado e a atenção não é recalculada', async () => {
     await updatePlatformConfig({ settlementMode: 'custodia' }, 'd3b4b-p32');
     await prisma.store.update({
@@ -109,6 +152,28 @@ describe('custódia: a subconta da loja', () => {
     });
     await ensureStoreSubaccount(storeId);
     expect((await row()).attentionCheckedAt).toBeNull();
+  });
+});
+
+describe('falha no recálculo da atenção', () => {
+  it('não derruba a operação: a conta é conectada, o erro vai para o log e o valor antigo fica', async () => {
+    await account('invalid');
+    expect(await computeStoreAttention(storeId)).toBe(true);
+    (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
+    // A contagem de pedidos de 30 dias é a última leitura do recálculo: falhar nela faz computeStoreAttention rejeitar.
+    const groupBy = jest.spyOn(prisma.order, 'groupBy').mockRejectedValueOnce(new Error('banco fora do ar (simulado)'));
+    const logError = jest.spyOn(logger, 'error').mockImplementation((() => logger) as any);
+    try {
+      await expect(connectStoreAsaas(storeId, '$aact_hmlg_p32nova0003', 'actor-p32', TEST_CONSENT)).resolves.toBeDefined();
+      expect(groupBy).toHaveBeenCalled();
+      expect(logError).toHaveBeenCalledWith('[store-attention] falha ao recalcular a atenção da loja', expect.any(Error), { storeId });
+    } finally {
+      groupBy.mockRestore();
+      logError.mockRestore();
+    }
+    const saved = await prisma.storeAsaasAccount.findUniqueOrThrow({ where: { storeId }, select: { status: true, apiKeyLast4: true } });
+    expect(saved).toEqual({ status: 'valid', apiKeyLast4: '0003' });
+    expect((await row()).needsAttention).toBe(true); // o job corrige na próxima rodada
   });
 });
 
