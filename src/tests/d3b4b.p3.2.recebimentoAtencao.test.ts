@@ -161,7 +161,8 @@ describe('falha no recálculo da atenção', () => {
     expect(await computeStoreAttention(storeId)).toBe(true);
     (asaasClient.getAs as jest.Mock).mockResolvedValueOnce({ balance: 0 });
     // A contagem de pedidos de 30 dias é a última leitura do recálculo: falhar nela faz computeStoreAttention rejeitar.
-    const groupBy = jest.spyOn(prisma.order, 'groupBy').mockRejectedValueOnce(new Error('banco fora do ar (simulado)'));
+    // `as any`: o tipo do groupBy do Prisma estoura o jest.spyOn (TS2615).
+    const groupBy = jest.spyOn(prisma.order as any, 'groupBy').mockRejectedValueOnce(new Error('banco fora do ar (simulado)'));
     const logError = jest.spyOn(logger, 'error').mockImplementation((() => logger) as any);
     try {
       await expect(connectStoreAsaas(storeId, '$aact_hmlg_p32nova0003', 'actor-p32', TEST_CONSENT)).resolves.toBeDefined();
