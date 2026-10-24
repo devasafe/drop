@@ -21,6 +21,7 @@ import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 import { startSaasBillingJob } from './jobs/saasBilling.job';
+import { startStoreAttentionJob } from './jobs/storeAttention.job';
 
 // Promessa rejeitada sem tratamento: loga e segue no ar (V15). Exceção síncrona ainda encerra.
 installUnhandledRejectionHandler();
@@ -116,6 +117,13 @@ connectDB().then(() => {
     startSaasBillingJob();
   } catch (e) {
     logger.error('Saas billing job failed to start', e as Error);
+  }
+
+  // ✅ D3b-4b: "precisa de atenção" gravado na loja (lista de lojas do admin), a cada 10 min e ao subir.
+  try {
+    startStoreAttentionJob();
+  } catch (e) {
+    logger.error('Store attention job failed to start', e as Error);
   }
 
   logger.info(`📍 [INDEX] Calling server.listen(${env.PORT})...`);
