@@ -108,7 +108,12 @@ const developmentTransports = [
  * logs/exceptions.log fica preso no container e some a cada deploy. Mensagem e pilha mascaradas.
  */
 export function exceptionStdoutTransport(): winston.transport {
+  // O winston anexa o erro inteiro (um erro estilo axios carrega o header access_token) e
+  // process/os/trace: só os campos abaixo saem, com o erro por serializeError.
+  const KEEP = new Set(['level', 'message', 'stack', 'error', 'exception', 'date', 'timestamp']);
   const mask = winston.format((info: any) => {
+    if (info.error !== undefined) info.error = serializeError(info.error);
+    for (const k of Object.keys(info)) if (!KEEP.has(k)) delete info[k];
     if (info.message !== undefined) info.message = maskCredentials(info.message);
     if (info.stack !== undefined) info.stack = maskCredentials(info.stack);
     return info;
