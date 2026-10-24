@@ -35,7 +35,7 @@ import walletService from '../services/wallet.prisma.service';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer, TestUser } from './helpers/authUser';
 import { ownerIdForStore } from './helpers/storeOwner';
-import { grantStoreConsent } from './helpers/storeConsent';
+import { grantStoreConsent, paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@dq3.test';
 const STORE_KEY = '$aact_hmlg_LOJA_DQ3';
@@ -111,17 +111,18 @@ async function buyer(): Promise<TestUser> {
   return u;
 }
 
-async function makeStore(data: Record<string, unknown> = {}) {
+/** `ready`: conta (fictícia) + aceite, que a vitrine do modo direto exige; storeWithAccount cria a real. */
+async function makeStore(data: Record<string, unknown> = {}, ready = true) {
   return prisma.store.create({
     data: {
       ownerId: await ownerIdForStore(DOMAIN), name: 'Loja DQ3', isOpen: true,
-      latitude: String(STORE_LAT), longitude: String(STORE_LNG), ...data,
+      latitude: String(STORE_LAT), longitude: String(STORE_LNG), ...(ready ? paymentsReadyStoreData() : {}), ...data,
     } as any,
   });
 }
 
 async function storeWithAccount(data: Record<string, unknown> = {}) {
-  const store = await makeStore(data);
+  const store = await makeStore(data, false);
   const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);
   await prisma.storeAsaasAccount.create({
     data: {

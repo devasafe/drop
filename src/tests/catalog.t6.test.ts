@@ -10,6 +10,7 @@ import { prisma } from '../lib/prisma';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { ownerIdForStore } from './helpers/storeOwner';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@catalog6.test';
 const ORIGINAL_KYC = process.env.KYC_ENFORCED;
@@ -37,7 +38,7 @@ async function makeStore(data: Record<string, unknown> = {}) {
   return prisma.store.create({
     data: {
       ownerId: await ownerIdForStore(DOMAIN), name: 'Loja T6', isOpen: true, isVerified: true,
-      latitude: String(LAT), longitude: String(LNG), ...data,
+      latitude: String(LAT), longitude: String(LNG), ...paymentsReadyStoreData(), ...data,
     } as any,
   });
 }

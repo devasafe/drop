@@ -13,6 +13,7 @@ import { updatePlatformConfig } from '../repositories/platformConfig.repository'
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { ownerIdForStore } from './helpers/storeOwner';
 import * as extensions from '../services/search/extensions';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@search5.test';
 const ORIGINAL_KYC = process.env.KYC_ENFORCED;
@@ -41,7 +42,7 @@ async function makeStore(data: Record<string, unknown> = {}) {
   return prisma.store.create({
     data: {
       ownerId: await ownerIdForStore(DOMAIN), name: 'Loja Busca T5', isOpen: true, isVerified: true,
-      latitude: String(LAT), longitude: String(LNG), ...data,
+      latitude: String(LAT), longitude: String(LNG), ...paymentsReadyStoreData(), ...data,
     } as any,
   });
 }

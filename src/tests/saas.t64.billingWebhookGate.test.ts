@@ -30,7 +30,7 @@ import { updatePlatformConfig } from '../repositories/platformConfig.repository'
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
 import { ownerIdForStore, productIdForItem } from './helpers/storeOwner';
-import { grantStoreConsent } from './helpers/storeConsent';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@saas64.test';
 const WEBHOOK_TOKEN = 'test-webhook-token';
@@ -58,7 +58,7 @@ const hook = (body: any) => request(app).post('/webhooks/asaas').set('asaas-acce
 
 async function makeStore(data: Record<string, unknown> = {}) {
   return prisma.store.create({
-    data: { ownerId: await ownerIdForStore(DOMAIN), name: `Loja t64 ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20', ...data } as any,
+    data: { ownerId: await ownerIdForStore(DOMAIN), name: `Loja t64 ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20', ...paymentsReadyStoreData(), ...data } as any,
   });
 }
 
@@ -258,10 +258,11 @@ describe('t64 — loja pausada não vende e some da vitrine (modo direto)', () =
     const cliente = await createTestUser('cliente', DOMAIN);
     await prisma.user.update({ where: { id: cliente.userId }, data: { cpf: randomCpf() } });
     const store = await makeStore();
-    await prisma.storeAsaasAccount.create({
-      data: { storeId: store.id, apiKeyEncrypted: encryptSensitiveData('$aact_hmlg_LOJA'), apiKeyLast4: 'LOJA', environment: 'sandbox', status: 'valid' },
+    // makeStore já cria a conta (fictícia) e o aceite; aqui a chave precisa ser decifrável.
+    await prisma.storeAsaasAccount.update({
+      where: { storeId: store.id },
+      data: { apiKeyEncrypted: encryptSensitiveData('$aact_hmlg_LOJA'), apiKeyLast4: 'LOJA' },
     });
-    await grantStoreConsent(store.id);
     // Status ainda `past_due` (o job não rodou), mas já passou da carência: bloqueia pela política.
     await billingFor(store.id, { status: 'past_due', asaasSubscriptionId: `sub_t64_${rand()}` });
     const product = await prisma.product.create({ data: { storeId: store.id, name: 'Item', price: 20, quantity: 10 } } as any);

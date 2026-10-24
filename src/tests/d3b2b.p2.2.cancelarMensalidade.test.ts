@@ -27,6 +27,7 @@ import { applySaasPayment } from '../services/saasBilling/payments';
 import { reopenSaasTrials } from '../services/saasBilling/modeSwitch';
 import { isStoreBillingBlocked } from '../services/saasBilling/gate';
 import { coverageEnd, isBillingBlocked, isCancelledAndExpired, isStoreBlocked, sellsUntil } from '../services/saasBilling/policy';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@d3b2bp22.test';
 const REASON = 'Loja pediu para sair do DROP';
@@ -80,7 +81,7 @@ afterEach(async () => {
 
 const loja = (extra: Record<string, unknown> = {}) =>
   prisma.store.create({
-    data: { ownerId: dono.userId, name: `Loja p22 ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20', ...extra } as any,
+    data: { ownerId: dono.userId, name: `Loja p22 ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20', ...paymentsReadyStoreData(), ...extra } as any,
   });
 /** Loja com mensalidade paga até daqui a 10 dias (teste acabou há 20). */
 const comMensalidade = async (data: Record<string, unknown> = {}) => {

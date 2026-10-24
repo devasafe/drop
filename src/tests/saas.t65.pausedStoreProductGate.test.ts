@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@saas65.test';
 let restore: () => Promise<void>;
@@ -22,7 +23,7 @@ async function cenario(billing: Record<string, unknown> | null) {
   const dono = await createTestUser('lojista', DOMAIN);
   const cliente = await createTestUser('cliente', DOMAIN);
   // plan 3: top-products é exclusivo do Plano 3
-  const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Loja t65', isOpen: true, isVerified: true, plan: 3 } as any });
+  const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Loja t65', isOpen: true, isVerified: true, plan: 3, ...paymentsReadyStoreData() } as any });
   if (billing) await prisma.storeSaasBilling.create({ data: { storeId: store.id, trialEndsAt: new Date(Date.now() - 30 * 86400000), ...billing } as any });
   const prod = await prisma.product.create({ data: { storeId: store.id, name: 'Prod t65', price: 10, quantity: 5 } as any });
   const order = await prisma.order.create({

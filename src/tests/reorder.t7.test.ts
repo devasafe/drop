@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgCleanup';
 import { createTestUser, bearer } from './helpers/authUser';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@reorder7.test';
 const ORIGINAL_KYC = process.env.KYC_ENFORCED;
@@ -30,7 +31,7 @@ async function cenario(storeData: Record<string, unknown> = {}) {
   const dono = await createTestUser('lojista', DOMAIN);
   const cliente = await createTestUser('cliente', DOMAIN);
   const store = await prisma.store.create({
-    data: { ownerId: dono.userId, name: 'Loja T7', isOpen: true, isVerified: true, ...storeData } as any,
+    data: { ownerId: dono.userId, name: 'Loja T7', isOpen: true, isVerified: true, ...paymentsReadyStoreData(), ...storeData } as any,
   });
   const apagado = await prisma.product.create({ data: { storeId: store.id, name: 'Apagado', price: 10, quantity: 9 } as any });
   const pouco = await prisma.product.create({ data: { storeId: store.id, name: 'Pouco estoque', price: 20, quantity: 2 } as any });

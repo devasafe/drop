@@ -13,6 +13,7 @@ import { cleanupOpsFixtures, createOpsOrder, createOpsStore } from './helpers/d3
 import { updatePlatformConfig } from '../repositories/platformConfig.repository';
 import { storesWithoutCourier } from '../services/adminOps/couriersNear';
 import { STALE_LOCATION_MS } from '../services/adminOps/map';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@d3b4bp23.test';
 const MARK = 'd3b4bp23';
@@ -42,7 +43,7 @@ afterEach(async () => {
 
 /** createOpsStore não verifica a loja, e o jest liga KYC_ENFORCED: sem isVerified a vitrine esconderia todas. */
 async function verificada(id: string): Promise<string> {
-  await prisma.store.update({ where: { id }, data: { isVerified: true } });
+  await prisma.store.update({ where: { id }, data: { isVerified: true, ...paymentsReadyStoreData() } as any });
   return id;
 }
 

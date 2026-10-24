@@ -30,6 +30,7 @@ import { isStoreBillingBlocked } from '../services/saasBilling/gate';
 import { isStoreHiddenFromPublic } from '../services/catalog/visibility';
 import { isBillingBlocked, isStoreBlocked } from '../services/saasBilling/policy';
 import { applySaasPayment } from '../services/saasBilling/payments';
+import { paymentsReadyStoreData } from './helpers/storeConsent';
 
 const DOMAIN = '@d3b2bfinal.test';
 const REASON = 'Loja pediu para sair do DROP';
@@ -64,7 +65,7 @@ afterEach(async () => {
 
 const loja = () =>
   prisma.store.create({
-    data: { ownerId: dono.userId, name: `Loja fin ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20' } as any,
+    data: { ownerId: dono.userId, name: `Loja fin ${rand()}`, isOpen: true, isVerified: true, latitude: '-22.90', longitude: '-43.20', ...paymentsReadyStoreData() } as any,
   });
 const comMensalidade = async (data: Record<string, unknown> = {}) => {
   const store = await loja();
