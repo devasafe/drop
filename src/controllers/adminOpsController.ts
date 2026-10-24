@@ -9,9 +9,10 @@ import { AppError } from '../utils/AppError';
 import { buildQueue } from '../services/adminOps/queue';
 import { getOpsSummary } from '../services/adminOps/summary';
 import { listAdminOrders, ORDERS_FILTERS } from '../services/adminOps/orders';
-import { OrdersFilter } from '../services/adminOps/types';
+import { OpsMapResponse, OrdersFilter } from '../services/adminOps/types';
 import { getAdminOrderDetail } from '../services/adminOps/orderDetail';
 import { getOpsMap } from '../services/adminOps/map';
+import { storesWithoutCourier } from '../services/adminOps/couriersNear';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
@@ -76,7 +77,10 @@ export const getOrderDetail = async (req: AuthenticatedRequest, res: Response) =
 // GET /api/admin/ops/map — Mapa ao vivo (spec 3.4)
 export const getMap = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    return res.json(await getOpsMap());
+    const now = new Date();
+    const [map, noCourier] = await Promise.all([getOpsMap(now), storesWithoutCourier(now)]);
+    const body: OpsMapResponse = { ...map, storesWithoutCourier: noCourier };
+    return res.json(body);
   } catch (err) {
     return sendOpsReadFailure(res, err, 'o mapa');
   }

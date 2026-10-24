@@ -82,7 +82,8 @@ export async function activeCourierDeliveries(): Promise<ActiveCourierDelivery[]
        AND o.status::text IN (${Prisma.join(ACTIVE_ORDER_STATUSES)})`;
 }
 
-export async function getOpsMap(now: Date = new Date()): Promise<OpsMapResponse> {
+/** Sem `storesWithoutCourier`: quem junta é o controller (couriersNear.ts importa daqui; evita import circular). */
+export async function getOpsMap(now: Date = new Date()): Promise<Omit<OpsMapResponse, 'storesWithoutCourier'>> {
   const [limits, online, pending, moving] = await Promise.all([
     readOpsLimits(),
     prisma.user.findMany({ where: ONLINE_COURIER_WHERE, select: { id: true, name: true, currentLocation: true } }),

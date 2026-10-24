@@ -147,7 +147,7 @@ describe('GET /api/admin/ops/map', () => {
 
     const r = await get(ceo);
     expect(r.status).toBe(200);
-    expect(Object.keys(r.body).sort()).toEqual(['dispatch', 'inDelivery', 'motoboys', 'waiting']);
+    expect(Object.keys(r.body).sort()).toEqual(['dispatch', 'inDelivery', 'motoboys', 'storesWithoutCourier', 'waiting']);
     const mine = r.body.motoboys.find((x: any) => x.id === m.userId);
     expect(Object.keys(mine).sort()).toEqual(['id', 'lat', 'lng', 'name', 'orderId', 'shortId', 'state', 'updatedAt']);
     const emails = (await prisma.user.findMany({ where: { id: { in: [m.userId, cliente.userId] } }, select: { email: true } })).map((u) => u.email);

@@ -82,7 +82,11 @@ export interface OpsMapResponse {
              since: string; radiusKm: number | null /* null = aberto a todos */; customerDeciding: boolean }[];
   inDelivery: { orderId: string; shortId: string; motoboyName: string; stage: 'indo_para_loja' | 'levando' }[];
   dispatch: { initialKm: number; stepKm: number; stepSeconds: number; maxKm: number; poolTimeoutMin: number };
+  /** D3b-4b: lojas abertas pela regra da vitrine, com ponto e com 0 motoboy online a até dispatch.maxKm. */
+  storesWithoutCourier: OpsMapStorePoint[];
 }
+/** D3b-4b: uma loja com ponto no mapa. */
+export interface OpsMapStorePoint { id: string; name: string; lat: number; lng: number }
 
 export type CancelFault = 'customer' | 'store' | 'motoboy' | 'platform';
 /** Estados em que o admin pode cancelar (spec 4.2). Fonte única: orderDetail (P1.5) e a P2 importam daqui. */
