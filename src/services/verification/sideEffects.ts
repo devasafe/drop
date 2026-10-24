@@ -3,6 +3,7 @@ import env from '../../config/env';
 import logger from '../../config/logger';
 import { ensureMotoboySubaccount } from '../asaas/subaccount';
 import { recomputeStoreVerification, recomputeStoresForOwner } from '../../utils/storeVerification';
+import { isDirectMode } from '../../utils/settlement';
 import type { DecidedItem } from '../verificationDecision.service';
 
 /**
@@ -34,10 +35,15 @@ export async function recomputeStoreVerificationSafe(storeId: string): Promise<v
   }
 }
 
-/** Ao aprovar o motoboy, cria a subconta Asaas (inerte até PAYMENT_GATEWAY=asaas). */
+/**
+ * Ao aprovar o motoboy, cria a subconta Asaas (inerte até PAYMENT_GATEWAY=asaas). Só na custódia:
+ * no modo direto (SaaS) o motoboy recebe Pix da loja na própria chave e a subconta seria uma
+ * conta real aberta à toa na conta Asaas da DROP.
+ */
 export async function ensureCourierSubaccountSafe(userId: string): Promise<void> {
   if (env.PAYMENT_GATEWAY !== 'asaas') return;
   try {
+    if (await isDirectMode()) return;
     await ensureMotoboySubaccount(String(userId));
   } catch (err) {
     logger.error('Falha ao garantir subconta do motoboy na aprovação', err as Error, { userId });
