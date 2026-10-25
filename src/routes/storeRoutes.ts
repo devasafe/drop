@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import userRepository from '../repositories/user.repository';
 import { findPlanById } from '../repositories/pricingPlan.repository';
 import { authenticate } from '../middleware/auth';
+import { requireSettlement } from '../middleware/requireSettlement';
 
 const router = Router();
 
@@ -9,7 +10,8 @@ const router = Router();
  * PUT /api/store/plan
  * Loja escolhe qual plano quer estar enquadrada
  */
-router.put('/plan', authenticate, async (req: Request, res: Response) => {
+// Modo SaaS (direto) não tem planos: escolher plano só existe na custódia.
+router.put('/plan', requireSettlement('custodia'), authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     const { planId } = req.body;

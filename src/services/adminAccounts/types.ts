@@ -184,7 +184,7 @@ export interface StoreListItem {
   id: string;
   name: string;
   ownerName: string;
-  plan: number;
+  plan: number | null; // null no modo SaaS (sem planos)
   mode: StoreMode;
   /** Média de Order.storeRating dos últimos 90 dias (1 casa); null sem avaliação. */
   rating90d: number | null;
@@ -258,7 +258,7 @@ export interface StoreDetail {
   receiving: { status: ReceivingStatus; detail: string | null };
   /** `saas` = mensalidade (StoreSaasBilling), quando existe. As ações (estender, cancelar) são da 2b. */
   plan: {
-    plan: number;
+    plan: number | null; // null no modo SaaS (sem planos)
     mode: StoreMode;
     saas: StoreDetailSaas | null;
   };

@@ -11,6 +11,7 @@ import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
 import { QueueGroup, QueueGroupEntry, QueueItem, QueueResponse, QueueType } from './types';
 import { ACTIVE_ORDER_STATUSES, MIN_MS, OpsLimits, PermissionCheck, brl, shortOrderId } from './common';
+import { isDirectMode } from '../../utils/settlement';
 
 export const QUEUE_ITEMS_MAX = 5;
 
@@ -277,6 +278,8 @@ async function loadPayouts({ now }: QueueContext): Promise<QueueLoad> {
 const PLAN_LABEL: Record<string, string> = { plan1: 'Plano 1', plan2: 'Plano 2', plan3: 'Plano 3' };
 
 async function loadPlanChanges(): Promise<QueueLoad> {
+  // Modo SaaS não tem planos: pedido antigo pendente não vira trabalho para o admin.
+  if (await isDirectMode()) return { count: 0, items: [] };
   const where: Prisma.StoreSubscriptionWhereInput = { planChangeStatus: 'pending' };
   const [count, rows] = await Promise.all([
     prisma.storeSubscription.count({ where }),

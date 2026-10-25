@@ -10,6 +10,7 @@ import { toPublicStore } from '../../repositories/store.repository';
 import { withStoreRatings } from '../catalog/storeRatings';
 import { hasSearchExtensions } from './extensions';
 import { ACTIVE_PRODUCT_WHERE } from '../catalog/activeProduct';
+import { isDirectMode } from '../../utils/settlement';
 
 /** D1: o equivalente SQL de ACTIVE_PRODUCT_WHERE para o alias `p` de "Product". */
 const ACTIVE_PRODUCT_SQL = Prisma.sql`p."isActive" = true`;
@@ -288,8 +289,9 @@ async function hydrateProducts(ids: string[]): Promise<any[]> {
 async function hydrateStores(ids: string[], distById: Map<string, number | null> | null): Promise<any[]> {
   if (ids.length === 0) return [];
   const rows = await prisma.store.findMany({ where: { id: { in: ids } } });
+  const direct = await isDirectMode();
   const list = inOrder(ids, rows).map((s) => {
-    const pub = toPublicStore(s);
+    const pub = toPublicStore(s, { direct });
     const km = distById?.get(s.id);
     return km != null ? { ...pub, distanceKm: km } : pub;
   });

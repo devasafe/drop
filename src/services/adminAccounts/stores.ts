@@ -207,7 +207,8 @@ export async function listAdminStores(input: ListAdminStoresInput, now: Date = n
       id: s.id,
       name: s.name,
       ownerName: s.owner.name,
-      plan: storePlanNumber(planBy.get(s.id), s.plan),
+      // Modo SaaS não tem planos (todas com os direitos do Plano 3): a lista não mostra plano.
+      plan: cfg.settlementMode === 'direto' ? null : storePlanNumber(planBy.get(s.id), s.plan),
       mode,
       rating90d: avg == null ? null : round1(avg),
       cancelRate30d: rate == null ? null : Math.round(rate * 1000) / 1000,

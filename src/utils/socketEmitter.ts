@@ -4,6 +4,7 @@ import { notifyOnlineMotoboysNewDelivery, notifyAdmins } from '../services/pushS
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
 import { toPublicStore } from '../repositories/store.repository';
 import logger from '../config/logger';
+import { isDirectMode } from './settlement';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -375,13 +376,17 @@ export const emitNotificationRead = (notification: any) => {
 };
 
 // Loja é catálogo público, mas SÓ com o serializer público (sem asaas/cnpj/verification).
-export const emitStoreCreated = (store: any) => {
-  emitToAll('store:created', toPublicStore(store));
-};
+// O plano efetivo (modo SaaS = Plano 3) depende do modo: a emissão espera essa leitura. Quem chama
+// não precisa aguardar; a Promise existe para os testes. Se o modo não puder ser lido, emite com o
+// plano gravado (o evento não se perde) e registra a falha.
+const emitPublicStore = (event: string, store: any): Promise<void> =>
+  isDirectMode()
+    .catch((err) => { logger.error('Falha ao ler o modo para emitir ' + event, err as Error); return false; })
+    .then((direct) => { emitToAll(event, toPublicStore(store, { direct })); });
 
-export const emitStoreUpdated = (store: any) => {
-  emitToAll('store:updated', toPublicStore(store));
-};
+export const emitStoreCreated = (store: any): Promise<void> => emitPublicStore('store:created', store);
+
+export const emitStoreUpdated = (store: any): Promise<void> => emitPublicStore('store:updated', store);
 
 export const emitCategoryCreated = (category: any) => {
   // Apenas broadcast: quem estiver na sala da loja receberia o mesmo evento 2x

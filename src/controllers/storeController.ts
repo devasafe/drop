@@ -29,6 +29,8 @@ import { openOverrideUntilFor } from '../utils/storeHours';
 import { AppError } from '../utils/AppError';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { acceptDeadline, isAwaitingStoreAccept, storeAcceptTimeoutMin } from '../utils/acceptDeadline';
+import { isDirectMode } from '../utils/settlement';
+import { SAAS_PLAN } from '../utils/effectivePlan';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -146,11 +148,15 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
     )].sort();
     
     // Sincronizar plan com StoreSubscription (source of truth)
-    const subscription = await findSubByStoreId(store.id);
-    const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
-    const planFromSub = subscription ? planNumberMap[subscription.currentPlan] ?? 1 : (store.plan ?? 1);
-    if (store.plan !== planFromSub) {
-      await prisma.store.update({ where: { id: store.id }, data: { plan: planFromSub } });
+    // Modo SaaS: sem planos, o painel vê o Plano 3 (Store.plan fica como está, para a custódia).
+    let planFromSub = SAAS_PLAN;
+    if (!(await isDirectMode())) {
+      const subscription = await findSubByStoreId(store.id);
+      const planNumberMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
+      planFromSub = subscription ? planNumberMap[subscription.currentPlan] ?? 1 : (store.plan ?? 1);
+      if (store.plan !== planFromSub) {
+        await prisma.store.update({ where: { id: store.id }, data: { plan: planFromSub } });
+      }
     }
     const storeWithPlan = toOwnerStore({ ...store, _id: store.id, plan: planFromSub });
 
@@ -475,8 +481,9 @@ export const listStores = async (_req: Request, res: Response) => {
     // Modo direto: loja pausada/cancelada pela mensalidade some da vitrine; pausada pelo admin também (D3b-2a).
     filter.AND = [await publicStoreAvailableWhere()];
     const found = await prisma.store.findMany({ where: filter });
+    const direct = await isDirectMode();
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
-    return res.json(await withStoreRatings(found.map(toPublicStore)));
+    return res.json(await withStoreRatings(found.map((s) => toPublicStore(s, { direct }))));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -496,7 +503,7 @@ export const uploadStoreBanner = async (req: AuthenticatedRequest, res: Response
     // A capa da página da loja vale para todos os planos (D1). O banner de destaque (carrossel da Home) aceita
     // Plano 3 ativo OU troca para o Plano 3 pendente: fica guardado antes da aprovação, mas a Home só mostra
     // com o Plano 3 ativo (getFeaturedStores e toPublicStore conferem na leitura).
-    if (type === 'featured') {
+    if (type === 'featured' && !(await isDirectMode())) { // modo SaaS: toda loja tem o Plano 3
       const sub = await findSubByStoreId(store.id);
       const planMap: Record<string, number> = { plan1: 1, plan2: 2, plan3: 3 };
       const storePlan = sub ? (planMap[sub.currentPlan] ?? 1) : (store.plan ?? 1);
@@ -552,8 +559,10 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
   try {
     logger.debug('[Plan1] getFeaturedStores — buscando lojas Plano 3 com banner de destaque');
     // `{ $exists: true, $ne: '' }` vira "não nulo e diferente de vazio" no Prisma.
+    // Modo SaaS: sem planos, toda loja com banner entra (direitos do Plano 3).
+    const direct = await isDirectMode();
     const featuredFilter: any = {
-      plan: 3,
+      ...(direct ? {} : { plan: 3 }),
       featuredBannerUrl: { not: null },
       NOT: { featuredBannerUrl: '' },
     };
@@ -571,8 +580,8 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
     });
     const planBySub = new Map(subs.map((s) => [s.storeId, s.currentPlan]));
     const stores = rows
-      .filter((st) => !planBySub.has(st.id) || planBySub.get(st.id) === 'plan3')
-      .map((st) => ({ ...st, _id: st.id }));
+      .filter((st) => direct || !planBySub.has(st.id) || planBySub.get(st.id) === 'plan3')
+      .map((st) => ({ ...st, ...(direct ? { plan: SAAS_PLAN } : {}), _id: st.id }));
     return res.json(stores);
   } catch (err) {
     logger.error('[getFeaturedStores] erro ao buscar lojas em destaque', err as Error);
@@ -601,8 +610,8 @@ export const getStoreTopProducts = async (req: Request, res: Response) => {
     // Loja fora do ar (mensalidade no modo direto ou pausa do admin) → sem top produtos.
     if (await isStoreHiddenFromPublic(store.id)) return res.json({ products: [] });
 
-    // Feature exclusiva de lojas Plano 3 (premium)
-    const storePlan = Number(store.plan) || 1;
+    // Feature exclusiva de lojas Plano 3 (premium); no modo SaaS toda loja tem o Plano 3.
+    const storePlan = (await isDirectMode()) ? SAAS_PLAN : Number(store.plan) || 1;
     if (storePlan !== 3) {
       return res.json({ products: [], premiumRequired: true });
     }
@@ -670,8 +679,9 @@ export const getTopStores = async (req: Request, res: Response) => {
     if (process.env.KYC_ENFORCED === 'true') filter.isVerified = true;
     filter.AND = [await publicStoreAvailableWhere()]; // mensalidade (modo direto) e pausa do admin
     const stores = await prisma.store.findMany({ where: filter });
+    const direct = await isDirectMode();
     const out = stores
-      .map((s) => ({ ...toPublicStore(s), salesCount: counts.get(s.id) ?? 0 }))
+      .map((s) => ({ ...toPublicStore(s, { direct }), salesCount: counts.get(s.id) ?? 0 }))
       .sort((a, b) => b.salesCount - a.salesCount)
       .slice(0, limit);
     return res.json(out);
@@ -739,7 +749,7 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
         store: { _id: store.id, id: store.id, name: store.name, neighborhood: store.neighborhood ?? null, city: store.city ?? null },
       });
     }
-    const [rated] = await withStoreRatings([toPublicStore(store)]);
+    const [rated] = await withStoreRatings([toPublicStore(store, { direct: await isDirectMode() })]);
     // D1: aberta agora = toggle + pausa + horário (mesmas regras da vitrine e do checkout).
     const publicCoupons = await findPublicCouponsForStore(store.id);
     return res.json({ ...rated, isOpenNow: isStoreOpenWithHoursNow(store), publicCoupons });

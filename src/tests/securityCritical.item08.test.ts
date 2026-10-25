@@ -23,7 +23,10 @@ jest.mock('../services/pushService', () => ({
 }));
 
 jest.mock('../lib/prisma', () => ({
-  prisma: { order: { findUnique: jest.fn().mockResolvedValue({ id: 'o1', _id: 'o1', customerId: 'c1', storeId: 's1' }) } },
+  prisma: {
+    order: { findUnique: jest.fn().mockResolvedValue({ id: 'o1', _id: 'o1', customerId: 'c1', storeId: 's1' }) },
+    platformConfig: { findFirst: jest.fn().mockResolvedValue({ settlementMode: 'direto' }) },
+  },
 }));
 
 import * as emitter from '../utils/socketEmitter';
@@ -71,12 +74,13 @@ describe('Item 8 — broadcasts globais sem dado pessoal', () => {
     emitter.emitDeliveryCreated(delivery);
     emitter.emitDeliveryLocationUpdated({ ...delivery, currentLocation: { lat: 1, lng: 2 } });
     emitter.emitNotificationReceived({ userId: 'c1', message: 'oi' });
-    emitter.emitStoreCreated(store);
-    emitter.emitStoreUpdated(store);
+    await emitter.emitStoreCreated(store); // assíncrona: lê o modo para o plano efetivo
+    await emitter.emitStoreUpdated(store);
     emitter.emitOrderCancelled(order, { reason: 'x', cancelledBy: 'customer', refundAmount: 50 });
     emitter.emitDeliveryCompleted({ ...delivery, _id: 'd1' }, order);
     await new Promise((r) => setImmediate(r));
 
+    expect(globalEmits.map((e) => e.event)).toEqual(expect.arrayContaining(['store:created', 'store:updated']));
     for (const { event, data } of globalEmits) {
       const leaked = [...keysDeep(data)].filter((k) => FORBIDDEN_KEYS.includes(k));
       expect({ event, leaked }).toEqual({ event, leaked: [] });
@@ -104,8 +108,8 @@ describe('Item 8 — broadcasts globais sem dado pessoal', () => {
     }
   });
 
-  it('store:updated vai para a sala da loja (id), não do dono', () => {
-    emitter.emitStoreUpdated(store);
+  it('store:updated vai para a sala da loja (id), não do dono', async () => {
+    await emitter.emitStoreUpdated(store);
     const rooms = roomEmits.filter((e) => e.event === 'store:updated').map((e) => e.room);
     expect(rooms).not.toContain('store:u1');
   });

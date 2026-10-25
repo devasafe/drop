@@ -21,6 +21,7 @@ import { hasCustodyLeftover } from '../services/custodyLeftover';
 import logger from '../config/logger';
 import env from '../config/env';
 import { STORE_ASAAS_TERMS_VERSION, STORE_ASAAS_TERMS_TEXT, STORE_ASAAS_TERMS_CHANGES } from '../legal/storeAsaasTerms';
+import { requireSettlement } from '../middleware/requireSettlement';
 
 const router = Router();
 
@@ -68,18 +69,19 @@ router.get('/commission-impact', authenticate, authorizePermission('settings:man
 router.get('/store-subscription', authenticate, getStoreSubscription);
 
 // Store - Request plan change (papel-base)
-router.post('/store-subscription/request-change', authenticate, requestPlanChange);
+// Modo SaaS (direto) não tem planos: troca de plano só existe na custódia.
+router.post('/store-subscription/request-change', requireSettlement('custodia'), authenticate, requestPlanChange);
 // Store - Cancel pending plan change (papel-base)
-router.delete('/store-subscription/request-change', authenticate, catchAsync(cancelPlanChangeRequest));
+router.delete('/store-subscription/request-change', requireSettlement('custodia'), authenticate, catchAsync(cancelPlanChangeRequest));
 
 // Admin - Get pending changes
-router.get('/pending-plan-changes', authenticate, authorizePermission('plan:view'), getPendingPlanChanges);
+router.get('/pending-plan-changes', requireSettlement('custodia'), authenticate, authorizePermission('plan:view'), getPendingPlanChanges);
 
 // Admin - Approve plan change
-router.post('/approve-plan-change', authenticate, authorizePermission('plan:approve'), catchAsync(approvePlanChange));
+router.post('/approve-plan-change', requireSettlement('custodia'), authenticate, authorizePermission('plan:approve'), catchAsync(approvePlanChange));
 
 // Admin - Reject plan change
-router.post('/reject-plan-change', authenticate, authorizePermission('plan:approve'), catchAsync(rejectPlanChange));
+router.post('/reject-plan-change', requireSettlement('custodia'), authenticate, authorizePermission('plan:approve'), catchAsync(rejectPlanChange));
 
 // Admin - Get all subscriptions
 router.get('/all-store-subscriptions', authenticate, authorizePermission('plan:view'), getAllStoreSubscriptions);

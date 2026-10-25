@@ -170,7 +170,7 @@ export async function getAdminStoreDetail(storeId: string, viewer: StoreDetailVi
       detail: viewer.isCeo ? receivingLastError(cfg.settlementMode, store) : null,
     },
     plan: {
-      plan: storePlanNumber(subscription?.currentPlan, store.plan),
+      plan: cfg.settlementMode === 'direto' ? null : storePlanNumber(subscription?.currentPlan, store.plan), // SaaS: sem planos
       mode: storeModeOf(cfg.settlementMode),
       // coveredUntil: o último instante coberto, pela MESMA conta da vitrine e do job (policy.sellsUntil).
       saas: store.saasBilling

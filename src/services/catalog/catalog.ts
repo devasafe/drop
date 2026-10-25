@@ -13,6 +13,7 @@ import {
 import { discountPercent } from '../search/search';
 import { publicStoreVisibilityWhere } from './visibility';
 import { ACTIVE_PRODUCT_WHERE } from './activeProduct';
+import { isDirectMode } from '../../utils/settlement';
 
 /**
  * Corte das ofertas: são lidas as 500 ofertas MAIS RECENTES (createdAt desc) e a ordem por % de
@@ -103,9 +104,10 @@ export async function listNearbyStores(params: { point: LatLngPoint; limit: numb
     .slice(0, params.limit);
 
   const plan1Free = await resolvePlan1FreeMany(covered.map((c) => c.store.id));
+  const direct = await isDirectMode();
   const now = new Date();
   return covered.map(({ store }) => ({
-    ...toPublicStore(store),
+    ...toPublicStore(store, { direct }),
     quote: estimateQuote(store, params.point, { ...cfg, plan1Free: plan1Free.get(store.id) ?? false }, now),
   }));
 }
