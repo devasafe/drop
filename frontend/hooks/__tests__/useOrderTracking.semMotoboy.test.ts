@@ -97,3 +97,17 @@ test('decideReturn: erro do servidor volta com a mensagem', async () => {
   await act(async () => { r = await result.current.decideReturn('reembolso'); });
   expect(r).toEqual({ ok: false, error: 'Falhou' });
 });
+
+test('decideReturn("reembolso") só grava a escolha (o dinheiro sai quando a loja confirmar)', async () => {
+  const { result } = renderHook(() => useOrderTracking('o1'));
+  await act(async () => { await result.current.decideReturn('reembolso'); });
+  expect(mockedApi.post).toHaveBeenCalledWith('/orders/o1/pos-devolucao', { escolha: 'reembolso' });
+  expect(result.current.delivery.pendingReturnAction).toBe('cancel');
+});
+
+test('order:reembolso_escolhido rebusca pedido e entrega', async () => {
+  renderHook(() => useOrderTracking('o1'));
+  mockedApi.get.mockClear();
+  act(() => handlers['order:reembolso_escolhido']({ orderId: 'o1', deliveryId: 'd1' }));
+  await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/orders/o1'));
+});

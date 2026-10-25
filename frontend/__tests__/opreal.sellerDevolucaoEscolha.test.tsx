@@ -73,3 +73,11 @@ test('cliente escolheu nova entrega: chega ao vivo pelo order:updated', async ()
   expect(screen.getByText(/Depois disso, um motoboy novo busca o pedido aqui\. Não precisa separar de novo\./)).toBeInTheDocument();
   expect(screen.queryByText('Aguardando Ana escolher')).not.toBeInTheDocument();
 });
+
+test('cliente pediu reembolso: a loja sabe que, ao confirmar o pacote, o valor volta para o cliente', async () => {
+  action = 'cancel';
+  renderPage();
+  expect(await screen.findByText('Ana pediu o dinheiro de volta')).toBeInTheDocument();
+  expect(screen.getByText(/Ao confirmar o pacote com o código, o pedido é cancelado e o valor volta para o cliente\./)).toBeInTheDocument();
+  expect(screen.getByLabelText('PIN de devolução (6 dígitos)')).toBeInTheDocument();
+});

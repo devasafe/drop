@@ -13,7 +13,7 @@ export interface ReturnDecisionCardProps {
   storeName: string;
   refundAmount: number;
   paymentMethod?: string;
-  /** `Delivery.pendingReturnAction`: 'reassign' = nova entrega já escolhida. */
+  /** `Delivery.pendingReturnAction`: 'reassign' = nova entrega; 'cancel' = reembolso (sai quando a loja receber o pacote). */
   chosen?: string | null;
   busy?: boolean;
   onConfirm: (choice: ReturnChoice) => void;
@@ -28,6 +28,14 @@ export function ReturnDecisionCard({ courierName, storeName, refundAmount, payme
   const [choice, setChoice] = useState<ReturnChoice>('reentrega');
   const who = String(courierName || '').split(' ')[0] || 'O entregador';
   const story = `${who} teve um problema depois de retirar. O pacote está voltando para a ${storeName}.`;
+
+  if (chosen === 'cancel') {
+    return (
+      <Alert tone="info" title="Reembolso confirmado">
+        {`Os ${formatMoney(refundAmount)} voltam quando a loja receber o pacote.`}
+      </Alert>
+    );
+  }
 
   if (chosen === 'reassign') {
     return (

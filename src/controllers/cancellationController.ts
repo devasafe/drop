@@ -620,9 +620,10 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
 /**
  * Cliente decide após o motoboy cancelar tendo já retirado o produto (spec §3.2).
  * POST /orders/:id/pos-devolucao  body: { escolha: 'reembolso' | 'reentrega' }
- * - reembolso → refund 100% + encerra o pedido (padrão atômico compartilhado).
- * - reentrega → marca pendingReturnAction='reassign'; quando a loja confirmar a
- *   devolução (confirmReturn com PIN), a entrega volta ao pool.
+ * Nada de dinheiro aqui: a escolha fica em pendingReturnAction e vale quando a loja confirmar o
+ * pacote com o PIN de devolução (confirmReturn).
+ * - reembolso → 'cancel': o pedido cancela e o valor inteiro volta na confirmação.
+ * - reentrega → 'reassign': na confirmação, a entrega volta ao pool.
  */
 export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -652,36 +653,37 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
       return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
     }
 
-    if (escolha === 'reembolso') {
-      const result = await cancelOrderWithFullRefund(order, {
-        reason: 'Motoboy cancelou após retirada; cliente optou por reembolso',
-        reasonCode: 'motoboy_rejected',
-        cancelledBy: 'customer',
-      });
-      if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
-      return res.json({
-        success: true,
-        escolha,
-        orderId: order.id,
-        status: 'cancelado',
-        refundAmount: result.refundAmount,
-        refundStatus: result.refundStatus,
-      });
-    }
-
-    // reentrega → produto volta à loja (confirmReturn) e daí ao pool via 'reassign'.
-    // Pedido travado: um cancelamento concorrente não deixa 'reassign' num pedido encerrado.
+    // Pedido travado: um cancelamento concorrente não deixa a escolha gravada num pedido encerrado.
+    const action = escolha === 'reentrega' ? 'reassign' : 'cancel';
     const marked = await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
       if (!rows.length || CLOSED_ORDER_STATUSES.includes(rows[0].status)) return 'closed';
       const { count } = await tx.delivery.updateMany({
         where: { id: String(delivery._id), statusDevolucao: 'aguardando_confirmacao' },
-        data: { pendingReturnAction: 'reassign' },
+        data: { pendingReturnAction: action },
       });
       return count === 1 ? 'ok' : 'no_return';
     });
     if (marked === 'closed') return res.status(409).json({ error: 'Pedido já foi encerrado', code: 'ORDER_CLOSED' });
     if (marked === 'no_return') return res.status(400).json({ error: 'Não há devolução aguardando decisão para este pedido' });
+
+    if (escolha === 'reembolso') {
+      // A loja vê "pediu o dinheiro de volta"; o reembolso sai quando ela digitar o PIN.
+      emitToRoom(`store:${order.storeId}`, 'order:updated', { orderId: order.id, pendingReturnAction: 'cancel' });
+      emitToRoom(`user:${order.customerId}`, 'order:reembolso_escolhido', {
+        orderId: order.id,
+        deliveryId: delivery._id,
+        message: 'O valor volta quando a loja receber o pacote de volta.',
+      });
+      return res.json({
+        success: true,
+        escolha,
+        orderId: order.id,
+        deliveryId: delivery._id,
+        refundAmount: Number(order.totalValue) || 0,
+        message: 'Reembolso escolhido. O valor volta quando a loja receber o pacote.',
+      });
+    }
 
     emitToRoom(`store:${order.storeId}`, 'delivery:return_requested', {
       deliveryId: delivery._id,

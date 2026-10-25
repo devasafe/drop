@@ -29,6 +29,7 @@ import env from '../config/env';
 import logger from '../config/logger';
 import { notifyCustomerOrder } from '../services/customerNotify';
 import { isDirectOrder } from '../utils/settlement';
+import { cancelOrderWithFullRefund } from '../services/cancellation/fullRefund';
 import { createTransferForDelivery, notifyTransferCreated, motoboyPixSnapshot } from '../services/asaasLoja/motoboyTransfer';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
@@ -1299,11 +1300,44 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
       });
 
     } else {
-      // ── CANCEL (padrão): produto voltou à loja, pedido cancelado + reembolso ──
+      // ── CANCEL (padrão; ou o cliente pediu reembolso): produto voltou à loja, pedido cancelado + reembolso ──
       delivery.status = 'cancelled';
       delivery.cancelledAt = new Date();
       await persistDelivery(delivery);
       logger.debug(`📋 [confirmReturn] Cancelando Order para o cliente...`);
+
+      // Modo direto (asaas_loja): o mesmo cancelamento com reembolso integral dos outros fluxos,
+      // que estorna pela chave da loja (antes só escalava para o admin). A trava de status de lá
+      // impede o segundo reembolso se o pedido já estiver encerrado.
+      if (isDirectOrder(order)) {
+        const result = await cancelOrderWithFullRefund(order, {
+          reason: 'Produto devolvido à loja depois que o motoboy desistiu',
+          reasonCode: 'motoboy_rejected',
+          cancelledBy: 'motoboy',
+        });
+        if (!result.ok) logger.warn('[confirmReturn] pedido direto já encerrado — reembolso não repetido', { orderId: order.id, error: result.error });
+        emitToRoom(`user:${delivery.motoboyId}`, 'delivery:return_confirmed', {
+          deliveryId: delivery._id,
+          message: 'Devolução confirmada pela loja. Pedido cancelado.',
+          statusDevolucao: 'confirmado',
+        });
+        emitToRoom(`user:${order.customerId}`, 'delivery:return_confirmed', {
+          deliveryId: delivery._id,
+          orderId: order._id,
+          message: 'Produto foi devolvido à loja. Seu reembolso foi pedido.',
+          confirmedAt: new Date(),
+        });
+        return res.json({
+          message: 'Devolução confirmada com sucesso. Pedido cancelado para cliente.',
+          deliveryId,
+          orderId: order._id,
+          statusDevolucao: 'confirmado',
+          action: 'cancel',
+          orderStatus: 'cancelado',
+          refundStatus: result.refundStatus ?? null,
+          dataConfirmacao: delivery.dataConfirmacaoDevolucao,
+        });
+      }
 
       // ✅ TRAVA ATÔMICA ANTI-DUPLO-REEMBOLSO (review #1b): só reembolsa se ESTE request for
       // o que efetivamente move o pedido de um estado cancelável → 'cancelado'. Se o pedido já

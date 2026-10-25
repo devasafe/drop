@@ -104,9 +104,17 @@ export default function SellerPedidoPage() {
   );
 }
 
-/** O que o cliente escolheu na devolução: 'reassign' = nova entrega; vazio = cancela ao confirmar o pacote. */
+/** O que o cliente escolheu na devolução: 'reassign' = nova entrega; 'cancel' = reembolso; vazio = cancela ao confirmar o pacote. */
 function ReturnChoiceNote({ customerName, action }: { customerName?: string; action?: string | null }) {
   const name = String(customerName || '').split(' ')[0] || 'Cliente';
+  if (action === 'cancel') {
+    return (
+      <div>
+        <p className={styles.blockTitle}>{`${name} pediu o dinheiro de volta`}</p>
+        <p className={styles.meta}>Ao confirmar o pacote com o código, o pedido é cancelado e o valor volta para o cliente.</p>
+      </div>
+    );
+  }
   return action === 'reassign' ? (
     <div>
       <p className={styles.blockTitle}>{`${name} escolheu: nova entrega`}</p>

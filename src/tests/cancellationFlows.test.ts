@@ -597,15 +597,17 @@ describe('Task 7: motoboy cancela APÓS pegar (picked) — cobra taxa do MTB + a
   });
 });
 
-describe('Task 7: cliente decide reembolso após motoboy cancelar (picked) — refund 100%', () => {
-  it('POST /orders/:id/pos-devolucao {reembolso} → refund 100% e pedido cancelado', async () => {
+// Regra de 25/10: o reembolso só sai quando a loja confirma o pacote com o PIN de devolução.
+describe('Task 7: cliente decide reembolso após motoboy cancelar (picked) — refund 100% na confirmação da loja', () => {
+  it('POST /orders/:id/pos-devolucao {reembolso} não move dinheiro; confirmReturn da loja → refund 100% e pedido cancelado', async () => {
+    const owner = await createUser('lojista');
     const motoboy = await createUser('motoboy');
     const customer = await createUser('cliente');
 
     await createWallet({ owner: customer.id, ownerType: 'user', balance: 500, totalIncome: 500, totalSpent: 0 });
     await createAppCashbox({ balance: 0, totalIncome: 0, totalExpenses: 0 });
 
-    const store = await prisma.store.create({ data: { ownerId: await ownerIdForStore('@cancel.test'), name: 'Loja Reembolso' } });
+    const store = await prisma.store.create({ data: { ownerId: owner.id, name: 'Loja Reembolso' } });
 
     const order = await prisma.order.create({ data: {
       customerId: customer.id, storeId: store.id,
@@ -625,10 +627,18 @@ describe('Task 7: cliente decide reembolso após motoboy cancelar (picked) — r
       .send({ escolha: 'reembolso' });
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('cancelado');
-    // Refund 100% (motoboy é o culpado; a taxa dele já foi cobrada à parte).
     expect(res.body.refundAmount).toBeCloseTo(200, 2);
+    // Nada sai na escolha: o pedido segue aberto até a loja receber o pacote.
+    expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('enviado');
+    expect((await findWallet({ owner: customer.id, ownerType: 'user' }))!.balance).toBeCloseTo(500, 2);
 
+    const confirmRes = await request(app)
+      .post(`/api/deliveries/${delivery.id}/confirm-return`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ pinDevolucao: '123456' });
+    expect(confirmRes.status).toBe(200);
+
+    // Refund 100% (motoboy é o culpado; a taxa dele já foi cobrada à parte).
     const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });
     expect(custWallet!.balance).toBeCloseTo(700, 2); // 500 + 200
 
@@ -756,7 +766,7 @@ describe('Task 7: cliente decide reentrega após motoboy cancelar (picked) — v
 // no caminho reembolso; a loja NÃO pode disparar um segundo refund.
 // ============================================================
 describe('Task 7 fix: motoboy — reembolso seguido de confirmReturn NÃO reembolsa 2x', () => {
-  it('reembolso credita totalValue UMA vez; confirmReturn tardio é rejeitado (estado terminal)', async () => {
+  it('reembolso credita totalValue UMA vez: na confirmação da loja; uma segunda confirmação é rejeitada (estado terminal)', async () => {
     const owner = await createUser('lojista');
     const motoboy = await createUser('motoboy');
     const customer = await createUser('cliente');
@@ -778,7 +788,7 @@ describe('Task 7 fix: motoboy — reembolso seguido de confirmReturn NÃO reembo
     });
     await prisma.order.update({ where: { id: order.id }, data: { deliveryId: delivery.id } });
 
-    // 1) Cliente pede reembolso → refund #1 (100%).
+    // 1) Cliente pede reembolso → só grava a escolha.
     const res = await request(app)
       .post(`/api/orders/${order.id}/pos-devolucao`)
       .set('Authorization', `Bearer ${customer.token}`)
@@ -786,13 +796,19 @@ describe('Task 7 fix: motoboy — reembolso seguido de confirmReturn NÃO reembo
     expect(res.status).toBe(200);
     expect(res.body.refundAmount).toBeCloseTo(200, 2);
 
-    // 2) O produto volta fisicamente e a loja tenta confirmar com o PIN → deve ser REJEITADO
-    //    (estado de devolução já é terminal), sem disparar refund #2.
+    // 2) A loja confirma o pacote com o PIN → refund #1 (100%).
     const confirmRes = await request(app)
       .post(`/api/deliveries/${delivery.id}/confirm-return`)
       .set('Authorization', `Bearer ${owner.token}`)
       .send({ pinDevolucao: '777777' });
-    expect(confirmRes.status).toBe(400);
+    expect(confirmRes.status).toBe(200);
+
+    // 3) Uma segunda confirmação (double-tap) é REJEITADA (devolução já é terminal), sem refund #2.
+    const againRes = await request(app)
+      .post(`/api/deliveries/${delivery.id}/confirm-return`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ pinDevolucao: '777777' });
+    expect(againRes.status).toBe(400);
 
     // PROVA: cliente creditado order.totalValue UMA única vez (500 + 200), nunca 900.
     const custWallet = await findWallet({ owner: customer.id, ownerType: 'user' });

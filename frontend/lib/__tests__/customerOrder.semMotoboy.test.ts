@@ -47,3 +47,8 @@ describe('entrega interrompida (pacote voltando para a loja)', () => {
     expect(steps[6]).toMatchObject({ label: 'Nova entrega', state: 'upcoming' });
   });
 });
+
+test('depois de escolher reembolso, o último passo diz "Reembolso"', () => {
+  const steps = orderTimelineSteps({ ...base, status: 'enviado' }, { status: 'picked', statusDevolucao: 'aguardando_confirmacao', pendingReturnAction: 'cancel' });
+  expect(steps[6]).toMatchObject({ label: 'Reembolso', state: 'upcoming' });
+});

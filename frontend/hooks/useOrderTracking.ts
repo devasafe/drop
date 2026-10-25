@@ -214,6 +214,7 @@ export function useOrderTracking(orderId?: string) {
       on('order:pool_timeout_resolved', handleDecisionEvent),
       on('order:aguardando_decisao_devolucao', handleDecisionEvent),
       on('order:reentrega_escolhida', handleDecisionEvent),
+      on('order:reembolso_escolhido', handleDecisionEvent),
       on('order:reassigning', handleDecisionEvent),
       on('order:accepted_by_store', handleOrderAccepted),
       on('motoboy:assigned', handleMotoboyAssigned),
@@ -283,8 +284,8 @@ export function useOrderTracking(orderId?: string) {
     }
   }, [orderId, setOrder]);
 
-  // Seguir/nova entrega: atualização otimista (o evento do socket confirma). Cancelar/reembolso
-  // encerram o pedido: rebusca para mostrar o cancelamento. 409 = decisão já tomada (outro
+  // Seguir/escolha da devolução: atualização otimista (o evento do socket confirma). Cancelar no
+  // pool encerra o pedido: rebusca para mostrar o cancelamento. 409 = decisão já tomada (outro
   // aparelho) ou o pedido mudou: recarrega e segue sem erro.
   const decide = useCallback(async (path: string, escolha: string, apply?: () => void): Promise<ActionResult> => {
     if (!orderId) return { ok: false, error: 'Pedido inválido' };
@@ -307,10 +308,11 @@ export function useOrderTracking(orderId?: string) {
     ? () => setOrder((prev: any) => (prev ? { ...prev, awaitingCustomerPoolDecision: false } : prev))
     : undefined), [decide, setOrder]);
 
-  /** Motoboy desistiu depois de retirar: nova entrega ou reembolso. */
-  const decideReturn = useCallback((escolha: 'reentrega' | 'reembolso') => decide('pos-devolucao', escolha, escolha === 'reentrega'
-    ? () => setDelivery((prev: any) => (prev ? { ...prev, pendingReturnAction: 'reassign' } : prev))
-    : undefined), [decide, setDelivery]);
+  /** Motoboy desistiu depois de retirar: nova entrega ou reembolso. Só grava a escolha: vale quando a loja receber o pacote. */
+  const decideReturn = useCallback((escolha: 'reentrega' | 'reembolso') => decide('pos-devolucao', escolha, () => {
+    const action = escolha === 'reentrega' ? 'reassign' : 'cancel';
+    setDelivery((prev: any) => (prev ? { ...prev, pendingReturnAction: action } : prev));
+  }), [decide, setDelivery]);
 
   const submitMotoboyRating = useCallback(async (rating: number, comment: string): Promise<ActionResult> => {
     if (!delivery?._id) return { ok: false, error: 'Entrega não encontrada' };

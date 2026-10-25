@@ -82,7 +82,10 @@ export function orderTimelineSteps(order: any, delivery?: any): TimelineStep[] {
       { label: courier ? `${courier} retirou na loja` : 'Retirado na loja', time: hhmm(delivery?.pickedAt), state: 'done' as const },
       { label: 'Entrega interrompida', state: 'error' as const },
       { label: 'Voltando para a loja', detail: 'a loja confirma com um código', state: 'current' as const },
-      { label: delivery?.pendingReturnAction === 'reassign' ? 'Nova entrega' : 'Nova entrega ou reembolso', state: 'upcoming' as const },
+      {
+        label: delivery?.pendingReturnAction === 'reassign' ? 'Nova entrega' : delivery?.pendingReturnAction === 'cancel' ? 'Reembolso' : 'Nova entrega ou reembolso',
+        state: 'upcoming' as const,
+      },
     ];
   }
   if (status === 'delivered') return labels.map((s) => ({ ...s, state: 'done' as const }));

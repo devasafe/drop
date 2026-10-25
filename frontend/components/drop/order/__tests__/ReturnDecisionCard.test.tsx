@@ -43,3 +43,10 @@ test('enviando: o botão trava', () => {
   render(<ReturnDecisionCard {...props} busy />);
   expect(screen.getByRole('button', { name: /Confirmar nova entrega/ })).toBeDisabled();
 });
+
+test('reembolso já escolhido: confirma e diz que o valor volta quando a loja receber o pacote', () => {
+  render(<ReturnDecisionCard {...props} chosen="cancel" />);
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  expect(screen.getByText('Reembolso confirmado')).toBeInTheDocument();
+  expect(screen.getByText(/Os R\$\s?244,00 voltam quando a loja receber o pacote\./)).toBeInTheDocument();
+});
