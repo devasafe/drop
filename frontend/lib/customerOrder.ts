@@ -13,6 +13,9 @@ export function isPlan1Order(order: any): boolean {
   return !order?.deliveryId && !(Number(order?.deliveryFee) > 0) && order?.paymentProvider !== 'asaas_loja';
 }
 
+/** Pacote voltando para a loja (motoboy cancelou depois de retirar), aguardando o código da loja. */
+export const isReturning = (delivery: any): boolean => delivery?.statusDevolucao === 'aguardando_confirmacao';
+
 /** Status que o cliente vê, a partir de pedido + entrega (primeira regra que vale). */
 export function customerOrderStatus(order: any, delivery?: any): CustomerOrderStatus {
   const os = order?.status;
@@ -21,9 +24,11 @@ export function customerOrderStatus(order: any, delivery?: any): CustomerOrderSt
   if (os === 'entregue' || ds === 'delivered') return 'delivered';
   if (os === 'criado') return order?.paymentStatus === 'paid' ? 'awaiting_store' : 'awaiting_payment';
   if (ds === 'cancelled') return 'problem';
+  // O motoboy desistiu com o pacote na mão: ele volta para a loja e o cliente escolhe.
+  if (isReturning(delivery)) return 'returning';
   if (ds === 'picked' || os === 'enviado') return 'out_for_delivery';
   if (ds === 'assigned') return 'preparing';
-  if (ds === 'pending' || os === 'aguardando_motoboy') return 'finding_courier';
+  if (ds === 'pending' || os === 'aguardando_motoboy') return order?.awaitingCustomerPoolDecision ? 'no_courier' : 'finding_courier';
   if (isPlan1Order(order)) return 'in_progress';
   return 'preparing';
 }
@@ -34,6 +39,7 @@ function phaseIndex(status: CustomerOrderStatus): number {
     case 'awaiting_payment': return 1;
     case 'awaiting_store': return 2;
     case 'finding_courier':
+    case 'no_courier':
     case 'preparing':
     case 'in_progress': return 3;
     case 'out_for_delivery': return 4;
@@ -69,6 +75,16 @@ export function orderTimelineSteps(order: any, delivery?: any): TimelineStep[] {
   // Antes do pagamento, o passo em andamento não pode dizer "confirmado".
   if (status === 'awaiting_payment') labels[1] = { label: 'Aguardando pagamento' };
 
+  if (status === 'returning') {
+    const courier = String(mb?.name || '').split(' ')[0];
+    return [
+      ...labels.slice(0, 3).map((s) => ({ ...s, state: 'done' as const })),
+      { label: courier ? `${courier} retirou na loja` : 'Retirado na loja', time: hhmm(delivery?.pickedAt), state: 'done' as const },
+      { label: 'Entrega interrompida', state: 'error' as const },
+      { label: 'Voltando para a loja', detail: 'a loja confirma com um código', state: 'current' as const },
+      { label: delivery?.pendingReturnAction === 'reassign' ? 'Nova entrega' : 'Nova entrega ou reembolso', state: 'upcoming' as const },
+    ];
+  }
   if (status === 'delivered') return labels.map((s) => ({ ...s, state: 'done' as const }));
   if (status === 'cancelled' || status === 'problem') {
     const reached = order?.acceptedAt || ['pago', 'aguardando_motoboy', 'enviado'].includes(order?.status) || delivery ? 3 : ['paid', 'refunded'].includes(order?.paymentStatus) ? 2 : 1;

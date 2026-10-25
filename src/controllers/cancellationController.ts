@@ -690,6 +690,8 @@ export const posDevolucaoDecision = async (req: AuthenticatedRequest, res: Respo
       message: 'Cliente optou por reentrega; confirme a devolução com o PIN para reatribuir',
       pinRequired: true,
     });
+    // O painel da loja recarrega e mostra a escolha ("A Ana escolheu: nova entrega").
+    emitToRoom(`store:${order.storeId}`, 'order:updated', { orderId: order.id, pendingReturnAction: 'reassign' });
     emitToRoom(`user:${order.customerId}`, 'order:reentrega_escolhida', {
       orderId: order.id,
       deliveryId: delivery._id,
@@ -758,8 +760,16 @@ export const poolTimeoutDecision = async (req: AuthenticatedRequest, res: Respon
     }
 
     // seguir → limpa a flag; a entrega permanece 'pending' e o matching existente
-    // segue tentando atribuir um motoboy normalmente.
+    // segue tentando atribuir um motoboy normalmente. O relógio do pool recomeça
+    // (Delivery.createdAt, como o reassign do admin): sem isso o job perguntava de novo
+    // na varredura seguinte. Só a entrega ainda sem motoboy.
     await prisma.order.update({ where: { id: order.id }, data: { awaitingCustomerPoolDecision: false } });
+    if (order.deliveryId) {
+      await prisma.delivery.updateMany({
+        where: { id: String(order.deliveryId), status: 'pending', motoboyId: null },
+        data: { createdAt: new Date() },
+      });
+    }
 
     emitToRoom(`user:${order.customerId}`, 'order:pool_timeout_resolved', {
       orderId: order.id,

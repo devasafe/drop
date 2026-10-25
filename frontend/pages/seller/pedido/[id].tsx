@@ -104,6 +104,22 @@ export default function SellerPedidoPage() {
   );
 }
 
+/** O que o cliente escolheu na devolução: 'reassign' = nova entrega; vazio = cancela ao confirmar o pacote. */
+function ReturnChoiceNote({ customerName, action }: { customerName?: string; action?: string | null }) {
+  const name = String(customerName || '').split(' ')[0] || 'Cliente';
+  return action === 'reassign' ? (
+    <div>
+      <p className={styles.blockTitle}>{`${name} escolheu: nova entrega`}</p>
+      <p className={styles.meta}>Confirme o pacote com o código. Depois disso, um motoboy novo busca o pedido aqui. Não precisa separar de novo.</p>
+    </div>
+  ) : (
+    <div>
+      <p className={styles.blockTitle}>{`Aguardando ${name} escolher`}</p>
+      <p className={styles.meta}>Se não houver escolha, o pedido é cancelado quando você confirmar o pacote.</p>
+    </div>
+  );
+}
+
 function SellerPedidoScreen({ id }: { id: string | undefined }) {
   const { order: base, loading, setOrder } = useOrder(id) as { order: any; loading: boolean; setOrder?: (o: any) => void };
   const panel = useSellerPanel();
@@ -317,6 +333,7 @@ function SellerPedidoScreen({ id }: { id: string | undefined }) {
                 <section className={styles.block} aria-label="Devolução pedida">
                   <h2 className={styles.blockTitle}>Devolução pedida</h2>
                   <p className={styles.meta}>O motoboy está voltando com o produto. Quando ele chegar, confira o produto e digite o PIN que ele mostrar.</p>
+                  <ReturnChoiceNote customerName={order.customerName} action={d.pendingReturnAction} />
                   <ReturnConfirm deliveryId={String(d._id)} onDone={() => { setNotice('Devolução confirmada.'); panel?.dismissReturn?.(String(d._id)); reload(); }} />
                 </section>
               )}

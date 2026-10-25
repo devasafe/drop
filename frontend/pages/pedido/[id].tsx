@@ -31,6 +31,8 @@ import { ROUTES, buscarHref, pedidoConversaHref, pedidoReciboHref } from '../../
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import { OrderPushPrompt } from '../../components/drop/order/OrderPushPrompt';
+import { CourierTimeoutCard } from '../../components/drop/order/CourierTimeoutCard';
+import { ReturnDecisionCard, type ReturnChoice } from '../../components/drop/order/ReturnDecisionCard';
 import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
 
@@ -75,6 +77,8 @@ export default function PedidoPage() {
   const [payingPix, setPayingPix] = useState(false);
   const [reviewedProducts, setReviewedProducts] = useState<Record<string, boolean>>({});
   const [submittingProduct, setSubmittingProduct] = useState<string | null>(null);
+  const [deciding, setDeciding] = useState(false);
+  const [waitingAgain, setWaitingAgain] = useState(false);
 
   // Hidrata quais produtos deste pedido o cliente JÁ avaliou. Sem isto, após um
   // F5 o estado local zerava e os formulários de avaliação de produto reapareciam
@@ -143,6 +147,23 @@ export default function PedidoPage() {
     }
   };
 
+  const handlePoolDecision = async (escolha: 'seguir' | 'cancelar') => {
+    if (deciding) return;
+    setDeciding(true);
+    const r = await t.decidePoolTimeout(escolha);
+    if (!r.ok) showToast(r.error || 'Não foi possível enviar sua escolha.', 'error');
+    else if (escolha === 'seguir') setWaitingAgain(true);
+    setDeciding(false);
+  };
+
+  const handleReturnDecision = async (escolha: ReturnChoice) => {
+    if (deciding) return;
+    setDeciding(true);
+    const r = await t.decideReturn(escolha);
+    if (!r.ok) showToast(r.error || 'Não foi possível enviar sua escolha.', 'error');
+    setDeciding(false);
+  };
+
   const handleCancelConfirm = async ({ reason, reasonCode }: { reason: string; reasonCode: string }) => {
     if (!t.order?._id || cancelling) return;
     setCancelling(true);
@@ -208,14 +229,15 @@ export default function PedidoPage() {
     !!order.asaasPaymentId &&
     !['cancelado', 'rejeitado'].includes(order.status);
 
-  const canCancel = !!order && CANCELABLE_STATUSES.includes(order.status);
+  const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
+  // Sem motoboy e devolução têm a própria decisão na tela; o cancelamento genérico sai de cena.
+  const canCancel = !!order && CANCELABLE_STATUSES.includes(order.status) && status !== 'no_courier' && status !== 'returning';
 
   // Mostra a section pelo estado que HABILITA avaliar (não por "ainda não
   // avaliado") — o `RatingForm` decide sozinho form vs. confirmação via
   // `submitted`. Assim o envio não faz a confirmação sumir sem feedback.
   const showStoreRating = delivery?.status === 'delivered' || order?.status === 'entregue';
 
-  const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
   const steps = order ? orderTimelineSteps(order, delivery) : [];
   const view = orderStatusView(status);
   const tripMin = order && status === 'out_for_delivery' && Number(order.deliveryDuration) > 0 ? Math.round(Number(order.deliveryDuration) / 60) : null;
@@ -230,6 +252,9 @@ export default function PedidoPage() {
         height: 280,
         key: process.env.NEXT_PUBLIC_MAPTILER_KEY,
       })
+    : null;
+  const searchingMin = delivery?.createdAt && !Number.isNaN(new Date(delivery.createdAt).getTime())
+    ? Math.max(0, Math.round((Date.now() - new Date(delivery.createdAt).getTime()) / 60000))
     : null;
   const itemsCount = (order?.products || []).reduce((sum: number, p: any) => sum + (Number(p.quantity) || 1), 0);
 
@@ -281,6 +306,32 @@ export default function PedidoPage() {
               )}
             </section>
 
+            {status === 'no_courier' && (
+              <CourierTimeoutCard
+                storeName={order.storeName || 'loja'}
+                searchingMin={searchingMin}
+                refundAmount={Number(order.totalValue) || 0}
+                paymentMethod={order.paymentMethod}
+                busy={deciding}
+                onWait={() => handlePoolDecision('seguir')}
+                onCancel={() => handlePoolDecision('cancelar')}
+              />
+            )}
+            {waitingAgain && status === 'finding_courier' && (
+              <Alert tone="info" title="Procurando de novo">Avisamos quando alguém aceitar.</Alert>
+            )}
+            {status === 'returning' && (
+              <ReturnDecisionCard
+                courierName={mb?.name}
+                storeName={order.storeName || 'loja'}
+                refundAmount={Number(order.totalValue) || 0}
+                paymentMethod={order.paymentMethod}
+                chosen={delivery?.pendingReturnAction}
+                busy={deciding}
+                onConfirm={handleReturnDecision}
+              />
+            )}
+
             {!showPixButton && !['entregue', 'cancelado', 'rejeitado'].includes(order.status) && <OrderPushPrompt />}
 
             {mb && (
@@ -298,14 +349,14 @@ export default function PedidoPage() {
               </section>
             )}
 
-            {t.showPin && delivery?.pin && !['cancelado', 'rejeitado', 'entregue'].includes(order.status) && status !== 'delivered' && (
+            {t.showPin && delivery?.pin && !['cancelado', 'rejeitado', 'entregue'].includes(order.status) && status !== 'delivered' && status !== 'returning' && (
               <section className={styles.pinBlock} aria-label="Código de entrega">
                 <p className={styles.blockLabel}>Código de entrega</p>
                 <DeliveryPin pin={delivery.pin} />
               </section>
             )}
 
-            {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && (
+            {order.deliveryId && !['cancelado', 'rejeitado'].includes(order.status) && status !== 'returning' && (
               <button type="button" className={styles.mapCard} onClick={() => setMapOpen(true)}>
                 {mapThumb && <img src={mapThumb} alt="" className={styles.mapImg} />}
                 <span className={styles.mapLabel}>

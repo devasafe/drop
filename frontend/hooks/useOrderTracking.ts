@@ -200,7 +200,21 @@ export function useOrderTracking(orderId?: string) {
       setMotoboyPos({ lat: latitude, lng: longitude });
     };
 
+    // Sem motoboy no prazo e devolução (pacote voltando para a loja): o cliente decide na tela,
+    // então pedido e entrega são rebuscados (flag do pool, statusDevolucao, pendingReturnAction).
+    const handleDecisionEvent = (data: any) => {
+      if (data?.orderId !== orderId) return;
+      refetchOrder();
+      const dId = currentDeliveryId || data.deliveryId;
+      if (dId) refetchDelivery(dId);
+    };
+
     const unsubscribers = [
+      on('order:pool_timeout', handleDecisionEvent),
+      on('order:pool_timeout_resolved', handleDecisionEvent),
+      on('order:aguardando_decisao_devolucao', handleDecisionEvent),
+      on('order:reentrega_escolhida', handleDecisionEvent),
+      on('order:reassigning', handleDecisionEvent),
       on('order:accepted_by_store', handleOrderAccepted),
       on('motoboy:assigned', handleMotoboyAssigned),
       on('delivery:picked', handleDeliveryPicked),
@@ -269,6 +283,35 @@ export function useOrderTracking(orderId?: string) {
     }
   }, [orderId, setOrder]);
 
+  // Seguir/nova entrega: atualização otimista (o evento do socket confirma). Cancelar/reembolso
+  // encerram o pedido: rebusca para mostrar o cancelamento. 409 = decisão já tomada (outro
+  // aparelho) ou o pedido mudou: recarrega e segue sem erro.
+  const decide = useCallback(async (path: string, escolha: string, apply?: () => void): Promise<ActionResult> => {
+    if (!orderId) return { ok: false, error: 'Pedido inválido' };
+    try {
+      await api.post(`/orders/${orderId}/${path}`, { escolha });
+      if (apply) apply();
+      else refetch();
+      return { ok: true };
+    } catch (err) {
+      if ((err as { response?: { status?: number } })?.response?.status === 409) {
+        refetch();
+        return { ok: true };
+      }
+      return { ok: false, error: getErrorMessage(err, 'Não foi possível enviar sua escolha. Tente de novo.') };
+    }
+  }, [orderId, refetch]);
+
+  /** Nenhum motoboy aceitou no prazo do pool: seguir esperando ou cancelar com reembolso integral. */
+  const decidePoolTimeout = useCallback((escolha: 'seguir' | 'cancelar') => decide('pool-timeout', escolha, escolha === 'seguir'
+    ? () => setOrder((prev: any) => (prev ? { ...prev, awaitingCustomerPoolDecision: false } : prev))
+    : undefined), [decide, setOrder]);
+
+  /** Motoboy desistiu depois de retirar: nova entrega ou reembolso. */
+  const decideReturn = useCallback((escolha: 'reentrega' | 'reembolso') => decide('pos-devolucao', escolha, escolha === 'reentrega'
+    ? () => setDelivery((prev: any) => (prev ? { ...prev, pendingReturnAction: 'reassign' } : prev))
+    : undefined), [decide, setDelivery]);
+
   const submitMotoboyRating = useCallback(async (rating: number, comment: string): Promise<ActionResult> => {
     if (!delivery?._id) return { ok: false, error: 'Entrega não encontrada' };
     if (rating === 0) return { ok: false, error: 'Selecione uma nota' };
@@ -315,6 +358,8 @@ export function useOrderTracking(orderId?: string) {
     motoboyPos,
     canConfirmReceived,
     confirmReceived,
+    decidePoolTimeout,
+    decideReturn,
     submitMotoboyRating,
     submitStoreRating,
     pixData,

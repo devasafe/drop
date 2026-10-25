@@ -106,7 +106,7 @@ const categories = [
 ];
 const PRODUCT_VARIANTS = ['home', 'busca', 'loja', 'carrinho', 'recomendado'] as const;
 const STATUSES = ['aberta', 'fechada', 'em_entrega', 'cancelado', 'entregue'] as const;
-const ORDER_STATUSES: CustomerOrderStatus[] = ['awaiting_payment', 'awaiting_store', 'preparing', 'finding_courier', 'out_for_delivery', 'in_progress', 'delivered', 'cancelled', 'problem'];
+const ORDER_STATUSES: CustomerOrderStatus[] = ['awaiting_payment', 'awaiting_store', 'preparing', 'finding_courier', 'no_courier', 'out_for_delivery', 'returning', 'in_progress', 'delivered', 'cancelled', 'problem'];
 
 /* ---------- DS v2: componentes novos, renderizados dentro de um tema ---------- */
 function V2Label({ children }: { children: ReactNode }) {

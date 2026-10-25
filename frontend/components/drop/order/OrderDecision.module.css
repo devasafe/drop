@@ -1,0 +1,59 @@
+/* Decisões do cliente no pedido (sem motoboy, entrega interrompida). Só tokens semânticos. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+
+.title {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+  text-wrap: balance;
+}
+
+.text {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+}
+
+.cap {
+  margin: var(--space-1) 0 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.option > button {
+  width: 100%;
+}
+
+.hint {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
