@@ -7,9 +7,11 @@ import { requestDirectRefund, executeDirectRefund } from './asaasLoja/refund';
 /**
  * Reembolso de pedido entregue (caso B, decidido em 25/10/2026).
  * Valor: defeito ou produto errado = tudo (com a entrega: a culpa é da loja); arrependimento até
- * RETURN_FULL_REFUND_DAYS da entrega = tudo (art. 49 do CDC); depois = só os produtos (a entrega
- * já foi feita). O estorno só sai quando a loja digita o PIN de devolução.
+ * N dias da entrega (Regras e taxas, padrão 7) = tudo (art. 49 do CDC); depois = só os produtos
+ * (a entrega já foi feita). O estorno só sai quando a loja digita o PIN de devolução.
  */
+
+/** Padrão quando a configuração não tem o valor (PlatformConfig.returnFullRefundDays). */
 export const RETURN_FULL_REFUND_DAYS = 7;
 export const RETURN_PIN_MAX_ATTEMPTS = 5;
 export const RETURN_PIN_LOCK_MINUTES = 15;
@@ -32,15 +34,16 @@ export const RETURN_REJECT_REASONS: Record<string, string> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Valor do estorno pelo motivo e pela data da entrega. */
+/** Valor do estorno pelo motivo e pela data da entrega. `fullRefundDays` vem de Regras e taxas. */
 export function returnRefund(
   order: { totalValue?: unknown; deliveryFee?: unknown },
   deliveredAt: Date | null | undefined,
   reason: ReturnReason,
   now: Date = new Date(),
+  fullRefundDays: number = RETURN_FULL_REFUND_DAYS,
 ): { amount: number; includesDeliveryFee: boolean } {
   const total = Number(order?.totalValue) || 0;
-  const withinWindow = !deliveredAt || now.getTime() - new Date(deliveredAt).getTime() <= RETURN_FULL_REFUND_DAYS * DAY_MS;
+  const withinWindow = !deliveredAt || now.getTime() - new Date(deliveredAt).getTime() <= fullRefundDays * DAY_MS;
   if (reason !== 'arrependimento' || withinWindow) return { amount: round2(total), includesDeliveryFee: true };
   return { amount: Math.max(0, round2(total - (Number(order?.deliveryFee) || 0))), includesDeliveryFee: false };
 }

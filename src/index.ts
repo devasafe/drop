@@ -18,6 +18,7 @@ import { startDeliveryTimeoutJob } from './jobs/deliveryTimeout.job';
 import { startExpirePixOrdersJob } from './jobs/expirePixOrders.job';
 import { startStoreAcceptTimeoutJob } from './jobs/storeAcceptTimeout.job';
 import { startPoolTimeoutJob } from './jobs/poolTimeout.job';
+import { startReturnRequestEscalationJob } from './jobs/returnRequestEscalation.job';
 import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 import { startSaasBillingJob } from './jobs/saasBilling.job';
@@ -102,6 +103,14 @@ connectDB().then(() => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('⚠️ Pool timeout job failed to start', e);
+  }
+
+  // Reembolso de pedido entregue sem resposta da loja no prazo → avisa o admin (uma vez).
+  try {
+    startReturnRequestEscalationJob();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Return request escalation job failed to start', e);
   }
 
   // ✅ Retentativa/reconciliação do estorno no modo SaaS direto (backoff P5 + reaper de 'requested' preso).

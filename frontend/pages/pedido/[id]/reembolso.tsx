@@ -33,6 +33,7 @@ export default function PedirReembolsoPage() {
   const { showToast } = useToast();
   const [order, setOrder] = useState<any | null>(null);
   const [amounts, setAmounts] = useState<Record<Reason, number> | null>(null);
+  const [days, setDays] = useState<number | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
   const [reason, setReason] = useState<Reason>('defeito');
   const [note, setNote] = useState('');
@@ -44,7 +45,7 @@ export default function PedirReembolsoPage() {
     let off = false;
     api.get(`/orders/${id}`).then((r) => { if (!off) setOrder(r.data); }).catch(() => undefined);
     api.get(`/orders/${id}/return-request/preview`)
-      .then((r) => { if (!off) setAmounts(r.data?.amounts ?? null); })
+      .then((r) => { if (!off) { setAmounts(r.data?.amounts ?? null); setDays(r.data?.fullRefundDays ?? null); } })
       .catch((e) => { if (!off) setBlocked(e?.response?.data?.error || 'Não deu para abrir o reembolso agora. Tente de novo.'); });
     return () => { off = true; };
   }, [id]);
@@ -115,7 +116,7 @@ export default function PedirReembolsoPage() {
                   </Alert>
                 ) : (
                   <Alert tone="info" title={`Volta ${formatMoney(amount)}`}>
-                    Sem a taxa de entrega: passaram 7 dias da entrega e a entrega já foi feita. O dinheiro volta quando a loja receber o produto.
+                    {`Sem a taxa de entrega: passaram ${days ?? 7} dias da entrega e a entrega já foi feita. O dinheiro volta quando a loja receber o produto.`}
                   </Alert>
                 )
               )}

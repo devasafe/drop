@@ -28,6 +28,8 @@ export const RULE_FIELDS: Record<string, RuleFieldInfo> = {
   storeAcceptTimeoutMin: mins('Prazo para a loja aceitar'),
   poolTimeoutMin: mins('Prazo para achar motoboy'),
   customerAbsentWaitMin: mins('Espera pelo cliente ausente'),
+  returnFullRefundDays: { label: 'Arrependimento com valor integral', unit: 'days', min: 1, max: 90, int: true },
+  returnStoreResponseHours: { label: 'Resposta da loja ao reembolso', unit: 'hours', min: 1, max: 240, int: true },
   cardFeePercent: pct('Taxa do cartão (%)'),
   cardFeeFixed: money('Taxa fixa do cartão'),
   cardAnticipationMonthlyRate: pct('Juros da antecipação'),

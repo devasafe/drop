@@ -22,8 +22,8 @@ const REJECT_REASONS: { code: string; label: string }[] = [
 
 function refundRule(rr: any): string {
   const tail = 'Sai da sua conta Asaas só quando você receber o produto e digitar o código.';
-  if (!rr.includesDeliveryFee) return `Arrependimento depois de 7 dias: volta sem a taxa de entrega. ${tail}`;
-  const why = rr.reason === 'arrependimento' ? 'Arrependimento em até 7 dias' : rr.reason === 'errado' ? 'Produto errado' : 'Defeito';
+  if (!rr.includesDeliveryFee) return `Arrependimento fora do prazo: volta sem a taxa de entrega. ${tail}`;
+  const why = rr.reason === 'arrependimento' ? 'Arrependimento no prazo' : rr.reason === 'errado' ? 'Produto errado' : 'Defeito';
   return `${why}: volta tudo. ${tail}`;
 }
 

@@ -10,14 +10,16 @@ import { isValidImageBuffer } from '../middleware/upload';
 import { generatePin, pinLockMinutesLeft, pinLockedResponse } from '../services/pinGuard';
 import { notifyStore, notifyUser, STORE_LINKS } from '../services/storeNotify';
 import { CUSTOMER_LINKS } from '../services/customerNotify';
+import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import {
-  RETURN_REASONS, RETURN_REASON_LABEL, RETURN_REJECT_REASONS,
+  RETURN_REASONS, RETURN_REASON_LABEL, RETURN_REJECT_REASONS, RETURN_FULL_REFUND_DAYS,
   returnRefund, serializeReturnRequest, settleReturnRefund, registerReturnPinFailure,
 } from '../services/returnRequest';
 
 const code = (id: string) => String(id).slice(-6).toUpperCase();
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
 const firstName = (name?: string | null) => String(name || '').split(' ')[0] || 'O cliente';
+const fullRefundDays = async () => (await getPlatformConfig())?.returnFullRefundDays ?? RETURN_FULL_REFUND_DAYS;
 
 /** Pedido do cliente que pode ter reembolso: entregue, pago e do modo SaaS (o estorno sai da loja). */
 async function loadOwnedDeliveredOrder(orderId: string, customerId: string) {
@@ -41,8 +43,9 @@ export const previewReturnRequest = async (req: AuthenticatedRequest, res: Respo
   try {
     const loaded = await loadOwnedDeliveredOrder(String(req.params.id), String(req.user?.id));
     if ('error' in loaded) return res.status(loaded.error.status).json(loaded.error.body);
-    const amounts = Object.fromEntries(RETURN_REASONS.map((r) => [r, returnRefund(loaded.order, loaded.deliveredAt, r).amount]));
-    return res.json({ amounts });
+    const days = await fullRefundDays();
+    const amounts = Object.fromEntries(RETURN_REASONS.map((r) => [r, returnRefund(loaded.order, loaded.deliveredAt, r, new Date(), days).amount]));
+    return res.json({ amounts, fullRefundDays: days });
   } catch (err) {
     logger.error('Erro na prévia do reembolso', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -72,7 +75,7 @@ export const createReturnRequest = async (req: AuthenticatedRequest, res: Respon
       photoUrl = await uploadToCloudinary(file.buffer, 'drop/reembolsos');
     }
 
-    const { amount, includesDeliveryFee } = returnRefund(order, deliveredAt, reason);
+    const { amount, includesDeliveryFee } = returnRefund(order, deliveredAt, reason, new Date(), await fullRefundDays());
     let rr;
     try {
       rr = await prisma.returnRequest.create({

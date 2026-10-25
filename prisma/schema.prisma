@@ -1104,6 +1104,10 @@ model PlatformConfig {
   storeAcceptTimeoutMin       Int           @default(10)
   poolTimeoutMin              Int           @default(15)
   customerAbsentWaitMin       Int           @default(15)
+  /// Reembolso de pedido entregue (caso B): arrependimento até N dias da entrega devolve tudo, com a entrega.
+  returnFullRefundDays        Int           @default(7)
+  /// Reembolso de pedido entregue: sem resposta da loja em N horas, o pedido vai para o admin.
+  returnStoreResponseHours    Int           @default(48)
   autoApprovePayouts          Boolean       @default(false)
   autoApproveWithdrawals      Boolean       @default(false)
   rankingPrizesEnabled        Boolean       @default(false)
@@ -1389,6 +1393,8 @@ model ReturnRequest {
   pinLockedUntil      DateTime?
   decidedAt           DateTime?
   completedAt         DateTime?
+  /// Sem resposta da loja no prazo (PlatformConfig.returnStoreResponseHours): avisado ao admin uma vez.
+  escalatedAt         DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 

@@ -7,7 +7,7 @@
 import { Prisma, SeasonalTheme } from '@prisma/client';
 import { RULE_REASON_MAX } from './ruleChanges';
 
-export type RuleKind = 'percent' | 'money' | 'bigMoney' | 'minutes' | 'installments';
+export type RuleKind = 'percent' | 'money' | 'bigMoney' | 'minutes' | 'installments' | 'days' | 'hours';
 
 const LIMITS: Record<RuleKind, { min: number; max: number; int: boolean; unit: string }> = {
   percent: { min: 0, max: 100, int: false, unit: '%' },
@@ -15,6 +15,8 @@ const LIMITS: Record<RuleKind, { min: number; max: number; int: boolean; unit: s
   bigMoney: { min: 0, max: 100000, int: false, unit: 'R$' },
   minutes: { min: 1, max: 240, int: true, unit: 'min' },
   installments: { min: 1, max: 12, int: true, unit: 'parcelas' },
+  days: { min: 1, max: 90, int: true, unit: 'dias' },
+  hours: { min: 1, max: 240, int: true, unit: 'h' },
 };
 
 export const PLATFORM_CONFIG_RULES = {
@@ -34,6 +36,8 @@ export const PLATFORM_CONFIG_RULES = {
   storeAcceptTimeoutMin: { label: 'Prazo para a loja aceitar', kind: 'minutes' },
   poolTimeoutMin: { label: 'Prazo para achar motoboy', kind: 'minutes' },
   customerAbsentWaitMin: { label: 'Espera pelo cliente ausente', kind: 'minutes' },
+  returnFullRefundDays: { label: 'Arrependimento com valor integral', kind: 'days' },
+  returnStoreResponseHours: { label: 'Resposta da loja ao reembolso', kind: 'hours' },
   cardFeePercent: { label: 'Taxa do cartão (%)', kind: 'percent' },
   cardFeeFixed: { label: 'Taxa fixa do cartão', kind: 'money' },
   cardAnticipationMonthlyRate: { label: 'Juros da antecipação', kind: 'percent' },

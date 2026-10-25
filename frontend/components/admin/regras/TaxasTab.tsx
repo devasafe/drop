@@ -26,6 +26,7 @@ type ConfigKey =
   | 'motoboyMinimumWithdraw' | 'storeMinimumWithdraw'
   | 'cancelFeeCustomerPercent' | 'cancelFeeStorePercent' | 'cancelFeeMotoboyPercent'
   | 'storeAcceptTimeoutMin' | 'poolTimeoutMin' | 'customerAbsentWaitMin'
+  | 'returnFullRefundDays' | 'returnStoreResponseHours'
   | 'lateCancellationFeePercent' | 'lateCancellationMotoboyShare' | 'cardFeePercent' | 'cardFeeFixed'
   | 'cardAnticipationMonthlyRate' | 'cardInstallmentMaxCount' | 'cardInstallmentMinValue';
 
@@ -36,7 +37,7 @@ interface FieldDef {
   label: string;
   /** Nome curto no aviso "de → para". */
   short: string;
-  unit: 'money' | 'percent' | 'minutes' | 'count';
+  unit: 'money' | 'percent' | 'minutes' | 'count' | 'days' | 'hours';
   step: string;
   int?: boolean;
   hint?: (v: number) => string;
@@ -99,15 +100,29 @@ const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
       { key: 'customerAbsentWaitMin', label: 'Espera pelo cliente ausente (min)', short: 'Espera pelo cliente', unit: 'minutes', step: '1', int: true },
     ],
   },
+  {
+    title: 'Reembolso de pedido entregue',
+    note: 'Defeito ou produto errado devolvem sempre o valor inteiro. O prazo vale para o arrependimento.',
+    fields: [
+      { key: 'returnFullRefundDays', label: 'Arrependimento com valor integral (dias)', short: 'Prazo do arrependimento', unit: 'days', step: '1', int: true, hint: (v) => `Depois de ${v} ${v === 1 ? 'dia' : 'dias'} da entrega, volta sem a taxa de entrega` },
+      { key: 'returnStoreResponseHours', label: 'Resposta da loja antes do admin (horas)', short: 'Prazo da loja no reembolso', unit: 'hours', step: '1', int: true, hint: (v) => `Sem resposta em ${v} h, o pedido vai para o admin` },
+    ],
+  },
 ];
 
 const FIELDS = SECTIONS.flatMap((s) => s.fields);
+
+/** Campos novos: só entram na tela e no PUT quando o servidor já os devolve (deploy fora de ordem). */
+const OPTIONAL_KEYS = new Set<ConfigKey>(['returnFullRefundDays', 'returnStoreResponseHours']);
+const servedBy = (c: PlatformConfig) => (f: FieldDef) => !OPTIONAL_KEYS.has(f.key) || c[f.key] !== undefined;
 
 const fmtUnit = (f: FieldDef, v: number | undefined) => {
   if (v === undefined || !Number.isFinite(v)) return '—';
   if (f.unit === 'money') return formatMoney(v);
   if (f.unit === 'percent') return `${fmtNum(v)}%`;
   if (f.unit === 'count') return fmtNum(v);
+  if (f.unit === 'days') return `${fmtNum(v)} ${v === 1 ? 'dia' : 'dias'}`;
+  if (f.unit === 'hours') return `${fmtNum(v)} h`;
   return `${fmtNum(v)} min`;
 };
 const problem = (f: FieldDef, v: number | undefined): string | null => {
@@ -194,8 +209,10 @@ export function TaxasTab() {
   }
 
   const num = (c: PlatformConfig, k: ConfigKey) => c[k] as number | undefined;
-  const changes = FIELDS.filter((f) => !sameNum(num(config, f.key), num(edit, f.key)));
-  const invalid = FIELDS.filter((f) => problem(f, num(edit, f.key)) !== null);
+  const served = servedBy(config);
+  const fields = FIELDS.filter(served);
+  const changes = fields.filter((f) => !sameNum(num(config, f.key), num(edit, f.key)));
+  const invalid = fields.filter((f) => problem(f, num(edit, f.key)) !== null);
   const n = changes.length;
 
   const setField = (f: FieldDef, raw: string) => {
@@ -223,7 +240,7 @@ export function TaxasTab() {
     plans.map((p) => ({ plan: p, newValue: edit[PLAN_FIELDS[p]] as number }));
 
   const bodyFor = (extra: Record<string, unknown> = {}) => ({
-    ...Object.fromEntries(FIELDS.map((f) => [f.key, edit[f.key]])),
+    ...Object.fromEntries(fields.map((f) => [f.key, edit[f.key]])),
     ...(reason.trim() ? { changeReason: reason.trim() } : {}),
     ...extra,
   });
@@ -290,14 +307,14 @@ export function TaxasTab() {
   return (
     <div className={styles.layout}>
       <div className={styles.main}>
-        {SECTIONS.filter((s) => !(isSaas && s.title === COMMISSION_SECTION)).map((s) => (
+        {SECTIONS.filter((s) => !(isSaas && s.title === COMMISSION_SECTION) && s.fields.some(served)).map((s) => (
           <section key={s.title} className={blocks.block} aria-label={s.title}>
             <div className={blocks.blockHead}>
               <h2 className={blocks.blockTitle}>{s.title}</h2>
               {s.note && <span className={blocks.muted}>{s.note}</span>}
             </div>
             <div className={styles.fields}>
-              {s.fields.map((f) => {
+              {s.fields.filter(served).map((f) => {
                 const v = num(edit, f.key);
                 const was = num(config, f.key);
                 const changed = !sameNum(was, v);
