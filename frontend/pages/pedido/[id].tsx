@@ -30,6 +30,7 @@ import { buildRouteThumbnailUrl } from '../../lib/staticMap';
 import { ROUTES, buscarHref, pedidoConversaHref, pedidoReciboHref } from '../../lib/routes';
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
+import { OrderPushPrompt } from '../../components/drop/order/OrderPushPrompt';
 import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
 
@@ -279,6 +280,8 @@ export default function PedidoPage() {
                 </Alert>
               )}
             </section>
+
+            {!showPixButton && !['entregue', 'cancelado', 'rejeitado'].includes(order.status) && <OrderPushPrompt />}
 
             {mb && (
               <section className={styles.courier}>
