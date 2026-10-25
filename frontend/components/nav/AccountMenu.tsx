@@ -6,6 +6,7 @@ import { ROUTES } from '../../lib/routes';
 import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
 import { imageUrl } from '../../lib/config';
 import { teamPanelEntry } from '../../lib/teamPanel';
+import { helpRouteFor } from '../../lib/helpRoute';
 import { isAdminPanelRoute } from '../../lib/adminNav';
 import Icon, { type IconName } from '../Icon';
 import styles from './AccountMenu.module.css';
@@ -111,7 +112,7 @@ export default function AccountMenu({ onNavigate }: { onNavigate?: () => void })
         <button type="button" className={styles.item} onClick={() => go('/notifications')}>
           <span className={styles.itemIcon}><Icon name="bell" size={14} /></span> Preferências e notificações
         </button>
-        <button type="button" className={styles.item} onClick={() => go('/suporte')}>
+        <button type="button" className={styles.item} onClick={() => go(helpRouteFor(activeRole))}>
           <span className={styles.itemIcon}><Icon name="headphones" size={14} /></span> Ajuda e suporte
         </button>
       </div>

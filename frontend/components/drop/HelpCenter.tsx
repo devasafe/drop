@@ -3,7 +3,7 @@ import { ChevronRight, Headphones, MessageCircle, Package } from 'lucide-react';
 import api from '../../lib/api';
 import { useOrders } from '../../hooks/useSync';
 import { customerOrderStatus, shortOrderCode } from '../../lib/customerOrder';
-import { SupportThread } from './SupportThread';
+import { SupportThread, type SupportTicketView } from './SupportThread';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 import { orderStatusView } from './OrderStatusBadge';
@@ -24,7 +24,7 @@ export interface HelpCenterProps {
 export function HelpCenter({ faq, withOrders = false, frame }: HelpCenterProps) {
   const { orders } = useOrders();
   const [tickets, setTickets] = useState<any[]>([]);
-  const [thread, setThread] = useState<{ conversationId: string; subject: string } | null>(null);
+  const [thread, setThread] = useState<{ ticket: SupportTicketView; draft: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -33,15 +33,29 @@ export function HelpCenter({ faq, withOrders = false, frame }: HelpCenterProps) 
   }, []);
   useEffect(loadTickets, [loadTickets]);
 
-  const openTicket = async (subject: string) => {
-    // Chamado ainda aberto sobre o mesmo assunto: continua nele em vez de abrir outro.
-    const existing = tickets.find((t) => t.subject === subject && t.status !== 'resolvido' && t.conversationId);
-    if (existing) { setThread({ conversationId: existing.conversationId, subject }); return; }
+  /** Abre (ou retoma) um chamado. Com pedido, o chamado nasce com o orderId e a conversa mostra o card dele. */
+  const openTicket = async (subject: string, order: SupportTicketView['order'] = null, draft = '') => {
+    // Chamado ainda aberto sobre o mesmo pedido (ou, sem pedido, o mesmo assunto): continua nele.
+    const existing = tickets.find((t) => t.status !== 'resolvido' && t.conversationId
+      && (order ? t.orderId === order._id || (!t.orderId && t.subject === subject) : !t.orderId && t.subject === subject));
+    if (existing) { setThread({ ticket: existing, draft }); return; }
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post('/support/tickets', { subject });
-      setThread({ conversationId: r.data.conversationId, subject });
+      const r = await api.post('/support/tickets', order ? { subject, orderId: order._id } : { subject });
+      const created = r.data?.ticket || {};
+      setThread({
+        ticket: {
+          _id: String(created._id ?? created.id ?? r.data?._id ?? ''),
+          conversationId: r.data.conversationId,
+          subject,
+          status: 'aberto',
+          assignedTo: [],
+          order,
+          resolvedAt: null,
+        },
+        draft,
+      });
       loadTickets();
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Não abrimos o chamado. Tente de novo.');
@@ -50,7 +64,23 @@ export function HelpCenter({ faq, withOrders = false, frame }: HelpCenterProps) 
     }
   };
 
-  if (thread) return <>{frame(<SupportThread {...thread} onBack={() => setThread(null)} />, true)}</>;
+  if (thread) {
+    const { ticket, draft } = thread;
+    return (
+      <>
+        {frame(
+          <SupportThread
+            key={ticket.conversationId}
+            ticket={ticket}
+            initialText={draft}
+            onBack={() => { setThread(null); loadTickets(); }}
+            onNewTicket={(text) => openTicket(ticket.subject, ticket.order ?? null, text)}
+          />,
+          true,
+        )}
+      </>
+    );
+  }
 
   const recent = withOrders ? (orders || []).slice(0, 3) : [];
   return (
@@ -65,7 +95,13 @@ export function HelpCenter({ faq, withOrders = false, frame }: HelpCenterProps) 
                   {recent.map((o: any) => {
                     const label = `#${shortOrderCode(o._id)} · ${o.storeName || 'Loja'}`;
                     return (
-                      <button key={o._id} type="button" className={styles.row} disabled={busy} onClick={() => openTicket(`Pedido ${label}`)}>
+                      <button
+                        key={o._id}
+                        type="button"
+                        className={styles.row}
+                        disabled={busy}
+                        onClick={() => openTicket(`Pedido ${label}`, { _id: o._id, storeName: o.storeName || 'Loja', status: o.status, totalValue: Number(o.totalValue) || 0, createdAt: o.createdAt })}
+                      >
                         <span className={styles.ico} aria-hidden="true"><Package size={18} /></span>
                         <span className={styles.tx}><b>{label}</b><span>{`${orderStatusView(customerOrderStatus(o)).label} · ${ddmm(o.createdAt)}`}</span></span>
                         <ChevronRight size={18} aria-hidden="true" />
@@ -88,9 +124,9 @@ export function HelpCenter({ faq, withOrders = false, frame }: HelpCenterProps) 
                 <h2 id="ajuda-conversas" className={styles.cap}>Conversas</h2>
                 <div className={styles.card}>
                   {tickets.map((t) => (
-                    <button key={t._id} type="button" className={styles.row} onClick={() => setThread({ conversationId: t.conversationId, subject: t.subject })}>
+                    <button key={t._id} type="button" className={styles.row} onClick={() => setThread({ ticket: t, draft: '' })}>
                       <span className={styles.ico} aria-hidden="true"><Headphones size={18} /></span>
-                      <span className={styles.tx}><b>{t.subject}</b><span>{ddmm(t.createdAt)}</span></span>
+                      <span className={styles.tx}><b>{t.order ? `${t.subject} · #${shortOrderCode(t.order._id)}` : t.subject}</b><span>{ddmm(t.createdAt)}</span></span>
                       <span className={t.status === 'resolvido' ? styles.done : styles.open}>{STATUS[t.status] ?? t.status}</span>
                     </button>
                   ))}

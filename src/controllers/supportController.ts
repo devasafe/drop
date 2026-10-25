@@ -33,6 +33,40 @@ const CATEGORY_TO_MANAGER_ROLE: Record<string, string> = {
   geral: 'gerente_geral',
 };
 
+/**
+ * Pedido do chamado: só quem tem relação com ele (cliente, dono da loja ou motoboy da entrega).
+ * Devolve o erro HTTP quando não pode, ou null quando está tudo certo.
+ */
+async function orderAccessError(orderId: string, userId: string): Promise<{ status: number; error: string } | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { customerId: true, deliveryId: true, store: { select: { ownerId: true } } },
+  });
+  if (!order) return { status: 404, error: 'Pedido não encontrado' };
+  if (order.customerId === userId || order.store?.ownerId === userId) return null;
+  if (order.deliveryId) {
+    const d = await prisma.delivery.findUnique({ where: { id: order.deliveryId }, select: { motoboyId: true } });
+    if (d?.motoboyId === userId) return null;
+  }
+  return { status: 403, error: 'Este pedido não é seu' };
+}
+
+/** Resumo do pedido para o card do chamado (número, loja, situação, total). */
+async function orderSummaries(orderIds: string[]): Promise<Map<string, any>> {
+  if (!orderIds.length) return new Map();
+  const rows = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: { id: true, status: true, totalValue: true, createdAt: true, store: { select: { name: true } } },
+  });
+  return new Map(rows.map((o) => [o.id, {
+    _id: o.id,
+    storeName: o.store?.name ?? 'Loja',
+    status: o.status,
+    totalValue: Number(o.totalValue),
+    createdAt: o.createdAt,
+  }]));
+}
+
 // Abrir ticket de suporte
 export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -43,6 +77,11 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
 
     const { subject, category: requestedCategory } = req.body;
     if (!subject?.trim()) return res.status(400).json({ error: 'Assunto é obrigatório' });
+    const orderId = req.body.orderId ? String(req.body.orderId) : null;
+    if (orderId) {
+      const denied = await orderAccessError(orderId, String(userId));
+      if (denied) return res.status(denied.status).json({ error: denied.error });
+    }
 
     const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { id: true, name: true } });
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -93,6 +132,7 @@ export const openTicket = async (req: AuthenticatedRequest, res: Response) => {
         assignedTo: manager ? [{ userId: manager.id, name: manager.name }] : [],
         category: category as any,
         subject: subject.trim(),
+        orderId,
         status: 'aberto',
       },
     });
@@ -148,7 +188,8 @@ export const listTickets = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const rows = await prisma.supportTicket.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
-    const tickets = rows.map((t) => ({ ...t, _id: t.id }));
+    const orders = await orderSummaries(Array.from(new Set(rows.map((t) => t.orderId).filter((id): id is string => !!id))));
+    const tickets = rows.map((t) => ({ ...t, _id: t.id, order: t.orderId ? orders.get(t.orderId) ?? null : null }));
 
     return res.json(tickets);
   } catch (err) {
@@ -189,6 +230,17 @@ export const assignTicket = async (req: AuthenticatedRequest, res: Response) => 
 
     // Atualiza status na conversa também
     await updateConversation(ticket.conversationId, { supportStatus: 'em_atendimento' });
+
+    // Quem abriu vê na hora que o chamado está em atendimento e com quem.
+    const openerId = (ticket.openedBy as any)?.userId;
+    if (openerId) {
+      emitToRoom(`user:${openerId}`, 'support:ticket_updated', {
+        ticketId: ticket.id,
+        conversationId: ticket.conversationId,
+        status: 'em_atendimento',
+        attendantName: adminName,
+      });
+    }
 
     return res.json({ success: true, ticket: { ...updated, _id: updated.id } });
   } catch (err) {

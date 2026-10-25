@@ -116,7 +116,7 @@ describe('mensalidade cancelada no lojista', () => {
     render(<SaasPausedCard storeId="s1" onStatus={onStatus} />);
     expect(await screen.findByText('Mensalidade cancelada')).toBeInTheDocument();
     expect(screen.getByText('Você vende até 01/11. Depois disso a loja sai da vitrine e não recebe pedidos novos.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Falar com o suporte' })).toHaveAttribute('href', '/suporte');
+    expect(screen.getByRole('link', { name: 'Falar com o suporte' })).toHaveAttribute('href', '/seller/ajuda');
     expect(onStatus).toHaveBeenCalledWith('cancelled', false);
   });
 

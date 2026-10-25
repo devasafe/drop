@@ -4,6 +4,7 @@ import { PauseCircle, AlertTriangle, Info } from 'lucide-react';
 import api from '../../../lib/api';
 import { formatMoney } from '../../../lib/money';
 import { unwrap, formatFullDate } from '../../../lib/sellerApi';
+import { SELLER_ROUTES } from '../../../lib/sellerRoutes';
 import { formatDayMonth, saasCancelledEndedMessage, saasCancelledSellsUntil, saasStoreBlocked } from '../../../lib/saasBilling';
 import styles from './SaasPausedCard.module.css';
 
@@ -79,14 +80,14 @@ export function SaasPausedCard({ storeId, onStatus }: {
         <section className={[styles.card, styles.late].join(' ')} aria-label="Mensalidade cancelada">
           <h2 className={styles.title}><AlertTriangle size={22} aria-hidden="true" /> Mensalidade cancelada</h2>
           <p className={styles.text}>{`Você vende até ${formatDayMonth(until)}. Depois disso a loja sai da vitrine e não recebe pedidos novos.`}</p>
-          <Link className={styles.pay} href="/suporte">Falar com o suporte</Link>
+          <Link className={styles.pay} href={SELLER_ROUTES.ajuda}>Falar com o suporte</Link>
         </section>
       );
     }
     return (
       <section className={[styles.card, styles.info].join(' ')} aria-label="Mensalidade cancelada">
         <h2 className={styles.title}><Info size={22} aria-hidden="true" /> {saasCancelledEndedMessage(b)}</h2>
-        <Link className={styles.pay} href="/suporte">Falar com o suporte</Link>
+        <Link className={styles.pay} href={SELLER_ROUTES.ajuda}>Falar com o suporte</Link>
       </section>
     );
   }

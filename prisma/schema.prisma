@@ -1159,12 +1159,15 @@ model SupportTicket {
   assignedTo     Json?
   category       SupportCategory
   subject        String
+  /// Pedido do chamado (opcional). Sem FK: o chamado sobrevive ao pedido apagado.
+  orderId        String?
   status         SupportStatus   @default(aberto)
   resolvedAt     DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@index([category, status])
+  @@index([orderId])
 }
 
 model Broadcast {

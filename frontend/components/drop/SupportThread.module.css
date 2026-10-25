@@ -64,3 +64,104 @@
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* Cabeçalho do chamado: pedido (ou assunto) e situação. */
+.sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+}
+.subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.open,
+.done {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font: var(--text-caption);
+}
+.open {
+  background: var(--color-info-subtle);
+  color: var(--color-info-text);
+}
+.done {
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.order {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.orderIco {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+}
+.orderTx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.orderTx b {
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+
+.banner {
+  padding: 0 var(--space-4);
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+}
+.retry {
+  align-self: flex-end;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--color-error-text);
+  font: var(--text-meta);
+  cursor: pointer;
+}
+.system {
+  margin: 0;
+  text-align: center;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+
+.closed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-default);
+  border-top: 1px solid var(--color-border-default);
+}
+.closedText {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.retry:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

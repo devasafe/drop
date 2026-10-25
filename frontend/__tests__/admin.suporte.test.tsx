@@ -19,9 +19,10 @@ const mockChat = {
   joinConversation: jest.fn(), leaveConversation: jest.fn(), isConnected: true, socket: null,
 };
 jest.mock('../hooks/useChat', () => ({ __esModule: true, default: () => mockChat, useChat: () => mockChat }));
-jest.mock('../components/ChatPanel', () => ({
+// O chat do chamado agora é o TicketChat (DS v2); mesmo contrato de props do antigo ChatPanel.
+jest.mock('../components/admin/suporte/TicketChat', () => ({
   __esModule: true,
-  default: (p: { isFinalized?: boolean; finalizedMessage?: string; onSendMessage: (t: string) => void }) => (
+  TicketChat: (p: { isFinalized?: boolean; finalizedMessage?: string; onSendMessage: (t: string) => void }) => (
     <div data-testid="chat-panel" data-finalized={String(!!p.isFinalized)}>
       {p.isFinalized && <p>{p.finalizedMessage}</p>}
       <button type="button" onClick={() => p.onSendMessage('Oi, Lia')}>Enviar mensagem de teste</button>
@@ -141,6 +142,21 @@ describe('chamados', () => {
     expect(screen.getByTestId('chat-panel')).toHaveAttribute('data-finalized', 'true');
     expect(screen.getByText('Assuma o chamado para poder responder.')).toBeInTheDocument();
     expect(mockChat.joinConversation).toHaveBeenCalledWith('cv1');
+  });
+
+  it('chamado com pedido: o contexto mostra número, loja, situação e total', async () => {
+    (api.get as jest.Mock).mockImplementation((url: string) => {
+      if (url === '/support/tickets') return Promise.resolve({ data: [{ ...T1, orderId: 'ord0000004702', order: { _id: 'ord0000004702', storeName: 'Eletro Center', status: 'entregue', totalValue: 269.8, createdAt: '2026-10-03T14:40:00.000Z' } }, T2, T3] });
+      if (url.startsWith('/chat/conversations/')) return Promise.resolve({ data: [] });
+      return Promise.reject(new Error(`GET inesperado: ${url}`));
+    });
+    renderAdminPage(<AdminSuporte />);
+    await open(/Meu pedido chegou sem o cabo/);
+    const ctx = screen.getByRole('complementary', { name: 'Contexto' });
+    expect(within(ctx).getByText('#004702')).toBeInTheDocument();
+    expect(within(ctx).getByText('Eletro Center')).toBeInTheDocument();
+    expect(within(ctx).getByText('Entregue')).toBeInTheDocument();
+    expect(within(ctx).getByText('R$ 269,80')).toBeInTheDocument();
   });
 
   it('Assumir libera a resposta', async () => {

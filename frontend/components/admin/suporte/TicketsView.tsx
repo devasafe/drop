@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../../lib/api';
-import ChatPanel from '../../ChatPanel';
+import { TicketChat } from './TicketChat';
+import { formatMoney } from '../../../lib/money';
+import { customerOrderStatus, shortOrderCode } from '../../../lib/customerOrder';
+import { orderStatusView } from '../../drop/OrderStatusBadge';
 import Icon from '../../Icon';
 import useChat from '../../../hooks/useChat';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -18,7 +21,7 @@ import { personRole, STATUS_LABELS } from './labels';
 /**
  * Suporte · chamados (D3a, tela 19). Endpoints de sempre: GET /support/tickets { params },
  * GET /chat/conversations/:id/messages, PUT /support/tickets/:id/assign|resolve, DELETE /support/tickets/:id (só CEO na tela),
- * POST /chat/conversations/:id/messages { text }. O ChatPanel só responde depois de assumir e antes de resolver.
+ * POST /chat/conversations/:id/messages { text }. O TicketChat só responde depois de assumir e antes de resolver.
  */
 export type TicketFilter = 'todos' | 'aberto' | 'em_atendimento' | 'comigo' | 'resolvido';
 
@@ -31,6 +34,8 @@ interface Ticket {
   openedBy: { userId: string; name: string; role: string };
   assignedTo: Array<{ userId: string; name: string }>;
   createdAt: string;
+  /** Resumo do pedido do chamado (GET /support/tickets), quando há. */
+  order?: { _id: string; storeName: string; status: string; totalValue: number; createdAt?: string } | null;
 }
 
 const CATEGORY_LABEL: Record<string, string> = { clientes: 'Clientes', lojistas: 'Lojistas', motoboys: 'Motoboys', geral: 'Geral' };
@@ -43,7 +48,7 @@ export function TicketsView({ filter }: { filter: TicketFilter }) {
   const isCeo = (user?.activeRole || user?.role) === 'ceo';
   const { showToast } = useToast();
   const desktop = useMinWidth(ADMIN_DESKTOP_MIN);
-  const { messages, setMessages, typingUsers, setUserTyping, markAsRead, joinConversation, leaveConversation, isConnected } =
+  const { messages, setMessages, joinConversation, leaveConversation, isConnected } =
     useChat({ token: '', userId: myId });
 
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
@@ -236,14 +241,12 @@ export function TicketsView({ filter }: { filter: TicketFilter }) {
           {historyError}
         </Alert>
       )}
-      <ChatPanel
+      <TicketChat
         conversationId={active.conversationId}
         messages={messages}
-        typingUsers={typingUsers}
         userId={myId}
         onSendMessage={send}
-        onUserTyping={setUserTyping}
-        onMarkAsRead={markAsRead}
+        recipientName={active.openedBy.name?.split(' ')[0]}
         isLoading={historyLoading}
         isFinalized={active.status === 'resolvido' || !hasAssumed}
         finalizedMessage={active.status === 'resolvido' ? 'Atendimento encerrado.' : 'Assuma o chamado para poder responder.'}
@@ -266,6 +269,17 @@ export function TicketsView({ filter }: { filter: TicketFilter }) {
         <div className={styles.sumRow}><dt>Atendendo</dt><dd>{assignedNames.length ? assignedNames.join(', ') : 'Ninguém ainda'}</dd></div>
         <div className={styles.sumRow}><dt>Aberto em</dt><dd>{fmtDateTime(active.createdAt)}</dd></div>
       </dl>
+      {active.order && (
+        <>
+          <p className={styles.cap}>Pedido</p>
+          <dl className={styles.sum}>
+            <div className={styles.sumRow}><dt>Número</dt><dd>{`#${shortOrderCode(active.order._id)}`}</dd></div>
+            <div className={styles.sumRow}><dt>Loja</dt><dd>{active.order.storeName}</dd></div>
+            <div className={styles.sumRow}><dt>Situação</dt><dd>{orderStatusView(customerOrderStatus(active.order)).label}</dd></div>
+            <div className={styles.sumRow}><dt>Total</dt><dd>{formatMoney(Number(active.order.totalValue) || 0)}</dd></div>
+          </dl>
+        </>
+      )}
     </aside>
   ) : null;
 

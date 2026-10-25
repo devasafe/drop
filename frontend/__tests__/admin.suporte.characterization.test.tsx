@@ -25,9 +25,10 @@ const mockChat = {
   joinConversation: jest.fn(), leaveConversation: jest.fn(), isConnected: true, socket: null,
 };
 jest.mock('../hooks/useChat', () => ({ __esModule: true, default: () => mockChat, useChat: () => mockChat }));
-jest.mock('../components/ChatPanel', () => ({
+// O chat do chamado agora é o TicketChat (DS v2); mesmo contrato de props do antigo ChatPanel.
+jest.mock('../components/admin/suporte/TicketChat', () => ({
   __esModule: true,
-  default: (p: { onSendMessage: (t: string) => void }) => (
+  TicketChat: (p: { onSendMessage: (t: string) => void }) => (
     <div data-testid="chat-panel">
       <button type="button" onClick={() => p.onSendMessage('Oi, Lia')}>Enviar mensagem de teste</button>
     </div>

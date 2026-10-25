@@ -19,10 +19,10 @@ beforeEach(() => {
   post.mockResolvedValue({ data: { _id: 't2', conversationId: 'c2' } });
 });
 
-test('pedido recente abre o chamado com o pedido no assunto', async () => {
+test('pedido recente abre o chamado com o pedido no assunto e o orderId', async () => {
   render(<AjudaPage />);
   fireEvent.click(await screen.findByRole('button', { name: /#DEF456 · Eletro Center/ }));
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/support/tickets', { subject: 'Pedido #DEF456 · Eletro Center' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/support/tickets', { subject: 'Pedido #DEF456 · Eletro Center', orderId: 'abc123def456' }));
   expect(await screen.findByLabelText('Mensagem')).toBeInTheDocument();
 });
 

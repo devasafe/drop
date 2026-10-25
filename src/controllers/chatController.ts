@@ -549,8 +549,9 @@ export const sendMessage = async (
     const p2Id = conversation.participant2.userId.toString();
     const io = notifier.io;
     if (io) {
-      io.to(`user:${p1Id}`).emit('chat:new_message', msgPayload);
-      io.to(`user:${p2Id}`).emit('chat:new_message', msgPayload);
+      // Chamado de suporte: quem assumiu também recebe ao vivo (pode não ser participante da conversa).
+      const assigned = isSupportConv ? ((supportTicket?.assignedTo as any[]) || []).map((a: any) => String(a.userId)) : [];
+      for (const id of new Set([p1Id, p2Id, ...assigned])) io.to(`user:${id}`).emit('chat:new_message', msgPayload);
     }
 
     // 🔄 Emitir atualização da conversa para o outro participante (lista atualizada + notificação)
