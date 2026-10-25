@@ -101,7 +101,7 @@ export default function SellerLoja() {
   const adminPause = adminPauseOf(store);
   const st = store ? openStatus(store) : null;
 
-  // Capa: todos os planos. Banner da Home (featured): só Premium; quem decide é o servidor.
+  // Capa: todos os planos. Banner da Home (featured): só Premium (no modo SaaS, todas); quem decide é o servidor.
   // As duas passam pelo recorte obrigatório (useImagePicker) e sobem já no tamanho da área.
   const sendImage = async (type: 'cover' | 'featured', file: File) => {
     if (!storeId) return;
@@ -195,13 +195,13 @@ export default function SellerLoja() {
               <Button size="sm" variant="secondary" leftIcon={<Pencil size={16} />} onClick={() => setIdentityOpen(true)}>Frase e logo</Button>
             </div>
             <span className={blocks.meta}>{`Capa ${IMAGE_SPECS.cover.width} × ${IMAGE_SPECS.cover.height} · logo ${IMAGE_SPECS.logo.width} × ${IMAGE_SPECS.logo.height} · até 5 MB`}</span>
-            {plan === 3 && (
+            {(direto || plan === 3) && (
               <div className={blocks.actions}>
                 <label className={blocks.fileBtn}>
                   <ImageIcon size={16} aria-hidden="true" /> {featuredBusy ? 'Enviando…' : 'Banner da Home'}
                   <input {...featuredPicker.inputProps} className={blocks.hiddenInput} aria-label="Escolher o banner da Home" disabled={featuredBusy} />
                 </label>
-                <span className={blocks.meta}>{`Destaque na Home do app · Premium · ${IMAGE_SPECS.featuredBanner.width} × ${IMAGE_SPECS.featuredBanner.height}`}</span>
+                <span className={blocks.meta}>{`Destaque na Home do app · ${direto ? '' : 'Premium · '}${IMAGE_SPECS.featuredBanner.width} × ${IMAGE_SPECS.featuredBanner.height}`}</span>
               </div>
             )}
           </section>

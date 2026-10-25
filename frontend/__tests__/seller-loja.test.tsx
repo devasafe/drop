@@ -205,6 +205,13 @@ test('dicas de tamanho vêm do padrão: capa 1200 × 400, logo 400 × 400 e bann
   expect(screen.getByText('Destaque na Home do app · Premium · 1200 × 600')).toBeInTheDocument();
 });
 
+test('modo SaaS: loja Plano 1 também tem o banner da Home, sem "Premium" (todas com os direitos do Plano 3)', async () => {
+  mockMode = 'direto';
+  mockPanel = { ...mockPanel, store: { ...baseStore, plan: 1 } };
+  await renderPage();
+  expect(screen.getByText('Destaque na Home do app · 1200 × 600')).toBeInTheDocument();
+});
+
 test('"Trocar capa" passa pelo recorte "Enquadrar capa" e sobe para /stores/banner?type=cover', async () => {
   mockImageSize(2400, 1200);
   const { drawImage } = mockCanvas();

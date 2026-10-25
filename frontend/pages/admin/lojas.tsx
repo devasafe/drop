@@ -111,7 +111,10 @@ function LojasScreen() {
         </span>
       ),
     },
-    { key: 'plano', header: 'Plano', render: (s) => planLabel(s.plan) },
+    // Modo SaaS não tem planos: o servidor manda plan null e a coluna some.
+    ...(rows && rows.length > 0 && rows.every((s) => s.plan === null)
+      ? []
+      : [{ key: 'plano', header: 'Plano', render: (s: StoreListItem) => planLabel(s.plan) } as AdminColumn<StoreListItem>]),
     { key: 'modo', header: 'Modo', render: (s) => STORE_MODE_LABEL[s.mode] },
     { key: 'nota', header: 'Nota (90 dias)', align: 'right', render: (s) => ratingLabel(s.rating90d) },
     { key: 'cancelamento', header: 'Cancelamento (30 dias)', align: 'right', render: (s) => rateLabel(s.cancelRate30d) },

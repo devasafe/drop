@@ -265,7 +265,7 @@ function SellerWalletPageInner() {
 
           {/* Resumo financeiro (líquido + bruto + taxas, agregado no backend) */}
           {summary && <StoreWalletMetrics summary={summary} />}
-          {summary && (
+          {summary && !custodyLeftover && (
             <div className={styles.retainLine}>
               <span><strong>{summary.retainPercent}%</strong> você retém por venda</span>
               <span className={styles.retainPlan}>Plano {summary.plan} · Drop retém {summary.commissionPercent}%</span>
@@ -373,7 +373,7 @@ function SellerWalletPageInner() {
                   </div>
                 ))}
               </div>
-              {wallet && (
+              {wallet && !custodyLeftover && (
                 <div className={styles.planBlock}>
                   <p className={styles.planLabel}>Plano ativo</p>
                   <h3 className={styles.planName}>{planNames[wallet.plan || 1]}</h3>

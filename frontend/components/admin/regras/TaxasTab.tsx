@@ -44,9 +44,12 @@ interface FieldDef {
 
 const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
+/** Some no modo SaaS (direto): lá não há planos nem comissão sobre o produto, só a mensalidade. */
+const COMMISSION_SECTION = 'Comissão das lojas';
+
 const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
   {
-    title: 'Comissão das lojas',
+    title: COMMISSION_SECTION,
     fields: [
       { key: 'commissionPlan1', label: 'Plano 1 · vitrine (%)', short: 'Plano 1', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
       { key: 'commissionPlan2', label: 'Plano 2 · com motoboys (%)', short: 'Plano 2', unit: 'percent', step: '0.01', hint: (v) => `A loja recebe ${fmtNum(100 - v)}%` },
@@ -279,6 +282,7 @@ export function TaxasTab() {
     applySaved(data);
   };
 
+  const isSaas = (config as any)?.settlementMode === 'direto';
   const simInput = { productTotal: toSimNumber(simValue), distanceKm: toSimNumber(simKm), plan: simPlan };
   const now = simulateOrder((invalid.length ? config : edit) as SimulationConfig, simInput);
   const before = simulateOrder(config as SimulationConfig, simInput);
@@ -286,7 +290,7 @@ export function TaxasTab() {
   return (
     <div className={styles.layout}>
       <div className={styles.main}>
-        {SECTIONS.map((s) => (
+        {SECTIONS.filter((s) => !(isSaas && s.title === COMMISSION_SECTION)).map((s) => (
           <section key={s.title} className={blocks.block} aria-label={s.title}>
             <div className={blocks.blockHead}>
               <h2 className={blocks.blockTitle}>{s.title}</h2>

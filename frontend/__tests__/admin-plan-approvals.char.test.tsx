@@ -39,6 +39,7 @@ test('lê os pedidos pendentes e todas as assinaturas', async () => {
   expect((api.get as jest.Mock).mock.calls.map((c) => c[0]).sort()).toEqual([
     '/settings/all-store-subscriptions',
     '/settings/pending-plan-changes',
+    '/settings/saas', // ModeGate: a tela só abre na custódia (modo SaaS não tem planos)
   ]);
 });
 

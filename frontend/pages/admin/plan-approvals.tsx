@@ -15,6 +15,7 @@ import api from '../../lib/api';
 import blocks from '../../components/admin/AdminBlocks.module.css';
 import form from '../../components/admin/pessoas/PessoasForm.module.css';
 import styles from '../../components/admin/pessoas/Planos.module.css';
+import ModeGate from '../../components/ModeGate';
 
 interface PlanSub {
   _id: string;
@@ -66,7 +67,8 @@ export default function PlanApprovals() {
 
   return (
     <AdminShell title={TITLE} tabs="lojas">
-      <PlanosScreen canApprove={can('plan:approve')} />
+      {/* Modo SaaS não tem planos: a tela não abre (o servidor também recusa). */}
+      <ModeGate mode="custodia"><PlanosScreen canApprove={can('plan:approve')} /></ModeGate>
     </AdminShell>
   );
 }
