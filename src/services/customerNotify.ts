@@ -20,8 +20,11 @@ export type CustomerStage =
   | 'searching_motoboy' | 'pool_timeout' | 'return_decision';
 
 export interface CustomerNoticeExtra {
-  /** Motivo do cancelamento, como o cliente deve ler. */
-  reason?: string | null;
+  /**
+   * Código do motivo do cancelamento. Vira uma frase fixa: o texto livre digitado pela loja ou pelo
+   * motoboy NUNCA vai para o aviso nem para o e-mail do DROP (poderia levar link, chave Pix ou telefone).
+   */
+  reasonCode?: string | null;
   /** Valor devolvido no cancelamento/estorno; sem ele, vale o total do pedido (0 = nada a devolver). */
   refundAmount?: number | null;
   /** Cancelado pelo suporte: o aviso não cita loja nem motivo (a culpa não aparece para o cliente). */
@@ -34,6 +37,23 @@ export function siteUrl(): string {
   const fromCors = (process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim()).find((s) => s.startsWith('https://'));
   return (explicit || fromCors || 'https://dropapp.com.br').replace(/\/+$/, '');
 }
+
+/** Frase fixa por código de motivo (CancellationReasonCode). Código sem frase: o aviso sai sem motivo. */
+const CANCEL_REASON_TEXT: Record<string, string> = {
+  customer_request: 'a pedido seu',
+  not_available: 'produto indisponível na loja',
+  store_closed: 'a loja estava fechada',
+  store_busy: 'a loja não conseguiu atender agora',
+  motoboy_unavailable: 'nenhum motoboy disponível',
+  delivery_failed: 'a entrega não pôde ser concluída',
+  customer_unreachable: 'não conseguimos falar com você na entrega',
+  address_invalid: 'problema com o endereço de entrega',
+  payment_issue: 'problema com o pagamento',
+  wrong_order: 'pedido com erro',
+  damaged_items: 'produto danificado',
+  store_rejected: 'a loja não pôde aceitar o pedido',
+  late_cancellation: 'a pedido seu',
+};
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
 
@@ -66,7 +86,8 @@ function buildNotice(stage: CustomerStage, o: OrderFacts, extra: CustomerNoticeE
     case 'cancelled': {
       const money = o.paid && refund > 0 ? ` Vamos devolver ${brl(refund)}.` : '';
       if (extra.byAdmin) return { title: 'Pedido cancelado', message: `O suporte do DROP cancelou o seu pedido #${o.id.slice(-6)}.${money}`, dedupe: true, email: true };
-      const why = extra.reason ? `: ${String(extra.reason).trim()}` : '';
+      const reasonText = extra.reasonCode ? CANCEL_REASON_TEXT[String(extra.reasonCode)] : undefined;
+      const why = reasonText ? ` (${reasonText})` : '';
       return { title: 'Pedido cancelado', message: `Seu pedido na ${o.store} foi cancelado${why}.${money}`, dedupe: true, email: true };
     }
     case 'refunded':

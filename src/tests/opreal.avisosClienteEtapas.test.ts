@@ -152,9 +152,9 @@ describe('pagamento, aceite, cancelamento e estorno', () => {
     expect(calledWith('ord-ent', 'delivered')).toBe(true);
   });
 
-  it('cancelamento → cancelled com motivo e valor devolvido', () => {
-    emitOrderCancelled({ _id: 'ord-c', id: 'ord-c', customerId: 'c1', storeId: 's1' }, { reason: 'Loja fechou', refundAmount: 30, cancelledBy: 'store' });
-    expect(notify).toHaveBeenCalledWith('ord-c', 'cancelled', { reason: 'Loja fechou', refundAmount: 30 });
+  it('cancelamento → cancelled com o código do motivo (nunca o texto livre) e o valor devolvido', () => {
+    emitOrderCancelled({ _id: 'ord-c', id: 'ord-c', customerId: 'c1', storeId: 's1' }, { reason: 'Loja fechou', reasonCode: 'store_closed', refundAmount: 30, cancelledBy: 'store' });
+    expect(notify).toHaveBeenCalledWith('ord-c', 'cancelled', { reasonCode: 'store_closed', refundAmount: 30 });
   });
 
   it('cancelamento do suporte não avisa por aqui (o adminCancel manda o aviso próprio)', () => {

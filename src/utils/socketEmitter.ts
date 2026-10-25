@@ -451,7 +451,7 @@ export const emitOrderCancelled = (order: any, cancellation: any) => {
 
   // Sino + push + e-mail ao cliente. O cancelamento do suporte manda o aviso próprio (sem a culpa).
   if (cancelledId && cancellation?.cancelledBy !== 'admin') {
-    void notifyCustomerOrder(cancelledId, 'cancelled', { reason: cancellation?.reason, refundAmount: cancellation?.refundAmount });
+    void notifyCustomerOrder(cancelledId, 'cancelled', { reasonCode: cancellation?.reasonCode, refundAmount: cancellation?.refundAmount });
   }
 };
 

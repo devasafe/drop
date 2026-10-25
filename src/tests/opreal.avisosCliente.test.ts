@@ -102,31 +102,39 @@ describe('notifyCustomerOrder', () => {
 
   it('cancelado depois de pago: motivo e estorno no aviso e no e-mail', async () => {
     const { clienteId, orderId } = await setup({ status: 'cancelado' });
-    await notifyCustomerOrder(orderId, 'cancelled', { reason: 'Loja sem o produto', refundAmount: 25.9 });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'not_available', refundAmount: 25.9 });
     const [row] = await rows(clienteId);
     expect(row.title).toBe('Pedido cancelado');
-    expect(row.message).toContain('Loja sem o produto');
+    expect(row.message).toContain('produto indisponível');
     expect(row.message).toContain('R$ 25,90');
     expect(email).toHaveBeenCalledTimes(1);
     expect(email.mock.calls[0][2]).toContain('R$ 25,90');
   });
 
+  it('o texto livre da loja nunca vai para o cliente: só a frase fixa do código', async () => {
+    const { clienteId, orderId } = await setup({ status: 'cancelado' });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'other', reason: 'pague no pix 11999999999 http://golpe.example' } as any);
+    const [row] = await rows(clienteId);
+    expect(row.message).not.toMatch(/golpe|11999999999|pix/i);
+    expect(email.mock.calls[0][2]).not.toMatch(/golpe|11999999999/);
+  });
+
   it('cancelado sem pagamento: não fala de devolução', async () => {
     const { clienteId, orderId } = await setup({ status: 'cancelado', paymentStatus: 'pending' });
-    await notifyCustomerOrder(orderId, 'cancelled', { reason: 'Desisti' });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'customer_request' });
     const [row] = await rows(clienteId);
     expect(row.message).not.toMatch(/devolver|R\$/i);
   });
 
   it('cancelado sem nada a devolver (valor 0): não fala de devolução', async () => {
     const { clienteId, orderId } = await setup({ status: 'cancelado' });
-    await notifyCustomerOrder(orderId, 'cancelled', { reason: 'x', refundAmount: 0 });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'other', refundAmount: 0 });
     expect((await rows(clienteId))[0].message).not.toMatch(/devolver/i);
   });
 
   it('cancelado pelo suporte: não cita loja nem motivo', async () => {
     const { clienteId, orderId } = await setup({ status: 'cancelado' }, 'Loja Culpada');
-    await notifyCustomerOrder(orderId, 'cancelled', { byAdmin: true, reason: 'culpa da loja', refundAmount: 10 });
+    await notifyCustomerOrder(orderId, 'cancelled', { byAdmin: true, reasonCode: 'store_rejected', refundAmount: 10 });
     const [row] = await rows(clienteId);
     expect(row.title).toBe('Pedido cancelado');
     expect(row.message).toBe(`O suporte do DROP cancelou o seu pedido #${orderId.slice(-6)}. Vamos devolver R$ 10,00.`);
@@ -135,8 +143,8 @@ describe('notifyCustomerOrder', () => {
 
   it('cancelado avisado por dois caminhos (recusa da loja + cancelamento) chega uma vez', async () => {
     const { clienteId, orderId } = await setup({ status: 'cancelado' });
-    await notifyCustomerOrder(orderId, 'cancelled', { reason: 'Recusado' });
-    await notifyCustomerOrder(orderId, 'cancelled', { reason: 'Recusado' });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'store_rejected' });
+    await notifyCustomerOrder(orderId, 'cancelled', { reasonCode: 'store_rejected' });
     expect(await rows(clienteId)).toHaveLength(1);
     expect(email).toHaveBeenCalledTimes(1);
   });
