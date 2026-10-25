@@ -14,6 +14,8 @@ const READY = {
   COOKIE_DOMAIN: '.dropapp.com.br',
   PUBLIC_API_URL: 'https://api.dropapp.com.br',
   DROP_EGRESS_IP: '203.0.113.10',
+  BREVO_API_KEY: 'xkeysib-abc',
+  BREVO_SENDER: 'contato@dropapp.com.br',
 };
 
 const keysOf = (env: Record<string, string | undefined>) => productionConfigWarnings(env).map((w) => w.key);
@@ -46,6 +48,12 @@ describe('productionConfigWarnings', () => {
     expect(keysOf({ ...READY, COOKIE_DOMAIN: undefined })).toEqual(['COOKIE_DOMAIN']);
     expect(keysOf({ ...READY, PUBLIC_API_URL: 'http://api.dropapp.com.br' })).toEqual(['PUBLIC_API_URL']);
     expect(keysOf({ ...READY, DROP_EGRESS_IP: '' })).toEqual(['DROP_EGRESS_IP']);
+  });
+
+  it('e-mail (Brevo) sem chave ou sem remetente: códigos e avisos ao cliente não saem', () => {
+    expect(keysOf({ ...READY, BREVO_API_KEY: undefined })).toEqual(['BREVO_API_KEY']);
+    expect(keysOf({ ...READY, BREVO_SENDER: '' })).toEqual(['BREVO_API_KEY']);
+    expect(keysOf({ ...READY, BREVO_SENDER: undefined, GMAIL_USER: 'x@gmail.com' })).toEqual([]);
   });
 
   it('pré-visualizações da Vercel liberadas no CORS', () => {

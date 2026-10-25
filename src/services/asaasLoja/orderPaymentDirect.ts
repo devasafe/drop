@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
 import { toApiOrder, orderInclude } from '../../repositories/order.repository';
 import { emitOrderCreated } from '../../utils/socketEmitter';
+import { notifyCustomerOrder } from '../customerNotify';
 
 /**
  * Confirmação de pagamento no modo SaaS "direto" (cobrança na conta Asaas da loja).
@@ -94,5 +95,7 @@ export async function markDirectOrderRefunded(storeId: string, paymentId: string
     return false;
   }
   logger.info('[asaasLoja] pedido marcado como estornado (modo direto)', { storeId, paymentId });
+  const refunded = await prisma.order.findFirst({ where: { asaasPaymentId: paymentId, storeId, paymentProvider: 'asaas_loja' }, select: { id: true } }).catch(() => null);
+  if (refunded) void notifyCustomerOrder(refunded.id, 'refunded');
   return true;
 }

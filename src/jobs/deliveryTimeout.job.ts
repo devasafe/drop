@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import notifier from '../services/notifier';
 import { emitAdminOrderChanged, emitToRoom } from '../utils/socketEmitter';
 import logger from '../config/logger';
+import { notifyCustomerOrder } from '../services/customerNotify';
 
 /**
  * 🕐 JOB: Reassignação Automática de Entregas Não Aceitas
@@ -83,6 +84,7 @@ export async function runDeliveryTimeout(): Promise<void> {
 
         // D3b-1: a corrida voltou ao pool; a Operação ao vivo relê a lista.
         emitAdminOrderChanged(String(order.id), 'aguardando_motoboy');
+        void notifyCustomerOrder(String(order.id), 'searching_motoboy');
 
         // 📬 Notificar CLIENTE que motoboy não compareceu
         if (order && order.customerId) {

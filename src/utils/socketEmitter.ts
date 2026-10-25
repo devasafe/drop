@@ -2,6 +2,7 @@ import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
 import { notifyOnlineMotoboysNewDelivery, notifyAdmins } from '../services/pushService';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
+import { notifyCustomerOrder } from '../services/customerNotify';
 import { toPublicStore } from '../repositories/store.repository';
 import logger from '../config/logger';
 import { isDirectMode } from './settlement';
@@ -163,6 +164,9 @@ export const emitOrderCreated = (order: any) => {
   // D3b-1: Pedidos ao vivo relê a lista (só id e status vão para a sala admin).
   const createdId = orderIdOf(order);
   if (createdId) emitAdminOrderChanged(createdId, String(order.status));
+
+  // Sino + push + e-mail ao cliente: só quando chega pago (sem Asaas, o pedido nasce aqui sem pagamento).
+  if (createdId && order.paymentStatus === 'paid') void notifyCustomerOrder(createdId, 'paid');
 };
 
 export const emitOrderUpdated = (order: any) => {
@@ -444,6 +448,11 @@ export const emitOrderCancelled = (order: any, cancellation: any) => {
   // D3b-1: Operação ao vivo relê a lista (só id e status vão para a sala admin).
   const cancelledId = orderIdOf(order);
   if (cancelledId) emitAdminOrderChanged(cancelledId, String(order.status ?? 'cancelado'));
+
+  // Sino + push + e-mail ao cliente. O cancelamento do suporte manda o aviso próprio (sem a culpa).
+  if (cancelledId && cancellation?.cancelledBy !== 'admin') {
+    void notifyCustomerOrder(cancelledId, 'cancelled', { reason: cancellation?.reason, refundAmount: cancellation?.refundAmount });
+  }
 };
 
 /**
@@ -467,6 +476,9 @@ export const emitDeliveryCancelled = (delivery: any, cancellation: any, cancella
 };
 
 export const emitDeliveryRejected = (delivery: any, rejectedBy: 'motoboy' | 'store', reason: string) => {
+  // Motoboy desistiu antes de retirar: a corrida voltou ao pool (sino + push ao cliente).
+  if (rejectedBy === 'motoboy' && delivery?.orderId) void notifyCustomerOrder(String(delivery.orderId), 'searching_motoboy');
+
   // Buscar order para notificar cliente
   prisma.order.findUnique({ where: { id: String(delivery.orderId) } }).then((order: any) => {
     if (!order) return;
@@ -583,6 +595,7 @@ export const emitOrderAcceptedByStore = (order: any) => {
   // D3b-1: o aceite tira o pedido de "loja parada" na Operação ao vivo.
   const acceptedId = orderIdOf(order);
   if (acceptedId) emitAdminOrderChanged(acceptedId, String(order.status));
+  if (acceptedId) void notifyCustomerOrder(acceptedId, 'accepted');
 };
 
 // 🎉 Entrega foi COMPLETADA - Notificar TODAS as partes
@@ -628,6 +641,9 @@ export const emitDeliveryCompleted = (delivery: any, order: any) => {
     logger.debug(`📡 [emitDeliveryCompleted] Event sent to motoboy ${delivery.motoboyId}`);
   }
   // Sem broadcast global: as três partes já foram avisadas nas salas acima.
+
+  const deliveredId = orderIdOf(order);
+  if (deliveredId) void notifyCustomerOrder(deliveredId, 'delivered');
 };
 
 // ========== WALLET EVENTS ==========

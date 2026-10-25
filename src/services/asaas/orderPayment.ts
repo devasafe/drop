@@ -3,6 +3,7 @@ import { toApiOrder, orderInclude, OrderWithItems } from '../../repositories/ord
 import payoutService from '../payout.service';
 import logger from '../../config/logger';
 import { emitOrderCreated } from '../../utils/socketEmitter';
+import { notifyCustomerOrder } from '../customerNotify';
 
 /**
  * Confirma o pagamento de um pedido a partir do webhook do Asaas.
@@ -102,6 +103,7 @@ export async function markOrderRefunded(asaasPaymentId: string): Promise<void> {
     data: { asaasChargeStatus: 'refunded', paymentStatus: 'refunded' },
   });
   logger.info('Pedido marcado como estornado via Asaas', { orderId: order.id, asaasPaymentId });
+  void notifyCustomerOrder(order.id, 'refunded');
 }
 
 export default { confirmOrderPaidByPayment, markOrderRefunded, finalizeWalletPaidOrder };

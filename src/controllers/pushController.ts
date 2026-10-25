@@ -45,17 +45,24 @@ export const unsubscribe = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+/** Texto e link do push de teste conforme o painel de quem ativou (papel ativo). */
+const TEST_PUSH_BY_ROLE: Record<string, { body: string; url: string }> = {
+  cliente: { body: 'É assim que você vai saber de cada etapa do seu pedido, mesmo com o app fechado.', url: '/pedidos' },
+  motoboy: { body: 'É assim que você vai receber as corridas, mesmo com o celular bloqueado.', url: '/motoboy' },
+  lojista: { body: 'É assim que você vai receber os pedidos da loja, mesmo com o app fechado.', url: '/seller/dashboard' },
+};
+for (const admin of ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'gerente_lojistas', 'gerente_motoboys']) {
+  TEST_PUSH_BY_ROLE[admin] = { body: 'É assim que você vai receber os alertas do painel, mesmo com o app fechado.', url: '/admin/dashboard' };
+}
+
 // Dispara um push de teste pro próprio usuário (botão "testar" na UI).
 export const sendTest = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     if (!isPushEnabled()) return res.status(503).json({ error: 'Push não configurado no servidor' });
-    await sendPushToUser(req.user.id, {
-      title: 'Notificações ativadas ✅',
-      body: 'É assim que você vai receber as corridas, mesmo com o celular bloqueado.',
-      url: '/motoboy',
-      tag: 'teste',
-    });
+    const role = String((req.user as any).activeRole || req.user.role || 'cliente');
+    const panel = TEST_PUSH_BY_ROLE[role] ?? TEST_PUSH_BY_ROLE.cliente;
+    await sendPushToUser(req.user.id, { title: 'Notificações ativadas ✅', body: panel.body, url: panel.url, tag: 'teste' });
     return res.json({ ok: true });
   } catch (err) {
     console.error('[push] sendTest error:', err);

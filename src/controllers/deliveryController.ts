@@ -27,6 +27,7 @@ import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import env from '../config/env';
 import logger from '../config/logger';
+import { notifyCustomerOrder } from '../services/customerNotify';
 import { isDirectOrder } from '../utils/settlement';
 import { createTransferForDelivery, notifyTransferCreated, motoboyPixSnapshot } from '../services/asaasLoja/motoboyTransfer';
 import { getPaymentProvider } from '../services/paymentProvider';
@@ -90,6 +91,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     const motoboyName = motoboy?.name || 'Motoboy';
 
     // ✅ WORKFLOW 4: Notificar CLIENTE que pedido foi retirado
+    void notifyCustomerOrder(String(order.id ?? order._id), 'picked');
     emitToRoom(
       `user:${order.customerId}`,
       'delivery:picked',
@@ -642,7 +644,8 @@ export const assignDelivery = async (req: AuthenticatedRequest, res: Response) =
     // ✅ Broadcast delivery assignment to relevant parties
     emitDeliveryStatusChanged(delivery);
     
-    // 👤 Notificar cliente que motoboy foi atribuído
+    // 👤 Notificar cliente que motoboy foi atribuído (sino + push e o evento do app aberto)
+    void notifyCustomerOrder(String(order.id ?? order._id), 'motoboy_assigned');
     emitToRoom(`user:${order.customerId}`, 'motoboy:assigned', {
       orderId: order._id,
       deliveryId: delivery._id,
@@ -1061,6 +1064,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       timestamp: new Date().toISOString()
     });
     logger.debug(`📡 [claimDelivery] Event 'motoboy:assigned' sent to client ${order.customerId}`);
+    void notifyCustomerOrder(String(order.id ?? order._id), 'motoboy_assigned');
 
     // 🔴 BROADCAST 2: Notificar LOJA que motoboy foi atribuído
     const store = await prisma.store.findUnique({ where: { id: String(order.storeId) } }) as any;

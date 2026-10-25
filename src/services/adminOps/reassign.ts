@@ -12,6 +12,7 @@ import {
   emitAdminOrderChanged, emitDeliveryCreated, emitDeliveryStatusChanged, emitToRoom,
 } from '../../utils/socketEmitter';
 import { notifyStore, notifyUser, STORE_LINKS } from '../storeNotify';
+import { notifyCustomerOrder } from '../customerNotify';
 import { normalizeAdminReason } from './adminReason';
 
 const CLOSED_ORDER_STATUSES = ['entregue', 'cancelado', 'rejeitado'];
@@ -82,6 +83,7 @@ export async function adminReassignDelivery(input: { orderId: string; reason: un
     message: `A corrida #${shortId} foi passada para outro motoboy.`,
   });
   emitDeliveryStatusChanged({ _id: delivery.id, orderId: order.id, status: 'pending' });
+  await notifyCustomerOrder(order.id, 'searching_motoboy');
 
   await notifyStore(order.storeId, {
     title: 'Buscando outro motoboy',

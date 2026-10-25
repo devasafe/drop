@@ -6,6 +6,7 @@ import { cancelCharge } from './payment';
 import { AsaasLojaProvider } from '../paymentProvider/asaasLojaProvider';
 import { getStorePaymentStatus } from '../asaasLoja/charge';
 import { confirmDirectOrderPaid } from '../asaasLoja/orderPaymentDirect';
+import { notifyCustomerOrder } from '../customerNotify';
 
 const PAID_RAW = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
 
@@ -94,6 +95,7 @@ export async function expireStalePixOrders(opts: { onlyDirect?: boolean } = {}):
     }
     expired++;
     logger.info('Pedido PIX expirado e cancelado (estoque devolvido)', { orderId: order.id });
+    void notifyCustomerOrder(order.id, 'pix_expired');
   }
 
   if (expired > 0) logger.info(`Expiração PIX: ${expired} pedido(s) cancelado(s)`);

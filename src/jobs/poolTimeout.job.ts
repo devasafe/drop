@@ -1,6 +1,7 @@
 import { CronJob } from 'cron';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
+import { notifyCustomerOrder } from '../services/customerNotify';
 import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { toApiOrder, orderInclude } from '../repositories/order.repository';
 import { emitAdminOrderChanged, emitToRoom } from '../utils/socketEmitter';
@@ -77,6 +78,7 @@ export async function runPoolTimeout(): Promise<PoolTimeoutSummary> {
       });
       // D3b-1: o pedido passa a "cliente decidindo" na Operação ao vivo.
       emitAdminOrderChanged(String(order.id), String(order.status));
+      void notifyCustomerOrder(String(order.id), 'pool_timeout');
 
       flagged++;
       logger.info('[poolTimeout] pedido marcado aguardando decisão do cliente (pool sem motoboy)', {

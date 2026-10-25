@@ -21,6 +21,7 @@ import { recordCashboxEntry } from '../../repositories/appCashbox.repository';
 import { emitAdminNotification, emitAdminOrderChanged } from '../../utils/socketEmitter';
 import walletService from '../wallet.prisma.service';
 import { notifyStore, notifyUser, STORE_LINKS } from '../storeNotify';
+import { notifyCustomerOrder } from '../customerNotify';
 import { cancelOrderAsCustomerRule } from '../cancellation/customerRule';
 import { cancelOrderAsStoreRule } from '../cancellation/storeRule';
 import { cancelOrderWithFullRefund } from '../cancellation/fullRefund';
@@ -273,17 +274,8 @@ export async function adminCancelOrder(input: { orderId: string; fault: unknown;
     });
   }
 
-  // Avisos (sino + push). A culpa não aparece para o cliente.
-  await notifyUser(String(order.customerId), {
-    title: 'Pedido cancelado',
-    message: refundAmount > 0
-      ? `O suporte do DROP cancelou o seu pedido #${shortId}. Vamos devolver R$ ${brl(refundAmount)}.`
-      : `O suporte do DROP cancelou o seu pedido #${shortId}.`,
-    link: `/order/${orderId}`,
-    entityId: orderId,
-    type: 'order',
-    tag: 'pedido-cancelado',
-  });
+  // Avisos (sino + push; o cliente também por e-mail). A culpa não aparece para o cliente.
+  await notifyCustomerOrder(orderId, 'cancelled', { byAdmin: true, refundAmount });
   await notifyStore(String(order.storeId), {
     title: 'Pedido cancelado pelo suporte',
     message: `O suporte do DROP cancelou o pedido #${shortId}. Toque para ver.`,

@@ -40,6 +40,9 @@ export function productionConfigWarnings(e: EnvLike): ConfigWarning[] {
   if (!has(e.DROP_EGRESS_IP)) {
     warn('DROP_EGRESS_IP', 'DROP_EGRESS_IP vazio: o lojista não sabe qual IP liberar no painel do Asaas.');
   }
+  if (!has(e.BREVO_API_KEY) || !(has(e.BREVO_SENDER) || has(e.GMAIL_USER))) {
+    warn('BREVO_API_KEY', 'E-mail (Brevo) sem BREVO_API_KEY ou BREVO_SENDER: código de verificação, senha e avisos ao cliente não são enviados.');
+  }
   if (e.ALLOW_VERCEL_PREVIEWS === 'true') {
     warn('ALLOW_VERCEL_PREVIEWS', 'ALLOW_VERCEL_PREVIEWS ligado: o CORS aceita qualquer pré-visualização da Vercel.');
   }

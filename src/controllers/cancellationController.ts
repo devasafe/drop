@@ -26,6 +26,7 @@ import { addCommissionToAppCashbox } from './appCashboxController';
 import walletService from '../services/wallet.prisma.service';
 import payoutService from '../services/payout.service';
 import logger from '../config/logger';
+import { notifyCustomerOrder } from '../services/customerNotify';
 import { findSubByStoreId } from '../repositories/storeSubscription.repository';
 import { emitOrderStatusChanged } from '../utils/socketEmitter';
 import env from '../config/env';
@@ -246,6 +247,7 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
             returnedAt: new Date(),
           });
           // Cliente decide: reembolso (100%) ou reentrega (novo entregador).
+          void notifyCustomerOrder(String(orderForReturn.id), 'return_decision');
           emitToRoom(`user:${orderForReturn.customerId}`, 'order:aguardando_decisao_devolucao', {
             orderId: orderForReturn.id,
             deliveryId: delivery._id,
