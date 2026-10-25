@@ -183,6 +183,16 @@ describe('a loja responde', () => {
     expect(await aviso(cliente.userId, order.id, 'Reembolso aprovado')).not.toBeNull();
   });
 
+  it('loja com a conta bloqueada não aprova, não recusa nem confirma', async () => {
+    const { dono, cliente, order } = await entregue();
+    const rr = (await pedir(order.id, cliente)).body;
+    await prisma.user.update({ where: { id: dono.userId }, data: { status: 'blocked' } as any });
+    expect((await acao(rr._id, 'approve', dono)).status).toBe(403);
+    expect((await acao(rr._id, 'reject', dono, { reasonCode: 'usado' })).status).toBe(403);
+    expect((await acao(rr._id, 'confirm', dono, { pin: '12345' })).status).toBe(403);
+    expect((await prisma.returnRequest.findUnique({ where: { id: rr._id } }))!.status).toBe('aguardando_loja');
+  });
+
   it('recusar: só com motivo da lista; o cliente recebe a frase fixa', async () => {
     const { dono, cliente, order } = await entregue();
     const rr = (await pedir(order.id, cliente)).body;
