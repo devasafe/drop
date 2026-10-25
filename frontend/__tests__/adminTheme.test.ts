@@ -4,7 +4,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { NIGHT_PREF_KEY } from '../lib/nightTheme';
+import { DARK_PREF_KEY } from '../lib/nightTheme';
 import { themeForPath, LIGHT_ROUTES, ADMIN_LIGHT_ROUTES, MOTOBOY_NIGHT_ROUTES, THEME_BOOT_SCRIPT } from '../lib/routeTheme';
 
 const ADMIN_DIR = path.join(__dirname, '..', 'pages', 'admin');
@@ -31,12 +31,12 @@ describe('tema do admin (D3a)', () => {
     expect(ADMIN_LIGHT_ROUTES.filter((r) => MOTOBOY_NIGHT_ROUTES.includes(r))).toEqual([]);
   });
 
-  it('o script do <head> pinta o admin de claro de dia e à noite', () => {
+  it('o script do <head> pinta o admin de claro mesmo com o modo escuro do motoboy ligado', () => {
     jest.useFakeTimers();
     try {
       for (const h of [12, 21]) {
         jest.setSystemTime(new Date(2026, 9, 15, h, 0, 0, 0));
-        localStorage.setItem(NIGHT_PREF_KEY, '1');
+        localStorage.setItem(DARK_PREF_KEY, '1');
         for (const p of ['/admin/dashboard', '/admin/payouts', '/admin/settings']) {
           document.documentElement.removeAttribute('data-theme');
           new Function('location', THEME_BOOT_SCRIPT)({ pathname: p });

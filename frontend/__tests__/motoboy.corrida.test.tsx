@@ -309,5 +309,5 @@ test('GPS da corrida continua sendo enviado', async () => {
 test('tema: a rota da corrida é noturna automática', () => {
   expect(MOTOBOY_NIGHT_ROUTES).toContain('/motoboy/corrida/[id]');
   expect(MOTOBOY_NIGHT_ROUTES).not.toContain('/motoboy/delivery/[id]');
-  expect(themeForPath('/motoboy/corrida/abc')).toBe('night-auto');
+  expect(themeForPath('/motoboy/corrida/abc')).toBe('motoboy-pref');
 });

@@ -1,12 +1,12 @@
-import { NIGHT_PREF_KEY } from '../nightTheme';
+import { DARK_PREF_KEY } from '../nightTheme';
 import { themeForPath, resolvedThemeForPath, LIGHT_ROUTES, ADMIN_LIGHT_ROUTES, THEME_BOOT_SCRIPT, patternToRegex } from '../routeTheme';
 
 describe('routeTheme', () => {
   it('rota fora da lista é escura (padrão até a fase C)', () => {
     expect(themeForPath('/notifications')).toBe('dark');
   });
-  it('o painel do motoboy é noturno automático (D2)', () => {
-    expect(themeForPath('/motoboy')).toBe('night-auto');
+  it('o painel do motoboy segue o modo escuro manual', () => {
+    expect(themeForPath('/motoboy')).toBe('motoboy-pref');
   });
   it('styleguide é clara', () => {
     expect(LIGHT_ROUTES).toContain('/_styleguide');
@@ -25,14 +25,14 @@ describe('routeTheme', () => {
   it('o boot script aplica o mesmo resultado que resolvedThemeForPath', () => {
     jest.useFakeTimers();
     try {
-      for (const [h, prefOn] of [[12, true], [20, true], [20, false]] as const) {
+      for (const [h, prefOn] of [[12, true], [20, true], [20, false], [12, false]] as const) {
         const now = new Date(2026, 9, 14, h, 0, 0, 0);
         jest.setSystemTime(now);
-        localStorage.setItem(NIGHT_PREF_KEY, prefOn ? '1' : '0');
+        localStorage.setItem(DARK_PREF_KEY, prefOn ? '1' : '0');
         for (const path of ['/_styleguide', '/inicio', '/admin/freios', '/motoboy', '/motoboy/delivery/abc', '/dados-recebimento']) {
           document.documentElement.removeAttribute('data-theme');
           new Function('location', THEME_BOOT_SCRIPT)({ pathname: path });
-          expect(document.documentElement.getAttribute('data-theme')).toBe(resolvedThemeForPath(path, now, prefOn));
+          expect(document.documentElement.getAttribute('data-theme')).toBe(resolvedThemeForPath(path, prefOn));
         }
       }
     } finally {

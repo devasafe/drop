@@ -25,7 +25,7 @@ describe('tema por rota × páginas reais', () => {
   });
   it('rota fora da lista noturna não fica noturna (padrão dinâmico noturno não engole irmã estática)', () => {
     const night = new Set(MOTOBOY_NIGHT_ROUTES);
-    expect(routes.filter((p) => !night.has(p) && themeForPath(p) === 'night-auto')).toEqual([]);
+    expect(routes.filter((p) => !night.has(p) && themeForPath(p) === 'motoboy-pref')).toEqual([]);
   });
   it('toda entrada das listas clara e noturna é uma página que existe (página apagada sai da lista no mesmo commit)', () => {
     expect([...LIGHT_ROUTES, ...MOTOBOY_NIGHT_ROUTES].filter((r) => !routes.includes(r))).toEqual([]);

@@ -193,7 +193,7 @@ test('logado com outro papel: avisa e oferece sair, sem ler o cadastro', () => {
 
 test('rota: noturna, redirect da verificação antiga e página antiga apagada', () => {
   const ROOT = path.join(__dirname, '..');
-  expect(themeForPath('/motoboy/cadastro')).toBe('night-auto');
+  expect(themeForPath('/motoboy/cadastro')).toBe('motoboy-pref');
   expect(resolveRedirect(rules, '/verificacao-motoboy?onboarding=1')).toEqual({ location: '/motoboy/cadastro?onboarding=1', permanent: true });
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/cadastro.tsx'))).toBe(true);
   expect(fs.existsSync(path.join(ROOT, 'pages/verificacao-motoboy.tsx'))).toBe(false);

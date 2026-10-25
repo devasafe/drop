@@ -18,7 +18,7 @@ import { kycItems, kycSummary, type KycItem } from '../../../lib/motoboyCadastro
 import { monthYear } from '../../../lib/motoboyLevel';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 import { rejectionLine } from '../../../lib/verificationRejection';
-import { readNightPref, writeNightPref } from '../../../lib/nightTheme';
+import { readDarkPref, writeDarkPref } from '../../../lib/nightTheme';
 import styles from './Perfil.module.css';
 
 const ICON_TONE = { ok: blocks.icoOk, warn: blocks.icoWarn, err: blocks.icoErr, info: blocks.icoInfo } as const;
@@ -40,10 +40,10 @@ export function PerfilScreen() {
   const [since, setSince] = useState<string | null>(null);
   const [ratings, setRatings] = useState<Array<{ rating: number }> | null>(null);
   const [showRatings, setShowRatings] = useState(false);
-  const [night, setNight] = useState(true);
+  const [dark, setDark] = useState(false);
 
   // Lido no cliente (o SSR não tem localStorage); falha = ligado.
-  useEffect(() => { setNight(readNightPref()); }, []);
+  useEffect(() => { setDark(readDarkPref()); }, []);
 
   const loadKyc = useCallback(() => {
     setKycFailed(false);
@@ -63,7 +63,7 @@ export function PerfilScreen() {
     api.get(`/deliveries/motoboy/${uid}/ratings`).then((r) => setRatings(Array.isArray(r.data) ? r.data : [])).catch(() => setRatings(null));
   }, [uid]);
 
-  const toggleNight = (on: boolean) => { writeNightPref(on); setNight(on); };
+  const toggleDark = (on: boolean) => { writeDarkPref(on); setDark(on); };
 
   const avg = ratings && ratings.length ? ratings.reduce((s, r) => s + (Number(r.rating) || 0), 0) / ratings.length : null;
   const ratingText = avg != null ? `★ ${avg.toFixed(1).replace('.', ',')} (${ratings!.length})` : ratings ? 'Ainda sem avaliações' : null;
@@ -131,7 +131,7 @@ export function PerfilScreen() {
             onClick={() => router.push(MOTOBOY_ROUTES.recebimento)}
           />
           <li className={styles.switchRow}>
-            <Switch label="Tela escura à noite" description="Automático das 18h às 6h" checked={night} onChange={toggleNight} />
+            <Switch label="Modo escuro" description="Deixa as telas do painel escuras" checked={dark} onChange={toggleDark} />
           </li>
         </ul>
 

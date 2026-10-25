@@ -1,13 +1,10 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { useRouter } from 'next/router';
-import {
-  NIGHT_PREF_KEY, NIGHT_PREF_EVENT, NIGHT_START_HOUR, NIGHT_END_HOUR,
-  readNightPref, resolveNightAuto, msUntilNextBoundary,
-} from './nightTheme';
+import { DARK_PREF_KEY, DARK_PREF_EVENT, readDarkPref, resolveMotoboyTheme } from './nightTheme';
 
 export type Theme = 'light' | 'dark';
-/** Tipo do tema por rota: 'night-auto' (só motoboy) é resolvido para claro ou escuro pelo relógio e pela preferência. */
-export type RouteTheme = Theme | 'night-auto';
+/** Tipo do tema por rota: 'motoboy-pref' (só motoboy) é resolvido para claro ou escuro pelo modo escuro manual. */
+export type RouteTheme = Theme | 'motoboy-pref';
 
 /**
  * Rotas já redesenhadas no DS v2 (tema claro). Padrões no formato do router.pathname do Next
@@ -47,7 +44,7 @@ export const ADMIN_LIGHT_ROUTES: string[] = [
 export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES, ...ADMIN_LIGHT_ROUTES];
 
 /**
- * Painel do motoboy (fase D2): claro de dia, escuro das 18:00 às 05:59 com a preferência "Tela escura à noite".
+ * Painel do motoboy (fase D2): claro por padrão, escuro quando o motoboy liga o "Modo escuro" no Perfil.
  * Toda página nova do motoboy entra aqui na task que a cria (__tests__/motoboyTheme.test.ts cobra); a task que
  * apaga uma página antiga tira a linha dela (lib/__tests__/routeTheme.pages.test.ts cobra).
  * As telas antigas ainda existentes também ficam aqui (decisão da P2): a moldura delas já é a do painel novo
@@ -78,23 +75,23 @@ export function patternToRegex(pattern: string): RegExp {
 const matchesAny = (list: string[], pathname: string) => list.some((p) => patternToRegex(p).test(pathname));
 
 export function themeForPath(pathname: string): RouteTheme {
-  if (matchesAny(MOTOBOY_NIGHT_ROUTES, pathname)) return 'night-auto';
+  if (matchesAny(MOTOBOY_NIGHT_ROUTES, pathname)) return 'motoboy-pref';
   return matchesAny(LIGHT_ROUTES, pathname) ? 'light' : 'dark';
 }
 
-/** O tema que vale agora na rota: 'night-auto' resolvido pela hora e pela preferência. */
-export function resolvedThemeForPath(pathname: string, now: Date, prefOn: boolean): Theme {
+/** O tema que vale agora na rota: 'motoboy-pref' resolvido pelo modo escuro manual. */
+export function resolvedThemeForPath(pathname: string, darkOn: boolean): Theme {
   const t = themeForPath(pathname);
-  return t === 'night-auto' ? resolveNightAuto(now, prefOn) : t;
+  return t === 'motoboy-pref' ? resolveMotoboyTheme(darkOn) : t;
 }
 
 const sources = (list: string[]) => JSON.stringify(list.map((p) => patternToRegex(p).source));
 
 /**
  * Roda no <head> antes da pintura: evita o tema piscar na primeira carga. Mesma regra de resolvedThemeForPath
- * (o teste routeTheme.night compara os dois com relógio fixo e preferência ligada/desligada).
+ * (o teste routeTheme.night compara os dois com a preferência ligada, desligada e ausente).
  */
-export const buildBootScript = (nightRoutes: string[], lightRoutes: string[]): string => `(function(){var d=document.documentElement;try{var p=location.pathname;var m=function(r){for(var i=0;i<r.length;i++){if(new RegExp(r[i]).test(p))return true;}return false;};var t='dark';if(m(${sources(nightRoutes)})){var on=true;try{on=localStorage.getItem(${JSON.stringify(NIGHT_PREF_KEY)})!=='0';}catch(e){}var h=new Date().getHours();t=on&&(h>=${NIGHT_START_HOUR}||h<${NIGHT_END_HOUR})?'dark':'light';}else if(m(${sources(lightRoutes)})){t='light';}d.setAttribute('data-theme',t);}catch(e){d.setAttribute('data-theme','dark');}})();`;
+export const buildBootScript = (nightRoutes: string[], lightRoutes: string[]): string => `(function(){var d=document.documentElement;try{var p=location.pathname;var m=function(r){for(var i=0;i<r.length;i++){if(new RegExp(r[i]).test(p))return true;}return false;};var t='dark';if(m(${sources(nightRoutes)})){var on=false;try{on=localStorage.getItem(${JSON.stringify(DARK_PREF_KEY)})==='1';}catch(e){}t=on?'dark':'light';}else if(m(${sources(lightRoutes)})){t='light';}d.setAttribute('data-theme',t);}catch(e){d.setAttribute('data-theme','dark');}})();`;
 
 export const THEME_BOOT_SCRIPT = buildBootScript(MOTOBOY_NIGHT_ROUTES, LIGHT_ROUTES);
 
@@ -102,35 +99,24 @@ export const THEME_BOOT_SCRIPT = buildBootScript(MOTOBOY_NIGHT_ROUTES, LIGHT_ROU
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 /**
- * Mantém o data-theme certo: na navegação client-side e, nas rotas do motoboy, na virada do relógio
- * (um timer até 18:00/06:00) e quando a preferência muda (evento da mesma aba ou 'storage' de outra).
+ * Mantém o data-theme certo: na navegação client-side e, nas rotas do motoboy, quando a preferência
+ * muda (evento da mesma aba ou 'storage' de outra).
  */
 export function useRouteTheme(): void {
   const router = useRouter();
   const pathname = router.pathname;
   useIsomorphicLayoutEffect(() => {
     const apply = () => {
-      document.documentElement.setAttribute('data-theme', resolvedThemeForPath(pathname, new Date(), readNightPref()));
+      document.documentElement.setAttribute('data-theme', resolvedThemeForPath(pathname, readDarkPref()));
     };
     apply();
-    if (themeForPath(pathname) !== 'night-auto') return undefined;
+    if (themeForPath(pathname) !== 'motoboy-pref') return undefined;
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { apply(); schedule(); }, msUntilNextBoundary(new Date()));
-    };
-    schedule();
-    const onStorage = (e: StorageEvent) => { if (e.key === NIGHT_PREF_KEY) apply(); };
-    // O timer não sobrevive à suspensão do aparelho: ao voltar a ficar visível, relê a hora e reagenda.
-    const onVisible = () => { if (document.visibilityState === 'visible') { apply(); schedule(); } };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener(NIGHT_PREF_EVENT, apply);
+    const onStorage = (e: StorageEvent) => { if (e.key === DARK_PREF_KEY) apply(); };
+    window.addEventListener(DARK_PREF_EVENT, apply);
     window.addEventListener('storage', onStorage);
     return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener(NIGHT_PREF_EVENT, apply);
+      window.removeEventListener(DARK_PREF_EVENT, apply);
       window.removeEventListener('storage', onStorage);
     };
   }, [pathname]);

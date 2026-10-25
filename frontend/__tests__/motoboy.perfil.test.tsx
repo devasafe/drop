@@ -76,23 +76,23 @@ test('chave Pix leva a /dados-recebimento', async () => {
   expect(screen.getByText('***.412.***-07')).toBeInTheDocument();
 });
 
-test('Tela escura à noite: começa ligada, grava "0" e avisa o tema', async () => {
+test('Modo escuro: começa desligado, grava "1" e avisa o tema', async () => {
   const spy = jest.fn();
-  window.addEventListener('drop:night-pref', spy);
+  window.addEventListener('drop:dark-pref', spy);
   render(<MotoboyPerfil />);
-  const sw = screen.getByRole('switch', { name: 'Tela escura à noite' });
-  await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'true'));
-  fireEvent.click(sw);
-  expect(localStorage.getItem('drop.motoboy.nightMode')).toBe('0');
+  const sw = screen.getByRole('switch', { name: 'Modo escuro' });
   expect(sw).toHaveAttribute('aria-checked', 'false');
+  fireEvent.click(sw);
+  expect(localStorage.getItem('drop.motoboy.darkMode')).toBe('1');
+  expect(sw).toHaveAttribute('aria-checked', 'true');
   expect(spy).toHaveBeenCalled();
-  window.removeEventListener('drop:night-pref', spy);
+  window.removeEventListener('drop:dark-pref', spy);
 });
 
-test('preferência desligada no aparelho aparece desligada', async () => {
-  localStorage.setItem('drop.motoboy.nightMode', '0');
+test('modo escuro ligado no aparelho aparece ligado', async () => {
+  localStorage.setItem('drop.motoboy.darkMode', '1');
   render(<MotoboyPerfil />);
-  await waitFor(() => expect(screen.getByRole('switch', { name: 'Tela escura à noite' })).toHaveAttribute('aria-checked', 'false'));
+  await waitFor(() => expect(screen.getByRole('switch', { name: 'Modo escuro' })).toHaveAttribute('aria-checked', 'true'));
 });
 
 test('menu: Dados e senha, Ajuda e Sair', async () => {
@@ -106,11 +106,11 @@ test('menu: Dados e senha, Ajuda e Sair', async () => {
   await screen.findByText('Moto · FKR2D19');
 });
 
-test('rota: aba com barra, noturna, redirect do profile e página antiga apagada', () => {
+test('rota: aba com barra, modo escuro do motoboy, redirect do profile e página antiga apagada', () => {
   const ROOT = path.join(__dirname, '..');
   const { motoboyShowsTabBar } = require('../lib/motoboyRoutes');
   expect(motoboyShowsTabBar('/motoboy/perfil')).toBe(true);
-  expect(themeForPath('/motoboy/perfil')).toBe('night-auto');
+  expect(themeForPath('/motoboy/perfil')).toBe('motoboy-pref');
   expect(resolveRedirect(rules, '/motoboy/profile')).toEqual({ location: '/motoboy/perfil', permanent: true });
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/profile.tsx'))).toBe(false);
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/MotoboyProfile.module.css'))).toBe(false);

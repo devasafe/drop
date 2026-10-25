@@ -77,7 +77,7 @@ test('rotas: noturnas, do painel e sem a barra de abas', () => {
   expect(MOTOBOY_ROUTES.perfilDados).toBe('/motoboy/perfil/dados');
   expect(MOTOBOY_ROUTES.perfilAjuda).toBe('/motoboy/perfil/ajuda');
   for (const p of ['/motoboy/perfil/dados', '/motoboy/perfil/ajuda']) {
-    expect(themeForPath(p)).toBe('night-auto');
+    expect(themeForPath(p)).toBe('motoboy-pref');
     expect(motoboyShowsTabBar(p)).toBe(false);
     expect(isMotoboyPanelRoute(p)).toBe(true);
   }

@@ -68,13 +68,13 @@ test('falha de leitura: erro com "Tentar de novo", nunca perfil vazio; tentar de
   expect(get).toHaveBeenCalledTimes(2);
 });
 
-test('tema: claro inclusive à noite; as rotas fixas do motoboy não caem no padrão dinâmico', () => {
+test('tema: claro mesmo com o modo escuro do motoboy ligado; as rotas fixas do motoboy não caem no padrão dinâmico', () => {
   expect(LIGHT_ROUTES).toContain('/motoboy/[id]');
   expect(themeForPath('/motoboy/[id]')).toBe('light');
   expect(themeForPath('/motoboy/abc123')).toBe('light');
-  expect(resolvedThemeForPath('/motoboy/abc123', new Date(2026, 9, 14, 21), true)).toBe('light');
+  expect(resolvedThemeForPath('/motoboy/abc123', true)).toBe('light');
   for (const p of ['/motoboy/nivel', '/motoboy/perfil', '/motoboy/ranking', '/motoboy/notificacoes', '/motoboy/cadastro']) {
-    expect(themeForPath(p)).toBe('night-auto');
+    expect(themeForPath(p)).toBe('motoboy-pref');
   }
   const { isMotoboyPanelRoute } = require('../lib/motoboyRoutes');
   expect(isMotoboyPanelRoute('/motoboy/[id]')).toBe(false);

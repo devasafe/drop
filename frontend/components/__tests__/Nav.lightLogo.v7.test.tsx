@@ -34,7 +34,7 @@ it('tema escuro (rota ainda escura; o admin ficou claro na D3a): continua a arte
   expect(screen.getByAltText('DROP').getAttribute('src')).toMatch(/logog_png/);
 });
 
-it('motoboy (night-auto, claro de dia): marca do DS, não a arte para fundo escuro', () => {
+it('motoboy (claro por padrão): marca do DS, não a arte para fundo escuro', () => {
   mockPath = '/motoboy';
   const { container } = render(<Nav />);
   expect(container.querySelector('img[src*="logog_png"]')).toBeNull();

@@ -95,7 +95,7 @@ test('ninguém pontuou', () => {
 
 test('rota noturna; ComingSoon e o CSS antigo saíram; sem style inline', () => {
   const ROOT = path.join(__dirname, '..');
-  expect(themeForPath('/motoboy/ranking')).toBe('night-auto');
+  expect(themeForPath('/motoboy/ranking')).toBe('motoboy-pref');
   for (const f of ['components/motoboy/ComingSoon.tsx', 'components/motoboy/ComingSoon.module.css', 'pages/motoboy/MotoboyRanking.module.css']) {
     expect(fs.existsSync(path.join(ROOT, f))).toBe(false);
   }

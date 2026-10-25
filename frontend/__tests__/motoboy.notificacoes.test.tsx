@@ -85,7 +85,7 @@ test('falha na leitura: erro com "Tentar de novo", nunca "Sem avisos"', () => {
 });
 
 test('rota noturna; sem style inline', () => {
-  expect(themeForPath('/motoboy/notificacoes')).toBe('night-auto');
+  expect(themeForPath('/motoboy/notificacoes')).toBe('motoboy-pref');
   const src = fs.readFileSync(path.join(__dirname, '..', 'components/motoboy/perfil/NotificacoesScreen.tsx'), 'utf8');
   expect(src).not.toMatch(/style=\{\{/);
 });

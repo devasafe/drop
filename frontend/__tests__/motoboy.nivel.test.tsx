@@ -177,7 +177,7 @@ test('nível não carregou: erro e "Tentar de novo" relê /gamification/:id', as
 });
 
 test('rota: tema noturno automático, redirects das telas antigas e páginas antigas apagadas', () => {
-  expect(themeForPath('/motoboy/nivel')).toBe('night-auto');
+  expect(themeForPath('/motoboy/nivel')).toBe('motoboy-pref');
   expect(resolveRedirect(rules, '/motoboy/gamification')).toEqual({ location: '/motoboy/nivel', permanent: true });
   expect(resolveRedirect(rules, '/motoboy/beneficios')).toEqual({ location: '/motoboy/nivel', permanent: true });
   expect(fs.existsSync(path.join(ROOT, 'pages/motoboy/nivel.tsx'))).toBe(true);
