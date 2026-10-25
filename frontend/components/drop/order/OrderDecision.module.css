@@ -57,3 +57,25 @@
   font: var(--text-meta);
   color: var(--color-text-muted);
 }
+
+/* Código de devolução (reembolso de pedido entregue). */
+.codeBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-action-primary-subtle);
+  text-align: center;
+}
+.code {
+  margin: 0;
+  font: 700 34px/40px var(--font-display);
+  letter-spacing: 0.18em;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.badge {
+  align-self: flex-start;
+}

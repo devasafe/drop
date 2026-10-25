@@ -1,0 +1,35 @@
+/* Reembolso de pedido entregue na tela da loja (DS v2, caso B). Só tokens semânticos. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.title { margin: 0; font: var(--text-title); color: var(--color-text-primary); }
+.quote { margin: 0; font: var(--text-body); color: var(--color-text-secondary); }
+.photo { max-width: 100%; width: 160px; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md); }
+.sumRow { display: flex; justify-content: space-between; gap: var(--space-2); font: var(--text-body); color: var(--color-text-primary); }
+.meta { margin: 0; font: var(--text-meta); color: var(--color-text-secondary); }
+.label { font: var(--text-label); color: var(--color-text-primary); }
+.choices { display: flex; flex-direction: column; gap: var(--space-2); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pinRow { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.input {
+  flex: 1;
+  min-width: 140px;
+  max-width: 200px;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: var(--text-price);
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+.input:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
+.error { margin: 0; font: var(--text-meta); color: var(--color-error-text); }

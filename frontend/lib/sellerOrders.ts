@@ -15,6 +15,9 @@ export const hasPendingReturn = (o: any): boolean => o?.delivery?.statusDevoluca
 /** Rótulo e tom do pedido para a loja. A devolução pendente vem antes de tudo o que ainda está aberto. */
 export function orderStage(o: any): Stage {
   if (isCancelled(o)) return { label: 'Cancelado', tone: 'neutral' };
+  // Reembolso de pedido entregue (caso B): o que espera a loja vem antes de "Entregue".
+  if (o?.returnRequest?.status === 'aguardando_loja') return { label: 'Reembolso: responder', tone: 'warning' };
+  if (o?.returnRequest?.status === 'devolvendo') return { label: 'Devolução: conferir código', tone: 'warning' };
   if (isDelivered(o)) return { label: 'Entregue', tone: 'success' };
   if (hasPendingReturn(o)) return { label: 'Devolução: responder', tone: 'warning' };
   if (isAwaitingAccept(o)) return { label: 'Novo', tone: 'brand' };

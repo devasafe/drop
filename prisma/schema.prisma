@@ -1365,6 +1365,56 @@ model StoreAsaasCustomer {
 
 /// Estorno de pedido no modo SaaS "direto": feito com a chave da conta Asaas DA LOJA.
 /// 1 por pedido. `uncertain` = resposta incerta do Asaas (nunca reenviar às cegas).
+/// Reembolso de pedido ENTREGUE pedido pelo cliente (DS v2, caso B, 25/10/2026). A loja aprova ou
+/// recusa; o cliente devolve o produto; o estorno só sai quando a loja digita o PIN de devolução.
+/// Um por pedido (o estorno direto também é um por pedido). Sem FK, como o SupportTicket.
+model ReturnRequest {
+  id                  String              @id @default(cuid())
+  orderId             String              @unique
+  customerId          String
+  storeId             String
+  reason              ReturnReason
+  /// Texto do cliente para a loja (só a loja e o admin veem).
+  note                String?
+  photoUrl            String?
+  status              ReturnRequestStatus @default(aguardando_loja)
+  mode                ReturnMode?
+  /// Valor do estorno, calculado no servidor na criação (regra dos 7 dias).
+  amount              Decimal             @db.Decimal(12, 2)
+  includesDeliveryFee Boolean
+  /// Código do motivo da recusa (o cliente vê só a frase fixa).
+  rejectReasonCode    String?
+  pin                 String?
+  pinFailedAttempts   Int                 @default(0)
+  pinLockedUntil      DateTime?
+  decidedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([storeId, status])
+  @@index([customerId])
+}
+
+enum ReturnReason {
+  defeito
+  errado
+  arrependimento
+}
+
+enum ReturnRequestStatus {
+  aguardando_loja
+  aprovado
+  recusado
+  devolvendo
+  concluido
+}
+
+enum ReturnMode {
+  loja
+  motoboy
+}
+
 model DirectRefund {
   id             String    @id @default(cuid())
   orderId        String    @unique

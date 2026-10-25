@@ -70,6 +70,7 @@ export const produtoHref = (id: string): string => `/produto/${enc(id)}`;
 export const categoriaHref = (nome: string): string => `/categoria/${enc(nome)}`;
 export const pedidoHref = (id: string): string => `/pedido/${enc(id)}`;
 export const pedidoReciboHref = (id: string): string => `${pedidoHref(id)}/recibo`;
+export const pedidoReembolsoHref = (id: string): string => `${pedidoHref(id)}/reembolso`;
 export const pedidoConversaHref = (id: string, com?: 'loja' | 'entregador'): string => `${pedidoHref(id)}/conversa${com ? `?com=${com}` : ''}`;
 
 /** Telas do cliente com TabBar + barra da sacola (padrões do router.pathname). */

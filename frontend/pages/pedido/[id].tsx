@@ -27,12 +27,14 @@ import { useReorderFlow } from '../../hooks/useReorderFlow';
 import { customerOrderStatus, orderTimelineSteps, shortOrderCode } from '../../lib/customerOrder';
 import { ScreenHeader } from '../../components/drop/ScreenHeader';
 import { buildRouteThumbnailUrl } from '../../lib/staticMap';
-import { ROUTES, buscarHref, pedidoConversaHref, pedidoReciboHref } from '../../lib/routes';
+import { ROUTES, buscarHref, pedidoConversaHref, pedidoReciboHref, pedidoReembolsoHref } from '../../lib/routes';
 import { consumeJustPaid } from '../../lib/justPaid';
 import { OrderConfirmed } from '../../components/drop/order/OrderConfirmed';
 import { OrderPushPrompt } from '../../components/drop/order/OrderPushPrompt';
 import { CourierTimeoutCard } from '../../components/drop/order/CourierTimeoutCard';
 import { ReturnDecisionCard, type ReturnChoice } from '../../components/drop/order/ReturnDecisionCard';
+import { ReturnRequestCard } from '../../components/drop/order/ReturnRequestCard';
+import { useReturnRequest } from '../../hooks/useReturnRequest';
 import styles from './Pedido.module.css';
 import dynamic from 'next/dynamic';
 
@@ -230,6 +232,13 @@ export default function PedidoPage() {
     !['cancelado', 'rejeitado'].includes(order.status);
 
   const status = order ? customerOrderStatus(order, delivery) : 'awaiting_store';
+  // Reembolso de pedido entregue (caso B): só no modo SaaS, em que o estorno sai da conta da loja.
+  const returnable = status === 'delivered' && order?.paymentProvider === 'asaas_loja';
+  const ret = useReturnRequest(order?._id, returnable);
+  const handleChooseStore = async () => {
+    const r = await ret.chooseStore();
+    if (!r.ok && r.error) showToast(r.error, 'error');
+  };
   // Sem motoboy e devolução têm a própria decisão na tela; o cancelamento genérico sai de cena.
   const canCancel = !!order && CANCELABLE_STATUSES.includes(order.status) && status !== 'no_courier' && status !== 'returning';
 
@@ -461,6 +470,22 @@ export default function PedidoPage() {
             {status === 'delivered' && order.deliveryId && (
               <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoReciboHref(order._id))}>
                 Recibo da entrega
+              </button>
+            )}
+            {returnable && ret.request && (
+              <ReturnRequestCard
+                request={ret.request}
+                storeName={order.storeName || 'loja'}
+                storeAddress={order.storeObj?.address}
+                paymentMethod={order.paymentMethod}
+                busy={ret.busy}
+                onChooseStore={handleChooseStore}
+                onSupport={() => router.push(ROUTES.ajuda)}
+              />
+            )}
+            {returnable && ret.loaded && !ret.request && order.paymentStatus === 'paid' && (
+              <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoReembolsoHref(order._id))}>
+                Pedir reembolso
               </button>
             )}
             {showStoreRating && (order.products || []).map((p: any) => {

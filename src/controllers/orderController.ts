@@ -1028,8 +1028,13 @@ export const getOrder = async (req: AuthenticatedRequest, res: Response) => {
       if (dr) customerRefund = { stage: customerRefundStage(dr.status), amount: Number(dr.amount), requestedAt: dr.createdAt, acceptedAt: dr.acceptedAt, doneAt: dr.doneAt };
     }
 
+    // Reembolso de pedido entregue (caso B): o resumo para as telas do pedido (o código nunca vai aqui).
+    const rr = await prisma.returnRequest.findUnique({ where: { orderId: id }, select: { status: true, reason: true, amount: true } });
+    const returnRequest = rr ? { status: rr.status, reason: rr.reason, amount: Number(rr.amount) } : null;
+
     return res.json({
       ...order,
+      returnRequest,
       ...((isStoreOwner || isAdmin) ? { directRefund } : {}),
       ...(isCustomer ? { customerRefund } : {}),
       products: productsWithNames,

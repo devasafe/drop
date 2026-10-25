@@ -26,6 +26,7 @@ import { AcceptCountdown } from '../../../components/seller/order/AcceptCountdow
 import { RejectSheet } from '../../../components/seller/order/RejectSheet';
 import { PickupPinEntry } from '../../../components/seller/order/PickupPinEntry';
 import { ReturnConfirm } from '../../../components/seller/order/ReturnConfirm';
+import { ReturnRequestBlock } from '../../../components/seller/order/ReturnRequestBlock';
 import { OrderChatSheet } from '../../../components/seller/order/OrderChatSheet';
 import { StageTag } from '../../../components/seller/StageTag';
 import { formatMoney } from '../../../lib/money';
@@ -154,6 +155,7 @@ function SellerPedidoScreen({ id }: { id: string | undefined }) {
               acceptedAt: live.acceptedAt ?? base.acceptedAt,
               readyAt: live.readyAt ?? base.readyAt,
               delivery: live.delivery ?? base.delivery,
+              returnRequest: live.returnRequest ?? base.returnRequest,
             }
           : {}),
       }
@@ -336,6 +338,15 @@ function SellerPedidoScreen({ id }: { id: string | undefined }) {
 
               {cancelled && <CancellationStatusDisplay orderId={order._id} order={order} />}
               {order.directRefund && <DirectRefundCard orderId={order._id} refund={order.directRefund} onChange={() => { reload(); }} />}
+
+              {order.returnRequest && (
+                <ReturnRequestBlock
+                  orderId={order._id}
+                  customerName={order.customerName}
+                  version={order.returnRequest.status}
+                  onChange={() => { reload(); }}
+                />
+              )}
 
               {hasPendingReturn(order) && d?._id && (
                 <section className={styles.block} aria-label="Devolução pedida">

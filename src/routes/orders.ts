@@ -13,6 +13,8 @@ import {
   poolTimeoutDecision,
 } from '../controllers/cancellationController';
 import { markOrderReady } from '../controllers/orderReadyController';
+import { previewReturnRequest, createReturnRequest, getReturnRequest } from '../controllers/returnRequestController';
+import upload, { handleUploadError } from '../middleware/upload';
 import { catchAsync } from '../middleware/errorHandler';
 import { getMyProductReviewsForOrder } from '../controllers/productReviewController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
@@ -74,6 +76,11 @@ router.post('/:id/pos-devolucao', authenticate, requireActiveUser, authorizeRole
 
 // customer decides after pool timeout (no motoboy accepted) -> seguir (stays in pool) | cancelar (refund 100%)
 router.post('/:id/pool-timeout', authenticate, requireActiveUser, authorizeRoles('cliente'), poolTimeoutDecision);
+
+// Reembolso de pedido entregue (caso B): o cliente pede; a loja e o cliente leem.
+router.get('/:id/return-request/preview', authenticate, authorizeRoles('cliente'), previewReturnRequest);
+router.get('/:id/return-request', authenticate, getReturnRequest);
+router.post('/:id/return-request', authenticate, requireActiveUser, authorizeRoles('cliente'), upload.single('photo'), handleUploadError, createReturnRequest);
 
 // Get cancellation history for an order
 router.get('/:id/cancellations', authenticate, getCancellationHistory);

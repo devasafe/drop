@@ -129,9 +129,23 @@ export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
         products: productsWithNames
       };
     }));
+    // Reembolso de pedido entregue (caso B): o que espera a loja (responder ou conferir o código)
+    // traz o pedido de volta para os em andamento.
+    const returnRows = await prisma.returnRequest.findMany({
+      where: { storeId: store.id, orderId: { in: ordersWithDelivery.map((o: any) => String(o._id)) } },
+      select: { orderId: true, status: true, reason: true, amount: true },
+    });
+    const returnByOrder = new Map(returnRows.map((r) => [r.orderId, { status: r.status, reason: r.reason, amount: Number(r.amount) }]));
+    for (const o of ordersWithDelivery as any[]) {
+      const rr = returnByOrder.get(String(o._id));
+      if (rr) o.returnRequest = rr;
+    }
+    const waitingStore = (o: any) => o.returnRequest?.status === 'aguardando_loja' || o.returnRequest?.status === 'devolvendo';
+    const closed = (o: any) => (o.status === 'entregue' || o.status === 'cancelado' || o.status === 'rejeitado') && !waitingStore(o);
+
     // Separar pedidos em andamento e histórico
-    const ongoingOrders = ordersWithDelivery.filter(o => o.status !== 'entregue' && o.status !== 'cancelado' && o.status !== 'rejeitado');
-    const historyOrders = ordersWithDelivery.filter(o => o.status === 'entregue' || o.status === 'cancelado' || o.status === 'rejeitado');
+    const ongoingOrders = ordersWithDelivery.filter(o => !closed(o));
+    const historyOrders = ordersWithDelivery.filter(o => closed(o));
     
     // 🔍 Buscar todas as categorias únicas dos produtos da loja (com populate para trazer nomes)
     const products = await prisma.product.findMany({ where: { storeId: store.id }, include: { category: { select: { name: true } } } }) as any[];

@@ -13,6 +13,7 @@ import userRoutes from './routes/user';
 import authRoutes from './routes/auth';
 import productsRoutes from './routes/products';
 import ordersRoutes from './routes/orders';
+import returnRequestsRoutes from './routes/returnRequests';
 import deliveriesRoutes from './routes/deliveries';
 import notificationsRoutes from './routes/notifications';
 import storesRoutes from './routes/stores';
@@ -129,6 +130,7 @@ app.use('/api/products', productsRoutes);
 app.use('/api', directRefundsRoutes); // Task 3.4: refund-direct + /admin/direct-refunds
 app.use('/api', motoboyTransfersRoutes); // Task 2.4: /motoboy/transfers, /stores/:id/transfers, /admin/transfers
 app.use('/api/orders', ordersRoutes);
+app.use('/api/return-requests', returnRequestsRoutes);
 app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/stores/:storeId/asaas', storeAsaasRoutes);
