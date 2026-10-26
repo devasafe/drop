@@ -8,6 +8,7 @@ import { getRoute } from '../services/routeService';
 import { routeQuoteWithRoute, storePoint, straightKm, validPoint, resolvePlan1Free } from '../services/deliveryQuote/quote';
 import { getDeliveryConfig, effectiveRadiusKm } from '../services/deliveryQuote/config';
 import { prisma } from '../lib/prisma';
+import { withPixDeadline } from '../utils/pixDeadline';
 import { publicStoreVisibilityWhere } from '../services/catalog/visibility';
 import { emitStockChanged } from '../services/storeIntegration';
 import userRepository from '../repositories/user.repository';
@@ -818,7 +819,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    return res.status(201).json(useAsaas ? { order, pix: pixCharge } : order);
+    return res.status(201).json(useAsaas ? { order, pix: pixCharge ? withPixDeadline(pixCharge, order.createdAt) : pixCharge } : order);
 
   } catch (err: any) {
     logger.error('Erro ao criar pedido', err);
@@ -867,7 +868,7 @@ export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
 
     try {
       const qr = await getPixQrCode(order.asaasPaymentId);
-      return res.json({ paid: false, orderId: String(order.id), ...qr });
+      return res.json(withPixDeadline({ paid: false, orderId: String(order.id), ...qr }, order.createdAt));
     } catch {
       return res.status(502).json({ error: 'Não foi possível obter a cobrança PIX' });
     }
@@ -878,7 +879,7 @@ export const getOrderPix = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 /** `getOrderPix` de pedido `asaas_loja`: status e QR pela chave da loja. */
-async function getDirectOrderPix(order: { id: string; storeId: string; asaasPaymentId: string | null }, res: Response) {
+async function getDirectOrderPix(order: { id: string; storeId: string; asaasPaymentId: string | null; createdAt: Date }, res: Response) {
   const paymentId = String(order.asaasPaymentId);
   try {
     const raw = await getStorePaymentStatus(order.storeId, paymentId);
@@ -893,7 +894,7 @@ async function getDirectOrderPix(order: { id: string; storeId: string; asaasPaym
 
   try {
     const qr = await getStorePixQrCode(order.storeId, paymentId);
-    return res.json({ paid: false, orderId: String(order.id), ...qr });
+    return res.json(withPixDeadline({ paid: false, orderId: String(order.id), ...qr }, order.createdAt));
   } catch (err) {
     if (err instanceof AppError) return sendAppError(res, err);
     return res.status(502).json({ error: 'Não foi possível obter a cobrança PIX' });
