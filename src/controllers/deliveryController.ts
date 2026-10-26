@@ -1218,6 +1218,11 @@ export const requestReturn = async (req: AuthenticatedRequest, res: Response) =>
     if (!delivery) {
       return res.status(404).json({ error: 'Entrega não encontrada' });
     }
+    // Corrida de devolução (caso B): o destino já é a loja e quem fecha é o código do ReturnRequest;
+    // o fluxo de "devolver à loja" da entrega normal nunca roda nela.
+    if (isReturnRide(delivery)) {
+      return res.status(400).json({ error: 'Esta é uma corrida de devolução: a loja confirma com o código de devolução.', code: 'RETURN_RIDE' });
+    }
 
     if (delivery.motoboyId?.toString() !== motoboyId) {
       return res.status(403).json({ error: 'Apenas o motoboy designado pode solicitar devolução' });
@@ -1297,6 +1302,11 @@ export const confirmReturn = async (req: AuthenticatedRequest, res: Response) =>
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(deliveryId) } }));
     if (!delivery) {
       return res.status(404).json({ error: 'Entrega não encontrada' });
+    }
+    // Corrida de devolução (caso B): o destino já é a loja e quem fecha é o código do ReturnRequest;
+    // o fluxo de "devolver à loja" da entrega normal nunca roda nela.
+    if (isReturnRide(delivery)) {
+      return res.status(400).json({ error: 'Esta é uma corrida de devolução: a loja confirma com o código de devolução.', code: 'RETURN_RIDE' });
     }
 
     const order: any = toApiOrder(await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, include: orderInclude }));

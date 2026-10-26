@@ -243,6 +243,24 @@ describe('o motoboy desiste', () => {
     expect(still).toMatchObject({ status: 'picked', motoboyId: motoboy.userId, pinDevolucao: null });
   });
 
+  it('o fluxo antigo de "devolver à loja" (request-return / confirm-return) recusa a corrida de devolução', async () => {
+    const { dono, cliente, motoboy, rr } = await aprovado();
+    await motoboyMode(rr.id, cliente);
+    const ride: any = await rideOf(rr.id);
+    await request(app).post(`/api/deliveries/${ride.id}/claim`).set('Authorization', bearer(motoboy));
+    const pickupPin = ((await rideOf(rr.id)) as any).pinRetirada;
+    await request(app).post(`/api/deliveries/${ride.id}/retirar-devolucao`).set('Authorization', bearer(motoboy)).send({ pin: pickupPin });
+
+    const pedir = await request(app).post(`/api/deliveries/${ride.id}/request-return`).set('Authorization', bearer(motoboy)).send({});
+    expect(pedir.status).toBe(400);
+    expect(pedir.body.code).toBe('RETURN_RIDE');
+    const confirmar = await request(app).post(`/api/deliveries/${ride.id}/confirm-return`).set('Authorization', bearer(dono)).send({ pinDevolucao: '123456' });
+    expect(confirmar.status).toBe(400);
+    expect(confirmar.body.code).toBe('RETURN_RIDE');
+    const still: any = await rideOf(rr.id);
+    expect(still).toMatchObject({ status: 'picked', pinDevolucao: null });
+  });
+
   it('"cliente ausente" não vale na devolução', async () => {
     const { cliente, motoboy, rr } = await aprovado();
     await motoboyMode(rr.id, cliente);
