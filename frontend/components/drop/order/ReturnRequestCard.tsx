@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert } from '../../ui/Alert';
 import { Button } from '../../ui/Button';
 import { RadioRow } from '../../ui/RadioRow';
@@ -16,6 +17,8 @@ export interface ReturnRequestView {
   mode?: string | null;
   pin?: string;
   rejectReasonText?: string | null;
+  /** Corrida de volta (modo motoboy). O código de retirada só com o motoboy a caminho. */
+  ride?: { status: string; motoboyName?: string | null; pickupPin?: string; fee?: number } | null;
 }
 
 export interface ReturnRequestCardProps {
@@ -25,15 +28,21 @@ export interface ReturnRequestCardProps {
   paymentMethod?: string;
   busy?: boolean;
   onChooseStore: () => void;
+  /** Sem ele, só "Levo na loja". No arrependimento a opção não aparece (o Pix da taxa vem depois). */
+  onChooseMotoboy?: () => void;
   onSupport: () => void;
 }
 
+const firstName = (name?: string | null) => String(name || '').split(' ')[0] || 'O motoboy';
+const WHY: Record<string, string> = { defeito: 'veio com defeito', errado: 'veio diferente do pedido' };
+
 /**
  * Acompanhamento do reembolso de um pedido entregue (DS v2, caso B): aguardando a loja, recusado,
- * aprovado (como devolver), devolvendo (código para a loja) e concluído. O dinheiro só sai quando
- * a loja digita o código.
+ * aprovado (como devolver: levo na loja ou motoboy), devolvendo (código para a loja, ou a corrida
+ * de volta) e concluído. O dinheiro só sai quando a loja digita o código.
  */
-export function ReturnRequestCard({ request, storeName, storeAddress, paymentMethod, busy, onChooseStore, onSupport }: ReturnRequestCardProps) {
+export function ReturnRequestCard({ request, storeName, storeAddress, paymentMethod, busy, onChooseStore, onChooseMotoboy, onSupport }: ReturnRequestCardProps) {
+  const [choice, setChoice] = useState<'loja' | 'motoboy'>('loja');
   const amount = formatMoney(Number(request.amount) || 0);
 
   if (request.status === 'aguardando_loja') {
@@ -49,6 +58,30 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
   if (request.status === 'concluido') {
     return <Alert tone="success" title="Produto devolvido">{`O estorno de ${amount} foi pedido e volta ${refundChannel(paymentMethod)}.`}</Alert>;
   }
+  if (request.status === 'devolvendo' && request.mode === 'motoboy') {
+    const ride = request.ride;
+    const who = firstName(ride?.motoboyName);
+    if (ride?.status === 'assigned') {
+      return (
+        <section className={styles.card} aria-label="Devolução">
+          <div className={styles.codeBox}>
+            <span className={styles.cap}>Código de retirada</span>
+            <p className={styles.code}>{ride.pickupPin}</p>
+            <span className={styles.hint}>{`${who} está a caminho para buscar o produto. Mostre este código na retirada.`}</span>
+          </div>
+          <Alert tone="info" title={`Reembolso de ${amount}`}>{`Sai quando a loja receber o produto. Volta ${refundChannel(paymentMethod)}.`}</Alert>
+        </section>
+      );
+    }
+    if (ride?.status === 'picked') {
+      return <Alert tone="info" title={`${who} está levando à loja`}>{`O reembolso de ${amount} sai quando a loja receber o produto.`}</Alert>;
+    }
+    return (
+      <Alert tone="info" title="Procurando um motoboy">
+        Avisamos quando alguém aceitar. O motoboy busca o produto aqui e leva à loja, sem custo para você.
+      </Alert>
+    );
+  }
   if (request.status === 'devolvendo') {
     return (
       <section className={styles.card} aria-label="Devolução">
@@ -62,6 +95,8 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
       </section>
     );
   }
+
+  const motoboyOk = !!onChooseMotoboy && request.reason !== 'arrependimento';
   return (
     <section className={styles.card} aria-label="Reembolso aprovado">
       <p className={styles.cap}>{`Aprovado pela ${storeName}`}</p>
@@ -71,13 +106,23 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
         <RadioRow
           name="como-devolver"
           value="loja"
-          checked
-          onChange={() => undefined}
+          checked={choice === 'loja'}
+          onChange={() => setChoice('loja')}
           label="Levo na loja"
           description={storeAddress ? `Grátis · ${storeAddress}` : 'Grátis'}
         />
+        {motoboyOk && (
+          <RadioRow
+            name="como-devolver"
+            value="motoboy"
+            checked={choice === 'motoboy'}
+            onChange={() => setChoice('motoboy')}
+            label="Chamar um motoboy"
+            description={`Grátis: a loja paga, porque ${WHY[request.reason] ?? 'o produto veio com problema'}`}
+          />
+        )}
       </div>
-      <Button onClick={onChooseStore} loading={busy}>Continuar</Button>
+      <Button onClick={choice === 'motoboy' && motoboyOk ? onChooseMotoboy : onChooseStore} loading={busy}>Continuar</Button>
     </section>
   );
 }

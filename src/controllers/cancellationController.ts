@@ -137,6 +137,12 @@ export const rejectDeliveryByMotoboy = async (req: AuthenticatedRequest, res: Re
 
     const delivery = await validateMotoboyDelivery(deliveryId, motoboyId);
 
+    // Corrida de devolução com o produto na mão: o destino já é a loja; desistir aqui abriria o
+    // fluxo de "devolver à loja" de uma entrega normal. Antes de retirar, volta ao pool como sempre.
+    if ((delivery as any).kind === 'devolucao' && delivery.status === 'picked') {
+      return res.status(400).json({ error: 'Você já está com o produto: leve à loja e mostre o código de devolução.', code: 'RETURN_RIDE_PICKED' });
+    }
+
     // Apenas deliveries atribuídas ou em pickup podem ser rejeitadas
     const rejectable = ['assigned', 'picked'];
     if (!rejectable.includes(delivery.status)) {
@@ -368,6 +374,11 @@ export const marcarClienteAusente = async (req: AuthenticatedRequest, res: Respo
     }
     if (String(deliveryRow.motoboyId) !== motoboyId) {
       return res.status(403).json({ error: 'Apenas o motoboy designado pode marcar cliente ausente' });
+    }
+    // Corrida de devolução: "cliente ausente" é da entrega normal (mexe no dinheiro do pedido).
+    // Se o cliente não aparece na retirada, o motoboy desiste e a corrida volta ao pool.
+    if ((deliveryRow as any).kind === 'devolucao') {
+      return res.status(400).json({ error: 'Na devolução, se o cliente não aparecer, desista da corrida antes de retirar.', code: 'RETURN_RIDE' });
     }
     if (deliveryRow.status !== 'picked') {
       return res.status(400).json({
@@ -916,7 +927,7 @@ export const acceptOrderByStore = async (req: AuthenticatedRequest, res: Respons
     }
 
     // Plano 2/3: cria delivery se não existir
-    let delivery: any = toApiDelivery(await prisma.delivery.findFirst({ where: { orderId: order.id } }));
+    let delivery: any = toApiDelivery(await prisma.delivery.findFirst({ where: { orderId: order.id, kind: 'entrega' } }));
     if (!delivery) {
       // ✅ FONTE ÚNICA: a taxa e a distância da entrega HERDAM do Order (calculados
       // por rota no createOrder via RouteService). NÃO confiar em req.body.distance —

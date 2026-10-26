@@ -63,7 +63,9 @@ export async function runDeliveryTimeout(): Promise<void> {
         // leitura e a escrita vencem o job.
         const won = await prisma.$transaction(async (tx) => {
           const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "Order" WHERE id = ${order.id} FOR UPDATE`;
-          if (!rows.length || CLOSED_ORDER_STATUSES.includes(rows[0].status)) return false;
+          // Corrida de devolução: o pedido está 'entregue' por definição; só cancelado/rejeitado a encerra.
+          const closed = (delivery as any).kind === 'devolucao' ? ['cancelado', 'rejeitado'] : CLOSED_ORDER_STATUSES;
+          if (!rows.length || closed.includes(rows[0].status)) return false;
           const { count } = await tx.delivery.updateMany({
             where: { id: delivery.id, status: 'assigned', motoboyId, updatedAt: { lt: timeoutThreshold } },
             data: {
@@ -72,6 +74,7 @@ export async function runDeliveryTimeout(): Promise<void> {
             },
           });
           if (count !== 1) return false;
+          if ((delivery as any).kind === 'devolucao') return true;
           await tx.order.updateMany({
             where: { id: order.id, status: { in: LIVE_ORDER_STATUSES } },
             data: { status: 'aguardando_motoboy' },

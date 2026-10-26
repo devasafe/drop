@@ -51,6 +51,8 @@ export async function runPoolTimeout(): Promise<PoolTimeoutSummary> {
       status: 'pending',
       motoboyId: null,
       createdAt: { lt: cutoff },
+      // A corrida de devolução é de um pedido já entregue: não há o que o cliente decidir aqui.
+      kind: 'entrega',
     },
     take: 100,
   });

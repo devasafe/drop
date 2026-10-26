@@ -81,7 +81,7 @@ export async function motoboySummary(motoboyId: string, now: Date = new Date()):
         select: { deliveryId: true, amount: true },
       }),
       prisma.motoboyTransfer.findMany({
-        where: { motoboyId, deliveryId: { in: ids }, reason: 'delivery' },
+        where: { motoboyId, deliveryId: { in: ids }, reason: { in: ['delivery', 'return_delivery'] } },
         select: { deliveryId: true, amount: true },
       }),
     ]);

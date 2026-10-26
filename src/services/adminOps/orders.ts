@@ -52,7 +52,7 @@ const cancelledTodayWhere = (dayStart: Date): Prisma.OrderWhereInput => ({
 });
 
 async function pickedOrderIds(): Promise<string[]> {
-  const rows = await prisma.delivery.findMany({ where: { status: 'picked' }, select: { orderId: true } });
+  const rows = await prisma.delivery.findMany({ where: { status: 'picked', kind: 'entrega' }, select: { orderId: true } });
   return rows.map((r) => r.orderId);
 }
 

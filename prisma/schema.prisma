@@ -730,9 +730,15 @@ model Delivery {
   cancelledAt               DateTime?
   /// D3b-1: motoboys tirados desta corrida por "Reatribuir". Não recebem a oferta de novo nem conseguem pegá-la.
   excludedMotoboyIds        String[]            @default([])
+  /// Caso B (fase 2b): 'devolucao' = corrida ao contrário do reembolso de pedido entregue. Nela, store*
+  /// guarda o ponto de RETIRADA (casa do cliente) e customer* o DESTINO (loja): despacho, oferta e
+  /// navegação seguem lendo "retirada = store*". Não é o order.deliveryId (que segue a entrega original).
+  kind                      DeliveryKind        @default(entrega)
+  returnRequestId           String?
 
   @@index([orderId])
   @@index([motoboyId])
+  @@index([returnRequestId])
   // Composto p/ a query mais quente: pool de disponíveis
   // (status='pending' AND motoboyId IS NULL). Cobre status-só via prefixo.
   @@index([status, motoboyId])
@@ -1419,6 +1425,11 @@ enum ReturnRequestStatus {
 enum ReturnMode {
   loja
   motoboy
+}
+
+enum DeliveryKind {
+  entrega
+  devolucao
 }
 
 model DirectRefund {

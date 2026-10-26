@@ -85,6 +85,9 @@ export function ReturnRequestBlock({ orderId, customerName, version, onChange }:
         {rr.photoUrl && <img src={rr.photoUrl} alt="Foto do problema" className={styles.photo} />}
         <div className={styles.sumRow}><span>Reembolso</span><b>{amount}</b></div>
         <p className={styles.meta}>{refundRule(rr)}</p>
+        {rr.reason !== 'arrependimento' && (
+          <p className={styles.meta}>Se o cliente chamar um motoboy, a corrida de volta é sua: o valor sai da sua conta Asaas quando você confirmar o produto.</p>
+        )}
         {rejecting ? (
           <>
             <div className={styles.choices} role="radiogroup" aria-label="Motivo da recusa">
@@ -108,11 +111,22 @@ export function ReturnRequestBlock({ orderId, customerName, version, onChange }:
     );
   }
 
+  const motoboyMode = rr.mode === 'motoboy';
+  const courier = String(rr.ride?.motoboyName || '').split(' ')[0] || 'O motoboy';
+  if (rr.status === 'devolvendo' && motoboyMode && rr.ride?.status !== 'picked') {
+    return (
+      <section className={styles.block} aria-label="Devolução do cliente">
+        <h2 className={styles.title}>{rr.ride?.status === 'assigned' ? `${courier} vai buscar com ${name}` : `Procurando um motoboy para buscar com ${name}`}</h2>
+        <p className={styles.meta}>{`A corrida (${formatMoney(Number(rr.ride?.fee) || 0)}) sai da sua conta Asaas quando você confirmar o produto.`}</p>
+      </section>
+    );
+  }
+
   if (rr.status === 'devolvendo') {
     return (
       <section className={styles.block} aria-label="Devolução do cliente">
-        <h2 className={styles.title}>{`${name} vai trazer o produto no balcão`}</h2>
-        <p className={styles.meta}>Confira o produto antes de digitar o código.</p>
+        <h2 className={styles.title}>{motoboyMode ? `${courier} está trazendo o produto` : `${name} vai trazer o produto no balcão`}</h2>
+        <p className={styles.meta}>{motoboyMode ? 'Peça o código ao motoboy na entrega do produto. Confira o produto antes de digitar.' : 'Confira o produto antes de digitar o código.'}</p>
         <label htmlFor={pinId} className={styles.label}>Código de devolução (5 dígitos)</label>
         <div className={styles.pinRow}>
           <input

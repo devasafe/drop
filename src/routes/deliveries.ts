@@ -1,7 +1,7 @@
 
 
 import { Router } from 'express';
-import { createDelivery, assignDelivery, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, getMotoboySummary, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute } from '../controllers/deliveryController';
+import { createDelivery, assignDelivery, getDelivery, listAvailableDeliveries, claimDelivery, finalizarEntrega, listOngoingDeliveries, avaliarMotoboy, listarAvaliacoesMotoboy, listHistoryDeliveries, getMotoboySummary, validarPinRetirada, requestReturn, confirmReturn, updateMotoboyLocation, getMotoboyAvailability, setMotoboyAvailability, getDeliveryNavRoute, retirarDevolucao } from '../controllers/deliveryController';
 import { rejectDeliveryByMotoboy, marcarClienteAusente } from '../controllers/cancellationController';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -15,6 +15,8 @@ router.post('/:id/validar-pin-retirada', authenticate, authorizeRoles('lojista')
 
 // motoboy finaliza entrega com PIN
 router.post('/:id/finalizar', authenticate, authorizeRoles('motoboy'), finalizarEntrega);
+// Corrida de devolução (caso B): retirada na casa do cliente com o código dele.
+router.post('/:id/retirar-devolucao', authenticate, authorizeRoles('motoboy'), retirarDevolucao);
 
 // ========== RATINGS ==========
 // cliente avalia o motoboy após entrega (qualquer usuário autenticado pode avaliar se for o dono do pedido)

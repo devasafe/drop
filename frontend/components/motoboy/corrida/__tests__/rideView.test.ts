@@ -106,3 +106,14 @@ describe('links e textos', () => {
     expect(transferStatusLabel('requested')).toEqual({ label: 'A caminho', tone: 'info' });
   });
 });
+
+describe('corrida de devolução (caso B)', () => {
+  it.each([
+    ['assigned', 'buscar_devolucao'],
+    ['picked', 'levar_devolucao'],
+    ['delivered', 'concluida'],
+    ['cancelled', 'cancelada'],
+  ])('%s → %s', (status, stage) => {
+    expect(rideStage({ kind: 'devolucao', status })).toBe(stage);
+  });
+});

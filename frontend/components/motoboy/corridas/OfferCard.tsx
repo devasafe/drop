@@ -19,6 +19,8 @@ export interface OfferCardProps {
 /** Oferta do pool (protótipo "Online com oferta"): sem contagem regressiva (não há prazo por motoboy). */
 export function OfferCard({ delivery, self, accepting, disabled, showMap, onAccept, onSkip }: OfferCardProps) {
   const v = offerView(delivery, self);
+  // Corrida de devolução: a retirada é na casa do cliente e o destino é a loja (store*/customer* da corrida).
+  const isReturn = delivery?.kind === 'devolucao';
   return (
     <article className={styles.offerWrap} data-testid={`oferta-${delivery._id}`} aria-label={`Corrida do pedido ${v.code}`}>
       {showMap && (
@@ -28,7 +30,9 @@ export function OfferCard({ delivery, self, accepting, disabled, showMap, onAcce
       )}
       <div className={`${blocks.blk} ${styles.offer}`}>
         <div className={blocks.head}>
-          <span className={`${blocks.tag} ${blocks.tagBrand}`}>Nova corrida</span>
+          {isReturn
+            ? <span className={`${blocks.tag} ${blocks.tagWarn}`}>Devolução</span>
+            : <span className={`${blocks.tag} ${blocks.tagBrand}`}>Nova corrida</span>}
           <span className={blocks.meta}>Pedido #{v.code}</span>
         </div>
         <div className={styles.value}>
@@ -39,7 +43,7 @@ export function OfferCard({ delivery, self, accepting, disabled, showMap, onAcce
           <li className={styles.legDone}>
             <span className={styles.legDot} aria-hidden="true" />
             <span className={blocks.tx}>
-              <b>Retirada</b>
+              <b>{isReturn ? 'Retirada com o cliente' : 'Retirada'}</b>
               <span>{[v.pickup.line1, v.pickup.km != null ? `${fmtKm(v.pickup.km)} de você` : null].filter(Boolean).join(' · ')}</span>
             </span>
             {v.pickup.min != null && <time className={blocks.time}>{v.pickup.min} min</time>}
@@ -47,8 +51,8 @@ export function OfferCard({ delivery, self, accepting, disabled, showMap, onAcce
           <li>
             <span className={styles.legDot} aria-hidden="true" />
             <span className={blocks.tx}>
-              <b>{v.drop.area ? `Entrega em ${v.drop.area}` : 'Entrega'}</b>
-              <span>{[v.drop.line1, v.drop.km != null ? `${fmtKm(v.drop.km)} da loja` : null].filter(Boolean).join(' · ')}</span>
+              <b>{isReturn ? 'Levar à loja' : v.drop.area ? `Entrega em ${v.drop.area}` : 'Entrega'}</b>
+              <span>{[v.drop.line1, v.drop.km != null ? `${fmtKm(v.drop.km)} ${isReturn ? 'do cliente' : 'da loja'}` : null].filter(Boolean).join(' · ')}</span>
             </span>
             {v.drop.min != null && <time className={blocks.time}>{v.drop.min} min</time>}
           </li>

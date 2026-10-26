@@ -235,8 +235,8 @@ export default function PedidoPage() {
   // Reembolso de pedido entregue (caso B): só no modo SaaS, em que o estorno sai da conta da loja.
   const returnable = status === 'delivered' && order?.paymentProvider === 'asaas_loja';
   const ret = useReturnRequest(order?._id, returnable);
-  const handleChooseStore = async () => {
-    const r = await ret.chooseStore();
+  const handleChooseReturn = async (mode: 'loja' | 'motoboy') => {
+    const r = await ret.choose(mode);
     if (!r.ok && r.error) showToast(r.error, 'error');
   };
   // Sem motoboy e devolução têm a própria decisão na tela; o cancelamento genérico sai de cena.
@@ -479,7 +479,8 @@ export default function PedidoPage() {
                 storeAddress={order.storeObj?.address}
                 paymentMethod={order.paymentMethod}
                 busy={ret.busy}
-                onChooseStore={handleChooseStore}
+                onChooseStore={() => handleChooseReturn('loja')}
+                onChooseMotoboy={() => handleChooseReturn('motoboy')}
                 onSupport={() => router.push(ROUTES.ajuda)}
               />
             )}

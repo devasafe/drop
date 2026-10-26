@@ -31,6 +31,8 @@ import { notifyCustomerOrder } from '../services/customerNotify';
 import { isDirectOrder } from '../utils/settlement';
 import { cancelOrderWithFullRefund } from '../services/cancellation/fullRefund';
 import { createTransferForDelivery, notifyTransferCreated, motoboyPixSnapshot } from '../services/asaasLoja/motoboyTransfer';
+import { isReturnRide } from '../services/returnRide';
+import { notifyStore as notifyStoreOwner, notifyUser as notifyPerson, STORE_LINKS as STORE_PANEL_LINKS } from '../services/storeNotify';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { motoboySummary } from '../services/motoboySummary';
@@ -62,6 +64,7 @@ export const validarPinRetirada = async (req: AuthenticatedRequest, res: Respons
     if (!userId || store.ownerId.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden - only store owner can validate PIN'});
     }
+    if (isReturnRide(delivery)) return res.status(400).json({ error: 'Esta é uma corrida de devolução: a loja confirma com o código de devolução.', code: 'RETURN_RIDE' });
     if (delivery.status !== 'assigned') return res.status(400).json({ error: 'Entrega não está aguardando retirada' });
     const lockedFor = pinLockMinutesLeft(delivery);
     if (lockedFor) return res.status(429).json(pinLockedResponse(lockedFor));
@@ -291,6 +294,7 @@ export const finalizarEntrega = async (req: AuthenticatedRequest, res: Response)
     const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(id) } }));
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     if (String(delivery.motoboyId) !== String(userId)) return res.status(403).json({ error: 'Not your delivery' });
+    if (isReturnRide(delivery)) return res.status(400).json({ error: 'Esta é uma corrida de devolução: a loja confirma com o código de devolução.', code: 'RETURN_RIDE' });
     if (delivery.status === 'delivered') return res.status(409).json({ error: 'Already delivered' });
     // Só fecha depois que a loja validou a retirada (picked).
     if (delivery.status !== 'picked') return res.status(400).json({ error: 'Retirada ainda não validada pela loja' });
@@ -742,6 +746,13 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
       ? await motoboyCancellationCompensation(String(delivery._id), delivery.motoboyId)
       : null;
 
+    // Corrida de devolução: com o produto na mão, o motoboy mostra à loja o código do ReturnRequest.
+    let returnPin: string | null = null;
+    if (isReturnRide(delivery) && isMotoboy && delivery.status === 'picked' && delivery.returnRequestId) {
+      returnPin = (await prisma.returnRequest.findUnique({ where: { id: String(delivery.returnRequestId) }, select: { pin: true } }))?.pin ?? null;
+    }
+    const returnRide = isReturnRide(delivery);
+
     // Monta objeto de resposta com campos de texto e coordenadas para retirada e entrega
     const response = {
       ...serializeDeliveryFor(delivery, user.id, { customerId: order?.customerId }),
@@ -767,10 +778,11 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
       customerAbsentWaitMin: absentWaitMin,
       customerAbsentAvailableAt: absentAvailableAt ? absentAvailableAt.toISOString() : null,
       cancellationCompensation,
-      // Campos para frontend
-      pickupAddress: storeObj ? `${storeObj.name || ''} - ${storeObj.address || ''}` : '-',
-      pickupLat: storeObj?.latitude ? parseFloat(storeObj.latitude) : null,
-      pickupLng: storeObj?.longitude ? parseFloat(storeObj.longitude) : null,
+      ...(returnPin ? { returnPin } : {}),
+      // Campos para frontend (na devolução, a retirada é a casa do cliente: store* da corrida)
+      pickupAddress: returnRide ? (delivery.storeAddress || '-') : storeObj ? `${storeObj.name || ''} - ${storeObj.address || ''}` : '-',
+      pickupLat: returnRide ? (delivery.storeLatitude ?? null) : storeObj?.latitude ? parseFloat(storeObj.latitude) : null,
+      pickupLng: returnRide ? (delivery.storeLongitude ?? null) : storeObj?.longitude ? parseFloat(storeObj.longitude) : null,
       // ✅ FIXO: Usar delivery.customerAddress primeiro (snapshot), fallback para defaultAddress
       deliveryAddress: delivery.customerAddress || (defaultAddress ? `${defaultAddress.label || ''} - ${defaultAddress.street}, ${defaultAddress.number}, ${defaultAddress.neighborhood}, ${defaultAddress.city} - ${defaultAddress.state}` : '-'),
       deliveryLat: (delivery.customerLatitude !== undefined && delivery.customerLatitude !== null) ? parseFloat(String(delivery.customerLatitude)) : (defaultAddress?.latitude ? parseFloat(String(defaultAddress.latitude)) : null),
@@ -1053,6 +1065,23 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     const motoboy = await userRepository.findById(String(userId)) as any;
     const motoboyName = motoboy?.name || 'Motoboy';
 
+    // Corrida de devolução: o cliente recebe "vai buscar" (o código de retirada fica no pedido de
+    // reembolso) e a loja só recarrega. Nada dos avisos da entrega normal.
+    if (isReturnRide(delivery)) {
+      const first = String(motoboyName).split(' ')[0];
+      emitToRoom(`user:${order.customerId}`, 'return:updated', { orderId: String(order._id), status: 'devolvendo' });
+      void notifyPerson(String(order.customerId), {
+        title: 'Motoboy a caminho',
+        message: `${first} vai buscar o produto. Na retirada, mostre o código que está no pedido.`,
+        link: `/pedido/${order._id}`,
+        entityId: String(order._id),
+        tag: 'reembolso',
+      });
+      emitToRoom(`store:${order.storeId}`, 'order:updated', { orderId: String(order._id) });
+      emitDeliveryStatusChanged(delivery);
+      return res.json(serializeDeliveryFor(delivery, req.user!.id));
+    }
+
     // 🔴 BROADCAST 1: Notificar CLIENTE que motoboy aceitou + enviar PIN
     emitToRoom(`user:${order.customerId}`, 'motoboy:assigned', {
       orderId: order._id.toString(),
@@ -1119,6 +1148,52 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // eslint-disable-next-line no-console
     console.error(err);
     return res.status(500).json({ error: 'Failed to claim delivery' });
+  }
+};
+
+/**
+ * Corrida de devolução (caso B): o motoboy chega na casa do cliente e digita o código de retirada
+ * que o cliente mostra (pinRetirada da corrida). assigned → picked; daí o motoboy leva à loja.
+ */
+export const retirarDevolucao = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = String(req.user?.id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(req.params.id) } }));
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!isReturnRide(delivery)) return res.status(400).json({ error: 'Esta não é uma corrida de devolução', code: 'NOT_RETURN_RIDE' });
+    if (String(delivery.motoboyId) !== userId) return res.status(403).json({ error: 'Not your delivery' });
+    if (delivery.status !== 'assigned') return res.status(400).json({ error: 'A corrida não está aguardando a retirada' });
+    const lockedFor = pinLockMinutesLeft(delivery);
+    if (lockedFor) return res.status(429).json(pinLockedResponse(lockedFor));
+    if (!req.body?.pin || String(req.body.pin) !== delivery.pinRetirada) {
+      await registerPinFailure(delivery.id);
+      return res.status(400).json({ error: 'Código de retirada não confere', code: 'INVALID_PIN' });
+    }
+    const { count } = await prisma.delivery.updateMany({
+      where: { id: delivery.id, status: 'assigned', motoboyId: userId, pinRetirada: delivery.pinRetirada },
+      data: { status: 'picked', pickedAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
+    });
+    if (count !== 1) return res.status(409).json({ error: 'A corrida mudou. Atualize a tela.' });
+    const fresh: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: delivery.id } }));
+    const order = await prisma.order.findUnique({ where: { id: String(delivery.orderId) }, select: { id: true, customerId: true, storeId: true } });
+    if (order) {
+      const motoboy = await userRepository.findById(userId) as any;
+      const first = String(motoboy?.name || 'O motoboy').split(' ')[0];
+      emitToRoom(`user:${order.customerId}`, 'return:updated', { orderId: order.id, status: 'devolvendo' });
+      emitToRoom(`store:${order.storeId}`, 'order:updated', { orderId: order.id });
+      void notifyStoreOwner(order.storeId, {
+        title: 'Produto voltando',
+        message: `${first} retirou o produto com o cliente e está levando à loja. Confira e digite o código de devolução.`,
+        link: STORE_PANEL_LINKS.order(order.id),
+        entityId: order.id,
+        tag: 'reembolso',
+      });
+    }
+    emitDeliveryStatusChanged(fresh);
+    return res.json(serializeDeliveryFor(fresh, userId));
+  } catch (err) {
+    logger.error('Erro na retirada da devolução', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
 

@@ -1101,7 +1101,7 @@ export const acceptOrder = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Evitar criação duplicada de delivery
-    const existingDelivery = await prisma.delivery.findFirst({ where: { orderId: order.id } });
+    const existingDelivery = await prisma.delivery.findFirst({ where: { orderId: order.id, kind: 'entrega' } });
     if (existingDelivery) return res.json(stripDeliveryPins(toApiDelivery(existingDelivery)));
 
     const distanceNum = Math.max(0, Number(distance || 0));

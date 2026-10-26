@@ -3,11 +3,19 @@ import { shortOrderCode } from '../../../lib/customerOrder';
 import { transferView } from '../../../lib/motoboyMoney';
 import { parseCoords, type LatLng } from '../../../lib/geo';
 
-export type RideStage = 'retirar' | 'entregar' | 'devolver' | 'cancelada' | 'concluida' | 'outra';
+export type RideStage = 'retirar' | 'entregar' | 'devolver' | 'buscar_devolucao' | 'levar_devolucao' | 'cancelada' | 'concluida' | 'outra';
 
 /** Etapa da tela a partir do payload do servidor. A devolução pendente (com código) vence o status. */
 export function rideStage(r: any): RideStage {
   if (!r) return 'outra';
+  // Corrida de devolução (caso B): busca na casa do cliente e leva à loja.
+  if (r.kind === 'devolucao') {
+    if (r.status === 'assigned') return 'buscar_devolucao';
+    if (r.status === 'picked') return 'levar_devolucao';
+    if (r.status === 'delivered') return 'concluida';
+    if (r.status === 'cancelled') return 'cancelada';
+    return 'outra';
+  }
   if (r.statusDevolucao === 'aguardando_confirmacao' && r.pinDevolucao) return 'devolver';
   switch (r.status) {
     case 'assigned': return 'retirar';

@@ -56,6 +56,9 @@ export function serializeDeliveryFor(delivery: any, viewerId: unknown, opts: { c
   if (!delivery) return delivery;
   const out: any = stripDeliveryPins(delivery);
   const viewer = viewerId ? String(viewerId) : '';
+  // Corrida de devolução: o código de retirada é do CLIENTE (o motoboy digita) e chega a ele pelo
+  // pedido de reembolso; o código que a loja digita é o do ReturnRequest. Nenhum PIN sai daqui.
+  if (delivery.kind === 'devolucao') return out;
   if (viewer && delivery.motoboyId && String(delivery.motoboyId) === viewer) {
     out.pinRetirada = delivery.pinRetirada ?? null;
     out.pinDevolucao = delivery.pinDevolucao ?? null;

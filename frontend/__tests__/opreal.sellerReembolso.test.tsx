@@ -99,3 +99,29 @@ test('produto voltando: a loja digita o código; código errado avisa', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
   await waitFor(() => expect(mockPost).toHaveBeenLastCalledWith('/return-requests/rr1/confirm', { pin: '48213' }));
 });
+
+describe('chamar um motoboy (fase 2b)', () => {
+  test('pedido de reembolso por defeito avisa que a corrida de volta é da loja', async () => {
+    renderPage();
+    expect(await screen.findByText(/Se o cliente chamar um motoboy, a corrida de volta é sua/)).toBeInTheDocument();
+  });
+
+  test('motoboy indo buscar: sem campo de código ainda', async () => {
+    rr = { ...rr, status: 'devolvendo', mode: 'motoboy', ride: { status: 'assigned', motoboyName: 'Carlos Lima', fee: 9.9 } };
+    renderPage();
+    expect(await screen.findByText('Carlos vai buscar com Ana')).toBeInTheDocument();
+    expect(screen.getByText(/A corrida \(R\$ 9,90\) sai da sua conta Asaas quando você confirmar o produto\./)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Código de devolução (5 dígitos)')).not.toBeInTheDocument();
+  });
+
+  test('motoboy trazendo: o campo do código, que o motoboy mostra', async () => {
+    rr = { ...rr, status: 'devolvendo', mode: 'motoboy', ride: { status: 'picked', motoboyName: 'Carlos Lima', fee: 9.9 } };
+    mockPost.mockResolvedValueOnce({ data: { ...rr, status: 'concluido' } });
+    renderPage();
+    expect(await screen.findByText('Carlos está trazendo o produto')).toBeInTheDocument();
+    expect(screen.getByText(/Peça o código ao motoboy na entrega do produto./)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Código de devolução (5 dígitos)'), { target: { value: '63150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/return-requests/rr1/confirm', { pin: '63150' }));
+  });
+});

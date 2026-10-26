@@ -92,7 +92,7 @@ async function ridesEarnings(motoboyId: string, deliveryIds: string[]): Promise<
       _sum: { amount: true },
     }),
     prisma.motoboyTransfer.aggregate({
-      where: { motoboyId, deliveryId: { in: deliveryIds }, reason: 'delivery' },
+      where: { motoboyId, deliveryId: { in: deliveryIds }, reason: { in: ['delivery', 'return_delivery'] } },
       _sum: { amount: true },
     }),
   ]);

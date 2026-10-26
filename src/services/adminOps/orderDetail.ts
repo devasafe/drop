@@ -149,7 +149,7 @@ export async function getAdminOrderDetail(orderId: string, can: PermissionCheck,
 
   const delivery = order.deliveryId
     ? await prisma.delivery.findUnique({ where: { id: order.deliveryId }, select: SAFE_DELIVERY_SELECT })
-    : await prisma.delivery.findFirst({ where: { orderId }, orderBy: { createdAt: 'desc' }, select: SAFE_DELIVERY_SELECT });
+    : await prisma.delivery.findFirst({ where: { orderId, kind: 'entrega' }, orderBy: { createdAt: 'desc' }, select: SAFE_DELIVERY_SELECT });
 
   const seePayouts = can('payout:view');
   const seeShares = can('money:overview');

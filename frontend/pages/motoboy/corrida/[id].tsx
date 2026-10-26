@@ -23,6 +23,7 @@ import { RetirarView } from '../../../components/motoboy/corrida/RetirarView';
 import { EntregarView } from '../../../components/motoboy/corrida/EntregarView';
 import { ClienteAusenteView } from '../../../components/motoboy/corrida/ClienteAusenteView';
 import { DevolverView, DevolucaoConfirmada } from '../../../components/motoboy/corrida/DevolverView';
+import { DevolucaoBuscarView, DevolucaoLevarView, DevolucaoConcluida } from '../../../components/motoboy/corrida/DevolucaoViews';
 import { CanceladaView } from '../../../components/motoboy/corrida/CanceladaView';
 import { ConcluidaView } from '../../../components/motoboy/corrida/ConcluidaView';
 import { ProblemSheet } from '../../../components/motoboy/corrida/ProblemSheet';
@@ -167,7 +168,10 @@ export default function CorridaPage() {
   );
 
   let content: JSX.Element;
-  if (returnConfirmed) {
+  const returnRide = ride?.kind === 'devolucao';
+  if (returnConfirmed && returnRide) {
+    content = <MotoboyShell title="Devolução concluída" bare><DevolucaoConcluida onNext={goCorridas} /></MotoboyShell>;
+  } else if (returnConfirmed) {
     content = <MotoboyShell title="Devolução confirmada" bare><DevolucaoConfirmada onNext={goCorridas} /></MotoboyShell>;
   } else if (!ride && loading) {
     content = (
@@ -192,6 +196,20 @@ export default function CorridaPage() {
         <EmptyState icon={<PackageX size={22} aria-hidden="true" />} variant="error" title="Não carregamos a corrida" description="Confira sua conexão." onRetry={reload} />
       </MotoboyShell>
     );
+  } else if (stage === 'buscar_devolucao') {
+    content = (
+      <MotoboyShell title="Buscar com o cliente" back={BACK} actions={<span className={`${blocks.tag} ${blocks.tagWarn}`}>Devolução</span>}>
+        <DevolucaoBuscarView ride={ride} self={currentLocation} onPicked={reload} onProblem={() => setProblem({})} />
+      </MotoboyShell>
+    );
+  } else if (stage === 'levar_devolucao') {
+    content = (
+      <MotoboyShell title="Levar à loja" back={BACK} actions={<span className={`${blocks.tag} ${blocks.tagWarn}`}>Devolução</span>}>
+        <DevolucaoLevarView ride={ride} self={currentLocation} />
+      </MotoboyShell>
+    );
+  } else if (stage === 'concluida' && returnRide) {
+    content = <MotoboyShell title="Devolução concluída" bare><DevolucaoConcluida onNext={goCorridas} /></MotoboyShell>;
   } else if (stage === 'retirar') {
     content = (
       <MotoboyShell title="Retirar na loja" back={BACK} actions={<span className={`${blocks.tag} ${blocks.tagBrand}`}>1 de 2</span>}>

@@ -215,7 +215,10 @@ describe('devolução e estorno', () => {
 
   it('levar na loja: gera o código; o cliente vê o código e a loja não', async () => {
     const { dono, cliente, order, rr } = await aprovado();
-    expect((await acao(rr._id, 'mode', cliente, { mode: 'motoboy' })).status).toBe(400);
+    // Fase 2b: o motoboy existe, mas este pedido não tem coordenadas → 409 e nada muda.
+    const semEndereco = await acao(rr._id, 'mode', cliente, { mode: 'motoboy' });
+    expect(semEndereco.status).toBe(409);
+    expect(semEndereco.body.code).toBe('ADDRESS_MISSING');
     const m = await acao(rr._id, 'mode', cliente, { mode: 'loja' });
     expect(m.status).toBe(200);
     expect(m.body.status).toBe('devolvendo');

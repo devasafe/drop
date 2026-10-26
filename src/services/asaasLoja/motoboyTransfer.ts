@@ -13,7 +13,8 @@ import { storeKey, translate, saoPauloToday, StorePaymentsNotReadyError } from '
 import { DIRECT_REFUND_BACKOFF_MS } from './refund';
 import { notifyStore, notifyUser, STORE_LINKS, MOTOBOY_LINKS } from '../storeNotify';
 
-export type TransferReason = 'delivery' | 'cancellation_compensation';
+/** 'return_delivery' = corrida de devolução do reembolso de pedido entregue (paga pela loja). */
+export type TransferReason = 'delivery' | 'cancellation_compensation' | 'return_delivery';
 
 const DEFAULT_MAX_AMOUNT = 150;
 

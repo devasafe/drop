@@ -48,7 +48,10 @@ export function returnRefund(
   return { amount: Math.max(0, round2(total - (Number(order?.deliveryFee) || 0))), includesDeliveryFee: false };
 }
 
-/** Forma de API. O PIN só vai para o cliente, e só enquanto o produto está voltando. */
+/**
+ * Forma de API. O PIN de devolução só vai para o cliente que leva na loja, enquanto o produto está
+ * voltando. Com motoboy, quem mostra o código à loja é o motoboy (GET /deliveries/:id).
+ */
 export function serializeReturnRequest(rr: ReturnRequest, viewer: 'customer' | 'store'): Record<string, unknown> {
   const { pin, pinFailedAttempts, pinLockedUntil, ...rest } = rr;
   return {
@@ -56,7 +59,7 @@ export function serializeReturnRequest(rr: ReturnRequest, viewer: 'customer' | '
     _id: rr.id,
     amount: Number(rr.amount),
     rejectReasonText: rr.rejectReasonCode ? RETURN_REJECT_REASONS[rr.rejectReasonCode] ?? null : null,
-    ...(viewer === 'customer' && rr.status === 'devolvendo' ? { pin } : {}),
+    ...(viewer === 'customer' && rr.status === 'devolvendo' && rr.mode !== 'motoboy' ? { pin } : {}),
   };
 }
 
