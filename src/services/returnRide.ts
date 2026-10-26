@@ -31,11 +31,24 @@ export async function returnRidePoints(orderId: string) {
   };
 }
 
-/** Cria a corrida de volta no pool e avisa os motoboys. */
-export async function createReturnRide(rr: ReturnRequest, points: NonNullable<Awaited<ReturnType<typeof returnRidePoints>>>): Promise<Delivery> {
+export type ReturnRidePoints = NonNullable<Awaited<ReturnType<typeof returnRidePoints>>>;
+
+/** Rota cliente → loja e a taxa da corrida (a mesma conta da entrega normal). */
+export async function quoteReturnRide(points: ReturnRidePoints) {
   const route = await getRoute({ origin: { lat: points.pickup.lat, lng: points.pickup.lng }, destination: { lat: points.dropoff.lat, lng: points.dropoff.lng } });
   const distance = round2(Number(route?.distanceKm) || 0);
   const fee = round2(await calculateDeliveryFeeWithConfig(distance));
+  return { route, distance, fee };
+}
+
+/**
+ * Cria a corrida de volta no pool e avisa os motoboys. `paidFee` (arrependimento): a taxa que o
+ * cliente já pagou por Pix vira a taxa da corrida, sem recalcular.
+ */
+export async function createReturnRide(rr: ReturnRequest, points: ReturnRidePoints, paidFee?: number): Promise<Delivery> {
+  const quote = await quoteReturnRide(points);
+  const { route, distance } = quote;
+  const fee = paidFee != null ? round2(paidFee) : quote.fee;
 
   const ride = await prisma.delivery.create({
     data: {

@@ -34,7 +34,7 @@ export async function runReturnRequestEscalation(): Promise<{ escalated: number 
         url: `/admin/pedidos/${rr.orderId}`,
         tag: 'reembolso',
       });
-      void notifyStore(rr.storeId, {
+      await notifyStore(rr.storeId, {
         title: 'Responda o pedido de reembolso',
         message: `O cliente espera a sua resposta sobre o pedido #${code}. O suporte do DROP já foi avisado.`,
         link: STORE_LINKS.order(rr.orderId),

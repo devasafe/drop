@@ -1401,6 +1401,13 @@ model ReturnRequest {
   completedAt         DateTime?
   /// Sem resposta da loja no prazo (PlatformConfig.returnStoreResponseHours): avisado ao admin uma vez.
   escalatedAt         DateTime?
+  /// Arrependimento com motoboy (fase 2c): a corrida de volta é cobrada do cliente por Pix na conta da loja.
+  feeAmount           Decimal?            @db.Decimal(12, 2)
+  feeAsaasPaymentId   String?             @unique
+  feePixPayload       String?
+  feePixImage         String?
+  feePixExpiresAt     String?
+  feePaidAt           DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
@@ -1418,6 +1425,8 @@ enum ReturnRequestStatus {
   aguardando_loja
   aprovado
   recusado
+  /// Arrependimento com motoboy: esperando o Pix da corrida de volta (fase 2c).
+  aguardando_pagamento
   devolvendo
   concluido
 }

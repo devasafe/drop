@@ -53,11 +53,16 @@ export function returnRefund(
  * voltando. Com motoboy, quem mostra o código à loja é o motoboy (GET /deliveries/:id).
  */
 export function serializeReturnRequest(rr: ReturnRequest, viewer: 'customer' | 'store'): Record<string, unknown> {
-  const { pin, pinFailedAttempts, pinLockedUntil, ...rest } = rr;
+  const { pin, pinFailedAttempts, pinLockedUntil, feePixPayload, feePixImage, feePixExpiresAt, feeAsaasPaymentId, ...rest } = rr;
   return {
     ...rest,
     _id: rr.id,
     amount: Number(rr.amount),
+    feeAmount: rr.feeAmount != null ? Number(rr.feeAmount) : null,
+    // Pix da corrida de volta (arrependimento): só o cliente, enquanto espera o pagamento.
+    ...(viewer === 'customer' && rr.status === 'aguardando_pagamento'
+      ? { feePix: { qrCodePayload: feePixPayload, qrCodeImage: feePixImage, expiresAt: feePixExpiresAt } }
+      : {}),
     rejectReasonText: rr.rejectReasonCode ? RETURN_REJECT_REASONS[rr.rejectReasonCode] ?? null : null,
     ...(viewer === 'customer' && rr.status === 'devolvendo' && rr.mode !== 'motoboy' ? { pin } : {}),
   };

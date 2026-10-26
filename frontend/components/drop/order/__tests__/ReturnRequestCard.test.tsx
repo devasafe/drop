@@ -58,9 +58,13 @@ describe('chamar um motoboy (fase 2b)', () => {
     expect(props.onChooseStore).not.toHaveBeenCalled();
   });
 
-  test('arrependimento: sem a opção de motoboy por enquanto', () => {
-    render(<ReturnRequestCard {...props} onChooseMotoboy={jest.fn()} request={{ ...base, reason: 'arrependimento', status: 'aprovado' }} />);
-    expect(screen.queryByRole('radio', { name: /Chamar um motoboy/ })).not.toBeInTheDocument();
+  test('arrependimento: a opção de motoboy avisa que a corrida é paga por Pix', () => {
+    const onChooseMotoboy = jest.fn();
+    render(<ReturnRequestCard {...props} onChooseMotoboy={onChooseMotoboy} request={{ ...base, reason: 'arrependimento', status: 'aprovado' }} />);
+    fireEvent.click(screen.getByRole('radio', { name: /Chamar um motoboy/ }));
+    expect(screen.getByText('Você paga a corrida por Pix antes de o motoboy sair')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(onChooseMotoboy).toHaveBeenCalled();
   });
 
   test('procurando motoboy', () => {
@@ -80,5 +84,26 @@ describe('chamar um motoboy (fase 2b)', () => {
     expect(screen.getByText('Carlos está levando à loja')).toBeInTheDocument();
     expect(screen.getByText(/O reembolso de R\$ 244,00 sai quando a loja receber o produto\./)).toBeInTheDocument();
     expect(screen.queryByText('Código de retirada')).not.toBeInTheDocument();
+  });
+});
+
+describe('Pix da corrida de volta (fase 2c)', () => {
+  const waiting = { ...base, reason: 'arrependimento', status: 'aguardando_pagamento' as const, mode: 'motoboy', feeAmount: 9, feePix: { qrCodePayload: '00020126pix', qrCodeImage: 'iVBORimg', expiresAt: '2099-01-01 23:59:59' } };
+
+  test('mostra o valor, o QR e o copia e cola', () => {
+    render(<ReturnRequestCard {...props} request={waiting} onCheckFee={jest.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Pague a corrida de volta: R$ 9,00' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'QR do Pix da corrida' })).toHaveAttribute('src', 'data:image/png;base64,iVBORimg');
+    expect(screen.getByText('00020126pix')).toBeInTheDocument();
+    expect(screen.getByText(/Com o Pix pago, procuramos um motoboy para buscar o produto/)).toBeInTheDocument();
+  });
+
+  test('"Já paguei" confere e "Prefiro levar na loja" troca o modo', () => {
+    const onCheckFee = jest.fn();
+    render(<ReturnRequestCard {...props} request={waiting} onCheckFee={onCheckFee} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Já paguei' }));
+    expect(onCheckFee).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Prefiro levar na loja' }));
+    expect(props.onChooseStore).toHaveBeenCalled();
   });
 });

@@ -114,11 +114,14 @@ describe('chamar um motoboy', () => {
     expect((await prisma.order.findUnique({ where: { id: order.id } }))!.deliveryId).toBe(forward.id);
   });
 
-  it('arrependimento: ainda não (o Pix da taxa vem na próxima etapa)', async () => {
+  it('arrependimento: a corrida só nasce depois do Pix da taxa (fase 2c, opreal.devolucaoPixTaxa)', async () => {
     const { cliente, rr } = await aprovado('arrependimento');
+    await prisma.user.update({ where: { id: cliente.userId }, data: { cpf: '52998224725' } as any });
+    postAs.mockImplementation(async (_k: string, path: string) => (path === '/customers' ? { id: 'cus_x' } : path === '/payments' ? { id: 'pay_taxa_cdev', status: 'PENDING' } : { id: 'ref', status: 'REFUNDED' }));
+    (asaasClient.getAs as jest.Mock).mockResolvedValue({ encodedImage: 'img', payload: 'pix', expirationDate: '2099-01-01 23:59:59' });
     const r = await motoboyMode(rr.id, cliente);
-    expect(r.status).toBe(400);
-    expect(r.body.code).toBe('MODE_NOT_AVAILABLE');
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe('aguardando_pagamento');
     expect(await rideOf(rr.id)).toBeNull();
   });
 

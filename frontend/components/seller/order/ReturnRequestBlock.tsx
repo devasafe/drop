@@ -153,6 +153,15 @@ export function ReturnRequestBlock({ orderId, customerName, version, onChange }:
     );
   }
 
+  if (rr.status === 'aguardando_pagamento') {
+    return (
+      <section className={styles.block} aria-label="Reembolso aprovado">
+        <h2 className={styles.title}>{`Aguardando ${name} pagar a corrida de volta`}</h2>
+        <p className={styles.meta}>No arrependimento, o cliente paga a corrida por Pix na sua conta. Com o Pix pago, um motoboy busca o produto e traz à loja.</p>
+      </section>
+    );
+  }
+
   if (rr.status === 'aprovado') {
     return (
       <section className={styles.block} aria-label="Reembolso aprovado">

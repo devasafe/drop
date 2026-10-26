@@ -3,6 +3,7 @@ import { Prisma, ReturnReason } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
+import { AppError } from '../utils/AppError';
 import { emitToRoom } from '../utils/socketEmitter';
 import { isDirectOrder } from '../utils/settlement';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -16,6 +17,7 @@ import {
   returnRefund, serializeReturnRequest, settleReturnRefund, registerReturnPinFailure,
 } from '../services/returnRequest';
 import { createReturnRide, findReturnRide, returnRidePoints } from '../services/returnRide';
+import { startReturnFeeCharge, checkReturnFeePaid, cancelReturnFee, feePixExpired } from '../services/returnFee';
 import { createTransferForDelivery, notifyTransferCreated } from '../services/asaasLoja/motoboyTransfer';
 
 /** A corrida de volta para as telas do pedido. O código de retirada só para o cliente, com o motoboy a caminho. */
@@ -217,13 +219,40 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
     if (!rr) return res.status(404).json({ error: 'Pedido de reembolso não encontrado' });
     if (rr.customerId !== String(req.user?.id)) return res.status(403).json({ error: 'Permissão negada' });
 
+    // Esperando o Pix da corrida (arrependimento): pode trocar para "levo na loja" ou pedir um QR novo.
+    if (rr.status === 'aguardando_pagamento') {
+      if (mode === 'motoboy') {
+        if (!feePixExpired(rr.feePixExpiresAt)) return res.json(serializeReturnRequest(rr, 'customer'));
+        const points = await returnRidePoints(rr.orderId);
+        if (!points) return res.status(409).json({ error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' });
+        await cancelReturnFee(rr);
+        const renewed = await startReturnFeeCharge(rr, points, 'aguardando_pagamento');
+        return renewed ? res.json(serializeReturnRequest(renewed, 'customer')) : conflict(res);
+      }
+      if (!(await cancelReturnFee(rr))) {
+        // Não deu para excluir: pode já ter sido paga. Confere antes de seguir.
+        await checkReturnFeePaid(rr);
+        return res.status(409).json({ error: 'Não deu para cancelar o Pix agora. Se você já pagou, o motoboy vai buscar o produto.', code: 'RETURN_FEE_NOT_CANCELLED' });
+      }
+      const switched = await transition(rr.id, 'aguardando_pagamento', {
+        status: 'devolvendo', mode: 'loja', pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null,
+        feeAsaasPaymentId: null, feePixPayload: null, feePixImage: null, feePixExpiresAt: null, feeAmount: null,
+      });
+      if (!switched) return conflict(res);
+      emitToRoom(`store:${switched.storeId}`, 'order:updated', { orderId: switched.orderId });
+      return res.json(serializeReturnRequest(switched, 'customer'));
+    }
+
     let points: Awaited<ReturnType<typeof returnRidePoints>> = null;
     if (mode === 'motoboy') {
-      if (rr.reason === 'arrependimento') {
-        return res.status(400).json({ error: 'No arrependimento, por enquanto a devolução é levando o produto na loja.', code: 'MODE_NOT_AVAILABLE' });
-      }
       points = await returnRidePoints(rr.orderId);
       if (!points) return res.status(409).json({ error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' });
+      // Arrependimento: o cliente paga a corrida por Pix antes de o motoboy sair.
+      if (rr.reason === 'arrependimento') {
+        if (rr.status !== 'aprovado') return conflict(res);
+        const waiting = await startReturnFeeCharge(rr, points, 'aprovado');
+        return waiting ? res.json(serializeReturnRequest(waiting, 'customer')) : conflict(res);
+      }
     }
 
     const updated = await transition(rr.id, 'aprovado', { status: 'devolvendo', mode: mode as any, pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null });
@@ -241,6 +270,8 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
     const ride = mode === 'motoboy' ? await rideSummary(updated.id, 'customer') : null;
     return res.json({ ...serializeReturnRequest(updated, 'customer'), ...(ride ? { ride } : {}) });
   } catch (err) {
+    // Cobrança da taxa recusada de forma conhecida (loja sem conta pronta, CPF faltando): repassa.
+    if (err instanceof AppError && err.isOperational) return res.status(err.statusCode).json({ error: err.message, code: err.code });
     logger.error('Erro ao escolher como devolver', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
@@ -300,6 +331,23 @@ export const confirmReturnRequest = async (req: AuthenticatedRequest, res: Respo
     return res.json({ ...serializeReturnRequest(done, 'store'), refundStatus });
   } catch (err) {
     logger.error('Erro ao confirmar a devolução', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/** POST /return-requests/:id/fee/check — "Já paguei": consulta o Pix da corrida na conta da loja. */
+export const checkReturnFee = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rr = await prisma.returnRequest.findUnique({ where: { id: String(req.params.id) } });
+    if (!rr) return res.status(404).json({ error: 'Pedido de reembolso não encontrado' });
+    if (rr.customerId !== String(req.user?.id)) return res.status(403).json({ error: 'Permissão negada' });
+    await checkReturnFeePaid(rr);
+    const fresh = await prisma.returnRequest.findUnique({ where: { id: rr.id } });
+    if (!fresh) return res.status(404).json({ error: 'Pedido de reembolso não encontrado' });
+    const ride = fresh.mode === 'motoboy' ? await rideSummary(fresh.id, 'customer') : null;
+    return res.json({ ...serializeReturnRequest(fresh, 'customer'), ...(ride ? { ride } : {}) });
+  } catch (err) {
+    logger.error('Erro ao conferir o Pix da corrida de devolução', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

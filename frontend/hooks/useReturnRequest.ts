@@ -42,5 +42,28 @@ export function useReturnRequest(orderId: string | undefined, enabled: boolean) 
     }
   }, [request, load]);
 
-  return { request, loaded, busy, choose };
+  /** "Já paguei": o servidor consulta o Pix da corrida na conta da loja. */
+  const checkFee = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!request) return { ok: false };
+    setBusy(true);
+    try {
+      const r = await api.post(`/return-requests/${request._id}/fee/check`, {});
+      setRequest(r.data);
+      return r.data?.status === 'aguardando_pagamento' ? { ok: false, error: 'Ainda não recebemos o Pix. Se já pagou, espere alguns segundos.' } : { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.response?.data?.error || 'Não deu para conferir agora. Tente de novo.' };
+    } finally {
+      setBusy(false);
+    }
+  }, [request]);
+
+  // Esperando o Pix: relê a cada 10 s (o webhook da loja confirma e o socket nem sempre chega).
+  const waitingPix = request?.status === 'aguardando_pagamento';
+  useEffect(() => {
+    if (!waitingPix) return undefined;
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, [waitingPix, load]);
+
+  return { request, loaded, busy, choose, checkFee };
 }

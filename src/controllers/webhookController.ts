@@ -11,6 +11,7 @@ import { emitAdminNotification } from '../utils/socketEmitter';
 import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 import { handleSaasBillingEvent } from '../services/saasBilling/webhook';
+import { confirmReturnFeeByPayment } from '../services/returnFee';
 
 /**
  * Webhook do Asaas — POST /webhooks/asaas
@@ -230,7 +231,11 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
     switch (event) {
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_CONFIRMED':
-        if (payment.id) await confirmDirectOrderPaid(storeId, String(payment.id), payment.status || (event === 'PAYMENT_CONFIRMED' ? 'CONFIRMED' : 'RECEIVED'));
+        if (payment.id) {
+          await confirmDirectOrderPaid(storeId, String(payment.id), payment.status || (event === 'PAYMENT_CONFIRMED' ? 'CONFIRMED' : 'RECEIVED'));
+          // Pix da corrida de devolução (arrependimento, caso B): a corrida entra no pool.
+          await confirmReturnFeeByPayment(storeId, String(payment.id));
+        }
         break;
       case 'PAYMENT_REFUNDED':
         if (payment.id) {

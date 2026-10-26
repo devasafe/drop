@@ -125,3 +125,10 @@ describe('chamar um motoboy (fase 2b)', () => {
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/return-requests/rr1/confirm', { pin: '63150' }));
   });
 });
+
+test('cliente pagando a corrida de volta (arrependimento): a loja só acompanha', async () => {
+  rr = { ...rr, reason: 'arrependimento', status: 'aguardando_pagamento', mode: 'motoboy', feeAmount: 9 };
+  renderPage();
+  expect(await screen.findByText('Aguardando Ana pagar a corrida de volta')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Código de devolução (5 dígitos)')).not.toBeInTheDocument();
+});

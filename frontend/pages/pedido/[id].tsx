@@ -481,6 +481,7 @@ export default function PedidoPage() {
                 busy={ret.busy}
                 onChooseStore={() => handleChooseReturn('loja')}
                 onChooseMotoboy={() => handleChooseReturn('motoboy')}
+                onCheckFee={async () => { const r = await ret.checkFee(); if (!r.ok && r.error) showToast(r.error, 'info'); }}
                 onSupport={() => router.push(ROUTES.ajuda)}
               />
             )}
