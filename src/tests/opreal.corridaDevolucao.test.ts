@@ -351,6 +351,18 @@ describe('cliente não aparece na retirada', () => {
     expect(loja.status).toBe(200);
   });
 
+  it('corrida: escolher "motoboy" com uma leitura velha não passa da marca de retirada sem sucesso', async () => {
+    const { cliente, rr } = await aprovado();
+    const missed = await prisma.returnRequest.update({ where: { id: rr.id }, data: { pickupMissedAt: new Date() } as any });
+    // A leitura do controller vê o estado de antes da marca (a outra requisição gravou no meio).
+    jest.spyOn(prisma.returnRequest, 'findUnique').mockResolvedValueOnce({ ...missed, pickupMissedAt: null } as any);
+    const r = await motoboyMode(rr.id, cliente);
+    expect(r.status).toBe(409);
+    expect(await prisma.delivery.count({ where: { returnRequestId: rr.id } as any })).toBe(0);
+    expect((await prisma.returnRequest.findUnique({ where: { id: rr.id } }))!.status).toBe('aprovado');
+    jest.restoreAllMocks();
+  });
+
   it('só na corrida de devolução aceita, e só pelo motoboy dela', async () => {
     await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
     const { cliente, ride } = await aceita();

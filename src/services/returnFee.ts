@@ -35,7 +35,8 @@ export async function startReturnFeeCharge(rr: ReturnRequest, points: ReturnRide
     description: `Corrida de devolução do pedido #${code}`,
   });
   const { count } = await prisma.returnRequest.updateMany({
-    where: { id: rr.id, status: from },
+    // Depois de uma retirada sem sucesso, nada de cobrar outra corrida (conferido no próprio UPDATE).
+    where: { id: rr.id, status: from, pickupMissedAt: null },
     data: {
       status: 'aguardando_pagamento',
       mode: 'motoboy',

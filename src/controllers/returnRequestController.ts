@@ -152,9 +152,12 @@ async function loadForStore(id: string, userId: string) {
   return { rr, store } as const;
 }
 
-/** Move de um estado para outro só se ainda estiver nele (um toque só vale uma vez). */
-async function transition(id: string, from: string, data: Prisma.ReturnRequestUpdateInput) {
-  const { count } = await prisma.returnRequest.updateMany({ where: { id, status: from as any }, data: data as any });
+/**
+ * Move de um estado para outro só se ainda estiver nele (um toque só vale uma vez). `extra` entra no
+ * mesmo UPDATE condicional: uma regra lida antes não vale se mudou no meio.
+ */
+async function transition(id: string, from: string, data: Prisma.ReturnRequestUpdateInput, extra: Prisma.ReturnRequestWhereInput = {}) {
+  const { count } = await prisma.returnRequest.updateMany({ where: { ...extra, id, status: from as any }, data: data as any });
   return count === 1 ? prisma.returnRequest.findUnique({ where: { id } }) : null;
 }
 
@@ -264,7 +267,9 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
       }
     }
 
-    const updated = await transition(rr.id, 'aprovado', { status: 'devolvendo', mode: mode as any, pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null });
+    // Motoboy: a marca de retirada sem sucesso é conferida no próprio UPDATE (não só na leitura acima).
+    const updated = await transition(rr.id, 'aprovado', { status: 'devolvendo', mode: mode as any, pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null },
+      mode === 'motoboy' ? { pickupMissedAt: null } : {});
     if (!updated) return conflict(res);
     if (points) {
       try {
