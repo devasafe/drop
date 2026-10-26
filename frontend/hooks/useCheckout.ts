@@ -373,7 +373,7 @@ export function useCheckout() {
         setPixNotice({ paymentProvider: order.paymentProvider ?? null, recipientName: (store as { name?: string } | undefined)?.name ?? null });
         // Valor da cobrança = o que o servidor gravou (total - saldo usado); a tela não recalcula.
         const charged = Number(order.totalValue) - Number(order.walletApplied ?? 0);
-        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined, serverNow: order.createdAt });
+        setPixData({ ...pix, orderId: order._id, amount: Number.isFinite(charged) ? Math.round(charged * 100) / 100 : undefined, serverNow: pix.serverNow ?? order.createdAt });
       } else {
         if ('card' in data && data.card?.approved) markJustPaid(order._id);
         router.push(pedidoHref(order._id));

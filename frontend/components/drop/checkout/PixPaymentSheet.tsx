@@ -38,6 +38,17 @@ const MAX_QR_ATTEMPTS = 5;
  * webhook chegar). Redesign de `PixPaymentModal` no DS (Sheet + CSS Modules
  * + tokens), sem alterar a lógica de polling.
  */
+/**
+ * Data do Pix em milissegundos. ISO com fuso vale como veio; o formato do Asaas ("AAAA-MM-DD
+ * HH:MM:SS", sem fuso) é horário de São Paulo. Lido como horário do aparelho dava a contagem
+ * errada fora do fuso, e o Safari nem entende esse formato.
+ */
+export function parsePixDate(value?: string | null): number {
+  if (!value) return NaN;
+  const asaas = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$/.exec(value.trim());
+  return asaas ? Date.parse(`${asaas[1]}T${asaas[2]}-03:00`) : Date.parse(value);
+}
+
 export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, storeName, onPaid, onClose }: PixPaymentSheetProps) {
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -58,12 +69,12 @@ export function PixPaymentSheet({ pix, paymentProvider, recipientName, amount, s
   // Contagem regressiva da expiração pelo relógio do SERVIDOR: `serverNow` (criação do pedido)
   // dá a diferença para o relógio do aparelho, que pode estar adiantado ou atrasado.
   const skew = useRef<number>((() => {
-    const s = pix.serverNow ? Date.parse(pix.serverNow) : NaN;
+    const s = parsePixDate(pix.serverNow);
     return Number.isFinite(s) ? Date.now() - s : 0;
   })());
   const serverClock = () => Date.now() - skew.current;
   const [now, setNow] = useState(serverClock);
-  const expiresAt = pix.expiresAt ? Date.parse(pix.expiresAt) : NaN;
+  const expiresAt = parsePixDate(pix.expiresAt);
   const remaining = Number.isFinite(expiresAt) ? Math.max(0, expiresAt - now) : null;
   const expired = remaining === 0;
   useEffect(() => {

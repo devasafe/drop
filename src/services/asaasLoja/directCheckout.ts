@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { withPixDeadline } from '../../utils/pixDeadline';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import logger from '../../config/logger';
@@ -236,12 +237,11 @@ export async function finishDirectOrder(res: Response, ctx: DirectOrderContext) 
   // Mesmo formato do PIX da custódia ({ order, pix }) — o PixPaymentSheet não muda.
   return res.status(201).json({
     order,
-    pix: {
+    pix: withPixDeadline({
       paymentId: charge.providerPaymentId,
       status: charge.status,
       qrCodeImage: charge.pix?.qrCodeImage,
       qrCodePayload: charge.pix?.qrCodePayload,
-      expiresAt: charge.pix?.expiresAt,
-    },
+    }, order.createdAt),
   });
 }

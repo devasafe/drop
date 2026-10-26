@@ -1,6 +1,6 @@
 import { render, screen, act } from '@testing-library/react';
 import api from '../../../../lib/api';
-import { PixPaymentSheet } from '../PixPaymentSheet';
+import { PixPaymentSheet, parsePixDate } from '../PixPaymentSheet';
 
 // Minor M2: a contagem do Pix usa o relógio do servidor e o fim do prazo não para a consulta.
 jest.mock('../../../../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }));
@@ -29,4 +29,20 @@ it('no fim do prazo consulta o status na hora e continua consultando: pagamento 
   get.mockResolvedValue({ data: { paid: true } });
   await act(async () => { jest.advanceTimersByTime(4000); });
   expect(screen.getByText('Pagamento confirmado')).toBeInTheDocument();
+});
+
+// Bug de 26/10: o Asaas manda "AAAA-MM-DD HH:MM:SS" sem fuso (horário de São Paulo). Lido como
+// horário do aparelho (ou NaN no Safari), a contagem saía errada. Agora vale como -03:00.
+it('prazo no formato do Asaas (sem fuso) vale como horário de São Paulo', () => {
+  get.mockReturnValue(new Promise(() => {}));
+  jest.setSystemTime(new Date('2026-10-26T18:00:00Z')); // 15:00 em São Paulo
+  render(<PixPaymentSheet pix={{ orderId: 'o1', qrCodePayload: 'abc', expiresAt: '2026-10-26 15:30:00', serverNow: '2026-10-26T18:00:00Z' }} onPaid={jest.fn()} onClose={jest.fn()} />);
+  expect(screen.getByText('Expira em 30:00')).toBeInTheDocument();
+});
+
+it('parsePixDate: ISO com fuso como veio; formato do Asaas como -03:00', () => {
+  expect(parsePixDate('2026-10-26T18:30:00.000Z')).toBe(Date.UTC(2026, 9, 26, 18, 30));
+  expect(parsePixDate('2026-10-26 15:30:00')).toBe(Date.UTC(2026, 9, 26, 18, 30));
+  expect(parsePixDate('2026-10-26 15:30')).toBe(Date.UTC(2026, 9, 26, 18, 30));
+  expect(Number.isNaN(parsePixDate(undefined))).toBe(true);
 });
