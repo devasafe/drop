@@ -249,6 +249,10 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
     }
 
     let points: Awaited<ReturnType<typeof returnRidePoints>> = null;
+    // Uma retirada sem sucesso já foi paga pela loja: daqui em diante, só "levo na loja".
+    if (mode === 'motoboy' && rr.pickupMissedAt) {
+      return res.status(400).json({ error: 'Depois de uma retirada sem sucesso, a devolução é levando o produto na loja.', code: 'MODE_NOT_AVAILABLE' });
+    }
     if (mode === 'motoboy') {
       points = await returnRidePoints(rr.orderId);
       if (!points) return res.status(409).json({ error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' });

@@ -111,5 +111,8 @@ describe('Pix da corrida de volta (fase 2c)', () => {
 test('o motoboy não encontrou o cliente: avisa e deixa escolher de novo', () => {
   render(<ReturnRequestCard {...props} onChooseMotoboy={jest.fn()} request={{ ...base, status: 'aprovado', pickupMissedAt: '2026-10-26T15:00:00Z' }} />);
   expect(screen.getByText('O motoboy não te encontrou')).toBeInTheDocument();
+  expect(screen.getByText(/Agora a devolução é levando o produto na loja\./)).toBeInTheDocument();
   expect(screen.getByRole('radio', { name: /Levo na loja/ })).toBeInTheDocument();
+  // A loja já pagou uma corrida perdida: sem outra chance de motoboy.
+  expect(screen.queryByRole('radio', { name: /Chamar um motoboy/ })).not.toBeInTheDocument();
 });

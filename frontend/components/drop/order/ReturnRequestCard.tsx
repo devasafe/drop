@@ -131,14 +131,15 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
     );
   }
 
-  const motoboyOk = !!onChooseMotoboy;
+  // Depois de uma retirada sem sucesso (paga pela loja), só "levo na loja".
+  const motoboyOk = !!onChooseMotoboy && !request.pickupMissedAt;
   return (
     <section className={styles.card} aria-label="Reembolso aprovado">
       {request.pickupMissedAt && (
         <Alert tone="warning" title="O motoboy não te encontrou">
           {request.reason === 'arrependimento'
-            ? 'Escolha de novo como devolver. A corrida paga não volta: chamar outro motoboy cobra uma nova.'
-            : 'Escolha de novo como devolver.'}
+            ? 'Agora a devolução é levando o produto na loja. A corrida paga não volta.'
+            : 'Agora a devolução é levando o produto na loja.'}
         </Alert>
       )}
       <p className={styles.cap}>{`Aprovado pela ${storeName}`}</p>

@@ -32,6 +32,7 @@ import { isDirectOrder } from '../utils/settlement';
 import { cancelOrderWithFullRefund } from '../services/cancellation/fullRefund';
 import { createTransferForDelivery, notifyTransferCreated, motoboyPixSnapshot } from '../services/asaasLoja/motoboyTransfer';
 import { isReturnRide } from '../services/returnRide';
+import { calculateDistance } from '../services/routeCalculator';
 import { notifyStore as notifyStoreOwner, notifyUser as notifyPerson, STORE_LINKS as STORE_PANEL_LINKS } from '../services/storeNotify';
 import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
@@ -1205,6 +1206,9 @@ export const retirarDevolucao = async (req: AuthenticatedRequest, res: Response)
  * taxas (contada do aceite), a corrida fecha, o motoboy recebe a corrida inteira (paga pela loja,
  * como na entrega normal) e o pedido de reembolso volta para o cliente escolher como devolver.
  */
+const RETURN_ABSENT_MAX_DISTANCE_KM = 0.3;
+const RETURN_ABSENT_LOCATION_MAX_AGE_MIN = 10;
+
 export const devolucaoClienteAusente = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = String(req.user?.id);
@@ -1217,6 +1221,16 @@ export const devolucaoClienteAusente = async (req: AuthenticatedRequest, res: Re
     const availableAt = new Date(new Date(delivery.assignedAt || delivery.updatedAt).getTime() + waitMin * 60_000);
     if (Date.now() < availableAt.getTime()) {
       return res.status(400).json({ error: 'Espere um pouco mais pelo cliente.', code: 'WAIT_NOT_OVER', availableAt: availableAt.toISOString() });
+    }
+    // Prova de presença (quem paga é a loja): a última localização do motoboy, recente e perto da
+    // casa do cliente (store* da corrida de devolução).
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { currentLocation: true } });
+    const loc: any = me?.currentLocation;
+    const locRecent = loc?.updatedAt && Date.now() - new Date(loc.updatedAt).getTime() <= RETURN_ABSENT_LOCATION_MAX_AGE_MIN * 60_000;
+    const near = loc?.lat != null && loc?.lng != null && delivery.storeLatitude != null && delivery.storeLongitude != null
+      && calculateDistance(Number(loc.lat), Number(loc.lng), Number(delivery.storeLatitude), Number(delivery.storeLongitude)) <= RETURN_ABSENT_MAX_DISTANCE_KM;
+    if (!locRecent || !near) {
+      return res.status(400).json({ error: 'Para marcar que o cliente não apareceu, você precisa estar no endereço dele com a localização ligada.', code: 'NOT_AT_PICKUP' });
     }
     const rr = delivery.returnRequestId ? await prisma.returnRequest.findUnique({ where: { id: String(delivery.returnRequestId) } }) : null;
     if (!rr) return res.status(409).json({ error: 'Pedido de reembolso não encontrado' });

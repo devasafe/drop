@@ -284,6 +284,9 @@ describe('cliente não aparece na retirada', () => {
     return { ...s, ride };
   }
   const ausente = (rideId: string, who: any) => request(app).post(`/api/deliveries/${rideId}/devolucao-cliente-ausente`).set('Authorization', bearer(who)).send({});
+  // Prova de presença: a última localização do motoboy (o app manda durante a corrida).
+  const at = (userId: string, lat: number, lng: number, minutesAgo = 1) =>
+    prisma.user.update({ where: { id: userId }, data: { currentLocation: { lat, lng, updatedAt: new Date(Date.now() - minutesAgo * 60000) } } as any });
 
   it('antes da espera mínima: recusado, com a hora em que libera', async () => {
     await updatePlatformConfig({ customerAbsentWaitMin: 15 } as any, 'test');
@@ -299,6 +302,7 @@ describe('cliente não aparece na retirada', () => {
   it('depois da espera: a corrida fecha, o motoboy recebe a corrida (paga pela loja) e o cliente escolhe de novo', async () => {
     await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
     const { dono, cliente, motoboy, store, order, rr, ride } = await aceita();
+    await at(motoboy.userId, -23.5401, -46.6401); // na porta do cliente (R. Aurora, 112)
     const r = await ausente(ride.id, motoboy);
     expect(r.status).toBe(200);
     expect(r.body.compensation).toBe(9);
@@ -317,6 +321,34 @@ describe('cliente não aparece na retirada', () => {
     expect(c.body.pickupMissedAt).toBeTruthy();
     expect(postAs).not.toHaveBeenCalled();
     void dono;
+  });
+
+  it('sem estar na casa do cliente: longe ou com a localização velha, não vale', async () => {
+    await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
+    const { motoboy, ride } = await aceita();
+    await at(motoboy.userId, -23.60, -46.70); // a ~8 km
+    const longe = await ausente(ride.id, motoboy);
+    expect(longe.status).toBe(400);
+    expect(longe.body.code).toBe('NOT_AT_PICKUP');
+    await at(motoboy.userId, -23.5401, -46.6401, 30); // perto, mas de 30 min atrás
+    const velha = await ausente(ride.id, motoboy);
+    expect(velha.status).toBe(400);
+    expect(velha.body.code).toBe('NOT_AT_PICKUP');
+    expect(((await rideOf(ride.returnRequestId)) as any).status).toBe('assigned');
+    expect(await prisma.motoboyTransfer.count({ where: { deliveryId: ride.id } })).toBe(0);
+  });
+
+  it('depois de uma retirada sem sucesso, só "levo na loja" (a loja paga no máximo uma corrida perdida)', async () => {
+    await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
+    const { cliente, motoboy, rr, ride } = await aceita();
+    await at(motoboy.userId, -23.5401, -46.6401);
+    expect((await ausente(ride.id, motoboy)).status).toBe(200);
+    const again = await motoboyMode(rr.id, cliente);
+    expect(again.status).toBe(400);
+    expect(again.body.code).toBe('MODE_NOT_AVAILABLE');
+    expect(await prisma.delivery.count({ where: { returnRequestId: rr.id } as any })).toBe(1);
+    const loja = await request(app).post(`/api/return-requests/${rr.id}/mode`).set('Authorization', bearer(cliente)).send({ mode: 'loja' });
+    expect(loja.status).toBe(200);
   });
 
   it('só na corrida de devolução aceita, e só pelo motoboy dela', async () => {
