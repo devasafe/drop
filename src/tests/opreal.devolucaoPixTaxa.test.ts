@@ -168,6 +168,38 @@ describe('arrependimento: chamar um motoboy cobra a corrida por Pix', () => {
     expect(await rideOf(rr.id)).toBeNull();
   });
 
+  it('QR vencido: se a cobrança antiga não sai (pode ter sido paga), não cria outra; confere e segue o pagamento', async () => {
+    const { cliente, rr } = await arrependimentoAprovado();
+    await mode(rr.id, cliente, 'motoboy');
+    const oldPayment = (await prisma.returnRequest.findUnique({ where: { id: rr.id } }) as any).feeAsaasPaymentId;
+    await prisma.returnRequest.update({ where: { id: rr.id }, data: { feePixExpiresAt: '2000-01-01 00:00:00' } as any });
+    deleteAs.mockRejectedValueOnce(new Error('já paga'));
+    getAs.mockImplementation(async (_k: string, path: string) => (path.endsWith('/pixQrCode') ? {} : { status: 'RECEIVED' }));
+    const charges = () => postAs.mock.calls.filter((c) => c[1] === '/payments').length;
+    const before = charges();
+
+    const r = await mode(rr.id, cliente, 'motoboy');
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('RETURN_FEE_NOT_CANCELLED');
+    expect(charges()).toBe(before);
+    const after: any = await prisma.returnRequest.findUnique({ where: { id: rr.id } });
+    expect(after.feeAsaasPaymentId).toBe(oldPayment);
+    expect(after.status).toBe('devolvendo');
+    expect(await rideOf(rr.id)).not.toBeNull();
+  });
+
+  it('QR vencido e cobrança antiga excluída: gera um Pix novo', async () => {
+    const { cliente, rr } = await arrependimentoAprovado();
+    await mode(rr.id, cliente, 'motoboy');
+    const oldPayment = (await prisma.returnRequest.findUnique({ where: { id: rr.id } }) as any).feeAsaasPaymentId;
+    await prisma.returnRequest.update({ where: { id: rr.id }, data: { feePixExpiresAt: '2000-01-01 00:00:00' } as any });
+    const r = await mode(rr.id, cliente, 'motoboy');
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe('aguardando_pagamento');
+    expect(deleteAs).toHaveBeenCalledWith(STORE_KEY, `/payments/${oldPayment}`);
+    expect((await prisma.returnRequest.findUnique({ where: { id: rr.id } }) as any).feeAsaasPaymentId).not.toBe(oldPayment);
+  });
+
   it('loja sem conta Asaas pronta: 409 explicado e nada muda', async () => {
     const { cliente, store, rr } = await arrependimentoAprovado();
     await prisma.storeAsaasAccount.update({ where: { storeId: store.id }, data: { status: 'invalid' } as any });

@@ -225,7 +225,12 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
         if (!feePixExpired(rr.feePixExpiresAt)) return res.json(serializeReturnRequest(rr, 'customer'));
         const points = await returnRidePoints(rr.orderId);
         if (!points) return res.status(409).json({ error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' });
-        await cancelReturnFee(rr);
+        // A cobrança antiga precisa sair antes de nascer outra: se não sair, pode já ter sido paga,
+        // e trocar o id faria o webhook desse pagamento não achar mais o reembolso.
+        if (!(await cancelReturnFee(rr))) {
+          await checkReturnFeePaid(rr);
+          return res.status(409).json({ error: 'Não deu para renovar o Pix agora. Se você já pagou, o motoboy vai buscar o produto.', code: 'RETURN_FEE_NOT_CANCELLED' });
+        }
         const renewed = await startReturnFeeCharge(rr, points, 'aguardando_pagamento');
         return renewed ? res.json(serializeReturnRequest(renewed, 'customer')) : conflict(res);
       }
