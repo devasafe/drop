@@ -31,14 +31,15 @@ export default function PrivacidadePage() {
           <li>
             <strong>Localização:</strong> endereço, número, bairro, cidade, CEP e coordenadas
             de latitude/longitude, utilizados para entrega, busca de lojas próximas e cálculo
-            de rotas.
+            de rotas. Também a localização do aparelho do motoboy durante as corridas, usada
+            para o cliente acompanhar a entrega, para calcular rotas e, na devolução de um
+            pedido, para confirmar que o motoboy esteve no endereço de retirada.
           </li>
           <li>
             <strong>Dados sensíveis e de verificação (KYC):</strong> CPF, RG, foto e selfie
             facial para confirmação biométrica de identidade; adicionalmente, para{' '}
-            <strong>motoboys</strong>, CNH e placa do veículo; para <strong>lojistas</strong> no
-            modo com custódia, CNPJ e comprovante de endereço (no pagamento direto, a
-            verificação da conta da loja é feita pela própria Asaas).
+            <strong>motoboys</strong>, CNH e placa do veículo; para lojistas, CNPJ e comprovante de endereço
+            (no pagamento direto, a conta Asaas da loja também é verificada pela própria Asaas).
           </li>
           <li>
             <strong>Dados financeiros:</strong> chave Pix para recebimento, histórico de
@@ -46,9 +47,10 @@ export default function PrivacidadePage() {
             para chegar à Asaas e não são guardados.
           </li>
           <li>
-            <strong>Dados de uso da Plataforma:</strong> histórico de pedidos, avaliações de
-            produtos e lojas, mensagens trocadas em chat, notificações recebidas e dados de
-            gamificação (pontos, níveis, conquistas).
+            <strong>Dados de uso da Plataforma:</strong> histórico de pedidos, pedidos de reembolso (motivo, comentário e fotos),
+            avaliações de produtos e lojas, mensagens trocadas em chat e com o suporte,
+            notificações recebidas (incluindo o identificador do aparelho para notificações
+            push) e dados de gamificação (pontos, níveis, conquistas).
           </li>
           <li>
             <strong>Dados técnicos:</strong> logs de acesso, endereço IP, informações de
@@ -121,7 +123,9 @@ export default function PrivacidadePage() {
         </ul>
         <p>
           Dentro de cada pedido, a loja e o motoboy recebem os dados necessários para vender e
-          entregar, como o nome de quem recebe, o endereço de entrega e os itens do pedido.
+          entregar, como o nome de quem recebe, o endereço de entrega e os itens do pedido. Num
+          pedido de reembolso, a loja recebe o motivo, o comentário e as fotos enviadas, e o
+          motoboy da devolução recebe o nome e o endereço de retirada.
         </p>
         <p>
           Também podemos compartilhar dados pessoais com autoridades públicas, quando

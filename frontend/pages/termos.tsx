@@ -12,6 +12,8 @@ const TERMS_SUMMARY = [
 
 // Versão 2.0 (2026-10-11): DROP operada por pessoa física; cobre os dois modos de pagamento
 // (direto/SaaS e custódia). Regras de cancelamento conferidas com utils/cancellationFee.ts.
+// Versão 2.1 (2026-10-26): reembolso de pedido entregue (services/returnRequest.ts, returnFee.ts),
+// motoboy que não conclui depois de retirar e loja só com CNPJ.
 export default function TermosPage() {
   return (
     <LegalPage title="Termos de Uso" version={LEGAL_VERSIONS.terms} updatedAt={LEGAL_UPDATED} summary={TERMS_SUMMARY}>
@@ -58,9 +60,10 @@ export default function TermosPage() {
             informa e pelo sigilo da senha.
           </li>
           <li>
-            <strong>Lojista:</strong> pessoa física ou jurídica que vende na Plataforma. Passa
-            pela verificação exigida no modo de pagamento em vigor (ver Seção 4) e responde
-            pelas informações dos produtos e pelas obrigações fiscais e de consumo da venda.
+            <strong>Lojista:</strong> empresa com CNPJ que vende na Plataforma. Passa pela
+            verificação de CNPJ e endereço e, no pagamento direto, conecta a conta Asaas da
+            empresa (ver Seção 4). Responde pelas informações dos produtos e pelas obrigações
+            fiscais e de consumo da venda.
           </li>
           <li>
             <strong>Motoboy:</strong> pessoa física que faz as entregas. Envia documento,
@@ -133,7 +136,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="cancelamento" title="6. Cancelamento e estorno">
+      <LegalSection id="cancelamento" title="6. Cancelamento, estorno e reembolso">
         <ul>
           <li>
             <strong>Cliente cancela antes de o motoboy retirar o pedido:</strong> é grátis, e o
@@ -153,6 +156,16 @@ export default function TermosPage() {
             e o valor volta inteiro.
           </li>
           <li>
+            <strong>Nenhum motoboy aceita a entrega no prazo:</strong> o cliente escolhe
+            esperar mais ou cancelar, e o valor volta inteiro.
+          </li>
+          <li>
+            <strong>O motoboy não conclui a entrega depois de retirar:</strong> o pacote volta
+            para a loja e o cliente escolhe entre uma nova entrega ou o reembolso total,
+            incluindo a taxa de entrega. O reembolso é feito quando a loja confirma que recebeu
+            o pacote de volta.
+          </li>
+          <li>
             <strong>O cliente não está no endereço para receber:</strong> pode ser cobrada uma
             taxa sobre o pedido, mostrada no app, que remunera a viagem do motoboy.
           </li>
@@ -162,13 +175,49 @@ export default function TermosPage() {
           custódia, a parte paga com saldo volta para a carteira. A tela de cancelamento
           mostra quanto vai voltar antes de confirmar.
         </p>
-        <p>
-          Problemas com o produto (defeito, item errado ou faltando) são resolvidos com a loja
-          pela própria Plataforma, na tela do pedido, sem prejuízo dos direitos do consumidor.
-        </p>
       </LegalSection>
 
-      <LegalSection id="condutas" title="7. O que não é permitido">
+      <LegalSection id="reembolso" title="7. Reembolso de pedido entregue">
+        <p>
+          Recebeu o pedido e quer devolver? O pedido de reembolso é feito pela própria
+          Plataforma, na tela do pedido, sem prejuízo dos direitos do consumidor:
+        </p>
+        <ul>
+          <li>
+            <strong>Pedido:</strong> o cliente informa o motivo (produto com defeito, diferente
+            do pedido ou arrependimento) e pode mandar um comentário e fotos.
+          </li>
+          <li>
+            <strong>Decisão:</strong> a loja aprova ou recusa. A recusa sempre traz o motivo, e o
+            cliente pode levar o caso ao suporte da DROP. Se a loja não responder no prazo, o
+            suporte da DROP é avisado e acompanha o pedido.
+          </li>
+          <li>
+            <strong>Devolução:</strong> aprovado, o cliente devolve o produto levando na loja, sem
+            custo, ou chamando um motoboy pela Plataforma. No defeito ou produto diferente do
+            pedido, a corrida do motoboy é paga pela loja. No arrependimento, o cliente paga a
+            corrida por Pix antes de o motoboy sair, e esse valor não é devolvido.
+          </li>
+          <li>
+            <strong>Cliente ausente na retirada:</strong> se o motoboy não encontrar o cliente
+            no endereço, a corrida é encerrada e a devolução passa a ser levando o produto na
+            loja.
+          </li>
+          <li>
+            <strong>Quando o dinheiro volta:</strong> o reembolso é feito quando a loja confirma
+            que recebeu o produto, com o código de devolução mostrado no app.
+          </li>
+          <li>
+            <strong>Quanto volta:</strong> no defeito ou produto diferente do pedido, o valor
+            total, com a taxa de entrega. No arrependimento dentro de 7 dias corridos da
+            entrega (art. 49 do Código de Defesa do Consumidor), também o valor total. Depois
+            desse prazo, o arrependimento devolve o valor dos produtos, sem a taxa de entrega,
+            que já foi feita. A tela mostra o valor antes de o cliente enviar o pedido.
+          </li>
+        </ul>
+      </LegalSection>
+
+      <LegalSection id="condutas" title="8. O que não é permitido">
         <ul>
           <li>Informar dados falsos ou de outra pessoa sem autorização;</li>
           <li>Usar a Plataforma para fraude ou qualquer fim ilegal;</li>
@@ -184,7 +233,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="propriedade" title="8. Propriedade intelectual">
+      <LegalSection id="propriedade" title="9. Propriedade intelectual">
         <p>
           A marca DROP, o logotipo, o design e o código da Plataforma pertencem a{' '}
           {LEGAL_OPERATOR_NAME}. Não é permitido copiar ou usar comercialmente sem
@@ -196,7 +245,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="responsabilidade" title="9. Limites de responsabilidade">
+      <LegalSection id="responsabilidade" title="10. Limites de responsabilidade">
         <p>
           A DROP se esforça para manter a Plataforma no ar e segura, mas não garante que ela
           funcione sem interrupções ou erros. Na medida permitida pela lei, a DROP não
@@ -214,7 +263,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="suspensao" title="10. Suspensão e encerramento">
+      <LegalSection id="suspensao" title="11. Suspensão e encerramento">
         <p>
           A DROP pode suspender ou encerrar contas que descumpram estes Termos, tenham sinais
           de fraude ou ponham em risco a Plataforma ou outras pessoas, avisando sempre que
@@ -226,7 +275,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="alteracoes" title="11. Mudanças nestes Termos">
+      <LegalSection id="alteracoes" title="12. Mudanças nestes Termos">
         <p>
           Estes Termos podem mudar. A versão e a data em vigor ficam no topo desta página, e
           mudanças importantes são avisadas por e-mail ou no app. Se você continuar usando a
@@ -235,7 +284,7 @@ export default function TermosPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="foro" title="12. Lei e foro">
+      <LegalSection id="foro" title="13. Lei e foro">
         <p>
           Estes Termos seguem as leis do Brasil. Para o consumidor, vale o foro do domicílio
           dele. Nas demais relações, vale o foro do domicílio do responsável pela DROP,
