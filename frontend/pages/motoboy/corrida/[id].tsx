@@ -23,7 +23,7 @@ import { RetirarView } from '../../../components/motoboy/corrida/RetirarView';
 import { EntregarView } from '../../../components/motoboy/corrida/EntregarView';
 import { ClienteAusenteView } from '../../../components/motoboy/corrida/ClienteAusenteView';
 import { DevolverView, DevolucaoConfirmada } from '../../../components/motoboy/corrida/DevolverView';
-import { DevolucaoBuscarView, DevolucaoLevarView, DevolucaoConcluida } from '../../../components/motoboy/corrida/DevolucaoViews';
+import { DevolucaoBuscarView, DevolucaoLevarView, DevolucaoConcluida, DevolucaoAusente } from '../../../components/motoboy/corrida/DevolucaoViews';
 import { CanceladaView } from '../../../components/motoboy/corrida/CanceladaView';
 import { ConcluidaView } from '../../../components/motoboy/corrida/ConcluidaView';
 import { ProblemSheet } from '../../../components/motoboy/corrida/ProblemSheet';
@@ -62,6 +62,8 @@ export default function CorridaPage() {
   const [problem, setProblem] = useState<null | { initialKey?: string }>(null);
   const [chat, setChat] = useState<RideChatKind | null>(null);
   const [absentComp, setAbsentComp] = useState<number | null>(null);
+  // Corrida de devolução: o cliente não apareceu na retirada (o valor que o motoboy recebe).
+  const [returnAbsent, setReturnAbsent] = useState<number | null>(null);
   const [returnPatch, setReturnPatch] = useState<ReturnPatch | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const firstStage = useRef<RideStage | null>(null);
@@ -169,7 +171,9 @@ export default function CorridaPage() {
 
   let content: JSX.Element;
   const returnRide = ride?.kind === 'devolucao';
-  if (returnConfirmed && returnRide) {
+  if (returnAbsent !== null) {
+    content = <MotoboyShell title="Corrida encerrada" bare><DevolucaoAusente compensation={returnAbsent} onNext={goCorridas} /></MotoboyShell>;
+  } else if (returnConfirmed && returnRide) {
     content = <MotoboyShell title="Devolução concluída" bare><DevolucaoConcluida onNext={goCorridas} /></MotoboyShell>;
   } else if (returnConfirmed) {
     content = <MotoboyShell title="Devolução confirmada" bare><DevolucaoConfirmada onNext={goCorridas} /></MotoboyShell>;
@@ -199,7 +203,7 @@ export default function CorridaPage() {
   } else if (stage === 'buscar_devolucao') {
     content = (
       <MotoboyShell title="Buscar com o cliente" back={BACK} actions={<span className={`${blocks.tag} ${blocks.tagWarn}`}>Devolução</span>}>
-        <DevolucaoBuscarView ride={ride} self={currentLocation} onPicked={reload} onProblem={() => setProblem({})} />
+        <DevolucaoBuscarView ride={ride} self={currentLocation} now={now} onPicked={reload} onProblem={() => setProblem({})} onAbsent={setReturnAbsent} />
       </MotoboyShell>
     );
   } else if (stage === 'levar_devolucao') {

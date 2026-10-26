@@ -275,6 +275,59 @@ describe('o motoboy desiste', () => {
   });
 });
 
+describe('cliente não aparece na retirada', () => {
+  async function aceita() {
+    const s = await aprovado();
+    await motoboyMode(s.rr.id, s.cliente);
+    const ride: any = await rideOf(s.rr.id);
+    await request(app).post(`/api/deliveries/${ride.id}/claim`).set('Authorization', bearer(s.motoboy));
+    return { ...s, ride };
+  }
+  const ausente = (rideId: string, who: any) => request(app).post(`/api/deliveries/${rideId}/devolucao-cliente-ausente`).set('Authorization', bearer(who)).send({});
+
+  it('antes da espera mínima: recusado, com a hora em que libera', async () => {
+    await updatePlatformConfig({ customerAbsentWaitMin: 15 } as any, 'test');
+    const { motoboy, ride } = await aceita();
+    const r = await ausente(ride.id, motoboy);
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('WAIT_NOT_OVER');
+    expect(Number.isFinite(Date.parse(r.body.availableAt))).toBe(true);
+    const motoboyView = await request(app).get(`/api/deliveries/${ride.id}`).set('Authorization', bearer(motoboy));
+    expect(motoboyView.body.customerAbsentAvailableAt).toBe(r.body.availableAt);
+  });
+
+  it('depois da espera: a corrida fecha, o motoboy recebe a corrida (paga pela loja) e o cliente escolhe de novo', async () => {
+    await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
+    const { dono, cliente, motoboy, store, order, rr, ride } = await aceita();
+    const r = await ausente(ride.id, motoboy);
+    expect(r.status).toBe(200);
+    expect(r.body.compensation).toBe(9);
+
+    const closed: any = await rideOf(rr.id);
+    expect(closed.status).toBe('cancelled');
+    const t = await prisma.motoboyTransfer.findUnique({ where: { deliveryId: ride.id } });
+    expect(t).toMatchObject({ reason: 'return_delivery', payer: 'store', storeId: store.id, motoboyId: motoboy.userId });
+    expect(Number(t!.amount)).toBe(9);
+
+    const back: any = await prisma.returnRequest.findUnique({ where: { id: rr.id } });
+    expect(back).toMatchObject({ status: 'aprovado', mode: null, pin: null });
+    expect(back.pickupMissedAt).toBeInstanceOf(Date);
+    const c = await getRR(order.id, cliente);
+    expect(c.body.status).toBe('aprovado');
+    expect(c.body.pickupMissedAt).toBeTruthy();
+    expect(postAs).not.toHaveBeenCalled();
+    void dono;
+  });
+
+  it('só na corrida de devolução aceita, e só pelo motoboy dela', async () => {
+    await updatePlatformConfig({ customerAbsentWaitMin: 0 } as any, 'test');
+    const { cliente, ride } = await aceita();
+    const outro = await createTestUser('motoboy', DOMAIN);
+    expect((await ausente(ride.id, outro)).status).toBe(403);
+    void cliente;
+  });
+});
+
 describe('jobs', () => {
   it('o timeout do pool não oferece cancelar um pedido entregue por causa da corrida de volta', async () => {
     const { cliente, order, rr } = await aprovado();

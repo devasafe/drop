@@ -56,20 +56,30 @@ async function pickedOrderIds(): Promise<string[]> {
   return rows.map((r) => r.orderId);
 }
 
+/**
+ * Corridas de devolução ativas (caso B): o pedido já está 'entregue', mas a corrida de volta
+ * (no pool, a caminho do cliente ou levando à loja) precisa aparecer na operação.
+ */
+const ACTIVE_RIDE_STATUSES = ['pending', 'assigned', 'picked'] as const;
+async function returnRideOrderIds(statuses: readonly string[] = ACTIVE_RIDE_STATUSES): Promise<string[]> {
+  const rows = await prisma.delivery.findMany({ where: { kind: 'devolucao', status: { in: statuses as any } }, select: { orderId: true } });
+  return Array.from(new Set(rows.map((r) => r.orderId)));
+}
+
 async function filterWhere(filter: OrdersFilter, dayStart: Date): Promise<Prisma.OrderWhereInput> {
   switch (filter) {
     case 'todos':
-      return { status: { in: ACTIVE_ORDER_STATUSES } };
+      return { OR: [{ status: { in: ACTIVE_ORDER_STATUSES } }, { id: { in: await returnRideOrderIds() } }] };
     case 'aguardando_pix':
       return AWAITING_PIX_WHERE;
     case 'na_loja':
       return { status: { in: ACTIVE_ORDER_STATUSES }, paymentStatus: 'paid', id: { notIn: await pickedOrderIds() } };
     case 'em_entrega':
-      return { status: { in: ACTIVE_ORDER_STATUSES }, id: { in: await pickedOrderIds() } };
+      return { OR: [{ status: { in: ACTIVE_ORDER_STATUSES }, id: { in: await pickedOrderIds() } }, { id: { in: await returnRideOrderIds(['picked']) } }] };
     case 'cancelados_hoje':
       return cancelledTodayWhere(dayStart);
     case 'atencao':
-      return { OR: [{ status: { in: ACTIVE_ORDER_STATUSES } }, cancelledTodayWhere(dayStart)] };
+      return { OR: [{ status: { in: ACTIVE_ORDER_STATUSES } }, cancelledTodayWhere(dayStart), { id: { in: await returnRideOrderIds() } }] };
   }
 }
 
@@ -105,6 +115,15 @@ async function toRows(records: OrderRowRecord[], limits: OpsLimits, now: Date): 
       : [],
   ]);
   const deliveryById = new Map(deliveries.map((d) => [d.id, d] as const));
+  // Corrida de devolução ativa: a etapa, o motoboy e a atenção da linha vêm dela.
+  const returnRides = await prisma.delivery.findMany({
+    where: { orderId: { in: records.map((o) => o.id) }, kind: 'devolucao', status: { in: ACTIVE_RIDE_STATUSES as any } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, orderId: true, status: true, motoboyId: true, createdAt: true, assignedAt: true, pickedAt: true },
+  });
+  const returnRideByOrder = new Map<string, (typeof returnRides)[number]>();
+  for (const r of returnRides) if (!returnRideByOrder.has(r.orderId)) returnRideByOrder.set(r.orderId, r);
+  deliveries.push(...returnRides.filter((r) => !deliveryById.has(r.id)) as any);
   const motoboyIds = Array.from(new Set(deliveries.map((d) => d.motoboyId).filter((id): id is string => !!id)));
   const motoboys = motoboyIds.length
     ? await prisma.user.findMany({ where: { id: { in: motoboyIds } }, select: { id: true, name: true } })
@@ -113,8 +132,14 @@ async function toRows(records: OrderRowRecord[], limits: OpsLimits, now: Date): 
   const refundOpen = new Set([...openCancellations.map((c) => c.orderId), ...openDirectRefunds.map((r) => r.orderId)]);
 
   return records.map((o): AdminOrderRow => {
-    const d = o.deliveryId ? deliveryById.get(o.deliveryId) ?? null : null;
+    const ret = returnRideByOrder.get(o.id) ?? null;
+    const d = ret ?? (o.deliveryId ? deliveryById.get(o.deliveryId) ?? null : null);
     const motoboy = d?.motoboyId ? motoboyById.get(d.motoboyId) ?? null : null;
+    // Na corrida de volta o pedido está 'entregue': para a atenção, vale como corrida ativa, sem a
+    // duração da rota de ida (o atraso usa o limite padrão).
+    const attentionRow = ret
+      ? { ...o, status: 'aguardando_motoboy', awaitingCustomerPoolDecision: false, deliveryDuration: null, delivery: d, refundPending: false }
+      : { ...o, delivery: d, refundPending: refundOpen.has(o.id) };
     return {
       id: o.id,
       shortId: shortOrderId(o.id),
@@ -125,7 +150,8 @@ async function toRows(records: OrderRowRecord[], limits: OpsLimits, now: Date): 
       createdAt: o.createdAt.toISOString(),
       stageSince: stageSinceOf(o, d).toISOString(),
       total: Number(o.totalValue),
-      attention: attentionFor({ ...o, delivery: d, refundPending: refundOpen.has(o.id) }, limits, now),
+      attention: attentionFor(attentionRow as any, limits, now),
+      ...(ret ? { returnRide: true } : {}),
     };
   });
 }

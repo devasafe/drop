@@ -23,7 +23,7 @@ import { Chip } from '../../../components/ui/Chip';
 import { Select } from '../../../components/ui/Select';
 import { ADMIN_ORDERS_POLL_MS, useAdminOrderChanged } from '../../../hooks/useAdminOrderChanged';
 import {
-  ATTENTION_LABEL, ATTENTION_TONE, ORDERS_FILTERS, adminOrderStatus, elapsedLabel, fetchAdminOrders, minutesLabel,
+  ATTENTION_LABEL, ATTENTION_TONE, ORDERS_FILTERS, adminOrderStatus, adminReturnRideStatus, elapsedLabel, fetchAdminOrders, minutesLabel,
   orderTag, type AdminOrderRow, type AdminOrdersResponse, type OrdersFilter,
 } from '../../../lib/adminOps';
 import { formatMoney } from '../../../lib/money';
@@ -163,7 +163,7 @@ function PedidosAoVivo() {
     {
       key: 'situacao', header: 'Situação',
       render: (o) => {
-        const s = adminOrderStatus(o.status, o.deliveryStatus);
+        const s = o.returnRide ? adminReturnRideStatus(o.deliveryStatus) : adminOrderStatus(o.status, o.deliveryStatus);
         return <StatusTag tone={s.tone}>{s.label}</StatusTag>;
       },
     },

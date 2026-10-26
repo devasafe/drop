@@ -739,7 +739,10 @@ export const getDelivery = async (req: AuthenticatedRequest, res: Response) => {
     const canSeeCustomerPhone = isCustomer || isStoreOwner || ['assigned', 'picked'].includes(delivery.status);
     // Cronômetro do "cliente ausente" na tela da corrida: a tela não adivinha a espera.
     const absentWaitMin = customerAbsentWaitMinutes(await getPlatformConfig());
-    const absentAvailableAt = customerAbsentAvailableAt(delivery, absentWaitMin);
+    // Corrida de devolução: a espera pelo cliente conta do aceite (o motoboy vai até a casa dele).
+    const absentAvailableAt = isReturnRide(delivery)
+      ? (delivery.status === 'assigned' && delivery.assignedAt ? new Date(new Date(delivery.assignedAt).getTime() + absentWaitMin * 60_000) : null)
+      : customerAbsentAvailableAt(delivery, absentWaitMin);
     // Compensação do cancelamento: só para o motoboy desta corrida. Uma falha aqui vira 500
     // (fail closed: nunca um null que pareceria "sem compensação").
     const cancellationCompensation = delivery.status === 'cancelled' && isMotoboy
@@ -1193,6 +1196,72 @@ export const retirarDevolucao = async (req: AuthenticatedRequest, res: Response)
     return res.json(serializeDeliveryFor(fresh, userId));
   } catch (err) {
     logger.error('Erro na retirada da devolução', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+/**
+ * Corrida de devolução (caso B): o cliente não aparece na retirada. Passada a espera de Regras e
+ * taxas (contada do aceite), a corrida fecha, o motoboy recebe a corrida inteira (paga pela loja,
+ * como na entrega normal) e o pedido de reembolso volta para o cliente escolher como devolver.
+ */
+export const devolucaoClienteAusente = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = String(req.user?.id);
+    const delivery: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: String(req.params.id) } }));
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!isReturnRide(delivery)) return res.status(400).json({ error: 'Esta não é uma corrida de devolução', code: 'NOT_RETURN_RIDE' });
+    if (String(delivery.motoboyId) !== userId) return res.status(403).json({ error: 'Not your delivery' });
+    if (delivery.status !== 'assigned') return res.status(400).json({ error: 'A corrida não está aguardando a retirada' });
+    const waitMin = customerAbsentWaitMinutes(await getPlatformConfig());
+    const availableAt = new Date(new Date(delivery.assignedAt || delivery.updatedAt).getTime() + waitMin * 60_000);
+    if (Date.now() < availableAt.getTime()) {
+      return res.status(400).json({ error: 'Espere um pouco mais pelo cliente.', code: 'WAIT_NOT_OVER', availableAt: availableAt.toISOString() });
+    }
+    const rr = delivery.returnRequestId ? await prisma.returnRequest.findUnique({ where: { id: String(delivery.returnRequestId) } }) : null;
+    if (!rr) return res.status(409).json({ error: 'Pedido de reembolso não encontrado' });
+
+    const transfer = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.delivery.updateMany({
+        where: { id: delivery.id, status: 'assigned', motoboyId: userId },
+        data: { status: 'cancelled', cancelledAt: new Date(), pin: null, pinRetirada: null, pinFailedAttempts: 0, pinLockedUntil: null },
+      });
+      if (count !== 1) return 'changed' as const;
+      await tx.returnRequest.updateMany({
+        where: { id: rr.id, status: 'devolvendo' },
+        data: {
+          status: 'aprovado', mode: null, pin: null, pinFailedAttempts: 0, pinLockedUntil: null, pickupMissedAt: new Date(),
+          // Arrependimento: a corrida paga foi usada; chamar de novo cobra outra.
+          feeAmount: null, feeAsaasPaymentId: null, feePixPayload: null, feePixImage: null, feePixExpiresAt: null, feePaidAt: null,
+        },
+      });
+      return createTransferForDelivery(tx, { id: delivery.id, motoboyId: userId, fee: delivery.fee }, { id: rr.orderId, storeId: rr.storeId }, 'return_delivery');
+    });
+    if (transfer === 'changed') return res.status(409).json({ error: 'A corrida mudou. Atualize a tela.' });
+    if (transfer) notifyTransferCreated(transfer);
+
+    const code = String(rr.orderId).slice(-6).toUpperCase();
+    void notifyPerson(rr.customerId, {
+      title: 'O motoboy não te encontrou',
+      message: 'O motoboy não te encontrou para buscar o produto. Escolha de novo como devolver.',
+      link: `/pedido/${rr.orderId}`,
+      entityId: rr.orderId,
+      tag: 'reembolso',
+    });
+    void notifyStoreOwner(rr.storeId, {
+      title: 'Retirada da devolução não aconteceu',
+      message: `O motoboy não encontrou o cliente do pedido #${code}. A corrida foi paga pela sua conta e o cliente vai escolher de novo como devolver.`,
+      link: STORE_PANEL_LINKS.order(rr.orderId),
+      entityId: rr.orderId,
+      tag: 'reembolso',
+    });
+    emitToRoom(`user:${rr.customerId}`, 'return:updated', { orderId: rr.orderId, status: 'aprovado' });
+    emitToRoom(`store:${rr.storeId}`, 'order:updated', { orderId: rr.orderId });
+    const fresh: any = toApiDelivery(await prisma.delivery.findUnique({ where: { id: delivery.id } }));
+    emitDeliveryStatusChanged(fresh);
+    return res.json({ success: true, status: 'cancelled', compensation: transfer ? Number(transfer.amount) : 0 });
+  } catch (err) {
+    logger.error('Erro no cliente ausente da devolução', err as Error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };

@@ -1408,6 +1408,8 @@ model ReturnRequest {
   feePixImage         String?
   feePixExpiresAt     String?
   feePaidAt           DateTime?
+  /// O motoboy não encontrou o cliente na retirada: a corrida fechou e o cliente escolhe de novo.
+  pickupMissedAt      DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 

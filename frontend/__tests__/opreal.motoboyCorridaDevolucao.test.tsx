@@ -89,3 +89,21 @@ test('a loja confirmou: devolução concluída', async () => {
   expect(await screen.findByText('Devolução concluída')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Procurar próxima corrida' })).toBeInTheDocument();
 });
+
+test('cliente não aparece: bloqueado até a espera acabar; depois fecha e mostra quanto recebe', async () => {
+  current = { ...base, customerAbsentAvailableAt: new Date(Date.now() + 5 * 60000).toISOString() };
+  const { unmount } = render(<CorridaPage />);
+  const early = await screen.findByRole('button', { name: /Cliente não aparece/ });
+  expect(early).toBeDisabled();
+  expect(screen.getByText(/Libera em \d+ min/)).toBeInTheDocument();
+  unmount();
+
+  current = { ...base, customerAbsentAvailableAt: new Date(Date.now() - 60000).toISOString() };
+  post.mockResolvedValueOnce({ data: { success: true, status: 'cancelled', compensation: 9.9 } });
+  render(<CorridaPage />);
+  fireEvent.click(await screen.findByRole('button', { name: /Cliente não aparece/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar: cliente não apareceu' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/deliveries/d1/devolucao-cliente-ausente', {}));
+  expect(await screen.findByText('Corrida encerrada')).toBeInTheDocument();
+  expect(screen.getByText(/Você recebe R\$ 9,90 por esta corrida, pagos pela loja\./)).toBeInTheDocument();
+});

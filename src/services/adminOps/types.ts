@@ -33,6 +33,8 @@ export interface AdminOrderRow {
   createdAt: string; stageSince: string;                    // ISO; stageSince = início da etapa atual
   total: number;
   attention: AttentionReason | null;
+  /** Caso B: a linha é a corrida de devolução de um pedido entregue (etapa e motoboy são dela). */
+  returnRide?: boolean;
 }
 export interface AdminOrdersResponse {
   items: AdminOrderRow[]; nextCursor: string | null;

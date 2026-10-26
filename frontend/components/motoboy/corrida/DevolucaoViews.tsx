@@ -24,14 +24,44 @@ const placeLine = (address?: string | null) => {
   return [a.line1, a.line2].filter(Boolean).join(' · ');
 };
 
-/** 1 · Buscar com o cliente: o motoboy digita o código de retirada que o cliente mostra. */
-export function DevolucaoBuscarView({ ride, self, onPicked, onProblem }: { ride: any; self: RoutePoint | null; onPicked: () => void; onProblem: () => void }) {
+/**
+ * 1 · Buscar com o cliente: o motoboy digita o código de retirada que o cliente mostra. Se o
+ * cliente não aparece, passada a espera (customerAbsentAvailableAt, do servidor), fecha a corrida.
+ */
+export function DevolucaoBuscarView({ ride, self, now, onPicked, onProblem, onAbsent }: {
+  ride: any;
+  self: RoutePoint | null;
+  now: number;
+  onPicked: () => void;
+  onProblem: () => void;
+  onAbsent: (compensation: number) => void;
+}) {
   const customer = ride?.customerObj || {};
   const store = ride?.storeObj || {};
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sending = useRef(false);
+  const [absentAsk, setAbsentAsk] = useState(false);
+  const availableAt = ride?.customerAbsentAvailableAt ? new Date(ride.customerAbsentAvailableAt).getTime() : NaN;
+  const waitLeftMin = Number.isFinite(availableAt) && availableAt > now ? Math.ceil((availableAt - now) / 60000) : 0;
+
+  const markAbsent = async () => {
+    if (sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.post(`/deliveries/${ride._id}/devolucao-cliente-ausente`, {});
+      onAbsent(Number(r.data?.compensation) || 0);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Não deu para encerrar agora. Tente de novo.');
+      setAbsentAsk(false);
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  };
 
   const confirm = async () => {
     if (pin.length !== 5 || sending.current) return;
@@ -75,7 +105,35 @@ export function DevolucaoBuscarView({ ride, self, onPicked, onProblem }: { ride:
         {error && <p role="alert" className={blocks.meta}>{error}</p>}
         <Button onClick={confirm} disabled={pin.length !== 5} loading={busy}>Confirmar retirada</Button>
       </section>
+      {absentAsk ? (
+        <section className={blocks.blk}>
+          <span className={blocks.meta}>A corrida fecha e você recebe por ela. O cliente escolhe de novo como devolver.</span>
+          <Button variant="danger" onClick={markAbsent} loading={busy}>Confirmar: cliente não apareceu</Button>
+          <Button variant="tertiary" onClick={() => setAbsentAsk(false)} disabled={busy}>Voltar</Button>
+        </section>
+      ) : (
+        <>
+          <Button variant="secondary" onClick={() => setAbsentAsk(true)} disabled={waitLeftMin > 0}>Cliente não aparece</Button>
+          {waitLeftMin > 0 && <span className={blocks.meta}>{`Libera em ${waitLeftMin} min, se o cliente não aparecer.`}</span>}
+        </>
+      )}
       <Button variant="tertiary" onClick={onProblem}>Não consigo buscar</Button>
+    </div>
+  );
+}
+
+/** O cliente não apareceu: a corrida fechou e o motoboy recebe por ela. */
+export function DevolucaoAusente({ compensation, onNext }: { compensation: number; onNext: () => void }) {
+  return (
+    <div className={styles.screen}>
+      <div className={styles.done}>
+        <span className={`${styles.doneIcon} ${styles.doneOk}`} aria-hidden="true"><CheckCircle2 size={28} /></span>
+        <h1 className={styles.doneTitle}>Corrida encerrada</h1>
+        <p className={styles.doneText}>{`O cliente não apareceu. Você recebe ${formatMoney(compensation)} por esta corrida, pagos pela loja.`}</p>
+      </div>
+      <div className={styles.bar}>
+        <Button onClick={onNext}>Procurar próxima corrida</Button>
+      </div>
     </div>
   );
 }

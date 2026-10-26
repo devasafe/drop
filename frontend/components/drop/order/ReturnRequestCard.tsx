@@ -20,6 +20,8 @@ export interface ReturnRequestView {
   /** Arrependimento com motoboy: a corrida de volta, paga por Pix na conta da loja. */
   feeAmount?: number | null;
   feePix?: { qrCodePayload?: string | null; qrCodeImage?: string | null; expiresAt?: string | null };
+  /** O motoboy não encontrou o cliente na retirada; ele escolhe de novo como devolver. */
+  pickupMissedAt?: string | null;
   /** Corrida de volta (modo motoboy). O código de retirada só com o motoboy a caminho. */
   ride?: { status: string; motoboyName?: string | null; pickupPin?: string; fee?: number } | null;
 }
@@ -132,6 +134,13 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
   const motoboyOk = !!onChooseMotoboy;
   return (
     <section className={styles.card} aria-label="Reembolso aprovado">
+      {request.pickupMissedAt && (
+        <Alert tone="warning" title="O motoboy não te encontrou">
+          {request.reason === 'arrependimento'
+            ? 'Escolha de novo como devolver. A corrida paga não volta: chamar outro motoboy cobra uma nova.'
+            : 'Escolha de novo como devolver.'}
+        </Alert>
+      )}
       <p className={styles.cap}>{`Aprovado pela ${storeName}`}</p>
       <h2 className={styles.title}>Como você vai devolver?</h2>
       <p className={styles.text}>{`O reembolso de ${amount} sai quando a loja receber o produto.`}</p>

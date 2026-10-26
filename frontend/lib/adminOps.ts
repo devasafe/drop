@@ -42,6 +42,8 @@ export interface AdminOrderRow {
   createdAt: string; stageSince: string;
   total: number;
   attention: AttentionReason | null;
+  /** Caso B: a linha é a corrida de devolução de um pedido entregue. */
+  returnRide?: boolean;
 }
 export interface AdminOrdersResponse {
   items: AdminOrderRow[]; nextCursor: string | null;
@@ -394,6 +396,13 @@ export function adminOrderStatus(status: string, deliveryStatus: string | null):
   if (status === 'aguardando_motoboy' || deliveryStatus === 'pending') return { label: 'Procurando motoboy', tone: 'warn' };
   if (status === 'pago') return { label: 'Na loja', tone: 'warn' };
   return { label: status, tone: 'neutral' };
+}
+
+/** Situação da corrida de devolução (caso B) na lista: o pedido já está entregue. */
+export function adminReturnRideStatus(deliveryStatus: string | null): { label: string; tone: StatusTone } {
+  if (deliveryStatus === 'picked') return { label: 'Devolução · levando à loja', tone: 'info' };
+  if (deliveryStatus === 'assigned') return { label: 'Devolução · indo ao cliente', tone: 'info' };
+  return { label: 'Devolução · procurando motoboy', tone: 'warn' };
 }
 
 /* ---------- pedido do admin ---------- */
