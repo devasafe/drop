@@ -8,3 +8,25 @@
   padding-bottom: var(--space-8);
   background: var(--color-bg-primary);
 }
+
+/* Conversa com o suporte em tela cheia, acima do dock (z-index 30). */
+.threadPage {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--color-bg-primary);
+}
+.threadPage > div {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+/* Computador: a Nav global (64px) continua visível no topo. */
+@media (min-width: 900px) {
+  .threadPage {
+    top: 64px;
+  }
+}

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/router';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { HELP_FAQ } from '../../lib/helpFaq';
@@ -13,12 +14,16 @@ export default function AjudaPage() {
       <HelpCenter
         faq={HELP_FAQ}
         withOrders
-        frame={(content, inThread) => (
-          <main className={styles.page}>
-            {!inThread && <ScreenHeader title="Ajuda" onBack={() => router.push(ROUTES.conta)} />}
-            {content}
-          </main>
-        )}
+        frame={(content, inThread) => (inThread
+          // A conversa cobre a TabBar e o StickyCart (fixos no _app), como em /pedido/[id]/conversa.
+          // Portal no body: o transform do PageTransition prenderia o position: fixed.
+          ? createPortal(<main className={styles.threadPage}>{content}</main>, document.body)
+          : (
+            <main className={styles.page}>
+              <ScreenHeader title="Ajuda" onBack={() => router.push(ROUTES.conta)} />
+              {content}
+            </main>
+          ))}
       />
     </ProtectedRoute>
   );
