@@ -30,7 +30,10 @@ function step<T>(name: PushStep, ms: number, run: () => Promise<T>): Promise<T> 
   });
 }
 
-const plugin = () => step('carregar', 10000, async () => (await import('@capacitor/push-notifications')).PushNotifications);
+// Devolve o MÓDULO, nunca o plugin: o plugin é um Proxy do Capacitor que transforma qualquer
+// propriedade em chamada nativa, inclusive `then`. Devolvido por uma Promise, o JS chama
+// `plugin.then(...)` e a chamada nativa "then" nunca responde (o app ficava travado aqui).
+const pluginModule = () => step('carregar', 10000, () => import('@capacitor/push-notifications'));
 
 const readToken = (): string | null => {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -42,7 +45,7 @@ const writeToken = (t: string | null) => {
 const toPerm = (receive: string): NativePerm => (receive === 'granted' ? 'granted' : receive === 'denied' ? 'denied' : 'default');
 
 export async function nativePushState(): Promise<{ permission: NativePerm; subscribed: boolean }> {
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   const { receive } = await step('permissao', 8000, () => PushNotifications.checkPermissions());
   const permission = toPerm(receive);
   return { permission, subscribed: permission === 'granted' && !!readToken() };
@@ -50,7 +53,7 @@ export async function nativePushState(): Promise<{ permission: NativePerm; subsc
 
 /** Canais do Android 8+: corrida nova toca alto; o resto é aviso normal (mesmos ids do backend). */
 async function ensureChannels() {
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   await step('canais', 8000, async () => {
     await PushNotifications.createChannel({ id: 'corridas', name: 'Corridas novas', importance: 5, visibility: 1, sound: 'default', vibration: true });
     await PushNotifications.createChannel({ id: 'avisos', name: 'Pedidos e avisos', importance: 4, visibility: 1, vibration: true });
@@ -59,7 +62,7 @@ async function ensureChannels() {
 
 /** Registra o aparelho no FCM e devolve o token (ou falha em 15 s). */
 async function registerToken(): Promise<string> {
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   return new Promise<string>((resolve, reject) => {
     const handles: Array<Promise<{ remove: () => Promise<void> }>> = [];
     const done = () => handles.forEach((h) => h.then((x) => x.remove()).catch(() => undefined));
@@ -73,7 +76,7 @@ async function registerToken(): Promise<string> {
 
 /** Pede a permissão (se ainda não decidiu), registra e envia o token ao backend. */
 export async function nativePushEnable(): Promise<{ permission: NativePerm; ok: boolean }> {
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   let { receive } = await step('permissao', 8000, () => PushNotifications.checkPermissions());
   if (receive === 'prompt' || receive === 'prompt-with-rationale') {
     // Espera a pessoa responder à janela do Android.
@@ -90,7 +93,7 @@ export async function nativePushEnable(): Promise<{ permission: NativePerm; ok: 
 
 /** Já autorizado: reenvia o token (troca de conta no aparelho, token novo do FCM). Silencioso. */
 export async function nativePushRefresh(): Promise<void> {
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   const { receive } = await step('permissao', 8000, () => PushNotifications.checkPermissions());
   if (receive !== 'granted') return;
   await ensureChannels();
@@ -103,7 +106,7 @@ export async function nativePushDisable(): Promise<void> {
   const token = readToken();
   if (token) await api.post('/push/unsubscribe', { endpoint: `fcm:${token}` }).catch(() => undefined);
   writeToken(null);
-  const PushNotifications = await plugin();
+  const { PushNotifications } = await pluginModule();
   await PushNotifications.unregister().catch(() => undefined);
 }
 

@@ -1,5 +1,11 @@
 /** GPS do motoboy no app Android: serviço nativo ligado enquanto online, posição por HTTP nativo. */
 import { renderHook, waitFor } from '@testing-library/react';
+
+// Como o Capacitor: o plugin é um Proxy em que toda propriedade vira chamada nativa, inclusive
+// `then`, que nunca responde. Se o código devolver o plugin por uma Promise, o teste trava.
+function mockCapacitorProxy<T extends object>(target: T): T {
+  return new Proxy(target, { get: (t: any, prop) => (prop === 'then' ? () => undefined : t[prop]) });
+}
 import api from '../lib/api';
 
 let watcherCb: ((loc?: any, err?: any) => void) | null = null;
@@ -8,7 +14,7 @@ const bg = {
   removeWatcher: jest.fn(async () => undefined),
 };
 const httpPost = jest.fn(async (_o: any) => ({ status: 200, data: {} }));
-jest.mock('@capacitor/core', () => ({ registerPlugin: () => bg, CapacitorHttp: { post: (o: any) => httpPost(o) } }));
+jest.mock('@capacitor/core', () => ({ registerPlugin: () => mockCapacitorProxy(bg), CapacitorHttp: { post: (o: any) => httpPost(o) } }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(async () => ({ data: {} })) } }));
 
 import { useMotoboyStatus } from '../hooks/useMotoboyStatus';

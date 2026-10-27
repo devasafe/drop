@@ -1,5 +1,11 @@
 /** App Android (Capacitor): push pelo FCM, voltar do aparelho e toque na notificação. No navegador, nada muda. */
 import { act, render, renderHook, waitFor } from '@testing-library/react';
+
+// Como o Capacitor: o plugin é um Proxy em que toda propriedade vira chamada nativa, inclusive
+// `then`, que nunca responde. Se o código devolver o plugin por uma Promise, o teste trava.
+function mockCapacitorProxy<T extends object>(target: T): T {
+  return new Proxy(target, { get: (t: any, prop) => (prop === 'then' ? () => undefined : t[prop]) });
+}
 import api from '../lib/api';
 
 const listeners: Record<string, (arg: any) => void> = {};
@@ -16,8 +22,8 @@ const push = {
   addListener,
 };
 const app = { addListener, minimizeApp: jest.fn(async () => undefined) };
-jest.mock('@capacitor/push-notifications', () => ({ PushNotifications: push }));
-jest.mock('@capacitor/app', () => ({ App: app }));
+jest.mock('@capacitor/push-notifications', () => ({ PushNotifications: mockCapacitorProxy(push) }));
+jest.mock('@capacitor/app', () => ({ App: mockCapacitorProxy(app) }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(async () => ({ data: {} })) } }));
 const mockPush = jest.fn();
 jest.mock('next/router', () => ({ useRouter: () => ({ push: mockPush }) }));

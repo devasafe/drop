@@ -21,9 +21,11 @@ let watcher: Promise<string> | null = null;
 let rideActive = false;
 let lastSent = 0;
 
-const plugin = async () => {
+// Embrulhado num objeto: o plugin é um Proxy do Capacitor e, devolvido direto por uma
+// função async, o JS chamaria `plugin.then(...)` como método nativo, que nunca responde.
+const pluginRef = async () => {
   const { registerPlugin } = await import('@capacitor/core');
-  return registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
+  return { BackgroundGeolocation: registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation') };
 };
 
 async function send(loc: Location) {
@@ -40,7 +42,7 @@ async function send(loc: Location) {
 }
 
 async function start(): Promise<string> {
-  const BackgroundGeolocation = await plugin();
+  const { BackgroundGeolocation } = await pluginRef();
   return BackgroundGeolocation.addWatcher(
     {
       backgroundTitle: 'DROP: você está online',
@@ -67,7 +69,7 @@ async function start(): Promise<string> {
 function stop() {
   const current = watcher;
   watcher = null;
-  current?.then(async (id) => (await plugin()).removeWatcher({ id })).catch(() => undefined);
+  current?.then(async (id) => (await pluginRef()).BackgroundGeolocation.removeWatcher({ id })).catch(() => undefined);
 }
 
 /** Começa a ouvir a posição (liga o serviço se for o primeiro). Devolve a função de parar. */
