@@ -53,6 +53,11 @@ export const newCourierMessage = (limit: CourierLimit): string =>
   `Nas suas primeiras ${NEW_COURIER_DELIVERIES} entregas você pega pedidos de até R$ ${NEW_COURIER_MAX_ORDER_VALUE}. `
   + `Faltam ${limit.remaining} entrega${limit.remaining === 1 ? '' : 's'} para liberar todos.`;
 
+/** Aceite recusado porque a soma com as corridas abertas passaria do limite. */
+export const newCourierOpenRidesMessage = (limit: CourierLimit): string =>
+  `Nas suas primeiras ${NEW_COURIER_DELIVERIES} entregas, as corridas em andamento somam no máximo R$ ${NEW_COURIER_MAX_ORDER_VALUE}. `
+  + 'Termine a que está com você antes de pegar outra.';
+
 /**
  * Dos motoboys informados, quais ainda são novos e não podem pegar um pedido deste valor.
  * Usado para não avisar (socket e push) quem não poderia aceitar a corrida.

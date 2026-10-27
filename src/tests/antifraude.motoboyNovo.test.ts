@@ -75,3 +75,24 @@ it('o aviso de corrida nova não vai para o motoboy novo quando o pedido é caro
   const barato = await corridaDe(80);
   expect(await blockedOnlineNewCouriers(barato.orderId)).toEqual([]);
 });
+
+it('o limite vale para a soma das corridas abertas: com uma de R$ 100 em andamento, outra de R$ 100 é recusada', async () => {
+  const a = await corridaDe(100);
+  const ok = await request(app).post(`/api/deliveries/${a.deliveryId}/claim`).set('Authorization', bearer(a.motoboy)).send({});
+  expect(ok.status).toBe(200);
+  const b = await corridaDe(100);
+  const res = await request(app).post(`/api/deliveries/${b.deliveryId}/claim`).set('Authorization', bearer(a.motoboy)).send({});
+  expect(res.status).toBe(403);
+  expect(res.body.code).toBe('NEW_COURIER_LIMIT');
+  expect(res.body.error).toMatch(/em andamento somam no máximo R\$ 150/);
+});
+
+it('dois aceites simultâneos de R$ 100: só um passa', async () => {
+  const a = await corridaDe(100);
+  const b = await corridaDe(100);
+  const [r1, r2] = await Promise.all([
+    request(app).post(`/api/deliveries/${a.deliveryId}/claim`).set('Authorization', bearer(a.motoboy)).send({}),
+    request(app).post(`/api/deliveries/${b.deliveryId}/claim`).set('Authorization', bearer(a.motoboy)).send({}),
+  ]);
+  expect([r1.status, r2.status].sort()).toEqual([200, 403]);
+});
