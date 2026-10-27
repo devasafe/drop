@@ -936,6 +936,12 @@ export const getDeliveryNavRoute = async (req: AuthenticatedRequest, res: Respon
   }
 };
 
+const RIDE_IN_PROGRESS_MESSAGE = 'Termine a entrega antes de ficar offline.';
+
+/** Motoboy com corrida aceita ou retirada (assigned/picked). */
+const hasRideInProgress = async (motoboyId: string): Promise<boolean> =>
+  (await prisma.delivery.count({ where: { motoboyId, status: { in: ['assigned', 'picked'] } } })) > 0;
+
 // Motoboy reporta a localização atual (GPS) — alimenta o despacho por raio.
 export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -947,7 +953,9 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
       return res.status(400).json({ error: 'Coordenadas inválidas' });
     }
-    const isOnline = (req.body as any).isOnline;
+    let isOnline = (req.body as any).isOnline;
+    // Antifraude: em corrida, o envio de posição nunca tira o motoboy do ar.
+    if (isOnline === false && (await hasRideInProgress(req.user.id))) isOnline = undefined;
     // App Android: o sistema marca a posição vinda de app de GPS falso (risco do "cliente não
     // apareceu" na devolução). Fica guardado junto da posição para o admin conferir.
     const simulated = (req.body as any).simulated === true;
@@ -996,6 +1004,10 @@ export const setMotoboyAvailability = async (req: AuthenticatedRequest, res: Res
     if (req.user.role !== 'motoboy') return res.status(403).json({ error: 'Forbidden: not motoboy' });
     const isOnline = (req.body as any)?.isOnline;
     if (typeof isOnline !== 'boolean') return res.status(400).json({ error: 'isOnline deve ser boolean' });
+    // Antifraude: com entrega em andamento não dá para sair do ar (a posição é o que o admin acompanha).
+    if (!isOnline && (await hasRideInProgress(req.user.id))) {
+      return res.status(409).json({ error: RIDE_IN_PROGRESS_MESSAGE, code: 'RIDE_IN_PROGRESS' });
+    }
     await prisma.user.update({ where: { id: req.user.id }, data: { isOnline } });
     return res.json({ isOnline });
   } catch (err) {

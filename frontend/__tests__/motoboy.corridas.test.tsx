@@ -365,3 +365,11 @@ test('motoboy novo: aviso do limite e o pedido caro recusado sai da lista com a 
   expect(await screen.findByRole('alert')).toHaveTextContent('primeiras 20 entregas');
   expect(mockPool.deliveries).toEqual([]);
 });
+
+test('com entrega em andamento, ficar offline é recusado e a tela diz por quê', async () => {
+  mockStatus = { ...mockStatus, online: true, gps: 'active' };
+  mockStatus.setOnline.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Termine a entrega antes de ficar offline.', code: 'RIDE_IN_PROGRESS' } } });
+  await renderPage();
+  fireEvent.click(screen.getByRole('button', { name: 'Ficar offline' }));
+  expect(await screen.findByText('Termine a entrega antes de ficar offline.')).toBeInTheDocument();
+});

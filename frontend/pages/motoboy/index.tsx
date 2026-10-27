@@ -59,7 +59,7 @@ export default function CorridasPage() {
 
   const [gam, setGam] = useState<any>(null);
   const [toggling, setToggling] = useState(false);
-  const [toggleError, setToggleError] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
   const inFlight = useRef(false);
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -121,8 +121,14 @@ export default function CorridasPage() {
 
   const toggle = async () => {
     setToggling(true);
-    setToggleError(false);
-    try { await setOnline(!online); } catch { setToggleError(true); } finally { setToggling(false); }
+    setToggleError(null);
+    try {
+      await setOnline(!online);
+    } catch (err) {
+      const e = apiError(err);
+      // Com entrega em andamento o servidor não deixa ficar offline (antifraude) e diz por quê.
+      setToggleError(e.code === 'RIDE_IN_PROGRESS' && e.message ? e.message : 'Não foi possível mudar seu status. Tente de novo.');
+    } finally { setToggling(false); }
   };
 
   // "Tentar de novo" dos ganhos: uma releitura por vez.
@@ -225,7 +231,7 @@ export default function CorridasPage() {
           )}
 
           {pushMsg && <p role="status" className={pushMsg.tone === 'ok' ? blocks.meta : blocks.errText}>{pushMsg.text}</p>}
-          {toggleError && <p role="alert" className={blocks.errText}>Não foi possível mudar seu status. Tente de novo.</p>}
+          {toggleError && <p role="alert" className={blocks.errText}>{toggleError}</p>}
 
           {blocked ? (
             <EmAnalise state={courier.state === 'incomplete' ? 'incomplete' : 'review'} />
