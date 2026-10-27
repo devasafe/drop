@@ -8,6 +8,7 @@ import { authorizeRoom, canJoinMotoboysRoom, isConversationParticipant, ownedSto
 import { isOriginAllowed } from '../config/corsOrigins';
 import { isValidCoordinate } from '../utils/geo';
 import logger from '../config/logger';
+import { notifyAdmins } from './pushService';
 
 const PRESENCE_MIN_INTERVAL_MS = 10_000;
 
@@ -188,23 +189,34 @@ export const syncMotoboysRoom = async (userId: string): Promise<void> => {
  * antes; o atraso curto deixa o evento chegar. O handshake recusa a reconexão (status/papel no banco).
  */
 /**
- * Repassa a posição do motoboy da corrida ao cliente e à loja (`delivery:location_updated`).
- * Só o motoboy atribuído à entrega. Usado pelo socket (app aberto) e pelo
- * POST /deliveries/location (app Android com a tela apagada, onde o socket cai).
+ * Posição do motoboy numa corrida: grava o ponto do caminho (antifraude, DeliveryTrackPoint),
+ * tira a corrida do estado "sinal perdido" e repassa ao cliente e à loja
+ * (`delivery:location_updated`). Só o motoboy atribuído, só com a corrida em andamento.
+ * Usado pelo socket (app aberto) e pelo POST /deliveries/location (app Android com a tela
+ * apagada, onde o socket cai).
  */
 export async function relayRideLocation(
   motoboyId: string,
   deliveryId: string,
-  pos: { latitude: number; longitude: number; accuracy?: number; timestamp?: string },
+  pos: { latitude: number; longitude: number; accuracy?: number; timestamp?: string; simulated?: boolean },
 ): Promise<void> {
-  if (!io) return;
   try {
     const delivery = await prisma.delivery.findUnique({
       where: { id: deliveryId },
-      select: { orderId: true, motoboyId: true },
+      select: { orderId: true, motoboyId: true, status: true, signalLostAt: true },
     });
     // Segurança: só o motoboy atribuído pode enviar localização
     if (!delivery || delivery.motoboyId?.toString() !== motoboyId) return;
+    if (delivery.status !== 'assigned' && delivery.status !== 'picked') return;
+
+    await prisma.deliveryTrackPoint.create({
+      data: {
+        deliveryId, motoboyId, lat: pos.latitude, lng: pos.longitude,
+        accuracy: Number.isFinite(pos.accuracy) ? pos.accuracy : null, simulated: pos.simulated === true,
+      },
+    });
+    if (delivery.signalLostAt) await signalBack(deliveryId, motoboyId);
+    if (!io) return;
 
     const order = await prisma.order.findUnique({
       where: { id: String(delivery.orderId) },
@@ -226,12 +238,21 @@ export async function relayRideLocation(
   }
 }
 
+/** A posição voltou depois do alerta de sinal perdido: limpa a marca e avisa o admin. */
+async function signalBack(deliveryId: string, motoboyId: string): Promise<void> {
+  const cleared = await prisma.delivery.updateMany({ where: { id: deliveryId, signalLostAt: { not: null } }, data: { signalLostAt: null } });
+  if (cleared.count === 0) return;
+  const m = await prisma.user.findUnique({ where: { id: motoboyId }, select: { name: true } });
+  const payload = { title: 'Sinal do motoboy voltou', body: `${m?.name || 'O motoboy'} voltou a mandar a posição.`, url: '/admin/mapa', tag: `sinal-${deliveryId}` };
+  io?.to('admin').emit('admin:notification', payload);
+  notifyAdmins(payload);
+}
+
 /** Repassa a posição para todas as corridas em andamento (assigned/picked) do motoboy. */
 export async function relayActiveRidesLocation(
   motoboyId: string,
-  pos: { latitude: number; longitude: number; accuracy?: number },
+  pos: { latitude: number; longitude: number; accuracy?: number; simulated?: boolean },
 ): Promise<void> {
-  if (!io) return;
   try {
     const rides = await prisma.delivery.findMany({
       where: { motoboyId, status: { in: ['assigned', 'picked'] } },

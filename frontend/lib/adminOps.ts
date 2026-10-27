@@ -32,7 +32,7 @@ export interface OpsSummary {
 }
 
 export type AttentionReason =
-  | 'estorno_pendente' | 'loja_parada' | 'cliente_decidindo' | 'sem_motoboy' | 'retirada_demorada' | 'atrasado';
+  | 'sinal_perdido' | 'estorno_pendente' | 'loja_parada' | 'cliente_decidindo' | 'sem_motoboy' | 'retirada_demorada' | 'atrasado';
 export type OrdersFilter = 'atencao' | 'todos' | 'aguardando_pix' | 'na_loja' | 'em_entrega' | 'cancelados_hoje';
 export interface AdminOrderRow {
   id: string; shortId: string;
@@ -139,7 +139,7 @@ const oneOf = (v: unknown, list: readonly string[]): boolean => isStr(v) && list
 const oneOfOrNull = (v: unknown, list: readonly string[]): boolean => v === null || oneOf(v, list);
 const FAULTS: readonly string[] = ['customer', 'store', 'motoboy', 'platform'];
 const ATTENTIONS: readonly string[] = [
-  'estorno_pendente', 'loja_parada', 'cliente_decidindo', 'sem_motoboy', 'retirada_demorada', 'atrasado',
+  'sinal_perdido', 'estorno_pendente', 'loja_parada', 'cliente_decidindo', 'sem_motoboy', 'retirada_demorada', 'atrasado',
 ];
 const TAGS: readonly string[] = ['Urgente', 'Esperando', 'Lote', 'KYC', 'Suporte', 'Receita', 'Operação'];
 const TIMELINE_KEYS: readonly string[] = ['created', 'paid', 'accepted', 'assigned', 'picked', 'delivered', 'cancelled'];
@@ -260,6 +260,36 @@ export async function fetchAdminOrder(id: string): Promise<AdminOrderDetail> {
   return shaped(res.data, isAdminOrderDetail);
 }
 
+/* ---------- caminho do motoboy (antifraude) ---------- */
+
+export interface TrackPoint { lat: number; lng: number; accuracy: number | null; simulated: boolean; at: string }
+export interface RideTrack {
+  deliveryId: string;
+  kind: string;
+  motoboy: { id: string; name: string } | null;
+  signalLostAt: string | null;
+  simulatedCount: number;
+  points: TrackPoint[];
+}
+
+const isTrackPoint = (p: unknown): boolean => isObj(p) && isNum(p.lat) && isNum(p.lng) && isNumOrNull(p.accuracy)
+  && typeof p.simulated === 'boolean' && isIso(p.at);
+const isRideTrack = (r: unknown): boolean => isObj(r) && isStr(r.deliveryId) && isStr(r.kind)
+  && (r.motoboy === null || (isObj(r.motoboy) && isStr(r.motoboy.id) && isStr(r.motoboy.name)))
+  && isIsoOrNull(r.signalLostAt) && isNum(r.simulatedCount) && Array.isArray(r.points) && r.points.every(isTrackPoint);
+
+export async function fetchOrderTrack(id: string): Promise<RideTrack[]> {
+  const res = await api.get(`${orderPath(id)}/track`);
+  const ok = (d: unknown): d is { rides: RideTrack[] } => isObj(d) && Array.isArray(d.rides) && d.rides.every(isRideTrack);
+  return shaped(res.data, ok).rides;
+}
+
+/** CSV do caminho (para boletim de ocorrência / contestação). */
+export function trackCsv(ride: RideTrack): string {
+  const rows = ride.points.map((p) => [p.at, p.lat, p.lng, p.accuracy ?? '', p.simulated ? 'sim' : 'nao'].join(','));
+  return ['horario_utc,latitude,longitude,precisao_m,gps_falso', ...rows].join('\n');
+}
+
 export async function fetchOpsMap(): Promise<OpsMapResponse> {
   const res = await api.get('/admin/ops/map');
   return shaped(res.data, isOpsMapResponse);
@@ -369,6 +399,7 @@ export const ATTENTION_LABEL: Record<AttentionReason, string> = {
   loja_parada: 'Loja não aceitou',
   cliente_decidindo: 'Cliente decidindo',
   sem_motoboy: 'Sem motoboy',
+  sinal_perdido: 'Sinal perdido',
   retirada_demorada: 'Retirada demorada',
   atrasado: 'Atrasado',
 };
@@ -378,6 +409,7 @@ export const ATTENTION_TONE: Record<AttentionReason, StatusTone> = {
   loja_parada: 'bad',
   cliente_decidindo: 'warn',
   sem_motoboy: 'bad',
+  sinal_perdido: 'bad',
   retirada_demorada: 'warn',
   atrasado: 'bad',
 };

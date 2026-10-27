@@ -22,7 +22,7 @@ it('grava a posição e repassa às corridas em andamento, com a precisão', asy
   const r = await request(app).post('/api/deliveries/location').set('Authorization', bearer(m))
     .send({ lat: -23.55, lng: -46.63, isOnline: true, accuracy: 12 });
   expect(r.status).toBe(200);
-  expect(relay).toHaveBeenCalledWith(m.userId, { latitude: -23.55, longitude: -46.63, accuracy: 12 });
+  expect(relay).toHaveBeenCalledWith(m.userId, { latitude: -23.55, longitude: -46.63, accuracy: 12, simulated: false });
   const me = await prisma.user.findUnique({ where: { id: m.userId }, select: { currentLocation: true, isOnline: true } });
   expect(me!.isOnline).toBe(true);
   expect((me!.currentLocation as any).lat).toBe(-23.55);

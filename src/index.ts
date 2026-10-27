@@ -23,6 +23,7 @@ import { startDirectRefundsJob } from './jobs/directRefunds.job';
 import { startMotoboyTransfersJob } from './jobs/motoboyTransfers.job';
 import { startSaasBillingJob } from './jobs/saasBilling.job';
 import { startStoreAttentionJob } from './jobs/storeAttention.job';
+import { startRideSignalJob } from './jobs/rideSignal.job';
 import { productionConfigWarnings } from './config/productionCheck';
 
 // Promessa rejeitada sem tratamento: loga e segue no ar (V15). Exceção síncrona ainda encerra.
@@ -141,6 +142,13 @@ connectDB().then(() => {
     startStoreAttentionJob();
   } catch (e) {
     logger.error('Store attention job failed to start', e as Error);
+  }
+
+  // Antifraude: alerta de "sinal perdido" numa entrega em andamento (a cada minuto).
+  try {
+    startRideSignalJob();
+  } catch (e) {
+    logger.error('Ride signal job failed to start', e as Error);
   }
 
   logger.info(`📍 [INDEX] Calling server.listen(${env.PORT})...`);

@@ -14,6 +14,7 @@ import { getAdminOrderDetail } from '../services/adminOps/orderDetail';
 import { getOpsMap } from '../services/adminOps/map';
 import { storesWithoutCourier } from '../services/adminOps/couriersNear';
 import { permissionCheckFor, readOpsLimits } from '../services/adminOps/common';
+import { getOrderTrack as getOrderTrackData } from '../services/adminOps/track';
 
 /** Erro de entrada conhecido (AppError < 500) → status + { error, code }; o resto → 500 com log. */
 function sendOpsReadFailure(res: Response, err: unknown, what: string) {
@@ -71,6 +72,18 @@ export const getOrderDetail = async (req: AuthenticatedRequest, res: Response) =
     return res.json(detail);
   } catch (err) {
     return sendOpsReadFailure(res, err, 'o pedido');
+  }
+};
+
+// GET /api/admin/orders/:id/track — caminho do motoboy em cada corrida (antifraude)
+export const getOrderTrack = async (req: AuthenticatedRequest, res: Response) => {
+  const id = String(req.params.id ?? '');
+  try {
+    const rides = id && id.length <= 64 ? await getOrderTrackData(id) : null;
+    if (!rides) return res.status(404).json({ error: 'Pedido não encontrado', code: 'ORDER_NOT_FOUND' });
+    return res.json({ rides });
+  } catch (err) {
+    return sendOpsReadFailure(res, err, 'o caminho do motoboy');
   }
 };
 

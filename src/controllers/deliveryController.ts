@@ -972,7 +972,7 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
     // o socket cai e este POST (HTTP nativo) é o único caminho que continua chegando.
     const accuracy = Number((req.body as any).accuracy);
     void relayActiveRidesLocation(String(req.user.id), {
-      latitude: lat, longitude: lng, ...(Number.isFinite(accuracy) ? { accuracy } : {}),
+      latitude: lat, longitude: lng, ...(Number.isFinite(accuracy) ? { accuracy } : {}), simulated,
     });
 
     // Log de verificação: confirma que o GPS do motoboy está pingando (Coolify logs).

@@ -23,7 +23,7 @@ export interface OpsSummary {
 }
 
 export type AttentionReason =
-  | 'estorno_pendente' | 'loja_parada' | 'cliente_decidindo' | 'sem_motoboy' | 'retirada_demorada' | 'atrasado';
+  | 'sinal_perdido' | 'estorno_pendente' | 'loja_parada' | 'cliente_decidindo' | 'sem_motoboy' | 'retirada_demorada' | 'atrasado';
 export type OrdersFilter = 'atencao' | 'todos' | 'aguardando_pix' | 'na_loja' | 'em_entrega' | 'cancelados_hoje';
 export interface AdminOrderRow {
   id: string; shortId: string;

@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorizePermission } from '../middleware/authorize';
-import { getQueue, getSummary, listOrders, getOrderDetail, getMap } from '../controllers/adminOpsController';
+import { getQueue, getSummary, listOrders, getOrderDetail, getOrderTrack, getMap } from '../controllers/adminOpsController';
 import { getAdminCancelPreview, postAdminCancel, postAdminReassign } from '../controllers/adminOpsActionsController';
 
 const router = Router();
@@ -25,6 +25,8 @@ router.get('/orders', authenticate, canViewOps, listOrders);
 
 // GET /api/admin/orders/:id — Pedido · visão do admin (spec 3.3); PIN, CPF e e-mail nunca saem
 router.get('/orders/:id', authenticate, canViewOps, getOrderDetail);
+// Antifraude: caminho do motoboy em cada corrida do pedido.
+router.get('/orders/:id/track', authenticate, canViewOps, getOrderTrack);
 
 // D3b-1 · P2.2 — prévia do cancelamento do admin por culpa
 router.get('/orders/:id/cancel-preview', authenticate, authorizePermission('order:admin_cancel'), getAdminCancelPreview);

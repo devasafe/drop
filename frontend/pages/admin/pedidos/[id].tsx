@@ -17,6 +17,7 @@ import { StatusTag } from '../../../components/admin/StatusTag';
 import { CancelOrderSheet } from '../../../components/admin/operacao/CancelOrderSheet';
 import ui from '../../../components/admin/operacao/Operacao.module.css';
 import { ReassignSheet } from '../../../components/admin/operacao/ReassignSheet';
+import { TrackSection } from '../../../components/admin/operacao/TrackSection';
 import { Alert } from '../../../components/ui/Alert';
 import { Button } from '../../../components/ui/Button';
 import { useAdminOrderChanged } from '../../../hooks/useAdminOrderChanged';
@@ -274,6 +275,8 @@ function PedidoBody({ order }: { order: AdminOrderDetail }) {
               )}
             </dl>
           </section>
+
+          <TrackSection orderId={order.id} />
         </div>
       </div>
     </>

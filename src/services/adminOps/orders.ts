@@ -101,7 +101,7 @@ async function toRows(records: OrderRowRecord[], limits: OpsLimits, now: Date): 
     deliveryIds.length
       ? prisma.delivery.findMany({
           where: { id: { in: deliveryIds } },
-          select: { id: true, status: true, motoboyId: true, createdAt: true, assignedAt: true, pickedAt: true },
+          select: { id: true, status: true, motoboyId: true, createdAt: true, assignedAt: true, pickedAt: true, signalLostAt: true },
         })
       : [],
     cancelledIds.length
@@ -119,7 +119,7 @@ async function toRows(records: OrderRowRecord[], limits: OpsLimits, now: Date): 
   const returnRides = await prisma.delivery.findMany({
     where: { orderId: { in: records.map((o) => o.id) }, kind: 'devolucao', status: { in: ACTIVE_RIDE_STATUSES as any } },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, orderId: true, status: true, motoboyId: true, createdAt: true, assignedAt: true, pickedAt: true },
+    select: { id: true, orderId: true, status: true, motoboyId: true, createdAt: true, assignedAt: true, pickedAt: true, signalLostAt: true },
   });
   const returnRideByOrder = new Map<string, (typeof returnRides)[number]>();
   for (const r of returnRides) if (!returnRideByOrder.has(r.orderId)) returnRideByOrder.set(r.orderId, r);

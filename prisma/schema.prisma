@@ -721,6 +721,9 @@ model Delivery {
   /// Hora real de cada etapa (fase C2): aceite do motoboy, retirada na loja (PIN da loja) e entrega (PIN do cliente).
   assignedAt                DateTime?
   pickedAt                  DateTime?
+  /// Antifraude: quando a posição do motoboy parou de chegar durante a corrida e o admin foi
+  /// avisado (job rideSignalLost). Volta a nulo quando a posição volta.
+  signalLostAt              DateTime?
   deliveredAt               DateTime?
   comment                   String?
   storeAddress              String?
@@ -749,6 +752,7 @@ model Delivery {
   // Composto p/ a query mais quente: pool de disponíveis
   // (status='pending' AND motoboyId IS NULL). Cobre status-só via prefixo.
   @@index([status, motoboyId])
+  trackPoints DeliveryTrackPoint[]
 }
 
 model Transaction {
@@ -1706,4 +1710,22 @@ model AdminAccountAction {
   @@index([storeId, createdAt])
   // D3b-2b: média de espera da verificação (type='verification_decision', últimos 30 dias).
   @@index([type, createdAt])
+}
+
+/// Antifraude: caminho do motoboy durante a corrida (assigned/picked), um ponto a cada envio de
+/// posição (~5 s). Prova para contestação e boletim de ocorrência. `simulated` = o Android
+/// acusou GPS falso. Apagado depois de 180 dias (job rideSignalLost).
+model DeliveryTrackPoint {
+  id         String   @id @default(cuid())
+  deliveryId String
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  motoboyId  String
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  simulated  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([deliveryId, createdAt])
+  @@index([createdAt])
 }
