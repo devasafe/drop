@@ -46,17 +46,36 @@ describe('caminho da corrida', () => {
   it('cada posição do motoboy da corrida vira um ponto; GPS falso fica marcado', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
-    await prisma.deliveryTrackPoint.updateMany({ where: { deliveryId: c.deliveryId }, data: { createdAt: new Date(Date.now() - 10_000) } });
+    await prisma.deliveryTrackPoint.updateMany({ where: { deliveryId: c.deliveryId }, data: { createdAt: new Date(Date.now() - 10_000), bucket: { decrement: 5 } } });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, { ...pos, simulated: true });
     const pts = await points(c.deliveryId);
     expect(pts).toHaveLength(2);
     expect(pts.filter((p) => p.simulated)).toHaveLength(1);
   });
 
-  it('enxurrada de posições: no máximo um ponto a cada 3 s por corrida', async () => {
+  it('enxurrada de posições, mesmo simultâneas: no máximo um ponto a cada 3 s por corrida', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' });
-    for (let i = 0; i < 10; i++) await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
-    expect(await points(c.deliveryId)).toHaveLength(1);
+    for (let i = 0; i < 5; i++) await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
+    await Promise.all(Array.from({ length: 10 }, () => relayRideLocation(c.motoboy.userId, c.deliveryId, pos)));
+    expect((await points(c.deliveryId)).length).toBeLessThanOrEqual(2); // pode virar a janela no meio
+  });
+
+  it('caminho longo: o admin recebe uma amostra no banco, com a primeira e a última posição', async () => {
+    const c = await criarCorrida(DOMAIN, { status: 'picked' });
+    const t0 = Date.now() - 6 * 3600_000;
+    await prisma.deliveryTrackPoint.createMany({
+      data: Array.from({ length: 7000 }, (_, i) => ({
+        deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: i, lng: i, bucket: i, simulated: i === 6999, createdAt: new Date(t0 + i * 3000),
+      })),
+    });
+    const ceo = await createTestUser('ceo', DOMAIN);
+    const res = await request(app).get(`/api/admin/orders/${c.orderId}/track`).set('Authorization', bearer(ceo));
+    const r = res.body.rides[0];
+    expect(r.totalPoints).toBe(7000);
+    expect(r.simulatedCount).toBe(1);
+    expect(r.points.length).toBeLessThanOrEqual(5001);
+    expect(r.points[0].lat).toBe(0);
+    expect(r.points[r.points.length - 1].lat).toBe(6999);
   });
 
   it('outro motoboy ou corrida encerrada não grava', async () => {
@@ -84,7 +103,7 @@ describe('caminho da corrida', () => {
 
   it('pontos com mais de 180 dias são apagados', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' });
-    await prisma.deliveryTrackPoint.create({ data: { deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: 1, lng: 1, createdAt: new Date(Date.now() - 181 * 86_400_000) } });
+    await prisma.deliveryTrackPoint.create({ data: { deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: 1, lng: 1, bucket: 1, createdAt: new Date(Date.now() - 181 * 86_400_000) } });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
     await purgeOldTrackPoints();
     expect(await points(c.deliveryId)).toHaveLength(1);
@@ -95,7 +114,7 @@ describe('sinal perdido', () => {
   it('corrida sem posição há mais de 3 min: um alerta enxuto (sem telefone, cliente nem posição); não repete', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' }); // aceita há 40 min
     await prisma.user.update({ where: { id: c.motoboy.userId }, data: { telefone: '11988887777' } });
-    await prisma.deliveryTrackPoint.create({ data: { deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: -23.5, lng: -46.6, createdAt: minutesAgo(6) } });
+    await prisma.deliveryTrackPoint.create({ data: { deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: -23.5, lng: -46.6, bucket: 1, createdAt: minutesAgo(6) } });
 
     expect(await checkRideSignals()).toEqual([c.deliveryId]);
     expect(alert).toHaveBeenCalledTimes(1);

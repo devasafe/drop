@@ -1724,8 +1724,11 @@ model DeliveryTrackPoint {
   lng        Float
   accuracy   Float?
   simulated  Boolean  @default(false)
+  /// Janela de 3 s (epoch / 3000): no máximo um ponto por janela por corrida, garantido pelo banco.
+  bucket     Int
   createdAt  DateTime @default(now())
 
+  @@unique([deliveryId, bucket])
   @@index([deliveryId, createdAt])
   @@index([createdAt])
 }

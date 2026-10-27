@@ -209,13 +209,15 @@ export async function relayRideLocation(
     if (!delivery || delivery.motoboyId?.toString() !== motoboyId) return;
     if (delivery.status !== 'assigned' && delivery.status !== 'picked') return;
 
-    // No máximo um ponto a cada 3 s por corrida: envio em excesso não empurra o caminho real para fora.
-    const lastPoint = await prisma.deliveryTrackPoint.findFirst({ where: { deliveryId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
-    if (!lastPoint || Date.now() - lastPoint.createdAt.getTime() >= TRACK_MIN_INTERVAL_MS) await prisma.deliveryTrackPoint.create({
-      data: {
+    // No máximo um ponto a cada 3 s por corrida, garantido pelo banco (chave única deliveryId + janela):
+    // envio em excesso, mesmo simultâneo, não empurra o caminho real para fora.
+    await prisma.deliveryTrackPoint.createMany({
+      data: [{
         deliveryId, motoboyId, lat: pos.latitude, lng: pos.longitude,
         accuracy: Number.isFinite(pos.accuracy) ? pos.accuracy : null, simulated: pos.simulated === true,
-      },
+        bucket: Math.floor(Date.now() / TRACK_MIN_INTERVAL_MS),
+      }],
+      skipDuplicates: true,
     });
     if (delivery.signalLostAt) await signalBack(deliveryId, motoboyId);
     if (!io) return;
