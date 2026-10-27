@@ -1,22 +1,39 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
-import { getVapidPublicKey, isPushEnabled, sendPushToUser } from '../services/pushService';
+import { FCM_ENDPOINT_PREFIX, getVapidPublicKey, isFcmEnabled, isPushEnabled, sendPushToUser } from '../services/pushService';
 
 // Chave pública VAPID (o front precisa dela pra criar a inscrição). Pública por natureza.
 export const vapidPublicKey = (_req: AuthenticatedRequest, res: Response) => {
   return res.json({ publicKey: getVapidPublicKey(), enabled: isPushEnabled() });
 };
 
+// Token do Firebase: base64url com ':' e '-' (~160 caracteres). Limite folgado só contra lixo.
+const FCM_TOKEN_RE = /^[A-Za-z0-9_:\-]{20,4096}$/;
+
 // Salva/atualiza a inscrição de push do device do usuário logado.
+// Navegador: { endpoint, keys: { p256dh, auth } }. App Android: { platform: 'fcm', token }.
 export const subscribe = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-    const { endpoint, keys } = (req.body || {}) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
+    const body = (req.body || {}) as { platform?: string; token?: string; endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+    if (body.platform === 'fcm') {
+      if (typeof body.token !== 'string' || !FCM_TOKEN_RE.test(body.token)) {
+        return res.status(400).json({ error: 'Inscrição inválida' });
+      }
+      const endpoint = `${FCM_ENDPOINT_PREFIX}${body.token}`;
+      await prisma.pushSubscription.upsert({
+        where: { endpoint },
+        create: { userId: req.user.id, endpoint, platform: 'fcm', userAgent },
+        update: { userId: req.user.id, platform: 'fcm', userAgent },
+      });
+      return res.json({ ok: true, enabled: isFcmEnabled() });
+    }
+    const { endpoint, keys } = body;
+    if (!endpoint || endpoint.startsWith(FCM_ENDPOINT_PREFIX) || !keys?.p256dh || !keys?.auth) {
       return res.status(400).json({ error: 'Inscrição inválida' });
     }
-    const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
     // endpoint é único → upsert reatribui o device ao usuário atual (troca de conta no mesmo navegador).
     await prisma.pushSubscription.upsert({
       where: { endpoint },
@@ -59,7 +76,7 @@ for (const admin of ['ceo', 'marketing', 'gerente_geral', 'gerente_clientes', 'g
 export const sendTest = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-    if (!isPushEnabled()) return res.status(503).json({ error: 'Push não configurado no servidor' });
+    if (!isPushEnabled() && !isFcmEnabled()) return res.status(503).json({ error: 'Push não configurado no servidor' });
     const role = String((req.user as any).activeRole || req.user.role || 'cliente');
     const panel = TEST_PUSH_BY_ROLE[role] ?? TEST_PUSH_BY_ROLE.cliente;
     await sendPushToUser(req.user.id, { title: 'Notificações ativadas ✅', body: panel.body, url: panel.url, tag: 'teste' });

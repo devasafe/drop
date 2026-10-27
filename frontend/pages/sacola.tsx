@@ -39,6 +39,7 @@ import { installmentOptions } from '../lib/cardInstallments';
 import { markJustPaid } from '../lib/justPaid';
 import { ROUTES, buscarHref, lojaHref, pedidoHref } from '../lib/routes';
 import styles from './Sacola.module.css';
+import { goBack } from '../lib/navigation';
 
 const STORE_NO_LOCATION_MSG = 'Esta loja ainda não configurou a localização.';
 const PAUSE_MESSAGES: Record<string, string> = {
@@ -210,7 +211,7 @@ export default function SacolaPage() {
         </div>
       ) : (
         <main className={styles.page}>
-          <ScreenHeader title="Sacola" meta={direct ? storeName : undefined} onBack={() => router.back()} />
+          <ScreenHeader title="Sacola" meta={direct ? storeName : undefined} onBack={() => goBack(router, ROUTES.inicio)} />
           <div className={styles.cols}>
           <div className={styles.mainCol}>
 

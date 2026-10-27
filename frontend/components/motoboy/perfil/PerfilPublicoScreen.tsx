@@ -12,6 +12,8 @@ import api from '../../../lib/api';
 import { monthYear, shortName } from '../../../lib/motoboyLevel';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
 import styles from './PerfilPublico.module.css';
+import { goBack } from '../../../lib/navigation';
+import { ROUTES } from '../../../lib/routes';
 
 /** Perfil público do motoboy (protótipo 26): só o que a rota pública devolve, sem PII. Sempre claro. */
 export function PerfilPublicoScreen() {
@@ -77,7 +79,7 @@ export function PerfilPublicoScreen() {
   }
   return (
     <main className={styles.page}>
-      <ScreenHeader title="Seu entregador" onBack={() => router.back()} />
+      <ScreenHeader title="Seu entregador" onBack={() => goBack(router, ROUTES.pedidos)} />
       <div className={styles.stack}>{body}</div>
     </main>
   );

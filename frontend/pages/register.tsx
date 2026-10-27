@@ -16,6 +16,7 @@ import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import { Tabs, tabPanelProps } from '../components/ui/Tabs';
 import styles from './Register.module.css';
+import { goBack } from '../lib/navigation';
 
 type Papel = 'cliente' | 'lojista' | 'motoboy';
 const TITULO: Record<Papel, string> = { cliente: 'Criar conta', lojista: 'Venda na DROP', motoboy: 'Entregue com a DROP' };
@@ -87,7 +88,7 @@ export default function RegisterPage() {
 
   return (
     <main className={styles.page}>
-      <ScreenHeader title={TITULO[papel]} onBack={() => router.back()} />
+      <ScreenHeader title={TITULO[papel]} onBack={() => goBack(router, ROUTES.login)} />
       <div className={styles.tipo}>
         <Tabs label="Tipo de conta" items={TIPOS} value={papel} onChange={escolher} idPrefix="tipo-conta" />
       </div>

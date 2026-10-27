@@ -41,6 +41,8 @@ import { StoreCouponChips } from '../../components/drop/StoreCouponChips';
 import { StoreUnavailable } from '../../components/drop/StoreUnavailable';
 
 import styles from './Loja.module.css';
+import { goBack } from '../../lib/navigation';
+import { ROUTES } from '../../lib/routes';
 
 type StoreWithPlan = {
   _id: string;
@@ -261,7 +263,7 @@ export default function StorePage() {
             variant="onImage"
             aria-label="Voltar"
             icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
-            onClick={() => router.back()}
+            onClick={() => goBack(router, ROUTES.inicio)}
           />
         </span>
         <span className={styles.searchBtn}>

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../lib/api';
+import { isNativeApp } from '../lib/native';
+import { nativePushDisable, nativePushEnable, nativePushState } from '../lib/nativePush';
 
 /**
  * Web Push no client: registra o service worker, pede permissão e inscreve o device.
  * É o que faz a corrida chegar com o app fechado / celular bloqueado (via notificação).
  *
  * iOS: só funciona com o app INSTALADO na tela inicial (Safari, iOS 16.4+).
+ * App Android (Capacitor): não há Web Push na WebView; usa o FCM (lib/nativePush.ts).
  */
 
 type Perm = 'default' | 'granted' | 'denied' | 'unsupported';
@@ -33,6 +36,11 @@ export function usePushNotifications() {
 
   // Estado inicial: suporte + permissão + se já existe inscrição neste device.
   useEffect(() => {
+    if (isNativeApp()) {
+      nativePushState().then((st) => { setPermission(st.permission); setSubscribed(st.subscribed); })
+        .catch(() => setPermission('unsupported'));
+      return;
+    }
     if (!isSupported()) { setPermission('unsupported'); return; }
     setPermission(Notification.permission as Perm);
     navigator.serviceWorker.getRegistration().then((reg) => {
@@ -41,6 +49,20 @@ export function usePushNotifications() {
   }, []);
 
   const enable = useCallback(async (): Promise<boolean> => {
+    if (isNativeApp()) {
+      setBusy(true);
+      try {
+        const r = await nativePushEnable();
+        setPermission(r.permission);
+        setSubscribed(r.ok);
+        return r.ok;
+      } catch (err) {
+        console.warn('[push] enable no app falhou:', err);
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    }
     if (!isSupported()) { setPermission('unsupported'); return false; }
     setBusy(true);
     try {
@@ -80,6 +102,11 @@ export function usePushNotifications() {
   const disable = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
+      if (isNativeApp()) {
+        await nativePushDisable();
+        setSubscribed(false);
+        return;
+      }
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
       if (sub) {

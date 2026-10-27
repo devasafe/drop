@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DROP</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #FFFFFF; color: #1A1722; text-align: center; }
+  main { max-width: 320px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  h1 { margin: 0; font-size: 20px; }
+  p { margin: 0; color: #55516A; }
+  button { margin-top: 8px; min-height: 48px; padding: 0 24px; border: 0; border-radius: 12px; background: #6C2BD9; color: #FFFFFF; font: inherit; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { body { background: #0A0A0A; color: #EDEBF2; } p { color: #B9B4C7; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sem conexão</h1>
+  <p>Não conseguimos abrir a DROP agora. Confira a internet e tente de novo.</p>
+  <button type="button" onclick="location.href='https://dropapp.com.br'">Tentar de novo</button>
+</main>
+</body>
+</html>

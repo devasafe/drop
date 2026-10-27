@@ -17,6 +17,8 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import styles from './Categoria.module.css';
+import { goBack } from '../../lib/navigation';
+import { ROUTES } from '../../lib/routes';
 
 const str = (v: unknown) => (Array.isArray(v) ? v[0] : typeof v === 'string' ? v : '');
 
@@ -38,7 +40,7 @@ export default function CategoriaPage() {
 
   return (
     <main className={styles.page}>
-      <ScreenHeader title={title} onBack={() => router.back()}
+      <ScreenHeader title={title} onBack={() => goBack(router, ROUTES.buscar)}
         end={<button type="button" className={styles.iconBtn} aria-label="Buscar" onClick={goSearch}><Search size={22} aria-hidden="true" /></button>} />
       {summary.data && summary.data.productCount > 0 && (
         <>

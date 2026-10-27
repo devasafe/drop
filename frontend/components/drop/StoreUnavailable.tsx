@@ -10,6 +10,8 @@ import { Button } from '../ui/Button';
 import { StoreCard } from './StoreCard';
 import { StoreLogo } from './StoreLogo';
 import styles from './StoreUnavailable.module.css';
+import { goBack } from '../../lib/navigation';
+import { ROUTES } from '../../lib/routes';
 
 export interface StoreUnavailableProps {
   store: { _id: string; name: string; neighborhood?: string | null; city?: string | null; logoUrl?: string | null };
@@ -25,7 +27,7 @@ export function StoreUnavailable({ store }: StoreUnavailableProps) {
     <main className={styles.page}>
       <div className={styles.cover} aria-hidden="true" />
       <span className={styles.back}>
-        <IconButton variant="onImage" aria-label="Voltar" icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />} onClick={() => router.back()} />
+        <IconButton variant="onImage" aria-label="Voltar" icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />} onClick={() => goBack(router, ROUTES.inicio)} />
       </span>
       <header className={styles.head}>
         <StoreLogo className={styles.logo} name={store.name} src={store.logoUrl} />

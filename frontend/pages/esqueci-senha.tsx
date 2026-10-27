@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import styles from './EsqueciSenha.module.css';
+import { goBack } from '../lib/navigation';
 
 const RESEND_SECONDS = 60;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -67,7 +68,7 @@ export default function EsqueciSenhaPage() {
 
   return (
     <main className={styles.page}>
-      <ScreenHeader title="Nova senha" onBack={() => (step === 2 ? setStep(1) : router.back())} />
+      <ScreenHeader title="Nova senha" onBack={() => (step === 2 ? setStep(1) : goBack(router, ROUTES.login))} />
       <div className={styles.body}>
         <div className={styles.steps} role="img" aria-label={`Passo ${step} de 2`}><i className={styles.on} /><i className={step === 2 ? styles.on : undefined} /></div>
         {step === 1 ? (

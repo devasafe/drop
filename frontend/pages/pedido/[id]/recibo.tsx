@@ -11,12 +11,15 @@ import { formatMoney } from '../../../lib/money';
 import { shortOrderCode } from '../../../lib/customerOrder';
 import { ROUTES, pedidoConversaHref, pedidoHref } from '../../../lib/routes';
 import styles from '../Recibo.module.css';
+import { useIsNativeApp } from '../../../hooks/useIsNativeApp';
 
 const hhmm = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null);
 const km = (n?: number | null) => (typeof n === 'number' && Number.isFinite(n) ? `${n.toFixed(1).replace('.', ',')} km` : null);
 
 export default function ReciboPage() {
   const router = useRouter();
+  // No app Android não há impressão (window.print não faz nada na WebView).
+  const nativeApp = useIsNativeApp();
   const id = typeof router.query.id === 'string' ? router.query.id : undefined;
   const [nota, setNota] = useState<any | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'none' | 'error'>('loading');
@@ -42,7 +45,7 @@ export default function ReciboPage() {
           title="Recibo da entrega"
           onBack={() => router.push(id ? pedidoHref(id) : ROUTES.pedidos)}
           end={
-            state === 'ok' ? (
+            state === 'ok' && !nativeApp ? (
               <button type="button" className={styles.iconBtn} aria-label="Imprimir recibo" onClick={() => window.print()}>
                 <Printer size={22} aria-hidden="true" />
               </button>

@@ -34,6 +34,7 @@ import { ProductGallery } from '../../components/drop/ProductGallery';
 import HtmlContent from '../../components/HtmlContent';
 
 import styles from './Produto.module.css';
+import { goBack } from '../../lib/navigation';
 
 interface ReviewsData {
   average: number;
@@ -245,7 +246,7 @@ export default function ProductPage() {
                 icon={<ArrowLeft size={20} strokeWidth={ICON_BUTTON_STROKE_WIDTH} aria-hidden="true" />}
                 variant="onImage"
                 aria-label="Voltar"
-                onClick={() => router.back()}
+                onClick={() => goBack(router, ROUTES.inicio)}
               />
             </span>
             {soldOut && (

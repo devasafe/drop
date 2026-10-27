@@ -384,15 +384,18 @@ model WalletTopup {
   @@index([userId])
 }
 
-/// Inscrição de Web Push (um device do usuário). Um usuário pode ter várias
+/// Inscrição de push (um device do usuário). Um usuário pode ter várias
 /// (celular + navegador). O `endpoint` é único por device/navegador.
+/// `platform`: 'web' (Web Push com VAPID, usa p256dh/auth) ou 'fcm' (app Android,
+/// endpoint = "fcm:<token do Firebase>", sem p256dh/auth).
 model PushSubscription {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   endpoint  String   @unique
-  p256dh    String
-  auth      String
+  platform  String   @default("web")
+  p256dh    String?
+  auth      String?
   userAgent String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

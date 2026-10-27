@@ -21,6 +21,7 @@ import { CUSTOMER_TAB_ROUTES, CUSTOMER_HEADERLESS_ROUTES, CUSTOMER_ROUTES } from
 import WalletAccessInbox from '../components/WalletAccessInbox';
 import ForceLogoutListener from '../components/ForceLogoutListener';
 import RealtimeNotifier from '../components/RealtimeNotifier';
+import { NativeBridge } from '../components/NativeBridge';
 import { SellerPanelGate } from '../components/seller/panel/SellerPanelGate';
 import NotificationToaster from '../components/NotificationToaster';
 import CookieBanner from '../components/CookieBanner';
@@ -138,6 +139,7 @@ function AppWrapper({ Component, pageProps }: AppProps) {
         <SellerPanelGate pathname={router.pathname} enabled={!!user || authLoading === true}>
         {/* Dentro do Gate: no painel, a loja do notificador vem do painel, sem outro GET (V12). */}
         {user && <RealtimeNotifier />}
+        <NativeBridge />
         {!adminFrame && !navDesktopOnly && <Nav />}
         {/* Páginas com header próprio no mobile (produto/loja e o painel da loja) ainda
             mostram a Nav global no DESKTOP — a bottom bar é escondida no desktop, então

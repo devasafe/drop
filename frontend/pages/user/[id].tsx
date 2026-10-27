@@ -4,6 +4,8 @@ import api from '../../lib/api';
 import Icon from '../../components/Icon';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import styles from './CustomerView.module.css';
+import { goBack } from '../../lib/navigation';
+import { ROUTES } from '../../lib/routes';
 
 const ROLE_LABELS: Record<string, string> = {
   cliente: 'Cliente',
@@ -59,7 +61,7 @@ export default function UserProfile() {
         <div className={styles.errorBox}>
           <div className={styles.errorIcon}><Icon name="x-circle" /></div>
           <div className={styles.errorMessage}>{error}</div>
-          <button className={styles.backBtn} onClick={() => router.back()}>
+          <button className={styles.backBtn} onClick={() => goBack(router, ROUTES.inicio)}>
             ← Voltar
           </button>
         </div>
@@ -72,7 +74,7 @@ export default function UserProfile() {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <button className={styles.backBtn} onClick={() => router.back()}>
+        <button className={styles.backBtn} onClick={() => goBack(router, ROUTES.inicio)}>
           ← Voltar
         </button>
 

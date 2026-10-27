@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "PushSubscription" ADD COLUMN     "platform" TEXT NOT NULL DEFAULT 'web',
+ALTER COLUMN "p256dh" DROP NOT NULL,
+ALTER COLUMN "auth" DROP NOT NULL;

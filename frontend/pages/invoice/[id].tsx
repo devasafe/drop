@@ -4,6 +4,7 @@ import api from '../../lib/api';
 import { lojaHref } from '../../lib/routes';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import styles from './Invoice.module.css';
+import { useIsNativeApp } from '../../hooks/useIsNativeApp';
 
 interface DeliveryInvoice {
   _id: string;
@@ -42,6 +43,8 @@ interface DeliveryInvoice {
 
 export default function InvoicePage() {
   const router = useRouter();
+  // No app Android não há impressão (window.print não faz nada na WebView).
+  const nativeApp = useIsNativeApp();
   const { id } = router.query as { id?: string };
   const [invoice, setInvoice] = useState<DeliveryInvoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +91,7 @@ export default function InvoicePage() {
             <span className={invoice.status === 'issued' ? styles.statusIssued : styles.statusCancelled}>
               {invoice.status === 'issued' ? 'Emitida' : 'Cancelada'}
             </span>
-            <button onClick={() => window.print()} className={styles.printBtn}>Imprimir</button>
+            {!nativeApp && <button onClick={() => window.print()} className={styles.printBtn}>Imprimir</button>}
           </div>
         </div>
 

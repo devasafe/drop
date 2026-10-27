@@ -1,0 +1,11 @@
+node_modules/
+# Credenciais e chave de assinatura: nunca no repositório (ver documentos.txt).
+android/app/google-services.json
+*.jks
+*.keystore
+keystore.properties
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
