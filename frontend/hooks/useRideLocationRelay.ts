@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as logger from '../lib/logger';
+import { isNativeApp } from '../lib/native';
+import { setNativeRideActive, watchNativeLocation } from '../lib/nativeLocation';
 
 type Emit = (event: string, data: unknown) => void;
 
@@ -7,6 +9,8 @@ type Emit = (event: string, data: unknown) => void;
  * Envio da localização do motoboy durante a corrida (relay p/ cliente e loja via notifier).
  * Movido sem mudança de pages/motoboy/delivery/[id].tsx (D2): throttle de 5 s e só se moveu ~10 m;
  * só em assigned/picked; ao voltar do segundo plano reabre o watch e libera um emit imediato.
+ * No app Android, a posição vem do GPS nativo e vai por HTTP (o servidor repassa), o que
+ * continua funcionando com a tela apagada; o socket não é usado.
  */
 export function useRideLocationRelay(ride: any, emit: Emit) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -25,7 +29,20 @@ export function useRideLocationRelay(ride: any, emit: Emit) {
   deliveryIdRef.current = ride?._id ?? null;
   activeRef.current = !!ride && ['assigned', 'picked'].includes(ride.status);
 
+  const nativeRideActive = !!ride && ['assigned', 'picked'].includes(ride.status);
   useEffect(() => {
+    if (!isNativeApp()) return;
+    setNativeRideActive(nativeRideActive);
+    return () => setNativeRideActive(false);
+  }, [nativeRideActive]);
+
+  useEffect(() => {
+    if (isNativeApp()) {
+      return watchNativeLocation({
+        onFix: (fix) => { setCurrentLocation({ lat: fix.lat, lng: fix.lng }); setLocationAccuracy(fix.accuracy); },
+        onError: (code) => { if (code === 'denied') setCurrentLocation(null); },
+      });
+    }
     if (!window.navigator.geolocation) {
       logger.warn('Geolocation não suportado');
       return;

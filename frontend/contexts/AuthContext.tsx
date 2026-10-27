@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import api from '../lib/api';
+import { isNativeApp } from '../lib/native';
+import { nativePushForget } from '../lib/nativePush';
 
 export type AuthUser = {
   _id?: string;
@@ -108,6 +110,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    // App Android: o aparelho para de receber os avisos desta conta (antes de o cookie sair).
+    if (isNativeApp()) nativePushForget();
     // Limpa o cookie no servidor (best-effort) e os dados locais
     api.post('/auth/logout').catch(() => { /* ignore */ });
     try {

@@ -187,6 +187,62 @@ export const syncMotoboysRoom = async (userId: string): Promise<void> => {
  * Derruba as conexões do usuário (bloqueio, troca de papel). O `auth:force_logout` sai
  * antes; o atraso curto deixa o evento chegar. O handshake recusa a reconexão (status/papel no banco).
  */
+/**
+ * Repassa a posição do motoboy da corrida ao cliente e à loja (`delivery:location_updated`).
+ * Só o motoboy atribuído à entrega. Usado pelo socket (app aberto) e pelo
+ * POST /deliveries/location (app Android com a tela apagada, onde o socket cai).
+ */
+export async function relayRideLocation(
+  motoboyId: string,
+  deliveryId: string,
+  pos: { latitude: number; longitude: number; accuracy?: number; timestamp?: string },
+): Promise<void> {
+  if (!io) return;
+  try {
+    const delivery = await prisma.delivery.findUnique({
+      where: { id: deliveryId },
+      select: { orderId: true, motoboyId: true },
+    });
+    // Segurança: só o motoboy atribuído pode enviar localização
+    if (!delivery || delivery.motoboyId?.toString() !== motoboyId) return;
+
+    const order = await prisma.order.findUnique({
+      where: { id: String(delivery.orderId) },
+      select: { customerId: true, storeId: true },
+    });
+    if (!order) return;
+
+    const locationPayload = {
+      _id: deliveryId,
+      location: { latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy },
+      estimatedTime: null,
+      timestamp: pos.timestamp || new Date().toISOString(),
+    };
+    io.to(`user:${order.customerId}`).emit('delivery:location_updated', locationPayload);
+    io.to(`store:${order.storeId}`).emit('delivery:location_updated', locationPayload);
+    logger.debug(`📍 Location relayed: delivery=${deliveryId} lat=${pos.latitude} lng=${pos.longitude}`);
+  } catch (err) {
+    console.error('[relayRideLocation] erro:', err);
+  }
+}
+
+/** Repassa a posição para todas as corridas em andamento (assigned/picked) do motoboy. */
+export async function relayActiveRidesLocation(
+  motoboyId: string,
+  pos: { latitude: number; longitude: number; accuracy?: number },
+): Promise<void> {
+  if (!io) return;
+  try {
+    const rides = await prisma.delivery.findMany({
+      where: { motoboyId, status: { in: ['assigned', 'picked'] } },
+      select: { id: true },
+    });
+    await Promise.all(rides.map((r) => relayRideLocation(motoboyId, r.id, pos)));
+  } catch (err) {
+    console.error('[relayActiveRidesLocation] erro:', err);
+  }
+}
+
 export const disconnectUser = (userId: string, delayMs = 500): void => {
   if (!io || !userId) return;
   setTimeout(() => io?.in(`user:${userId}`).disconnectSockets(true), delayMs);
@@ -346,39 +402,7 @@ export const initSocket = (server: any) => {
 
       const { deliveryId, latitude, longitude, accuracy, timestamp } = data || ({} as any);
       if (!deliveryId || !isValidCoordinate(latitude, longitude)) return;
-
-      try {
-        const delivery = await prisma.delivery.findUnique({
-          where: { id: String(deliveryId) },
-          select: { orderId: true, motoboyId: true },
-        });
-
-        // Segurança: só o motoboy atribuído pode enviar localização
-        if (!delivery || delivery.motoboyId?.toString() !== userId) return;
-
-        const order = await prisma.order.findUnique({
-          where: { id: String(delivery.orderId) },
-          select: { customerId: true, storeId: true },
-        });
-
-        if (!order) return;
-
-        const locationPayload = {
-          _id: deliveryId,
-          location: { latitude, longitude, accuracy },
-          estimatedTime: null,
-          timestamp: timestamp || new Date().toISOString(),
-        };
-
-        // Enviar para cliente
-        io!.to(`user:${order.customerId}`).emit('delivery:location_updated', locationPayload);
-        // Enviar para loja
-        io!.to(`store:${order.storeId}`).emit('delivery:location_updated', locationPayload);
-
-        logger.debug(`📍 [Socket] Location relayed: delivery=${deliveryId} lat=${latitude} lng=${longitude}`);
-      } catch (err) {
-        console.error('[Socket] Error relaying location:', err);
-      }
+      await relayRideLocation(String(userId), String(deliveryId), { latitude, longitude, accuracy, timestamp });
     });
 
     // 📍 Presence location update (alimenta o mapa ao vivo do CEO)

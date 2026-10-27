@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
+import { isNativeApp } from '../lib/native';
+import { watchNativeLocation } from '../lib/nativeLocation';
 
 const GPS_THROTTLE_MS = 15000; // manda a posição pro servidor no máx a cada 15s
 const STALE_MS = 40000;        // sem fix novo por 40s (ou app em background) → "parada"
@@ -12,6 +14,8 @@ export type GpsState = 'off' | 'active' | 'stale' | 'denied';
  * ⚠️ A web NÃO mantém GPS em segundo plano: quando a tela bloqueia ou o app sai
  * de foco, o `watchPosition` para. Aqui a gente DETECTA isso (`stale`) pra avisar
  * o motoboy — não dá pra continuar rastreando sem um app nativo.
+ * No app Android (`isNativeApp`) o GPS segue com a tela apagada (lib/nativeLocation.ts), que
+ * também envia a posição; aqui só acompanhamos a saúde.
  */
 export function useMotoboyStatus() {
   const [online, setOnlineState] = useState(false);
@@ -42,6 +46,19 @@ export function useMotoboyStatus() {
   // GPS só quando online → alimenta o despacho por raio.
   useEffect(() => {
     if (!online) { setGps('off'); return; }
+    if (isNativeApp()) {
+      lastFixRef.current = Date.now();
+      setGps('active');
+      const stopWatch = watchNativeLocation({
+        onFix: () => { lastFixRef.current = Date.now(); setGps('active'); },
+        onError: (code) => { if (code === 'denied') setGps('denied'); },
+      });
+      // Tela apagada não trava o GPS nativo: "parada" só sem posição nova.
+      const timer = setInterval(() => {
+        setGps((prev) => (prev === 'denied' ? prev : Date.now() - lastFixRef.current > STALE_MS ? 'stale' : 'active'));
+      }, 5000);
+      return () => { stopWatch(); clearInterval(timer); };
+    }
     if (typeof navigator === 'undefined' || !navigator.geolocation) { setGps('denied'); return; }
 
     lastFixRef.current = Date.now(); // grace: evita "parada" antes do 1º fix

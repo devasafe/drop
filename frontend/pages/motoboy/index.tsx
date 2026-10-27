@@ -33,6 +33,7 @@ import { OfferLost, type OfferLostVariant } from '../../components/motoboy/corri
 import { offerSummary } from '../../components/motoboy/corridas/offerView';
 import { readOnlineSince, writeOnlineSince } from '../../components/motoboy/corridas/onlineSince';
 import styles from '../../components/motoboy/corridas/Corridas.module.css';
+import { useIsNativeApp } from '../../hooks/useIsNativeApp';
 
 const POOL_POLL_MS = 25000; // mesmo polling da tela antiga, só online
 // Uma chave por dica (K39): dispensar uma não esconde a outra.
@@ -47,6 +48,7 @@ export default function CorridasPage() {
   const userId = String(user?.id ?? user?._id ?? '');
   const firstName = String(user?.name || '').split(' ')[0] || 'motoboy';
   const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
+  const nativeApp = useIsNativeApp();
   const push = usePushNotifications();
   const courier = useCourierStatus();
   const { summary, error: summaryError, retrying, retry: retrySummary } = useCorridasSummary();
@@ -272,12 +274,16 @@ export default function CorridasPage() {
             <>
               {gps === 'stale' && (
                 <Alert tone="warning" title="Localização parada.">
-                  Mantenha o app aberto e a tela ligada — com o celular bloqueado ou fora do app, as corridas param de chegar.
+                  {nativeApp
+                    ? 'O GPS não manda posição há um tempo. Confira se a localização do celular está ligada.'
+                    : 'Mantenha o app aberto e a tela ligada — com o celular bloqueado ou fora do app, as corridas param de chegar.'}
                 </Alert>
               )}
               {gps === 'denied' && (
                 <Alert tone="error" title="Localização desativada.">
-                  Ative a localização do navegador para este site para receber corridas perto de você.
+                  {nativeApp
+                    ? 'Permita a localização do DROP nas configurações do celular para receber corridas perto de você.'
+                    : 'Ative a localização do navegador para este site para receber corridas perto de você.'}
                 </Alert>
               )}
               {pushBlock}

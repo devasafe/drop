@@ -81,3 +81,15 @@ export async function nativePushDisable(): Promise<void> {
   const PushNotifications = await plugin();
   await PushNotifications.unregister().catch(() => undefined);
 }
+
+/**
+ * Logout no app: o aparelho deixa de receber os avisos da conta que saiu. Envia antes de o
+ * logout limpar o cookie (a requisição sai já autenticada). Mantém a permissão do Android;
+ * o próximo login reenvia o token (NativeBridge).
+ */
+export function nativePushForget(): void {
+  const token = readToken();
+  if (!token) return;
+  writeToken(null);
+  api.post('/push/unsubscribe', { endpoint: `fcm:${token}` }).catch(() => undefined);
+}

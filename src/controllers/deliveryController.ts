@@ -14,7 +14,7 @@ import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { customerAbsentWaitMinutes, customerAbsentAvailableAt } from '../utils/customerAbsent';
 import { defaultGam, findGamByUser, persistGam } from '../repositories/gamification.repository';
 import { getLevel, checkAndAwardBadges } from './gamificationController';
-import notifier from '../services/notifier';
+import notifier, { relayActiveRidesLocation } from '../services/notifier';
 import { calculateDeliveryFeeWithConfig, calculateOrderDistribution } from '../utils/walletCalculations';
 import { addCommissionToAppCashbox } from './appCashboxController';
 import { emitDeliveryStatusChanged, emitGamificationPointsEarned, emitGamificationBadgeUnlocked, emitToRoom, emitDeliveryCompleted, emitOrderStatusChanged, emitAdminNotification } from '../utils/socketEmitter';
@@ -937,13 +937,23 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ error: 'Coordenadas inválidas' });
     }
     const isOnline = (req.body as any).isOnline;
+    // App Android: o sistema marca a posição vinda de app de GPS falso (risco do "cliente não
+    // apareceu" na devolução). Fica guardado junto da posição para o admin conferir.
+    const simulated = (req.body as any).simulated === true;
 
     await prisma.user.update({
       where: { id: req.user.id },
       data: {
-        currentLocation: { lat, lng, updatedAt: new Date() },
+        currentLocation: { lat, lng, updatedAt: new Date(), ...(simulated ? { simulated: true } : {}) },
         ...(typeof isOnline === 'boolean' ? { isOnline } : {}),
       },
+    });
+
+    // Em corrida, a posição também vai ao cliente e à loja: no app Android com a tela apagada
+    // o socket cai e este POST (HTTP nativo) é o único caminho que continua chegando.
+    const accuracy = Number((req.body as any).accuracy);
+    void relayActiveRidesLocation(String(req.user.id), {
+      latitude: lat, longitude: lng, ...(Number.isFinite(accuracy) ? { accuracy } : {}),
     });
 
     // Log de verificação: confirma que o GPS do motoboy está pingando (Coolify logs).

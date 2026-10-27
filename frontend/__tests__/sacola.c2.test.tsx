@@ -42,6 +42,11 @@ beforeEach(() => { push.mockClear(); back.mockClear(); setPaymentMethod.mockClea
 test('topo com voltar; entrega com o prazo, a distância e o frete', () => {
   mocked.mockReturnValue(hook());
   render(<SacolaPage />);
+  // Aberta direto (sem histórico, ex.: link ou notificação no app): voltar leva ao Início.
+  fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+  expect(push).toHaveBeenCalledWith('/inicio');
+  // Com histórico: volta para a tela anterior.
+  window.history.pushState({}, '', '/sacola');
   fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
   expect(back).toHaveBeenCalled();
   expect(screen.getByText('Chega em ~35 min')).toBeInTheDocument();

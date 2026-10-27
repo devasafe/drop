@@ -97,6 +97,14 @@ test('logado com o push já autorizado, o token vai para a conta atual', async (
   push.checkPermissions.mockResolvedValue({ receive: 'prompt' });
 });
 
+test('logout no app tira a inscrição do aparelho antes de sair', async () => {
+  const { nativePushForget } = require('../lib/nativePush');
+  localStorage.setItem('drop.fcmToken', 'tok-velho');
+  nativePushForget();
+  expect(post).toHaveBeenCalledWith('/push/unsubscribe', { endpoint: 'fcm:tok-velho' });
+  expect(localStorage.getItem('drop.fcmToken')).toBeNull();
+});
+
 test('no navegador, o NativeBridge não liga nada', async () => {
   setNative(false);
   mockUser = { id: 'u1' };
