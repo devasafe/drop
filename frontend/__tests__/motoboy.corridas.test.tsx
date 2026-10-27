@@ -352,3 +352,16 @@ test('tema e arquivos antigos', async () => {
   expect(fs.existsSync(path.join(__dirname, '..', 'components', 'motoboy', 'DeliveryOfferCard.tsx'))).toBe(false);
   expect(fs.existsSync(path.join(__dirname, '..', 'pages', 'motoboy', 'MotoboyCockpit.module.css'))).toBe(false);
 });
+
+test('motoboy novo: aviso do limite e o pedido caro recusado sai da lista com a explicação', async () => {
+  mockStatus = { ...mockStatus, online: true, gps: 'active' };
+  const msg = 'Nas suas primeiras 20 entregas você pega pedidos de até R$ 150. Faltam 20 entregas para liberar todos.';
+  mockPool.newCourier = { maxOrderValue: 150, remaining: 20, message: msg };
+  mockPool.deliveries = [offer('d1')];
+  post.mockRejectedValue({ response: { status: 403, data: { error: msg, code: 'NEW_COURIER_LIMIT' } } });
+  await renderPage();
+  expect(screen.getByText('Começando na DROP')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Aceitar por R$ 9,60' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('primeiras 20 entregas');
+  expect(mockPool.deliveries).toEqual([]);
+});

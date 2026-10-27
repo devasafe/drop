@@ -6,6 +6,7 @@ import { notifyCustomerOrder } from '../services/customerNotify';
 import { toPublicStore } from '../repositories/store.repository';
 import logger from '../config/logger';
 import { isDirectMode } from './settlement';
+import { blockedOnlineNewCouriers } from '../services/courierTrust';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -234,18 +235,22 @@ export const emitDeliveryCreated = (delivery: any) => {
   const excluded: string[] = (delivery.excludedMotoboyIds ?? []).map(String);
   emitToRoomExceptUsers('motoboys', excluded, 'delivery:created', { _id: deliveryId, deliveryId, orderId: delivery.orderId });
 
-  // 🏍️ Notificar motoboys de nova entrega disponível
-  emitToRoomExceptUsers('motoboys', excluded, 'delivery:available', {
-    deliveryId,
-    orderId: delivery.orderId,
-    distance: delivery.distance,
-    fee: delivery.fee,
-    createdAt: delivery.createdAt
-  });
-
-  // 📲 Web Push: acorda os motoboys online mesmo com o app fechado / celular
-  // bloqueado (o socket acima só chega em quem está com o app aberto).
-  notifyOnlineMotoboysNewDelivery(delivery);
+  // 🏍️ Aviso de corrida nova (socket + push). Quem é motoboy novo demais para o valor do
+  // pedido (courierTrust) não é avisado: não poderia aceitar.
+  void (async () => {
+    const tooNew = await blockedOnlineNewCouriers(String(delivery.orderId)).catch(() => [] as string[]);
+    const skip = Array.from(new Set([...excluded, ...tooNew]));
+    emitToRoomExceptUsers('motoboys', skip, 'delivery:available', {
+      deliveryId,
+      orderId: delivery.orderId,
+      distance: delivery.distance,
+      fee: delivery.fee,
+      createdAt: delivery.createdAt
+    });
+    // 📲 Push: acorda os motoboys online mesmo com o app fechado / celular
+    // bloqueado (o socket acima só chega em quem está com o app aberto).
+    notifyOnlineMotoboysNewDelivery({ ...delivery, excludedMotoboyIds: skip });
+  })();
 };
 
 export const emitDeliveryUpdated = (delivery: any) => {

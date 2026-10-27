@@ -39,6 +39,7 @@ import { cleanupUsersByEmailDomain, snapshotPlatformConfig } from './helpers/pgC
 import { createTestUser, bearer } from './helpers/authUser';
 import { runPoolTimeout } from '../jobs/poolTimeout.job';
 import { runDeliveryTimeout } from '../jobs/deliveryTimeout.job';
+import { NEW_COURIER_DELIVERIES } from '../services/courierTrust';
 
 const DOMAIN = '@corridadevolucao.test';
 const STORE_KEY = '$aact_hmlg_LOJA_CDEV';
@@ -68,6 +69,10 @@ async function aprovado(reason: 'defeito' | 'errado' | 'arrependimento' = 'defei
   const cliente = await createTestUser('cliente', DOMAIN);
   const motoboy = await createTestUser('motoboy', DOMAIN);
   await prisma.user.update({ where: { id: motoboy.userId }, data: { asaas: { status: 'none', pixKey: '12345678909', pixKeyType: 'CPF' } } as any });
+  // Veterano: o pedido (R$ 229,90) passa do limite do motoboy novo (antifraude, courierTrust).
+  await prisma.delivery.createMany({
+    data: Array.from({ length: NEW_COURIER_DELIVERIES }, (_, i) => ({ orderId: `veterano-${motoboy.userId}-${i}`, motoboyId: motoboy.userId, status: 'delivered' as const, fee: 8 })),
+  });
   const store = await prisma.store.create({ data: { ownerId: dono.userId, name: 'Eletro Center', isOpen: true, address: 'R. dos Pinheiros, 870', latitude: '-23.56', longitude: '-46.69' } as any });
   await prisma.storeAsaasAccount.create({
     data: { storeId: store.id, apiKeyEncrypted: encryptSensitiveData(STORE_KEY), apiKeyLast4: 'CDEV', environment: 'sandbox', status: 'valid' },

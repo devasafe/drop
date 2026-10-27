@@ -1,0 +1,77 @@
+/* eslint-env jest */
+/** Antifraude · motoboy novo: nas primeiras 20 entregas só pega pedido de até R$ 150 (produtos). */
+jest.mock('../utils/socketEmitter', () => {
+  const actual = jest.requireActual('../utils/socketEmitter');
+  return { __esModule: true, ...actual, emitToRoom: jest.fn(), emitAdminNotification: jest.fn() };
+});
+
+import request from 'supertest';
+import app from '../app';
+import env from '../config/env';
+import { prisma } from '../lib/prisma';
+import { updatePlatformConfig } from '../repositories/platformConfig.repository';
+import { snapshotPlatformConfig } from './helpers/pgCleanup';
+import { bearer } from './helpers/authUser';
+import { criarCorrida, limparCorridas } from './helpers/motoboyRide';
+import { blockedOnlineNewCouriers, NEW_COURIER_DELIVERIES } from '../services/courierTrust';
+
+const DOMAIN = '@antifraude-novo.test';
+const ORIGINAL_GATEWAY = env.PAYMENT_GATEWAY;
+let restore: () => Promise<void>;
+let since = new Date();
+beforeAll(async () => { restore = await snapshotPlatformConfig(); });
+afterAll(async () => { await restore(); (env as any).PAYMENT_GATEWAY = ORIGINAL_GATEWAY; });
+beforeEach(async () => {
+  since = new Date();
+  (env as any).PAYMENT_GATEWAY = 'none';
+  await updatePlatformConfig({ settlementMode: 'custodia' } as any, 'test');
+});
+afterEach(async () => { await limparCorridas(DOMAIN, since); });
+
+async function corridaDe(valorProdutos: number) {
+  const c = await criarCorrida(DOMAIN, { status: 'pending' });
+  await prisma.order.update({ where: { id: c.orderId }, data: { subtotal: valorProdutos, totalValue: valorProdutos + 10 } });
+  await prisma.user.update({ where: { id: c.motoboy.userId }, data: { isOnline: true, currentLocation: { lat: -23.55, lng: -46.63, updatedAt: new Date() } } });
+  return c;
+}
+
+const entregasFeitas = (motoboyId: string, n: number) => prisma.delivery.createMany({
+  data: Array.from({ length: n }, (_, i) => ({ orderId: `acd-novo-${motoboyId}-${i}`, motoboyId, status: 'delivered' as const, fee: 8 })),
+});
+
+it('motoboy novo não pega pedido de R$ 151: 403 com quantas faltam', async () => {
+  const c = await corridaDe(151);
+  const res = await request(app).post(`/api/deliveries/${c.deliveryId}/claim`).set('Authorization', bearer(c.motoboy)).send({});
+  expect(res.status).toBe(403);
+  expect(res.body.code).toBe('NEW_COURIER_LIMIT');
+  expect(res.body.error).toMatch(/primeiras 20 entregas.*R\$ 150.*Faltam 20 entregas/);
+  expect((await prisma.delivery.findUnique({ where: { id: c.deliveryId } }))!.status).toBe('pending');
+});
+
+it('motoboy novo pega pedido de exatamente R$ 150', async () => {
+  const c = await corridaDe(150);
+  const res = await request(app).post(`/api/deliveries/${c.deliveryId}/claim`).set('Authorization', bearer(c.motoboy)).send({});
+  expect(res.status).toBe(200);
+});
+
+it('com 20 entregas feitas o limite sai', async () => {
+  const c = await corridaDe(900);
+  await entregasFeitas(c.motoboy.userId, NEW_COURIER_DELIVERIES);
+  const res = await request(app).post(`/api/deliveries/${c.deliveryId}/claim`).set('Authorization', bearer(c.motoboy)).send({});
+  expect(res.status).toBe(200);
+});
+
+it('a lista de ofertas esconde o pedido caro do motoboy novo e explica o limite', async () => {
+  const c = await corridaDe(400);
+  const res = await request(app).get('/api/deliveries/available').set('Authorization', bearer(c.motoboy));
+  expect(res.status).toBe(200);
+  expect(res.body.deliveries.map((d: any) => String(d._id ?? d.id))).not.toContain(c.deliveryId);
+  expect(res.body.newCourier).toEqual(expect.objectContaining({ maxOrderValue: 150, remaining: 20 }));
+});
+
+it('o aviso de corrida nova não vai para o motoboy novo quando o pedido é caro', async () => {
+  const caro = await corridaDe(400);
+  expect(await blockedOnlineNewCouriers(caro.orderId)).toContain(caro.motoboy.userId);
+  const barato = await corridaDe(80);
+  expect(await blockedOnlineNewCouriers(barato.orderId)).toEqual([]);
+});
