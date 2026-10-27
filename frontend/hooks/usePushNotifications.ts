@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../lib/api';
 import { isNativeApp } from '../lib/native';
-import { nativePushDisable, nativePushEnable, nativePushState } from '../lib/nativePush';
+import { nativePushDisable, nativePushEnable, nativePushState, PushStepError } from '../lib/nativePush';
 
 /**
  * Web Push no client: registra o service worker, pede permissão e inscreve o device.
@@ -68,7 +68,8 @@ export function usePushNotifications() {
         return r.ok;
       } catch (err) {
         console.warn('[push] enable no app falhou:', err);
-        setError(PUSH_FAILED_APP);
+        // A etapa vai junto: é o que diz onde o aparelho travou (carregar, permissão, canais, registro, servidor).
+        setError(err instanceof PushStepError ? `${PUSH_FAILED_APP} (etapa: ${err.step})` : PUSH_FAILED_APP);
         return false;
       } finally {
         setBusy(false);
