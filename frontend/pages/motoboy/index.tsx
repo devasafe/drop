@@ -13,7 +13,7 @@ import { NavRow } from '../../components/panel/NavRow';
 import blocks from '../../components/panel/PanelBlocks.module.css';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMotoboyStatus } from '../../hooks/useMotoboyStatus';
-import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { PUSH_FAILED_APP, usePushNotifications } from '../../hooks/usePushNotifications';
 import { useGamificationFeatures } from '../../hooks/useGamificationFeatures';
 import { useDeliveries, useOngoingDeliveries } from '../../hooks/useSync';
 import api from '../../lib/api';
@@ -169,8 +169,8 @@ export default function CorridasPage() {
   const enablePush = async () => {
     const ok = await push.enable();
     if (ok) { setPushMsg({ tone: 'ok', text: 'Notificações ativadas! Você recebe as corridas mesmo com o app fechado.' }); push.sendTest(); }
-    else if (push.permission === 'denied') setPushMsg({ tone: 'err', text: 'Notificações bloqueadas. Libere nas configurações do navegador.' });
-    else setPushMsg({ tone: 'err', text: 'Não foi possível ativar as notificações agora.' });
+    else if (push.permission === 'denied') setPushMsg({ tone: 'err', text: push.blockedText });
+    else setPushMsg({ tone: 'err', text: nativeApp ? PUSH_FAILED_APP : 'Não foi possível ativar as notificações agora.' });
   };
 
   const dismissPeak = () => { setPeakOff(true); writeHintOff(HINT_PEAK_KEY); };
@@ -199,7 +199,7 @@ export default function CorridasPage() {
 
   const pushBlock = push.supported && !push.subscribed && (
     push.permission === 'denied'
-      ? <Alert tone="warning" title="Notificações bloqueadas neste navegador">Libere a permissão de notificações do site para receber corridas com o celular bloqueado.</Alert>
+      ? <Alert tone="warning" title="Notificações bloqueadas">{push.blockedText}</Alert>
       : <Alert tone="info" title="Receba corridas com o celular bloqueado" action={{ label: push.busy ? 'Ativando…' : 'Ativar', onClick: enablePush }}>Ative as notificações para ser avisado mesmo com o app fechado.</Alert>
   );
 

@@ -1,8 +1,9 @@
 import { Bell, BellRing, TriangleAlert } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useToast } from './ui/Toast';
-import { usePushNotifications } from '../hooks/usePushNotifications';
+import { PUSH_FAILED_APP, usePushNotifications } from '../hooks/usePushNotifications';
 import styles from './PushEnableBanner.module.css';
+import { isNativeApp } from '../lib/native';
 
 interface Props {
   title?: string;
@@ -23,8 +24,8 @@ export default function PushEnableBanner({ title, description }: Props) {
   const enable = async () => {
     const ok = await push.enable();
     if (ok) { showToast('Notificações ativadas!', 'success'); push.sendTest(); }
-    else if (push.permission === 'denied') showToast('Notificações bloqueadas. Libere nas configurações do navegador.', 'error');
-    else showToast('Não foi possível ativar as notificações agora.', 'error');
+    else if (push.permission === 'denied') showToast(push.blockedText, 'error');
+    else showToast(isNativeApp() ? PUSH_FAILED_APP : 'Não foi possível ativar as notificações agora.', 'error');
   };
 
   if (push.subscribed) {
@@ -41,7 +42,7 @@ export default function PushEnableBanner({ title, description }: Props) {
     return (
       <div className={`${styles.banner} ${styles.warn}`}>
         <TriangleAlert size={16} aria-hidden="true" />
-        <span>Notificações bloqueadas neste navegador. Libere a permissão de notificações nas configurações do site.</span>
+        <span>{push.blockedText}</span>
       </div>
     );
   }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '../../ui/Alert';
 import { useToast } from '../../ui/Toast';
-import { usePushNotifications } from '../../../hooks/usePushNotifications';
+import { PUSH_FAILED_APP, usePushNotifications } from '../../../hooks/usePushNotifications';
 import styles from './OrderPushPrompt.module.css';
+import { isNativeApp } from '../../../lib/native';
 
 /** "Agora não" fica lembrado no aparelho; o interruptor de Conta → Notificações continua lá. */
 export const PUSH_PROMPT_DISMISS_KEY = 'drop.cliente.pushPromptDismissed';
@@ -33,8 +34,8 @@ export function OrderPushPrompt() {
     const ok = await push.enable();
     if (ok) showToast('Avisos ativados', 'success');
     else if (push.permission === 'denied' || (typeof Notification !== 'undefined' && Notification.permission === 'denied')) {
-      showToast('Avisos bloqueados neste navegador. Libere as notificações nas configurações do site.', 'error');
-    } else showToast('Não foi possível ativar os avisos agora.', 'error');
+      showToast(push.blockedText, 'error');
+    } else showToast(isNativeApp() ? PUSH_FAILED_APP : 'Não foi possível ativar os avisos agora.', 'error');
   };
 
   const dismiss = () => {

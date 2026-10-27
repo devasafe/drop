@@ -7,7 +7,7 @@ const bg = {
   addWatcher: jest.fn(async (_opts: any, cb: any) => { watcherCb = cb; return 'w1'; }),
   removeWatcher: jest.fn(async () => undefined),
 };
-const httpPost = jest.fn(async () => ({ status: 200, data: {} }));
+const httpPost = jest.fn(async (_o: any) => ({ status: 200, data: {} }));
 jest.mock('@capacitor/core', () => ({ registerPlugin: () => bg, CapacitorHttp: { post: (o: any) => httpPost(o) } }));
 jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(async () => ({ data: {} })) } }));
 

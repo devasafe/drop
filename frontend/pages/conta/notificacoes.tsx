@@ -103,7 +103,7 @@ export default function NotificacoesPage() {
           {push.supported ? (
             <Switch
               label="Avisos no celular"
-              description={push.permission === 'denied' ? 'Bloqueado no navegador. Libere nas configurações do site.' : 'Avisamos cada passo do pedido, mesmo com o app fechado.'}
+              description={push.error || (push.permission === 'denied' ? push.blockedText : 'Avisamos cada passo do pedido, mesmo com o app fechado.')}
               checked={push.subscribed}
               disabled={push.busy || push.permission === 'denied'}
               onChange={(on) => (on ? push.enable() : push.disable())}

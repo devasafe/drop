@@ -68,6 +68,23 @@ test('no app, permissão negada não registra nem envia nada', async () => {
   expect(post).not.toHaveBeenCalled();
 });
 
+test('no app, registro do push sem resposta mostra o motivo em vez de ficar parado', async () => {
+  jest.useFakeTimers();
+  push.checkPermissions.mockResolvedValueOnce({ receive: 'granted' });
+  push.register.mockImplementationOnce(async () => undefined); // o Firebase nunca responde
+  const { result } = renderHook(() => usePushNotifications());
+  let done: Promise<boolean> | undefined;
+  act(() => { done = result.current.enable(); });
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  await act(async () => { jest.advanceTimersByTime(16000); });
+  jest.useRealTimers();
+  expect(await done).toBe(false);
+  await waitFor(() => expect(result.current.busy).toBe(false));
+  expect(result.current.error).toMatch(/Google Play Services/);
+  expect(result.current.blockedText).toMatch(/Configurações do Android/);
+  expect(post).not.toHaveBeenCalled();
+});
+
 test('voltar do Android: volta no histórico ou minimiza na primeira tela', async () => {
   const back = jest.spyOn(window.history, 'back').mockImplementation(() => undefined);
   render(<NativeBridge />);

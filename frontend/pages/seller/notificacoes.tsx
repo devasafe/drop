@@ -120,7 +120,7 @@ export default function SellerNotificacoes() {
 
           {push.supported && push.permission === 'denied' && (
             <Alert tone="warning" title="Você pode perder pedidos">
-              Os avisos estão bloqueados neste navegador. Libere as notificações nas configurações do site.
+              {push.blockedText}
             </Alert>
           )}
 
@@ -180,7 +180,7 @@ export default function SellerNotificacoes() {
             {push.supported ? (
               <Switch
                 label="Avisos de pedido novo"
-                description={push.permission === 'denied' ? 'Bloqueado no navegador. Libere nas configurações do site.' : 'Som e aviso no celular, mesmo com o app fechado.'}
+                description={push.error || (push.permission === 'denied' ? push.blockedText : 'Som e aviso no celular, mesmo com o app fechado.')}
                 checked={push.subscribed}
                 disabled={push.busy || push.permission === 'denied'}
                 onChange={(on) => (on ? push.enable() : push.disable())}

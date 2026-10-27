@@ -13,6 +13,13 @@ import { nativePushDisable, nativePushEnable, nativePushState } from '../lib/nat
 
 type Perm = 'default' | 'granted' | 'denied' | 'unsupported';
 
+/** Avisos bloqueados: onde liberar depende de ser o app Android ou o navegador. */
+export const PUSH_BLOCKED_APP = 'Avisos bloqueados. Libere em Configurações do Android → Apps → DROP → Notificações.';
+export const PUSH_BLOCKED_WEB = 'Avisos bloqueados neste navegador. Libere as notificações nas configurações do site.';
+/** O registro no Firebase não respondeu: quase sempre é o Google Play Services ausente ou antigo. */
+export const PUSH_FAILED_APP = 'O celular não conseguiu registrar os avisos. Confira se o Google Play Services está instalado e atualizado e tente de novo.';
+export const PUSH_FAILED_WEB = 'Não conseguimos ativar os avisos agora. Tente de novo.';
+
 function urlBase64ToBuffer(base64: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
   const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -33,6 +40,8 @@ export function usePushNotifications() {
   const [permission, setPermission] = useState<Perm>('default');
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const native = isNativeApp();
 
   // Estado inicial: suporte + permissão + se já existe inscrição neste device.
   useEffect(() => {
@@ -51,6 +60,7 @@ export function usePushNotifications() {
   const enable = useCallback(async (): Promise<boolean> => {
     if (isNativeApp()) {
       setBusy(true);
+      setError(null);
       try {
         const r = await nativePushEnable();
         setPermission(r.permission);
@@ -58,6 +68,7 @@ export function usePushNotifications() {
         return r.ok;
       } catch (err) {
         console.warn('[push] enable no app falhou:', err);
+        setError(PUSH_FAILED_APP);
         return false;
       } finally {
         setBusy(false);
@@ -65,6 +76,7 @@ export function usePushNotifications() {
     }
     if (!isSupported()) { setPermission('unsupported'); return false; }
     setBusy(true);
+    setError(null);
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm as Perm);
@@ -93,6 +105,7 @@ export function usePushNotifications() {
       return true;
     } catch (err) {
       console.warn('[push] enable falhou:', err);
+      setError(PUSH_FAILED_WEB);
       return false;
     } finally {
       setBusy(false);
@@ -123,5 +136,11 @@ export function usePushNotifications() {
     await api.post('/push/test').catch(() => {});
   }, []);
 
-  return { supported: permission !== 'unsupported', permission, subscribed, busy, enable, disable, sendTest };
+  return {
+    supported: permission !== 'unsupported', permission, subscribed, busy, enable, disable, sendTest,
+    /** Motivo da última falha ao ativar (some ao tentar de novo). */
+    error,
+    /** Texto para avisos bloqueados, certo para o app ou para o navegador. */
+    blockedText: native ? PUSH_BLOCKED_APP : PUSH_BLOCKED_WEB,
+  };
 }

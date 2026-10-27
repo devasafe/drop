@@ -58,11 +58,11 @@ export function NotificacoesScreen() {
         {push.supported && !push.subscribed && (
           push.permission === 'denied' ? (
             <Alert tone="warning" title="Você pode perder corridas">
-              Os avisos estão bloqueados neste navegador. Libere as notificações nas configurações do site.
+              {push.blockedText}
             </Alert>
           ) : (
             <Alert tone="warning" title="Você pode perder corridas" action={{ label: 'Ativar', onClick: () => { void push.enable(); } }}>
-              Ative os avisos para saber de corrida nova com o app fechado.
+              {push.error || 'Ative os avisos para saber de corrida nova com o app fechado.'}
             </Alert>
           )
         )}

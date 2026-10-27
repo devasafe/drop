@@ -5,12 +5,12 @@ const mockShowToast = jest.fn();
 jest.mock('../../../ui/Toast', () => ({ useToast: () => ({ showToast: mockShowToast }) }));
 
 let mockPush: any;
-jest.mock('../../../../hooks/usePushNotifications', () => ({ usePushNotifications: () => mockPush }));
+jest.mock('../../../../hooks/usePushNotifications', () => ({ ...jest.requireActual('../../../../hooks/usePushNotifications'), usePushNotifications: () => mockPush }));
 
 beforeEach(() => {
   localStorage.clear();
   mockShowToast.mockClear();
-  mockPush = { supported: true, permission: 'default', subscribed: false, busy: false, enable: jest.fn(async () => true), disable: jest.fn(), sendTest: jest.fn() };
+  mockPush = { supported: true, permission: 'default', subscribed: false, busy: false, error: null, blockedText: 'Avisos bloqueados neste navegador. Libere as notificações nas configurações do site.', enable: jest.fn(async () => true), disable: jest.fn(), sendTest: jest.fn() };
 });
 
 describe('OrderPushPrompt — pedir o push na tela do pedido', () => {
