@@ -23,6 +23,8 @@ enum UserStatus {
   active
   blocked
   inactive
+  /// Excluída pelo próprio usuário: dados pessoais anonimizados, login impossível.
+  deleted
 }
 
 enum OwnerType {
@@ -351,6 +353,8 @@ model User {
   isOnline          Boolean?   @default(false)
   /// D3b-2a: último acesso autenticado; gravado pelo `authenticate`, no máximo a cada 5 min.
   lastSeenAt        DateTime?
+  /// Quando o próprio usuário excluiu a conta (status = deleted).
+  deletedAt         DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 

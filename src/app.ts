@@ -54,6 +54,7 @@ import integrationsRoutes from './routes/integrations'; // Integração de estoq
 import onboardingRoutes from './routes/onboarding'; // ✅ NOVO - Onboarding de recebedores (Asaas)
 import badgesRoutes from './routes/badges'; // Contagens para os badges do menu
 import pushRoutes from './routes/push'; // Web Push (notificações com o app fechado)
+import accountRoutes from './routes/account'; // exclusão de conta pelo próprio usuário
 import searchRoutes from './routes/search'; // Busca da vitrine (produtos/lojas) + sugestões
 import { prisma } from './lib/prisma';
 
@@ -168,6 +169,7 @@ app.use('/api/verification', verificationRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/badges', badgesRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/account', accountRoutes);
 
 
 // Webhooks de gateways (server-to-server) — fora de /api para escapar do rate

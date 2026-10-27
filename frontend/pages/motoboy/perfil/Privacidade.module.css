@@ -1,0 +1,15 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.lead,
+.links {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.lead a,
+.links a {
+  color: var(--color-text-link);
+}

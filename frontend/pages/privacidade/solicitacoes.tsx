@@ -124,6 +124,36 @@ export default function SolicitacoesPrivacidadePage() {
           reclamação, nos termos da LGPD.
         </p>
       </LegalSection>
+
+      <LegalSection id="excluir-conta" title="6. Excluir sua conta">
+        <p>
+          Você pode excluir a sua conta DROP a qualquer momento, pelo app ou pelo site, sem
+          falar com ninguém:
+        </p>
+        <ul>
+          <li><strong>Cliente:</strong> Conta → Privacidade → Excluir minha conta;</li>
+          <li><strong>Loja:</strong> Meu perfil → Excluir minha conta;</li>
+          <li><strong>Motoboy:</strong> Perfil → Privacidade → Excluir minha conta.</li>
+        </ul>
+        <p>
+          A exclusão pede a sua senha e não pode ser desfeita. Antes, é preciso terminar pedidos,
+          entregas e reembolsos em andamento e sacar o saldo da carteira; a tela mostra o que falta.
+        </p>
+        <p>
+          <strong>O que é apagado:</strong> nome, e-mail, telefone, CPF, RG, data de nascimento,
+          foto, endereços, dados bancários, documentos de verificação, localização e notificações.
+          A loja sai da vitrine.
+        </p>
+        <p>
+          <strong>O que fica guardado, sem o seu nome:</strong> pedidos, notas, pagamentos e
+          repasses, por 5 anos, por obrigação legal e fiscal; no caso da loja, também o CNPJ.
+        </p>
+        <p>
+          Se não consegue entrar na conta, escreva para{' '}
+          <a href={`mailto:${PRIVACY_EMAIL}?subject=Excluir%20minha%20conta`}>{PRIVACY_EMAIL}</a>{' '}
+          com o e-mail cadastrado, e fazemos a exclusão por você em até 15 dias.
+        </p>
+      </LegalSection>
     </LegalPage>
   );
 }

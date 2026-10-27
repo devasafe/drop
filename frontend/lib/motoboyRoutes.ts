@@ -29,6 +29,7 @@ export const MOTOBOY_ROUTES = {
   // Subtelas do Perfil (C8)
   perfilDados: '/motoboy/perfil/dados',
   perfilAjuda: '/motoboy/perfil/ajuda',
+  perfilPrivacidade: '/motoboy/perfil/privacidade',
   // Compartilhada com a loja (clara, V7)
   recebimento: '/dados-recebimento',
 } as const;

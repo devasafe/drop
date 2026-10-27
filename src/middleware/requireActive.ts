@@ -23,7 +23,7 @@ export const requireActiveUser = async (req: AuthenticatedRequest, res: Response
       where: { id: userId },
       select: { status: true, blockReason: true },
     });
-    if (!user) return res.status(401).json({ error: 'User not found' });
+    if (!user || user.status === 'deleted') return res.status(401).json({ error: 'User not found' });
 
     if (user.status === 'blocked') {
       return res.status(403).json({

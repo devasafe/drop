@@ -18,7 +18,7 @@ import { formatMoney } from './money';
 /* ---------- formatos (iguais ao backend) ---------- */
 
 export type UserTab = 'all' | 'cliente' | 'lojista' | 'motoboy' | 'equipe' | 'bloqueados';
-export type UserStatus = 'active' | 'inactive' | 'blocked';
+export type UserStatus = 'active' | 'inactive' | 'blocked' | 'deleted';
 export type VerificationSummary = 'ok' | 'pending' | 'rejected' | 'none';
 /** `none` = não enviado, ou e-mail ainda não confirmado (nada espera o admin). */
 export type VerificationItemStatus = 'pending' | 'approved' | 'rejected' | 'none';
@@ -197,7 +197,7 @@ const actorRef = (v: unknown): boolean => v === null || (isObj(v) && isStr(v.id)
 const isPage = (d: unknown, ok: (x: unknown) => boolean): boolean =>
   isObj(d) && listOf(d.items, ok) && (d.nextCursor === null || isStr(d.nextCursor));
 
-const USER_STATUSES: readonly string[] = ['active', 'inactive', 'blocked'];
+const USER_STATUSES: readonly string[] = ['active', 'inactive', 'blocked', 'deleted'];
 const VERIFICATION_SUMMARIES: readonly string[] = ['ok', 'pending', 'rejected', 'none'];
 const VERIFICATION_ITEM_STATUSES: readonly string[] = ['pending', 'approved', 'rejected', 'none'];
 const DEBT_STATUSES: readonly string[] = ['pending', 'collected', 'forgiven'];
@@ -522,6 +522,7 @@ export const USER_STATUS: Record<UserStatus, Tag> = {
   active: { label: 'Ativo', tone: 'ok' },
   inactive: { label: 'Inativo', tone: 'neutral' },
   blocked: { label: 'Bloqueado', tone: 'bad' },
+  deleted: { label: 'Conta excluída', tone: 'neutral' },
 };
 
 export const VERIFICATION_TAG: Record<VerificationSummary, Tag> = {

@@ -21,7 +21,7 @@ export type UserListTab = 'all' | 'cliente' | 'lojista' | 'motoboy' | 'equipe' |
 /** Resumo da verificação para os itens que o papel exige (userVerification.ts). */
 export type VerificationSummary = 'ok' | 'pending' | 'rejected' | 'none';
 
-export type AccountStatus = 'active' | 'blocked' | 'inactive';
+export type AccountStatus = 'active' | 'blocked' | 'inactive' | 'deleted';
 
 /** Itens de verificação de uma pessoa, como ficam em `User.verification`. */
 export type UserVerificationKey = 'email' | 'document' | 'facial' | 'courier';

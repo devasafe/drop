@@ -101,6 +101,8 @@ test('menu: Dados e senha, Ajuda e Sair', async () => {
   expect(mockPush).toHaveBeenCalledWith('/motoboy/perfil/dados');
   fireEvent.click(screen.getByRole('button', { name: /Ajuda e suporte/ }));
   expect(mockPush).toHaveBeenCalledWith('/motoboy/perfil/ajuda');
+  fireEvent.click(screen.getByRole('button', { name: /Privacidade/ }));
+  expect(mockPush).toHaveBeenCalledWith('/motoboy/perfil/privacidade');
   fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
   expect(logout).toHaveBeenCalled();
   await screen.findByText('Moto · FKR2D19');

@@ -1,7 +1,7 @@
 // frontend/components/motoboy/perfil/PerfilScreen.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Bike, Headphones, KeyRound, LogOut, ShieldCheck, User } from 'lucide-react';
+import { Bike, Headphones, KeyRound, Lock, LogOut, ShieldCheck, User } from 'lucide-react';
 import MotoboyShell from '../panel/MotoboyShell';
 import { NavRow } from '../../panel/NavRow';
 import { AreasSection } from '../../panel/AreasSection';
@@ -140,6 +140,7 @@ export function PerfilScreen() {
         <ul className={blocks.list}>
           <NavRow icon={<User size={20} />} label="Dados e senha" sub="E-mail, celular, alterar senha" onClick={() => router.push(MOTOBOY_ROUTES.perfilDados)} />
           <NavRow icon={<Headphones size={20} />} label="Ajuda e suporte" sub="Chat com a equipe DROP" onClick={() => router.push(MOTOBOY_ROUTES.perfilAjuda)} />
+          <NavRow icon={<Lock size={20} />} label="Privacidade" sub="Seus dados e excluir a conta" onClick={() => router.push(MOTOBOY_ROUTES.perfilPrivacidade)} />
           <li>
             <button type="button" className={[blocks.row, blocks.rowButton].join(' ')} onClick={() => logout?.()}>
               <span className={[blocks.ico, blocks.icoErr].join(' ')} aria-hidden="true"><LogOut size={18} /></span>

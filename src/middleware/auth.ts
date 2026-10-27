@@ -107,7 +107,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
       where: { id: String(decoded.id) },
       select: { status: true, role: true, roles: true, blockReason: true, lastSeenAt: true },
     });
-    if (!account) return res.status(401).json({ error: 'Invalid token' });
+    if (!account || account.status === 'deleted') return res.status(401).json({ error: 'Invalid token' });
     if (account.status === 'blocked') {
       return res.status(403).json({
         error: 'ACCOUNT_BLOCKED',

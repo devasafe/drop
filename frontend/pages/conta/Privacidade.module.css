@@ -41,7 +41,6 @@
   text-decoration: none;
 }
 .row:focus-visible,
-.dangerButton:focus-visible,
 .links a:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
@@ -76,43 +75,6 @@
   color: var(--color-text-muted);
 }
 
-.danger {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--color-surface-default);
-  border-radius: var(--radius-lg);
-}
-.dangerTitle {
-  margin: 0;
-  font: var(--text-body);
-  font-weight: 600;
-  color: var(--color-error-text);
-}
-.meta {
-  margin: 0;
-  font: var(--text-meta);
-  color: var(--color-text-muted);
-}
-.blocker {
-  margin: 0;
-  font: var(--text-meta);
-  color: var(--color-warning-text);
-}
-.dangerButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: flex-start;
-  min-height: var(--touch-min);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-error-text);
-  border-radius: var(--radius-md);
-  color: var(--color-error-text);
-  font: var(--text-label);
-  text-decoration: none;
-}
 
 .links {
   margin: 0;

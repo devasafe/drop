@@ -1,0 +1,57 @@
+.danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-surface-default);
+  border-radius: var(--radius-lg);
+}
+.title {
+  margin: 0;
+  font: var(--text-body);
+  font-weight: 600;
+  color: var(--color-error-text);
+}
+.meta {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+.blocker {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-warning-text);
+}
+.warn {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-error-text);
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-error-text);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-error-text);
+  font: var(--text-label);
+  cursor: pointer;
+}
+.button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

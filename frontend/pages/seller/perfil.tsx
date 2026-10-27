@@ -4,6 +4,7 @@ import SellerShell from '../../components/seller/panel/SellerShell';
 import MeusDadosForm from '../../components/MeusDadosForm';
 import VerificationHub from '../../components/VerificationHub';
 import { Button } from '../../components/ui/Button';
+import { DeleteAccountSection } from '../../components/drop/DeleteAccountSection';
 import { useAuth } from '../../contexts/AuthContext';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
 import styles from './Perfil.module.css';
@@ -29,6 +30,7 @@ export default function SellerPerfil() {
             <h2 id="perfil-seguranca" className={styles.cap}>Verificações e segurança</h2>
             <div className={styles.card}><VerificationHub /></div>
           </section>
+          <DeleteAccountSection note="Apagamos seus dados pessoais e você não entra mais com esta conta. A loja sai da vitrine; notas, pedidos e o CNPJ ficam guardados 5 anos por lei." />
           <Button variant="secondary" leftIcon={<LogOut size={18} aria-hidden="true" />} onClick={() => logout?.()}>Sair</Button>
         </div>
       </SellerShell>

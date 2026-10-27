@@ -16,6 +16,7 @@ jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn(), po
 const get = api.get as jest.Mock; const post = api.post as jest.Mock; const put = api.put as jest.Mock;
 import MotoboyDados from '../pages/motoboy/perfil/dados';
 import MotoboyAjuda from '../pages/motoboy/perfil/ajuda';
+import MotoboyPrivacidade from '../pages/motoboy/perfil/privacidade';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -76,7 +77,8 @@ test('rotas: noturnas, do painel e sem a barra de abas', () => {
   const { themeForPath } = require('../lib/routeTheme');
   expect(MOTOBOY_ROUTES.perfilDados).toBe('/motoboy/perfil/dados');
   expect(MOTOBOY_ROUTES.perfilAjuda).toBe('/motoboy/perfil/ajuda');
-  for (const p of ['/motoboy/perfil/dados', '/motoboy/perfil/ajuda']) {
+  expect(MOTOBOY_ROUTES.perfilPrivacidade).toBe('/motoboy/perfil/privacidade');
+  for (const p of ['/motoboy/perfil/dados', '/motoboy/perfil/ajuda', '/motoboy/perfil/privacidade']) {
     expect(themeForPath(p)).toBe('motoboy-pref');
     expect(motoboyShowsTabBar(p)).toBe(false);
     expect(isMotoboyPanelRoute(p)).toBe(true);
@@ -86,4 +88,15 @@ test('rotas: noturnas, do painel e sem a barra de abas', () => {
 test('CSS só com tokens', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'components/motoboy/perfil/Perfil.module.css'), 'utf8');
   expect(cssViolations(css)).toEqual([]);
+  for (const f of ['pages/motoboy/perfil/Privacidade.module.css', 'components/drop/DeleteAccountSection.module.css']) {
+    expect(cssViolations(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))).toEqual([]);
+  }
+});
+
+test('privacidade: casca com voltar para o Perfil e a exclusão de conta', async () => {
+  get.mockResolvedValue({ data: { blockers: [] } });
+  render(<MotoboyPrivacidade />);
+  expect(screen.getByRole('heading', { name: 'Privacidade' })).toBeInTheDocument();
+  expect(screen.getByTestId('shell')).toHaveAttribute('data-back', '/motoboy/perfil');
+  expect(await screen.findByRole('button', { name: 'Excluir minha conta' })).toBeInTheDocument();
 });
