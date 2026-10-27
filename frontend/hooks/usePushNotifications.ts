@@ -46,8 +46,9 @@ export function usePushNotifications() {
   // Estado inicial: suporte + permissão + se já existe inscrição neste device.
   useEffect(() => {
     if (isNativeApp()) {
+      // No app o aparelho sempre tem push: se a leitura falhar, mostra a etapa em vez de "não recebe avisos".
       nativePushState().then((st) => { setPermission(st.permission); setSubscribed(st.subscribed); })
-        .catch(() => setPermission('unsupported'));
+        .catch((err) => setError(err instanceof PushStepError ? `${PUSH_FAILED_APP} (etapa: ${err.step})` : PUSH_FAILED_APP));
       return;
     }
     if (!isSupported()) { setPermission('unsupported'); return; }
