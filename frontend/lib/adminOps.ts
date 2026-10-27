@@ -266,17 +266,19 @@ export interface TrackPoint { lat: number; lng: number; accuracy: number | null;
 export interface RideTrack {
   deliveryId: string;
   kind: string;
-  motoboy: { id: string; name: string } | null;
+  motoboy: { id: string; name: string; phone: string | null } | null;
   signalLostAt: string | null;
   simulatedCount: number;
+  /** Total gravado; `points` pode ser uma amostra do caminho. */
+  totalPoints: number;
   points: TrackPoint[];
 }
 
 const isTrackPoint = (p: unknown): boolean => isObj(p) && isNum(p.lat) && isNum(p.lng) && isNumOrNull(p.accuracy)
   && typeof p.simulated === 'boolean' && isIso(p.at);
 const isRideTrack = (r: unknown): boolean => isObj(r) && isStr(r.deliveryId) && isStr(r.kind)
-  && (r.motoboy === null || (isObj(r.motoboy) && isStr(r.motoboy.id) && isStr(r.motoboy.name)))
-  && isIsoOrNull(r.signalLostAt) && isNum(r.simulatedCount) && Array.isArray(r.points) && r.points.every(isTrackPoint);
+  && (r.motoboy === null || (isObj(r.motoboy) && isStr(r.motoboy.id) && isStr(r.motoboy.name) && isStrOrNull(r.motoboy.phone)))
+  && isIsoOrNull(r.signalLostAt) && isNum(r.simulatedCount) && isNum(r.totalPoints) && Array.isArray(r.points) && r.points.every(isTrackPoint);
 
 export async function fetchOrderTrack(id: string): Promise<RideTrack[]> {
   const res = await api.get(`${orderPath(id)}/track`);

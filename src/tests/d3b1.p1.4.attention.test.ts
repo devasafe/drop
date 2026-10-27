@@ -26,8 +26,8 @@ const delivery = (status: string, over: Partial<NonNullable<AttentionInput['deli
   status, createdAt: ago(50), assignedAt: null, pickedAt: null, ...over,
 });
 
-it('ordem R1 dos motivos', () => {
-  expect(ATTENTION_ORDER).toEqual(['estorno_pendente', 'loja_parada', 'cliente_decidindo', 'sem_motoboy', 'retirada_demorada', 'atrasado']);
+it('ordem R1 dos motivos (sinal perdido, do antifraude, na frente)', () => {
+  expect(ATTENTION_ORDER).toEqual(['sinal_perdido', 'estorno_pendente', 'loja_parada', 'cliente_decidindo', 'sem_motoboy', 'retirada_demorada', 'atrasado']);
 });
 
 it.each<[string, Partial<AttentionInput>, string | null]>([

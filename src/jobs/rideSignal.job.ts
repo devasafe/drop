@@ -9,7 +9,7 @@ import { shortOrderId } from '../services/adminOps/common';
  *
  * Corrida aceita ou retirada (assigned/picked) cujo motoboy não manda posição há mais de
  * SIGNAL_LOST_MIN minutos vira alerta para o admin (push + sino), com nome e telefone do
- * motoboy, pedido, cliente e a última posição conhecida. Um alerta por perda: a marca
+ * pedido e etapa; telefone, cliente e última posição ficam na tela do pedido (permissão de operação). Um alerta por perda: a marca
  * `Delivery.signalLostAt` some quando a posição volta (relayRideLocation, que avisa "voltou").
  *
  * A posição da corrida é o ponto do caminho (DeliveryTrackPoint), gravado tanto pelo app
@@ -24,8 +24,6 @@ const DAY_MS = 86_400_000;
 let running = false;
 let lastPurge = 0;
 
-const mapsLink = (lat: number, lng: number) => `https://www.google.com/maps?q=${lat},${lng}`;
-
 export async function checkRideSignals(now: Date = new Date()): Promise<string[]> {
   const cutoff = new Date(now.getTime() - SIGNAL_LOST_MIN * MIN_MS);
   const rides = await prisma.delivery.findMany({
@@ -38,7 +36,7 @@ export async function checkRideSignals(now: Date = new Date()): Promise<string[]
     const last = await prisma.deliveryTrackPoint.findFirst({
       where: { deliveryId: ride.id },
       orderBy: { createdAt: 'desc' },
-      select: { createdAt: true, lat: true, lng: true },
+      select: { createdAt: true },
     });
     if (last && last.createdAt >= cutoff) continue;
 
@@ -47,19 +45,13 @@ export async function checkRideSignals(now: Date = new Date()): Promise<string[]
     if (marked.count === 0) continue;
     alerted.push(ride.id);
 
-    const [motoboy, order] = await Promise.all([
-      prisma.user.findUnique({ where: { id: String(ride.motoboyId) }, select: { name: true, telefone: true } }),
-      prisma.order.findUnique({ where: { id: ride.orderId }, select: { customer: { select: { name: true } } } }),
-    ]);
+    // Aviso mínimo: vai para toda a equipe (sino e push). Telefone do motoboy, cliente e posição
+    // ficam na tela do pedido, que confere a permissão de operação.
     const minutes = last ? Math.round((now.getTime() - last.createdAt.getTime()) / MIN_MS) : null;
     const etapa = ride.status === 'picked' ? 'com o produto' : 'indo à loja';
-    const body = [
-      `${motoboy?.name || 'Motoboy'}${motoboy?.telefone ? ` (${motoboy.telefone})` : ''} parou de mandar a posição`
-        + `${minutes !== null ? ` há ${minutes} min` : ''}, ${etapa}.`,
-      `Pedido #${shortOrderId(ride.orderId)}${order?.customer?.name ? ` · cliente ${order.customer.name}` : ''}.`,
-      last ? `Última posição: ${mapsLink(last.lat, last.lng)}` : 'Nenhuma posição recebida nesta corrida.',
-    ].join(' ');
-    emitAdminNotification({ title: 'Sinal perdido numa entrega', body, url: '/admin/mapa', tag: `sinal-${ride.id}` });
+    const body = `Pedido #${shortOrderId(ride.orderId)}: o motoboy parou de mandar a posição`
+      + `${minutes !== null ? ` há ${minutes} min` : ''}, ${etapa}. Abra o pedido para ligar para ele.`;
+    emitAdminNotification({ title: 'Sinal perdido numa entrega', body, url: `/admin/pedidos/${ride.orderId}`, tag: `sinal-${ride.id}` });
     emitAdminOrderChanged(ride.orderId, 'signal_lost');
     logger.warn('[ride-signal] sinal perdido', { deliveryId: ride.id, motoboyId: ride.motoboyId, minutes });
   }

@@ -209,7 +209,9 @@ export async function relayRideLocation(
     if (!delivery || delivery.motoboyId?.toString() !== motoboyId) return;
     if (delivery.status !== 'assigned' && delivery.status !== 'picked') return;
 
-    await prisma.deliveryTrackPoint.create({
+    // No máximo um ponto a cada 3 s por corrida: envio em excesso não empurra o caminho real para fora.
+    const lastPoint = await prisma.deliveryTrackPoint.findFirst({ where: { deliveryId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+    if (!lastPoint || Date.now() - lastPoint.createdAt.getTime() >= TRACK_MIN_INTERVAL_MS) await prisma.deliveryTrackPoint.create({
       data: {
         deliveryId, motoboyId, lat: pos.latitude, lng: pos.longitude,
         accuracy: Number.isFinite(pos.accuracy) ? pos.accuracy : null, simulated: pos.simulated === true,
@@ -238,12 +240,16 @@ export async function relayRideLocation(
   }
 }
 
+const TRACK_MIN_INTERVAL_MS = 3000;
+
 /** A posição voltou depois do alerta de sinal perdido: limpa a marca e avisa o admin. */
 async function signalBack(deliveryId: string, motoboyId: string): Promise<void> {
   const cleared = await prisma.delivery.updateMany({ where: { id: deliveryId, signalLostAt: { not: null } }, data: { signalLostAt: null } });
   if (cleared.count === 0) return;
-  const m = await prisma.user.findUnique({ where: { id: motoboyId }, select: { name: true } });
-  const payload = { title: 'Sinal do motoboy voltou', body: `${m?.name || 'O motoboy'} voltou a mandar a posição.`, url: '/admin/mapa', tag: `sinal-${deliveryId}` };
+  // Aviso mínimo (vai para toda a equipe): os detalhes ficam na tela do pedido, que confere a permissão.
+  const ride = await prisma.delivery.findUnique({ where: { id: deliveryId }, select: { orderId: true } });
+  const orderId = String(ride?.orderId ?? '');
+  const payload = { title: 'Sinal do motoboy voltou', body: `Pedido #${orderId.slice(-6)}: a posição voltou a chegar.`, url: `/admin/pedidos/${orderId}`, tag: `sinal-${deliveryId}` };
   io?.to('admin').emit('admin:notification', payload);
   notifyAdmins(payload);
 }

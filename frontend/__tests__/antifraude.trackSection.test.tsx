@@ -10,7 +10,7 @@ jest.mock('../lib/api', () => ({ __esModule: true, default: { get: jest.fn() } }
 const get = api.get as jest.Mock;
 
 const ride = {
-  deliveryId: 'd1', kind: 'entrega', motoboy: { id: 'm1', name: 'Carlos' }, signalLostAt: '2026-10-27T15:10:00.000Z', simulatedCount: 1,
+  deliveryId: 'd1', kind: 'entrega', motoboy: { id: 'm1', name: 'Carlos', phone: '(11) 98888-7777' }, signalLostAt: '2026-10-27T15:10:00.000Z', simulatedCount: 1, totalPoints: 2,
   points: [
     { lat: -23.55, lng: -46.63, accuracy: 8, simulated: false, at: '2026-10-27T15:00:00.000Z' },
     { lat: -23.56, lng: -46.64, accuracy: null, simulated: true, at: '2026-10-27T15:05:00.000Z' },
@@ -25,6 +25,7 @@ test('o admin pede o caminho e vê posições, sinal perdido, GPS falso e o link
   expect(get).toHaveBeenCalledWith('/admin/orders/o1/track');
   expect(screen.getByText('GPS falso')).toBeInTheDocument();
   expect(screen.getByText('Carlos')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: '(11) 98888-7777' })).toHaveAttribute('href', 'tel:11988887777');
   expect(screen.getByRole('link', { name: 'Última posição no mapa' })).toHaveAttribute('href', 'https://www.google.com/maps?q=-23.56,-46.64');
   expect(screen.getByRole('button', { name: 'Baixar caminho (CSV)' })).toBeInTheDocument();
 });

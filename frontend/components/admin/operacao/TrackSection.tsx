@@ -62,7 +62,10 @@ export function TrackSection({ orderId }: { orderId: string }) {
               <dl className={ui.facts}>
                 <div><dt>Corrida</dt><dd>{r.kind === 'devolucao' ? 'Devolução' : 'Entrega'}</dd></div>
                 <div><dt>Motoboy</dt><dd>{r.motoboy?.name ?? '—'}</dd></div>
-                <div><dt>Posições</dt><dd>{r.points.length}</dd></div>
+                {r.motoboy?.phone && (
+                  <div><dt>Telefone</dt><dd><a className={styles.link} href={`tel:${r.motoboy.phone.replace(/\D/g, '')}`}>{r.motoboy.phone}</a></dd></div>
+                )}
+                <div><dt>Posições</dt><dd>{r.totalPoints}</dd></div>
                 {first && last && <div><dt>De / até</dt><dd>{`${spTime(first.at)} → ${spTime(last.at)}`}</dd></div>}
               </dl>
               {last ? (

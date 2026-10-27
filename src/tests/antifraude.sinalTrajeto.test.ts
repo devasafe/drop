@@ -46,10 +46,17 @@ describe('caminho da corrida', () => {
   it('cada posição do motoboy da corrida vira um ponto; GPS falso fica marcado', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
+    await prisma.deliveryTrackPoint.updateMany({ where: { deliveryId: c.deliveryId }, data: { createdAt: new Date(Date.now() - 10_000) } });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, { ...pos, simulated: true });
     const pts = await points(c.deliveryId);
     expect(pts).toHaveLength(2);
     expect(pts.filter((p) => p.simulated)).toHaveLength(1);
+  });
+
+  it('enxurrada de posições: no máximo um ponto a cada 3 s por corrida', async () => {
+    const c = await criarCorrida(DOMAIN, { status: 'picked' });
+    for (let i = 0; i < 10; i++) await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
+    expect(await points(c.deliveryId)).toHaveLength(1);
   });
 
   it('outro motoboy ou corrida encerrada não grava', async () => {
@@ -64,10 +71,12 @@ describe('caminho da corrida', () => {
   it('o admin lê o caminho do pedido; cliente não', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' });
     await relayRideLocation(c.motoboy.userId, c.deliveryId, { ...pos, simulated: true });
+    await prisma.user.update({ where: { id: c.motoboy.userId }, data: { telefone: '11988887777' } });
     const ceo = await createTestUser('ceo', DOMAIN);
     const res = await request(app).get(`/api/admin/orders/${c.orderId}/track`).set('Authorization', bearer(ceo));
     expect(res.status).toBe(200);
-    expect(res.body.rides[0]).toEqual(expect.objectContaining({ deliveryId: c.deliveryId, simulatedCount: 1 }));
+    expect(res.body.rides[0]).toEqual(expect.objectContaining({ deliveryId: c.deliveryId, simulatedCount: 1, totalPoints: 1 }));
+    expect(res.body.rides[0].motoboy).toEqual(expect.objectContaining({ phone: '11988887777' }));
     expect(res.body.rides[0].points[0]).toEqual(expect.objectContaining({ lat: -23.55, lng: -46.63, simulated: true }));
     const nao = await request(app).get(`/api/admin/orders/${c.orderId}/track`).set('Authorization', bearer(c.cliente));
     expect(nao.status).toBe(403);
@@ -83,7 +92,7 @@ describe('caminho da corrida', () => {
 });
 
 describe('sinal perdido', () => {
-  it('corrida sem posição há mais de 3 min: um alerta ao admin com motoboy, telefone e pedido; não repete', async () => {
+  it('corrida sem posição há mais de 3 min: um alerta enxuto (sem telefone, cliente nem posição); não repete', async () => {
     const c = await criarCorrida(DOMAIN, { status: 'picked' }); // aceita há 40 min
     await prisma.user.update({ where: { id: c.motoboy.userId }, data: { telefone: '11988887777' } });
     await prisma.deliveryTrackPoint.create({ data: { deliveryId: c.deliveryId, motoboyId: c.motoboy.userId, lat: -23.5, lng: -46.6, createdAt: minutesAgo(6) } });
@@ -92,9 +101,9 @@ describe('sinal perdido', () => {
     expect(alert).toHaveBeenCalledTimes(1);
     const body = alert.mock.calls[0][0].body as string;
     expect(alert.mock.calls[0][0].title).toBe('Sinal perdido numa entrega');
-    expect(body).toMatch(/11988887777/);
     expect(body).toMatch(/há 6 min, com o produto/);
-    expect(body).toMatch(/google\.com\/maps\?q=-23\.5,-46\.6/);
+    expect(body).not.toMatch(/11988887777|maps|-23\.5/);
+    expect(alert.mock.calls[0][0].url).toBe(`/admin/pedidos/${c.orderId}`);
     expect((await prisma.delivery.findUnique({ where: { id: c.deliveryId } }))!.signalLostAt).not.toBeNull();
 
     expect(await checkRideSignals()).toEqual([]);
@@ -112,6 +121,7 @@ describe('sinal perdido', () => {
     await checkRideSignals();
     await relayRideLocation(c.motoboy.userId, c.deliveryId, pos);
     expect((await prisma.delivery.findUnique({ where: { id: c.deliveryId } }))!.signalLostAt).toBeNull();
+    expect((notifyAdmins as jest.Mock).mock.calls.at(-1)[0].body).not.toMatch(/Motoboy|motoboy/);
     expect(notifyAdmins).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sinal do motoboy voltou' }));
   });
 
