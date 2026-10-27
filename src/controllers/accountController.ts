@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { getDeletionBlockers, deleteAccount as runDeleteAccount } from '../services/accountDeletion.service';
 import { clearTokenCookie, clearUserCookie } from '../utils/cookieManager';
+import { disconnectUser } from '../services/notifier';
 
 /** GET /api/account/deletion-check — o que impede excluir a conta agora. */
 export const deletionCheck = async (req: AuthenticatedRequest, res: Response) => {
@@ -24,6 +25,7 @@ export const deleteAccount = async (req: AuthenticatedRequest, res: Response) =>
     }
     clearTokenCookie(res);
     clearUserCookie(res);
+    disconnectUser(String(req.user!.id)); // derruba o socket das outras abas e aparelhos
     return res.json({ message: 'Conta excluída' });
   } catch (err) {
     console.error('[account] delete:', err);

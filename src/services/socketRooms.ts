@@ -36,7 +36,7 @@ export async function canJoinMotoboysRoom(user: SocketUser): Promise<boolean> {
     where: { id: String(user.id) },
     select: { status: true, verification: true },
   });
-  if (!db || db.status === 'blocked') return false;
+  if (!db || db.status === 'blocked' || db.status === 'deleted') return false;
   return !kycEnforced() || isMotoboyVerified(db);
 }
 

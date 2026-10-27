@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type Db = typeof prisma | Prisma.TransactionClient;
 
 /**
  * Exclusão de conta pelo próprio usuário (Google Play e Apple 5.1.1(v); LGPD art. 18, VI).
@@ -24,8 +27,8 @@ export interface DeletionBlocker {
 }
 
 /** O que precisa terminar antes de a conta poder sair. Lista vazia = pode excluir. */
-export async function getDeletionBlockers(userId: string): Promise<DeletionBlocker[]> {
-  const stores = await prisma.store.findMany({ where: { ownerId: userId }, select: { id: true } });
+export async function getDeletionBlockers(userId: string, db: Db = prisma): Promise<DeletionBlocker[]> {
+  const stores = await db.store.findMany({ where: { ownerId: userId }, select: { id: true } });
   const storeIds = stores.map((s) => s.id);
   const owners = [userId, ...storeIds];
 
@@ -33,21 +36,21 @@ export async function getDeletionBlockers(userId: string): Promise<DeletionBlock
     customerOrders, storeOrders, returns, debts, wallets, topups,
     rides, withdrawals, payouts, transfers,
   ] = await Promise.all([
-    prisma.order.count({ where: { customerId: userId, status: { in: [...OPEN_ORDER_STATUSES] } } }),
-    storeIds.length ? prisma.order.count({ where: { storeId: { in: storeIds }, status: { in: [...OPEN_ORDER_STATUSES] } } }) : 0,
-    prisma.returnRequest.count({
+    db.order.count({ where: { customerId: userId, status: { in: [...OPEN_ORDER_STATUSES] } } }),
+    storeIds.length ? db.order.count({ where: { storeId: { in: storeIds }, status: { in: [...OPEN_ORDER_STATUSES] } } }) : 0,
+    db.returnRequest.count({
       where: { OR: [{ customerId: userId }, { storeId: { in: storeIds } }], status: { in: [...OPEN_RETURN_STATUSES] } },
     }),
-    prisma.customerDebt.count({ where: { customerId: userId, status: 'pending' } }),
-    prisma.wallet.findMany({
+    db.customerDebt.count({ where: { customerId: userId, status: 'pending' } }),
+    db.wallet.findMany({
       where: { owner: { in: owners } },
       select: { balance: true, pendingBalance: true, blockedBalance: true },
     }),
-    prisma.walletTopup.count({ where: { userId, status: 'pending' } }),
-    prisma.delivery.count({ where: { motoboyId: userId, status: { in: [...OPEN_DELIVERY_STATUSES] } } }),
-    prisma.withdrawalRequest.count({ where: { motoboyId: userId, status: { in: ['pending', 'approved'] } } }),
-    prisma.payout.count({ where: { recipientId: { in: owners }, status: { in: [...OPEN_PAYOUT_STATUSES] } } }),
-    prisma.motoboyTransfer.count({
+    db.walletTopup.count({ where: { userId, status: 'pending' } }),
+    db.delivery.count({ where: { motoboyId: userId, status: { in: [...OPEN_DELIVERY_STATUSES] } } }),
+    db.withdrawalRequest.count({ where: { motoboyId: userId, status: { in: ['pending', 'approved'] } } }),
+    db.payout.count({ where: { recipientId: { in: owners }, status: { in: [...OPEN_PAYOUT_STATUSES] } } }),
+    db.motoboyTransfer.count({
       where: { OR: [{ motoboyId: userId }, { storeId: { in: storeIds } }], status: { in: OPEN_TRANSFER_STATUSES } },
     }),
   ]);
@@ -81,16 +84,16 @@ export async function deleteAccount(userId: string, password: string): Promise<D
   if (!password || !(await bcrypt.compare(String(password), user.passwordHash))) {
     return { ok: false, status: 401, error: 'WRONG_PASSWORD', message: 'Senha incorreta.' };
   }
-  const blockers = await getDeletionBlockers(userId);
-  if (blockers.length) {
-    return { ok: false, status: 409, error: 'DELETION_BLOCKED', message: blockers[0].message, blockers };
-  }
-
   const now = new Date();
   // Hash de uma senha aleatória descartada: nenhuma senha volta a bater.
   const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
 
-  await prisma.$transaction(async (tx) => {
+  // Bloqueios conferidos dentro da transação, com a linha do User travada: duas exclusões
+  // simultâneas (ou uma exclusão e uma ação da própria conta) não passam pela checagem juntas.
+  const blockers = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    const found = await getDeletionBlockers(userId, tx);
+    if (found.length) return found;
     await tx.user.update({
       where: { id: userId },
       data: {
@@ -117,6 +120,10 @@ export async function deleteAccount(userId: string, password: string): Promise<D
         adminPausedAt: now, adminPausedBy: userId, adminPauseReason: 'Conta excluída pelo dono',
       },
     });
+    return [];
   });
+  if (blockers.length) {
+    return { ok: false, status: 409, error: 'DELETION_BLOCKED', message: blockers[0].message, blockers };
+  }
   return { ok: true };
 }

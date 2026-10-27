@@ -226,7 +226,7 @@ export const initSocket = (server: any) => {
         select: { status: true, role: true, roles: true },
       });
       const dbRoles = [...(dbUser?.roles || []), dbUser?.role].filter(Boolean).map(String);
-      if (!dbUser || dbUser.status === 'blocked' || !dbRoles.includes(String(decoded.role))) {
+      if (!dbUser || dbUser.status === 'blocked' || dbUser.status === 'deleted' || !dbRoles.includes(String(decoded.role))) {
         return next(new Error('Forbidden'));
       }
       // `roles` do banco: papéis de equipe somam as salas de admin (acréscimo, não área ativa).
