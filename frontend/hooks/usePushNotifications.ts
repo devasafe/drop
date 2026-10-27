@@ -134,8 +134,9 @@ export function usePushNotifications() {
     }
   }, []);
 
-  const sendTest = useCallback(async (): Promise<void> => {
-    await api.post('/push/test').catch(() => {});
+  /** Push de teste. `delaySeconds` (até 30): dá tempo de fechar o app e ver o aviso chegar fora dele. */
+  const sendTest = useCallback(async (delaySeconds = 0): Promise<void> => {
+    await api.post('/push/test', delaySeconds > 0 ? { delaySeconds } : undefined).catch(() => {});
   }, []);
 
   return {

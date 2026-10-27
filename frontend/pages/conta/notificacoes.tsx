@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Switch } from '../../components/ui/Switch';
 import styles from './Notificacoes.module.css';
+import { PushTestButton } from '../../components/drop/PushTestButton';
 
 const ICON: Record<string, typeof Bell> = { order: Bike, chat: MessageCircle, broadcast: Megaphone, system: Bell };
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -111,6 +112,7 @@ export default function NotificacoesPage() {
           ) : (
             <p className={styles.note}>Este aparelho não recebe avisos fora do app.</p>
           )}
+          {push.subscribed && <PushTestButton sendTest={push.sendTest} />}
         </section>
       </main>
     </ProtectedRoute>

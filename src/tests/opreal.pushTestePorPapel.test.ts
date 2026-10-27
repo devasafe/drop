@@ -28,3 +28,18 @@ it.each([
   expect(r.status).toBe(200);
   expect(push).toHaveBeenCalledWith(user.userId, expect.objectContaining({ url, body: expect.stringMatching(body) }));
 });
+
+it('teste atrasado (app fechado): responde na hora e envia depois, no máximo 30 s', async () => {
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+  try {
+    const user = await createTestUser('cliente', DOMAIN);
+    const r = await request(app).post('/api/push/test').set('Authorization', bearer(user)).send({ delaySeconds: 99 });
+    expect(r.status).toBe(200);
+    expect(r.body.delaySeconds).toBe(30);
+    expect(push).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(30000);
+    expect(push).toHaveBeenCalledWith(user.userId, expect.objectContaining({ tag: 'teste' }));
+  } finally {
+    jest.useRealTimers();
+  }
+});

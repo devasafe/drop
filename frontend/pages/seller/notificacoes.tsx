@@ -18,6 +18,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Switch } from '../../components/ui/Switch';
 import blocks from '../../components/panel/PanelBlocks.module.css';
+import { PushTestButton } from '../../components/drop/PushTestButton';
 
 type Filter = 'tudo' | 'pedidos' | 'dinheiro' | 'drop';
 const FILTERS: Array<{ id: Filter; label: string }> = [
@@ -188,6 +189,7 @@ export default function SellerNotificacoes() {
             ) : (
               <p className={blocks.meta}>Este aparelho não recebe avisos fora do app. Deixe o painel aberto para ouvir o som de pedido novo.</p>
             )}
+            {push.subscribed && <PushTestButton sendTest={push.sendTest} />}
           </section>
         </div>
       </SellerShell>

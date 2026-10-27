@@ -79,7 +79,15 @@ export const sendTest = async (req: AuthenticatedRequest, res: Response) => {
     if (!isPushEnabled() && !isFcmEnabled()) return res.status(503).json({ error: 'Push não configurado no servidor' });
     const role = String((req.user as any).activeRole || req.user.role || 'cliente');
     const panel = TEST_PUSH_BY_ROLE[role] ?? TEST_PUSH_BY_ROLE.cliente;
-    await sendPushToUser(req.user.id, { title: 'Notificações ativadas ✅', body: panel.body, url: panel.url, tag: 'teste' });
+    const payload = { title: 'Notificações ativadas ✅', body: panel.body, url: panel.url, tag: 'teste' };
+    // Teste com o app fechado: a pessoa toca, fecha o app e o aviso chega depois (até 30 s).
+    const delaySeconds = Math.min(Math.max(Math.floor(Number((req.body || {}).delaySeconds) || 0), 0), 30);
+    if (delaySeconds > 0) {
+      const userId = req.user.id;
+      setTimeout(() => { sendPushToUser(userId, payload).catch(() => undefined); }, delaySeconds * 1000);
+      return res.json({ ok: true, delaySeconds });
+    }
+    await sendPushToUser(req.user.id, payload);
     return res.json({ ok: true });
   } catch (err) {
     console.error('[push] sendTest error:', err);

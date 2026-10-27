@@ -11,6 +11,7 @@ import { usePushNotifications } from '../../../hooks/usePushNotifications';
 import api from '../../../lib/api';
 import { groupByDay } from '../../../lib/groupNotifications';
 import { MOTOBOY_ROUTES } from '../../../lib/motoboyRoutes';
+import { PushTestButton } from '../../drop/PushTestButton';
 
 const ICON: Record<string, typeof Bell> = { order: Bike, chat: MessageSquare, broadcast: Megaphone };
 const ICON_CLASS: Record<string, string> = { order: blocks.icoBrand, broadcast: blocks.icoInfo };
@@ -66,6 +67,7 @@ export function NotificacoesScreen() {
             </Alert>
           )
         )}
+        {push.subscribed && <PushTestButton sendTest={push.sendTest} />}
 
         <section aria-label="Avisos" className={blocks.stack}>
           {loading ? (
