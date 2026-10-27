@@ -7,7 +7,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * site chama por `frontend/lib/native.ts`.
  */
 const config: CapacitorConfig = {
-  appId: 'br.com.dropapp',
+  appId: 'app.drop',
   appName: 'DROP',
   webDir: 'www',
   appendUserAgent: 'DropApp/1',

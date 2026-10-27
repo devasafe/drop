@@ -2,8 +2,8 @@
 <resources>
     <string name="app_name">DROP</string>
     <string name="title_activity_main">DROP</string>
-    <string name="package_name">br.com.dropapp</string>
-    <string name="custom_url_scheme">br.com.dropapp</string>
+    <string name="package_name">app.drop</string>
+    <string name="custom_url_scheme">app.drop</string>
     <!-- Notificação fixa enquanto o motoboy está online (GPS em segundo plano). -->
     <string name="capacitor_background_geolocation_notification_channel_name">Localização nas entregas</string>
     <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_drop</string>

@@ -1,4 +1,4 @@
-package br.com.dropapp;
+package app.drop;
 
 import com.getcapacitor.BridgeActivity;
 
