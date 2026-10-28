@@ -1,0 +1,139 @@
+/* frontend/components/seller/dinheiro/StoreStatement.module.css */
+.balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.balanceLabel {
+  font: var(--text-label);
+  color: var(--color-text-secondary);
+}
+.balanceValue {
+  font: var(--text-price-lg);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.balanceMeta {
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.balance > button {
+  margin-top: var(--space-2);
+}
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+  font: var(--text-label);
+}
+.statement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.title {
+  margin: 0;
+  font: var(--text-title);
+  color: var(--color-text-primary);
+}
+.periods {
+  display: flex;
+  gap: var(--space-1);
+}
+.period {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font: var(--text-meta);
+  cursor: pointer;
+}
+.period[aria-pressed='true'] {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+}
+.period:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.empty {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-muted);
+}
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.dayLabel {
+  margin: 0;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.rowLabel {
+  font: var(--text-body);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+.rowLabel a {
+  color: var(--color-text-link);
+}
+.in,
+.out {
+  font: var(--text-price-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.in {
+  color: var(--color-success-text);
+}
+.out {
+  color: var(--color-error-text);
+}
+.after {
+  grid-column: 2;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.err {
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-error-text);
+}

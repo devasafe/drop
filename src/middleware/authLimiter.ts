@@ -14,7 +14,7 @@ export function attemptsLeftOf(req: Request): number | undefined {
 }
 
 /** Limiter de autenticação. O 429 é JSON com a hora de volta (a tela mostra "Tente de novo às HH:MM"). */
-export function createAuthLimiter(opts: { max?: number; windowMs?: number; skipInTest?: boolean } = {}): RequestHandler {
+export function createAuthLimiter(opts: { max?: number; windowMs?: number; skipInTest?: boolean; keyGenerator?: (req: Request) => string } = {}): RequestHandler {
   const windowMs = opts.windowMs ?? AUTH_WINDOW_MS;
   const skipInTest = opts.skipInTest ?? true;
   return rateLimit({
@@ -22,6 +22,7 @@ export function createAuthLimiter(opts: { max?: number; windowMs?: number; skipI
     max: opts.max ?? AUTH_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    ...(opts.keyGenerator ? { keyGenerator: opts.keyGenerator } : {}),
     skip: () => skipInTest && process.env.NODE_ENV === 'test',
     handler: (req: Request, res: Response, _next: NextFunction) => {
       const reset = (req as any).rateLimit?.resetTime;

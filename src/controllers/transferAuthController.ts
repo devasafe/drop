@@ -5,6 +5,7 @@ import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { decryptSensitiveData } from '../utils/encryption';
 import env from '../config/env';
 import { emitAdminNotification } from '../utils/socketEmitter';
+import { decideStoreWithdrawal } from '../services/asaasLoja/storeWithdrawal';
 
 /**
  * Webhook de autorização de saques/transferências do Asaas ("Mecanismo para validação de
@@ -117,7 +118,11 @@ async function decideTransfer(storeId: string, req: Extract<AuthRequest, { kind:
   if (!req.transferId) return refuse('UNKNOWN_TRANSFER');
   if (!req.asaasId) return refuse('INVALID_REQUEST', req.transferId);
   const t = await prisma.motoboyTransfer.findUnique({ where: { id: req.transferId } });
-  if (!t) return refuse('UNKNOWN_TRANSFER', req.transferId);
+  if (!t) {
+    // Saque da loja para o Pix do dono (StoreWithdrawal): mesma regra, só o que a DROP pediu.
+    const w = await decideStoreWithdrawal(storeId, req);
+    return w ?? refuse('UNKNOWN_TRANSFER', req.transferId);
+  }
   if (t.storeId !== storeId) return refuse('STORE_MISMATCH', t.id);
   if (t.status !== 'requested') return refuse('INVALID_STATUS', t.id);
   // Id de uma tentativa anterior (já dada como falha e substituída): nunca aprovar.

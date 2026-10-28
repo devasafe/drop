@@ -21,25 +21,30 @@ interface Props {
   error?: string | null;
   submitting?: boolean;
   title?: string;
-  onConfirm: (amount: number | 'all') => void;
+  /** Pede a senha da conta DROP antes de sacar (saque da conta de recebimento). */
+  askPassword?: boolean;
+  onConfirm: (amount: number | 'all', password?: string) => void;
 }
 
 const toInput = (n: number) => n.toFixed(2).replace('.', ',');
 
-export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabel, note, blocked, error, submitting, title = 'Sacar', onConfirm }: Props) {
+export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabel, note, blocked, error, submitting, title = 'Sacar', askPassword = false, onConfirm }: Props) {
   const inputId = useId();
+  const passwordId = useId();
   const [raw, setRaw] = useState('');
+  const [password, setPassword] = useState('');
   // Envio único: a ref trava o duplo clique antes de o pai renderizar `submitting`.
   const sending = useRef(false);
 
   useEffect(() => { if (open) setRaw(available > 0 ? toWithdrawInput(available) : ''); }, [open, available]);
+  useEffect(() => { if (!open) setPassword(''); }, [open]);
   useEffect(() => { sending.current = false; }, [open, submitting, error]);
 
   const c = checkWithdraw(raw, available, minimum);
   const { value, invalid, overAvailable, belowMinimum: belowMin } = c;
   // checkWithdraw falha fechado (NaN em '1.000'): valor ambíguo é erro na tela, nunca é enviado.
   const has = Number.isFinite(value) && value > 0;
-  const valid = c.valid && !submitting;
+  const valid = c.valid && !submitting && (!askPassword || password.length > 0);
   const isAll = c.isAll && !submitting;
 
   const chips = [500, 1000].filter((v) => v < available);
@@ -70,11 +75,25 @@ export function SellerWithdrawSheet({ open, onClose, available, minimum, pixLabe
             </div>
             {pixLabel && <p className={styles.dest}>{`Para a chave ${pixLabel}`}</p>}
             {note && <p className={styles.note}>{note}</p>}
+            {askPassword && (
+              <div className={styles.password}>
+                <label htmlFor={passwordId} className={styles.label}>Sua senha da DROP</label>
+                <input
+                  id={passwordId}
+                  type="password"
+                  autoComplete="current-password"
+                  className={styles.passwordInput}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            )}
             {error && <p role="alert" className={styles.err}>{error}</p>}
             <Button onClick={() => {
               if (!valid || sending.current) return;
               sending.current = true;
-              onConfirm(withdrawPayload(c));
+              if (askPassword) onConfirm(withdrawPayload(c), password);
+              else onConfirm(withdrawPayload(c));
             }} disabled={!valid} loading={submitting}>
               {`Sacar ${formatMoney(has ? value : 0)}`}
             </Button>

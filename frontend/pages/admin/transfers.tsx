@@ -42,6 +42,8 @@ interface Row {
   payer?: 'store' | 'platform';
   /** "admin:<id>" quando o Pago veio do Resolver, não do Asaas. */
   resolvedBy?: string | null;
+  /** Quando ficou Pago (no Resolver, é a hora do clique). */
+  doneAt?: string | null;
 }
 
 const FILTERS = [
@@ -67,8 +69,11 @@ const PIX_TYPE_LABEL: Record<string, string> = {
 
 const who = (r: Row) => `${r.storeName ?? 'Loja'} → ${r.motoboyName ?? 'Motoboy'}`;
 const isManualPix = (r: Row) => r.payer === 'platform';
-/** Pago por um Resolver do admin (não pelo Asaas): pode ser reenviado pela DROP. */
-const isReopenable = (r: Row) => r.status === 'done' && !!r.resolvedBy && !isManualPix(r);
+/** Igual ao servidor (REOPEN_WINDOW_MS): o reenvio só desfaz um Resolver recente. */
+const REOPEN_WINDOW_MS = 60 * 60 * 1000;
+/** Pago por um Resolver do admin (não pelo Asaas) há menos de 1 hora: pode ser reenviado pela DROP. */
+const isReopenable = (r: Row) => r.status === 'done' && !!r.resolvedBy && !isManualPix(r)
+  && !!r.doneAt && Date.now() - Date.parse(r.doneAt) <= REOPEN_WINDOW_MS;
 
 export default function AdminTransfersPage() {
   const { can } = useAuth();
@@ -323,7 +328,7 @@ export default function AdminTransfersPage() {
           {reopening && (
             <p className={blocks.muted}>
               {`Este Pix de ${formatMoney(Number(reopening.amount))} para ${reopening.motoboyName ?? 'o motoboy'} foi marcado como resolvido.`}{' '}
-              Se ele não foi pago, a DROP envia de novo pela conta Asaas da loja. Confira antes: se já foi pago por fora, o motoboy recebe em dobro.
+              Se ele não foi pago, a DROP envia de novo pela conta Asaas da loja. Confira antes: se já foi pago por fora, o motoboy recebe em dobro. Só dá para reenviar até 1 hora depois do Resolver.
             </p>
           )}
           <TextAreaField

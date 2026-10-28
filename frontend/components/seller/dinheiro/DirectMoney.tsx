@@ -8,6 +8,7 @@ import MotoboyTransfersCard, { type TransferRow } from '../../drop/asaas/Motoboy
 import LegacyBalanceCard from '../../wallet/LegacyBalanceCard';
 import { StuckPixSheet } from './StuckPixSheet';
 import { SellerWithdrawSheet } from './SellerWithdrawSheet';
+import { StoreStatement } from './StoreStatement';
 import { ASAAS_URL } from './moneyLabels';
 import { formatMoney } from '../../../lib/money';
 import { apiError, currentMonth, unwrap } from '../../../lib/sellerApi';
@@ -21,8 +22,9 @@ interface DirectSummary {
 }
 
 /**
- * Dinheiro no modo SaaS: o dinheiro das vendas cai direto na conta Asaas da loja. Não há saldo
- * liberado nem saque de custódia aqui — só o saldo que sobrou do modo anterior (allowLeftover).
+ * Dinheiro no modo SaaS: o dinheiro das vendas cai direto na conta de recebimento da loja (Asaas,
+ * sem o nome na tela). Saldo, extrato e saque para o Pix do dono ficam em StoreStatement; o saldo
+ * que sobrou do modo anterior (allowLeftover) tem o card próprio.
  */
 export function DirectMoney({ storeId, hasLeftover }: { storeId: string; hasLeftover: boolean }) {
   const [sum, setSum] = useState<DirectSummary | null>(null);
@@ -105,16 +107,16 @@ export function DirectMoney({ storeId, hasLeftover }: { storeId: string; hasLeft
         <div role="status" aria-label="Carregando"><Skeleton height={140} /></div>
       ) : (
         <>
-          <section className={styles.hero} aria-label="Recebido na sua conta Asaas">
-            <span className={styles.heroLabel}>{`Recebido na sua conta Asaas · ${monthName}`}</span>
+          <section className={styles.hero} aria-label="Recebido em vendas">
+            <span className={styles.heroLabel}>{`Recebido em vendas · ${monthName}`}</span>
             <b className={styles.heroValue}>{formatMoney(Number(sum.ordersPaid?.total) || 0)}</b>
             <span className={styles.heroMeta}>
               {sum.ordersPaid?.count > 0
-                ? `${sum.ordersPaid.count} ${sum.ordersPaid.count === 1 ? 'pedido pago' : 'pedidos pagos'} · caem direto na sua conta Asaas, sem saque`
+                ? `${sum.ordersPaid.count} ${sum.ordersPaid.count === 1 ? 'pedido pago' : 'pedidos pagos'} · caem direto na sua conta`
                 : 'As vendas por Pix aparecem aqui assim que caírem na sua conta.'}
             </span>
             <a className={styles.link} href={ASAAS_URL} target="_blank" rel="noopener noreferrer">
-              <ExternalLink size={16} aria-hidden="true" /> Abrir o Asaas
+              <ExternalLink size={16} aria-hidden="true" /> Abrir conta de recebimento
             </a>
           </section>
 
@@ -138,6 +140,8 @@ export function DirectMoney({ storeId, hasLeftover }: { storeId: string; hasLeft
           </div>
         </>
       )}
+
+      <StoreStatement storeId={storeId} minimum={minimum} />
 
       <MotoboyTransfersCard key={cardKey} storeId={storeId} onOpen={setStuck} />
 

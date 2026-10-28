@@ -223,6 +223,17 @@ describe('POST /api/admin/transfers/:id/reopen', () => {
     expect((await reopen(b.id, s.ceo)).status).toBe(409);
     await prisma.adminMoneyAction.deleteMany({ where: { targetId: { in: [a.id, b.id] } } });
   });
+  it('passou 1 hora do Resolver: não reabre mais (alguém pode ter pago por fora)', async () => {
+    const s = await setup();
+    const t = await resolvedFrom(s, 'failed');
+    await prisma.adminMoneyAction.updateMany({ where: { targetId: t.id, type: 'motoboy_transfer_resolve' }, data: { createdAt: new Date(Date.now() - 61 * 60_000) } });
+    const r = await reopen(t.id, s.ceo);
+    expect(r.status).toBe(409);
+    expect(r.body.error?.code ?? r.body.code).toBe('TRANSFER_REOPEN_EXPIRED');
+    expect((await prisma.motoboyTransfer.findUnique({ where: { id: t.id } }))!.status).toBe('done');
+    await prisma.adminMoneyAction.deleteMany({ where: { targetId: t.id } });
+  });
+
   it('resolvido sem auditoria do Resolver nunca reabre', async () => {
     const s = await setup();
     const t = await mk(s.store.id, s.m1.userId, { status: 'done', resolvedBy: `admin:${s.ceo.userId}` });

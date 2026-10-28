@@ -86,6 +86,16 @@ export function AsaasTermsKeyForm({ apiBase, terms, connected, onConnected, onCa
 
       <section className={blocks.blk} aria-label="Chave de API">
         <h2 className={blocks.headTitle}>2. Cole a chave de API</h2>
+        <p className={blocks.sub}>No Asaas, vá em Integrações → Chaves de API → Gerar chave. Na hora de gerar:</p>
+        <ol className={styles.changes} aria-label="Permissões da chave">
+          <li>Deixe <b>todas as permissões</b> marcadas. É o padrão do Asaas.</li>
+          <li>
+            Se for escolher uma a uma, marque com <b>leitura e escrita</b>: Cobranças, Estornos de cobrança, Clientes,
+            Notificações, Transferências e Webhooks. E com <b>leitura</b>: Extrato e informações financeiras e
+            Informações da conta.
+          </li>
+          <li>Sem Transferências, a DROP não paga o motoboy nem faz o seu saque. Sem Extrato, a aba Dinheiro não mostra o extrato.</li>
+        </ol>
         <form className={blocks.stack} onSubmit={(e) => { e.preventDefault(); connect(); }}>
           <Input
             type="password"
@@ -95,7 +105,7 @@ export function AsaasTermsKeyForm({ apiBase, terms, connected, onConnected, onCa
             autoComplete="off"
             aria-label="Chave de API do Asaas"
             error={error || undefined}
-            hint="No Asaas: Integrações → Chave de API. Guardamos cifrada e não mostramos de novo."
+            hint="Guardamos cifrada e não mostramos de novo."
           />
           {env && (
             <span className={[blocks.tag, env === 'sandbox' ? blocks.tagWarn : blocks.tagOk].join(' ')}>

@@ -70,11 +70,12 @@ describe('admin/transfers', () => {
   test('Pix marcado como resolvido pelo admin pode ser reenviado pela DROP, com motivo', async () => {
     (api.get as jest.Mock).mockResolvedValue({ data: { success: true, data: [
       ...rows,
-      { id: 't5', orderId: 'ordEEEEEE', storeName: 'Loja Cinco', motoboyName: 'Davi', status: 'done', amount: 5.23, attempts: 1, lastError: null, pixKeyMasked: '***.***.***-25', resolvedBy: 'admin:c1' },
+      { id: 't5', orderId: 'ordEEEEEE', storeName: 'Loja Cinco', motoboyName: 'Davi', status: 'done', amount: 5.23, attempts: 1, lastError: null, pixKeyMasked: '***.***.***-25', resolvedBy: 'admin:c1', doneAt: new Date(Date.now() - 10 * 60_000).toISOString() },
+      { id: 't6', orderId: 'ordFFFFFF', storeName: 'Loja Seis', motoboyName: 'Edu', status: 'done', amount: 5.25, attempts: 1, lastError: null, pixKeyMasked: '***.***.***-26', resolvedBy: 'admin:c1', doneAt: new Date(Date.now() - 2 * 3600_000).toISOString() },
     ] } });
     render(<AdminTransfers />);
     await screen.findByText(/Loja Cinco/);
-    // Só o pago pelo Resolver; o pago pelo Asaas (t4) não tem o botão.
+    // Só o pago pelo Resolver há menos de 1 h; o pago pelo Asaas (t4) e o Resolver antigo (t6) não têm o botão.
     expect(screen.getAllByText('Reenviar pela DROP')).toHaveLength(1);
     fireEvent.click(screen.getByText('Reenviar pela DROP'));
     const confirm = screen.getByText('Reenviar');

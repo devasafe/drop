@@ -262,8 +262,12 @@ export async function resolveTransfer(req: any, res: Response) {
  * Fail closed contra Pix em dobro: só reabre o que, com certeza, nunca saiu —
  *  - nenhuma tentativa chegou a ter id no Asaas (o Asaas recusou o pedido antes de criar);
  *  - o Resolver foi feito a partir de `failed`/`failed_final` (lido da auditoria do Resolver);
- *    resolvido a partir de `uncertain` (o Pix pode ter saído) ou sem auditoria nunca reabre.
+ *    resolvido a partir de `uncertain` (o Pix pode ter saído) ou sem auditoria nunca reabre;
+ *  - o Resolver foi há menos de REOPEN_WINDOW_MS. O botão desfaz um clique errado; depois disso
+ *    alguém pode ter pago por fora e o motoboy receberia em dobro.
  */
+export const REOPEN_WINDOW_MS = 60 * 60 * 1000;
+
 export async function reopenTransfer(req: any, res: Response) {
   const id = String(req.params.id);
   const { note } = req.body as z.infer<typeof resolveTransferSchema>;
@@ -282,10 +286,16 @@ export async function reopenTransfer(req: any, res: Response) {
     const resolved = await tx.adminMoneyAction.findFirst({
       where: { type: 'motoboy_transfer_resolve', targetType: 'motoboy_transfer', targetId: id },
       orderBy: { createdAt: 'desc' },
-      select: { before: true },
+      select: { before: true, createdAt: true },
     });
     const fromStatus = (resolved?.before as { status?: string } | null)?.status;
     if (fromStatus !== 'failed' && fromStatus !== 'failed_final') throw notReopenable();
+    if (Date.now() - resolved!.createdAt.getTime() > REOPEN_WINDOW_MS) {
+      throw new AppError(
+        'Passou 1 hora desde o Resolver: não dá mais para reenviar pela DROP. Confira no Asaas e pague por fora se faltar.',
+        409, true, 'TRANSFER_REOPEN_EXPIRED',
+      );
+    }
     const { count } = await tx.motoboyTransfer.updateMany({
       where: { id, status: 'done', payer: 'store', resolvedBy: { not: null }, asaasTransferId: null, previousAsaasTransferIds: { isEmpty: true } },
       data: {

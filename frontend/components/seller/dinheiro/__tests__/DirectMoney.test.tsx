@@ -28,11 +28,11 @@ beforeEach(() => {
 test('resumo do mês vindo do servidor, sem saque nem "Liberado"', async () => {
   const { container } = render(<DirectMoney storeId="s1" hasLeftover={false} />);
   expect(await screen.findByText('R$ 8.412,60')).toBeInTheDocument();
-  expect(screen.getByText('92 pedidos pagos · caem direto na sua conta Asaas, sem saque')).toBeInTheDocument();
+  expect(screen.getByText('92 pedidos pagos · caem direto na sua conta')).toBeInTheDocument();
   expect(screen.getByText('R$ 612,40')).toBeInTheDocument();
   expect(screen.getByText('68 entregas')).toBeInTheDocument();
   expect(screen.getByText('R$ 189,90')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /Abrir o Asaas/ })).toHaveAttribute('target', '_blank');
+  expect(screen.getByRole('link', { name: /Abrir conta de recebimento/ })).toHaveAttribute('target', '_blank');
   expect(container.textContent).not.toMatch(/Liberado|Sacar para meu Pix|Disponível para sacar/);
   expect(get.mock.calls.some(([u]) => String(u).startsWith('/payouts/my'))).toBe(false);
 });

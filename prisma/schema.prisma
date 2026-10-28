@@ -1516,6 +1516,27 @@ model MotoboyTransfer {
   @@index([motoboyId, createdAt])
 }
 
+/// Saque da loja (modo direto): Pix da conta Asaas DA LOJA para a chave no CPF/CNPJ do dono
+/// dessa conta. A trava de autorização só aprova o que estiver aqui em `requested`.
+model StoreWithdrawal {
+  id              String    @id @default(cuid())
+  storeId         String
+  requestedBy     String
+  amount          Decimal   @db.Decimal(12, 2)
+  pixKeyEncrypted String
+  pixKeyType      String // CPF | CNPJ
+  status          String    @default("requested") // requested | done | failed | uncertain
+  asaasTransferId String?
+  authorizedAt    DateTime?
+  lastError       String?
+  doneAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([storeId, status])
+  @@index([storeId, createdAt])
+}
+
 // Mensalidade SaaS (modo direto): assinatura Asaas na conta-mãe da DROP, cobrada da loja.
 // Não confundir com StoreSubscription (faixa de comissão da custódia).
 enum SaasBillingStatus {

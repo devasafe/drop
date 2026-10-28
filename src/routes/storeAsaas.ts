@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { catchAsync } from '../middleware/errorHandler';
+import { createAuthLimiter } from '../middleware/authLimiter';
 import {
   requireStoreOwner,
   connectSchema,
@@ -13,6 +14,9 @@ import {
   postChecklist,
   postAuthToken,
   postTest,
+  getStatement,
+  postWithdrawal,
+  withdrawalSchema,
 } from '../controllers/storeAsaasController';
 
 // Montado em /api/stores/:storeId/asaas — conexão da conta Asaas própria da loja (modo direto).
@@ -26,5 +30,11 @@ router.post('/checklist', validate(checklistSchema), catchAsync(postChecklist));
 router.post('/auth-token', catchAsync(postAuthToken));
 router.post('/consent', validate(consentSchema), catchAsync(postConsent));
 router.post('/test', catchAsync(postTest));
+// Extrato da conta de recebimento e saque para o Pix no CPF/CNPJ do dono (senha da DROP).
+router.get('/extrato', catchAsync(getStatement));
+// Pede a senha: limitado como o login (adivinhar a senha por aqui não pode ser mais fácil).
+// Contado por usuário (não por IP): trocar de IP não dá mais tentativas.
+const withdrawalLimiter = createAuthLimiter({ max: 5, keyGenerator: (req) => `saque:${(req as any).user?.id ?? req.ip}` });
+router.post('/saque', withdrawalLimiter, validate(withdrawalSchema), catchAsync(postWithdrawal));
 
 export default router;

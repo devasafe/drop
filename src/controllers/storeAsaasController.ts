@@ -15,6 +15,7 @@ import {
   StoreAsaasNotReadyError,
 } from '../services/asaasLoja/account';
 import { STORE_ASAAS_TERMS_VERSION } from '../legal/storeAsaasTerms';
+import { getStoreStatement, requestStoreWithdrawal } from '../services/asaasLoja/storeWithdrawal';
 
 /** Corpo do PUT: só valida formato bruto; o prefixo/ambiente é conferido no service. */
 /** Versão do termo que a tela exibiu ao aceitar. */
@@ -141,4 +142,22 @@ export async function postAuthToken(req: Request, res: Response) {
 /** "Testar configuração": a lógica (e a chave) ficam em services/asaasLoja; aqui só HTTP. */
 export async function postTest(req: Request, res: Response) {
   ok(res, await testStoreAsaas(req.params.storeId));
+}
+
+// ─── Extrato e saque da conta de recebimento (modo direto) ───────────────────
+
+export const withdrawalSchema = z.object({
+  amount: z.number().positive().max(1_000_000),
+  password: z.string().min(1).max(200),
+});
+
+/** GET /api/stores/:storeId/asaas/extrato?days=7|30|90&offset= */
+export async function getStatement(req: Request, res: Response) {
+  ok(res, await getStoreStatement(req.params.storeId, { days: Number(req.query.days), offset: Number(req.query.offset) }));
+}
+
+/** POST /api/stores/:storeId/asaas/saque { amount, password } — Pix para o CPF/CNPJ do dono. */
+export async function postWithdrawal(req: Request, res: Response) {
+  const { amount, password } = req.body as z.infer<typeof withdrawalSchema>;
+  ok(res, await requestStoreWithdrawal(req.params.storeId, String((req as any).user?.id), amount, password));
 }

@@ -127,3 +127,12 @@ test('chave de sandbox é reconhecida pelo começo', async () => {
   fireEvent.change(screen.getByLabelText('Chave de API do Asaas'), { target: { value: KEY } });
   expect(screen.getByText('Sandbox · não recebe dinheiro de verdade')).toBeInTheDocument();
 });
+
+test('passo a passo das permissões da chave: Transferências e Extrato explicados', async () => {
+  renderForm();
+  const list = await screen.findByRole('list', { name: 'Permissões da chave' });
+  expect(list).toHaveTextContent('todas as permissões');
+  expect(list).toHaveTextContent('Transferências');
+  expect(list).toHaveTextContent('Extrato e informações financeiras');
+  expect(screen.getByText(/Integrações → Chaves de API → Gerar chave/)).toBeInTheDocument();
+});

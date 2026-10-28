@@ -56,7 +56,7 @@ test('custódia: saldo disponível e saque', async () => {
 test('garantia de modo: no direto nunca aparece "Liberado" nem "Sacar" da custódia, nem a API da custódia', async () => {
   mockSaas = { settlementMode: 'direto', directCardEnabled: false, loading: false };
   const { container } = render(<SellerDinheiroPage />);
-  expect(await screen.findByRole('region', { name: 'Recebido na sua conta Asaas' })).toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: 'Recebido em vendas' })).toBeInTheDocument();
   await screen.findByText('Pagamentos a motoboys');
   expect(container.textContent).not.toMatch(/Liberado|Sacar para meu Pix|Disponível para sacar|Financeiro/);
   expect(get.mock.calls.some(([u]) => CUSTODY_URLS.some((c) => String(u).startsWith(c)))).toBe(false);
@@ -65,7 +65,7 @@ test('garantia de modo: no direto nunca aparece "Liberado" nem "Sacar" da custó
 test('direto: link para Assinatura e recebimentos (celular não tem "Mais")', async () => {
   mockSaas = { settlementMode: 'direto', directCardEnabled: false, loading: false };
   render(<SellerDinheiroPage />);
-  await screen.findByRole('region', { name: 'Recebido na sua conta Asaas' });
+  await screen.findByRole('region', { name: 'Recebido em vendas' });
   expect(screen.getByRole('link', { name: /Assinatura/ })).toHaveAttribute('href', '/seller/assinatura');
 });
 
@@ -86,7 +86,7 @@ test('enquanto o modo carrega, nenhuma das duas telas aparece', () => {
   mockSaas = { settlementMode: 'custodia', directCardEnabled: false, loading: true };
   const { container } = render(<SellerDinheiroPage />);
   expect(screen.getByRole('status', { name: 'Carregando' })).toBeInTheDocument();
-  expect(container.textContent).not.toMatch(/Disponível para sacar|Recebido na sua conta Asaas|Liberado|Sacar/);
+  expect(container.textContent).not.toMatch(/Disponível para sacar|Recebido em vendas|Liberado|Sacar/);
   expect(get).not.toHaveBeenCalled();
 });
 
@@ -116,7 +116,7 @@ test('?repasse= no modo direto não abre o extrato nem chama a custódia', async
   mockSaas = { settlementMode: 'direto', directCardEnabled: false, loading: false };
   mockQuery = { repasse: 'p1' };
   const { container } = render(<SellerDinheiroPage />);
-  await screen.findByRole('region', { name: 'Recebido na sua conta Asaas' });
+  await screen.findByRole('region', { name: 'Recebido em vendas' });
   expect(screen.queryByRole('button', { name: 'Voltar para Dinheiro' })).not.toBeInTheDocument();
   expect(container.textContent).not.toMatch(/Extrato do repasse/);
   expect(get.mock.calls.some(([u]) => CUSTODY_URLS.some((c) => String(u).startsWith(c)))).toBe(false);

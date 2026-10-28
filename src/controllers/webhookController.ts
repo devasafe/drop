@@ -9,6 +9,7 @@ import { verifyStoreWebhookToken } from '../services/asaasLoja/webhook';
 import { markDirectRefundDone } from '../services/asaasLoja/refund';
 import { emitAdminNotification } from '../utils/socketEmitter';
 import { reconcileTransferFromWebhook } from '../services/asaasLoja/motoboyTransfer';
+import { reconcileStoreWithdrawalFromWebhook } from '../services/asaasLoja/storeWithdrawal';
 import { confirmDirectOrderPaid, markDirectOrderRefunded } from '../services/asaasLoja/orderPaymentDirect';
 import { handleSaasBillingEvent } from '../services/saasBilling/webhook';
 import { confirmReturnFeeByPayment } from '../services/returnFee';
@@ -250,7 +251,9 @@ async function dispatchStoreAsaasEvent(eventId: string, storeId: string, body: a
       case 'TRANSFER_DONE':
       case 'TRANSFER_FAILED':
       case 'TRANSFER_CANCELLED':
-        await reconcileTransferFromWebhook(storeId, event, body.transfer || {});
+        if (!(await reconcileStoreWithdrawalFromWebhook(storeId, event, body.transfer || {}))) {
+          await reconcileTransferFromWebhook(storeId, event, body.transfer || {});
+        }
         break;
       default:
         break;
