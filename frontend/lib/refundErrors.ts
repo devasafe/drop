@@ -1,6 +1,8 @@
 /** Traduz o `lastError` cru do estorno direto para uma frase que o lojista/admin entende. */
 const RULES: Array<[RegExp, string]> = [
   [/UNCERTAIN|STUCK_REQUESTED/i, 'Resultado incerto no Asaas — aguardando conferência do admin'],
+  // Antes da regra de saldo: "insufficient_permission" também contém "insufficient".
+  [/insufficient_permission/i, 'A chave de API da loja não tem a permissão necessária no Asaas'],
   [/saldo|insufficient|balance/i, 'A loja não tem saldo no Asaas para este estorno'],
 ];
 

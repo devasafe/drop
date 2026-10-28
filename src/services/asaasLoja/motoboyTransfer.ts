@@ -50,7 +50,8 @@ function storeTransferReason(reason: string | null | undefined): string {
     case 'AMOUNT_OVER_LIMIT': return 'O valor passou do limite por Pix. O DROP está conferindo.';
     case 'DAILY_LIMIT': return 'A loja chegou ao limite de Pix do dia. Nova tentativa amanhã.';
     case 'AUTH_WEBHOOK_NOT_CONFIRMED': return 'Falta confirmar a trava de transferências no Asaas. Toque para ver o que fazer.';
-    default: return 'O Pix não saiu da sua conta Asaas. Toque para ver o que fazer.';
+    default:
+      if (reason?.startsWith('insufficient_permission')) return 'A chave de API da DROP no seu Asaas não tem a permissão de Transferências. Toque para ver o que fazer.'; return 'O Pix não saiu da sua conta Asaas. Toque para ver o que fazer.';
   }
 }
 

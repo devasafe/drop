@@ -6,6 +6,8 @@ const RULES: Array<[RegExp, string]> = [
   [/AMOUNT_OVER_LIMIT/, 'Valor acima do limite por transferência — requer análise do admin'],
   [/DAILY_LIMIT/, 'Limite diário de transferências da loja atingido — nova tentativa amanhã'],
   [/AUTH_WEBHOOK_NOT_CONFIRMED/, 'A trava de autorização de transferências não foi confirmada no Asaas'],
+  // Antes da regra de saldo: "insufficient_permission" também contém "insufficient".
+  [/insufficient_permission/i, 'A chave de API da loja não tem a permissão de Transferências no Asaas'],
   [/saldo|insufficient|balance/i, 'A loja não tem saldo no Asaas para esta transferência'],
 ];
 

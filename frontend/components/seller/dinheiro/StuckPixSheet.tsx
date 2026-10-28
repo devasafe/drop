@@ -34,7 +34,8 @@ export function StuckPixSheet({ transfer, storeId, blockHours, onClose, onRetrie
   const keyMissing = /MOTOBOY_PIX_KEY_MISSING/.test(lastError);
   // Espelha NON_STORE_TRANSFER_ERRORS do backend: motivos fora do controle da loja não bloqueiam.
   const nonStoreReason = /MOTOBOY_PIX_KEY_MISSING|DAILY_LIMIT|AMOUNT_OVER_LIMIT/.test(lastError);
-  const noBalance = /saldo|insufficient|balance/i.test(lastError);
+  const noPermission = /insufficient_permission/i.test(lastError);
+  const noBalance = !noPermission && /saldo|insufficient|balance/i.test(lastError);
   const uncertain = transfer?.status === 'uncertain';
   const finalFail = transfer?.status === 'failed_final';
   const withAdmin = finalFail || uncertain;
@@ -87,7 +88,9 @@ export function StuckPixSheet({ transfer, storeId, blockHours, onClose, onRetrie
                   ? (noBalance
                     ? 'O Pix está com a DROP. Coloque saldo na sua conta Asaas para evitar o bloqueio de pedidos novos.'
                     : 'O Pix está com a DROP.')
-                  : noBalance
+                  : noPermission
+                    ? 'No Asaas, em Integrações, dê à chave de API da DROP a permissão de Transferências (leitura e escrita). Depois toque em Tentar agora.'
+                    : noBalance
                     ? 'Coloque saldo no Asaas ou espere cair o Pix de uma venda. A gente tenta de novo sozinho.'
                     : 'A gente tenta de novo sozinho.'}
           </Alert>
