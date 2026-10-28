@@ -89,7 +89,10 @@ export async function translate(storeId: string, err: unknown): Promise<unknown>
  */
 export async function ensureStoreCustomer(storeId: string, userId: string, cpfOverride?: string): Promise<string> {
   const cached = await prisma.storeAsaasCustomer.findUnique({ where: { storeId_userId: { storeId, userId } } });
-  if (cached) return cached.customerId;
+  if (cached) {
+    if (!cached.notificationsOff) await turnOffAsaasNotifications(storeId, cached.id, cached.customerId);
+    return cached.customerId;
+  }
 
   const apiKey = await storeKey(storeId);
   const user = await prisma.user.findUnique({
@@ -107,13 +110,14 @@ export async function ensureStoreCustomer(storeId: string, userId: string, cpfOv
       cpfCnpj: doc,
       mobilePhone: onlyDigits(user.telefone || (user.verification as any)?.phone?.e164) || undefined,
       externalReference: user.id,
+      notificationDisabled: true,
     });
   } catch (err) {
     throw await translate(storeId, err);
   }
 
   try {
-    await prisma.storeAsaasCustomer.create({ data: { storeId, userId, customerId: customer.id } });
+    await prisma.storeAsaasCustomer.create({ data: { storeId, userId, customerId: customer.id, notificationsOff: true } });
     return customer.id;
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -121,6 +125,23 @@ export async function ensureStoreCustomer(storeId: string, userId: string, cpfOv
       if (winner) return winner.customerId;
     }
     throw err;
+  }
+}
+
+/**
+ * Desliga os avisos do Asaas num customer criado antes do `notificationDisabled`: cada aviso
+ * (e-mail/SMS/WhatsApp ao comprador) cobra a "taxa de mensageria" da loja. A DROP já avisa
+ * o cliente pelo app. Falha não segura a venda: tenta de novo na próxima compra.
+ */
+async function turnOffAsaasNotifications(storeId: string, rowId: string, customerId: string): Promise<void> {
+  try {
+    const apiKey = await storeKey(storeId);
+    await asaasClient.putAs(apiKey, `/customers/${encodeURIComponent(customerId)}`, { notificationDisabled: true });
+    await prisma.storeAsaasCustomer.update({ where: { id: rowId }, data: { notificationsOff: true } });
+  } catch (err) {
+    logger.warn('[asaasLoja] não foi possível desligar os avisos do Asaas no customer', {
+      storeId, customerId, status: err instanceof AsaasApiError ? err.status : undefined,
+    });
   }
 }
 

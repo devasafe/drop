@@ -59,6 +59,8 @@ export async function ensureAsaasCustomer(userId: string, cpfOverride?: string):
     cpfCnpj: cpf,
     mobilePhone: onlyDigits(user.telefone || user.verification?.phone?.e164),
     externalReference: user.id,
+    // Cada aviso do Asaas ao comprador cobra a "taxa de mensageria"; a DROP já avisa pelo app.
+    notificationDisabled: true,
   });
 
   if (!user.asaas) (user as any).asaas = { status: 'none' };

@@ -358,10 +358,10 @@ model User {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
-  addresses    Address[]
-  ownedStores  Store[]   @relation("StoreOwner")
-  orders       Order[]   @relation("CustomerOrders")
-  consentLogs  ConsentLog[]
+  addresses         Address[]
+  ownedStores       Store[]            @relation("StoreOwner")
+  orders            Order[]            @relation("CustomerOrders")
+  consentLogs       ConsentLog[]
   pushSubscriptions PushSubscription[]
 
   @@index([status])
@@ -375,7 +375,7 @@ model WalletTopup {
   id             String   @id @default(cuid())
   userId         String
   amount         Decimal  @db.Decimal(12, 2)
-  method         String   // pix | credit_card | debit_card
+  method         String // pix | credit_card | debit_card
   asaasPaymentId String?  @unique
   status         String   @default("pending") // pending | paid | failed | cancelled
   createdAt      DateTime @default(now())
@@ -425,7 +425,7 @@ model Address {
 }
 
 model Store {
-  id                   String    @id @default(cuid())
+  id                   String            @id @default(cuid())
   deliveryMode         StoreDeliveryMode @default(pool_drop)
   showInMarketplace    Boolean           @default(true)
   ownerId              String
@@ -443,19 +443,19 @@ model Store {
   // PostGIS: coluna `geom geography(Point,4326)` existe no banco APÓS rodar o script
   // manual prisma/manual/postgis_geo.sql — NÃO fica no schema de propósito (evita que
   // migrate dev/deploy tente criá-la sem PostGIS). Lida via SQL bruto (dispatchGeo).
-  stockType            StockType @default(internal)
+  stockType            StockType         @default(internal)
   apiConfig            Json?
-  plan                 Int?      @default(1)
-  planSince            DateTime? @default(now())
+  plan                 Int?              @default(1)
+  planSince            DateTime?         @default(now())
   planExpiresAt        DateTime?
-  customCommissionRate Decimal?  @db.Decimal(5, 2)
+  customCommissionRate Decimal?          @db.Decimal(5, 2)
   featuredBannerUrl    String?
   coverBannerUrl       String?
   /// D1: identidade da loja (todos os planos). Logo enviado por POST /stores/:id/logo.
   logoUrl              String?
-  tagline              String?   @db.VarChar(80)
+  tagline              String?           @db.VarChar(80)
   operatingHours       Json?
-  isOpen               Boolean   @default(true)
+  isOpen               Boolean           @default(true)
   /// D1: pausa temporária. "Aberta agora" = isOpen && (pausedUntil nulo ou vencido); sem job.
   pausedUntil          DateTime?
   /// Lojista abriu fora do horário: aberta (ignorando operatingHours) até este instante, se isOpen
@@ -469,26 +469,26 @@ model Store {
   /// D3b-4b (spec 8): "precisa de atenção" gravado. Pausa do admin, recebimento com problema ou mais de
   /// 10% de cancelamento em 30 dias (com ao menos 5 pedidos). Mantido por computeStoreAttention (pausa,
   /// liberação, recebimento) e pelo job storeAttention a cada 10 min. É a ordem da lista de lojas do admin.
-  needsAttention       Boolean   @default(false)
+  needsAttention       Boolean           @default(false)
   /// Último cálculo de needsAttention; nulo = nunca calculado (o job pega na próxima rodada).
   attentionCheckedAt   DateTime?
-  isVerified           Boolean   @default(false)
+  isVerified           Boolean           @default(false)
   verification         Json?
   asaas                Json?
   deliveryRadiusKm     Float?
   prepMinutes          Int?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
-  owner      User       @relation("StoreOwner", fields: [ownerId], references: [id])
-  products   Product[]
-  categories Category[]
-  orders     Order[]    @relation("StoreOrders")
-  apiKeys    StoreApiKey[]
-  webhooks   StoreWebhook[]
-  asaasAccount StoreAsaasAccount?
+  owner         User                @relation("StoreOwner", fields: [ownerId], references: [id])
+  products      Product[]
+  categories    Category[]
+  orders        Order[]             @relation("StoreOrders")
+  apiKeys       StoreApiKey[]
+  webhooks      StoreWebhook[]
+  asaasAccount  StoreAsaasAccount?
   asaasConsents StoreAsaasConsent[]
-  saasBilling  StoreSaasBilling?
+  saasBilling   StoreSaasBilling?
 
   @@index([ownerId])
   @@index([plan])
@@ -590,50 +590,50 @@ model ProductReview {
 }
 
 model Order {
-  id                String             @id @default(cuid())
-  customerId        String
-  storeId           String
-  totalValue        Decimal            @db.Decimal(12, 2)
-  subtotal          Decimal?           @db.Decimal(12, 2)
-  deliveryFee       Decimal            @db.Decimal(12, 2)
-  deliveryDistance  Float?             @default(0)
-  deliveryDuration  Int?               // segundos, da rota (RouteService)
-  status            OrderStatus        @default(criado)
-  paymentMethod     PaymentMethod?
-  debtCollected     Decimal?           @db.Decimal(12, 2)
-  paymentStatus     PaymentStatus?     @default(pending)
-  paymentId         String?
-  asaasPaymentId    String?
-  asaasChargeStatus AsaasChargeStatus? @default(none)
-  walletApplied     Decimal?           @default(0) @db.Decimal(12, 2)
-  cancellationId    String?
-  idempotentKey     String?            @unique
-  customerAddress   String?
-  customerLatitude  Float?
-  customerLongitude Float?
-  storeAddress      String?
-  storeLatitude     Float?
-  storeLongitude    Float?
-  routePolyline     String?
-  routeWaypoints    Json?
-  walletDistribution Json?
-  deliveryId        String?
-  storeRating       Int?
-  storeComment      String?
-  storeReply        String?            @db.VarChar(500) // resposta pública da loja à avaliação (D1)
-  storeRepliedAt    DateTime?
-  couponId          String?            // cupom aplicado no checkout (sem FK: DELETE /coupons/:id continua livre)
-  readyAt           DateTime?          // loja marcou "pronto para retirada" (D1, parte P4)
-  createdAt         DateTime           @default(now())
-  paidAt            DateTime?          // confirmação do pagamento (prazo de aceite da loja conta daqui)
-  acceptedAt        DateTime?
-  cancelledAt       DateTime?
-  updatedAt         DateTime           @updatedAt
-  awaitingCustomerPoolDecision Boolean @default(false)
-  installmentCount  Int?
-  cardChargedTotal  Decimal?           @db.Decimal(12, 2)
-  installmentValue  Decimal?           @db.Decimal(12, 2)
-  paymentProvider   PaymentProviderName @default(asaas)
+  id                           String              @id @default(cuid())
+  customerId                   String
+  storeId                      String
+  totalValue                   Decimal             @db.Decimal(12, 2)
+  subtotal                     Decimal?            @db.Decimal(12, 2)
+  deliveryFee                  Decimal             @db.Decimal(12, 2)
+  deliveryDistance             Float?              @default(0)
+  deliveryDuration             Int? // segundos, da rota (RouteService)
+  status                       OrderStatus         @default(criado)
+  paymentMethod                PaymentMethod?
+  debtCollected                Decimal?            @db.Decimal(12, 2)
+  paymentStatus                PaymentStatus?      @default(pending)
+  paymentId                    String?
+  asaasPaymentId               String?
+  asaasChargeStatus            AsaasChargeStatus?  @default(none)
+  walletApplied                Decimal?            @default(0) @db.Decimal(12, 2)
+  cancellationId               String?
+  idempotentKey                String?             @unique
+  customerAddress              String?
+  customerLatitude             Float?
+  customerLongitude            Float?
+  storeAddress                 String?
+  storeLatitude                Float?
+  storeLongitude               Float?
+  routePolyline                String?
+  routeWaypoints               Json?
+  walletDistribution           Json?
+  deliveryId                   String?
+  storeRating                  Int?
+  storeComment                 String?
+  storeReply                   String?             @db.VarChar(500) // resposta pública da loja à avaliação (D1)
+  storeRepliedAt               DateTime?
+  couponId                     String? // cupom aplicado no checkout (sem FK: DELETE /coupons/:id continua livre)
+  readyAt                      DateTime? // loja marcou "pronto para retirada" (D1, parte P4)
+  createdAt                    DateTime            @default(now())
+  paidAt                       DateTime? // confirmação do pagamento (prazo de aceite da loja conta daqui)
+  acceptedAt                   DateTime?
+  cancelledAt                  DateTime?
+  updatedAt                    DateTime            @updatedAt
+  awaitingCustomerPoolDecision Boolean             @default(false)
+  installmentCount             Int?
+  cardChargedTotal             Decimal?            @db.Decimal(12, 2)
+  installmentValue             Decimal?            @db.Decimal(12, 2)
+  paymentProvider              PaymentProviderName @default(asaas)
 
   customer User        @relation("CustomerOrders", fields: [customerId], references: [id])
   store    Store       @relation("StoreOrders", fields: [storeId], references: [id])
@@ -662,19 +662,19 @@ model OrderItem {
 }
 
 model Wallet {
-  id               String    @id @default(cuid())
-  owner            String
-  ownerType        OwnerType
-  balance          Decimal   @default(0) @db.Decimal(12, 2)
-  totalIncome      Decimal   @default(0) @db.Decimal(12, 2)
-  totalSpent       Decimal   @default(0) @db.Decimal(12, 2)
-  blockedBalance   Decimal   @default(0) @db.Decimal(12, 2)
-  availableBalance Decimal   @default(0) @db.Decimal(12, 2)
-  pendingBalance   Decimal   @default(0) @db.Decimal(12, 2)
-  platformFeeRate  Decimal?  @db.Decimal(5, 2)
+  id                   String    @id @default(cuid())
+  owner                String
+  ownerType            OwnerType
+  balance              Decimal   @default(0) @db.Decimal(12, 2)
+  totalIncome          Decimal   @default(0) @db.Decimal(12, 2)
+  totalSpent           Decimal   @default(0) @db.Decimal(12, 2)
+  blockedBalance       Decimal   @default(0) @db.Decimal(12, 2)
+  availableBalance     Decimal   @default(0) @db.Decimal(12, 2)
+  pendingBalance       Decimal   @default(0) @db.Decimal(12, 2)
+  platformFeeRate      Decimal?  @db.Decimal(5, 2)
   gamificationBenefits Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   entries WalletEntry[]
 
@@ -702,49 +702,50 @@ model WalletEntry {
 }
 
 model Delivery {
-  id                        String              @id @default(cuid())
-  orderId                   String
-  motoboyId                 String?
-  distance                  Float               @default(0)
-  fee                       Decimal             @db.Decimal(12, 2)
-  status                    DeliveryStatus      @default(pending)
-  pin                       String?
-  pinRetirada               String?
-  pinDevolucao              String?
+  id                       String               @id @default(cuid())
+  orderId                  String
+  motoboyId                String?
+  distance                 Float                @default(0)
+  fee                      Decimal              @db.Decimal(12, 2)
+  status                   DeliveryStatus       @default(pending)
+  pin                      String?
+  pinRetirada              String?
+  pinDevolucao             String?
   // Tentativas erradas de PIN (retirada/entrega/devolução) — trava temporária anti força bruta.
-  pinFailedAttempts         Int                 @default(0)
-  pinLockedUntil            DateTime?
-  statusDevolucao           ReturnStatus?       @default(pending)
-  dataConfirmacaoDevolucao  DateTime?
-  pendingReturnAction       PendingReturnAction?
-  rating                    Int?
+  pinFailedAttempts        Int                  @default(0)
+  pinLockedUntil           DateTime?
+  statusDevolucao          ReturnStatus?        @default(pending)
+  dataConfirmacaoDevolucao DateTime?
+  pendingReturnAction      PendingReturnAction?
+  rating                   Int?
   /// Hora real de cada etapa (fase C2): aceite do motoboy, retirada na loja (PIN da loja) e entrega (PIN do cliente).
-  assignedAt                DateTime?
-  pickedAt                  DateTime?
+  assignedAt               DateTime?
+  pickedAt                 DateTime?
   /// Antifraude: quando a posição do motoboy parou de chegar durante a corrida e o admin foi
   /// avisado (job rideSignalLost). Volta a nulo quando a posição volta.
-  signalLostAt              DateTime?
-  deliveredAt               DateTime?
-  comment                   String?
-  storeAddress              String?
-  storeLatitude             Float?
-  storeLongitude            Float?
+  signalLostAt             DateTime?
+  deliveredAt              DateTime?
+  comment                  String?
+  storeAddress             String?
+  storeLatitude            Float?
+  storeLongitude           Float?
   // PostGIS: coluna `storeGeom` (ponto da loja p/ ST_DWithin do dispatch) criada pelo
   // script manual prisma/manual/postgis_geo.sql — fora do schema. Ver Store.geom.
-  customerAddress           String?
-  customerLatitude          Float?
-  customerLongitude         Float?
-  routePolyline             String?
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
-  cancelledAt               DateTime?
+  customerAddress          String?
+  customerLatitude         Float?
+  customerLongitude        Float?
+  routePolyline            String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  cancelledAt              DateTime?
   /// D3b-1: motoboys tirados desta corrida por "Reatribuir". Não recebem a oferta de novo nem conseguem pegá-la.
-  excludedMotoboyIds        String[]            @default([])
+  excludedMotoboyIds       String[]             @default([])
   /// Caso B (fase 2b): 'devolucao' = corrida ao contrário do reembolso de pedido entregue. Nela, store*
   /// guarda o ponto de RETIRADA (casa do cliente) e customer* o DESTINO (loja): despacho, oferta e
   /// navegação seguem lendo "retirada = store*". Não é o order.deliveryId (que segue a entrega original).
-  kind                      DeliveryKind        @default(entrega)
-  returnRequestId           String?
+  kind                     DeliveryKind         @default(entrega)
+  returnRequestId          String?
+  trackPoints              DeliveryTrackPoint[]
 
   @@index([orderId])
   @@index([motoboyId])
@@ -752,17 +753,16 @@ model Delivery {
   // Composto p/ a query mais quente: pool de disponíveis
   // (status='pending' AND motoboyId IS NULL). Cobre status-só via prefixo.
   @@index([status, motoboyId])
-  trackPoints DeliveryTrackPoint[]
 }
 
 model Transaction {
-  id                 String        @id @default(cuid())
+  id                 String   @id @default(cuid())
   orderId            String
   paymentMethod      String
-  amount             Decimal       @db.Decimal(12, 2)
-  commissionProduct  Decimal       @db.Decimal(12, 2)
-  commissionDelivery Decimal       @db.Decimal(12, 2)
-  createdAt          DateTime      @default(now())
+  amount             Decimal  @db.Decimal(12, 2)
+  commissionProduct  Decimal  @db.Decimal(12, 2)
+  commissionDelivery Decimal  @db.Decimal(12, 2)
+  createdAt          DateTime @default(now())
 
   @@index([orderId])
 }
@@ -805,22 +805,22 @@ model Payout {
 }
 
 model Withdrawal {
-  id             String           @id @default(cuid())
-  appCashboxId   String
-  amount         Decimal          @db.Decimal(12, 2)
-  status         WithdrawalStatus @default(pending)
-  bankInfo       Json?
-  requestedAt    DateTime         @default(now())
-  approvedAt     DateTime?
-  paidAt         DateTime?
-  rejectedAt     DateTime?
-  processedBy    String?
+  id              String           @id @default(cuid())
+  appCashboxId    String
+  amount          Decimal          @db.Decimal(12, 2)
+  status          WithdrawalStatus @default(pending)
+  bankInfo        Json?
+  requestedAt     DateTime         @default(now())
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  rejectedAt      DateTime?
+  processedBy     String?
   rejectionReason String?
-  reason         String?
+  reason          String?
   // D3b-3: quem pediu a retirada do caixa (nulo nas antigas).
-  requestedBy    String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  requestedBy     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([appCashboxId, status])
   @@index([requestedAt])
@@ -828,27 +828,27 @@ model Withdrawal {
 }
 
 model WithdrawalRequest {
-  id             String                  @id @default(cuid())
-  motoboyId      String
-  motoboyName    String
-  motoboyEmail   String
-  amount         Decimal                 @db.Decimal(12, 2)
-  status         WithdrawalRequestStatus @default(pending)
-  bankAccount    Json?
-  requestedAt    DateTime                @default(now())
-  approvedAt     DateTime?
-  approvedBy     String?
+  id              String                  @id @default(cuid())
+  motoboyId       String
+  motoboyName     String
+  motoboyEmail    String
+  amount          Decimal                 @db.Decimal(12, 2)
+  status          WithdrawalRequestStatus @default(pending)
+  bankAccount     Json?
+  requestedAt     DateTime                @default(now())
+  approvedAt      DateTime?
+  approvedBy      String?
   rejectionReason String?
-  processedAt    DateTime?
-  transactionId  String?
-  payoutIds      String[]                @default([])
+  processedAt     DateTime?
+  transactionId   String?
+  payoutIds       String[]                @default([])
   // Resposta incerta do gateway (timeout, rede, 5xx): o Pix pode ter saído. O saque fica em
   // `approved` (reivindicado) até o admin conferir no painel do Asaas — nunca volta a pending.
-  uncertainAt    DateTime?
+  uncertainAt     DateTime?
   // Resolução manual (admin) de saque incerto/travado em `approved`: quem, quando e a nota.
-  resolvedBy     String?
-  resolvedAt     DateTime?
-  resolutionNote String?
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  resolutionNote  String?
 
   @@index([motoboyId])
   @@index([status])
@@ -873,12 +873,12 @@ model CustomerDebt {
 }
 
 model AppCashbox {
-  id            String            @id @default(cuid())
-  balance       Decimal           @default(0) @db.Decimal(12, 2)
-  totalIncome   Decimal           @default(0) @db.Decimal(12, 2)
-  totalExpenses Decimal           @default(0) @db.Decimal(12, 2)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id            String   @id @default(cuid())
+  balance       Decimal  @default(0) @db.Decimal(12, 2)
+  totalIncome   Decimal  @default(0) @db.Decimal(12, 2)
+  totalExpenses Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   entries AppCashboxEntry[]
 }
@@ -978,7 +978,7 @@ model Coupon {
   validUntil    DateTime
   isActive      Boolean            @default(true)
   isPublic      Boolean            @default(false) // aparece na página da loja; os existentes seguem secretos
-  endedAt       DateTime?                          // encerrado pela loja: não volta a ficar ativo
+  endedAt       DateTime? // encerrado pela loja: não volta a ficar ativo
   createdBy     String
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -1036,17 +1036,17 @@ model Conversation {
 }
 
 model Message {
-  id             String        @id @default(cuid())
+  id             String            @id @default(cuid())
   conversationId String
   senderId       String
   senderRole     MessageSenderRole
   senderName     String
   text           String
   attachments    Json?
-  status         MessageStatus @default(sent)
+  status         MessageStatus     @default(sent)
   readAt         DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -1093,84 +1093,84 @@ model RolePermissions {
 }
 
 model PlatformConfig {
-  id                          String        @id @default(cuid())
-  settlementMode              SettlementMode @default(custodia)
-  billingModel                BillingModel   @default(mensalidade)
-  motoboyShareDirect          Decimal        @default(100) @db.Decimal(5, 2)
-  directCardEnabled           Boolean        @default(false)
-  transferBlockHours          Int            @default(24)
-  directTransfersEnabled      Boolean        @default(false)
-  directTransferMaxAmount     Decimal        @default(150) @db.Decimal(12, 2)
-  directTransferDailyMaxPerStore Decimal     @default(3000) @db.Decimal(12, 2)
-  saasMonthlyFee              Decimal        @default(0) @db.Decimal(12, 2)
-  saasTrialDays               Int            @default(14)
-  saasGraceDays               Int            @default(5)
-  commissionPlan1             Decimal       @default(10) @db.Decimal(5, 2)
-  commissionPlan2             Decimal       @default(15) @db.Decimal(5, 2)
-  commissionPlan3             Decimal       @default(5) @db.Decimal(5, 2)
-  motoboyCutPerDelivery       Decimal       @default(5) @db.Decimal(12, 2)
-  motoboyCutPerKm             Decimal       @default(1) @db.Decimal(12, 2)
-  motoboyMinimumWithdraw      Decimal       @default(10) @db.Decimal(12, 2)
-  storeMinimumWithdraw        Decimal       @default(10) @db.Decimal(12, 2)
-  motoboyCommissionPercent    Decimal       @default(20) @db.Decimal(5, 2)
-  lateCancellationFeePercent  Decimal       @default(10) @db.Decimal(5, 2)
-  lateCancellationMotoboyShare Decimal      @default(50) @db.Decimal(5, 2)
-  cancelFeeCustomerPercent    Decimal       @default(10) @db.Decimal(5, 2)
-  cancelFeeStorePercent       Decimal       @default(10) @db.Decimal(5, 2)
-  cancelFeeMotoboyPercent     Decimal       @default(10) @db.Decimal(5, 2)
-  storeAcceptTimeoutMin       Int           @default(10)
-  poolTimeoutMin              Int           @default(15)
-  customerAbsentWaitMin       Int           @default(15)
+  id                             String              @id @default(cuid())
+  settlementMode                 SettlementMode      @default(custodia)
+  billingModel                   BillingModel        @default(mensalidade)
+  motoboyShareDirect             Decimal             @default(100) @db.Decimal(5, 2)
+  directCardEnabled              Boolean             @default(false)
+  transferBlockHours             Int                 @default(24)
+  directTransfersEnabled         Boolean             @default(false)
+  directTransferMaxAmount        Decimal             @default(150) @db.Decimal(12, 2)
+  directTransferDailyMaxPerStore Decimal             @default(3000) @db.Decimal(12, 2)
+  saasMonthlyFee                 Decimal             @default(0) @db.Decimal(12, 2)
+  saasTrialDays                  Int                 @default(14)
+  saasGraceDays                  Int                 @default(5)
+  commissionPlan1                Decimal             @default(10) @db.Decimal(5, 2)
+  commissionPlan2                Decimal             @default(15) @db.Decimal(5, 2)
+  commissionPlan3                Decimal             @default(5) @db.Decimal(5, 2)
+  motoboyCutPerDelivery          Decimal             @default(5) @db.Decimal(12, 2)
+  motoboyCutPerKm                Decimal             @default(1) @db.Decimal(12, 2)
+  motoboyMinimumWithdraw         Decimal             @default(10) @db.Decimal(12, 2)
+  storeMinimumWithdraw           Decimal             @default(10) @db.Decimal(12, 2)
+  motoboyCommissionPercent       Decimal             @default(20) @db.Decimal(5, 2)
+  lateCancellationFeePercent     Decimal             @default(10) @db.Decimal(5, 2)
+  lateCancellationMotoboyShare   Decimal             @default(50) @db.Decimal(5, 2)
+  cancelFeeCustomerPercent       Decimal             @default(10) @db.Decimal(5, 2)
+  cancelFeeStorePercent          Decimal             @default(10) @db.Decimal(5, 2)
+  cancelFeeMotoboyPercent        Decimal             @default(10) @db.Decimal(5, 2)
+  storeAcceptTimeoutMin          Int                 @default(10)
+  poolTimeoutMin                 Int                 @default(15)
+  customerAbsentWaitMin          Int                 @default(15)
   /// Reembolso de pedido entregue (caso B): arrependimento até N dias da entrega devolve tudo, com a entrega.
-  returnFullRefundDays        Int           @default(7)
+  returnFullRefundDays           Int                 @default(7)
   /// Reembolso de pedido entregue: sem resposta da loja em N horas, o pedido vai para o admin.
-  returnStoreResponseHours    Int           @default(48)
-  autoApprovePayouts          Boolean       @default(false)
-  autoApproveWithdrawals      Boolean       @default(false)
-  rankingPrizesEnabled        Boolean       @default(false)
-  benefitsRedeemEnabled       Boolean       @default(false)
-  gamificationPointsEnabled   Boolean       @default(false)
-  seasonalTheme               SeasonalTheme @default(none)
-  cardFeePercent               Decimal @default(2.99) @db.Decimal(5, 2)
-  cardFeeFixed                 Decimal @default(0.49) @db.Decimal(12, 2)
-  cardAnticipationMonthlyRate  Decimal @default(1.99) @db.Decimal(5, 2)
-  cardInstallmentMaxCount      Int     @default(12)
-  cardInstallmentMinValue      Decimal @default(5) @db.Decimal(12, 2)
-  paymentProvider              PaymentProviderName @default(asaas)
-  defaultDeliveryRadiusKm      Float   @default(12)
-  defaultPrepMinutes           Int     @default(15)
-  courierAvgSpeedKmh           Float   @default(25)
-  routeDetourFactor            Float   @default(1.3)
-  updatedBy                   String
-  updatedAt                   DateTime      @updatedAt
+  returnStoreResponseHours       Int                 @default(48)
+  autoApprovePayouts             Boolean             @default(false)
+  autoApproveWithdrawals         Boolean             @default(false)
+  rankingPrizesEnabled           Boolean             @default(false)
+  benefitsRedeemEnabled          Boolean             @default(false)
+  gamificationPointsEnabled      Boolean             @default(false)
+  seasonalTheme                  SeasonalTheme       @default(none)
+  cardFeePercent                 Decimal             @default(2.99) @db.Decimal(5, 2)
+  cardFeeFixed                   Decimal             @default(0.49) @db.Decimal(12, 2)
+  cardAnticipationMonthlyRate    Decimal             @default(1.99) @db.Decimal(5, 2)
+  cardInstallmentMaxCount        Int                 @default(12)
+  cardInstallmentMinValue        Decimal             @default(5) @db.Decimal(12, 2)
+  paymentProvider                PaymentProviderName @default(asaas)
+  defaultDeliveryRadiusKm        Float               @default(12)
+  defaultPrepMinutes             Int                 @default(15)
+  courierAvgSpeedKmh             Float               @default(25)
+  routeDetourFactor              Float               @default(1.3)
+  updatedBy                      String
+  updatedAt                      DateTime            @updatedAt
 }
 
 model PricingPlan {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  commission     Decimal  @default(0) @db.Decimal(5, 2)
+  id              String   @id @default(cuid())
+  name            String   @unique
+  commission      Decimal  @default(0) @db.Decimal(5, 2)
   motorcycleTaxes Json
-  minWithdraw    Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  minWithdraw     Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model StoreSubscription {
-  id               String                @id @default(cuid())
-  storeId          String                @unique
+  id               String                 @id @default(cuid())
+  storeId          String                 @unique
   storeName        String
-  currentPlan      StoreSubscriptionPlan @default(plan1)
+  currentPlan      StoreSubscriptionPlan  @default(plan1)
   requestedPlan    StoreSubscriptionPlan?
-  planChangeStatus PlanChangeStatus      @default(none)
+  planChangeStatus PlanChangeStatus       @default(none)
   requestedAt      DateTime?
   approvedAt       DateTime?
   approvedBy       String?
   rejectionReason  String?
   /// D3b-2b: motivo opcional do lojista ao pedir a troca (até 500). Um pedido novo sobrescreve.
   requestReason    String?
-  commissionRate   Decimal?              @default(10) @db.Decimal(5, 2)
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  commissionRate   Decimal?               @default(10) @db.Decimal(5, 2)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 }
 
 model SupportTicket {
@@ -1292,7 +1292,7 @@ model PromoBanner {
 model ConsentLog {
   id           String   @id @default(cuid())
   userId       String
-  documentType String   // "terms" | "privacy"
+  documentType String // "terms" | "privacy"
   version      String
   acceptedAt   DateTime @default(now())
   ipAddress    String?
@@ -1375,11 +1375,13 @@ model StoreAsaasConsent {
 
 /// Cliente (comprador) criado na conta Asaas da loja, por par loja+usuário.
 model StoreAsaasCustomer {
-  id         String   @id @default(cuid())
-  storeId    String
-  userId     String
-  customerId String
-  createdAt  DateTime @default(now())
+  id               String   @id @default(cuid())
+  storeId          String
+  userId           String
+  customerId       String
+  /// Avisos do Asaas desligados no customer (cada aviso custa a "taxa de mensageria" à loja).
+  notificationsOff Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
   @@unique([storeId, userId])
 }
@@ -1482,32 +1484,32 @@ model DirectRefund {
 }
 
 model MotoboyTransfer {
-  id               String    @id @default(cuid())
-  deliveryId       String    @unique
-  orderId          String
-  storeId          String
-  motoboyId        String
-  reason           String    @default("delivery")
+  id                       String        @id @default(cuid())
+  deliveryId               String        @unique
+  orderId                  String
+  storeId                  String
+  motoboyId                String
+  reason                   String        @default("delivery")
   // D3b-1: quem paga o Pix. 'platform' = compensação do cancelamento do admin com culpa do DROP no
   // modo SaaS, paga por Pix manual do DROP e baixada pelo "Resolver" de /admin/transfers.
-  payer            TransferPayer @default(store)
-  amount           Decimal   @db.Decimal(12, 2)
-  pixKeyEncrypted  String
-  pixKeyType       String
-  status           String    @default("pending")
-  attempts         Int       @default(0)
-  nextAttemptAt    DateTime  @default(now())
-  asaasTransferId  String?
-  previousAsaasTransferIds String[] @default([])
-  lastError        String?
-  authorizedAt     DateTime?
-  resolvedBy       String?
-  resolutionNote   String?
-  doneAt           DateTime?
+  payer                    TransferPayer @default(store)
+  amount                   Decimal       @db.Decimal(12, 2)
+  pixKeyEncrypted          String
+  pixKeyType               String
+  status                   String        @default("pending")
+  attempts                 Int           @default(0)
+  nextAttemptAt            DateTime      @default(now())
+  asaasTransferId          String?
+  previousAsaasTransferIds String[]      @default([])
+  lastError                String?
+  authorizedAt             DateTime?
+  resolvedBy               String?
+  resolutionNote           String?
+  doneAt                   DateTime?
   // D1: primeira falha (o prazo de "Pix parado" que a loja vê conta daqui). Gravada uma vez só.
-  firstFailedAt    DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  firstFailedAt            DateTime?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
   @@index([status, nextAttemptAt])
   @@index([storeId, status])
@@ -1552,16 +1554,16 @@ model StoreSaasBilling {
 }
 
 model SaasBillingPayment {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   billingId      String
-  asaasPaymentId String   @unique
-  value          Decimal  @db.Decimal(12, 2)
+  asaasPaymentId String    @unique
+  value          Decimal   @db.Decimal(12, 2)
   dueDate        DateTime
   status         String
   invoiceUrl     String?
   paidAt         DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   billing StoreSaasBilling @relation(fields: [billingId], references: [id], onDelete: Cascade)
 
@@ -1619,7 +1621,7 @@ model AdminMoneyAction {
 
 /// D3b-4a: histórico de regras. Uma linha por campo alterado; um salvamento = um batchId.
 enum PlatformRuleSource {
-  rules    // PUT /settings/platform-config
+  rules // PUT /settings/platform-config
   switches // PUT /admin/switches
 }
 
