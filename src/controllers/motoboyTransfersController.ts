@@ -254,6 +254,48 @@ export async function resolveTransfer(req: any, res: Response) {
 }
 
 /**
+ * POST /api/admin/transfers/:id/reopen — desfaz um "Resolver" do admin num Pix da loja que, na
+ * verdade, não foi pago: volta a `failed`, vencida agora e com a escada zerada, e o job envia
+ * pela conta da loja (passando pela trava de autorização). Só linha `done` marcada pelo admin
+ * (resolvedBy): `done` do webhook do Asaas é Pix que saiu e nunca reabre.
+ */
+export async function reopenTransfer(req: any, res: Response) {
+  const id = String(req.params.id);
+  const { note } = req.body as z.infer<typeof resolveTransferSchema>;
+  const t = await prisma.motoboyTransfer.findUnique({ where: { id } });
+  if (!t) throw new AppError('Transferência não encontrada', 404, true, 'TRANSFER_NOT_FOUND');
+  if (t.payer === 'platform') {
+    throw new AppError('Pix manual do DROP: pague pelo banco e use "Marcar como resolvido"', 409, true, 'TRANSFER_MANUAL_PIX');
+  }
+  const actor = actorFromRequest(req);
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.motoboyTransfer.updateMany({
+      where: { id, status: 'done', payer: 'store', resolvedBy: { not: null } },
+      data: {
+        status: 'failed', attempts: 0, nextAttemptAt: new Date(), lastError: null,
+        doneAt: null, resolvedBy: null, resolutionNote: null,
+      },
+    });
+    if (count !== 1) {
+      throw new AppError('Só dá para reenviar um Pix marcado como resolvido pelo admin', 409, true, 'TRANSFER_NOT_REOPENABLE');
+    }
+    await recordAdminMoneyAction(tx, {
+      actor,
+      type: 'motoboy_transfer_retry',
+      targetType: 'motoboy_transfer',
+      targetId: id,
+      amount: t.amount,
+      reason: note,
+      before: { status: t.status, resolvedBy: t.resolvedBy },
+      after: { status: 'failed', attempts: 0 },
+    });
+  });
+  logger.info('[motoboyTransfer][AUDIT]', { transferId: id, adminId: req.user?.id, action: 'reopen', note });
+  const fresh = await prisma.motoboyTransfer.findUnique({ where: { id } });
+  return res.json({ success: true, data: serialize(fresh!) });
+}
+
+/**
  * GET /api/admin/transfers/:id/pix-key — D3b-1 "Ver chave": chave completa só do Pix manual
  * do DROP ainda não pago (o admin paga pelo banco). A consulta vira linha
  * motoboy_transfer_pix_reveal ANTES da resposta; se a linha falhar, a chave não sai.

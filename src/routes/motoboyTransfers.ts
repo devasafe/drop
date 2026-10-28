@@ -4,7 +4,7 @@ import { authorizePermission } from '../middleware/authorize';
 import { validate } from '../middleware/validate';
 import { catchAsync } from '../middleware/errorHandler';
 import {
-  listMyTransfers, listStoreTransfers, listAdminTransfers, retryTransfer, resolveTransfer, resolveTransferSchema,
+  listMyTransfers, listStoreTransfers, listAdminTransfers, retryTransfer, resolveTransfer, resolveTransferSchema, reopenTransfer,
   retryStoreTransfer, revealTransferPixKey,
 } from '../controllers/motoboyTransfersController';
 
@@ -20,5 +20,7 @@ router.post('/admin/transfers/:id/retry', authenticate, authorizePermission('pay
 // D3b-1: "Ver chave" do Pix manual do DROP (auditado em motoboy_transfer_pix_reveal)
 router.get('/admin/transfers/:id/pix-key', authenticate, authorizePermission('payout:release'), catchAsync(revealTransferPixKey));
 router.post('/admin/transfers/:id/resolve', authenticate, authorizePermission('payout:release'), validate(resolveTransferSchema), catchAsync(resolveTransfer));
+// "Reenviar pela DROP": desfaz um Resolver de Pix que não foi pago (nota obrigatória, auditado)
+router.post('/admin/transfers/:id/reopen', authenticate, authorizePermission('payout:release'), validate(resolveTransferSchema), catchAsync(reopenTransfer));
 
 export default router;

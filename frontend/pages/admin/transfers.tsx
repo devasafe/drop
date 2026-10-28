@@ -40,6 +40,8 @@ interface Row {
   pixKeyMasked: string;
   /** Quem paga: a loja (Pix pelo Asaas) ou o DROP (Pix manual). Ausente = loja. */
   payer?: 'store' | 'platform';
+  /** "admin:<id>" quando o Pago veio do Resolver, não do Asaas. */
+  resolvedBy?: string | null;
 }
 
 const FILTERS = [
@@ -65,6 +67,8 @@ const PIX_TYPE_LABEL: Record<string, string> = {
 
 const who = (r: Row) => `${r.storeName ?? 'Loja'} → ${r.motoboyName ?? 'Motoboy'}`;
 const isManualPix = (r: Row) => r.payer === 'platform';
+/** Pago por um Resolver do admin (não pelo Asaas): pode ser reenviado pela DROP. */
+const isReopenable = (r: Row) => r.status === 'done' && !!r.resolvedBy && !isManualPix(r);
 
 export default function AdminTransfersPage() {
   const { can } = useAuth();
@@ -79,6 +83,7 @@ export default function AdminTransfersPage() {
   const [moreError, setMoreError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [resolving, setResolving] = useState<Row | null>(null);
+  const [reopening, setReopening] = useState<Row | null>(null);
   const [note, setNote] = useState('');
   const [keyRow, setKeyRow] = useState<Row | null>(null);
   const [revealed, setRevealed] = useState<RevealedKey | null>(null);
@@ -156,6 +161,19 @@ export default function AdminTransfersPage() {
     await load();
   };
 
+  const reopen = async () => {
+    if (!reopening) return;
+    try {
+      await api.post(`/admin/transfers/${reopening.id}/reopen`, { note: note.trim() });
+    } catch (err) {
+      throw flattenServerError(err, 'Ação não concluída.');
+    }
+    setReopening(null);
+    setNote('');
+    showToast('Pix de volta na fila. A DROP envia em instantes.', 'success');
+    await load();
+  };
+
   const fetchKey = async (r: Row) => {
     const gen = ++keyGen.current;
     setRevealed(null);
@@ -214,6 +232,15 @@ export default function AdminTransfersPage() {
   ];
 
   const rowAction = (r: Row) => {
+    if (canAct && isReopenable(r)) {
+      return (
+        <div className={ui.rowActions}>
+          <Button size="sm" variant="secondary" className={ui.touch} onClick={() => { setReopening(r); setNote(''); }}>
+            Reenviar pela DROP
+          </Button>
+        </div>
+      );
+    }
     if (!canAct || !ACTIONABLE.includes(r.status)) return null;
     return (
       <div className={ui.rowActions}>
@@ -284,6 +311,27 @@ export default function AdminTransfersPage() {
             onChange={setNote}
             placeholder={resolving && isManualPix(resolving) ? 'Ex.: Pix pago pelo banco do DROP, comprovante 123' : 'Ex.: conferido no painel do Asaas, Pix concluído'}
             hint="Mínimo de 10 caracteres. Fica no histórico da transferência."
+          />
+        </AdminSheet>
+
+        <AdminSheet
+          open={!!reopening}
+          title="Reenviar Pix pela DROP"
+          onClose={() => setReopening(null)}
+          primary={{ label: 'Reenviar', disabled: note.trim().length < 10, onClick: reopen }}
+        >
+          {reopening && (
+            <p className={blocks.muted}>
+              {`Este Pix de ${formatMoney(Number(reopening.amount))} para ${reopening.motoboyName ?? 'o motoboy'} foi marcado como resolvido.`}{' '}
+              Se ele não foi pago, a DROP envia de novo pela conta Asaas da loja. Confira antes: se já foi pago por fora, o motoboy recebe em dobro.
+            </p>
+          )}
+          <TextAreaField
+            label="Por que reenviar"
+            value={note}
+            onChange={setNote}
+            placeholder="Ex.: marquei como resolvido por engano, o Pix não foi pago"
+            hint="Mínimo de 10 caracteres. Fica no Histórico do Dinheiro."
           />
         </AdminSheet>
 

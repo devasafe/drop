@@ -67,6 +67,24 @@ describe('admin/transfers', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/transfers/t2/resolve', { note: 'conferido no painel do Asaas' }));
   });
 
+  test('Pix marcado como resolvido pelo admin pode ser reenviado pela DROP, com motivo', async () => {
+    (api.get as jest.Mock).mockResolvedValue({ data: { success: true, data: [
+      ...rows,
+      { id: 't5', orderId: 'ordEEEEEE', storeName: 'Loja Cinco', motoboyName: 'Davi', status: 'done', amount: 5.23, attempts: 1, lastError: null, pixKeyMasked: '***.***.***-25', resolvedBy: 'admin:c1' },
+    ] } });
+    render(<AdminTransfers />);
+    await screen.findByText(/Loja Cinco/);
+    // Só o pago pelo Resolver; o pago pelo Asaas (t4) não tem o botão.
+    expect(screen.getAllByText('Reenviar pela DROP')).toHaveLength(1);
+    fireEvent.click(screen.getByText('Reenviar pela DROP'));
+    const confirm = screen.getByText('Reenviar');
+    fireEvent.change(screen.getByLabelText('Por que reenviar'), { target: { value: 'curta' } });
+    expect(confirm.closest('button')).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Por que reenviar'), { target: { value: 'marquei por engano, não foi pago' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/transfers/t5/reopen', { note: 'marquei por engano, não foi pago' }));
+  });
+
   test('menu: aba Pix aos motoboys com payout:view e marcada directOnly', () => {
     const tab = ADMIN_AREAS.flatMap((a) => a.tabs).find((t) => t.href === '/admin/transfers');
     expect(tab).toBeDefined();
