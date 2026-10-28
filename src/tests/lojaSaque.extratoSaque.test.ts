@@ -125,6 +125,23 @@ describe('saque', () => {
     }));
   });
 
+  it('Pix ao motoboy concluído durante o pedido: confere pelo saldo relido, não pelo antigo', async () => {
+    const s = await setup();
+    // 1ª leitura: R$ 100 (com os R$ 40 do motoboy ainda na conta); na releitura o Pix já saiu.
+    let reads = 0;
+    getAs.mockImplementation(async (_k: string, path: string) => {
+      if (path === '/finance/balance') return { balance: reads++ === 0 ? 100 : 60 };
+      if (path.startsWith('/myAccount/commercialInfo')) return { cpfCnpj: OWNER_CPF };
+      return {};
+    });
+    const r = await saque(s.store.id, s.owner, { amount: 80, password: 'Senha123!' });
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe('OVER_AVAILABLE');
+    expect(r.body.error.message).toContain('R$ 60,00');
+    expect(postAs).not.toHaveBeenCalled();
+    expect((await prisma.storeWithdrawal.findFirstOrThrow({ where: { storeId: s.store.id } })).status).toBe('failed');
+  });
+
   it('senha errada não saca', async () => {
     const s = await setup();
     const r = await saque(s.store.id, s.owner, { amount: 50, password: 'errada' });

@@ -287,13 +287,29 @@ export async function requestStoreWithdrawal(storeId: string, userId: string, am
     if (amount > available) {
       throw new AppError(`Você pode sacar até R$ ${brl(fromCents(available))} agora.`, 409, true, 'OVER_AVAILABLE');
     }
-    return tx.storeWithdrawal.create({
+    const created = await tx.storeWithdrawal.create({
       data: {
         storeId, requestedBy: userId, amount: fromCents(amount),
         pixKeyEncrypted: encryptSensitiveData(owner.key), pixKeyType: owner.type,
       },
     });
+    return { ...created, reservedCents: cents(reserved.total) };
   });
+
+  // Um Pix ao motoboy concluído entre a 1ª leitura do saldo e a reserva sai da reserva mas
+  // continua no saldo lido. Relê o saldo agora (depois da reserva) e confere pelo menor dos dois.
+  let balanceAfter: number;
+  try {
+    balanceAfter = await storeBalance(storeId, apiKey);
+  } catch (err) {
+    await prisma.storeWithdrawal.updateMany({ where: { id: row.id, status: 'requested' }, data: { status: 'failed', lastError: 'BALANCE_RECHECK_FAILED' } });
+    throw err;
+  }
+  const availableNow = Math.max(0, Math.min(cents(balance), cents(balanceAfter)) - row.reservedCents);
+  if (amount > availableNow) {
+    await prisma.storeWithdrawal.updateMany({ where: { id: row.id, status: 'requested' }, data: { status: 'failed', lastError: 'OVER_AVAILABLE' } });
+    throw new AppError(`Você pode sacar até R$ ${brl(fromCents(availableNow))} agora.`, 409, true, 'OVER_AVAILABLE');
+  }
 
   let response: { id?: string };
   try {
