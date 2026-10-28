@@ -186,11 +186,18 @@ describe('POST /api/admin/transfers/:id/resolve', () => {
 });
 
 describe('POST /api/admin/transfers/:id/reopen', () => {
+  /** Pix resolvido pelo admin pela rota de verdade (grava a auditoria com o status de origem). */
+  const resolvedFrom = async (s: any, status: string, extra: any = {}) => {
+    const t = await mk(s.store.id, s.m1.userId, { status, lastError: 'X', ...extra });
+    const r = await request(app).post(`/api/admin/transfers/${t.id}/resolve`).set('Authorization', bearer(s.ceo)).send({ note: 'paguei por fora, conferido' });
+    expect(r.status).toBe(200);
+    return t;
+  };
   const reopen = (id: string, who: any, note: any = 'marquei resolvido por engano, não foi pago') =>
     request(app).post(`/api/admin/transfers/${id}/reopen`).set('Authorization', bearer(who)).send({ note });
   it('Pix resolvido pelo admin volta para a fila do job, zerado, e fica no histórico', async () => {
     const s = await setup();
-    const t = await mk(s.store.id, s.m1.userId, { status: 'done', doneAt: new Date(), attempts: 3, resolvedBy: `admin:${s.ceo.userId}`, resolutionNote: 'pago por fora' });
+    const t = await resolvedFrom(s, 'failed_final', { attempts: 3 });
     const r = await reopen(t.id, s.ceo);
     expect(r.status).toBe(200);
     noKey(r.body);
@@ -200,6 +207,26 @@ describe('POST /api/admin/transfers/:id/reopen', () => {
     const audit = await prisma.adminMoneyAction.findFirst({ where: { targetId: t.id, type: 'motoboy_transfer_retry' } });
     expect(audit?.reason).toBe('marquei resolvido por engano, não foi pago');
     await prisma.adminMoneyAction.deleteMany({ where: { targetId: t.id } });
+  });
+  it('resolvido a partir de incerto (o Pix pode ter saído) nunca reabre', async () => {
+    const s = await setup();
+    const t = await resolvedFrom(s, 'uncertain');
+    expect((await reopen(t.id, s.ceo)).status).toBe(409);
+    expect((await prisma.motoboyTransfer.findUnique({ where: { id: t.id } }))!.status).toBe('done');
+    await prisma.adminMoneyAction.deleteMany({ where: { targetId: t.id } });
+  });
+  it('tentativa que chegou a ter id no Asaas nunca reabre', async () => {
+    const s = await setup();
+    const a = await resolvedFrom(s, 'failed', { asaasTransferId: 'tra_1' });
+    const b = await resolvedFrom(s, 'failed', { previousAsaasTransferIds: ['tra_0'] });
+    expect((await reopen(a.id, s.ceo)).status).toBe(409);
+    expect((await reopen(b.id, s.ceo)).status).toBe(409);
+    await prisma.adminMoneyAction.deleteMany({ where: { targetId: { in: [a.id, b.id] } } });
+  });
+  it('resolvido sem auditoria do Resolver nunca reabre', async () => {
+    const s = await setup();
+    const t = await mk(s.store.id, s.m1.userId, { status: 'done', resolvedBy: `admin:${s.ceo.userId}` });
+    expect((await reopen(t.id, s.ceo)).status).toBe(409);
   });
   it('Pix concluído pelo Asaas (sem resolvedBy) nunca reabre', async () => {
     const s = await setup();
@@ -216,7 +243,7 @@ describe('POST /api/admin/transfers/:id/reopen', () => {
     const s = await setup();
     const manual = await mk(s.store.id, s.m1.userId, { status: 'done', payer: 'platform', resolvedBy: `admin:${s.ceo.userId}` });
     expect((await reopen(manual.id, s.ceo)).status).toBe(409);
-    const t = await mk(s.store.id, s.m1.userId, { status: 'done', resolvedBy: `admin:${s.ceo.userId}` });
+    const t = await resolvedFrom(s, 'failed');
     expect((await reopen(t.id, s.ceo, 'curta')).status).toBe(400);
     expect((await reopen(t.id, s.owner)).status).toBe(403);
     const rs = await Promise.all([reopen(t.id, s.ceo), reopen(t.id, s.ceo)]);

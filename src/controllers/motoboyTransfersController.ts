@@ -258,6 +258,11 @@ export async function resolveTransfer(req: any, res: Response) {
  * verdade, não foi pago: volta a `failed`, vencida agora e com a escada zerada, e o job envia
  * pela conta da loja (passando pela trava de autorização). Só linha `done` marcada pelo admin
  * (resolvedBy): `done` do webhook do Asaas é Pix que saiu e nunca reabre.
+ *
+ * Fail closed contra Pix em dobro: só reabre o que, com certeza, nunca saiu —
+ *  - nenhuma tentativa chegou a ter id no Asaas (o Asaas recusou o pedido antes de criar);
+ *  - o Resolver foi feito a partir de `failed`/`failed_final` (lido da auditoria do Resolver);
+ *    resolvido a partir de `uncertain` (o Pix pode ter saído) ou sem auditoria nunca reabre.
  */
 export async function reopenTransfer(req: any, res: Response) {
   const id = String(req.params.id);
@@ -267,10 +272,22 @@ export async function reopenTransfer(req: any, res: Response) {
   if (t.payer === 'platform') {
     throw new AppError('Pix manual do DROP: pague pelo banco e use "Marcar como resolvido"', 409, true, 'TRANSFER_MANUAL_PIX');
   }
+  const notReopenable = () => new AppError(
+    'Este Pix não pode ser reenviado: ele pode ter saído. Confira no Asaas e pague por fora se faltar.',
+    409, true, 'TRANSFER_NOT_REOPENABLE',
+  );
+  if (t.asaasTransferId || (t.previousAsaasTransferIds ?? []).length > 0) throw notReopenable();
   const actor = actorFromRequest(req);
   await prisma.$transaction(async (tx) => {
+    const resolved = await tx.adminMoneyAction.findFirst({
+      where: { type: 'motoboy_transfer_resolve', targetType: 'motoboy_transfer', targetId: id },
+      orderBy: { createdAt: 'desc' },
+      select: { before: true },
+    });
+    const fromStatus = (resolved?.before as { status?: string } | null)?.status;
+    if (fromStatus !== 'failed' && fromStatus !== 'failed_final') throw notReopenable();
     const { count } = await tx.motoboyTransfer.updateMany({
-      where: { id, status: 'done', payer: 'store', resolvedBy: { not: null } },
+      where: { id, status: 'done', payer: 'store', resolvedBy: { not: null }, asaasTransferId: null, previousAsaasTransferIds: { isEmpty: true } },
       data: {
         status: 'failed', attempts: 0, nextAttemptAt: new Date(), lastError: null,
         doneAt: null, resolvedBy: null, resolutionNote: null,
