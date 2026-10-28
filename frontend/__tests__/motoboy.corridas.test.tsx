@@ -353,17 +353,15 @@ test('tema e arquivos antigos', async () => {
   expect(fs.existsSync(path.join(__dirname, '..', 'pages', 'motoboy', 'MotoboyCockpit.module.css'))).toBe(false);
 });
 
-test('motoboy novo: aviso do limite e o pedido caro recusado sai da lista com a explicação', async () => {
+test('motoboy novo: nenhum aviso da regra, e o pedido recusado some como corrida indisponível', async () => {
   mockStatus = { ...mockStatus, online: true, gps: 'active' };
-  const msg = 'Nas suas primeiras 20 entregas você pega pedidos de até R$ 150. Faltam 20 entregas para liberar todos.';
-  mockPool.newCourier = { maxOrderValue: 150, remaining: 20, message: msg };
   mockPool.deliveries = [offer('d1')];
-  post.mockRejectedValue({ response: { status: 403, data: { error: msg, code: 'NEW_COURIER_LIMIT' } } });
+  post.mockRejectedValue({ response: { status: 409, data: { error: 'Esta corrida não está mais disponível para você.', code: 'DELIVERY_NOT_AVAILABLE' } } });
   await renderPage();
-  expect(screen.getByText('Começando na DROP')).toBeInTheDocument();
+  expect(screen.queryByText('Começando na DROP')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Aceitar por R$ 9,60' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('primeiras 20 entregas');
-  expect(mockPool.deliveries).toEqual([]);
+  await waitFor(() => expect(mockPool.deliveries).toEqual([]));
+  expect(screen.queryByText(/primeiras 20 entregas/)).not.toBeInTheDocument();
 });
 
 test('com entrega em andamento, ficar offline é recusado e a tela diz por quê', async () => {

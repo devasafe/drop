@@ -142,8 +142,6 @@ export const useDeliveries = () => {
   const [loading, setLoading] = useState(true);
   // null = ainda não leu ou a leitura falhou; true só quando o servidor manda requiresVerification: true
   const [requiresVerification, setRequiresVerification] = useState<boolean | null>(null);
-  // Motoboy novo: limite de valor das primeiras entregas (antifraude); null = sem limite.
-  const [newCourier, setNewCourier] = useState<{ maxOrderValue: number; remaining: number; message: string } | null>(null);
   const { on, onReconnect } = useSocket();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -153,7 +151,6 @@ export const useDeliveries = () => {
       const deliveriesData = res.data?.deliveries || res.data || [];
       setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
       setRequiresVerification(res.data?.requiresVerification === true);
-      setNewCourier(res.data?.newCourier ?? null);
       setLoading(false);
     } catch (err) {
       console.error('Erro ao buscar entregas:', err);
@@ -199,7 +196,7 @@ export const useDeliveries = () => {
     };
   }, [on, onReconnect, fetchDeliveries, refetch]);
 
-  return { deliveries, loading, requiresVerification, newCourier, setDeliveries, refetch };
+  return { deliveries, loading, requiresVerification, setDeliveries, refetch };
 };
 
 /**

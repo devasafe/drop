@@ -53,7 +53,7 @@ export default function CorridasPage() {
   const courier = useCourierStatus();
   const { summary, error: summaryError, retrying, retry: retrySummary } = useCorridasSummary();
   const { features } = useGamificationFeatures();
-  const { deliveries: pool, loading: poolLoading, requiresVerification, newCourier, setDeliveries: setPool, refetch } = useDeliveries();
+  const { deliveries: pool, loading: poolLoading, requiresVerification, setDeliveries: setPool, refetch } = useDeliveries();
   const { deliveries: ongoing } = useOngoingDeliveries();
   const now = useNow(30_000);
 
@@ -154,10 +154,6 @@ export default function CorridasPage() {
         setLost({ variant: e.code === 'ORDER_CLOSED' ? 'closed' : 'claimed', summary: offerSummary(d) });
         setPool((prev: any[]) => prev.filter((x: any) => x._id !== d._id));
         refetch?.();
-      } else if (e.status === 403 && e.code === 'NEW_COURIER_LIMIT') {
-        // Pedido acima do limite das primeiras entregas: some da lista e a tela explica.
-        setClaimError(e.message);
-        setPool((prev: any[]) => prev.filter((x: any) => x._id !== d._id));
       } else if (e.status === 403 && e.code === 'COURIER_NOT_VERIFIED') {
         // O servidor recusou por cadastro (C2): trava a tela e relê o estado do cadastro.
         setNotVerified(true);
@@ -299,9 +295,6 @@ export default function CorridasPage() {
               {pushBlock}
               {lost && <OfferLost variant={lost.variant} summary={lost.summary} onContinue={() => setLost(null)} />}
               {claimError && <p role="alert" className={blocks.errText}>{claimError}</p>}
-              {newCourier && (
-                <Alert tone="info" title="Começando na DROP">{newCourier.message}</Alert>
-              )}
               {pixRequired && (
                 <Alert tone="warning" title="Falta sua chave Pix" action={{ label: 'Cadastrar chave Pix', onClick: () => router.push(MOTOBOY_ROUTES.recebimento) }}>
                   {pixRequired}

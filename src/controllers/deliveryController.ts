@@ -38,7 +38,7 @@ import { getPaymentProvider } from '../services/paymentProvider';
 import deliveryInvoiceService from '../services/deliveryInvoice.service';
 import { motoboySummary } from '../services/motoboySummary';
 import { generatePin, pinLockMinutesLeft, registerPinFailure, pinLockedResponse } from '../services/pinGuard';
-import { courierLimit, newCourierMessage, newCourierOpenRidesMessage, orderGoodsValue, orderValues, overLimit } from '../services/courierTrust';
+import { courierLimit, orderGoodsValue, orderValues, overLimit } from '../services/courierTrust';
 
 // Freio de custo: pontos viram benefício resgatável. Desligado (default) ou erro → sem pontos.
 const gamificationPointsOn = async (): Promise<boolean> => {
@@ -880,10 +880,6 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
       deliveries,
       // Sinaliza ao app que sem GPS o pool não é filtrado por proximidade.
       locationKnown: !!motoboyLoc,
-      // Limite do motoboy novo (null quando já saiu): o app explica por que não vê pedidos caros.
-      newCourier: courier.maxOrderValue !== null
-        ? { maxOrderValue: courier.maxOrderValue, remaining: courier.remaining, message: newCourierMessage(courier) }
-        : null,
       pagination: {
         page,
         limit,
@@ -1056,10 +1052,11 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     if (!target) return res.status(409).json(ALREADY_CLAIMED_BODY);
     if (target.excludedMotoboyIds.includes(String(userId))) return res.status(409).json(NOT_AVAILABLE_BODY);
     // Motoboy novo (antifraude): pedido acima do limite das primeiras entregas não é dele.
+    // A regra é da DROP e não é contada ao motoboy: a resposta é a mesma de corrida indisponível.
     const limit = await courierLimit(String(userId));
     if (limit.maxOrderValue !== null) {
       const value = (await orderValues([String(target.orderId)])).get(String(target.orderId)) ?? Infinity;
-      if (overLimit(limit, value)) return res.status(403).json({ error: newCourierMessage(limit), code: 'NEW_COURIER_LIMIT' });
+      if (overLimit(limit, value)) return res.status(409).json(NOT_AVAILABLE_BODY);
     }
     if (await directOrderWithoutPixKey(target.orderId, String(userId))) {
       return res.status(409).json({ error: 'Cadastre sua chave Pix para pegar corridas: é por ela que você recebe.', code: PIX_KEY_REQUIRED });
@@ -1097,9 +1094,7 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
       });
     } catch (err) {
       const msg = (err as Error)?.message;
-      if (msg === OVER_NEW_COURIER_LIMIT) {
-        return res.status(403).json({ error: newCourierOpenRidesMessage(limit), code: 'NEW_COURIER_LIMIT' });
-      }
+      if (msg === OVER_NEW_COURIER_LIMIT) return res.status(409).json(NOT_AVAILABLE_BODY);
       if (msg === ORDER_CLOSED) {
         logger.warn('[claimDelivery] aceite recusado: pedido já cancelado/rejeitado', { deliveryId: id, orderId: target.orderId });
         return res.status(409).json({ error: 'Pedido cancelado; a corrida não está mais disponível', code: 'ORDER_CLOSED' });
