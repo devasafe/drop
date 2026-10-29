@@ -5,6 +5,10 @@ import { watchNativeLocation } from '../lib/nativeLocation';
 
 const GPS_THROTTLE_MS = 15000; // manda a posição pro servidor no máx a cada 15s
 const STALE_MS = 40000;        // sem fix novo por 40s (ou app em background) → "parada"
+/** Margem de erro acima disso = localização "Aproximada" do Android (o servidor usa o mesmo limite). */
+export const IMPRECISE_ACCURACY_M = 500;
+/** O 1º fix costuma vir impreciso: só avisa se continuar assim por esse tempo. */
+const IMPRECISE_GRACE_MS = 20000;
 
 /** off = motoboy offline · active = atualizando · stale = travou (background/bloqueado) · denied = sem permissão */
 export type GpsState = 'off' | 'active' | 'stale' | 'denied';
@@ -16,13 +20,29 @@ export type GpsState = 'off' | 'active' | 'stale' | 'denied';
  * o motoboy — não dá pra continuar rastreando sem um app nativo.
  * No app Android (`isNativeApp`) o GPS segue com a tela apagada (lib/nativeLocation.ts), que
  * também envia a posição; aqui só acompanhamos a saúde.
+ * `imprecise`: o celular está na localização "Aproximada" (margem de erro de km). O servidor não
+ * manda corrida nova assim; a tela pede para ligar a localização precisa.
  */
 export function useMotoboyStatus() {
   const [online, setOnlineState] = useState(false);
   const [loading, setLoading] = useState(true);
   const [gps, setGps] = useState<GpsState>('off');
+  const [imprecise, setImprecise] = useState(false);
   const lastSentRef = useRef(0);
   const lastFixRef = useRef(0);
+  // Desde quando os fixes vêm imprecisos (0 = o último foi preciso).
+  const impreciseSinceRef = useRef(0);
+
+  const trackAccuracy = useCallback((accuracy: number | null | undefined) => {
+    if (accuracy == null || !Number.isFinite(accuracy) || accuracy <= IMPRECISE_ACCURACY_M) {
+      impreciseSinceRef.current = 0;
+      setImprecise(false);
+      return;
+    }
+    const now = Date.now();
+    if (!impreciseSinceRef.current) impreciseSinceRef.current = now;
+    if (now - impreciseSinceRef.current >= IMPRECISE_GRACE_MS) setImprecise(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,12 +65,14 @@ export function useMotoboyStatus() {
 
   // GPS só quando online → alimenta o despacho por raio.
   useEffect(() => {
+    impreciseSinceRef.current = 0;
+    setImprecise(false);
     if (!online) { setGps('off'); return; }
     if (isNativeApp()) {
       lastFixRef.current = Date.now();
       setGps('active');
       const stopWatch = watchNativeLocation({
-        onFix: () => { lastFixRef.current = Date.now(); setGps('active'); },
+        onFix: (fix) => { lastFixRef.current = Date.now(); setGps('active'); trackAccuracy(fix.accuracy); },
         onError: (code) => { if (code === 'denied') setGps('denied'); },
       });
       // Tela apagada não trava o GPS nativo: "parada" só sem posição nova.
@@ -67,11 +89,12 @@ export function useMotoboyStatus() {
     const onFix = (pos: GeolocationPosition) => {
       lastFixRef.current = Date.now();
       setGps('active');
+      trackAccuracy(pos.coords.accuracy);
       const now = Date.now();
       if (now - lastSentRef.current < GPS_THROTTLE_MS) return;
       lastSentRef.current = now;
       api.post('/deliveries/location', {
-        lat: pos.coords.latitude, lng: pos.coords.longitude, isOnline: true,
+        lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, isOnline: true,
       }).catch(() => {});
     };
     const onErr = (err: GeolocationPositionError) => {
@@ -106,7 +129,7 @@ export function useMotoboyStatus() {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [online]);
+  }, [online, trackAccuracy]);
 
-  return { online, loading, setOnline, gps };
+  return { online, loading, setOnline, gps, imprecise };
 }

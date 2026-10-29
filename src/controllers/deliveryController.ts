@@ -1,3 +1,4 @@
+import { IMPRECISE_LOCATION_BODY, isImpreciseAccuracy, isImpreciseLocation } from '../services/courierPrecision';
 import { Response } from 'express';
 import { motoboyCancellationCompensation } from '../services/motoboyCompensation';
 import { AuthenticatedRequest } from '../types';
@@ -839,6 +840,16 @@ export const listAvailableDeliveries = async (req: AuthenticatedRequest, res: Re
       });
     }
 
+    // Localização aproximada: o raio sairia de um ponto errado. Nada de corrida nova até corrigir.
+    if (isImpreciseLocation(me?.currentLocation)) {
+      return res.json({
+        deliveries: [],
+        imprecise: true,
+        locationKnown: true,
+        pagination: { page: 1, limit: 0, total: 0, pages: 0 },
+      });
+    }
+
     const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
       ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
       : null;
@@ -955,18 +966,26 @@ export const updateMotoboyLocation = async (req: AuthenticatedRequest, res: Resp
     // App Android: o sistema marca a posição vinda de app de GPS falso (risco do "cliente não
     // apareceu" na devolução). Fica guardado junto da posição para o admin conferir.
     const simulated = (req.body as any).simulated === true;
+    // Margem de erro do GPS: acima do limite (localização "Aproximada") a posição fica marcada
+    // e o motoboy não pega corrida nova até mandar uma precisa.
+    const accuracy = Number((req.body as any).accuracy);
+    const imprecise = isImpreciseAccuracy((req.body as any).accuracy);
 
     await prisma.user.update({
       where: { id: req.user.id },
       data: {
-        currentLocation: { lat, lng, updatedAt: new Date(), ...(simulated ? { simulated: true } : {}) },
+        currentLocation: {
+          lat, lng, updatedAt: new Date(),
+          ...(Number.isFinite(accuracy) ? { accuracy: Math.round(accuracy) } : {}),
+          ...(imprecise ? { imprecise: true } : {}),
+          ...(simulated ? { simulated: true } : {}),
+        },
         ...(typeof isOnline === 'boolean' ? { isOnline } : {}),
       },
     });
 
     // Em corrida, a posição também vai ao cliente e à loja: no app Android com a tela apagada
     // o socket cai e este POST (HTTP nativo) é o único caminho que continua chegando.
-    const accuracy = Number((req.body as any).accuracy);
     void relayActiveRidesLocation(String(req.user.id), {
       latitude: lat, longitude: lng, ...(Number.isFinite(accuracy) ? { accuracy } : {}), simulated,
     });
@@ -1050,6 +1069,8 @@ export const claimDelivery = async (req: AuthenticatedRequest, res: Response) =>
     // desfaz o aceite (409 ORDER_CLOSED). Quem cancela depois enxerga o motoboy (compensa).
     const target = await prisma.delivery.findUnique({ where: { id }, select: { orderId: true, excludedMotoboyIds: true } });
     if (!target) return res.status(409).json(ALREADY_CLAIMED_BODY);
+    const meLoc = await prisma.user.findUnique({ where: { id: String(userId) }, select: { currentLocation: true } });
+    if (isImpreciseLocation(meLoc?.currentLocation)) return res.status(409).json(IMPRECISE_LOCATION_BODY);
     if (target.excludedMotoboyIds.includes(String(userId))) return res.status(409).json(NOT_AVAILABLE_BODY);
     // Motoboy novo (antifraude): pedido acima do limite das primeiras entregas não é dele.
     // A regra é da DROP e não é contada ao motoboy: a resposta é a mesma de corrida indisponível.

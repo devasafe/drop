@@ -22,6 +22,7 @@ import { formatMoney } from '../../lib/money';
 import { shortOrderCode } from '../../lib/customerOrder';
 import { formatPoints, levelProgress } from '../../lib/motoboyLevel';
 import { MOTOBOY_ROUTES } from '../../lib/motoboyRoutes';
+import { openNativeLocationSettings } from '../../lib/nativeLocation';
 import type { RoutePoint } from '../../lib/staticMap';
 import { useNow } from '../../components/motoboy/corrida/useNow';
 import { useCorridasSummary } from '../../components/motoboy/corridas/useCorridasSummary';
@@ -47,7 +48,7 @@ export default function CorridasPage() {
   const { user } = useAuth();
   const userId = String(user?.id ?? user?._id ?? '');
   const firstName = String(user?.name || '').split(' ')[0] || 'motoboy';
-  const { online, loading: statusLoading, setOnline, gps } = useMotoboyStatus();
+  const { online, loading: statusLoading, setOnline, gps, imprecise } = useMotoboyStatus();
   const nativeApp = useIsNativeApp();
   const push = usePushNotifications();
   const courier = useCourierStatus();
@@ -283,6 +284,17 @@ export default function CorridasPage() {
                   {nativeApp
                     ? 'O GPS não manda posição há um tempo. Confira se a localização do celular está ligada.'
                     : 'Mantenha o app aberto e a tela ligada — com o celular bloqueado ou fora do app, as corridas param de chegar.'}
+                </Alert>
+              )}
+              {imprecise && gps === 'active' && (
+                <Alert
+                  tone="warning"
+                  title="Sua localização está aproximada."
+                  action={nativeApp ? { label: 'Abrir configurações', onClick: () => { void openNativeLocationSettings().catch(() => undefined); } } : undefined}
+                >
+                  {nativeApp
+                    ? 'Assim você não recebe corridas novas. Toque em Abrir configurações → Permissões → Localização e ligue "Usar localização precisa".'
+                    : 'Assim você não recebe corridas novas. No Android: Configurações → Apps → Chrome → Permissões → Localização e ligue "Usar localização precisa".'}
                 </Alert>
               )}
               {gps === 'denied' && (

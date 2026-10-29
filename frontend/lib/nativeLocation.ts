@@ -85,6 +85,12 @@ export function watchNativeLocation(listener: Listener): () => void {
   };
 }
 
+/** Abre a tela do app nas configurações do Android (para ligar a localização precisa). */
+export async function openNativeLocationSettings(): Promise<void> {
+  const { BackgroundGeolocation } = await pluginRef();
+  await BackgroundGeolocation.openSettings();
+}
+
 /** Em corrida, a posição sai a cada 5 s (o servidor repassa ao cliente e à loja). */
 export function setNativeRideActive(on: boolean): void {
   if (on && !rideActive) lastSent = 0; // manda já a primeira

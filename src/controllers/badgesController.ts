@@ -1,3 +1,4 @@
+import { isImpreciseLocation } from '../services/courierPrecision';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
@@ -69,7 +70,7 @@ export const getBadgeCounts = async (req: AuthenticatedRequest, res: Response) =
     if (role === 'motoboy') {
       const me = await userRepository.findById(userId) as any;
       const kycOk = process.env.KYC_ENFORCED !== 'true' || isMotoboyVerified(me);
-      if (kycOk && me?.isOnline) {
+      if (kycOk && me?.isOnline && !isImpreciseLocation(me?.currentLocation)) {
         const motoboyLoc = me?.currentLocation?.lat != null && me?.currentLocation?.lng != null
           ? { lat: me.currentLocation.lat, lng: me.currentLocation.lng }
           : null;

@@ -79,7 +79,8 @@ export interface AdminOrderDetail {
 
 export interface OpsMapResponse {
   motoboys: { id: string; name: string; lat: number; lng: number; updatedAt: string; state: 'free' | 'delivering' | 'stale';
-              orderId: string | null; shortId: string | null /* da entrega assigned/picked; null quando livre */ }[];
+              orderId: string | null; shortId: string | null /* da entrega assigned/picked; null quando livre */;
+              imprecise: boolean /* localização aproximada: não pega corrida nova */ }[];
   waiting: { orderId: string; shortId: string; storeName: string; storeLat: number | null; storeLng: number | null;
              since: string; radiusKm: number | null /* null = aberto a todos */; customerDeciding: boolean }[];
   inDelivery: { orderId: string; shortId: string; motoboyName: string; stage: 'indo_para_loja' | 'levando' }[];

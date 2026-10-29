@@ -47,6 +47,8 @@
 .free { background: var(--color-success); }
 .delivering { background: var(--color-action-primary); }
 .stale { background: var(--color-text-muted); }
+/* GPS impreciso (localização aproximada): anel amarelo tracejado por cima da cor do estado. */
+.imprecise { border: 3px dashed var(--color-warning); }
 .store { display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
 .storePin {
   width: 16px;
@@ -58,6 +60,7 @@
 /* D3b-4b: loja aberta sem motoboy por perto (pino de alerta e o ponto da legenda). */
 .storePinAlert { border-radius: var(--radius-pill); background: var(--color-error); }
 .noCourier { background: var(--color-error); }
+.impreciseDot { border: 2px dashed var(--color-warning); }
 .storeLabel {
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);

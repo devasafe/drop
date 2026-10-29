@@ -87,6 +87,7 @@ function MapaAoVivo() {
 
   const points: OpsMapPoint[] = useMemo(() => (data ? data.motoboys.map((m) => ({
     id: m.id, name: m.name, lat: m.lat, lng: m.lng, state: motoboyMapState(m, now), detail: motoboyOrder(data, m),
+    imprecise: !!m.imprecise,
   })) : []), [data, now]);
   const pins: OpsStorePin[] = useMemo(() => (data ? data.waiting
     .filter((w) => w.storeLat !== null && w.storeLng !== null)
@@ -101,6 +102,7 @@ function MapaAoVivo() {
 
   const counts: Record<MotoboyMapState, number> = { free: 0, delivering: 0, stale: 0 };
   points.forEach((p) => { counts[p.state] += 1; });
+  const imprecise = points.filter((p) => p.imprecise).length;
   const picked = points.find((p) => p.id === selected) ?? null;
 
   return (
@@ -120,6 +122,12 @@ function MapaAoVivo() {
               {`${MAP_STATE_LABEL[s]} · ${counts[s]}`}
             </li>
           ))}
+          {imprecise > 0 && (
+            <li>
+              <span className={`${mapUi.dot} ${mapUi.impreciseDot}`} aria-hidden="true" />
+              {`GPS impreciso · ${imprecise}`}
+            </li>
+          )}
           {showNoCourier && (
             <li>
               <span className={`${mapUi.dot} ${mapUi.noCourier}`} aria-hidden="true" />
@@ -143,6 +151,7 @@ function MapaAoVivo() {
           {picked && (
             <div className={mapUi.selected} role="status" aria-label="Motoboy selecionado">
               <span>{`${picked.name} · ${MAP_STATE_LABEL[picked.state]} · ${picked.detail ?? 'sem pedido agora'}`}</span>
+              {picked.imprecise && <StatusTag tone="warn">GPS impreciso: não recebe corrida nova</StatusTag>}
               <Button variant="tertiary" size="sm" onClick={() => setSelected(null)}>Fechar</Button>
             </div>
           )}

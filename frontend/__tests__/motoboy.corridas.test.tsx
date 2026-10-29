@@ -371,3 +371,11 @@ test('com entrega em andamento, ficar offline é recusado e a tela diz por quê'
   fireEvent.click(screen.getByRole('button', { name: 'Ficar offline' }));
   expect(await screen.findByText('Termine a entrega antes de ficar offline.')).toBeInTheDocument();
 });
+
+test('localização aproximada: aviso com o caminho para ligar a precisa (no navegador, sem botão)', async () => {
+  mockStatus = { ...mockStatus, online: true, gps: 'active', imprecise: true };
+  await renderPage();
+  expect(screen.getByText('Sua localização está aproximada.')).toBeInTheDocument();
+  expect(screen.getByText(/Usar localização precisa/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Abrir configurações' })).not.toBeInTheDocument();
+});

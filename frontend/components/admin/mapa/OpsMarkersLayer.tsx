@@ -12,7 +12,7 @@ import { useDropMap } from '../../map/DropMapContext';
 import { MAP_STATE_LABEL, type MotoboyMapState } from '../../../lib/adminOps';
 import styles from './OpsMap.module.css';
 
-export interface OpsMapPoint { id: string; name: string; lat: number; lng: number; state: MotoboyMapState; detail: string | null }
+export interface OpsMapPoint { id: string; name: string; lat: number; lng: number; state: MotoboyMapState; detail: string | null; imprecise?: boolean }
 /** `kind`: 'waiting' (padrão) = loja com pedido aguardando; 'noCourier' = loja aberta sem motoboy por perto. */
 export interface OpsStorePin { id: string; name: string; lat: number; lng: number; kind?: StorePinKind }
 type StorePinKind = 'waiting' | 'noCourier';
@@ -20,10 +20,11 @@ const STORE_PIN_TEXT: Record<StorePinKind, string> = { waiting: 'aguardando moto
 export interface OpsMarkersLayerProps { motoboys: OpsMapPoint[]; stores: OpsStorePin[]; onSelect: (id: string) => void }
 
 function paintPoint(el: HTMLButtonElement, p: OpsMapPoint) {
-  const label = [p.name, MAP_STATE_LABEL[p.state], p.detail].filter(Boolean).join(' · ');
+  const label = [p.name, MAP_STATE_LABEL[p.state], p.imprecise && 'GPS impreciso', p.detail].filter(Boolean).join(' · ');
   // Só as classes de estado: as do MapLibre (maplibregl-marker e a da âncora) precisam sobreviver.
-  el.classList.remove(styles.free, styles.delivering, styles.stale);
+  el.classList.remove(styles.free, styles.delivering, styles.stale, styles.imprecise);
   el.classList.add(styles.point, styles[p.state]);
+  if (p.imprecise) el.classList.add(styles.imprecise);
   el.dataset.state = p.state;
   el.setAttribute('aria-label', label);
   el.title = label;

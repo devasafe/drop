@@ -163,3 +163,11 @@ it('D3b-4b: pino de alerta da loja sem motoboy por perto, ao lado do pino de ped
   expect(mockMarkers[1].element.querySelector('.storePinAlert')).not.toBeNull();
   expect(mockMarkers[1].element).toHaveTextContent('Pizzaria Sol');
 });
+
+it('motoboy com GPS impreciso ganha o anel e o texto no ponto', () => {
+  render(withMap(<OpsMarkersLayer motoboys={[P('m1', 'free', { imprecise: true }), P('m2', 'free')]} stores={[]} onSelect={jest.fn()} />));
+  const [a, b] = mockMarkers.map((m) => m.element);
+  expect(a).toHaveClass('point', 'free', 'imprecise');
+  expect(a).toHaveAttribute('aria-label', 'Moto m1 · Livre · GPS impreciso');
+  expect(b).not.toHaveClass('imprecise');
+});

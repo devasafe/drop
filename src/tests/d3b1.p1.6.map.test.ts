@@ -88,7 +88,7 @@ describe('getOpsMap', () => {
     expect(mine.has(semLocalizacao.userId)).toBe(false);
     expect(mine.get(livre.userId)).toEqual({
       id: livre.userId, name: 'User motoboy', lat: -23.55, lng: -46.63,
-      updatedAt: secondsBefore(now, 30).toISOString(), state: 'free', orderId: null, shortId: null,
+      updatedAt: secondsBefore(now, 30).toISOString(), state: 'free', orderId: null, shortId: null, imprecise: false,
     });
     // em entrega (ou em entrega sem sinal): o pedido certo de cada um
     expect(mine.get(ocupado.userId)).toMatchObject({ orderId: pedidoOcupado.orderId, shortId: pedidoOcupado.orderId.slice(-6) });
@@ -149,7 +149,7 @@ describe('GET /api/admin/ops/map', () => {
     expect(r.status).toBe(200);
     expect(Object.keys(r.body).sort()).toEqual(['dispatch', 'inDelivery', 'motoboys', 'storesWithoutCourier', 'waiting']);
     const mine = r.body.motoboys.find((x: any) => x.id === m.userId);
-    expect(Object.keys(mine).sort()).toEqual(['id', 'lat', 'lng', 'name', 'orderId', 'shortId', 'state', 'updatedAt']);
+    expect(Object.keys(mine).sort()).toEqual(['id', 'imprecise', 'lat', 'lng', 'name', 'orderId', 'shortId', 'state', 'updatedAt']);
     const emails = (await prisma.user.findMany({ where: { id: { in: [m.userId, cliente.userId] } }, select: { email: true } })).map((u) => u.email);
     const text = JSON.stringify(r.body);
     expect(text).not.toContain(PIN_ENTREGA);

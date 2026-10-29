@@ -13,6 +13,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { DISPATCH_BASE_KM, DISPATCH_MAX_KM, DISPATCH_STEP_KM, DISPATCH_STEP_MS, radiusForAgeKm } from '../dispatch';
 import { OpsMapResponse } from './types';
+import { isImpreciseLocation } from '../courierPrecision';
 import { ACTIVE_ORDER_STATUSES, MIN_MS, readOpsLimits, shortOrderId } from './common';
 
 export const STALE_LOCATION_MS = 2 * MIN_MS;
@@ -132,6 +133,7 @@ export async function getOpsMap(now: Date = new Date()): Promise<Omit<OpsMapResp
       state: courierState(loc, busy.has(u.id), now),
       orderId,
       shortId: orderId ? shortOrderId(orderId) : null,
+      imprecise: isImpreciseLocation(u.currentLocation),
     }];
   });
 

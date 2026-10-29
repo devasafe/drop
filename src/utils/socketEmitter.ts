@@ -1,6 +1,7 @@
 import notifier from '../services/notifier';
 import { prisma } from '../lib/prisma';
 import { notifyOnlineMotoboysNewDelivery, notifyAdmins } from '../services/pushService';
+import { impreciseOnlineCouriers } from '../services/courierPrecision';
 import { notifyStore, STORE_LINKS } from '../services/storeNotify';
 import { notifyCustomerOrder } from '../services/customerNotify';
 import { toPublicStore } from '../repositories/store.repository';
@@ -239,7 +240,9 @@ export const emitDeliveryCreated = (delivery: any) => {
   // pedido (courierTrust) não é avisado: não poderia aceitar.
   void (async () => {
     const tooNew = await blockedOnlineNewCouriers(String(delivery.orderId)).catch(() => [] as string[]);
-    const skip = Array.from(new Set([...excluded, ...tooNew]));
+    // Localização aproximada: não poderia aceitar, então não é avisado.
+    const imprecise = await impreciseOnlineCouriers().catch(() => [] as string[]);
+    const skip = Array.from(new Set([...excluded, ...tooNew, ...imprecise]));
     emitToRoomExceptUsers('motoboys', skip, 'delivery:available', {
       deliveryId,
       orderId: delivery.orderId,

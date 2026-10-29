@@ -90,6 +90,8 @@ export interface OpsMapResponse {
   motoboys: {
     id: string; name: string; lat: number; lng: number; updatedAt: string; state: 'free' | 'delivering' | 'stale';
     orderId: string | null; shortId: string | null;   // pedido em entrega do motoboy (P1.6)
+    /** Localização aproximada: não pega corrida nova até ligar a precisa. Servidor antigo não manda. */
+    imprecise?: boolean;
   }[];
   waiting: { orderId: string; shortId: string; storeName: string; storeLat: number | null; storeLng: number | null;
              since: string; radiusKm: number | null; customerDeciding: boolean }[];
