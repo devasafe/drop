@@ -24,8 +24,9 @@ const REASONS: { key: Reason; label: string; description: string }[] = [
 
 /**
  * Pedir reembolso de um pedido entregue (DS v2, caso B): motivo, comentário e foto opcionais e o
- * valor que volta, calculado pelo servidor (GET …/return-request/preview). A loja aprova; o dinheiro
- * só sai quando ela receber o produto e digitar o código.
+ * valor que volta, calculado pelo servidor (GET …/return-request/preview), e como devolver. Quando a
+ * loja aprova, a devolução começa sozinha (corrida de volta ou balcão); o dinheiro só sai quando ela
+ * receber o produto e digitar o código.
  */
 export default function PedirReembolsoPage() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function PedirReembolsoPage() {
   const [days, setDays] = useState<number | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
   const [reason, setReason] = useState<Reason>('defeito');
+  const [mode, setMode] = useState<'motoboy' | 'loja'>('motoboy');
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -55,12 +57,13 @@ export default function PedirReembolsoPage() {
     setSending(true);
     const body = new FormData();
     body.append('reason', reason);
+    body.append('mode', mode);
     if (note.trim()) body.append('note', note.trim());
     if (photo) body.append('photo', photo);
     try {
       await api.post(`/orders/${id}/return-request`, body);
       showToast('Pedido de reembolso enviado à loja', 'success');
-      router.replace(pedidoHref(id));
+      router.replace(`${ROUTES.pedidos}?tab=reembolsos`);
     } catch (e: any) {
       showToast(e?.response?.data?.error || 'Não deu para enviar agora. Tente de novo.', 'error');
       setSending(false);
@@ -96,6 +99,31 @@ export default function PedirReembolsoPage() {
                     <RadioRow key={r.key} name="motivo-reembolso" value={r.key} checked={reason === r.key} onChange={() => setReason(r.key)} label={r.label} description={r.description} />
                   ))}
                 </div>
+              </section>
+
+              <section className={styles.card}>
+                <h2 className={styles.title}>Como você vai devolver?</h2>
+                <div className={styles.choices} role="radiogroup" aria-label="Como devolver">
+                  <RadioRow
+                    name="como-devolver"
+                    value="motoboy"
+                    checked={mode === 'motoboy'}
+                    onChange={() => setMode('motoboy')}
+                    label="Um motoboy busca comigo"
+                    description={reason === 'arrependimento'
+                      ? 'Você paga a corrida por Pix depois que a loja aprovar'
+                      : 'Grátis: a loja paga a corrida'}
+                  />
+                  <RadioRow
+                    name="como-devolver"
+                    value="loja"
+                    checked={mode === 'loja'}
+                    onChange={() => setMode('loja')}
+                    label="Levo na loja"
+                    description={order?.storeObj?.address ? `Grátis · ${order.storeObj.address}` : 'Grátis'}
+                  />
+                </div>
+                <span className={styles.meta}>Assim que a loja aprovar, a devolução começa sozinha.</span>
               </section>
 
               <section className={styles.card}>

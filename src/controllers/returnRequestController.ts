@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Prisma, ReturnReason } from '@prisma/client';
+import { Prisma, ReturnReason, ReturnRequest } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../lib/prisma';
 import logger from '../config/logger';
@@ -76,6 +76,10 @@ export const createReturnRequest = async (req: AuthenticatedRequest, res: Respon
     const reason = String(req.body?.reason || '') as ReturnReason;
     if (!RETURN_REASONS.includes(reason)) return res.status(400).json({ error: 'Motivo inválido', code: 'INVALID_REASON' });
     const note = typeof req.body?.note === 'string' && req.body.note.trim() ? req.body.note.trim().slice(0, 500) : null;
+    // Como devolver, escolhido já no pedido: aprovado, a devolução começa sozinha (corrida ou balcão).
+    const rawMode = String(req.body?.mode || '');
+    if (rawMode && rawMode !== 'loja' && rawMode !== 'motoboy') return res.status(400).json({ error: 'Escolha como devolver', code: 'MODE_NOT_AVAILABLE' });
+    const mode = (rawMode || null) as 'loja' | 'motoboy' | null;
 
     const loaded = await loadOwnedDeliveredOrder(String(req.params.id), customerId);
     if ('error' in loaded) return res.status(loaded.error.status).json(loaded.error.body);
@@ -97,7 +101,7 @@ export const createReturnRequest = async (req: AuthenticatedRequest, res: Respon
     try {
       rr = await prisma.returnRequest.create({
         data: {
-          orderId: order.id, customerId, storeId: order.storeId, reason, note, photoUrl,
+          orderId: order.id, customerId, storeId: order.storeId, reason, note, photoUrl, mode,
           amount: new Prisma.Decimal(amount.toFixed(2)), includesDeliveryFee,
         },
       });
@@ -143,6 +147,35 @@ export const getReturnRequest = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
+/** GET /return-requests/mine — os reembolsos do cliente, do mais novo ao mais antigo (aba Reembolsos). */
+export const listMyReturnRequests = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rows = await prisma.returnRequest.findMany({
+      where: { customerId: String(req.user?.id) },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { id: true, orderId: true, storeId: true, status: true, mode: true, amount: true, createdAt: true, updatedAt: true },
+    });
+    const storeIds = [...new Set(rows.map((r) => r.storeId))];
+    const stores = storeIds.length ? await prisma.store.findMany({ where: { id: { in: storeIds } }, select: { id: true, name: true } }) : [];
+    const storeName = new Map(stores.map((s) => [s.id, s.name]));
+    return res.json(rows.map((r) => ({
+      _id: r.id,
+      orderId: r.orderId,
+      orderCode: code(r.orderId),
+      storeName: storeName.get(r.storeId) ?? 'Loja',
+      status: r.status,
+      mode: r.mode,
+      amount: Number(r.amount),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    })));
+  } catch (err) {
+    logger.error('Erro ao listar reembolsos do cliente', err as Error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
 /** O pedido de reembolso e se quem chama é a dona da loja. */
 async function loadForStore(id: string, userId: string) {
   const rr = await prisma.returnRequest.findUnique({ where: { id } });
@@ -163,16 +196,83 @@ async function transition(id: string, from: string, data: Prisma.ReturnRequestUp
 
 const conflict = (res: Response) => res.status(409).json({ error: 'Este pedido de reembolso já mudou. Atualize a tela.', code: 'RETURN_STATE_CHANGED' });
 
+type ApplyResult =
+  | { error: 'conflict' | { status: number; body: Record<string, unknown> } }
+  | { updated: ReturnRequest; body: Record<string, unknown> };
+
+/**
+ * Começa a devolução de um reembolso aprovado: 'loja' gera o código do balcão; 'motoboy' abre a
+ * corrida de volta (defeito ou produto errado: a loja paga) ou, no arrependimento, cobra a corrida
+ * do cliente por Pix antes de o motoboy sair. Usada pela escolha do cliente e pela aprovação da loja.
+ */
+async function applyReturnMode(rr: ReturnRequest, mode: 'loja' | 'motoboy'): Promise<ApplyResult> {
+  let points: Awaited<ReturnType<typeof returnRidePoints>> = null;
+  // Uma retirada sem sucesso já foi paga pela loja: daqui em diante, só "levo na loja".
+  if (mode === 'motoboy' && rr.pickupMissedAt) {
+    return { error: { status: 400, body: { error: 'Depois de uma retirada sem sucesso, a devolução é levando o produto na loja.', code: 'MODE_NOT_AVAILABLE' } } };
+  }
+  if (mode === 'motoboy') {
+    points = await returnRidePoints(rr.orderId);
+    if (!points) return { error: { status: 409, body: { error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' } } };
+    // Arrependimento: o cliente paga a corrida por Pix antes de o motoboy sair.
+    if (rr.reason === 'arrependimento') {
+      if (rr.status !== 'aprovado') return { error: 'conflict' };
+      const waiting = await startReturnFeeCharge(rr, points, 'aprovado');
+      return waiting ? { updated: waiting, body: serializeReturnRequest(waiting, 'customer') } : { error: 'conflict' };
+    }
+  }
+
+  // Motoboy: a marca de retirada sem sucesso é conferida no próprio UPDATE (não só na leitura acima).
+  const updated = await transition(rr.id, 'aprovado', { status: 'devolvendo', mode: mode as any, pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null },
+    mode === 'motoboy' ? { pickupMissedAt: null } : {});
+  if (!updated) return { error: 'conflict' };
+  if (points) {
+    try {
+      await createReturnRide(updated, points);
+    } catch (err) {
+      // A corrida não nasceu: volta a escolha para o cliente tentar de novo.
+      await prisma.returnRequest.updateMany({ where: { id: rr.id, status: 'devolvendo' }, data: { status: 'aprovado', mode: null, pin: null } });
+      throw err;
+    }
+  }
+  emitToRoom(`store:${updated.storeId}`, 'order:updated', { orderId: updated.orderId });
+  const ride = mode === 'motoboy' ? await rideSummary(updated.id, 'customer') : null;
+  return { updated, body: { ...serializeReturnRequest(updated, 'customer'), ...(ride ? { ride } : {}) } };
+}
+
 /** POST /return-requests/:id/approve — a loja aprova. */
 export const approveReturnRequest = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const loaded = await loadForStore(String(req.params.id), String(req.user?.id));
     if ('error' in loaded) return res.status(loaded.error.status).json(loaded.error.body);
-    const updated = await transition(loaded.rr.id, 'aguardando_loja', { status: 'aprovado', decidedAt: new Date() });
-    if (!updated) return conflict(res);
+    const approved = await transition(loaded.rr.id, 'aguardando_loja', { status: 'aprovado', decidedAt: new Date() });
+    if (!approved) return conflict(res);
+
+    // O cliente já disse como devolve: a devolução começa agora (corrida aos motoboys ou código do
+    // balcão). Se não der (endereço, conta da loja), fica aprovado e o cliente escolhe na tela.
+    let updated: ReturnRequest = approved;
+    if (approved.mode) {
+      try {
+        const applied = await applyReturnMode(approved, approved.mode as 'loja' | 'motoboy');
+        if ('updated' in applied) updated = applied.updated;
+      } catch (err) {
+        logger.warn('Reembolso aprovado, mas a devolução não começou sozinha', { returnRequestId: approved.id, error: (err as Error)?.message });
+      }
+      if (updated.status === 'aprovado') {
+        await prisma.returnRequest.updateMany({ where: { id: approved.id, status: 'aprovado' }, data: { mode: null } });
+        updated = { ...updated, mode: null };
+      }
+    }
+    const next = updated.status === 'devolvendo' && updated.mode === 'motoboy'
+      ? 'Já chamamos um motoboy para buscar o produto com você.'
+      : updated.status === 'devolvendo'
+        ? 'Leve o produto na loja e mostre o código de devolução que está no pedido.'
+        : updated.status === 'aguardando_pagamento'
+          ? 'Pague a corrida de volta pelo Pix no pedido para o motoboy buscar o produto.'
+          : 'Escolha como devolver o produto.';
     void notifyUser(updated.customerId, {
       title: 'Reembolso aprovado',
-      message: `A ${loaded.store.name} aprovou o seu reembolso. Escolha como devolver o produto.`,
+      message: `A ${loaded.store.name} aprovou o seu reembolso. ${next}`,
       link: CUSTOMER_LINKS.order(updated.orderId),
       entityId: updated.orderId,
       tag: 'reembolso',
@@ -251,38 +351,9 @@ export const chooseReturnMode = async (req: AuthenticatedRequest, res: Response)
       return res.json(serializeReturnRequest(switched, 'customer'));
     }
 
-    let points: Awaited<ReturnType<typeof returnRidePoints>> = null;
-    // Uma retirada sem sucesso já foi paga pela loja: daqui em diante, só "levo na loja".
-    if (mode === 'motoboy' && rr.pickupMissedAt) {
-      return res.status(400).json({ error: 'Depois de uma retirada sem sucesso, a devolução é levando o produto na loja.', code: 'MODE_NOT_AVAILABLE' });
-    }
-    if (mode === 'motoboy') {
-      points = await returnRidePoints(rr.orderId);
-      if (!points) return res.status(409).json({ error: 'Não achamos o endereço deste pedido. Leve o produto na loja ou fale com o suporte.', code: 'ADDRESS_MISSING' });
-      // Arrependimento: o cliente paga a corrida por Pix antes de o motoboy sair.
-      if (rr.reason === 'arrependimento') {
-        if (rr.status !== 'aprovado') return conflict(res);
-        const waiting = await startReturnFeeCharge(rr, points, 'aprovado');
-        return waiting ? res.json(serializeReturnRequest(waiting, 'customer')) : conflict(res);
-      }
-    }
-
-    // Motoboy: a marca de retirada sem sucesso é conferida no próprio UPDATE (não só na leitura acima).
-    const updated = await transition(rr.id, 'aprovado', { status: 'devolvendo', mode: mode as any, pin: generatePin(5), pinFailedAttempts: 0, pinLockedUntil: null },
-      mode === 'motoboy' ? { pickupMissedAt: null } : {});
-    if (!updated) return conflict(res);
-    if (points) {
-      try {
-        await createReturnRide(updated, points);
-      } catch (err) {
-        // A corrida não nasceu: volta a escolha para o cliente tentar de novo.
-        await prisma.returnRequest.updateMany({ where: { id: rr.id, status: 'devolvendo' }, data: { status: 'aprovado', mode: null, pin: null } });
-        throw err;
-      }
-    }
-    emitToRoom(`store:${updated.storeId}`, 'order:updated', { orderId: updated.orderId });
-    const ride = mode === 'motoboy' ? await rideSummary(updated.id, 'customer') : null;
-    return res.json({ ...serializeReturnRequest(updated, 'customer'), ...(ride ? { ride } : {}) });
+    const applied = await applyReturnMode(rr, mode);
+    if ('error' in applied) return applied.error === 'conflict' ? conflict(res) : res.status(applied.error.status).json(applied.error.body);
+    return res.json(applied.body);
   } catch (err) {
     // Cobrança da taxa recusada de forma conhecida (loja sem conta pronta, CPF faltando): repassa.
     if (err instanceof AppError && err.isOperational) return res.status(err.statusCode).json({ error: err.message, code: err.code });
@@ -336,7 +407,10 @@ export const confirmReturnRequest = async (req: AuthenticatedRequest, res: Respo
     const refundStatus = await settleReturnRefund(done, userId);
     void notifyUser(done.customerId, {
       title: 'Produto devolvido',
-      message: `A loja recebeu o produto. O estorno de ${brl(Number(done.amount))} foi pedido e volta pelo Pix que você usou.`,
+      // O cliente não precisa saber se a loja estava sem saldo: o estorno segue sendo tentado.
+      message: refundStatus === 'processed'
+        ? `A loja recebeu o produto. O estorno de ${brl(Number(done.amount))} foi feito e volta pelo Pix que você usou.`
+        : `A loja recebeu o produto. O estorno de ${brl(Number(done.amount))} está sendo processado e volta pelo Pix que você usou em até 7 dias.`,
       link: CUSTOMER_LINKS.order(done.orderId),
       entityId: done.orderId,
       tag: 'reembolso',

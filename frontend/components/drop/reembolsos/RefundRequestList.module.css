@@ -1,0 +1,66 @@
+/* Aba Reembolsos (Pedidos do cliente). Só tokens semânticos. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  text-align: left;
+  cursor: pointer;
+}
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.store {
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+.meta {
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.pill {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font: var(--text-caption);
+}
+.wait {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-text);
+}
+.action {
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary-subtle-text);
+}
+.done {
+  background: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+.denied {
+  background: var(--color-error-subtle);
+  color: var(--color-error-text);
+}
+.chev {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}

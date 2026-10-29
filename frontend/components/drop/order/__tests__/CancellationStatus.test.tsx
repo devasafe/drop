@@ -101,7 +101,7 @@ test('mostra aviso quando o reembolso falhou', () => {
       }}
     />
   );
-  expect(screen.getByRole('alert')).toHaveTextContent(/erro ao processar o reembolso/i);
+  expect(screen.getByRole('alert')).toHaveTextContent(/está sendo processado e volta para você em até 7 dias/i);
 });
 
 test('mostra o PIN de devolução quando presente', () => {

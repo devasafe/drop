@@ -206,7 +206,7 @@ export function CancellationStatusDisplay({
 
       {hasRefund && cancellation.refundStatus === 'failed' && (
         <div className="mt-3 p-2 bg-red-100 bg-opacity-50 rounded text-xs">
-          <Icon name="alert-triangle" size={14} /> Houve um erro ao processar o reembolso. Entre em contato com o suporte.
+          <Icon name="alert-triangle" size={14} /> O estorno está sendo processado e volta em até 7 dias.
         </div>
       )}
     </div>

@@ -458,6 +458,20 @@ export default function PedidoPage() {
               />
             )}
 
+            {/* Reembolso em andamento antes de tudo: é o que o cliente precisa fazer agora. */}
+            {returnable && ret.request && (
+              <ReturnRequestCard
+                request={ret.request}
+                storeName={order.storeName || 'loja'}
+                storeAddress={order.storeObj?.address}
+                paymentMethod={order.paymentMethod}
+                busy={ret.busy}
+                onChooseStore={() => handleChooseReturn('loja')}
+                onChooseMotoboy={() => handleChooseReturn('motoboy')}
+                onCheckFee={async () => { const r = await ret.checkFee(); if (!r.ok && r.error) showToast(r.error, 'info'); }}
+                onSupport={() => router.push(ROUTES.ajuda)}
+              />
+            )}
             {status === 'delivered' && (
               <Button
                 variant="secondary"
@@ -471,19 +485,6 @@ export default function PedidoPage() {
               <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoReciboHref(order._id))}>
                 Recibo da entrega
               </button>
-            )}
-            {returnable && ret.request && (
-              <ReturnRequestCard
-                request={ret.request}
-                storeName={order.storeName || 'loja'}
-                storeAddress={order.storeObj?.address}
-                paymentMethod={order.paymentMethod}
-                busy={ret.busy}
-                onChooseStore={() => handleChooseReturn('loja')}
-                onChooseMotoboy={() => handleChooseReturn('motoboy')}
-                onCheckFee={async () => { const r = await ret.checkFee(); if (!r.ok && r.error) showToast(r.error, 'info'); }}
-                onSupport={() => router.push(ROUTES.ajuda)}
-              />
             )}
             {returnable && ret.loaded && !ret.request && order.paymentStatus === 'paid' && (
               <button type="button" className={styles.linkBtn} onClick={() => router.push(pedidoReembolsoHref(order._id))}>

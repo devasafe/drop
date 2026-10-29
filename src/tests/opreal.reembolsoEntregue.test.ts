@@ -27,7 +27,7 @@ jest.mock('../utils/socketEmitter', () => {
 
 import request from 'supertest';
 import app from '../app';
-import asaasClient from '../services/asaas/client';
+import asaasClient, { AsaasApiError } from '../services/asaas/client';
 import { prisma } from '../lib/prisma';
 import { emitToRoom } from '../utils/socketEmitter';
 import { encryptSensitiveData } from '../utils/encryption';
@@ -126,6 +126,29 @@ describe('pedir reembolso de pedido entregue', () => {
     expect(emit.mock.calls.some((c) => c[0] === `store:${store.id}` && c[1] === 'order:updated')).toBe(true);
     expect(postAs).not.toHaveBeenCalled();
     expect((await prisma.order.findUnique({ where: { id: order.id } }))!.status).toBe('entregue');
+  });
+
+  it('aba Reembolsos: o cliente vê só os dele, com loja, código e situação', async () => {
+    const { cliente, order } = await entregue();
+    const outro = await entregue();
+    await pedir(order.id, cliente);
+    await pedir(outro.order.id, outro.cliente);
+    const r = await request(app).get('/api/return-requests/mine').set('Authorization', bearer(cliente));
+    expect(r.status).toBe(200);
+    expect(r.body).toHaveLength(1);
+    expect(r.body[0]).toMatchObject({
+      orderId: order.id, orderCode: order.id.slice(-6).toUpperCase(), storeName: 'Eletro Center', status: 'aguardando_loja', amount: 244,
+    });
+    expect(JSON.stringify(r.body)).not.toMatch(/pin|note|photo/i);
+    expect((await request(app).get('/api/return-requests/mine').set('Authorization', bearer(outro.dono))).status).toBe(403);
+  });
+
+  it('o pedido guarda como devolver; valor fora da lista é recusado', async () => {
+    const { cliente, order } = await entregue();
+    expect((await pedir(order.id, cliente, { reason: 'defeito', mode: 'helicoptero' })).status).toBe(400);
+    const r = await pedir(order.id, cliente, { reason: 'defeito', mode: 'loja' });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ status: 'aguardando_loja', mode: 'loja' });
   });
 
   it('arrependimento depois de 7 dias grava o valor sem a entrega', async () => {
@@ -255,6 +278,17 @@ describe('devolução e estorno', () => {
 
     expect((await acao(rr._id, 'confirm', dono, { pin })).status).toBe(409);
     expect(postAs).toHaveBeenCalledTimes(1);
+  });
+
+  it('loja sem saldo para o estorno: o cliente só fica sabendo que está sendo processado, em até 7 dias', async () => {
+    const { dono, cliente, order, rr } = await aprovado();
+    const pin = (await acao(rr._id, 'mode', cliente, { mode: 'loja' })).body.pin;
+    postAs.mockRejectedValue(new AsaasApiError(400, [{ code: 'invalid_action', description: 'Saldo insuficiente para estornar' }] as any));
+    const ok = await acao(rr._id, 'confirm', dono, { pin });
+    expect(ok.status).toBe(200);
+    expect(ok.body.refundStatus).toBe('pending');
+    const n = await aviso(cliente.userId, order.id, 'Produto devolvido');
+    expect(n?.message).toBe('A loja recebeu o produto. O estorno de R$ 244,00 está sendo processado e volta pelo Pix que você usou em até 7 dias.');
   });
 
   it('5 PINs errados travam a confirmação', async () => {

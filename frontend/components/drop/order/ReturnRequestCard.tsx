@@ -64,7 +64,7 @@ export function ReturnRequestCard({ request, storeName, storeAddress, paymentMet
     );
   }
   if (request.status === 'concluido') {
-    return <Alert tone="success" title="Produto devolvido">{`O estorno de ${amount} foi pedido e volta ${refundChannel(paymentMethod)}.`}</Alert>;
+    return <Alert tone="success" title="Produto devolvido">{`O estorno de ${amount} está sendo processado e volta ${refundChannel(paymentMethod)} em até 7 dias.`}</Alert>;
   }
   if (request.status === 'aguardando_pagamento') {
     const pix = request.feePix || {};

@@ -37,7 +37,7 @@ test('arrependimento depois de 7 dias: diz que a entrega não volta', async () =
   expect(screen.getByText(/a entrega já foi feita/)).toBeInTheDocument();
 });
 
-test('enviar manda motivo e comentário e volta para o pedido', async () => {
+test('enviar manda motivo, comentário e como devolver, e vai para a aba Reembolsos', async () => {
   render(<PedirReembolsoPage />);
   fireEvent.click(await screen.findByRole('radio', { name: /Veio diferente do pedido/ }));
   fireEvent.change(screen.getByLabelText(/Conte o que aconteceu/), { target: { value: 'Veio o preto, pedi o branco.' } });
@@ -48,7 +48,20 @@ test('enviar manda motivo e comentário e volta para o pedido', async () => {
   expect(body).toBeInstanceOf(FormData);
   expect((body as FormData).get('reason')).toBe('errado');
   expect((body as FormData).get('note')).toBe('Veio o preto, pedi o branco.');
-  await waitFor(() => expect(replace).toHaveBeenCalledWith('/pedido/abc123def456'));
+  expect((body as FormData).get('mode')).toBe('motoboy');
+  await waitFor(() => expect(replace).toHaveBeenCalledWith('/pedidos?tab=reembolsos'));
+});
+
+test('como devolver: motoboy por padrão; no arrependimento avisa que o cliente paga a corrida', async () => {
+  render(<PedirReembolsoPage />);
+  expect(await screen.findByRole('radio', { name: /Um motoboy busca comigo/ })).toBeChecked();
+  expect(screen.getByText('Grátis: a loja paga a corrida')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('radio', { name: /Me arrependi/ }));
+  expect(screen.getByText('Você paga a corrida por Pix depois que a loja aprovar')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('radio', { name: /Levo na loja/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido à loja' }));
+  await waitFor(() => expect(mockPost).toHaveBeenCalled());
+  expect((mockPost.mock.calls[0][1] as FormData).get('mode')).toBe('loja');
 });
 
 test('erro do servidor vira toast e fica na tela', async () => {

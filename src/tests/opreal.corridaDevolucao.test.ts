@@ -100,6 +100,40 @@ const motoboyMode = (rrId: string, who: any) =>
 const rideOf = (rrId: string) => prisma.delivery.findFirst({ where: { returnRequestId: rrId } as any });
 const getRR = (orderId: string, who: any) => request(app).get(`/api/orders/${orderId}/return-request`).set('Authorization', bearer(who));
 
+describe('a loja aprova e a devolução começa sozinha', () => {
+  const approve = (rrId: string, who: any) =>
+    request(app).post(`/api/return-requests/${rrId}/approve`).set('Authorization', bearer(who)).send({});
+
+  it('cliente pediu motoboy: aprovar já abre a corrida de volta no pool', async () => {
+    const { dono, cliente, order, rr } = await aprovado();
+    await prisma.returnRequest.update({ where: { id: rr.id }, data: { status: 'aguardando_loja', mode: 'motoboy' } });
+    const r = await approve(rr.id, dono);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ status: 'devolvendo', mode: 'motoboy' });
+    expect(await rideOf(rr.id)).toMatchObject({ kind: 'devolucao', status: 'pending', motoboyId: null, orderId: order.id });
+    expect(created).toHaveBeenCalledTimes(1);
+    const n = await prisma.notification.findFirst({ where: { userId: cliente.userId, title: 'Reembolso aprovado' } });
+    expect(n?.message).toContain('Já chamamos um motoboy');
+    expect(postAs).not.toHaveBeenCalled(); // o dinheiro só sai com o produto na loja
+  });
+
+  it('cliente pediu "levo na loja": aprovar já gera o código do balcão', async () => {
+    const { dono, cliente, order, rr } = await aprovado();
+    await prisma.returnRequest.update({ where: { id: rr.id }, data: { status: 'aguardando_loja', mode: 'loja' } });
+    expect((await approve(rr.id, dono)).body).toMatchObject({ status: 'devolvendo', mode: 'loja' });
+    expect((await getRR(order.id, cliente)).body.pin).toMatch(/^\d{5}$/);
+    expect(await rideOf(rr.id)).toBeNull();
+  });
+
+  it('sem endereço para a corrida: fica aprovado e o cliente escolhe na tela', async () => {
+    const { dono, order, rr } = await aprovado();
+    await prisma.order.update({ where: { id: order.id }, data: { customerLatitude: null, customerLongitude: null } as any });
+    await prisma.returnRequest.update({ where: { id: rr.id }, data: { status: 'aguardando_loja', mode: 'motoboy' } });
+    expect((await approve(rr.id, dono)).body).toMatchObject({ status: 'aprovado', mode: null });
+    expect(await rideOf(rr.id)).toBeNull();
+  });
+});
+
 describe('chamar um motoboy', () => {
   it('defeito: cria a corrida de devolução no pool (retirada na casa do cliente, destino na loja)', async () => {
     const { cliente, order, forward, rr } = await aprovado();

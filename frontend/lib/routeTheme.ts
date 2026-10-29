@@ -41,7 +41,7 @@ export const ADMIN_LIGHT_ROUTES: string[] = [
 ];
 
 // D2: perfil público do motoboy, visto pelo cliente: sempre claro (/motoboy/[id] em LIGHT_ROUTES). D3a: admin claro.
-export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES, ...ADMIN_LIGHT_ROUTES];
+export const LIGHT_ROUTES: string[] = ['/_styleguide', '/inicio', '/buscar', '/loja/[id]', '/produto/[id]', '/sacola', '/pedido/[id]', '/pedidos', '/conta', '/conta/carteira', '/login', '/register', '/esqueci-senha', '/categoria/[nome]', '/pedido/[id]/conversa', '/pedido/[id]/recibo', '/pedido/[id]/reembolso', '/conta/notificacoes', '/conta/ajuda', '/conta/privacidade', '/termos', '/privacidade', '/cookies', '/privacidade/solicitacoes', '/access-denied', '/404', '/500', '/dados-recebimento', '/motoboy/[id]', ...SELLER_LIGHT_ROUTES, ...ADMIN_LIGHT_ROUTES];
 
 /**
  * Painel do motoboy (fase D2): claro por padrão, escuro quando o motoboy liga o "Modo escuro" no Perfil.

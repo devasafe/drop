@@ -40,10 +40,10 @@ test('devolvendo: o código grande, a loja e quando o dinheiro sai', () => {
   expect(screen.getByText(/Sai quando a loja digitar o código\./)).toBeInTheDocument();
 });
 
-test('concluído: produto devolvido e estorno pedido', () => {
+test('concluído: produto devolvido e estorno em processamento, sem falar em erro', () => {
   render(<ReturnRequestCard {...props} request={{ ...base, status: 'concluido' }} />);
   expect(screen.getByText('Produto devolvido')).toBeInTheDocument();
-  expect(screen.getByText(/O estorno de R\$ 244,00 foi pedido/)).toBeInTheDocument();
+  expect(screen.getByText(/O estorno de R\$ 244,00 está sendo processado .* em até 7 dias/)).toBeInTheDocument();
 });
 
 describe('chamar um motoboy (fase 2b)', () => {

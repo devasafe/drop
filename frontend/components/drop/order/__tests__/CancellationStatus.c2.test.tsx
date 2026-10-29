@@ -37,9 +37,10 @@ it('modo direto devolvido: diz quando', () => {
   expect(screen.queryByText('Se demorar mais de 1 dia')).toBeNull();
 });
 
-it('reembolso que falhou: aviso com o suporte já avisado', () => {
+it('reembolso que falhou: o cliente só vê que está sendo processado, em até 7 dias', () => {
   render(<CancellationStatus cancellation={{ ...base, refundStatus: 'failed' }} />);
-  expect(screen.getByRole('alert')).toHaveTextContent('O suporte já foi avisado e resolve com prioridade.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Seu estorno está sendo processado e volta para você em até 7 dias.');
+  expect(screen.queryByText(/erro|Asaas|precisa de ajuda/i)).not.toBeInTheDocument();
 });
 
 it.each(['conferindo', 'resolvendo'] as const)('modo direto "%s": não promete prazo', (stage) => {

@@ -156,7 +156,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
     ? [
         { label: 'Pedido cancelado', time: hhmm(cancellation.createdAt), state: 'done' },
         { label: 'Devolução pedida à conta da loja', time: hhmm(direct.requestedAt), state: 'done' },
-        { label: 'Asaas processando o Pix de volta', time: hhmm(direct.acceptedAt), state: direct.stage === 'devolvido' ? 'done' : 'current' },
+        { label: 'Processando o Pix de volta', time: hhmm(direct.acceptedAt), state: direct.stage === 'devolvido' ? 'done' : 'current' },
         { label: 'Dinheiro na sua conta', time: hhmm(direct.doneAt), state: direct.stage === 'devolvido' ? 'done' : 'upcoming' },
       ]
     : null;
@@ -191,7 +191,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
       ) : (
         cancellation.refundAmount !== undefined && (
           <p className={styles.big}>
-            {processed ? 'Estorno concluído' : failed ? 'Seu estorno precisa de ajuda' : 'Seu dinheiro está voltando'}
+            {processed ? 'Estorno concluído' : 'Seu dinheiro está voltando'}
           </p>
         )
       )}
@@ -227,7 +227,7 @@ export function CancellationStatus({ cancellation, direct, storeName, paymentMet
       {cancellation.refundStatus === 'failed' && (
         <div className={styles.warning} role="alert">
           <AlertTriangle size={14} strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" />
-          <span>Houve um erro ao processar o reembolso. O suporte já foi avisado e resolve com prioridade.</span>
+          <span>Seu estorno está sendo processado e volta para você em até 7 dias.</span>
         </div>
       )}
 
