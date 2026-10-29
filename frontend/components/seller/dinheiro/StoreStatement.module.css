@@ -110,8 +110,69 @@
   color: var(--color-text-primary);
   overflow-wrap: anywhere;
 }
-.rowLabel a {
+.orderLink {
+  font: var(--text-caption);
   color: var(--color-text-link);
+}
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  font: var(--text-meta);
+  color: var(--color-text-secondary);
+}
+.summary b {
+  font: var(--text-price-sm);
+}
+.orderGroup {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+.orderHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.orderTitle {
+  margin: 0;
+  font: var(--text-label);
+  color: var(--color-text-primary);
+}
+.orderTitle a {
+  color: var(--color-text-link);
+}
+.orderMeta {
+  grid-row: 2;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+}
+.orderHead > .in,
+.orderHead > .out {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
 }
 .in,
 .out {
@@ -127,6 +188,7 @@
 }
 .after {
   grid-column: 2;
+  grid-row: 2;
   font: var(--text-caption);
   color: var(--color-text-muted);
   text-align: right;

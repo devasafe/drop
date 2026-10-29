@@ -97,13 +97,45 @@ describe('extrato', () => {
     const d = r.body.data;
     const code = order.id.slice(-6).toUpperCase();
     expect(d.items.map((i: any) => i.label)).toEqual([
-      'Pix devolvido', 'Pix enviado', `Frete ao motoboy · Pedido #${code}`, `Taxa do Pix da venda · Pedido #${code}`, `Venda · Pedido #${code}`,
+      'Pix enviado que voltou', 'Pix enviado', `Frete ao motoboy · Pedido #${code}`, `Taxa do Pix da venda · Pedido #${code}`, `Venda · Pedido #${code}`,
     ]);
-    expect(d.items[4]).toMatchObject({ orderId: order.id, value: 15.23, balance: 15.23 });
+    expect(d.items[4]).toMatchObject({ kind: 'sale', title: 'Venda', orderId: order.id, orderCode: code, value: 15.23, balance: 15.23 });
+    expect(d.items.map((i: any) => i.kind)).toEqual(['pix', 'pix', 'motoboy', 'fee', 'sale']);
     expect(d).toMatchObject({ balance: 8.01, reserved: { motoboys: 5.23, refunds: 0, withdrawals: 0, total: 5.23 }, available: 2.78, withdrawTo: '***.***.***-25' });
     expect(JSON.stringify(d)).not.toMatch(/Asaas|fatura|52998224725/i);
     const qs = getAs.mock.calls.find((c) => String(c[1]).startsWith('/financialTransactions'))![1];
     expect(qs).toMatch(/limit=50/);
+  });
+
+  it('Pix sem id no banco: a referência da transferência no Asaas diz se foi frete ou saque', async () => {
+    const s = await setup();
+    const order = await prisma.order.create({ data: { customerId: s.other.userId, storeId: s.store.id, totalValue: 10, subtotal: 5, deliveryFee: 5 } as any });
+    const frete = await motoboyTransfer(s.store.id, s.motoboy.userId, 'failed', 5.25, { orderId: order.id });
+    const saqueRow = await prisma.storeWithdrawal.create({
+      data: { storeId: s.store.id, requestedBy: s.owner.userId, amount: 3, status: 'failed', pixKeyEncrypted: encryptSensitiveData(OWNER_CPF), pixKeyType: 'CPF' } as any,
+    });
+    transactions.push(
+      { id: 'ftn_000000000011', date: '2026-10-28', type: 'TRANSFER', value: -5.25, balance: 4.75, transferId: 'tra_lost' },
+      { id: 'ftn_000000000012', date: '2026-10-28', type: 'PIX_TRANSACTION_DEBIT_REFUND', value: 5.25, balance: 10, transferId: 'tra_lost' },
+      { id: 'ftn_000000000013', date: '2026-10-28', type: 'TRANSFER', value: -3, balance: 7, transferId: 'tra_saque_lost' },
+      { id: 'ftn_000000000014', date: '2026-10-28', type: 'TRANSFER', value: -1, balance: 6, transferId: 'tra_alheio' },
+    );
+    const base = getAs.getMockImplementation()!;
+    getAs.mockImplementation(async (k: string, path: string) => {
+      if (path === '/transfers/tra_lost') return { externalReference: frete.id };
+      if (path === '/transfers/tra_saque_lost') return { externalReference: saqueRow.id };
+      if (path === '/transfers/tra_alheio') return { externalReference: 'outra-coisa' };
+      return base(k, path);
+    });
+
+    const d = (await extrato(s.store.id, s.owner)).body.data;
+    const code = order.id.slice(-6).toUpperCase();
+    expect(d.items.map((i: any) => i.label)).toEqual([
+      'Pix enviado', 'Saque para seu Pix', `Frete ao motoboy voltou · Pedido #${code}`, `Frete ao motoboy · Pedido #${code}`,
+    ]);
+    expect(d.items.map((i: any) => i.kind)).toEqual(['pix', 'withdrawal', 'motoboy', 'motoboy']);
+    // uma consulta por transferência, mesmo com duas linhas da mesma
+    expect(getAs.mock.calls.filter((c) => String(c[1]).startsWith('/transfers/'))).toHaveLength(3);
   });
 
   it('só o dono da loja vê o extrato', async () => {

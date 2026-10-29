@@ -105,11 +105,19 @@ interface AsaasTransaction {
   transferId?: string | null;
 }
 
+/** Grupo da linha no extrato, para a tela filtrar. */
+export type StatementKind = 'sale' | 'fee' | 'motoboy' | 'withdrawal' | 'refund' | 'pix' | 'other';
+
 export interface StatementItem {
   id: string;
   date: string;
+  kind: StatementKind;
+  /** O que foi, sem o pedido ("Frete ao motoboy"). */
+  title: string;
+  /** Título com o pedido ("Frete ao motoboy · Pedido #ABC123"). */
   label: string;
   orderId: string | null;
+  orderCode: string | null;
   value: number;
   balance: number;
 }
@@ -129,33 +137,78 @@ const idNum = (id: string) => Number(String(id).replace(/\D/g, '')) || 0;
 /**
  * Traduz uma linha do extrato do Asaas. `orderByPayment` e `transferKind` vêm do banco da DROP:
  * a venda ganha o número do pedido, e o Pix enviado vira "Frete ao motoboy" ou "Saque".
+ * `kind` agrupa a linha para os filtros da tela.
  */
 export function describeTransaction(
   t: AsaasTransaction,
   orderByPayment: Map<string, string>,
   transferKind: Map<string, { kind: 'motoboy' | 'withdrawal'; orderId?: string }>,
 ): StatementItem {
-  const orderId = (t.paymentId && orderByPayment.get(t.paymentId)) || null;
   const transfer = t.transferId ? transferKind.get(t.transferId) : undefined;
-  const onOrder = (label: string, id: string | null | undefined) => (id ? `${label} · Pedido #${orderCode(id)}` : label);
-  let label: string;
-  let linkedOrder: string | null = orderId;
-  if (t.type === 'PAYMENT_RECEIVED') label = onOrder('Venda', orderId);
-  else if (t.type === 'PAYMENT_FEE') label = onOrder('Taxa do Pix da venda', orderId);
-  else if (NOTICE_FEES.has(t.type)) label = onOrder('Taxa de aviso ao cliente', orderId);
-  else if (t.type === 'PAYMENT_REVERSAL') label = onOrder('Estorno ao cliente', orderId);
-  else if (t.type === 'PAYMENT_FEE_REVERSAL') label = onOrder('Taxa da venda devolvida', orderId);
-  else if (t.type === 'TRANSFER_FEE') label = 'Taxa do Pix enviado';
+  let orderId: string | null = (t.paymentId && orderByPayment.get(t.paymentId)) || null;
+  let kind: StatementKind;
+  let title: string;
+  if (t.type === 'PAYMENT_RECEIVED') { kind = 'sale'; title = 'Venda'; }
+  else if (t.type === 'PAYMENT_FEE') { kind = 'fee'; title = 'Taxa do Pix da venda'; }
+  else if (NOTICE_FEES.has(t.type)) { kind = 'fee'; title = 'Taxa de aviso ao cliente'; }
+  else if (t.type === 'PAYMENT_REVERSAL') { kind = 'refund'; title = 'Estorno ao cliente'; }
+  else if (t.type === 'PAYMENT_FEE_REVERSAL') { kind = 'fee'; title = 'Taxa da venda devolvida'; }
+  else if (t.type === 'TRANSFER_FEE') { kind = 'fee'; title = 'Taxa do Pix enviado'; }
   else if (t.type === 'TRANSFER' || PIX_BACK.has(t.type) || (t.transferId && Number(t.value) > 0)) {
+    // "Voltou" = o banco devolveu um Pix que a loja tinha enviado (chave errada, recusa).
     const back = t.type !== 'TRANSFER';
-    linkedOrder = transfer?.orderId ?? null;
-    if (transfer?.kind === 'motoboy') label = onOrder(back ? 'Frete ao motoboy devolvido' : 'Frete ao motoboy', transfer.orderId);
-    else if (transfer?.kind === 'withdrawal') label = back ? 'Saque devolvido' : 'Saque para seu Pix';
-    else label = back ? 'Pix devolvido' : 'Pix enviado';
-  } else if (t.type === 'PIX_TRANSACTION_CREDIT') label = 'Pix recebido';
-  else if (t.type === 'CHARGEBACK') label = onOrder('Contestação de pagamento', orderId);
-  else label = cleanDescription(t.description);
-  return { id: t.id, date: t.date, label, orderId: linkedOrder, value: Number(t.value) || 0, balance: Number(t.balance) || 0 };
+    orderId = transfer?.orderId ?? null;
+    if (transfer?.kind === 'motoboy') { kind = 'motoboy'; title = back ? 'Frete ao motoboy voltou' : 'Frete ao motoboy'; }
+    else if (transfer?.kind === 'withdrawal') { kind = 'withdrawal'; title = back ? 'Saque voltou' : 'Saque para seu Pix'; }
+    else { kind = 'pix'; title = back ? 'Pix enviado que voltou' : 'Pix enviado'; }
+  } else if (t.type === 'PIX_TRANSACTION_CREDIT') { kind = 'other'; title = 'Pix recebido'; }
+  else if (t.type === 'CHARGEBACK') { kind = 'refund'; title = 'Contestação de pagamento'; }
+  else { kind = 'other'; title = cleanDescription(t.description); }
+  const code = orderId ? orderCode(orderId) : null;
+  return {
+    id: t.id, date: t.date, kind, title, label: code ? `${title} · Pedido #${code}` : title,
+    orderId, orderCode: code, value: Number(t.value) || 0, balance: Number(t.balance) || 0,
+  };
+}
+
+/** Quantos Pix sem dono no banco a DROP consulta no Asaas por página do extrato. */
+const TRANSFER_LOOKUPS = 10;
+
+/**
+ * Pix que o extrato não liga a nada (id trocado numa nova tentativa, resposta perdida): pergunta ao
+ * Asaas a referência da transferência, que é o id do frete ou do saque na DROP.
+ */
+async function lookupTransfers(
+  storeId: string,
+  apiKey: string,
+  transferIds: string[],
+  transferKind: Map<string, { kind: 'motoboy' | 'withdrawal'; orderId?: string }>,
+): Promise<void> {
+  const missing = transferIds.filter((id) => !transferKind.has(id)).slice(0, TRANSFER_LOOKUPS);
+  if (!missing.length) return;
+  const refs = new Map<string, string>();
+  await Promise.all(missing.map(async (id) => {
+    try {
+      const tr = await asaasClient.getAs<{ externalReference?: string | null }>(apiKey, `/transfers/${encodeURIComponent(id)}`);
+      const ref = typeof tr?.externalReference === 'string' ? tr.externalReference.trim() : '';
+      if (ref) refs.set(id, ref);
+    } catch {
+      // sem a consulta a linha fica como "Pix enviado"
+    }
+  }));
+  if (!refs.size) return;
+  const ids = [...new Set(refs.values())];
+  const [motoboys, withdrawals] = await Promise.all([
+    prisma.motoboyTransfer.findMany({ where: { storeId, id: { in: ids } }, select: { id: true, orderId: true } }),
+    prisma.storeWithdrawal.findMany({ where: { storeId, id: { in: ids } }, select: { id: true } }),
+  ]);
+  const byRef = new Map<string, { kind: 'motoboy' | 'withdrawal'; orderId?: string }>();
+  for (const m of motoboys) byRef.set(m.id, { kind: 'motoboy', orderId: m.orderId });
+  for (const w of withdrawals) byRef.set(w.id, { kind: 'withdrawal' });
+  for (const [transferId, ref] of refs) {
+    const hit = byRef.get(ref);
+    if (hit) transferKind.set(transferId, hit);
+  }
 }
 
 function daysAgo(days: number, now: Date): string {
@@ -206,6 +259,7 @@ export async function getStoreStatement(storeId: string, opts: { days?: number; 
     for (const id of [m.asaasTransferId, ...(m.previousAsaasTransferIds ?? [])]) if (id) transferKind.set(id, { kind: 'motoboy', orderId: m.orderId });
   }
   for (const w of withdrawals) if (w.asaasTransferId) transferKind.set(w.asaasTransferId, { kind: 'withdrawal' });
+  await lookupTransfers(storeId, apiKey, transferIds, transferKind);
 
   const items = rows
     .map((r) => describeTransaction(r, orderByPayment, transferKind))

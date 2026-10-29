@@ -17,9 +17,10 @@ const statement = (over: any = {}) => ({
   hasMore: false,
   days: 30,
   items: [
-    { id: 'f3', date: '2026-10-28', label: 'Frete ao motoboy · Pedido #ABC123', orderId: 'o1', value: -5.23, balance: 11.26 },
-    { id: 'f2', date: '2026-10-28', label: 'Taxa do Pix da venda · Pedido #ABC123', orderId: 'o1', value: -1.99, balance: 16.49 },
-    { id: 'f1', date: '2026-10-27', label: 'Venda · Pedido #ABC123', orderId: 'o1', value: 18.48, balance: 18.48 },
+    { id: 'f4', date: '2026-10-28', kind: 'pix', title: 'Pix enviado', label: 'Pix enviado', orderId: null, orderCode: null, value: -1, balance: 10.26 },
+    { id: 'f3', date: '2026-10-28', kind: 'motoboy', title: 'Frete ao motoboy', label: 'Frete ao motoboy · Pedido #ABC123', orderId: 'o1', orderCode: 'ABC123', value: -5.23, balance: 11.26 },
+    { id: 'f2', date: '2026-10-28', kind: 'fee', title: 'Taxa do Pix da venda', label: 'Taxa do Pix da venda · Pedido #ABC123', orderId: 'o1', orderCode: 'ABC123', value: -1.99, balance: 16.49 },
+    { id: 'f1', date: '2026-10-27', kind: 'sale', title: 'Venda', label: 'Venda · Pedido #ABC123', orderId: 'o1', orderCode: 'ABC123', value: 18.48, balance: 18.48 },
   ],
   ...over,
 });
@@ -34,12 +35,42 @@ test('saldo, quanto pode sacar, o que fica guardado e o extrato por dia, sem fal
   expect(await screen.findByText('R$ 11,26')).toBeInTheDocument();
   expect(screen.getByText('Disponível para sacar: R$ 6,03')).toBeInTheDocument();
   expect(screen.getByText('R$ 5,23 ficam guardados para fretes de motoboy que ainda vão sair.')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Venda · Pedido #ABC123' })).toHaveAttribute('href', '/seller/pedido/o1');
+  expect(screen.getByText('Venda')).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: 'Pedido #ABC123' })[0]).toHaveAttribute('href', '/seller/pedido/o1');
   expect(screen.getByText('+ R$ 18,48')).toBeInTheDocument();
   expect(screen.getByText('− R$ 1,99')).toBeInTheDocument();
   expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(2);
   expect(container.textContent).not.toMatch(/Asaas/);
   expect(get).toHaveBeenCalledWith('/stores/s1/asaas/extrato?days=30');
+});
+
+test('filtra por tipo e soma o que entrou e saiu', async () => {
+  render(<StoreStatement storeId="s1" minimum={1} />);
+  await screen.findByText('R$ 11,26');
+  expect(screen.getByText('Saiu').querySelector('b')).toHaveTextContent('R$ 8,22');
+  fireEvent.click(screen.getByRole('button', { name: 'Taxas' }));
+  expect(screen.getByText('Taxa do Pix da venda')).toBeInTheDocument();
+  expect(screen.queryByText('Venda')).not.toBeInTheDocument();
+  expect(screen.queryByText('Frete ao motoboy')).not.toBeInTheDocument();
+  expect(screen.getByText('Saiu').querySelector('b')).toHaveTextContent('R$ 1,99');
+  expect(screen.queryByRole('button', { name: 'Saques' })).not.toBeInTheDocument();
+});
+
+test('por pedido junta venda, taxa e frete e mostra quanto ficou', async () => {
+  render(<StoreStatement storeId="s1" minimum={1} />);
+  await screen.findByText('R$ 11,26');
+  fireEvent.click(screen.getByRole('button', { name: 'Por pedido' }));
+  const heads = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+  expect(heads).toEqual(['Pedido #ABC123', 'Sem pedido']);
+  expect(screen.getByText('Ficou + R$ 11,26')).toBeInTheDocument();
+  expect(screen.queryByText(/^Saldo R\$ /)).not.toBeInTheDocument();
+});
+
+test('ordem invertida mostra o mais antigo primeiro', async () => {
+  render(<StoreStatement storeId="s1" minimum={1} />);
+  await screen.findByText('R$ 11,26');
+  fireEvent.click(screen.getByRole('button', { name: 'Mais recentes primeiro' }));
+  expect(screen.getAllByRole('heading', { level: 3 })[0]).toHaveTextContent('27 de out');
 });
 
 test('o valor guardado diz para o que é', async () => {
