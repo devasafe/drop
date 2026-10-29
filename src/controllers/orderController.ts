@@ -50,6 +50,7 @@ import { isDirectMode, isDirectOrder } from '../utils/settlement';
 import { precheckDirectOrder, finishDirectOrder, sendAppError, directDeliveryFee } from '../services/asaasLoja/directCheckout';
 import { precheckBuyerCpf } from '../utils/buyerCpf';
 import { AppError } from '../utils/AppError';
+import { platformMinOrder, effectiveMinOrder, assertMinOrder } from '../services/minOrder';
 import { isStorePaused } from '../utils/storeOpen';
 import { isAdminPaused, STORE_ADMIN_PAUSED_CUSTOMER_MESSAGE } from '../services/adminAccounts/storePause';
 import { assertProductsActive, pausedProductError } from '../services/catalog/activeProduct';
@@ -394,6 +395,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
     if (subtotal <= 0) {
       await restoreStock(items);
       return res.status(400).json({ error: 'Subtotal inválido' });
+    }
+
+    // Pedido mínimo nos produtos (antes do cupom): abaixo dele a taxa do Pix come a venda.
+    try {
+      assertMinOrder(subtotal, effectiveMinOrder(storeForCheck.minOrderValue, await platformMinOrder()));
+    } catch (e) {
+      await restoreStock(items);
+      if (e instanceof AppError && e.code) return sendAppError(res, e);
+      throw e;
     }
 
     // Aplicar cupom de desconto (se informado)

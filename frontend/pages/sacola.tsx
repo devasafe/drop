@@ -140,11 +140,15 @@ export default function SacolaPage() {
   // nos demais planos a cotação já exige o endereço).
   const canPlace = c.canPlace && (!c.isPlan1 || !!c.address.selected);
 
+  // Pedido mínimo da loja, só nos produtos (o servidor confere de novo e recusa com 409).
+  const minOrder = c.store?.minOrderValue ?? 0;
+  const minMissing = Math.max(0, Math.round((minOrder - c.subtotal) * 100) / 100);
   const hint = storePaused ? 'A loja não está recebendo pedidos agora'
     : storeGone?.reason === 'gone' ? STORE_GONE_MSG
     : c.storeLookupFailed ? STORE_LOOKUP_FAILED_MSG
     : prices.status === 'checking' ? PRICES_CHECKING_MSG
     : prices.status === 'failed' ? PRICES_FAILED_MSG
+    : minMissing > 0 ? `Faltam ${formatMoney(minMissing)} para o pedido mínimo`
     : !canPlace && !c.address.selected ? 'Adicione um endereço de entrega'
     : c.storeOpen === false ? 'A loja está fechada agora'
     : c.outOfArea ? 'Esta loja não entrega nesse endereço'
@@ -232,6 +236,15 @@ export default function SacolaPage() {
             {!storePaused && !storeGone && c.storeLookupFailed && (
               <Alert tone="error" title={STORE_LOOKUP_FAILED_MSG} action={{ label: 'Tentar de novo', onClick: c.retryStoreLookup }}>
                 Sem os dados da loja não dá para calcular a entrega.
+              </Alert>
+            )}
+            {!storePaused && !storeGone && minMissing > 0 && (
+              <Alert
+                tone="info"
+                title={`Pedido mínimo de ${formatMoney(minOrder)}`}
+                action={c.store?._id ? { label: 'Adicionar mais', onClick: () => router.push(lojaHref(c.store!._id)) } : undefined}
+              >
+                {`Faltam ${formatMoney(minMissing)} em produtos para pedir nesta loja. A entrega não conta.`}
               </Alert>
             )}
             {prices.status === 'failed' && (

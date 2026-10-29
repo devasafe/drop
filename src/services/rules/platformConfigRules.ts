@@ -28,6 +28,7 @@ export const PLATFORM_CONFIG_RULES = {
   motoboyCommissionPercent: { label: 'Parte do DROP na entrega', kind: 'percent' },
   motoboyMinimumWithdraw: { label: 'Saque mínimo do motoboy', kind: 'bigMoney' },
   storeMinimumWithdraw: { label: 'Saque mínimo da loja', kind: 'bigMoney' },
+  minOrderValue: { label: 'Pedido mínimo', kind: 'money' },
   lateCancellationFeePercent: { label: 'Multa por cancelamento tardio', kind: 'percent' },
   lateCancellationMotoboyShare: { label: 'Parte da multa para o motoboy', kind: 'percent' },
   cancelFeeCustomerPercent: { label: 'Cancelamento do cliente', kind: 'percent' },

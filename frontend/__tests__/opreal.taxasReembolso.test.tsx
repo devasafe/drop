@@ -7,7 +7,7 @@ import { TaxasTab } from '../components/admin/regras/TaxasTab';
 
 const cfg = {
   commissionPlan1: 5, commissionPlan2: 10, commissionPlan3: 15, motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyCommissionPercent: 10,
-  motoboyMinimumWithdraw: 20, storeMinimumWithdraw: 50, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
+  motoboyMinimumWithdraw: 20, storeMinimumWithdraw: 50, minOrderValue: 5, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15, lateCancellationFeePercent: 10, lateCancellationMotoboyShare: 50,
   cardFeePercent: 4, cardFeeFixed: 0.49, cardAnticipationMonthlyRate: 2, cardInstallmentMaxCount: 12, cardInstallmentMinValue: 10,
   returnFullRefundDays: 7, returnStoreResponseHours: 48, settlementMode: 'direto', updatedAt: '2026-10-25T10:00:00Z',

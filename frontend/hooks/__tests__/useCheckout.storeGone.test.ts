@@ -52,7 +52,7 @@ test('outro 404: loja não existe mais', async () => {
 test('a loja existe (a lista falhou): usa o detalhe como loja da sacola', async () => {
   mockStore(() => Promise.resolve({ data: { _id: 's1', name: 'Eletro Center', plan: 2, latitude: '-22.9', longitude: '-43.2' } }));
   const { result } = renderHook(() => useCheckout());
-  await waitFor(() => expect(result.current.store).toEqual({ _id: 's1', name: 'Eletro Center', plan: 2 }));
+  await waitFor(() => expect(result.current.store).toEqual({ _id: 's1', name: 'Eletro Center', plan: 2, minOrderValue: 0 }));
   expect(result.current.storeGone).toBeNull();
 });
 

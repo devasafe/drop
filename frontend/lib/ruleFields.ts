@@ -20,6 +20,7 @@ export const RULE_FIELDS: Record<string, RuleFieldInfo> = {
   motoboyCommissionPercent: pct('Parte do DROP na entrega'),
   motoboyMinimumWithdraw: money('Saque mínimo do motoboy', 100000),
   storeMinimumWithdraw: money('Saque mínimo da loja', 100000),
+  minOrderValue: money('Pedido mínimo'),
   lateCancellationFeePercent: pct('Multa por cancelamento tardio'),
   lateCancellationMotoboyShare: pct('Parte da multa para o motoboy'),
   cancelFeeCustomerPercent: pct('Cancelamento do cliente'),

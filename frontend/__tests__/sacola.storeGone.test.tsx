@@ -64,3 +64,23 @@ test('falha ao consultar a loja: diz e oferece "Tentar de novo"', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
   expect(retryStoreLookup).toHaveBeenCalled();
 });
+
+test('produtos abaixo do pedido mínimo: diz quanto falta e trava o pagamento', () => {
+  mocked.mockReturnValue(hook({
+    store: { _id: 's1', name: 'Eletro Center', plan: 3, minOrderValue: 15 },
+    items: [{ productId: 'p1', quantity: 1, price: 9.5, name: 'Cabo', storeId: 's1' }],
+    subtotal: 9.5, total: 9.5, canPlace: true,
+  }));
+  render(<SacolaPage />);
+  expect(screen.getByText('Pedido mínimo de R$ 15,00')).toBeInTheDocument();
+  expect(screen.getByText('Faltam R$ 5,50 em produtos para pedir nesta loja. A entrega não conta.')).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: /Pagar/ }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Adicionar mais' }));
+  expect(push).toHaveBeenCalledWith(expect.stringContaining('s1'));
+});
+
+test('produtos no pedido mínimo: sem aviso', () => {
+  mocked.mockReturnValue(hook({ store: { _id: 's1', name: 'Eletro Center', plan: 3, minOrderValue: 15 }, subtotal: 15, total: 15, canPlace: true }));
+  render(<SacolaPage />);
+  expect(screen.queryByText(/Pedido mínimo de/)).toBeNull();
+});

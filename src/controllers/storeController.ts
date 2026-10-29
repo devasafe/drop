@@ -31,6 +31,7 @@ import { getPlatformConfig } from '../repositories/platformConfig.repository';
 import { acceptDeadline, isAwaitingStoreAccept, storeAcceptTimeoutMin } from '../utils/acceptDeadline';
 import { isDirectMode } from '../utils/settlement';
 import { SAAS_PLAN } from '../utils/effectivePlan';
+import { platformMinOrder } from '../services/minOrder';
 
 // Painel do lojista: métricas e pedidos
 export const dashboard = async (req: AuthenticatedRequest, res: Response) => {
@@ -372,6 +373,7 @@ export const createStore = async (req: AuthenticatedRequest, res: Response) => {
 const storeDeliverySettingsSchema = z.object({
   deliveryRadiusKm: z.number({ invalid_type_error: 'Raio de entrega inválido' }).min(1, 'O raio de entrega mínimo é 1 km').max(50, 'O raio de entrega máximo é 50 km').nullable().optional(),
   prepMinutes: z.number({ invalid_type_error: 'Tempo de preparo inválido' }).int('O tempo de preparo deve ser em minutos inteiros').min(0, 'O tempo de preparo mínimo é 0 min').max(180, 'O tempo de preparo máximo é 180 min').nullable().optional(),
+  minOrderValue: z.number({ invalid_type_error: 'Pedido mínimo inválido' }).min(0, 'Pedido mínimo inválido').max(1000, 'O pedido mínimo pode ser até R$ 1.000').nullable().optional(),
 });
 
 // Atualizar endereço e dados da loja
@@ -393,11 +395,12 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
 
     // Raio de entrega e tempo de preparo (null = volta ao padrão da plataforma).
     // O raio só pode diminuir o padrão; o servidor valida, o front só sugere.
-    const deliverySettings: { deliveryRadiusKm?: number | null; prepMinutes?: number | null } = {};
-    if (req.body.deliveryRadiusKm !== undefined || req.body.prepMinutes !== undefined) {
+    const deliverySettings: { deliveryRadiusKm?: number | null; prepMinutes?: number | null; minOrderValue?: number | null } = {};
+    if (req.body.deliveryRadiusKm !== undefined || req.body.prepMinutes !== undefined || req.body.minOrderValue !== undefined) {
       const parsedSettings = storeDeliverySettingsSchema.safeParse({
         deliveryRadiusKm: req.body.deliveryRadiusKm,
         prepMinutes: req.body.prepMinutes,
+        minOrderValue: req.body.minOrderValue,
       });
       if (!parsedSettings.success) {
         return res.status(400).json({ error: parsedSettings.error.issues[0]?.message || 'Configuração de entrega inválida' });
@@ -411,6 +414,15 @@ export const updateStore = async (req: AuthenticatedRequest, res: Response) => {
       }
       if (radius !== undefined) deliverySettings.deliveryRadiusKm = radius;
       if (parsedSettings.data.prepMinutes !== undefined) deliverySettings.prepMinutes = parsedSettings.data.prepMinutes;
+      // Pedido mínimo: a loja só sobe o da plataforma (null volta ao da plataforma).
+      const minOrder = parsedSettings.data.minOrderValue;
+      if (minOrder != null) {
+        const floor = await platformMinOrder();
+        if (Math.round(minOrder * 100) < Math.round(floor * 100)) {
+          return res.status(400).json({ error: `O pedido mínimo não pode ser menor que R$ ${floor.toFixed(2).replace('.', ',')} (mínimo da DROP)` });
+        }
+        deliverySettings.minOrderValue = Math.round(minOrder * 100) / 100;
+      } else if (minOrder === null) deliverySettings.minOrderValue = null;
     }
 
     // ✅ KYC: editar endereço/CNPJ exige reverificação do item correspondente.
@@ -497,7 +509,8 @@ export const listStores = async (_req: Request, res: Response) => {
     const found = await prisma.store.findMany({ where: filter });
     const direct = await isDirectMode();
     // Rota pública: só o serializer de vitrine (nunca asaas/cnpj/verification/apiConfig).
-    return res.json(await withStoreRatings(found.map((s) => toPublicStore(s, { direct }))));
+    const minOrder = await platformMinOrder();
+    return res.json(await withStoreRatings(found.map((s) => toPublicStore(s, { direct, platformMinOrder: minOrder }))));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -763,7 +776,7 @@ export const getStore = async (req: Request<{ idOrSlug: string }>, res: Response
         store: { _id: store.id, id: store.id, name: store.name, neighborhood: store.neighborhood ?? null, city: store.city ?? null },
       });
     }
-    const [rated] = await withStoreRatings([toPublicStore(store, { direct: await isDirectMode() })]);
+    const [rated] = await withStoreRatings([toPublicStore(store, { direct: await isDirectMode(), platformMinOrder: await platformMinOrder() })]);
     // D1: aberta agora = toggle + pausa + horário (mesmas regras da vitrine e do checkout).
     const publicCoupons = await findPublicCouponsForStore(store.id);
     return res.json({ ...rated, isOpenNow: isStoreOpenWithHoursNow(store), publicCoupons });

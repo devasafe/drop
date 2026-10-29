@@ -1,4 +1,5 @@
 import { SAAS_PLAN } from '../utils/effectivePlan';
+import { effectiveMinOrder } from '../services/minOrder';
 /**
  * Serializers de Store. NUNCA devolver o registro do Prisma direto: ele carrega
  * `asaas` (apiKey cifrada da subconta, walletId, chave PIX), `verification`
@@ -20,7 +21,7 @@ const PUBLIC_STORE_FIELDS = [
  * `direct`: modo SaaS, sem planos — toda loja sai como Plano 3 (banner da Home incluído). Quem
  * chama lê o modo uma vez (isDirectMode) e repassa.
  */
-export function toPublicStore(store: any, opts: { direct?: boolean } = {}): any {
+export function toPublicStore(store: any, opts: { direct?: boolean; platformMinOrder?: number } = {}): any {
   if (!store) return store;
   const out: Record<string, any> = {};
   for (const k of PUBLIC_STORE_FIELDS) {
@@ -30,6 +31,8 @@ export function toPublicStore(store: any, opts: { direct?: boolean } = {}): any 
   out._id = out.id; // o frontend ainda lê `_id`
   // Banner da Home é do Premium: enviado antes da aprovação fica guardado, mas só aparece
   // com o Plano 3 ativo (Store.plan é sincronizado na aprovação do CEO).
+  // Pedido mínimo que vale na sacola: o maior entre o da plataforma e o da loja.
+  if (opts.platformMinOrder !== undefined) out.minOrderValue = effectiveMinOrder(store.minOrderValue, opts.platformMinOrder);
   if (opts.direct) out.plan = SAAS_PLAN;
   else if (out.featuredBannerUrl && Number(store.plan ?? 1) !== 3) out.featuredBannerUrl = null;
   return out;

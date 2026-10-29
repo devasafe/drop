@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
-  Bell, Camera, ChartColumn, CirclePause, Clock, Headphones, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, Star, Store, Ticket, UserRound, Wallet,
+  Bell, Camera, ChartColumn, CirclePause, Clock, Headphones, Image as ImageIcon, KeyRound, ListChecks, LogOut, Pencil, Plug, QrCode, Receipt, ShoppingBag, Star, Store, Ticket, UserRound, Wallet,
 } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import SellerShell from '../../components/seller/panel/SellerShell';
@@ -9,6 +9,7 @@ import { useSellerPanel } from '../../components/seller/panel/SellerPanelProvide
 import { PauseSheet, isPaused, pausedUntilLabel, resumeStore } from '../../components/seller/loja/PauseSheet';
 import { AdminPausedBanner } from '../../components/seller/loja/AdminPausedBanner';
 import { IdentitySheet, uploadStoreImage } from '../../components/seller/loja/IdentitySheet';
+import { MinOrderSheet } from '../../components/seller/loja/MinOrderSheet';
 import { useImagePicker } from '../../components/image/useImagePicker';
 import { NavRow } from '../../components/seller/ui/NavRow';
 import { AreasSection } from '../../components/panel/AreasSection';
@@ -24,6 +25,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSaasConfig } from '../../hooks/useSaasConfig';
 import api from '../../lib/api';
 import { imageUrl } from '../../lib/config';
+import { formatMoney } from '../../lib/money';
 import { IMAGE_SPECS } from '../../lib/imageSpecs';
 import { storeAnalytics, type StoreOverview } from '../../lib/analyticsApi';
 import { SELLER_ROUTES } from '../../lib/sellerRoutes';
@@ -59,6 +61,7 @@ export default function SellerLoja() {
   const [pausedUntil, setPausedUntil] = useState<string | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [identityOpen, setIdentityOpen] = useState(false);
+  const [minOrderOpen, setMinOrderOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [featuredBusy, setFeaturedBusy] = useState(false);
@@ -94,6 +97,10 @@ export default function SellerLoja() {
   const plan = Number(store?.plan || 1);
   const custom = store?.customCommissionRate != null ? Number(store.customCommissionRate) : null;
   const planCommission = config ? Number(config[`commissionPlan${plan}`]) : null;
+  // Pedido mínimo: o da loja (null = o da DROP) e o piso da DROP (R$ 5 até a config chegar).
+  const ownMinOrder = store?.minOrderValue != null ? Number(store.minOrderValue) : null;
+  const platformMinOrder = config?.minOrderValue != null ? Number(config.minOrderValue) : 5;
+  const effectiveMinOrder = Math.max(ownMinOrder ?? 0, platformMinOrder);
   const commission = custom ?? planCommission;
 
   const paused = isPaused(pausedUntil);
@@ -286,6 +293,7 @@ export default function SellerLoja() {
             <h2 className={blocks.cap}>Sua loja</h2>
             <ul className={blocks.list}>
               <NavRow icon={<Clock size={20} />} label="Horários" sub={summarizeHours(store.operatingHours)} onClick={go('/seller/horarios')} />
+              <NavRow icon={<ShoppingBag size={20} />} label="Pedido mínimo" sub={`${formatMoney(effectiveMinOrder)} em produtos`} onClick={() => setMinOrderOpen(true)} />
               <NavRow icon={<Bell size={20} />} label="Notificações" sub="Pedidos, dinheiro e avisos do DROP" onClick={go('/seller/notificacoes')} />
               <NavRow icon={<QrCode size={20} />} label="QR code da loja" sub="Imprima para o balcão" onClick={() => setQrOpen(true)} />
               <NavRow icon={<ListChecks size={20} />} label="Cadastro e verificação" sub="Dados, documentos e etapas" onClick={go('/seller/abrir')} />
@@ -338,6 +346,7 @@ export default function SellerLoja() {
         {coverPicker.sheet}
         {featuredPicker.sheet}
         <PauseSheet open={pauseOpen} onClose={() => setPauseOpen(false)} storeId={storeId} activeOrders={activeOrders} onChanged={(u) => { setPausedUntil(u); refresh(); }} />
+        <MinOrderSheet open={minOrderOpen} onClose={() => setMinOrderOpen(false)} storeId={storeId} current={ownMinOrder} platformMin={platformMinOrder} onSaved={refresh} />
         <IdentitySheet open={identityOpen} onClose={() => setIdentityOpen(false)} storeId={storeId} logoUrl={store.logoUrl} tagline={store.tagline} storeName={store.name} onSaved={refresh} />
         <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="QR code da loja" presentation="bottom">
           <StoreQRCode storeRef={String(store.slug || store._id)} storeName={store.name} />

@@ -412,7 +412,11 @@ export function useCheckout() {
     installmentCount, setInstallmentCount, config,
     cpfRequired, cpf, setCpf, cpfValid,
     deliveryIssue,
-    store: store ? { _id: store._id, name: (store as { name?: string }).name, plan: store.plan } : null,
+    store: store ? {
+      _id: store._id, name: (store as { name?: string }).name, plan: store.plan,
+      /** Pedido mínimo que vale na loja (só produtos), já com o piso da plataforma. */
+      minOrderValue: Number((store as { minOrderValue?: number }).minOrderValue) || 0,
+    } : null,
     storeOpen, opensAt, quoteLoading,
     storeGone, storeLookupFailed, retryStoreLookup,
   };

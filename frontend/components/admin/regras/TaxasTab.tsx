@@ -23,7 +23,7 @@ import {
 type ConfigKey =
   | 'commissionPlan1' | 'commissionPlan2' | 'commissionPlan3'
   | 'motoboyCutPerDelivery' | 'motoboyCutPerKm' | 'motoboyCommissionPercent'
-  | 'motoboyMinimumWithdraw' | 'storeMinimumWithdraw'
+  | 'motoboyMinimumWithdraw' | 'storeMinimumWithdraw' | 'minOrderValue'
   | 'cancelFeeCustomerPercent' | 'cancelFeeStorePercent' | 'cancelFeeMotoboyPercent'
   | 'storeAcceptTimeoutMin' | 'poolTimeoutMin' | 'customerAbsentWaitMin'
   | 'returnFullRefundDays' | 'returnStoreResponseHours'
@@ -63,6 +63,12 @@ const SECTIONS: { title: string; note?: string; fields: FieldDef[] }[] = [
       { key: 'motoboyCutPerDelivery', label: 'Taxa fixa por entrega (R$)', short: 'Taxa fixa', unit: 'money', step: '0.01' },
       { key: 'motoboyCutPerKm', label: 'Por km de rota (R$)', short: 'Por km', unit: 'money', step: '0.01', hint: (v) => `10 km = ${formatMoney(10 * v)}` },
       { key: 'motoboyCommissionPercent', label: 'Fica com o DROP (% da entrega)', short: 'Parte do DROP na entrega', unit: 'percent', step: '0.01', hint: (v) => `O motoboy fica com ${fmtNum(100 - v)}%` },
+    ],
+  },
+  {
+    title: 'Pedido mínimo',
+    fields: [
+      { key: 'minOrderValue', label: 'Pedido mínimo (R$, só produtos)', short: 'Pedido mínimo', unit: 'money', step: '0.01', hint: () => 'Abaixo disso a taxa do Pix come a venda. Cada loja pode subir o dela, nunca descer' },
     ],
   },
   {

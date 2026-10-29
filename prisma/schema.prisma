@@ -477,6 +477,8 @@ model Store {
   asaas                Json?
   deliveryRadiusKm     Float?
   prepMinutes          Int?
+  /// Pedido mínimo da loja (só produtos). null = o da plataforma; nunca abaixo dele.
+  minOrderValue        Decimal?          @db.Decimal(12, 2)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -1112,6 +1114,8 @@ model PlatformConfig {
   motoboyCutPerKm                Decimal             @default(1) @db.Decimal(12, 2)
   motoboyMinimumWithdraw         Decimal             @default(10) @db.Decimal(12, 2)
   storeMinimumWithdraw           Decimal             @default(10) @db.Decimal(12, 2)
+  /// Pedido mínimo da plataforma, só nos produtos (sem frete): abaixo disso a taxa do Pix come a venda.
+  minOrderValue                  Decimal             @default(5) @db.Decimal(12, 2)
   motoboyCommissionPercent       Decimal             @default(20) @db.Decimal(5, 2)
   lateCancellationFeePercent     Decimal             @default(10) @db.Decimal(5, 2)
   lateCancellationMotoboyShare   Decimal             @default(50) @db.Decimal(5, 2)

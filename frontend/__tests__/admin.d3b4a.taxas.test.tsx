@@ -16,7 +16,7 @@ jest.mock('../components/ui/Toast', () => ({ useToast: () => ({ showToast: mockT
 const CONFIG = {
   id: 'cfg', _id: 'cfg', settlementMode: 'custodia', updatedAt: '2026-09-22T12:00:00.000Z',
   commissionPlan1: 10, commissionPlan2: 15, commissionPlan3: 5,
-  motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10,
+  motoboyCutPerDelivery: 5, motoboyCutPerKm: 1, motoboyMinimumWithdraw: 10, storeMinimumWithdraw: 10, minOrderValue: 5,
   motoboyCommissionPercent: 20, cancelFeeCustomerPercent: 10, cancelFeeStorePercent: 10, cancelFeeMotoboyPercent: 10,
   storeAcceptTimeoutMin: 10, poolTimeoutMin: 15, customerAbsentWaitMin: 15,
   lateCancellationFeePercent: 20, lateCancellationMotoboyShare: 50, cardFeePercent: 2.99, cardFeeFixed: 0.39,
@@ -24,7 +24,7 @@ const CONFIG = {
 };
 const KEYS = [
   'commissionPlan1', 'commissionPlan2', 'commissionPlan3', 'motoboyCutPerDelivery', 'motoboyCutPerKm',
-  'motoboyCommissionPercent', 'motoboyMinimumWithdraw', 'storeMinimumWithdraw',
+  'motoboyCommissionPercent', 'motoboyMinimumWithdraw', 'storeMinimumWithdraw', 'minOrderValue',
   'cancelFeeCustomerPercent', 'cancelFeeStorePercent', 'cancelFeeMotoboyPercent',
   'storeAcceptTimeoutMin', 'poolTimeoutMin', 'customerAbsentWaitMin',
   'lateCancellationFeePercent', 'lateCancellationMotoboyShare', 'cardFeePercent', 'cardFeeFixed',
@@ -51,7 +51,7 @@ it('seção "Cartão e cancelamento tardio" mostra os 7 inputs', async () => {
   LABELS.forEach((l) => expect(screen.getByLabelText(l)).toBeInTheDocument());
 });
 
-it('PUT enxuto: só as 21 chaves editáveis, com motivo e taxa fixa 0', async () => {
+it('PUT enxuto: só as 22 chaves editáveis, com motivo e taxa fixa 0', async () => {
   renderAdminPage(<AdminSettings />, GERENTE);
   fireEvent.change(await screen.findByLabelText('Taxa fixa do cartão (R$)'), { target: { value: '0' } });
   fireEvent.change(screen.getByLabelText('Motivo (opcional)'), { target: { value: 'teste' } });
